@@ -44,6 +44,7 @@ from starlette.staticfiles import StaticFiles
 from cli.canvas import runner
 from cli.canvas.catalog import catalog
 from cli.canvas.watch import INTERVALS, Session
+from cli.theme import css_root
 
 STATIC = Path(__file__).resolve().parent / "static"
 
@@ -100,6 +101,10 @@ def build(canvas: Canvas | None = None) -> Starlette:
         cannot send one. Its secrecy rests on the same-origin policy instead.
         """
         html = (STATIC / "index.html").read_text()
+        # Palette first. Neither placeholder is a prefix of the other in a way
+        # that matters — `__TB_TOKENS__` has an S where `__TB_TOKEN__` has its
+        # closing underscores — but ordering them makes that not need checking.
+        html = html.replace("__TB_TOKENS__", css_root())
         return HTMLResponse(html.replace("__TB_TOKEN__", canvas.token))
 
     async def get_catalog(request: Request) -> Response:

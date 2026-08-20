@@ -11,14 +11,15 @@ absent and nothing here depends on it.
 **tackle-box** is the homebase toolbox for a primary workstation and the machines around it,
 behind one operator CLI: `tb`.
 
-**It is currently a scaffold, deliberately.** On 2026-08-20 the job layer, the asset register, the
-check suite and the watch system were all removed to design that half over from a clean base. What
-survives is the part worth building on:
+**It is young.** On 2026-08-20 the job layer, the asset register, the check suite and the watch
+system were removed to design that half over from a clean base, and the terminal surface was
+replaced by a browser one the same day. What exists:
 
 | Command | Does |
 |---|---|
-| `tb run -- <argv>` | Runs a command and reports what it printed. The only command that acts |
-| `tb tui` | Holds tb open — input at the top, newest result under it |
+| `tb run -- <argv>` | Runs a command and reports what it printed. **The only command that acts** |
+| `tb wrap -- <argv>` | Reads another CLI's JSON as data. A read, so a window may refresh it |
+| `tb ui` | Opens the canvas — a command palette over tiled and floating windows |
 
 **Check before you describe.** This is young and moving, and it just lost most of its surface area.
 When asked about a command or module, confirm it exists rather than inferring it from this
@@ -30,6 +31,12 @@ There is no taxonomy to defend yet. The one property worth preserving from the v
 removed is this: **`tb run` is the single command that acts.** Everything else reads. When a group
 of commands returns, that is the line to keep — a command that wants to both read and write is two
 commands.
+
+That line is now load-bearing rather than aesthetic. The canvas reads it — `acts` in the catalog —
+to decide whether a window may be given a refresh cadence, because **re-running a read is a
+refresh and re-running a write is a scheduler nobody asked for.** tb cannot tell a read from a
+write by inspecting an argv and does not try: choosing `wrap` over `run` is the operator's
+assertion that this one is a read.
 
 The removed design grouped commands by *mood* — imperative, temporal, descriptive, evaluative —
 rather than by domain, on the reasoning that the domain axis grows without bound while the mood
@@ -43,34 +50,51 @@ commands. If groups come back, group them that way and be slower to add one.
   credential path. This is what keeps a future MCP surface safe to expose.
 - **Wrapping an external CLI for passthrough.** `tb gh pr list` is strictly worse than
   `gh pr list`. Reach for an external tool only where `tb` does something that tool cannot express.
+  `tb wrap` is the carve-out and it earns it: holding a foreign CLI's output open on a canvas and
+  re-running it on a cadence is not something that CLI can do for itself. It returns *parsed data*
+  — a tool that printed something other than JSON has failed its contract, and the envelope says
+  so rather than carrying the bytes.
 
 ## The interactive surface
 
-`tb tui` holds tb open. It is a consumer of the output contract, not a second CLI. **Read
-`cli/tui/app.py`'s module docstring before touching `cli/tui/`** — the design and the expensive
-surprises are recorded there and in the comments, now that the feature docs are gone.
+`tb ui` opens **the canvas**: a command palette over a window canvas, where every command opens a
+window and a pinned window re-runs itself on a cadence. It is a consumer of the output contract,
+not a second CLI. It replaced `tb tui` on 2026-08-20 — the terminal could not do overlapping
+draggable windows, which is the central metaphor. `docs/features/done/canvas.md` records the whole
+design, and `docs/design/tackle-box-demo.html` is the mockup it was built from.
 
 The rules that are not negotiable:
 
-- **Nothing keeps a command table.** Dispatch drives the real Click tree
-  (`standalone_mode=False`); completion and the help pane read off the same tree. None can drift
-  from the CLI. `dispatch`, `candidates` and `help.view` each take an injectable tree for tests,
-  which is the only reason the real one may be small.
-- **`cli/output.py` owns every byte**, including inside the surface. Its consoles are
-  thread-local, because a dispatch runs on a worker thread while you keep typing, and module
-  globals let two captures steal each other's output.
-- **No single turn of the event loop may be unbounded.** The older phrasing was "a dispatch never
-  runs on the event loop", and it named the wrong unit: the dispatch was always on a thread, but
-  the *result* came back through `call_from_thread` and rendered on the loop, where a large one
-  blocked for 17s and no key — including the ones that leave — was ever read. `write_body` is the
-  single door and bounds what it writes.
-- **Leaving must always work.** A thread worker cannot be cancelled, and `asyncio.run` joins it at
-  shutdown for `THREAD_JOIN_TIMEOUT` — 300 seconds on 3.14. `cli/tui/app.run` owns its loop and
-  leaves through `os._exit` when a worker is still alive.
-- **A stall must explain itself.** `cli/tui/watchdog.py` is a daemon thread heartbeated by a loop
-  timer; on a stall it dumps every thread's stack to `$STATE_DIR/tui-stall.txt`. Detection has to
-  be off-loop — an async task cannot report a blocked loop, because the thing it would report is
-  the reason it is not running.
+- **Nothing keeps a command table.** The palette comes from `/api/catalog`, which walks the real
+  Click tree, so it cannot drift from the CLI. A palette offering a command that does not exist is
+  worse than no palette, because it has already told you it does. A *surface* excludes itself by
+  setting `tb_surface` on its own command object rather than by being named in a skip-list here.
+- **Only a read may be given a cadence.** See § Scope.
+- **The refresh clock lives in Python, keyed to the connection.** A watcher runs while its stream
+  is open, so it pauses when the window closes and keeps running when the window is merely
+  minimized. It cannot be a browser timer: a hidden page has its timers clamped to roughly one
+  fire per minute, so a 5s watcher would silently become a 60s one at the exact moment you stopped
+  being able to see that it had. Nothing survives the last window, which is what makes this a
+  scheduler and not a daemon.
+- **Reads in, execution out.** Introspection runs in-process because walking the tree runs
+  nothing. Commands run in a *subprocess*, because a thread cannot be cancelled and a watcher
+  fires unattended — one hung `git fetch` would strand a thread forever. `tb --json` already
+  prints the envelope, so nothing parses human output.
+- **No single result may render unbounded.** The terminal surface froze for exactly this, and a
+  120k-line result kills a browser tab as dead as it killed a `RichLog`. The substrate changed;
+  the rule did not. See `MAX_ROWS` and `MAX_CHARS` in `cli/canvas/static/render.js`.
+- **The server is remote code execution bound to a port, and is treated that way.** Four things,
+  none optional: loopback bind, a required custom header (which forces a preflight that is never
+  answered — this is the one that actually stops a hostile page), a per-launch token, and an
+  `Origin` check. **There is no CORS allow-origin header anywhere and adding one would undo most
+  of that.** A test asserts its absence.
+- **Everything in `cli/canvas/static/` is served.** Anything left there is published; a test
+  declares the inventory. Two scratch pages lived there during the build, one with a live token
+  baked in.
+- **The frontend has no automated tests.** There is no JS test runner and adding one means npm.
+  The pure parts — `unwrap`, `suggest`, `roleFor` — are what a runner would be for. Verified by
+  rendering headless Chromium against the live server and reading the DOM back, which is not the
+  same thing and caught two real bugs.
 
 ## CLI setup
 
@@ -110,7 +134,7 @@ package-owned and reverts on update, so the fix is an override in `~/.config/fis
 | What | Where | Authored by | Versioned |
 |---|---|---|---|
 | Code, tests, docs | this repo | the project | here |
-| Input history, stall dumps | `~/.local/state/tb/` (`$TB_STATE`) | the machine | never |
+| Browser profile for the canvas | `~/.local/state/tb/` (`$TB_STATE`) | the machine | never |
 
 There is **no operator content directory** at the moment — nothing declares anything. When one
 comes back, the rule it existed for still holds: operator content used to live in this repo,
@@ -129,20 +153,34 @@ before anything imports `cli`. **Nothing operator-specific in tracked files.**
 .venv/bin/python -m pytest -k capture   # by name
 ```
 
-`pytest.ini` sets `pythonpath = .` so `cli` imports without installation. Dev dependencies are in
-`requirements-dev.txt`, which also carries `textual-dev` for `textual run --dev`.
+`pytest.ini` sets `pythonpath = .` so `cli` imports without installation, and `asyncio_mode = auto`
+because the canvas's session loop is async. Dev dependencies are in `requirements-dev.txt`.
+
+**To work on the surface**, run `tb ui --no-browser --port 8765` and point a browser at it — the
+static files are read from disk per request, so a reload picks up an edit with no restart. Only a
+change to Python needs the server restarted.
 
 **Test the decisions, not the ceremony.** The suite catches what would break silently: the
-exit-code mapping (including why partial is 3 and not 2), stdout purity under `--json`, that a
-finished capture leaves the consoles usable, and that a large result cannot freeze the surface.
+exit-code mapping (including why partial is 3 and not 2), stdout purity under `--json`, that every
+API route refuses an unauthenticated request, that a watcher dies with its window, and that `wrap`
+never carries a failed tool's output.
 
-**Assert against the mechanism, not the timing.** The freeze guard uses a heartbeat timer rather
-than the duration of a call: a write that is merely fast would pass the weaker check, and what has
-to hold is that the loop kept getting turns.
+**Bound every wait.** Three tests hung rather than failed while the canvas was being built. A
+`TestClient` cannot open an endless stream at all — it collects the whole body first — so the
+session loop is driven directly instead. And a guard that stops after N frames bounds how many
+frames you accept, not how long you wait for one: a loop yielding nothing blocks on the first
+pull. Prefer testing a property about what *does not* happen against the pure layer (`Session.due`)
+rather than by waiting for a silence.
+
+**Assert against the mechanism, not the timing.** Inject the clock. `Session` takes one for the
+same reason the old watchdog did: proving a five-second cadence should not cost five seconds of
+suite.
 
 **Raw command output must not reach `data`** for anything the CLI runs on its own initiative — a
 probe can print a token, and `data` reaches stdout and any future MCP surface. `tb run` is the one
 exception and says so in its docstring: you named the argv, and seeing its output is the feature.
+**`tb wrap` is deliberately not a second exception** — it carries parsed data only, and a tool that
+printed something else has failed its contract.
 
 **Gotcha:** never `from cli.<mod> import <same_name>` in `cli/__init__.py` — it rebinds the package
 attribute from the module to the Command and shadows the module. Import under an alias.
@@ -163,16 +201,19 @@ Shared with sibling CLIs so the family feels like one tool.
   `colors_and_type.css`, vendored at `docs/design/` so the copy is checkable. The system is
   dark-only by declaration.
 
-  **Two renderings, one system.** The TUI paints its own background and takes the tokens
-  unmodified. The CLI renders into whoever's terminal, where the tokens are not dim but gone —
+  **Two renderings, one system.** The canvas paints its own background and takes the tokens
+  unmodified, as CSS custom properties from `css_variables`, injected into the page by the server. The CLI renders into whoever's terminal, where the tokens are not dim but gone —
   brand measures 2.14:1 on white, warn 1.44:1 — so every CLI role is the smallest darkening of its
-  token that clears 3.5:1 against *both* white and the void. `STYLES` and `TUI_STYLES` must cover
-  the same roles, and a test measures the floor rather than trusting anyone's eye: two grey roles
-  missed it by a hair while looking perfectly fine.
+  token that clears 3.5:1 against *both* white and the void. The two vocabularies differ on purpose — `STYLES` names what a value *is*, `css_variables` names
+  what the design system calls it — and a test asserts that every hue the CLI darkens ships to the
+  canvas undarkened. The contrast floor is measured rather than eyeballed: two grey roles missed it
+  by a hair while looking perfectly fine.
 
-  A test fails if any module *or stylesheet* outside `theme.py` names a hex — `cli/tui/tb.tcss`
-  gets its `$tb-*` tokens from `TackleBox.get_css_variables`, which is what lets the stylesheet
-  live in a file that `textual run --dev` can reload. There is no theme switching.
+  A test fails if any file outside `theme.py` names a hex, **in any language** — the scan covers
+  `.py`, `.css` and `.js`, because the surface now has all three and a stylesheet is the most
+  natural place for someone to paste one. Vendored code is exempt. A second test rejects `rgba()`
+  literals, which is the form the drift would actually take here: the mockup is built out of them.
+  Tints are `color-mix` against an injected role. There is no theme switching.
 - **Commands return data; they never print.** All rendering goes through `cli/output.py` and the
   `Result` envelope (`ok` / `partial` / `data` / `warnings`). Exit codes: `0` ok, `1` hard failure,
   `3` partial — **not 2**, which Click uses for usage errors. The surface is a second consumer of
@@ -185,9 +226,8 @@ Shared with sibling CLIs so the family feels like one tool.
 
 ## Feature workflow
 
-`docs/features/` is **empty** — every spec was deleted with the systems it described. The workflow
-itself is kept because it is process rather than content, and the first new feature doc recreates
-the directory.
+`docs/features/` holds one doc: `done/canvas.md`, the surface. Every earlier spec was deleted with
+the system it described.
 
 One doc per feature at `docs/features/<slug>.md`, from first sentence to done; completed docs move
 to `docs/features/done/`. `.claude/skills/feature/SKILL.md` drives it. The rules that earned their
@@ -203,5 +243,5 @@ place:
 - Cross-document links are `[[slug]]`, never relative paths. Reference a doc **by slug in code
   comments too** — a path breaks the moment that feature reopens.
 - **No index machinery yet.** There was a generated one; it went with the docs. `ls` is an
-  adequate index for an empty directory, and the test that kept the old one honest is the model to
+  adequate index for a directory with one file in it, and the test that kept the old one honest is the model to
   copy if volume ever demands one again.

@@ -97,8 +97,12 @@ def cli(ctx: click.Context, as_json: bool) -> None:
 
 from cli.canvas import ui as ui_cmd  # noqa: E402
 from cli.run import run as run_cmd  # noqa: E402
+from cli.wrap import wrap as wrap_cmd  # noqa: E402
 
+# `run` acts; `wrap` reads. That split is what the canvas reads to decide
+# whether a window may be given a refresh cadence. See cli/wrap.py.
 cli.add_command(run_cmd)
+cli.add_command(wrap_cmd)
 
 # A surface, not a verb. It renders the same envelope every command returns
 # rather than adding one of its own, which is why `tb run` stays the only door

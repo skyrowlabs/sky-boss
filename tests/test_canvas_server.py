@@ -97,6 +97,18 @@ def test_the_page_carries_the_token_and_the_placeholder_is_gone(canvas, client):
     assert "__TB_TOKEN__" not in body
 
 
+def test_the_page_carries_the_palette(canvas, client):
+    """The stylesheet may not name a colour, so it names roles and the server
+    hands it values. If this substitution silently stops happening the canvas
+    still renders — every role resolves to nothing and the whole surface is
+    default black on default white. It failed exactly that way once."""
+    from cli.theme import BRAND
+
+    body = client.get("/").text
+    assert "__TB_TOKENS__" not in body
+    assert f"--tb-brand:{BRAND}" in body
+
+
 def test_the_page_itself_needs_no_token(client):
     """A top-level navigation cannot send a header. If this ever required one,
     the canvas would not open at all."""
@@ -146,3 +158,32 @@ def test_a_watcher_cannot_be_registered_without_a_live_session(client):
         json={"session": "nonexistent", "window": "w1", "argv": ["run"], "interval": 5},
     )
     assert response.status_code == 409
+
+
+def test_the_static_directory_ships_only_what_the_page_needs():
+    """Everything in `static/` is served, so anything left there is published.
+
+    Two scratch pages lived here during the build, one of them with a live
+    token baked into it. Neither was ever meant to ship and both were one
+    forgotten `rm` away from doing so. A directory that is wholly public should
+    have a declared inventory.
+    """
+    from cli.canvas.server import STATIC
+
+    expected = {
+        "index.html",
+        "tb.css",
+        "app.js",
+        "api.js",
+        "render.js",
+        "vendor/preact.mjs",
+        "vendor/hooks.mjs",
+        "vendor/htm.mjs",
+        "vendor/htm-preact.js",
+    }
+    found = {
+        str(path.relative_to(STATIC))
+        for path in STATIC.rglob("*")
+        if path.is_file() and "__pycache__" not in path.parts
+    }
+    assert found == expected, f"unexpected: {found - expected}; missing: {expected - found}"
