@@ -25,6 +25,11 @@ tb doctor            tb assets describe      tb auto list/run/status/log
 tb unpushed          tb assets update        tb auto since/prune/install/uninstall/windows
 ```
 
+> **This block is the layout this doc replaced, not the current one.** `tb assets describe` became
+> `tb info assets` and `tb unpushed` became `tb check unpushed`, both in the phases below. It is
+> kept because the argument does not read without it. For what the CLI is *now*, see
+> `docs/CLI.md`, which is generated from the command tree and cannot fall behind.
+
 `tb doctor` and `tb unpushed` are top-level because nothing else fits them, not because they
 belong there. `tb assets` mixes a read verb and a write verb under one word. Three more groups
 are specced but unbuilt (`tb home`, `tb brief`, `tb mcp serve`), plus a parked one (`locations`)

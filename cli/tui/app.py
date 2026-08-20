@@ -422,6 +422,15 @@ class TackleBox(App):
             )
         )
 
+    def on_unmount(self) -> None:
+        # The watchdog stops with the app that owns it. Being a daemon means it
+        # cannot hold the process open, which is not the same as being free: it
+        # wakes every second for as long as it runs, so anything building several
+        # apps in one process — the suite builds ~30 — accumulates a poller per
+        # app. That is real background load, and it showed up as a timing-
+        # sensitive test flaking roughly one run in six.
+        self.watchdog.stop()
+
     @property
     def idle(self) -> bool:
         """Idle is *the transcript is empty*, not *nothing is running*.
