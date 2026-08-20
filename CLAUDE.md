@@ -189,6 +189,12 @@ frontmatter is already machine-readable; add tooling when volume demands it.
 **`tb` is installed on PATH.** Symlink `~/.local/bin/tb` → this repo's `tb` (that directory is
 already first on PATH), because `tb` is a homebase tool you run from anywhere.
 
+**`PYTHONSAFEPATH=1` in the wrapper is load-bearing.** `python -m` prepends the current directory
+to `sys.path` *ahead of* `PYTHONPATH`, so running `tb` from inside any directory containing a
+`cli/` package imports that one. This has already bitten once: generating systemd units from
+inside an older checkout wrote every unit with the old `WorkingDirectory`, successfully and
+silently.
+
 **The consequence is a hard rule: `tb` never assumes cwd is the project root.** Every path derives
 from `PROJECT_ROOT` in `cli/helpers.py`, and the wrapper resolves its own symlink with `realpath`
 before setting `PYTHONPATH` — otherwise `python -m cli` resolves the package relative to
