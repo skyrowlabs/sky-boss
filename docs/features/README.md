@@ -19,7 +19,55 @@ completed feature moves its doc back out of `done/`, which is a normal event rat
 one.
 
 So `ls docs/features/` answers "what is in flight", and that is the question this directory gets
-asked most.
+asked most. The table below answers the rest.
+
+## The docs
+
+**Generated from frontmatter — do not edit the table by hand.** `tests/test_features_index.py`
+rebuilds it and fails when this file disagrees, so it cannot quietly go stale. To update it after
+adding, moving, or closing a doc:
+
+```bash
+TB_WRITE_DOC_INDEX=1 .venv/bin/python -m pytest -k features_index
+```
+
+Only the block between the markers is generated. Everything else on this page is prose.
+
+<!-- index:start -->
+
+### Open — 6
+
+| Doc | Status | Value | What it covers |
+|---|---|---|---|
+| [asset-drift](asset-drift.md) | active | 2 | Baseline refresh and inventory revalidation — tb assets update |
+| [operator-home](operator-home.md) | active | 3 | The product and the operator's content, separated |
+| [asset-remote](asset-remote.md) | draft | 3 | Reaching the fleet — discovery and remote execution |
+| [bookmarks](bookmarks.md) | draft | 2 | Bookmark repository manager |
+| [locations](locations.md) | draft | 3 | Key locations — a registry and a two-way channel |
+| [pinned-watches](pinned-watches.md) | draft | 2 | Pinned watches — an external command, live, held on screen |
+
+### Done — 9
+
+| Doc | Status | Value | What it covers |
+|---|---|---|---|
+| [command-taxonomy](done/command-taxonomy.md) | complete | 3 | Command taxonomy — grouping by mood |
+| [jobs](done/jobs.md) | complete | 3 | Job management — tb auto |
+| [machine-baseline](done/machine-baseline.md) | complete | 3 | Machine baseline — tb assets describe |
+| [output-contract](done/output-contract.md) | complete | 3 | Uniform output contract |
+| [surface-concepts](done/surface-concepts.md) | complete | 3 | The idle state as a place, and the envelope without a second trip |
+| [surface-panes](done/surface-panes.md) | complete | 3 | Panes, progressive disclosure and watched conditions |
+| [tui](done/tui.md) | complete | 3 | tb tui — a persistent surface over the envelope |
+| [rich-output](done/rich-output.md) | complete | 2 | Rich human rendering |
+| [surface-design](done/surface-design.md) | complete | 2 | Skyrow palette and the REPL region |
+
+<!-- index:end -->
+
+*Value* is `agent_value` — **3** read it before changing this area, **2** read it when something
+surprises you, **1** historical.
+
+The links above are the only relative doc paths in the repo, and they are safe precisely because
+nothing maintains them by hand: a doc moving into `done/` fails the test rather than leaving a
+dead link. Inside the docs themselves, links stay `[[slug]]`.
 
 ## The rule that matters most
 
@@ -116,15 +164,17 @@ mistake again. A dead session must be resumable from the doc alone.
 
 ## Finding something
 
+The index answers most of it. For the rest:
+
 ```bash
-ls docs/features/ docs/features/done/     # what is open, what is finished
 grep -rl "lane" docs/features/            # which doc owns a concept
 grep -rn "^agent_value: 3" docs/features/ # what to read before changing anything
 ```
 
-**There is deliberately no index here** — no categories, no generated listing, no link checker.
-The frontmatter is already machine-readable and `ls` is already the index; a second copy of the
-same information is a copy that drifts. Add tooling when the volume demands it, not before.
+**Do not add a second index** — no categories, no JSON, no per-status pages. This one exists
+because sixteen docs across two directories stopped being answerable with `ls`, and it is one
+generated table checked by one test. The sibling project got here by a different route and now
+carries a 1,100-line docs module, three JSON indexes and a CI validator.
 
 The workflow itself is in `CLAUDE.md` § Feature workflow, and `.claude/skills/feature/SKILL.md`
 drives it.

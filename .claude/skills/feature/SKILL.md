@@ -53,6 +53,8 @@ the user redirect before you write.
 
 Copy `docs/features/_template.md` to `docs/features/<slug>.md` and fill it in.
 
+Set `agent_value` even in draft — the index shows it, and the test requires a value of 1–3.
+
 Spend the effort on **Why** and **Shape**, especially the *"Does not do"* line — scope boundaries
 are cheap to write now and expensive to reconstruct later. Break the work into phases that are
 each independently commitable and leave the repo working.
@@ -111,6 +113,8 @@ explaining the block, and surface it. Do not mark a feature complete around a ho
 - `git mv docs/features/<slug>.md docs/features/done/<slug>.md`, now that nothing is open. Then
   `grep -rn "<slug>"` and fix any *path* reference in prose or a code comment. `[[slug]]` links
   need no change; that is the point of them.
+- Regenerate the index — `TB_WRITE_DOC_INDEX=1 .venv/bin/python -m pytest -k features_index`.
+  The suite fails until you do, so this is a reminder rather than a rule.
 
 Then report: what shipped, what deferred, which files changed.
 
@@ -124,5 +128,7 @@ Then report: what shipped, what deferred, which files changed.
 4. **The directory tracks `status:` both ways.** Into `done/` at close-out, back out on reopening.
    Links are `[[slug]]`, so the move breaks nothing inside a doc; fix path references in code
    comments in the same commit, and prefer writing new ones as slugs so they never break again.
-5. **Do not build the index machinery** — categories, generated READMEs, link checkers. The
-   frontmatter is already machine-readable; add tooling when volume demands it, not before.
+5. **The index is generated; never hand-edit it.** `docs/features/README.md`'s table is built
+   from frontmatter and checked by `tests/test_features_index.py`. Regenerate after adding,
+   moving, or closing a doc. Do not add a *second* index — no categories, no JSON, no per-status
+   pages.
