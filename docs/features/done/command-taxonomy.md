@@ -3,7 +3,7 @@ slug: command-taxonomy
 title: Command taxonomy — grouping by mood
 status: complete
 created: 2026-08-19
-updated: 2026-08-19
+updated: 2026-08-20
 agent_value: 3
 key_files:
   - cli/__init__.py
@@ -55,11 +55,12 @@ one. A taxonomy that puts every mutation behind a single group turns that list i
 |---|---|---|---|
 | `tb run` | imperative | *do this now* | **yes**, always through the ledger |
 | `tb auto` | temporal | *what runs itself, and what did it do* | schedules only |
-| `tb info` | descriptive | *what is this* | never |
-| `tb check` | evaluative | *what is wrong* | never |
 
-Four words. A new command joins by answering one question: does it act, schedule, describe, or
-judge.
+Two words. A new command joins by answering one question: does it act, or schedule?
+
+**This said four until Round 2, which retired `info` and `check`.** The rest of this section is
+left as written, because the argument for grouping by mood never depended on how many moods there
+are — and the two that remain still divide exactly the way it says.
 
 A fifth mood — `tb brief`, *what needs me* — was specced here and **cancelled before
 implementation**; see Phase 4. Bare `tb check` absorbed the useful half of it.
@@ -161,7 +162,9 @@ moods. That is the honest exception rather than a hole in the scheme.
 
 Each phase is independently commitable and leaves the repo working.
 
-### Phase 1 — `check`, and `doctor` and `unpushed` move into it
+### Round 1 — group by mood (2026-08-19)
+
+#### Phase 1 — `check`, and `doctor` and `unpushed` move into it
 
 - [x] Add `cli/check.py` with a `check` group
 - [x] Move `cli/doctor.py`'s command under it as `tb check tools`; keep `tb doctor` registered as
@@ -175,7 +178,7 @@ Each phase is independently commitable and leaves the repo working.
 - [x] Reinstall both timers; confirm `tb auto windows` still reports 0 collisions
 - [x] Update `tests/test_doctor.py` and `tests/test_unpushed.py` invocation paths
 
-### Phase 2 — `info`, and the assets split
+#### Phase 2 — `info`, and the assets split
 
 - [x] Add `cli/info.py` with an `info` group
 - [x] `tb assets describe` becomes `tb info assets`
@@ -186,7 +189,7 @@ Each phase is independently commitable and leaves the repo working.
 - [x] Update `jobs/asset-drift.yaml` `run:` to `[tb, check, drift]`
 - [x] Update `tests/test_assets.py` and `tests/test_assets_update.py`
 
-### Phase 3 — `run`
+#### Phase 3 — `run`
 
 - [x] Add `cli/run.py`; move `tb auto run`'s implementation to `tb run <job>`
 - [x] Add the ad-hoc form: `tb run [--lane L] [--timeout N] -- <argv>`
@@ -197,7 +200,7 @@ Each phase is independently commitable and leaves the repo working.
       double-ledger reason in the error
 - [x] Tests: ad-hoc run acquires the lane, records on timeout, records on refusal
 
-### Phase 4 — `brief` — **CANCELLED 2026-08-19, not built**
+#### Phase 4 — `brief` — **CANCELLED 2026-08-19, not built**
 
 Cancelled before any code was written. The open question below resolved by collapse: the
 verdict-rollup half moved into bare `tb check` (Phase 1), and what remained — appending what
@@ -209,14 +212,90 @@ does not belong to this feature.
 - [x] ~~Append what `auto` ran since yesterday and anything overdue~~ — cancelled
 - [x] ~~Decide whether bare `tb check` and `tb brief` stay distinct~~ — resolved by cancelling
 
-### Phase 5 — settle
+#### Phase 5 — settle
 
 - [x] Update the CLAUDE.md scope table to the four groups, replacing the current one
 - [x] Record the mood axis and the every-mutation-is-recorded property in CLAUDE.md § Conventions
 - [x] Regenerate fish completions
 - [x] Full suite green
 
+### Round 2 — strip to two moods (2026-08-20)
+
+`tb info`, `tb check` and the `tb doctor` alias are removed, with everything behind them. What is
+left is `tb run`, `tb auto` and the `tb tui` surface.
+
+**This reverses Round 1's central claim, and the reversal is narrower than it looks.** Round 1
+argued the organizing axis should be *mood* rather than *domain*. That argument is untouched — it
+was never an argument that there are exactly four moods, and the two that remain divide exactly
+the way Round 1 says they do. What Round 1 got wrong was treating "describe" and "judge" as
+load-bearing peers of act and schedule. `tb info` carried one command. `tb info home` and
+`tb info net` appear in this doc's own *"Does not do"* as things "named here to prove the taxonomy
+holds, not to be built by this feature" — and they never were. A mood justified by commands that
+never arrived is a category with a population of one.
+
+**What it costs, stated plainly, because it is easy to reverse by accident later:**
+
+- Nothing reports what this machine *is*, and nothing judges it. `tb info assets`, `tb check
+  drift` and the whole 900-line `cli/assets.py` collection layer are gone, along with the
+  `asset-seed` and `asset-refresh` tasks. The machine inventory is not stale; it is simply not a
+  thing tb does.
+- **Watches are gone entirely.** This is the coupling worth understanding: `cli/watch.py` enforced
+  that a watch may only name a read verb, and the read groups *were* `check` and `info`. Remove
+  both and no valid watch command can exist. Watches could have been pointed at `auto`'s read
+  verbs instead; the decision was to remove them rather than relocate them. The rail keeps LANES,
+  NOW and RECENT.
+- `tb doctor` goes with `tb check tools`. There are no aliases left.
+
+**The write property is unchanged and now trivially true.** `tb run` was the only door that
+writes; `auto`'s `install`, `uninstall` and `prune` are its declared write verbs and everything
+else in `auto` reads. The MCP story simplifies with it — the read surface is `auto`'s read verbs,
+and `run` is the gate. `tests/test_taxonomy.py` still asserts all of it, and gained a test that
+the retired modules are really *gone* rather than merely unregistered: a leftover module keeps
+importing, keeps passing its own tests, and reads to a future session as a command that exists.
+
+**Five feature docs were deleted rather than archived**, on the reasoning that a doc for a
+subsystem that no longer exists is a map of a demolished country: `machine-baseline`,
+`asset-drift`, `asset-remote`, `pinned-watches`, and `bookmarks` (which proposed `tb info
+bookmarks`). `locations` survives — it is about tidying `~/Downloads`, never depended on any of
+this, and now has no group to live in.
+
+- [x] Delete `cli/info.py`, `cli/check.py`, `cli/doctor.py`, `cli/unpushed.py`, `cli/assets.py`,
+      `cli/watch.py` and their six test files
+- [x] Unregister `info`, `check` and the `doctor` alias
+- [x] Drop `asset-seed` and `asset-refresh` from the run registry
+- [x] Strip watches from the surface: rail pane, launch cards, reload, expansion
+- [x] `init_home` scaffolds `jobs` only; delete the inventory and watch templates
+- [x] `MOODS` is two; add a test that the retired modules are gone, not just unregistered
+- [x] Delete the five obsolete feature docs
+- [x] CLAUDE.md, README.md and `docs/CLI.md`; regenerate both generated blocks
+
+**Does not do.** Does not remove `tb tui` — it is a surface, not a mood, and it renders what is
+left. Does not relocate any removed capability: this is a deletion, not a migration. Does not
+touch the ledger, the output contract, the job schema, or `$TB_HOME/jobs`.
+
 ## Notes
+
+**Round 2 — the strip (2026-08-20).** The blast radius was mapped before anything was deleted, and
+two couplings were not visible from the command list.
+
+*Watches.* `READ_GROUPS = ("check", "info")` meant deleting both groups silently invalidated every
+watch definition — the feature would not have errored, it would have become unusable while looking
+fine. Worth remembering as a shape: **a rule expressed as an allowlist of other things dies when
+those things do**, and nothing in its own module says so.
+
+*The home scaffold.* `init_home` seeded `inventory/`, `jobs/` and `watches/`. Two of the three had
+nothing left to hold, so it seeds `jobs/` alone and their templates went with them.
+
+`cli/assets.py` was 901 lines but only ~13 belonged to `tb info assets`; the rest served
+`tb check drift` and the two run tasks. So "delete the info command" never implied deleting the
+subsystem — that was a separate decision, taken once the inventory would otherwise have been
+write-only.
+
+About 35 tests failed at the midpoint, and most were not testing the deleted features at all: they
+used `check --list` or `info assets` as a *convenient real command* to dispatch. That is a
+reasonable thing for a test to do, and it means the suite's coupling to the command surface is
+much wider than the tests explicitly about the command surface. They point at `auto list` and
+`auto status` now.
 
 **Phase 1.** The check bodies had to be split from their Click commands
 (`check_tools`, `check_unpushed`) so the rollup can invoke them without a Click context. Both keep

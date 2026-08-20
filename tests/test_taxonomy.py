@@ -1,8 +1,12 @@
 """The taxonomy itself — that the groups keep the promises they are named for.
 
-These are not tests of any one command. They are tests of the property that
-makes the MCP allowlist a rule instead of a maintained list: `info` and `check`
-cannot write, and everything that can write is reachable only through `tb run`.
+These are not tests of any one command. They test the property that makes the
+MCP allowlist a rule instead of a maintained list: everything that can write is
+reachable only through `tb run`.
+
+The mood set was four and is now two. `info` and `check` were retired in Round 2
+of the command-taxonomy feature doc, which is also where the argument for
+grouping by mood at all still lives — that argument never depended on the count.
 """
 
 import ast
@@ -11,20 +15,18 @@ from click.testing import CliRunner
 
 from cli import cli
 from cli.helpers import PROJECT_ROOT
-from cli.check import check
-from cli.info import info
 
 
-# The four moods are closed. The other two sets are not, and keeping them apart
-# is the point: a new top-level word has to be argued into one of them, and only
-# the mood set carries the read/write promise.
-MOODS = {"run", "auto", "info", "check"}
+# The moods are closed. Surfaces are not, and keeping them apart is the point:
+# a new top-level word has to be argued into one of them, and only the mood set
+# carries the read/write promise.
+MOODS = {"run", "auto"}
 SURFACES = {"tui"}  # `tb mcp serve` joins this when it lands
-ALIASES = {"doctor"}
 
 
-def test_the_top_level_is_the_moods_plus_surfaces_plus_the_kept_alias():
-    assert set(cli.commands) == MOODS | SURFACES | ALIASES
+def test_the_top_level_is_the_moods_plus_surfaces():
+    """No aliases. `doctor` was the one kept alias and it went with `check`."""
+    assert set(cli.commands) == MOODS | SURFACES
 
 
 def test_a_surface_adds_no_write_path():
@@ -56,17 +58,24 @@ def test_a_surface_adds_no_write_path():
         assert not leaked, f"{path.name} reaches {leaked} directly"
 
 
-def test_no_read_group_exposes_a_write_flag():
-    """A write flag inside `info` or `check` is how the read-only promise dies.
+def test_autos_read_verbs_expose_no_write_flag():
+    """A write flag on a read verb is how the read-only promise dies.
 
-    `tb assets update --apply` was exactly that, and it is the reason the split
-    happened. This fails the moment someone reintroduces one.
+    `tb assets update --apply` was exactly that, and it is why the assets split
+    happened at all. `info` and `check` are gone, so `auto`'s read verbs are the
+    whole read surface now — and the same rule has to hold for them.
+
+    `install`, `uninstall` and `prune` are excluded because they are `auto`'s
+    declared write verbs; the point is that the *read* ones stay read.
     """
-    banned = {"--apply", "--seed", "--write", "--fix", "--install", "--force"}
-    for group in (info, check):
-        for name, command in group.commands.items():
-            flags = {opt for param in command.params for opt in getattr(param, "opts", [])}
-            assert not (flags & banned), f"{group.name} {name} exposes {flags & banned}"
+    banned = {"--apply", "--seed", "--write", "--fix", "--force"}
+    writes = {"install", "uninstall", "prune"}
+    auto = cli.commands["auto"]
+    for name, command in auto.commands.items():
+        if name in writes:
+            continue
+        flags = {opt for param in command.params for opt in getattr(param, "opts", [])}
+        assert not (flags & banned), f"auto {name} exposes {flags & banned}"
 
 
 def test_writes_are_reachable_only_through_run():
@@ -76,7 +85,7 @@ def test_writes_are_reachable_only_through_run():
     names = {t.name for t in REGISTRY}
     assert names, "there is at least one write path"
 
-    for group_name in ("info", "check", "auto"):
+    for group_name in ("auto",):
         group = cli.commands[group_name]
         assert not (names & set(group.commands)), f"a task leaked into {group_name}"
 
@@ -86,16 +95,24 @@ def test_auto_no_longer_runs_jobs():
     assert "run" not in cli.commands["auto"].commands
 
 
-def test_check_subcommands_are_all_in_the_registry():
-    """A check reachable as a subcommand but absent from the registry is invisible
-    to the rollup, which is the failure mode that makes a rollup untrustworthy."""
-    from cli.check import REGISTRY
-
-    assert set(check.commands) == {entry.name for entry in REGISTRY}
-
-
 def test_every_group_help_renders():
     runner = CliRunner()
-    for path in ([], ["run"], ["auto"], ["info"], ["check"], ["doctor"], ["tui"]):
+    for path in ([], ["run"], ["auto"], ["tui"]):
         res = runner.invoke(cli, [*path, "--help"])
         assert res.exit_code == 0, f"tb {' '.join(path)} --help failed"
+
+
+def test_the_retired_moods_are_really_gone():
+    """Not merely unregistered. A leftover module keeps importing, keeps passing
+    its own tests, and reads to a future session as a command that exists."""
+    import importlib
+
+    for module in ("cli.info", "cli.check", "cli.doctor", "cli.unpushed", "cli.assets", "cli.watch"):
+        try:
+            importlib.import_module(module)
+        except ModuleNotFoundError:
+            continue
+        raise AssertionError(f"{module} still exists")
+
+    for word in ("info", "check", "doctor", "drift", "tools", "unpushed"):
+        assert word not in cli.commands, f"`tb {word}` is still registered"

@@ -21,28 +21,28 @@ Only the block between the markers is generated. Everything else here is prose.
 ## How the surface is organised
 
 **Commands are grouped by mood — what they do to the world — not by domain.** The domain axis
-grows without bound: every new machine or service would be a new group. The mood axis is closed at
-four.
+grows without bound: every new machine or service would be a new group. The mood axis is closed.
 
 | Group | Mood | Owns | Writes |
 |---|---|---|---|
 | `tb run` | imperative | Run a job, an internal task, or ad-hoc argv | **yes** |
 | `tb auto` | temporal | Job definitions, lanes, scheduling, ledger, logs | schedules only |
-| `tb info` | descriptive | What a thing *is* | never |
-| `tb check` | evaluative | What is *wrong* | never |
+
+There were four moods until 2026-08-20. `tb info` and `tb check` were removed with everything
+behind them — the inventory subsystem, the drift/tools/unpushed checks, and watches. Round 2 of
+the `command-taxonomy` feature doc records what went and why.
 
 **`tb run` is the only door that writes.** Nothing changes state without a ledger entry, because
 there is no other way in. That is what makes the MCP allowlist a rule rather than a maintained
-list: `info`, `check` and `auto`'s read verbs are unconditionally safe, and `run` is the single
-gate. A command added next year is safe or gated by where it lives, with nobody having to
+list: `auto`'s read verbs are unconditionally safe, and `run` is the single gate. A command added next year is safe or gated by where it lives, with nobody having to
 remember to classify it.
 
-Where a new command goes is one question: does it act (`run`), schedule (`auto`), describe
-(`info`), or judge (`check`)? **A command that wants to both read and write is two commands.**
+Where a new command goes is one question: does it act (`run`) or schedule (`auto`)?
+**A command that wants to both read and write is two commands.**
 
-The full argument, including the alternatives that were rejected, is in the `command-taxonomy`
-feature doc. Note that the ASCII block near the top of that doc is the *pre-taxonomy* layout it
-exists to replace — this page is the current surface.
+The full argument, including the alternatives that were rejected and the two moods since removed,
+is in the `command-taxonomy` feature doc. Note that the ASCII block near the top of that doc is
+the *pre-taxonomy* layout it exists to replace — this page is the current surface.
 
 ### Surfaces are the honest exception
 
@@ -50,15 +50,6 @@ exists to replace — this page is the current surface.
 command returns, and its only verb is "dispatch a string" — which is what keeps `tb run` the
 single door that writes even with a surface in front of it. `tb mcp serve` will join it.
 `tests/test_taxonomy.py` enforces both halves.
-
-### One alias
-
-`tb doctor` points at `tb check tools`. It is one Command object registered twice, so the two
-cannot drift. Invoked as `doctor` the envelope is named `doctor` rather than `check.tools` — the
-name records how the command was reached, which is what an MCP consumer wants to see.
-
-No other aliases. One well-known word is worth keeping; a second spelling for every command is a
-surface twice the size that teaches nobody where anything lives.
 
 ## The contract every command honours
 
@@ -73,8 +64,8 @@ Result(data=..., ok=True, partial=False, warnings=[])
 `ok` is False only on **hard failure** — the command could not do its job at all. `partial` means
 it did some of it. `warnings` records a degraded source without failing.
 
-Bare `tb check` and the MCP server are both consumers of that envelope. A command that prints
-prose has to be written twice, which is the whole reason the contract exists. The full argument is
+The surface and the MCP server are both consumers of that envelope. A command that prints prose
+has to be written twice, which is the whole reason the contract exists. The full argument is
 in the `output-contract` feature doc.
 
 ### Exit codes
@@ -94,8 +85,8 @@ A **root-group flag**, stored in the Click context, so it works on every command
 per-command handling:
 
 ```bash
-tb --json check
-tb --json info assets
+tb --json auto status
+tb --json auto list
 ```
 
 Under `--json` stdout carries the envelope and nothing else. Warnings still go to stderr, so
@@ -103,9 +94,9 @@ stdout stays parseable — a pipeline is never broken by a degraded source.
 
 ### Degrading rather than crashing
 
-An unauthenticated tool, an unreachable host, an absent config: each warns in yellow **on stderr**
-and continues. It does not take down the rollup. `tb check` is a rollup of things that can each
-fail independently, so one failing must not hide the others.
+An unreachable host or an absent config warns in yellow **on stderr** and continues rather than
+crashing. `tb auto status` reads a ledger that may be missing entries and a systemd that may not
+have the unit; neither is a reason to return nothing.
 
 The distinction that matters, and the one a status board usually gets wrong: **"reports clear" and
 "cannot see" are different answers.** A command that cannot reach a source says so rather than
@@ -141,11 +132,11 @@ Installation, shell completion, and the fish-alias gotcha are in the top-level `
 | What | Where | Authored by |
 |---|---|---|
 | Code, tests, docs, templates | this repo | the project |
-| Inventory, job definitions, watches | `~/.tackle-box/` (`$TB_HOME`) | **the operator** |
+| Job definitions | `~/.tackle-box/` (`$TB_HOME`) | **the operator** |
 | Run ledger, logs | `~/.local/state/tb/` | the machine |
 
-Nothing in `cli/` reads job or watch definitions from the repo. An absent `$TB_HOME` degrades
-rather than raising — the surface asks for jobs and watches on its first tick, before any exist.
+Nothing in `cli/` reads job definitions from the repo. An absent `$TB_HOME` degrades rather than
+raising — the surface asks for jobs on its first tick, before any exist.
 
 ## Reference
 
@@ -165,14 +156,7 @@ rather than raising — the surface asks for jobs and watches on its first tick,
 | `tb auto status` | no | Last outcome per job, worst first. |
 | `tb auto uninstall` | no | Disable and remove this job's systemd user units. |
 | `tb auto windows` | no | Reserved windows from the crontab — read-only, never written. |
-| `tb info` | no | Describe things. Reads only — never judges, never writes. |
-| `tb info assets` | no | Report this machine's baseline. |
-| `tb check` | no | Read state, judge it, return a verdict. Writes nothing. |
-| `tb check drift` | no | Compare this machine against its inventory record. |
-| `tb check tools` | no | Check that external CLIs are installed and authenticated. |
-| `tb check unpushed` | no | Find work that exists on only one disk. |
 | `tb tui` | no | Open the interactive surface — input below, transcript above. |
-| `tb doctor` | no | Check that external CLIs are installed and authenticated. |
 
 ### `tb run`
 
@@ -260,68 +244,10 @@ Reserved windows from the crontab — read-only, never written.
 
 jam.sense's entries are somebody else's schedule. tb derives them so it can avoid landing on top of them, and touches nothing.
 
-### `tb info`
-
-Describe things. Reads only — never judges, never writes.
-
-A group. `tb info` on its own prints help.
-
-#### `tb info assets`
-
-Report this machine's baseline.
-
-| Option | Type | Default | Description |
-|---|---|---|---|
-| `--section` | `apps` · `cpu` · `gpu` · `identity` · `memory` · `network` · `os` · `runtimes` · `settings` · `shell` · `storage` | — | Limit to one or more sections. Repeatable. Default: all. Sections: apps, cpu, gpu, identity, memory, network, os, runtimes, settings, shell, storage. |
-
-### `tb check`
-
-Read state, judge it, return a verdict. Writes nothing.
-
-With no subcommand, runs every check and reports worst-first.
-
-| Option | Type | Default | Description |
-|---|---|---|---|
-| `--list` | flag | off | Name the checks without running them. |
-
-Runs with no subcommand: `tb check` on its own does the work below.
-
-#### `tb check drift`
-
-Compare this machine against its inventory record.
-
-| Option | Type | Default | Description |
-|---|---|---|---|
-| `--section` | `apps` · `cpu` · `gpu` · `identity` · `memory` · `network` · `os` · `runtimes` · `settings` · `shell` · `storage` | — | Limit to one or more sections. Repeatable. Default: all. Sections: apps, cpu, gpu, identity, memory, network, os, runtimes, settings, shell, storage. |
-
-#### `tb check tools`
-
-Check that external CLIs are installed and authenticated.
-
-| Option | Type | Default | Description |
-|---|---|---|---|
-| `--quick` | flag | off | Check installation only; skip auth probes. |
-
-#### `tb check unpushed`
-
-Find work that exists on only one disk.
-
-| Option | Type | Default | Description |
-|---|---|---|---|
-| `--root` | directory | — | Directory to scan. Repeatable. Default: /home/you/skyrow.labs |
-
 ### `tb tui`
 
 Open the interactive surface — input below, transcript above.
 
 The second honest exception to the mood taxonomy, alongside `tb mcp serve`. Neither is a command in a mood: they are surfaces over the same envelope every command returns, and `tb run` remains the only door that writes.
-
-### `tb doctor`
-
-Check that external CLIs are installed and authenticated.
-
-| Option | Type | Default | Description |
-|---|---|---|---|
-| `--quick` | flag | off | Check installation only; skip auth probes. |
 
 <!-- reference:end -->

@@ -156,7 +156,7 @@ def test_the_launch_screen_says_nothing_when_there_was_no_stall():
     from cli.tui.launch import view
 
     rendered = view(
-        jobs=0, watches=[], lanes_held=[], ledger_runs=0, recent=[]
+        jobs=0, lanes_held=[], ledger_runs=0, recent=[]
     ).plain
     assert "stalled" not in rendered
 
@@ -168,7 +168,6 @@ def test_the_launch_screen_points_at_the_dump_when_there_was_one():
 
     rendered = view(
         jobs=0,
-        watches=[],
         lanes_held=[],
         ledger_runs=0,
         recent=[],
@@ -199,7 +198,7 @@ def test_the_watchdog_stops_with_the_app_that_owns_it(tmp_path):
 
     async def scenario():
         for _ in range(4):
-            app = TackleBox(history=History(path=tmp_path / "hist"), watches={})
+            app = TackleBox(history=History(path=tmp_path / "hist"))
             async with app.run_test(size=(100, 30)) as pilot:
                 await pilot.pause()
                 assert app.watchdog._thread is not None, "it should run while mounted"

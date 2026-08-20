@@ -50,7 +50,7 @@ def test_unknown_target_names_what_is_known():
 
     assert _envelope(res)["ok"] is False
     assert res.exit_code == 1
-    assert "asset-refresh" in data["known"], "tasks are listed, not just jobs"
+    assert "init-home" in data["known"], "tasks are listed, not just jobs"
 
 
 def test_loose_argv_without_a_lane_is_refused_with_the_fix():

@@ -15,7 +15,7 @@ import pytest
 from cli.helpers import PROJECT_ROOT, STATE_DIR, TB_HOME
 
 # The directories that belong to whoever runs tb, not to this project.
-OPERATOR_DIRS = ("inventory", "jobs", "watches")
+OPERATOR_DIRS = ("jobs",)
 
 
 def test_the_three_homes_are_distinct():
@@ -85,11 +85,11 @@ def test_the_default_home_is_not_under_xdg_config():
         importlib.reload(importlib.import_module("cli.helpers"))
 
 
-@pytest.mark.parametrize("loader", ["cli.jobs.load_jobs", "cli.watch.load_watches"])
+@pytest.mark.parametrize("loader", ["cli.jobs.load_jobs"])
 def test_every_loader_survives_an_absent_home(loader, monkeypatch, tmp_path):
-    """A fresh clone has no home at all. The surface asks for jobs and watches
-    on its first tick, before you have written any — a raise there takes the
-    whole thing down on first run."""
+    """A fresh clone has no home at all. The surface asks for jobs on its first
+    tick, before you have written any — a raise there takes the whole thing down
+    on first run."""
     import importlib
 
     module_name, attribute = loader.rsplit(".", 1)
@@ -104,22 +104,16 @@ def test_every_loader_survives_an_absent_home(loader, monkeypatch, tmp_path):
 def test_scaffolding_creates_a_home_that_every_loader_reads_cleanly(tmp_path):
     from cli.home import init_home
     from cli.jobs import load_jobs
-    from cli.watch import load_watches
 
     home = tmp_path / "fresh"
     made = init_home(home)
 
-    assert set(made["created"]) >= {
-        "inventory/_template.yaml",
-        "jobs/_template.yaml",
-        "watches/_template.yaml",
-    }
-    # A scaffolded home has templates and no definitions. Both loaders must
-    # read it as empty rather than as broken — the templates are skipped by the
-    # leading underscore, which is the only reason a first run is quiet.
-    for loader, directory in ((load_jobs, "jobs"), (load_watches, "watches")):
-        found, problems = loader(home / directory)
-        assert found == {} and problems == [], f"{directory}: {problems}"
+    assert set(made["created"]) >= {"jobs/_template.yaml"}
+    # A scaffolded home has a template and no definitions. The loader must read
+    # it as empty rather than as broken — the template is skipped by the leading
+    # underscore, which is the only reason a first run is quiet.
+    found, problems = load_jobs(home / "jobs")
+    assert found == {} and problems == [], f"jobs: {problems}"
 
 
 def test_scaffolding_refuses_an_occupied_home_rather_than_merging(tmp_path):

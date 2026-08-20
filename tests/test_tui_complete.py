@@ -36,9 +36,9 @@ def test_a_surface_verb_can_never_shadow_a_real_command():
 
 
 def test_a_group_offers_its_own_subcommands():
-    from cli.check import check
+    from cli.jobs import auto
 
-    assert candidates("check ")[1] == sorted(check.commands)
+    assert candidates("auto ")[1] == sorted(auto.commands)
 
 
 def test_the_leading_tb_is_tolerated():
@@ -61,7 +61,7 @@ def test_a_job_argument_completes_to_jobs_only():
 
 
 def test_a_dash_switches_to_options():
-    offered = candidates("info assets --")[1]
+    offered = candidates("auto log --")[1]
     assert "--help" in offered and "--json" in offered
     assert "assets" not in offered
 
@@ -76,7 +76,7 @@ def test_options_still_complete_after_a_positional():
 
 
 def test_a_single_match_is_filled_in_with_a_trailing_space():
-    assert complete("ch") == ("check ", [])
+    assert complete("ru") == ("run ", [])
 
 
 def test_several_matches_extend_as_far_as_they_agree():

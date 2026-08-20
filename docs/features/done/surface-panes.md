@@ -194,6 +194,13 @@ the rail narrows the pane, since `RichLog` is `wrap=False`. So it lands first, a
 
 ## Notes
 
+**Watches were removed on 2026-08-20.** Everything below about watched conditions — the rail's
+WATCH pane, `watches/*.yaml`, the read-verb restriction — described what was built and is kept as
+that record. It is not the current surface. `tb check` and `tb info` were the only groups a watch
+could name, and removing them left no valid watch command; see Round 2 of the `command-taxonomy`
+doc. The rail keeps LANES, NOW and RECENT.
+
+
 **Superseded 2026-08-20 by [[operator-home]].** The conclusion below held; the location did
 not. Watch definitions are still versioned rather than loose config, and still keyed by `hosts:`
 — they simply live in `$TB_HOME/watches/`, which is the operator's own git repository, rather

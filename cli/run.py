@@ -22,7 +22,6 @@ from pathlib import Path
 
 import rich_click as click
 
-from cli.assets import refresh_inventory, seed_inventory
 from cli.home import init_home
 from cli.jobs import (
     JOB_STATE_DIR,
@@ -58,8 +57,6 @@ class Task:
 
 REGISTRY: tuple[Task, ...] = (
     Task("init-home", "Create TB_HOME and seed it with templates", "committing", init_home),
-    Task("asset-seed", "Write the first inventory record for this machine", "committing", seed_inventory),
-    Task("asset-refresh", "Rewrite this machine's derived inventory block", "committing", refresh_inventory),
 )
 
 

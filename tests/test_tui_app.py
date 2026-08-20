@@ -1,7 +1,7 @@
 """Tests for the surface: history recall, and that the app actually boots.
 
 The app test drives Textual's headless pilot through `asyncio.run` rather than
-adding pytest-asyncio for one case. It dispatches `check --list`, which reads a
+adding pytest-asyncio for one case. It dispatches `auto list`, which reads a
 registry and touches nothing — the suite stays free of subprocesses.
 """
 
@@ -26,12 +26,12 @@ def history(tmp_path):
 
 
 def test_recall_walks_backwards_then_returns_to_an_empty_line(history):
-    for line in ("check", "info assets", "auto list"):
+    for line in ("auto status", "auto list", "run --help"):
         history.append(line)
 
+    assert history.prev() == "run --help"
     assert history.prev() == "auto list"
-    assert history.prev() == "info assets"
-    assert history.next() == "auto list"
+    assert history.next() == "run --help"
     # One past the newest is the slot where you compose something new. Without
     # it, down-arrow strands you on the last command with no way back to empty.
     assert history.next() == ""
@@ -52,9 +52,9 @@ def test_consecutive_duplicates_are_not_recorded(history):
 
 def test_a_repeat_that_is_not_consecutive_is_recorded(history):
     history.append("check")
-    history.append("info assets")
+    history.append("auto list")
     history.append("check")
-    assert history.lines == ["check", "info assets", "check"]
+    assert history.lines == ["check", "auto list", "check"]
 
 
 def test_blank_lines_are_not_recorded(history):
@@ -64,7 +64,7 @@ def test_blank_lines_are_not_recorded(history):
 
 def test_submitting_returns_the_cursor_to_the_new_line_slot(history):
     history.append("check")
-    history.append("info assets")
+    history.append("auto list")
     history.prev()
     history.append("auto list")
     assert history.cursor == len(history.lines)
@@ -95,9 +95,9 @@ def test_the_surface_boots_and_dispatches(tmp_path):
     from cli.tui.app import TackleBox
 
     async def scenario():
-        app = TackleBox(history=History(path=tmp_path / "hist"), watches={})
+        app = TackleBox(history=History(path=tmp_path / "hist"))
         async with app.run_test() as pilot:
-            await pilot.press(*"check --list")
+            await pilot.press(*"auto list")
             await pilot.press("enter")
             # The dispatch runs on a thread; wait for it to hand back.
             for _ in range(200):
@@ -108,8 +108,11 @@ def test_the_surface_boots_and_dispatches(tmp_path):
             return app.transcript()
 
     rendered = asyncio.run(scenario())
-    assert f"{ECHO_PREFIX}check --list" in rendered
-    assert "drift" in rendered and "tools" in rendered and "unpushed" in rendered
+    assert f"{ECHO_PREFIX}auto list" in rendered
+    # `auto list` reads the job registry and touches nothing, so the suite stays
+    # free of subprocesses. With no jobs declared it still renders an envelope
+    # rather than nothing, which is the part worth asserting.
+    assert rendered.strip() != f"{ECHO_PREFIX}auto list"
 
 
 async def _leave_idle(app, pilot):
@@ -131,7 +134,7 @@ def _drive(tmp_path, keys, patch=None):
     from cli.tui.app import TackleBox
 
     async def scenario():
-        app = TackleBox(history=History(path=tmp_path / "hist"), watches={})
+        app = TackleBox(history=History(path=tmp_path / "hist"))
         async with app.run_test() as pilot:
             for key in keys:
                 await pilot.press(key)
@@ -169,7 +172,7 @@ def _keys(tmp_path, keys, prefill=""):
     from cli.tui.app import TackleBox
 
     async def scenario():
-        app = TackleBox(history=History(path=tmp_path / "hist"), watches={})
+        app = TackleBox(history=History(path=tmp_path / "hist"))
         async with app.run_test() as pilot:
             if prefill:
                 app.query_one("#prompt").value = prefill
@@ -227,11 +230,11 @@ def test_the_launch_screen_is_up_at_start_and_gone_once_you_type(tmp_path):
     from cli.tui.app import TackleBox
 
     async def scenario():
-        app = TackleBox(history=History(path=tmp_path / "hist"), watches={})
+        app = TackleBox(history=History(path=tmp_path / "hist"))
         async with app.run_test(size=(120, 24)) as pilot:
             await pilot.pause()
             before = (app.query_one("#launch").display, app.query_one(Transcript).display)
-            await pilot.press(*"check --list")
+            await pilot.press(*"auto list")
             await pilot.press("enter")
             for _ in range(300):
                 if not app.busy:
@@ -249,7 +252,7 @@ def test_clearing_returns_home_rather_than_to_a_blank_pane(tmp_path):
     from cli.tui.app import TackleBox
 
     async def scenario():
-        app = TackleBox(history=History(path=tmp_path / "hist"), watches={})
+        app = TackleBox(history=History(path=tmp_path / "hist"))
         async with app.run_test(size=(120, 24)) as pilot:
             await _leave_idle(app, pilot)
             assert not app.query_one("#launch").display
@@ -265,7 +268,7 @@ def test_the_rail_is_not_shown_beside_the_launch_screen(tmp_path):
     from cli.tui.app import TackleBox
 
     async def scenario():
-        app = TackleBox(history=History(path=tmp_path / "hist"), watches={})
+        app = TackleBox(history=History(path=tmp_path / "hist"))
         async with app.run_test(size=(140, 24)) as pilot:
             await pilot.pause()
             idle_rail = app.query_one("#rail").display
@@ -286,7 +289,7 @@ def test_idle_is_tracked_rather_than_read_off_the_hidden_transcript(tmp_path):
     from cli.tui.app import TackleBox
 
     async def scenario():
-        app = TackleBox(history=History(path=tmp_path / "hist"), watches={})
+        app = TackleBox(history=History(path=tmp_path / "hist"))
         async with app.run_test(size=(120, 24)) as pilot:
             await pilot.pause()
             # The trap: written while hidden, so lines stays empty.
@@ -314,9 +317,9 @@ def test_inspect_shows_the_last_envelope_without_running_anything(tmp_path):
     from cli.tui.app import Expanded, TackleBox
 
     async def scenario():
-        app = TackleBox(history=History(path=tmp_path / "hist"), watches={})
+        app = TackleBox(history=History(path=tmp_path / "hist"))
         async with app.run_test(size=(120, 24)) as pilot:
-            await pilot.press(*"check --list")
+            await pilot.press(*"auto list")
             await pilot.press("enter")
             for _ in range(300):
                 if not app.busy:
@@ -334,14 +337,14 @@ def test_inspect_shows_the_last_envelope_without_running_anything(tmp_path):
     captured, busy, shown, text = asyncio.run(scenario())
     assert captured, "the dispatch should have captured an envelope"
     assert not busy, "inspect must not start a dispatch"
-    assert shown and '"command": "check"' in text
+    assert shown and '"command": "auto.list"' in text
 
 
 def test_inspect_with_nothing_captured_says_so_rather_than_running_one(tmp_path):
     from cli.tui.app import TackleBox
 
     async def scenario():
-        app = TackleBox(history=History(path=tmp_path / "hist"), watches={})
+        app = TackleBox(history=History(path=tmp_path / "hist"))
         async with app.run_test(size=(120, 24)) as pilot:
             await pilot.press(*"inspect")
             await pilot.press("enter")
@@ -359,7 +362,7 @@ def test_a_surface_verb_does_not_enter_the_dispatch_queue(tmp_path):
     from cli.tui.app import TackleBox
 
     async def scenario():
-        app = TackleBox(history=History(path=tmp_path / "hist"), watches={})
+        app = TackleBox(history=History(path=tmp_path / "hist"))
         async with app.run_test(size=(120, 24)) as pilot:
             await pilot.pause()
             app.busy = True  # a dispatch is notionally in flight
@@ -382,7 +385,7 @@ def test_the_banner_is_the_top_row_and_the_region_the_bottom(tmp_path):
     height = 24
 
     async def scenario():
-        app = TackleBox(history=History(path=tmp_path / "hist"), watches={})
+        app = TackleBox(history=History(path=tmp_path / "hist"))
         async with app.run_test(size=(120, height)) as pilot:
             await _leave_idle(app, pilot)
             return {
@@ -407,7 +410,7 @@ def test_the_input_is_the_first_row_of_the_region_not_the_last(tmp_path):
     from cli.tui.app import BORDER_ROWS, TackleBox
 
     async def scenario():
-        app = TackleBox(history=History(path=tmp_path / "hist"), watches={})
+        app = TackleBox(history=History(path=tmp_path / "hist"))
         async with app.run_test(size=(120, 24)) as pilot:
             await pilot.pause()
             return {
@@ -430,7 +433,7 @@ def test_the_rail_sits_right_of_the_transcript(tmp_path):
     from cli.tui.app import BANNER_ROWS, TackleBox
 
     async def scenario():
-        app = TackleBox(history=History(path=tmp_path / "hist"), watches={})
+        app = TackleBox(history=History(path=tmp_path / "hist"))
         async with app.run_test(size=(120, 24)) as pilot:
             await _leave_idle(app, pilot)
             return {n: app.query_one(n).region for n in ("#banner", "#body", "#rail", "#repl")}
@@ -447,7 +450,7 @@ def test_a_narrow_terminal_hides_the_rail_instead_of_squeezing_the_output(tmp_pa
     from cli.tui.app import RAIL_MIN_TOTAL_WIDTH, TackleBox
 
     async def scenario(width):
-        app = TackleBox(history=History(path=tmp_path / "hist"), watches={})
+        app = TackleBox(history=History(path=tmp_path / "hist"))
         async with app.run_test(size=(width, 24)) as pilot:
             await _leave_idle(app, pilot)
             rail = app.query_one("#rail")
@@ -468,7 +471,7 @@ def test_the_progress_row_restacks_for_the_narrow_column(tmp_path):
     from cli.tui.app import RAIL_WIDTH, TackleBox
 
     async def scenario():
-        app = TackleBox(history=History(path=tmp_path / "hist"), watches={})
+        app = TackleBox(history=History(path=tmp_path / "hist"))
         async with app.run_test(size=(120, 24)) as pilot:
             app.busy = True
             app.running_line = "run a-job-with-a-deliberately-long-name --lane committing"
@@ -484,112 +487,18 @@ def test_the_progress_row_restacks_for_the_narrow_column(tmp_path):
         assert len(line) <= RAIL_WIDTH
 
 
-def _watch(command="check drift", every=900):
-    from cli.watch import Watch
-
-    return {"w": Watch(name="w", command=command, every=every)}
 
 
-async def _with_watch(app, pilot):
-    """Attach a watch whose worker is recorded rather than run.
-
-    Never let a test actually dispatch one: a watch is a real command, and the
-    suite's whole claim is that it shells out to nothing.
-    """
-    started = []
-    app.run_watch = lambda name, command: started.append((name, command))
-    app.watches = _watch()
-    await pilot.pause()
-    return started
 
 
-def test_a_watch_that_cannot_run_reads_unreadable_not_clear(tmp_path):
-    """The home group's rule, generalised: a board that collapses "reports
-    clear" into "cannot see" is worse than no board."""
-    from cli.tui.app import TackleBox
-
-    async def scenario():
-        app = TackleBox(history=History(path=tmp_path / "hist"), watches={})
-        async with app.run_test(size=(120, 24)) as pilot:
-            await _with_watch(app, pilot)
-            app.watch_finished("w", None)  # the dispatch itself blew up
-            return str(app.query_one("#watches").render())
-
-    assert "can't read" in asyncio.run(scenario())
 
 
-def test_a_hard_failure_is_not_rendered_as_a_clean_verdict(tmp_path):
-    """1 and 2 mean the check never reached a verdict. Only 0 and 3 did."""
-    from cli.output import EXIT_OK, EXIT_PARTIAL
-    from cli.tui.app import TackleBox
-
-    async def scenario():
-        app = TackleBox(history=History(path=tmp_path / "hist"), watches={})
-        async with app.run_test(size=(120, 24)) as pilot:
-            await _with_watch(app, pilot)
-            seen = {}
-            for code in (EXIT_OK, EXIT_PARTIAL, 1, 2, None):
-                app.watch_finished("w", code)
-                seen[code] = str(app.query_one("#watches").render())
-            return seen
-
-    seen = asyncio.run(scenario())
-    assert "can't read" not in seen[0] and "can't read" not in seen[3]
-    for code in (1, 2, None):
-        assert "can't read" in seen[code], f"exit {code} rendered as a verdict"
 
 
-def test_a_watch_refresh_does_not_queue_behind_a_dispatch(tmp_path):
-    """The whole point of the read-only restriction is that these overlap. A
-    watch on self.queue would make you wait to run a command, and a command
-    would delay every watch behind it."""
-    from cli.tui.app import TackleBox
-
-    async def scenario():
-        app = TackleBox(history=History(path=tmp_path / "hist"), watches={})
-        async with app.run_test(size=(120, 24)) as pilot:
-            started = await _with_watch(app, pilot)
-            started.clear()
-            app.busy = True  # pretend a dispatch is in flight
-            app.refresh_watches()
-            await pilot.pause()
-            return started, list(app.queue)
-
-    started, queue = asyncio.run(scenario())
-    assert started == [("w", "check drift")], "the watch never started while busy"
-    assert queue == [], "a watch must never enter the dispatch queue"
 
 
-def test_a_watch_is_not_restarted_while_it_is_still_running(tmp_path):
-    """Otherwise a check slower than its own interval stacks up copies of
-    itself, and `check tools` is exactly that shape."""
-    from cli.tui.app import TackleBox
-
-    async def scenario():
-        app = TackleBox(history=History(path=tmp_path / "hist"), watches={})
-        async with app.run_test(size=(120, 24)) as pilot:
-            started = await _with_watch(app, pilot)
-            started.clear()
-            for _ in range(5):
-                app.refresh_watches()
-            return started
-
-    assert len(asyncio.run(scenario())) == 1
 
 
-def test_a_watch_reads_as_unknown_before_it_has_ever_run(tmp_path):
-    from cli.tui.app import TackleBox
-
-    async def scenario():
-        app = TackleBox(history=History(path=tmp_path / "hist"), watches={})
-        async with app.run_test(size=(120, 24)) as pilot:
-            await _with_watch(app, pilot)
-            app.watched.clear()
-            app.render_watches()
-            return str(app.query_one("#watches").render())
-
-    # Never "clear" on the strength of having no information.
-    assert "○" in asyncio.run(scenario())
 
 
 # ------------------------------------------------- progressive disclosure
@@ -599,9 +508,9 @@ def test_clicking_a_truncated_pane_shows_it_whole(tmp_path):
     from cli.tui.app import Expanded, TackleBox
 
     async def scenario():
-        app = TackleBox(history=History(path=tmp_path / "hist"), watches={})
+        app = TackleBox(history=History(path=tmp_path / "hist"))
         async with app.run_test(size=(120, 24)) as pilot:
-            await pilot.press(*"check drift")
+            await pilot.press(*"auto log")
             await pilot.pause(0.1)
             narrow = str(app.query_one("#helppane").render())
             await pilot.click("#helppane")
@@ -613,7 +522,7 @@ def test_clicking_a_truncated_pane_shows_it_whole(tmp_path):
     narrow, full = asyncio.run(scenario())
     # The pane truncates; the expansion is the escape hatch from that.
     assert "…" in narrow
-    assert "Limit to one or more sections" in full
+    assert "Show one run's captured output." in full
 
 
 def test_the_transcript_is_never_parsed_as_markup(tmp_path):
@@ -629,7 +538,7 @@ def test_the_transcript_is_never_parsed_as_markup(tmp_path):
     from cli.tui.app import TackleBox
 
     async def scenario():
-        app = TackleBox(history=History(path=tmp_path / "hist"), watches={})
+        app = TackleBox(history=History(path=tmp_path / "hist"))
         async with app.run_test(size=(120, 24)) as pilot:
             app.write_body(Text("[/home/you] [bold]not a style[/bold]"))
             app.refresh_launch()
@@ -647,7 +556,7 @@ def test_dragging_the_rail_divider_resizes_the_rail(tmp_path):
     from cli.tui.app import Separator, TackleBox
 
     async def scenario():
-        app = TackleBox(history=History(path=tmp_path / "hist"), watches={})
+        app = TackleBox(history=History(path=tmp_path / "hist"))
         async with app.run_test(size=(140, 24)) as pilot:
             await _leave_idle(app, pilot)
             before = app.query_one("#rail").outer_size.width
@@ -665,7 +574,7 @@ def test_a_divider_cannot_be_dragged_past_a_pane_it_would_erase(tmp_path):
     from cli.tui.app import Separator, TackleBox
 
     async def scenario():
-        app = TackleBox(history=History(path=tmp_path / "hist"), watches={})
+        app = TackleBox(history=History(path=tmp_path / "hist"))
         async with app.run_test(size=(140, 24)) as pilot:
             await _leave_idle(app, pilot)
             sep = app.query_one("#railsep", Separator)
@@ -685,7 +594,7 @@ def test_the_input_pane_takes_twice_the_help_pane(tmp_path):
     from cli.tui.app import TackleBox
 
     async def scenario():
-        app = TackleBox(history=History(path=tmp_path / "hist"), watches={})
+        app = TackleBox(history=History(path=tmp_path / "hist"))
         async with app.run_test(size=(96, 24)) as pilot:
             await pilot.pause()
             return (
@@ -702,21 +611,21 @@ def test_the_help_pane_tracks_the_line_being_typed(tmp_path):
     from cli.tui.app import TackleBox
 
     async def scenario():
-        app = TackleBox(history=History(path=tmp_path / "hist"), watches={})
+        app = TackleBox(history=History(path=tmp_path / "hist"))
         async with app.run_test(size=(96, 24)) as pilot:
-            await pilot.press(*"check dr")
+            await pilot.press(*"auto sta")
             await pilot.pause(0.1)
             return str(app.query_one("#helppane").render())
 
     # No dispatch was run; the pane explains the line without one.
-    assert "drift" in asyncio.run(scenario())
+    assert "status" in asyncio.run(scenario())
 
 
 def test_the_banner_names_the_surface(tmp_path):
     from cli.tui.app import BANNER_TEXT, TackleBox
 
     async def scenario():
-        app = TackleBox(history=History(path=tmp_path / "hist"), watches={})
+        app = TackleBox(history=History(path=tmp_path / "hist"))
         async with app.run_test() as pilot:
             await pilot.pause()
             return str(app.query_one("#banner").render())
@@ -728,7 +637,7 @@ def test_completions_render_in_the_region_not_the_transcript(tmp_path):
     from cli.tui.app import TackleBox
 
     async def scenario():
-        app = TackleBox(history=History(path=tmp_path / "hist"), watches={})
+        app = TackleBox(history=History(path=tmp_path / "hist"))
         async with app.run_test() as pilot:
             app.query_one("#prompt").value = "auto l"
             app.query_one("#prompt").cursor_position = 6
@@ -765,7 +674,7 @@ def _write_and_time(tmp_path, text):
     from cli.tui.app import TackleBox
 
     async def scenario():
-        app = TackleBox(history=History(path=tmp_path / "hist"), watches={})
+        app = TackleBox(history=History(path=tmp_path / "hist"))
         async with app.run_test(size=(120, 40)) as pilot:
             # The transcript is `display: none` while the launch screen is up,
             # so a RichLog with no size defers every write instead of doing one.
@@ -838,7 +747,7 @@ def test_the_transcript_is_bounded(tmp_path):
     async def scenario():
         from rich.text import Text
 
-        app = TackleBox(history=History(path=tmp_path / "hist"), watches={})
+        app = TackleBox(history=History(path=tmp_path / "hist"))
         async with app.run_test(size=(120, 40)) as pilot:
             await _leave_idle(app, pilot)
             _no_dispatch(app)
@@ -881,7 +790,7 @@ def test_truncating_the_transcript_does_not_touch_the_envelope(tmp_path):
     result = Dispatch("check --list", huge, 0, (envelope,))
 
     async def scenario():
-        app = TackleBox(history=History(path=tmp_path / "hist"), watches={})
+        app = TackleBox(history=History(path=tmp_path / "hist"))
         async with app.run_test(size=(120, 40)) as pilot:
             await _leave_idle(app, pilot)
             app.finished(result)
@@ -1017,148 +926,26 @@ def test_leaving_is_ordinary_when_nothing_is_wedged(monkeypatch):
 # did nothing until a restart. See Round 3 of the tui feature doc.
 
 
-def _watch_file(directory, name, command="check tools", every="30s"):
-    directory.mkdir(parents=True, exist_ok=True)
-    (directory / f"{name}.yaml").write_text(f"command: {command}\nevery: {every}\n")
 
 
-def _app_watching(tmp_path, monkeypatch, directory):
-    from cli.tui import app as app_module
-    from cli.tui.app import TackleBox
-
-    monkeypatch.setattr(app_module, "watch_signature", lambda: _sig(directory))
-    monkeypatch.setattr(app_module, "load_watches", lambda: _load(directory))
-    return TackleBox(history=History(path=tmp_path / "hist"))
 
 
-def _sig(directory):
-    from cli.watch import signature
-
-    return signature(directory)
 
 
-def _load(directory):
-    from cli.watch import load_watches
-
-    return load_watches(directory)
 
 
-def test_a_watch_added_after_start_is_picked_up(tmp_path, monkeypatch):
-    watches = tmp_path / "watches"
-    watches.mkdir()
-    app = _app_watching(tmp_path, monkeypatch, watches)
-
-    assert app.watches == {}, "nothing declared yet"
-
-    _watch_file(watches, "tools")
-    app.refresh_watch_defs()
-
-    assert set(app.watches) == {"tools"}
 
 
-def test_a_watch_edited_in_place_is_picked_up(tmp_path, monkeypatch):
-    watches = tmp_path / "watches"
-    _watch_file(watches, "tools", command="check tools")
-    app = _app_watching(tmp_path, monkeypatch, watches)
-    assert app.watches["tools"].command == "check tools"
-
-    _watch_file(watches, "tools", command="check drift")
-    app.refresh_watch_defs()
-
-    assert app.watches["tools"].command == "check drift"
 
 
-def test_a_removed_watch_leaves_the_rail(tmp_path, monkeypatch):
-    watches = tmp_path / "watches"
-    _watch_file(watches, "tools")
-    _watch_file(watches, "drift", command="check drift")
-    app = _app_watching(tmp_path, monkeypatch, watches)
-    assert set(app.watches) == {"tools", "drift"}
-
-    (watches / "drift.yaml").unlink()
-    app.refresh_watch_defs()
-
-    assert set(app.watches) == {"tools"}
 
 
-def test_an_unchanged_watch_keeps_its_last_result_across_a_reload(tmp_path, monkeypatch):
-    """A reload is usually one file being edited. Blanking every other watch
-    back to "not yet run" would throw away answers to pay for that."""
-    watches = tmp_path / "watches"
-    _watch_file(watches, "tools")
-    _watch_file(watches, "drift", command="check drift")
-    app = _app_watching(tmp_path, monkeypatch, watches)
-
-    app.watched = {"tools": (0, 100.0), "drift": (1, 100.0)}
-
-    # Edit one of them; the other must keep its answer.
-    _watch_file(watches, "drift", command="check drift", every="1h")
-    app.refresh_watch_defs()
-
-    assert app.watched["tools"] == (0, 100.0)
-    assert "drift" in app.watched, "only `every` changed — the answer still stands"
 
 
-def test_a_watch_whose_command_changed_drops_its_result(tmp_path, monkeypatch):
-    """A different command is a different question, so the old answer is not an
-    answer to it — showing it would be reporting the wrong thing as current."""
-    watches = tmp_path / "watches"
-    _watch_file(watches, "tools", command="check tools")
-    app = _app_watching(tmp_path, monkeypatch, watches)
-    app.watched = {"tools": (0, 100.0)}
-
-    _watch_file(watches, "tools", command="check drift")
-    app.refresh_watch_defs()
-
-    assert "tools" not in app.watched
 
 
-def test_an_injected_roster_is_never_reloaded(tmp_path, monkeypatch):
-    """The suite must stay free of the real watch directory: a test that quietly
-    re-read it would depend on whose machine it ran on."""
-    from cli.tui import app as app_module
-    from cli.tui.app import TackleBox
-
-    called = []
-    monkeypatch.setattr(app_module, "watch_signature", lambda: called.append("sig") or ())
-    monkeypatch.setattr(app_module, "load_watches", lambda: called.append("load") or ({}, []))
-
-    app = TackleBox(history=History(path=tmp_path / "hist"), watches={})
-    app.refresh_watch_defs()
-    app.refresh_watch_defs()
-
-    assert called == [], "an injected roster must not touch the real directory"
 
 
-def test_re_reading_is_guarded_so_the_tick_does_not_parse_yaml(tmp_path, monkeypatch):
-    """The signature is a readdir and a stat; the parse is what it guards."""
-    from cli.tui import app as app_module
-
-    watches = tmp_path / "watches"
-    _watch_file(watches, "tools")
-
-    loads = []
-
-    def counting_load():
-        loads.append(1)
-        return _load(watches)
-
-    monkeypatch.setattr(app_module, "watch_signature", lambda: _sig(watches))
-    monkeypatch.setattr(app_module, "load_watches", counting_load)
-
-    from cli.tui.app import TackleBox
-
-    app = TackleBox(history=History(path=tmp_path / "hist"))
-    assert len(loads) == 1, "loaded once at start, so the first paint has them"
-
-    for _ in range(50):
-        app.refresh_watch_defs()
-
-    assert len(loads) == 1, "nothing changed, so nothing should have been re-parsed"
-
-    _watch_file(watches, "tools", command="check drift")
-    app.refresh_watch_defs()
-    assert len(loads) == 2
 
 
 # ----------------------------------------------------------- newest first
@@ -1182,7 +969,7 @@ def _turns_after(tmp_path, lines):
     from cli.tui.app import TackleBox
 
     async def scenario():
-        app = TackleBox(history=History(path=tmp_path / "hist"), watches={})
+        app = TackleBox(history=History(path=tmp_path / "hist"))
         async with app.run_test(size=(120, 40)) as pilot:
             await pilot.pause()
             _no_dispatch(app)
@@ -1210,7 +997,7 @@ def test_content_within_a_turn_is_not_reversed(tmp_path):
     from cli.tui.app import TackleBox
 
     async def scenario():
-        app = TackleBox(history=History(path=tmp_path / "hist"), watches={})
+        app = TackleBox(history=History(path=tmp_path / "hist"))
         async with app.run_test(size=(120, 40)) as pilot:
             await pilot.pause()
             app.start("a command")
@@ -1235,7 +1022,7 @@ def test_a_result_lands_in_the_block_its_own_line_opened(tmp_path):
     from cli.tui.dispatch import Dispatch
 
     async def scenario():
-        app = TackleBox(history=History(path=tmp_path / "hist"), watches={})
+        app = TackleBox(history=History(path=tmp_path / "hist"))
         async with app.run_test(size=(120, 40)) as pilot:
             await pilot.pause()
             _no_dispatch(app)

@@ -13,12 +13,10 @@ your records live in `~/.tackle-box/`, which is yours and separate.
 |---|---|---|
 | `tb run` | imperative | Run a job, an internal task, or ad-hoc argv — always with a lane, a ledger entry and a log |
 | `tb auto` | temporal | Job definitions, lanes, scheduling, ledger, logs |
-| `tb info` | descriptive | What a thing *is* |
-| `tb check` | evaluative | What is *wrong*. Bare `tb check` runs them all, worst-first |
 | `tb tui` | — | A surface over the same output, held open |
 
 Commands are grouped by **what they do to the world**, not by what they act on. The domain axis
-grows without bound; this one is closed at four. The property it buys: **`tb run` is the only
+grows without bound; this one is closed. The property it buys: **`tb run` is the only
 door that writes**, so nothing changes state without a ledger entry, because there is no other
 way in.
 
@@ -50,14 +48,13 @@ _TB_COMPLETE=fish_source tb > ~/.config/fish/completions/tb.fish
 ## First run
 
 ```bash
-tb run init-home     # creates ~/.tackle-box and seeds it with templates
-tb run asset-seed    # writes the first machine record for this box
-tb check             # everything that can judge, worst-first
+tb run init-home     # creates ~/.tackle-box and seeds it with a job template
+tb auto list         # every declared job
 tb tui               # the surface
 ```
 
-`tb` works before any of that — `tb check tools` needs nothing — but anything that reads your
-machines, jobs or watches will be empty until the home exists.
+`tb` works before any of that, but anything that reads your jobs will be empty until the home
+exists.
 
 ## Where things live
 
@@ -66,13 +63,13 @@ Three directories, and the rule for each is **who authored the bytes**.
 | Where | Holds | Authored by | Versioned |
 |---|---|---|---|
 | this repo | code, tests, docs, templates | the project | here |
-| `~/.tackle-box/` | inventory, jobs, watches | **you** | its own git repo |
+| `~/.tackle-box/` | job definitions | **you** | its own git repo |
 | `~/.local/state/tb/` | run ledger, logs | the machine | never |
 
 `$TB_HOME` overrides the middle one.
 
-Your content is separate because it is *yours* — machine records carry addresses, hostnames and
-hardware, and a tool you can publish must not carry them with it. It is a git repository of its
+Your content is separate because it is *yours* — job definitions name your machines and paths,
+and a tool you can publish must not carry them with it. It is a git repository of its
 own because a machine record's diff is its maintenance log: record the *why* inline as a field
 comment and the history answers "when did this change, and what were we thinking".
 
@@ -93,7 +90,7 @@ Three kinds of edit behave three different ways, and it is worth knowing which i
 
 | Editing | Picked up |
 |---|---|
-| A job or watch definition in `~/.tackle-box/` | within a second, no restart |
+| A job definition in `~/.tackle-box/` | within a second, no restart |
 | `cli/tui/tb.tcss` | on save, under `textual run --dev` |
 | Any Python | **never — restart** |
 

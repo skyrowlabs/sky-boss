@@ -95,28 +95,15 @@ def cli(ctx: click.Context, as_json: bool) -> None:
 # Register command groups and top-level commands
 # ============================================================================
 
-# Import the command under an alias: a bare `from cli.doctor import doctor`
-# rebinds the package attribute `cli.doctor` from the module to the Command,
-# shadowing the module for anything that reaches for it by path.
-from cli.check import check as check_group  # noqa: E402
-from cli.doctor import tools as tools_cmd  # noqa: E402
-from cli.info import info as info_group  # noqa: E402
 from cli.jobs import auto as auto_group  # noqa: E402
 from cli.run import run as run_cmd  # noqa: E402
 from cli.tui import tui as tui_cmd  # noqa: E402
 
 cli.add_command(run_cmd)
 cli.add_command(auto_group)
-cli.add_command(info_group)
-cli.add_command(check_group)
 
 # A surface, not a mood. `tb mcp serve` will land beside it. Both render the
 # same envelope every command returns rather than adding a verb, which is why
 # neither belongs in run/auto/info/check.
 cli.add_command(tui_cmd)
 
-# The one kept alias. `doctor` is a cross-tool convention worth honoring, and it
-# costs a line. Invoked this way the envelope is named "doctor" rather than
-# "check.tools" — the name records how the command was reached, which is what
-# the MCP consumer wants to see.
-cli.add_command(tools_cmd, name="doctor")

@@ -18,7 +18,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 STATE_DIR = Path.home() / ".local" / "state" / "tb"
 
 # Everything *you* author, as opposed to everything the project does. Machine
-# records, job definitions, watches, and any machine-local config — one home,
+# job definitions and any machine-local config — one home,
 # outside this repo, and expected to be a git repository of its own.
 #
 # It is not under ~/.config because it is not configuration; it is a worktree

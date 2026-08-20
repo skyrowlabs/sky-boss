@@ -50,7 +50,7 @@ def test_every_token_the_stylesheet_uses_is_defined():
     used = set(_re.findall(r"\$(tb-[a-z0-9-]+)", stylesheet))
     assert used, "found no $tb-* tokens at all — did the stylesheet move?"
 
-    app = TackleBox(history=History(path=_Path(tempfile.mkdtemp()) / "h"), watches={})
+    app = TackleBox(history=History(path=_Path(tempfile.mkdtemp()) / "h"))
     defined = set(app.get_css_variables())
 
     assert used <= defined, f"undefined in get_css_variables: {sorted(used - defined)}"
