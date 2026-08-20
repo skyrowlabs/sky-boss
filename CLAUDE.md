@@ -21,7 +21,7 @@ has fallen behind.
 
 **Commands are grouped by mood — what they do to the world — not by domain.** The domain axis
 grows without bound (every new machine or service is a new group); the mood axis is closed at
-four. See `docs/features/done/command-taxonomy.md`.
+four. See the `command-taxonomy` feature doc.
 
 | Group | Mood | Owns | Writes? |
 |---|---|---|---|
@@ -132,7 +132,7 @@ this instant is invisible to `tb auto status`. Lanes are the job layer's headlin
 CLI can only ever report them in the past tense.
 
 It is a consumer of the output contract, not a second CLI. The design and every surprise are in
-`docs/features/done/`: `tui.md`, `surface-panes.md`, `surface-concepts.md`. Read those before touching
+the `tui`, `surface-panes` and `surface-concepts` feature docs. Read those before touching
 `cli/tui/`. The four rules that are not negotiable:
 
 - **Nothing keeps a command table.** Dispatch drives the real Click tree
@@ -162,9 +162,14 @@ on the machine.
 
 ## Feature workflow
 
-One doc per feature. **Open work sits in `docs/features/`; a doc moves to
-`docs/features/done/` exactly once, when `status:` reaches `complete`.** The frontmatter is still
-the truth — `draft → active → complete` — and the directory follows it rather than replacing it.
+**One doc per feature, for the life of the feature.** A doc is a living record of one piece of
+the system, not a record of one work session. When a feature changes, gains a major capability, or
+turns out to have a defect worth designing around, **the existing doc is expanded** — a new round
+of phases, a new Notes entry, `status:` back to `active`. A second doc is not written.
+
+Open work sits in `docs/features/`; `docs/features/done/` holds features with no open work. The
+frontmatter is the truth — `draft → active → complete` — and **the directory always follows it, in
+both directions.** Reopening a completed feature moves its doc back out of `done/`.
 
 This reverses an earlier rule that the doc never moves, and the reversal is worth understanding
 before anyone flips it back. The rule was inherited from the sibling project (jam.sense), whose
@@ -183,11 +188,51 @@ Two directories rather than one because sixteen docs, nine of them finished, mad
 completion is one `git mv` at the moment a doc is closed out anyway, which is the cheapest possible
 time to pay it.
 
+### One doc per feature, not one per session
+
+This is the rule that keeps the directory from becoming jam.sense's. **The failure mode is not
+docs that are too long — it is a directory where four files describe one thing and none of them is
+the one to read.** The surface reached exactly that: `tui.md`, `surface-panes.md`,
+`surface-concepts.md` and `surface-design.md`, before a single line about it had been revised.
+
+So the default is **expand, not add**:
+
+| Situation | What to do |
+|---|---|
+| A defect in a shipped feature, worth a design decision | New round of phases in that feature's doc |
+| A shipped feature gains a capability | New round of phases in that feature's doc |
+| A decision in a shipped doc is reversed | Edit the decision in place; record the reversal and its reasoning in **Notes** |
+| Genuinely new subsystem — a new command group, a new substrate | New doc |
+
+**When unsure, expand.** A doc that grew a section is easy to split later; four docs that should
+have been one require reading all four to find that out.
+
+A reopened doc does not restart. Its shipped phases keep their checked boxes and a new round is
+appended below them, headed with what it is and when:
+
+```markdown
+### Round 2 — stop the surface freezing (2026-08-20)
+
+- [ ] task
+```
+
+**Notes accretes, never rewrites.** Append a dated entry per round. The reasoning that was true in
+round 1 stays on the page even where round 3 overturned it — a reversal with its original argument
+still visible is the single most useful thing in one of these files, and deleting the old argument
+is how a doc stops being able to stop anyone repeating it.
+
+**`updated:` moves; `created:` never does.** `agent_value` is re-judged at each close-out, and
+generally rises — a doc covering three rounds of a system is more load-bearing than one covering
+its first.
+
 - `docs/features/_template.md` — the skeleton. Sections: **Why** · **Shape** (including an explicit
   *"Does not do"*) · **Phases** with `- [ ]` boxes · **Notes**.
 - `.claude/skills/feature/SKILL.md` — the `/feature` skill. Takes an existing slug (execute) or a
   plain description (write the spec, confirm, then execute). **No subagents.**
 - Cross-document links are `[[slug]]`, never relative paths — they survive any reorganisation.
+- **Reference a feature doc by slug in code comments too**, not by path: `see the output-contract
+  feature doc`, not `see docs/features/done/output-contract.md`. A path in a comment breaks the
+  moment that feature reopens, and reopening is now a normal event rather than a rare one.
 - Check boxes and append to **Notes** *as you go*. A dead session must be resumable from the doc
   alone.
 - `agent_value` (1–3) tells a future session whether a completed doc is load-bearing design
@@ -245,7 +290,7 @@ package-owned and reverts on update, so the fix is an override in `~/.config/fis
 Operator content used to live in this repo, justified by *the git diff is the maintenance log*.
 That reasoning survives — it is still versioned, in a repo of its own — but the arrangement did
 not: a machine record carried a tailnet address into every commit, so the tool could not be
-published without publishing the operator. `docs/features/operator-home.md` has the whole thing.
+published without publishing the operator. The `operator-home` feature doc has the whole thing.
 The rules that bite:
 
 - **Nothing in `cli/` may read `PROJECT_ROOT / "inventory" | "jobs" | "watches"`.** A leftover
@@ -312,7 +357,7 @@ Shared with sibling CLIs so the family feels like one tool.
   `Result` envelope (`ok` / `partial` / `data` / `warnings`). Exit codes: `0` ok, `1` hard failure,
   `3` partial — **not 2**, which Click uses for usage errors. Bare `tb check` and the MCP server
   are both consumers of that envelope — a command that prints prose has to be written twice. See
-  `docs/features/done/output-contract.md`.
+  the `output-contract` feature doc.
 - **Degrade gracefully.** An unauthenticated tool, unreachable host, or absent config warns in
   yellow on **stderr** and continues; it does not crash the rollup. Keep stdout clean so `--json`
   stays parseable.

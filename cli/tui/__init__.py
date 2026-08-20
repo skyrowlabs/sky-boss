@@ -4,7 +4,7 @@ Not a second CLI. Everything here dispatches strings through the real Click
 tree and renders what `cli/output.py` produced, which is what keeps the surface
 from drifting away from the command line it fronts.
 
-See docs/features/done/tui.md.
+See the tui feature doc.
 """
 
 import rich_click as click
