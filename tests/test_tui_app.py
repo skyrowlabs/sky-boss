@@ -731,3 +731,152 @@ def test_completions_render_in_the_region_not_the_transcript(tmp_path):
     assert "list" in completions and "log" in completions
     # Chrome in the transcript would mix it into the record of what was run.
     assert "list  log" not in body
+
+
+# ------------------------------------------------------- a large result
+#
+# The surface used to be freezable by one chatty command. `RichLog.write` is
+# superlinear in the size of a single renderable and runs on the event loop, so
+# a big enough result blocked long enough that no key — including the ones that
+# leave — was ever read. These pin the two halves of the fix. See Round 2 of the
+# tui feature doc.
+
+
+def _write_and_time(tmp_path, text):
+    """Write `text` to the transcript and report the worst single loop block.
+
+    The heartbeat is the whole point: asserting on the *duration of the write
+    call* would pass just as well if the write were merely fast, and what has to
+    hold is that the loop kept getting turns. A timer that never fires is the
+    failure this is looking for.
+    """
+    import time
+
+    from cli.tui.app import TackleBox
+
+    async def scenario():
+        app = TackleBox(history=History(path=tmp_path / "hist"), watches={})
+        async with app.run_test(size=(120, 40)) as pilot:
+            # The transcript is `display: none` while the launch screen is up,
+            # so a RichLog with no size defers every write instead of doing one.
+            # Measuring against a hidden widget measures nothing.
+            await _leave_idle(app, pilot)
+            beats = []
+            last = time.monotonic()
+
+            def beat():
+                nonlocal last
+                now = time.monotonic()
+                beats.append(now - last)
+                last = now
+
+            app.set_interval(0.01, beat)
+            await pilot.pause()
+            last = time.monotonic()
+            app.write_body(text)
+            await pilot.pause()
+            await pilot.pause()
+            return max(beats or [0.0]), _rendered(app.query_one("#body").lines)
+
+    return asyncio.run(scenario())
+
+
+def test_a_huge_result_does_not_freeze_the_surface(tmp_path):
+    from rich.text import Text
+
+    # Comfortably past where the old path became unusable: 120k lines blocked
+    # the loop for 17.5s before this was bounded.
+    worst, _ = _write_and_time(tmp_path, Text("\n".join(f"line {n}" for n in range(200_000))))
+    assert worst < 1.0, f"the event loop was blocked for {worst:.2f}s"
+
+
+def test_a_huge_result_is_truncated_and_says_so(tmp_path):
+    from rich.text import Text
+
+    from cli.tui.app import TRANSCRIPT_MAX_LINES
+
+    over = TRANSCRIPT_MAX_LINES + 5_000
+    _, rendered = _write_and_time(tmp_path, Text("\n".join(f"line {n}" for n in range(over))))
+
+    assert "line 0" in rendered, "the beginning of the output is what gets kept"
+    assert f"line {TRANSCRIPT_MAX_LINES - 1}" in rendered
+    assert f"line {over - 1}" not in rendered, "nothing past the ceiling should be on screen"
+    # The count is what makes truncation honest rather than silent.
+    assert "5,000 more lines not shown" in rendered
+    assert "inspect" in rendered
+
+
+def test_ordinary_output_is_not_truncated_or_reordered(tmp_path):
+    from rich.text import Text
+
+    _, rendered = _write_and_time(tmp_path, Text("\n".join(f"line {n}" for n in range(2_500))))
+
+    assert "more lines not shown" not in rendered
+    body = [line for line in rendered.splitlines() if line.startswith("line ")]
+    # Chunking must not disturb order — it writes 1,000 at a time and the
+    # slices have to arrive in the order they were cut.
+    assert body == [f"line {n}" for n in range(2_500)]
+
+
+def test_the_transcript_is_bounded(tmp_path):
+    from cli.tui.app import LOG_MAX_LINES, TRANSCRIPT_MAX_LINES
+
+    assert LOG_MAX_LINES >= TRANSCRIPT_MAX_LINES, (
+        "a single result must fit in the scrollback, or one command would evict "
+        "its own first line"
+    )
+
+    from cli.tui.app import TackleBox
+
+    async def scenario():
+        from rich.text import Text
+
+        app = TackleBox(history=History(path=tmp_path / "hist"), watches={})
+        async with app.run_test(size=(120, 40)) as pilot:
+            await _leave_idle(app, pilot)
+            for _ in range(12):
+                app.write_body(Text("\n".join(f"x {n}" for n in range(TRANSCRIPT_MAX_LINES))))
+            await pilot.pause()
+            return len(app.query_one("#body").lines)
+
+    assert asyncio.run(scenario()) <= LOG_MAX_LINES
+
+
+def test_a_non_text_renderable_still_reaches_the_transcript(tmp_path):
+    """The rail's renderables and anything else that is not a Text must pass
+    through untouched — the bounding is for command output, not for chrome."""
+    from rich.table import Table
+
+    from cli.tui.app import _bounded_chunks
+
+    table = Table()
+    assert list(_bounded_chunks(table)) == [table]
+
+
+def test_truncating_the_transcript_does_not_touch_the_envelope(tmp_path):
+    """Truncation is only ever a display decision.
+
+    This is what makes the ceiling defensible: the surface stops *showing* the
+    rest, it does not stop *having* it. `inspect` renders `last_envelopes`, and
+    a run's output is whole in its log either way.
+    """
+    from cli.tui.app import TRANSCRIPT_MAX_LINES, TackleBox
+    from cli.tui.dispatch import Dispatch
+
+    envelope = {"ok": True, "data": {"rows": list(range(50))}, "warnings": []}
+    huge = "\n".join(f"line {n}" for n in range(TRANSCRIPT_MAX_LINES + 2_000))
+    result = Dispatch("check --list", huge, 0, (envelope,))
+
+    async def scenario():
+        app = TackleBox(history=History(path=tmp_path / "hist"), watches={})
+        async with app.run_test(size=(120, 40)) as pilot:
+            await _leave_idle(app, pilot)
+            app.finished(result)
+            await pilot.pause()
+            return app.last_envelopes, _rendered(app.query_one("#body").lines)
+
+    envelopes, rendered = asyncio.run(scenario())
+
+    assert "2,000 more lines not shown" in rendered, "the transcript was bounded"
+    assert envelopes == (envelope,), "the envelope survived whole"
+    assert envelopes[0]["data"]["rows"][-1] == 49

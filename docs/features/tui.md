@@ -292,7 +292,8 @@ Two things ruled out by measurement rather than by reading:
   `RichLog` is nonetheless unbounded (`max_lines` unset), which is a leak worth closing here even
   though it is not the freeze.
 
-**The fix is to chunk the write and yield between chunks.** `write_body` is already the single
+**The fix is to bound the write and chunk what remains.** (The spec said "chunk and yield
+between chunks"; the yield turned out to be unnecessary once the ceiling was in — see Notes.) `write_body` is already the single
 path to the transcript, so there is exactly one site. This is faster as well as more responsive,
 which is the part worth recording — same 80,000 lines:
 
@@ -314,17 +315,19 @@ awaiting task — the thread runs on. `asyncio.Runner.close()` then joins it wit
 dispatch costs five minutes of dead terminal after the UI has gone. Fixing the freeze does not fix
 this and `^Q` does not either.
 
-- [ ] Chunk `write_body` into ~1,000-line slices with a yield between them
-- [ ] Truncate a single dispatch's transcript output at a ceiling (~10,000 lines), with a marker
-      naming the dropped line count and pointing at `inspect` / `tb auto log`
-- [ ] Set `max_lines` on the `RichLog`
+- [x] Bound `write_body`: truncate on the plain string, then write in ~1,000-line slices
+- [x] Truncate a single dispatch's transcript output at a ceiling (10,000 lines), with a marker
+      naming the dropped line count and pointing at `inspect` / `auto log`
+- [x] Set `max_lines` on the `RichLog`
 - [ ] `^Q` exits without joining a running dispatch worker past a short grace period; a second
       `^Q` exits immediately. Record why `cancel_all()` cannot do it
 - [ ] Daemon watchdog thread, heartbeated by a loop timer, dumping all thread stacks to
       `$STATE_DIR/tui-stall.txt` on a stall past threshold
-- [ ] Test: a 100,000-line dispatch result never blocks the loop past ~0.3 s, asserted with a
+- [x] Test: a 200,000-line dispatch result never blocks the loop past ~0.3 s, asserted with a
       heartbeat timer in `run_test()` rather than by eye
-- [ ] Test: the truncation marker appears and `last_envelopes` still holds the full envelope
+- [x] Test: the truncation marker appears and `last_envelopes` still holds the full envelope
+- [x] Test: ordinary output is neither truncated nor reordered by chunking
+- [x] Test: the transcript is bounded, and one result always fits inside the scrollback
 - [ ] Test: exit completes promptly with a worker thread deliberately parked
 - [ ] Test: the stall dump is written when the loop is deliberately blocked
 

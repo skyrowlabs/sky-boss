@@ -79,6 +79,22 @@ SPINNER = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
 ECHO_PREFIX = "▸ "
 BAR_CELLS = 10
 
+# The two numbers that keep a large result from freezing the surface, and the
+# one that keeps a long session from growing without bound. See `write_body`,
+# and Round 2 of the tui feature doc for the measurements behind them.
+#
+# TRANSCRIPT_MAX_LINES is a ceiling on what one write may put on screen. It is
+# far above any output worth scrolling and far below where the cost starts to
+# hurt: nobody reads the 60,000th line of a traceback, they re-run with --json
+# or open the log, and both of those are one keystroke away.
+TRANSCRIPT_MAX_LINES = 10_000
+# Written a slice at a time, because RichLog.write is superlinear in the size of
+# a single renderable. Chunking the same 80k lines costs 1.48s against 7.62s.
+WRITE_CHUNK_LINES = 1_000
+# Scrollback, bounded. Unset, the transcript is a leak with no upper limit in a
+# surface designed to be left open for days.
+LOG_MAX_LINES = 50_000
+
 # The name, on one row, above everything. It is chrome and nothing else reads
 # it, so it is deliberately outside the REPL row budget below.
 BANNER_TEXT = "TACKLEBOX"
@@ -423,7 +439,12 @@ class TackleBox(App):
         with Horizontal(id="middle"):
             yield Static(id="launch")
             yield RichLog(
-                id="body", highlight=False, markup=False, wrap=False, auto_scroll=True
+                id="body",
+                highlight=False,
+                markup=False,
+                wrap=False,
+                auto_scroll=True,
+                max_lines=LOG_MAX_LINES,
             )
             yield Separator(id="railsep")
             with Vertical(id="rail"):
@@ -481,9 +502,26 @@ class TackleBox(App):
         Single path so `written` cannot drift from what is actually on screen —
         `action_last_log` writes without an echo, and that alone is enough to
         leave the launch screen up over a non-empty transcript.
+
+        Being the single path is also what makes it the one place a large result
+        can be bounded, and it has to be bounded somewhere. `RichLog.write` is
+        superlinear in the size of one renderable — 80,000 lines blocks for 7.7s
+        here and 120,000 for 17.5s — and it runs on the event loop, because
+        Textual widgets are not thread-safe and `call_from_thread` is the right
+        boundary. So a single chatty command freezes the surface on exactly the
+        output worth watching, with no key still live to escape it.
+
+        The founding rule was "a dispatch never runs on the event loop", and it
+        is honoured: `work` is a thread worker. But it names the wrong unit. The
+        *result* comes back through `call_from_thread` and is rendered here, on
+        the loop, and that was unbounded from the first commit. The rule that
+        actually holds the surface open is that **no single turn may be
+        unbounded**, and rendering a result is a turn like any other.
         """
         self.written = True
-        self.query_one(RichLog).write(renderable)
+        log = self.query_one(RichLog)
+        for chunk in _bounded_chunks(renderable):
+            log.write(chunk)
 
     def refresh_launch(self) -> None:
         idle = self.idle
@@ -959,6 +997,49 @@ class TackleBox(App):
         self.progress_timer.pause()
         self.tick()
         self.pump()
+
+
+def _bounded_chunks(renderable):
+    """A renderable as the slices `write_body` should hand to the log.
+
+    Anything that is not a `Text` passes straight through — the rail's renderables
+    are a handful of lines by construction, and only a command result is ever
+    large enough to matter.
+
+    A `Text` is truncated to `TRANSCRIPT_MAX_LINES` and then yielded in slices.
+    Truncating is what bounds the cost; slicing is what makes the bounded cost
+    cheap, and the two are not alternatives. Nothing is lost by the truncation:
+    the whole envelope is still on `last_envelopes` for `inspect`, and a job's
+    output is still whole in its log.
+    """
+    if not isinstance(renderable, Text):
+        yield renderable
+        return
+
+    # Cut on the plain string before splitting into `Text` objects. Splitting
+    # first is correct but costs a `Text` per line for lines that are about to
+    # be thrown away — 200,000 of them still hitched the loop for 0.6s, which is
+    # most of a freeze for output nobody was going to see. `split` with a maxsplit
+    # leaves the whole remainder as one string, so counting it is a C-level scan.
+    plain = renderable.plain
+    head = plain.split("\n", TRANSCRIPT_MAX_LINES)
+    dropped = 0
+    if len(head) > TRANSCRIPT_MAX_LINES:
+        remainder = head[-1]
+        dropped = remainder.count("\n") + 1
+        renderable = renderable[: len(plain) - len(remainder) - 1]
+
+    lines = renderable.split("\n")
+    newline = Text("\n")
+    for start in range(0, len(lines), WRITE_CHUNK_LINES):
+        yield newline.join(lines[start : start + WRITE_CHUNK_LINES])
+
+    if dropped > 0:
+        yield Text(
+            f"… {dropped:,} more lines not shown — `inspect` for the envelope, "
+            "or read the log with `auto log`",
+            style=WARN,
+        )
 
 
 def _clamp(value: int, low: int, high: int) -> int:
