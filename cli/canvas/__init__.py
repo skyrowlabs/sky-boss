@@ -41,6 +41,10 @@ BROWSERS = ("chromium", "google-chrome-stable", "google-chrome", "brave")
 # leaving nothing to wait on and no way to know the window ever opened.
 PROFILE_DIR = STATE_DIR / "browser-profile"
 
+# Only ever used on a first run; after that the profile remembers.
+FIRST_RUN_SIZE = "1600,1000"
+
+
 
 def _free_port() -> int:
     with socket.socket() as sock:
@@ -56,31 +60,81 @@ def _browser() -> str | None:
     return None
 
 
-def _launch(binary: str, url: str) -> subprocess.Popen:
+def _launch(binary: str, url: str, *, kiosk: bool, size: str | None) -> subprocess.Popen:
+    """Open the surface, with as little browser around it as the mode allows.
+
+    `--app` already removes the tab strip, the address bar and the bookmarks
+    bar. What it cannot remove is the frame, which the window manager draws —
+    and **there is no Chromium flag for a frameless window that is still
+    resizable.** `--kiosk` drops the frame by going full-screen, which is a
+    different thing and not a substitute: a full-screen window cannot be sized
+    or moved. It stays available for a wall display and is not the default.
+
+    Removing the title bar while keeping the window sizable is the window
+    manager's job, not the browser's. On KDE that is a KWin rule matched on the
+    window class, which is why `--class` is set here — but a rule is a change to
+    the operator's own desktop and belongs to them to make.
+
+    `--size` overrides the remembered geometry; without it the profile
+    remembers, and a first run gets a sensible default rather than whatever
+    Chromium would otherwise pick.
+    """
+    first_run = not PROFILE_DIR.exists()
     PROFILE_DIR.mkdir(parents=True, exist_ok=True)
-    return subprocess.Popen(
-        [
-            binary,
-            f"--app={url}",
-            f"--user-data-dir={PROFILE_DIR}",
-            "--no-first-run",
-            "--no-default-browser-check",
-        ],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
+
+    argv = [
+        binary,
+        f"--app={url}",
+        f"--user-data-dir={PROFILE_DIR}",
+        "--no-first-run",
+        "--no-default-browser-check",
+        # So the window manager files it under its own name rather than
+        # grouping it with every other Chromium window.
+        "--class=tackle-box",
+    ]
+    if kiosk:
+        argv.append("--kiosk")
+    elif size:
+        argv.append(f"--window-size={size}")
+    elif first_run:
+        argv.append(f"--window-size={FIRST_RUN_SIZE}")
+
+    return subprocess.Popen(argv, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
 @click.command()
 @click.option("--port", type=int, default=None, help="Bind this port instead of a free one.")
 @click.option("--no-browser", is_flag=True, help="Serve only; print the URL and wait.")
+@click.option(
+    "--kiosk",
+    is_flag=True,
+    help="Full-screen with no frame. Not sizable — for a wall display.",
+)
+@click.option(
+    "--size",
+    default=None,
+    help="Window geometry as WIDTH,HEIGHT. Otherwise the profile remembers.",
+)
+@click.option(
+    "--scale",
+    type=float,
+    default=2.0,
+    show_default=True,
+    help="How big the surface renders. Every size derives from this.",
+)
 @emit
-def ui(port: int | None, no_browser: bool) -> Result:
+def ui(
+    port: int | None, no_browser: bool, kiosk: bool, size: str | None, scale: float
+) -> Result:
     """Open the canvas — a command palette over tiled and floating windows."""
     import uvicorn
 
     result = Result()
-    canvas = Canvas()
+    if scale <= 0:
+        result.ok = False
+        result.data = {"error": "--scale must be positive"}
+        return result
+    canvas = Canvas(scale=scale)
     port = port or _free_port()
     url = f"http://127.0.0.1:{port}/"
 
@@ -101,28 +155,15 @@ def ui(port: int | None, no_browser: bool) -> Result:
     browser = None
     started = time.monotonic()
 
-    if not no_browser:
-        binary = _browser()
-        if binary is None:
-            result.degrade(
-                "no chromium-family browser found; serving only — open " + url
-            )
-        else:
-            def open_when_up() -> None:
-                # The window must not race the bind, or it lands on a refused
-                # connection and shows a browser error page for a server that
-                # came up 40ms later.
-                while not server.started and time.monotonic() - started < 10:
-                    time.sleep(0.05)
-                nonlocal browser
-                browser = _launch(binary, url)
-                browser.wait()
-                # Closing the window ends the session. Nothing survives it —
-                # that is the same rule the watchers follow, applied to the
-                # process that owns them.
-                server.should_exit = True
+    def stop() -> None:
+        server.should_exit = True
 
-            threading.Thread(target=open_when_up, daemon=True).start()
+    # The surface's own close button, watched in every mode. It used to be
+    # watched only inside the browser thread, so with `--no-browser` — the mode
+    # you develop in — pressing it set the latch and nothing happened.
+    threading.Thread(
+        target=lambda: canvas.quitting.wait() and stop(), daemon=True
+    ).start()
 
     with contextlib.suppress(KeyboardInterrupt):
         server.run()
@@ -133,6 +174,8 @@ def ui(port: int | None, no_browser: bool) -> Result:
     result.data = {
         "url": url,
         "port": port,
+        "scale": scale,
+        "mode": "full-screen" if kiosk else "windowed",
         "duration_s": round(time.monotonic() - started, 1),
     }
     return result

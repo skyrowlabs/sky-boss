@@ -66,22 +66,40 @@ def test_no_stylesheet_smuggles_a_colour_past_the_hex_scan():
 
 def test_every_token_the_stylesheet_uses_is_defined():
     """An undefined custom property does not raise — it silently resolves to
-    nothing, so a typo here is a colourless surface rather than an error. Better
-    to fail in the suite than to launch a canvas painted in default black."""
+    nothing, so a typo here is a colourless surface rather than an error.
+
+    **A token used with a fallback is exempt, and that is the real rule.**
+    `var(--tb-scale, 2)` names something the *server* injects from
+    `tb ui --scale` rather than something the palette owns, and it carries a
+    default precisely so a failed substitution renders at the normal size
+    instead of collapsing. A bare `var(--tb-brand)` has no such safety net,
+    which is why only bare uses have to be accounted for.
+    """
     import re as _re
 
     from cli.theme import css_variables
 
     stylesheet = (PROJECT_ROOT / "cli/canvas/static/tb.css").read_text()
-    used = set(_re.findall(r"var\(\s*--(tb-[a-z0-9-]+)", stylesheet))
-    assert used, "found no --tb-* tokens at all — did the stylesheet move?"
+    bare = set(_re.findall(r"var\(\s*--(tb-[a-z0-9-]+)\s*\)", stylesheet))
+    assert bare, "found no --tb-* tokens at all — did the stylesheet move?"
 
     # The stylesheet builds a few of its own from the injected roles — a tint is
     # a role plus an alpha, not a new colour — so those count as defined too.
     derived = set(_re.findall(r"^\s*--(tb-[a-z0-9-]+)\s*:", stylesheet, _re.MULTILINE))
     defined = set(css_variables()) | derived
 
-    assert used <= defined, f"undefined tokens: {sorted(used - defined)}"
+    assert bare <= defined, f"undefined tokens: {sorted(bare - defined)}"
+
+
+def test_the_scale_token_keeps_its_fallback():
+    """Every size on the surface is measured in it. Without the fallback, a
+    failed injection would render the whole canvas at zero."""
+    import re as _re
+
+    stylesheet = (PROJECT_ROOT / "cli/canvas/static/tb.css").read_text()
+    uses = _re.findall(r"var\(\s*--tb-scale\s*(,[^)]*)?\)", stylesheet)
+    assert uses, "the stylesheet no longer scales"
+    assert all(use.strip() for use in uses), "a bare var(--tb-scale) has no safety net"
 
 
 def test_the_stylesheet_defines_no_token_the_palette_already_owns():

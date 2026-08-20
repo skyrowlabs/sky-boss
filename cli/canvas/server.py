@@ -32,6 +32,7 @@ from __future__ import annotations
 import asyncio
 import json
 import secrets
+import threading
 import uuid
 from pathlib import Path
 
@@ -44,7 +45,7 @@ from starlette.staticfiles import StaticFiles
 from cli.canvas import runner
 from cli.canvas.catalog import catalog
 from cli.canvas.watch import INTERVALS, Session
-from cli.theme import css_root
+from cli.theme import css_root, css_variables
 
 STATIC = Path(__file__).resolve().parent / "static"
 
@@ -68,9 +69,15 @@ RELOAD_POLL_SECONDS = 0.5
 class Canvas:
     """One server instance. Holds the token and the live sessions."""
 
-    def __init__(self, *, token: str | None = None) -> None:
+    def __init__(self, *, token: str | None = None, scale: float = 2.0) -> None:
         self.token = token or secrets.token_urlsafe(32)
         self.sessions: dict[str, Session] = {}
+        # How big the surface renders. One number, injected into the page, that
+        # every size in the stylesheet is measured in.
+        self.scale = scale
+        # Set when the page asks to quit. `tb ui` watches it, because the
+        # window has no frame of its own and so no close button but ours.
+        self.quitting = threading.Event()
 
     # ------------------------------------------------------------------ auth
 
@@ -110,7 +117,50 @@ def build(canvas: Canvas | None = None) -> Starlette:
         # that matters — `__TB_TOKENS__` has an S where `__TB_TOKEN__` has its
         # closing underscores — but ordering them makes that not need checking.
         html = html.replace("__TB_TOKENS__", css_root())
+        html = html.replace("__TB_SCALE__", str(canvas.scale))
         return HTMLResponse(html.replace("__TB_TOKEN__", canvas.token))
+
+    async def favicon(request: Request) -> Response:
+        """The window's own mark, drawn from the palette.
+
+        Without it the taskbar and the title show Chromium's default globe, so
+        a surface that has gone to the trouble of having no browser chrome
+        still announces itself as a browser. It is generated rather than
+        stored because a static `.svg` would have to name a colour, and nothing
+        outside `cli/theme.py` may.
+        """
+        tokens = css_variables()
+        svg = (
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">'
+            f'<rect width="32" height="32" rx="7" fill="{tokens["tb-surface"]}"/>'
+            f'<rect x="3.5" y="3.5" width="25" height="25" rx="5.5" fill="none" '
+            f'stroke="{tokens["tb-brand"]}" stroke-opacity=".45"/>'
+            f'<path d="M9 12h14" stroke="{tokens["tb-brand"]}" stroke-width="2.5" '
+            'stroke-linecap="round"/>'
+            f'<path d="M9 18h9" stroke="{tokens["tb-text-2"]}" stroke-width="2.5" '
+            'stroke-linecap="round"/>'
+            f'<path d="M9 23h5" stroke="{tokens["tb-text-3"]}" stroke-width="2.5" '
+            'stroke-linecap="round"/>'
+            "</svg>"
+        )
+        return Response(svg, media_type="image/svg+xml", headers={"cache-control": "no-cache"})
+
+    async def post_quit(request: Request) -> Response:
+        """The close button. Guarded like every other route.
+
+        Shutting the surface down is a real effect, so it goes through the same
+        token and origin checks as running a command — a page you did not open
+        must not be able to end your session any more than it may start one.
+
+        This does not call `window.close()`. That is only reliably permitted on
+        a window a script opened, and a kiosk window is not one; setting a latch
+        that `tb ui` is waiting on works the same in every mode and leaves the
+        server in charge of its own shutdown.
+        """
+        if not canvas.authorised(request):
+            return _denied()
+        canvas.quitting.set()
+        return JSONResponse({"quitting": True})
 
     async def get_catalog(request: Request) -> Response:
         if not canvas.authorised(request):
@@ -179,9 +229,11 @@ def build(canvas: Canvas | None = None) -> Starlette:
     app = Starlette(
         routes=[
             Route("/", index),
+            Route("/favicon.svg", favicon),
             Route("/api/catalog", get_catalog),
             Route("/api/run", post_run, methods=["POST"]),
             Route("/api/watch", post_watch, methods=["POST"]),
+            Route("/api/quit", post_quit, methods=["POST"]),
             Route("/api/stream", stream),
             Mount("/static", NoCacheStatic(directory=STATIC), name="static"),
         ]

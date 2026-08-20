@@ -46,6 +46,14 @@ export function unwatch(session, window) {
   return post("/api/watch", { session, window, stop: true });
 }
 
+/* Ends the whole surface. The window has no frame, so this is the close
+ * button — and it is guarded like every other route, because ending your
+ * session is a real effect and a page you did not open must not be able to
+ * cause it. */
+export function quit() {
+  return post("/api/quit", {});
+}
+
 /* The session, as newline-delimited JSON over a streaming fetch.
  *
  * Not EventSource, which cannot set a request header and so cannot carry the
