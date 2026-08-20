@@ -26,18 +26,26 @@ it is much harder to reconstruct once implementation has blurred it.
 
 ## Phases
 
-Each phase is independently commitable and leaves the repo working.
+Each phase is independently commitable and leaves the repo working. Phases are grouped into
+**rounds** — a round is one campaign of work on this feature. A feature that ships, and is later
+changed or fixed, gains Round 2 here rather than a second doc. Shipped rounds keep their checked
+boxes forever.
 
-### Phase 1 — <name>
+### Round 1 — <what this round is> (<YYYY-MM-DD>)
+
+#### Phase 1 — <name>
 
 - [ ] task
 - [ ] task
 
-### Phase 2 — <name>
+#### Phase 2 — <name>
 
 - [ ] task
 
 ## Notes
 
-Filled in during implementation. Surprises, reversals, and why the shipped thing
-differs from the plan. This is the section a future session actually needs.
+Filled in during implementation, one dated entry per round. Surprises, reversals, and why the
+shipped thing differs from the plan. **Accretes, never rewrites** — reasoning that a later round
+overturned stays on the page with the reversal recorded beside it, because a superseded argument
+left visible is what stops someone making it again. This is the section a future session actually
+needs.

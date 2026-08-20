@@ -1,7 +1,7 @@
 # Jobs backlog
 
 Candidate jobs for `tb auto`. Not features — this is the pool that feature specs get drawn
-from. Add freely; promote to `docs/features/<slug>.md` only when a job is next up.
+from. Add freely; promote to a feature doc only when a job is next up.
 
 **D** = deterministic script (a correct answer a script can compute).
 **A** = agentic (needs judgment). Prefer D. Reach for A when the task genuinely needs
