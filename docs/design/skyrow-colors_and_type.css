@@ -1,0 +1,272 @@
+/* ============================================================
+   SKYROW LABS — Design System Foundations
+   colors_and_type.css
+
+   Single source of truth for color + type tokens across every
+   Skyrow Labs surface. Dark-only. Mirrors the live marketing
+   site at www.skyrowlabs.com.
+
+   Fonts are loaded from Google Fonts (no local files needed):
+   Space Grotesk (display/headings) + Inter (body/UI) +
+   JetBrains Mono (data/telemetry/code).
+   Add this to <head> if not already present:
+
+   <link rel="preconnect" href="https://fonts.googleapis.com">
+   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+============================================================ */
+
+:root {
+  /* ----------------------------------------------------------
+     COLOR — Backgrounds (deep blue-black, never pure #000)
+  ---------------------------------------------------------- */
+  --bg:          #05090e;   /* page base — the void                */
+  --surface:     #0b1016;   /* cards, forms, raised panels         */
+  --surface-2:   #111820;   /* inset wells, inputs, vis panels     */
+
+  /* ----------------------------------------------------------
+     COLOR — Hairline borders (white at very low alpha)
+  ---------------------------------------------------------- */
+  --border:      rgba(255, 255, 255, 0.055);  /* default hairline  */
+  --border-md:   rgba(255, 255, 255, 0.09);   /* inputs / stronger */
+
+  /* ----------------------------------------------------------
+     COLOR — Text (cool grey ramp on the blue-black)
+  ---------------------------------------------------------- */
+  --text:        #e8edf4;   /* primary — headings + body           */
+  --text-2:      #7a8fa8;   /* secondary — descriptions, muted     */
+  --text-3:      #344050;   /* tertiary — labels, captions, faint  */
+
+  /* ----------------------------------------------------------
+     COLOR — Master brand accent (Skyrow sky blue)
+     Used for the wordmark mark, section tags, primary CTAs.
+  ---------------------------------------------------------- */
+  --brand:       #38bdf8;
+  --brand-dim:   rgba(56, 189, 248, 0.12);
+  --brand-ring:  rgba(56, 189, 248, 0.22);
+
+  /* ----------------------------------------------------------
+     COLOR — Per-project accents
+     Each project owns ONE hue. Used at full strength for marks
+     and links, -dim for soft fills, -ring for hover halos.
+  ---------------------------------------------------------- */
+  /* Jam Sense — sky blue (shares the master brand hue) */
+  --js:          #38bdf8;
+  --js-dim:      rgba(56, 189, 248, 0.09);
+  --js-ring:     rgba(56, 189, 248, 0.22);
+
+  /* Breeze Brain — wind green */
+  --bb:          #4ade80;
+  --bb-dim:      rgba(74, 222, 128, 0.09);
+  --bb-ring:     rgba(74, 222, 128, 0.22);
+
+  /* Mind Head — signal yellow */
+  --mh:          #e6dc0e;
+  --mh-dim:      rgba(230, 220, 14, 0.09);
+  --mh-ring:     rgba(230, 220, 14, 0.22);
+
+  /* ----------------------------------------------------------
+     COLOR — Semantic status
+     A small, fixed status palette. Success/warning reuse the
+     Breeze green + Mind yellow hues; danger is a soft coral red
+     (the one accent the marketing site doesn't otherwise use).
+  ---------------------------------------------------------- */
+  --ok:          #4ade80;   --ok-dim:     rgba(74, 222, 128, 0.12);
+  --warn:        #e6dc0e;   --warn-dim:   rgba(230, 220, 14, 0.12);
+  --danger:      #f4665b;   --danger-dim: rgba(244, 102, 91, 0.12);
+  --success:     var(--ok);  /* legacy alias — form success state */
+
+  /* Text printed ON a bright accent fill (buttons, brand chips) */
+  --text-on-accent: #05090e;
+
+  /* ----------------------------------------------------------
+     TYPE — Families
+  ---------------------------------------------------------- */
+  --ff-head:  'Space Grotesk', system-ui, sans-serif;          /* display + headings */
+  --ff-body:  'Inter', system-ui, sans-serif;                  /* body + UI          */
+  --ff-mono:  'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace; /* data, chords, telemetry, code */
+
+  /* ----------------------------------------------------------
+     TYPE — Base scale (rem, root = 16px)
+     Display uses fluid clamp(); UI uses fixed steps.
+  ---------------------------------------------------------- */
+  --fs-hero:    clamp(2.75rem, 7vw, 5.5rem);     /* brand / hero word  */
+  --fs-h1:      clamp(1.75rem, 3.5vw, 2.625rem); /* section titles     */
+  --fs-h2:      1.85rem;                          /* sub-section titles */
+  --fs-h3:      1.6rem;                           /* card / project name*/
+  --fs-h4:      1.2rem;                           /* small headings     */
+  --fs-lead:    1.0625rem;                        /* lead paragraphs    */
+  --fs-body:    1rem;                             /* body copy          */
+  --fs-ui:      0.9375rem;                        /* buttons, inputs    */
+  --fs-sm:      0.875rem;                         /* nav links          */
+  --fs-xs:      0.8125rem;                        /* footer, fine print */
+  --fs-tag:     0.71rem;                          /* eyebrow / tag      */
+
+  /* Weights */
+  --fw-light:   300;
+  --fw-regular: 400;
+  --fw-medium:  500;
+  --fw-semibold:600;
+  --fw-bold:    700;
+  --fw-black:   800;   /* hero word only (Space Grotesk) */
+
+  /* Tracking — tighten as size grows */
+  --ls-hero:   -0.04em;
+  --ls-title:  -0.025em;
+  --ls-tag:     0.12em;   /* eyebrows: uppercase + wide   */
+  --ls-label:   0.08em;   /* small uppercase labels       */
+
+  /* Line heights */
+  --lh-tight:  1.1;    /* display              */
+  --lh-snug:   1.15;   /* section titles       */
+  --lh-body:   1.65;   /* default body         */
+  --lh-relax:  1.8;    /* long-form paragraphs */
+
+  /* ----------------------------------------------------------
+     SPACING & LAYOUT
+  ---------------------------------------------------------- */
+  --max-w:     1160px;
+  --pad:       clamp(1.25rem, 5vw, 3.5rem);
+  --section-y: 6.5rem;     /* vertical rhythm between sections */
+  --nav-h:     78px;
+
+  /* Spacing scale (used for gaps, padding) */
+  --sp-1: 0.25rem;
+  --sp-2: 0.5rem;
+  --sp-3: 0.75rem;
+  --sp-4: 1rem;
+  --sp-5: 1.5rem;
+  --sp-6: 2rem;
+  --sp-7: 2.5rem;
+  --sp-8: 3.5rem;
+
+  /* ----------------------------------------------------------
+     RADII — soft on small UI, generous on cards
+  ---------------------------------------------------------- */
+  --r-xs:   4px;    /* badges, tag pills (square-ish)    */
+  --r-sm:   6px;    /* nav CTA, small buttons            */
+  --r-md:   7px;    /* inputs                            */
+  --r-lg:   8px;    /* buttons                           */
+  --r-icon: 11px;   /* project icon tiles                */
+  --r-xl:   14px;   /* cards, forms                      */
+  --r-pill: 100px;  /* tags, chips                       */
+
+  /* ----------------------------------------------------------
+     SHADOWS & GLOWS — diffuse, colored, never hard/black
+  ---------------------------------------------------------- */
+  --glow-brand:  0 0 24px rgba(56, 189, 248, 0.28);
+  --glow-brand-strong: 0 0 36px rgba(56, 189, 248, 0.40);
+  --shadow-card-js: 0 24px 64px rgba(56, 189, 248, 0.08), 0 0 0 1px var(--js-ring);
+  --shadow-card-bb: 0 24px 64px rgba(74, 222, 128, 0.08), 0 0 0 1px var(--bb-ring);
+  --shadow-card-mh: 0 24px 64px rgba(230, 220, 14, 0.08), 0 0 0 1px var(--mh-ring);
+
+  /* ----------------------------------------------------------
+     MOTION
+  ---------------------------------------------------------- */
+  --ease:       cubic-bezier(0.4, 0, 0.2, 1);
+  --dur-fast:   0.18s;   /* button / hover lifts   */
+  --dur-base:   0.2s;    /* color transitions      */
+  --dur-slow:   0.55s;   /* scroll reveals         */
+  --lift-card:  -5px;    /* card hover translateY  */
+  --lift-btn:   -2px;    /* button hover translateY*/
+
+  /* Ambient field — fixed full-bleed dot grid + twin glows.
+     Every Skyrow surface lays --ambient-glow then --dot-grid as
+     two fixed, non-scrolling, pointer-events:none layers. */
+  --dot-grid:   radial-gradient(rgba(255,255,255,0.025) 1px, transparent 1px);
+  --dot-size:   30px;
+  --ambient-glow:
+    radial-gradient(ellipse 60% 50% at 20% 10%, rgba(56,189,248,0.05) 0%, transparent 70%),
+    radial-gradient(ellipse 60% 50% at 80% 85%, rgba(74,222,128,0.045) 0%, transparent 70%);
+}
+
+/* ============================================================
+   SEMANTIC ELEMENT STYLES
+   Drop-in defaults. Apply .ds-prose to a container, or use the
+   utility classes directly.
+============================================================ */
+
+.ds-hero {
+  font-family: var(--ff-head);
+  font-size: var(--fs-hero);
+  font-weight: var(--fw-black);
+  letter-spacing: var(--ls-hero);
+  line-height: var(--lh-tight);
+  color: var(--text);
+}
+
+h1, .ds-h1 {
+  font-family: var(--ff-head);
+  font-size: var(--fs-h1);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--ls-title);
+  line-height: var(--lh-snug);
+  color: var(--text);
+}
+
+h2, .ds-h2 {
+  font-family: var(--ff-head);
+  font-size: var(--fs-h2);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--ls-title);
+  line-height: var(--lh-snug);
+  color: var(--text);
+}
+
+h3, .ds-h3 {
+  font-family: var(--ff-head);
+  font-size: var(--fs-h3);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--ls-title);
+  color: var(--text);
+}
+
+h4, .ds-h4 {
+  font-family: var(--ff-head);
+  font-size: var(--fs-h4);
+  font-weight: var(--fw-semibold);
+  color: var(--text);
+}
+
+/* Eyebrow / section tag — the brand's signature label */
+.ds-tag {
+  font-family: var(--ff-body);
+  font-size: var(--fs-tag);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--ls-tag);
+  text-transform: uppercase;
+  color: var(--brand);
+}
+
+.ds-lead {
+  font-family: var(--ff-body);
+  font-size: var(--fs-lead);
+  font-weight: var(--fw-regular);
+  line-height: var(--lh-relax);
+  color: var(--text-2);
+}
+
+p, .ds-body {
+  font-family: var(--ff-body);
+  font-size: var(--fs-body);
+  font-weight: var(--fw-regular);
+  line-height: var(--lh-body);
+  color: var(--text-2);
+}
+
+small, .ds-small {
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+
+code, .ds-code {
+  font-family: var(--ff-mono);
+  font-size: 0.9em;
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xs);
+  padding: 0.1em 0.4em;
+}
+
+a, .ds-link { color: var(--brand); text-decoration: none; }

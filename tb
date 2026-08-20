@@ -1,0 +1,40 @@
+#!/bin/bash
+# tackle-box CLI wrapper
+#
+# Usage: tb [command] [options]
+#
+# Thin wrapper: it does path work only. All behavior lives in cli/.
+
+set -e
+
+# Resolve this script's REAL location before anything else.
+#
+# Unlike `jam` and `bbrain`, `tb` is invoked through a symlink on PATH
+# (~/.local/bin/tb), so BASH_SOURCE points at the symlink, not the repo. And
+# `python -m cli` resolves the package from sys.path rather than from the
+# script's location — so without realpath + PYTHONPATH below, running `tb` from
+# any directory but the repo root fails to find the cli package at all.
+SCRIPT_DIR="$( cd "$( dirname "$(realpath "${BASH_SOURCE[0]}")" )" && pwd )"
+export PYTHONPATH="$SCRIPT_DIR${PYTHONPATH:+:$PYTHONPATH}"
+
+VENV_PYTHON="$SCRIPT_DIR/.venv/bin/python"
+
+if [ -x "$VENV_PYTHON" ]; then
+    # Put the chosen interpreter's bin dir on PATH so anything tb spawns gets
+    # the same interpreter tb itself runs on.
+    VENV_BIN="${VENV_PYTHON%/*}"
+    case ":$PATH:" in
+        *":$VENV_BIN:"*) ;;
+        *) export PATH="$VENV_BIN:$PATH" ;;
+    esac
+    exec "$VENV_PYTHON" -m cli "$@"
+fi
+
+if ! command -v python3 &> /dev/null; then
+    echo "Error: python3 not found" >&2
+    echo "" >&2
+    echo "Install Python 3, then: python3 -m venv .venv && .venv/bin/pip install -r requirements.txt" >&2
+    exit 1
+fi
+
+exec python3 -m cli "$@"

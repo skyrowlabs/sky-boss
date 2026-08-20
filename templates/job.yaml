@@ -1,0 +1,22 @@
+# tackle-box job definition — template
+#
+# One file per job, named for the job. Copy this, rename it, fill it in.
+# Nothing runs on a schedule until `tb auto install <job>` is run explicitly.
+
+name: example-job          # must match the filename stem
+
+description: >
+  One line on what this job answers. Write it for the version of you that reads
+  the log at 7am and has forgotten why this job exists.
+
+run: [tb, check, tools]  # argv list. No shell — no pipes, globs, or redirects.
+
+# Which jobs must never overlap this one. Jobs sharing a lane are mutually
+# exclusive once installed. Pick deliberately: this is the constraint that
+# jam.sense's crontab records only as prose comments.
+lane: read-only            # read-only | committing
+
+timeout: 600               # seconds; the job is killed and recorded as timed out
+
+# Optional. Absent means the job only runs when invoked by hand.
+# schedule: daily 06:00

@@ -1,0 +1,5 @@
+click>=8.1
+rich>=14
+rich-click>=1.8
+PyYAML>=6
+textual>=8
