@@ -18,8 +18,6 @@ interpreter exit — `cli/tui/app.run` leaves through `os._exit` only when a
 make every ordinary exit a hard one. And it keeps running while the loop is
 wedged, which is the entire point: an async task could not report this, because
 the thing it would report is the reason it is not running.
-
-See Round 2 of the tui feature doc.
 """
 
 from __future__ import annotations
@@ -34,9 +32,8 @@ from cli.helpers import STATE_DIR
 
 STALL_PATH = STATE_DIR / "tui-stall.txt"
 
-# Long enough that a legitimately expensive turn does not cry wolf — the tick
-# repaints four rail panes every second — and short enough to catch a freeze
-# while it is still the thing the operator is looking at.
+# Long enough that a legitimately expensive turn does not cry wolf, and short
+# enough to catch a freeze while it is still the thing the operator is looking at.
 STALL_SECONDS = 5.0
 
 # How often the watcher looks. It sleeps in these increments, so it also bounds
@@ -107,7 +104,7 @@ class Watchdog:
                     f"\n=== tb tui: event loop stalled {self.stalled_for():.1f}s "
                     f"at {datetime.now().isoformat(timespec='seconds')} ===\n"
                     "The loop is blocked by whichever frame below is on the "
-                    "MainThread. See Round 2 of the tui feature doc.\n\n"
+                    "MainThread.\n\n"
                 )
                 handle.flush()
                 faulthandler.dump_traceback(file=handle, all_threads=True)

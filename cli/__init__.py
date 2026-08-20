@@ -95,15 +95,13 @@ def cli(ctx: click.Context, as_json: bool) -> None:
 # Register command groups and top-level commands
 # ============================================================================
 
-from cli.jobs import auto as auto_group  # noqa: E402
 from cli.run import run as run_cmd  # noqa: E402
 from cli.tui import tui as tui_cmd  # noqa: E402
 
 cli.add_command(run_cmd)
-cli.add_command(auto_group)
 
-# A surface, not a mood. `tb mcp serve` will land beside it. Both render the
-# same envelope every command returns rather than adding a verb, which is why
-# neither belongs in run/auto/info/check.
+# A surface, not a verb. It renders the same envelope every command returns
+# rather than adding one of its own, which is why `tb run` stays the only door
+# that acts even with the surface in front of it.
 cli.add_command(tui_cmd)
 

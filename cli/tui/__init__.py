@@ -4,7 +4,7 @@ Not a second CLI. Everything here dispatches strings through the real Click
 tree and renders what `cli/output.py` produced, which is what keeps the surface
 from drifting away from the command line it fronts.
 
-See the tui feature doc.
+See `cli/tui/app.py` for the design and the surprises.
 """
 
 import rich_click as click
@@ -12,11 +12,11 @@ import rich_click as click
 
 @click.command()
 def tui() -> None:
-    """Open the interactive surface — input below, transcript above.
+    """Open the interactive surface — input on top, newest result under it.
 
-    The second honest exception to the mood taxonomy, alongside `tb mcp serve`.
-    Neither is a command in a mood: they are surfaces over the same envelope
-    every command returns, and `tb run` remains the only door that writes.
+    Not a second CLI: it dispatches strings through the real Click tree and
+    renders what `cli/output.py` produced, so `tb run` remains the only command
+    that acts even with the surface in front of it.
     """
     try:
         from cli.tui.app import run

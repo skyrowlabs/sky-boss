@@ -1,7 +1,7 @@
 """The surface itself.
 
-A one-row banner at the top, the transcript and the rail sharing the middle,
-and the REPL region pinned to the bottom. The region is split: the input on
+A one-row banner at the top, the REPL region under it, and the transcript
+filling what is left. The region is split: the input on
 its first row — directly under the rule, level with the help pane's title, so
 the line and its explanation read across — with candidate names beneath it.
 
@@ -42,7 +42,6 @@ from textual.screen import ModalScreen
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.widgets import Input, Static
 
-from cli.jobs import LANES, load_jobs
 from cli.output import EXIT_OK, EXIT_PARTIAL, TUI_THEME
 from cli.theme import BG, BORDER, BRAND, SURFACE, SURFACE_2, TEXT, TEXT_2, TEXT_3
 from cli.tui.complete import complete
@@ -52,14 +51,6 @@ from cli.tui.launch import view as launch_view
 from cli.tui.verbs import resolve as resolve_verb
 from cli.tui.watchdog import Watchdog
 from cli.tui.history import History
-from cli.tui.live import (
-    expected_seconds,
-    lanes,
-    last_run,
-    ledger_size,
-    recent_runs,
-    summarize,
-)
 
 # The undarkened roles. The CLI's are derived to survive an unknown terminal;
 # this surface paints its own background and does not need that concession.
@@ -72,20 +63,13 @@ OK = TUI_THEME.styles["tb.ok"]
 NUM = TUI_THEME.styles["tb.num"]
 SECTION = TUI_THEME.styles["tb.accent"]
 
-BUSY_GLYPH = "●"
-FREE_GLYPH = "·"
-FILLED = "▰"
-EMPTY = "▱"
-SPINNER = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
-
 # What a typed line looks like in the transcript. Shared with the tests so the
 # two cannot disagree about what an echoed line is.
 ECHO_PREFIX = "▸ "
-BAR_CELLS = 10
 
 # The two numbers that keep a large result from freezing the surface, and the
 # one that keeps a long session from growing without bound. See `write_body`,
-# and Round 2 of the tui feature doc for the measurements behind them.
+# for the measurements behind them.
 #
 # TRANSCRIPT_MAX_LINES is a ceiling on what one write may put on screen. It is
 # far above any output worth scrolling and far below where the cost starts to
@@ -115,15 +99,6 @@ PROMPT_ROWS = 1
 COMPLETION_ROWS = REPL_ROWS - BORDER_ROWS - PROMPT_ROWS
 assert COMPLETION_ROWS >= 1, "the region has no room left for candidates"
 
-# The rail, right of the transcript. Wide enough for a timestamp, a job name and
-# an outcome without truncating the common case.
-RAIL_WIDTH = 34
-
-# Below this the rail costs the transcript more than it is worth: on an 80
-# column terminal it would leave 46 columns for output, narrower than most
-# tables reflow to. Hidden rather than squeezed — output is what this is for.
-RAIL_MIN_TOTAL_WIDTH = 100
-
 # What the feed falls back to before the rail has been laid out and can be asked
 # how tall it is.
 UPDATE_ROWS = 5
@@ -143,10 +118,6 @@ TICK_SECONDS = 1.0
 # Faster than the tick, so a stall is measured against a recent beat rather than
 # against whenever the last repaint happened to land.
 WATCHDOG_BEAT_SECONDS = 0.5
-
-# The progress row is the one thing that has to look alive, and it only ticks
-# this fast while something is actually running.
-PROGRESS_SECONDS = 0.1
 
 
 class PromptInput(Input):
@@ -244,7 +215,7 @@ class Separator(Static):
 class Expanded(ModalScreen):
     """A truncated pane, in full.
 
-    The rail and the help pane are narrow by design and cut everything to fit.
+    The help pane is narrow by design and cuts everything to fit.
     That is the right default and a bad dead end, so the cut version is a
     click away from the whole thing. Chrome only — the transcript is never
     truncated in the first place, and is `markup=False` precisely so command
@@ -277,7 +248,7 @@ class Transcript(VerticalScroll):
     A `RichLog` cannot do this. It appends, and there is no prepend — the only
     way to get newest-first out of it is to clear and rewrite the whole log on
     every turn, which is O(total) per turn and reintroduces exactly the
-    unbounded on-loop render that froze the surface in Round 2.
+    unbounded on-loop render that froze the surface once already.
 
     So the unit is a **turn block**: one container per dispatch, mounted at the
     top, holding that dispatch's echo and output in the order they happened.
@@ -322,7 +293,7 @@ class TackleBox(App):
     # A file, not a class attribute, so `textual run --dev` can watch it and
     # re-parse on save. An inline stylesheet gives the watcher nothing to watch,
     # which is why editing colours used to cost a restart per iteration.
-    # See cli/tui/tb.tcss and Round 3 of the tui feature doc.
+    # See cli/tui/tb.tcss.
     CSS_PATH = "tb.tcss"
 
     def get_css_variables(self) -> dict[str, str]:
@@ -350,7 +321,6 @@ class TackleBox(App):
             "tb-muted": TEXT_2,
             "tb-dim": TEXT_3,
             "tb-accent": BRAND,
-            "tb-rail": str(RAIL_WIDTH),
             "tb-repl": str(REPL_ROWS),
         }
 
@@ -362,10 +332,6 @@ class TackleBox(App):
         Binding("ctrl+c", "cancel_line", "cancel", priority=True, show=False),
         Binding("ctrl+q", "quit", "quit", show=False),
         Binding("ctrl+l", "clear", "clear", show=False),
-        # The two-trip problem: `auto status` hands you a run_id and the next
-        # thing you always want is that run's log. This types it for you, as a
-        # real dispatch, so the transcript shows what it ran.
-        Binding("ctrl+o", "last_log", "last log", show=False),
     ]
 
     def __init__(self, history: History | None = None) -> None:
@@ -384,7 +350,6 @@ class TackleBox(App):
         self.busy = False
         self.running_line = ""
         self.started_at = 0.0
-        self.expected = None
         self.frame = 0
         # Whether anything has reached the transcript. See `idle`.
         self.written = False
@@ -397,11 +362,11 @@ class TackleBox(App):
     def compose(self) -> ComposeResult:
         yield Static(BANNER_TEXT, id="banner")
         # The region is above the transcript, and the newest result sits
-        # directly beneath it. Round 1 had this at the foot, on the reasoning
+        # directly beneath it. It used to sit at the foot, on the reasoning
         # that a terminal puts its prompt there — but a terminal's prompt is at
         # the bottom because its transcript is scrollback you have already read.
         # Here it is a stack of results you are working through, and the one
-        # that just arrived is the one you want. See Round 4.
+        # that just arrived is the one you want.
         #
         # Inside the region nothing moved: the input is still at the top of it,
         # because everything else here describes it — candidates below, help to
@@ -411,22 +376,16 @@ class TackleBox(App):
                 with Horizontal(id="promptrow"):
                     yield Static("tb ▸", id="brand")
                     yield PromptInput(
-                        self.history, id="prompt", placeholder="auto status, run <job>…"
+                        self.history, id="prompt", placeholder="run -- echo hello"
                     )
                 yield Static(id="completions")
             yield Separator(id="replsep")
             yield Static(id="helppane")
-        # The transcript and the rail share what is left. Live state sits beside
-        # the thing it describes rather than beside the thing you type: lanes
-        # and progress are about the run, and the run's output is right there.
+        # The transcript is what is left. The rail that used to sit beside it —
+        # lanes, live progress, recent runs — went with the job layer.
         with Horizontal(id="middle"):
             yield Static(id="launch")
             yield Transcript(id="body")
-            yield Separator(id="railsep")
-            with Vertical(id="rail"):
-                yield Static(id="lanes")
-                yield Static(id="progress")
-                yield Static(id="updates")
 
     def on_mount(self) -> None:
         self.query_one(PromptInput).focus()
@@ -441,9 +400,6 @@ class TackleBox(App):
         self.set_interval(WATCHDOG_BEAT_SECONDS, self.watchdog.beat)
         self.tick()
         self.set_interval(TICK_SECONDS, self.tick)
-        self.progress_timer = self.set_interval(
-            PROGRESS_SECONDS, self.refresh_progress, pause=True
-        )
         # The banner names the surface now, so the hint is only the keys.
         self.write_body(
             Text(
@@ -538,28 +494,11 @@ class TackleBox(App):
         idle = self.idle
         self.query_one("#launch", Static).set_class(not idle, "hidden")
         self.query_one(Transcript).set_class(idle, "hidden")
-        # The rail says what the launch screen already says, with less room.
-        # Showing both says everything twice on one screen.
-        self.query_one("#rail", Vertical).set_class(idle or self.rail_too_narrow, "hidden")
-        self.query_one("#railsep", Separator).set_class(idle or self.rail_too_narrow, "hidden")
         if not idle:
             return
 
-        held = [lane.name for lane in lanes() if lane.busy]
-        jobs, _problems = load_jobs()
-
         self.query_one("#launch", Static).update(
-            launch_view(
-                jobs=len(jobs),
-                lanes_held=held,
-                ledger_runs=ledger_size(),
-                recent=[
-                    (_clock(entry), str(entry.get("job", "?")), str(entry.get("outcome", "?")),
-                     entry.get("outcome") == "ok")
-                    for entry in recent_runs(3)
-                ],
-                stall_dump=self._stall_dump(),
-            )
+            launch_view(stall_dump=self._stall_dump())
         )
 
     def _stall_dump(self) -> str | None:
@@ -574,20 +513,8 @@ class TackleBox(App):
         except OSError:
             return None
 
-    @property
-    def rail_too_narrow(self) -> bool:
-        return self.size.width < RAIL_MIN_TOTAL_WIDTH
-
     def on_resize(self) -> None:
-        """Hide the rail rather than let it squeeze the transcript.
-
-        A rail on an 80 column terminal leaves 46 for output, which is below
-        what most tb tables reflow to — and `--help` is a fixed 80 whatever we
-        ask for, so it would clip outright. Output is what the surface is for;
-        the rail is what it can afford.
-        """
-        # The rail hides when the terminal is too narrow to afford it, and
-        # again while the launch screen is up. refresh_launch owns both.
+        """Every pane just changed width, so what fits in them changed too."""
         self.refresh_launch()
         # Every pane just changed width, so what fits in them changed with it.
         # Dropping this leaves the help pane holding its pre-layout fallback
@@ -600,117 +527,13 @@ class TackleBox(App):
 
     def tick(self) -> None:
         """The once-a-second repaint of everything that is not the output."""
-        self.refresh_lanes()
-        self.refresh_updates()
-        self.refresh_progress()
         if self.idle:
             self.refresh_launch()
 
-    def _rail_width(self) -> int:
-        """Usable columns inside the rail, or the fallback before first layout."""
-        return self.query_one("#rail", Vertical).content_size.width or (RAIL_WIDTH - 3)
 
-    @staticmethod
-    def _section(title: str) -> Text:
-        # Nothing in the rail may wrap: a wrapped lane row pushes the section
-        # below it off the bottom, and the rail has no scrollbar.
-        return Text(title, style=SECTION, no_wrap=True, overflow="ellipsis")
 
-    def refresh_lanes(self) -> None:
-        """One row per lane, live.
 
-        This is the part a one-shot command cannot do. `tb auto status` reads
-        the ledger, and the ledger only learns about a run once it has ended —
-        so a lane held right now, and by what, is invisible from the CLI. The
-        lane system is the job layer's headline feature and until now you could
-        only ever find out afterwards that it had done something.
-        """
-        width = self._rail_width()
-        line = self._section("LANES")
-        for lane in lanes():
-            line.append("\n")
-            if lane.busy:
-                line.append(f"{BUSY_GLYPH} ", style=WARN)
-                line.append(f"{lane.name:<12}", style=LABEL)
-                line.append(_fit(lane.holder or "", width - 14), style=MUTED)
-            else:
-                line.append(f"{FREE_GLYPH} ", style=MUTED)
-                line.append(f"{lane.name:<12}", style=MUTED)
-        self.query_one("#lanes", Static).update(line)
 
-    def refresh_updates(self) -> None:
-        target = self.query_one("#updates", Static)
-        width = self._rail_width()
-        # One row goes to the heading; ask the widget how many are left rather
-        # than keeping a constant that a resize would make wrong.
-        rows = max(1, (target.content_size.height or UPDATE_ROWS) - 1)
-        line = self._section("RECENT")
-        entries = recent_runs(rows)
-        if not entries:
-            line.append("\n")
-            line.append("no runs recorded", style=MUTED)
-            target.update(line)
-            return
-        # Job name gets whatever the clock and the outcome do not need.
-        name_width = max(6, width - 6 - 8)
-        for entry in entries:
-            line.append("\n")
-            line.append(f"{_clock(entry):<6}", style=MUTED)
-            line.append(
-                f"{_fit(str(entry.get('job', '?')), name_width):<{name_width}} ", style=LABEL
-            )
-            outcome = str(entry.get("outcome", "?"))
-            line.append(outcome[:7], style=OK if outcome == "ok" else FAIL)
-        target.update(line)
-
-    def refresh_progress(self) -> None:
-        """The one row that has to look alive, restacked for a narrow column.
-
-        On the old wide strip the bar, the label and the timing shared a line.
-        In 31 columns they cannot, so each gets its own — which also means the
-        job name has room to be read rather than clipped after four words.
-        """
-        target = self.query_one("#progress", Static)
-        width = self._rail_width()
-        line = self._section("NOW")
-
-        if not self.busy:
-            line.append("\n")
-            line.append(_fit(socket.gethostname(), width - 6), style=LABEL)
-            line.append("  idle", style=MUTED)
-            entry = last_run()
-            if entry is not None:
-                label, went_well = summarize(entry)
-                line.append("\n")
-                line.append("last ", style=MUTED)
-                line.append(_fit(label, width - 5), style=OK if went_well else FAIL)
-            target.update(line)
-            return
-
-        elapsed = time.monotonic() - self.started_at
-        line.append("\n")
-        if self.expected:
-            filled = min(BAR_CELLS, int(BAR_CELLS * elapsed / self.expected))
-            over = elapsed > self.expected
-            line.append(FILLED * filled, style=WARN if over else NUM)
-            line.append(EMPTY * (BAR_CELLS - filled), style=MUTED)
-            timing = f"{elapsed:.1f}s / ~{self.expected:.1f}s"
-            if over:
-                # An estimate that has been exceeded is information, not a bar
-                # to leave pinned at full pretending it is nearly done.
-                line.append("  over", style=WARN)
-        else:
-            self.frame = (self.frame + 1) % len(SPINNER)
-            line.append(SPINNER[self.frame], style=NUM)
-            timing = f"{elapsed:.1f}s"
-
-        line.append("\n")
-        line.append(_fit(self.running_line, width), style=LABEL)
-        line.append("\n")
-        line.append(timing, style=MUTED)
-        if self.queue:
-            line.append(f"  ({len(self.queue)} queued)", style=MUTED)
-        target.update(line)
 
     # Wide enough that nothing truncates twice, and taller than any pane.
     EXPANDED_WIDTH = 90
@@ -727,25 +550,11 @@ class TackleBox(App):
             help_view(line, width=self.EXPANDED_WIDTH, rows=self.EXPANDED_ROWS),
         )
 
-    @on(Click, "#updates")
-    def expand_updates(self) -> None:
-        body = Text()
-        for entry in recent_runs(self.EXPANDED_ROWS):
-            if body:
-                body.append("\n")
-            body.append(f"{_clock(entry):<7}", style=MUTED)
-            body.append(f"{str(entry.get('job', '?')):<24}", style=LABEL)
-            outcome = str(entry.get("outcome", "?"))
-            body.append(f"{outcome:<9}", style=OK if outcome == "ok" else FAIL)
-            duration = entry.get("duration_s")
-            body.append(f"{duration}s" if duration is not None else "", style=NUM)
-        self.expand("recent runs", body or Text("no runs recorded", style=MUTED))
 
     # ------------------------------------------------------------- separators
 
-    # Below these a pane stops being able to say anything. The rail's floor is
-    # the width of a lane row; the input's is a short command plus its prompt.
-    MIN_RAIL = 18
+    # Below these a pane stops being able to say anything: the input's floor is
+    # a short command plus its prompt.
     MIN_INPUT = 24
     MIN_HELP = 16
 
@@ -756,17 +565,14 @@ class TackleBox(App):
         Dragging is not persisted. Remembering it means a config file and a
         schema, and the defaults should be shown to be wrong first.
         """
-        if event.separator.id == "railsep":
-            # The rail is right of its divider, so dragging left widens it.
-            pane, floor, delta = self.query_one("#rail", Vertical), self.MIN_RAIL, -event.delta
-            room = self.size.width - self.MIN_HELP
-        else:
-            pane, floor, delta = (
-                self.query_one("#inputpane", Vertical),
-                self.MIN_INPUT,
-                event.delta,
-            )
-            room = self.size.width - self.MIN_HELP
+        # One divider left, between the input and the help pane. The rail's went
+        # with the rail.
+        pane, floor, delta = (
+            self.query_one("#inputpane", Vertical),
+            self.MIN_INPUT,
+            event.delta,
+        )
+        room = self.size.width - self.MIN_HELP
         # `styles.width` sets the outer box; `size` reports the content box.
         # Reading the wrong one silently subtracts the padding on every drag,
         # so the clamp lands short of the floor it names.
@@ -798,14 +604,6 @@ class TackleBox(App):
         self.history.reset()
         self.show_candidates([])
 
-    def action_last_log(self) -> None:
-        """Open the most recent run's log, without retyping its id."""
-        entry = last_run()
-        if entry is None or not entry.get("job") or not entry.get("run_id"):
-            self.write_body(Text("no runs recorded yet", style=MUTED))
-            self.refresh_launch()
-            return
-        self.start(f"auto log {shlex.quote(entry['job'])} --run {shlex.quote(entry['run_id'])}")
 
     # ---------------------------------------------------------------- dispatch
 
@@ -881,11 +679,6 @@ class TackleBox(App):
         line, self.turn = self.queue.popleft()
         self.running_line = line
         self.started_at = time.monotonic()
-        # Read once, here, rather than on every progress frame — it walks the
-        # ledger, and this is the only moment the answer can change.
-        self.expected = expected_seconds(line)
-        self.progress_timer.resume()
-        self.refresh_progress()
         # Width is read here, on the loop, because the worker must not touch a
         # widget from its thread.
         self.work(line, self.query_one(Transcript).size.width or FALLBACK_WIDTH)
@@ -910,7 +703,6 @@ class TackleBox(App):
         self.turn = None
         self.busy = False
         self.running_line = ""
-        self.progress_timer.pause()
         self.tick()
         self.pump()
 

@@ -155,9 +155,7 @@ def test_starting_twice_does_not_leave_two_watchers(tmp_path):
 def test_the_launch_screen_says_nothing_when_there_was_no_stall():
     from cli.tui.launch import view
 
-    rendered = view(
-        jobs=0, lanes_held=[], ledger_runs=0, recent=[]
-    ).plain
+    rendered = view().plain
     assert "stalled" not in rendered
 
 
@@ -166,13 +164,7 @@ def test_the_launch_screen_points_at_the_dump_when_there_was_one():
     launch screen is the one place you are certainly looking after a freeze."""
     from cli.tui.launch import view
 
-    rendered = view(
-        jobs=0,
-        lanes_held=[],
-        ledger_runs=0,
-        recent=[],
-        stall_dump="/home/someone/.local/state/tb/tui-stall.txt",
-    ).plain
+    rendered = view(stall_dump="/home/someone/.local/state/tb/tui-stall.txt").plain
     assert "stalled" in rendered
     assert "/home/someone/.local/state/tb/tui-stall.txt" in rendered
 

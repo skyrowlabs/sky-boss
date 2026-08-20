@@ -148,11 +148,12 @@ def test_help_does_not_leak_to_the_real_stdout(capsys):
 
 
 def test_json_stays_parseable_through_the_capture():
-    # The real tree, because --json is a root-group flag. `auto list` reads a
+    # The real tree, because --json is a root-group flag. `run -- true` shells
+    # out to a builtin that prints nothing and exits 0 —
     # registry and touches nothing.
-    result = dispatch("--json auto list")
+    result = dispatch("--json run -- true")
     payload = json.loads(result.text)
-    assert payload["command"] == "auto.list"
+    assert payload["command"] == "run"
     assert payload["ok"] is True
 
 

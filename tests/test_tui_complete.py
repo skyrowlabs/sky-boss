@@ -5,8 +5,6 @@ rather than a list written here. A completion that drifts from the CLI is worse
 than none, because it teaches a verb that does not exist.
 """
 
-from cli.jobs import load_jobs
-from cli.run import REGISTRY
 from cli.tui.complete import candidates, complete
 
 
@@ -35,29 +33,34 @@ def test_a_surface_verb_can_never_shadow_a_real_command():
     assert not (set(surface_verbs()) & set(cli.commands))
 
 
-def test_a_group_offers_its_own_subcommands():
-    from cli.jobs import auto
+def _tree():
+    """A stand-in with the shape the real tree no longer has — tb is two leaf
+    commands, so a group walk has nothing to walk. `candidates` takes the same
+    injectable root `dispatch` does."""
+    import rich_click as click
 
-    assert candidates("auto ")[1] == sorted(auto.commands)
+    root = click.Group("tb")
+    group = click.Group("auto")
+    for name in ("list", "log", "status"):
+        group.add_command(click.Command(name, short_help=name))
+    log = group.commands["log"]
+    log.params.append(click.Option(["--run"], help="Show one run's output."))
+    root.add_command(group)
+    root.add_command(click.Command("run", short_help="run"))
+    return root
+
+
+def test_a_group_offers_its_own_subcommands():
+    tree = _tree()
+    assert candidates("auto ", tree)[1] == sorted(tree.commands["auto"].commands)
 
 
 def test_the_leading_tb_is_tolerated():
     assert candidates("tb check ")[1] == candidates("check ")[1]
 
 
-def test_run_offers_both_jobs_and_internal_tasks():
-    """The imperative mood dispatches by name from two registries; completing
-    only one of them would hide half the door."""
-    jobs, _ = load_jobs()
-    offered = set(candidates("run ")[1])
-    assert set(jobs) <= offered
-    assert {task.name for task in REGISTRY} <= offered
 
 
-def test_a_job_argument_completes_to_jobs_only():
-    jobs, _ = load_jobs()
-    assert candidates("auto log ")[1] == sorted(jobs)
-    assert not {task.name for task in REGISTRY} & set(candidates("auto log ")[1])
 
 
 def test_a_dash_switches_to_options():
@@ -67,9 +70,9 @@ def test_a_dash_switches_to_options():
 
 
 def test_options_still_complete_after_a_positional():
-    # The walk steps over anything that is not a subcommand, so a typed job
-    # name does not strand the resolution.
-    assert "--run" in candidates("auto log doctor --")[1]
+    # The walk steps over anything that is not a subcommand, so a typed
+    # argument value does not strand the resolution.
+    assert "--run" in candidates("auto log something --", _tree())[1]
 
 
 # ------------------------------------------------------------------ applying
@@ -80,7 +83,7 @@ def test_a_single_match_is_filled_in_with_a_trailing_space():
 
 
 def test_several_matches_extend_as_far_as_they_agree():
-    line, matches = complete("auto l")
+    line, matches = complete("auto l", _tree())
     assert line == "auto l"
     assert set(matches) == {"list", "log"}
 

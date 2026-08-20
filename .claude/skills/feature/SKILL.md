@@ -27,11 +27,13 @@ doc that should have been a section is the failure this workflow exists to preve
 ever preventable here, before anything is written.
 
 ```bash
-ls docs/features/ docs/features/done/
-grep -rl "<keyword>" docs/features/
+ls docs/features/ docs/features/done/ 2>/dev/null
+grep -rl "<keyword>" docs/features/ 2>/dev/null
 ```
 
-`README.md` and `_template.md` are not features — skip both when matching.
+`docs/features/` is empty as of 2026-08-20 — every spec was deleted with the systems it
+described, so the first doc written recreates the directory and `_template.md` with it. Until
+then Step 0 will find nothing and write mode is correct.
 
 Then decide:
 
@@ -113,8 +115,6 @@ explaining the block, and surface it. Do not mark a feature complete around a ho
 - `git mv docs/features/<slug>.md docs/features/done/<slug>.md`, now that nothing is open. Then
   `grep -rn "<slug>"` and fix any *path* reference in prose or a code comment. `[[slug]]` links
   need no change; that is the point of them.
-- Regenerate the index — `TB_WRITE_DOC_INDEX=1 .venv/bin/python -m pytest -k features_index`.
-  The suite fails until you do, so this is a reminder rather than a rule.
 
 Then report: what shipped, what deferred, which files changed.
 
@@ -128,7 +128,6 @@ Then report: what shipped, what deferred, which files changed.
 4. **The directory tracks `status:` both ways.** Into `done/` at close-out, back out on reopening.
    Links are `[[slug]]`, so the move breaks nothing inside a doc; fix path references in code
    comments in the same commit, and prefer writing new ones as slugs so they never break again.
-5. **The index is generated; never hand-edit it.** `docs/features/README.md`'s table is built
-   from frontmatter and checked by `tests/test_features_index.py`. Regenerate after adding,
-   moving, or closing a doc. Do not add a *second* index — no categories, no JSON, no per-status
-   pages.
+5. **No index machinery.** There was a generated one and it went with the docs it indexed. `ls`
+   is an adequate index for a near-empty directory; if volume ever demands one again, build it as
+   a generated block checked by a test, never as a hand-maintained list.
