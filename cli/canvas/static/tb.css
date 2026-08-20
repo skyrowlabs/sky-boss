@@ -189,9 +189,13 @@ body {
 .v-dim { color: var(--tb-text-3); }
 .v-label { color: var(--tb-text-2); }
 
+/* `pre`, not `pre-wrap`. Command output is column-aligned by spaces, and
+ * wrapping folds a long row into what reads as two shorter ones with the
+ * columns no longer lining up — worst on exactly the output `tb run` shows
+ * most. It scrolls sideways instead, the way the table does. */
 pre.raw {
-  white-space: pre-wrap; word-break: break-word; color: var(--tb-text-2);
-  font: inherit;
+  white-space: pre; color: var(--tb-text-2); font: inherit;
+  min-width: min-content;
 }
 .truncated { color: var(--tb-warn); padding-top: 6px; }
 .fail { color: var(--tb-danger); }
