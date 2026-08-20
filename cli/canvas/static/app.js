@@ -56,10 +56,17 @@ export function suggest(commands, query) {
     .sort((a, b) => b.name.length - a.name.length);
   if (named.length) return named;
 
+  /* A name match always outranks a description match, and the two are never
+   * interleaved. Typing `w` used to select `run`, because its summary contains
+   * "what it printed" — and the first suggestion is what Enter fires, so a
+   * prefix of one command's name would silently run a different one.
+   */
   const head = q.split(/\s+/)[0];
-  return commands.filter(
-    (c) => c.name.startsWith(q) || (c.summary || "").toLowerCase().includes(head)
+  const byName = commands.filter((c) => c.name.startsWith(q));
+  const byText = commands.filter(
+    (c) => !c.name.startsWith(q) && (c.summary || "").toLowerCase().includes(head)
   );
+  return [...byName, ...byText];
 }
 
 /* argv for a window: its command, plus whichever chips are on. */
