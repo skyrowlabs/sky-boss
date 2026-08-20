@@ -22,8 +22,12 @@ watching, and a surface that freezes is worse than the shell it replaced.
 
 from __future__ import annotations
 
+import asyncio
+import os
 import shlex
 import socket
+import sys
+import threading
 import time
 from collections import deque
 from datetime import datetime
@@ -1079,5 +1083,42 @@ def _clock(entry: dict) -> str:
         return "--:--"
 
 
+def _worker_thread_still_running() -> bool:
+    """Whether anything is left that a clean interpreter exit would wait for."""
+    return any(
+        thread.is_alive() and not thread.daemon and thread is not threading.main_thread()
+        for thread in threading.enumerate()
+    )
+
+
 def run() -> None:
-    TackleBox().run()
+    """Open the surface, and be able to leave it.
+
+    The loop is ours rather than `asyncio.run`'s, and that is the whole point.
+    A dispatch runs on a thread worker, and a thread worker cannot be cancelled
+    — `App.exit()` calls `workers.cancel_all()`, but for a thread that cancels
+    only the awaiting task and the thread itself runs on. Textual does not wait
+    for it, so the UI comes down and the terminal is restored promptly. What
+    does wait is the interpreter: `asyncio.run` closes its loop with
+    `shutdown_default_executor(THREAD_JOIN_TIMEOUT)`, which is **300 seconds**
+    on Python 3.14, and `concurrent.futures` registers an atexit hook that joins
+    the same pool again. So a wedged `tb run` bought five minutes of dead
+    terminal after the surface had visibly gone — and neither ^D nor ^Q could
+    do anything about it, because both had already done their part.
+
+    Owning the loop skips the first join; leaving through `os._exit` skips the
+    second. That is safe here because the surface holds no unflushed state of
+    its own: history is appended when a line is submitted, and the ledger is
+    written by the job's own process, which is precisely the process still
+    running. Nothing a clean shutdown would protect is in this one.
+    """
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        TackleBox().run(loop=loop)
+    finally:
+        sys.stdout.flush()
+        sys.stderr.flush()
+        if _worker_thread_still_running():
+            os._exit(0)
+        loop.close()

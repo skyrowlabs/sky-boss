@@ -319,8 +319,10 @@ this and `^Q` does not either.
 - [x] Truncate a single dispatch's transcript output at a ceiling (10,000 lines), with a marker
       naming the dropped line count and pointing at `inspect` / `auto log`
 - [x] Set `max_lines` on the `RichLog`
-- [ ] `^Q` exits without joining a running dispatch worker past a short grace period; a second
-      `^Q` exits immediately. Record why `cancel_all()` cannot do it
+- [x] Leave without joining a wedged dispatch worker — `run()` owns its loop and exits through
+      `os._exit` when one is still alive. No grace period and no second `^Q` needed; see Notes
+- [x] Test: a parked worker is detected, a daemon thread is not, the loop is ours, and a wedged
+      worker does not delay leaving
 - [ ] Daemon watchdog thread, heartbeated by a loop timer, dumping all thread stacks to
       `$STATE_DIR/tui-stall.txt` on a stall past threshold
 - [x] Test: a 200,000-line dispatch result never blocks the loop past ~0.3 s, asserted with a
@@ -328,7 +330,6 @@ this and `^Q` does not either.
 - [x] Test: the truncation marker appears and `last_envelopes` still holds the full envelope
 - [x] Test: ordinary output is neither truncated nor reordered by chunking
 - [x] Test: the transcript is bounded, and one result always fits inside the scrollback
-- [ ] Test: exit completes promptly with a worker thread deliberately parked
 - [ ] Test: the stall dump is written when the loop is deliberately blocked
 
 **Does not do.** Rendering does not go back on a thread — Textual widgets are not thread-safe and
