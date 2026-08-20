@@ -23,8 +23,9 @@ as the smallest darkening that clears 3.5:1 on both backgrounds. Same hue, same
 meaning, legible either way. Nothing here is picked by eye.
 
 **Every consumer derives from this file** — the Rich theme in `cli/output.py`,
-the `--help` styling in `cli/__init__.py`, and the TUI's stylesheet. A test
-fails if any module outside this one names a hex.
+the `--help` styling in `cli/__init__.py`, and the canvas's stylesheet, which
+gets these as CSS custom properties from `css_variables` below. A test fails if
+any file outside this one names a hex, in any language.
 """
 
 from __future__ import annotations
@@ -58,12 +59,12 @@ WARN = "#e6dc0e"  # --warn
 DANGER = "#f4665b"  # --danger
 
 # ============================================================================
-# TUI chrome
+# Surface chrome
 # ============================================================================
 #
 # The design system draws borders as white at 5.5% alpha. Flattened over
-# --surface that is #181d22, which is a fine hairline on a display and
-# invisible in a terminal, where the thinnest rule available is a whole cell.
+# --surface that is #181d22 — a fine hairline on a display, and invisible in a
+# terminal where the thinnest rule available is a whole cell.
 # `--text-3` is the token for structure rather than reading text, which is
 # exactly what a rule is.
 BORDER = TEXT_3
@@ -108,17 +109,41 @@ STYLES: dict[str, str] = {
 }
 
 
-# The same roles at full strength, for the one surface that knows what is
-# behind them. The TUI paints `BG` itself, so the derivations above would be
-# darkening against a background that never needed it — chrome dimmer than the
-# system intends, on the only screen where the brand can be shown as designed.
-TUI_STYLES: dict[str, str] = {
-    "tb.accent": f"bold {BRAND}",
-    "tb.label": TEXT_2,
-    "tb.muted": TEXT_3,
-    "tb.ok": OK,
-    "tb.fail": DANGER,
-    "tb.warn": WARN,
-    "tb.num": BRAND,
-    "tb.path": TEXT_2,
-}
+# ============================================================================
+# The canvas
+# ============================================================================
+
+
+def css_variables() -> dict[str, str]:
+    """The tokens the canvas's stylesheet reads, as CSS custom properties.
+
+    The same move `TackleBox.get_css_variables` made for Textual, for the same
+    reason: the stylesheet has to live in a file a browser can reload, and a
+    file outside this module may not name a colour. So it names roles and this
+    hands it the values.
+
+    The canvas paints `BG` itself, so like the TUI before it, it takes the
+    tokens at full strength rather than the CLI's darkened derivations. Tints
+    and washes are built with `color-mix` against these, never written out —
+    an `rgba(56, 189, 248, .12)` in the stylesheet is a hex by another name and
+    would be the start of the second palette this file exists to prevent.
+    """
+    return {
+        "tb-bg": BG,
+        "tb-surface": SURFACE,
+        "tb-surface-2": SURFACE_2,
+        "tb-text": TEXT,
+        "tb-text-2": TEXT_2,
+        "tb-text-3": TEXT_3,
+        "tb-brand": BRAND,
+        "tb-ok": OK,
+        "tb-warn": WARN,
+        "tb-danger": DANGER,
+        "tb-border": BORDER,
+    }
+
+
+def css_root() -> str:
+    """`css_variables` as a `:root` block, for injection into the page."""
+    body = "".join(f"--{name}:{value};" for name, value in css_variables().items())
+    return f":root{{{body}}}"

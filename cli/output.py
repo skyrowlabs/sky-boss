@@ -25,21 +25,21 @@ from rich.table import Table
 from rich.text import Text
 from rich.theme import Theme
 
-from cli.theme import STYLES, TUI_STYLES
+from cli.theme import STYLES
 
 # Rendered in place of a missing value in a table cell.
 EMPTY = "-"
 
 # The palette lives in cli/theme.py, so that this module, rich-click's --help
-# styling and the TUI's CSS cannot drift apart. Style *names* are the contract
-# here; no hex is written below this line.
+# styling and the canvas's CSS cannot drift apart. Style *names* are the
+# contract here; no hex is written below this line.
+#
+# There was a second Theme here, the same roles undarkened, for a surface that
+# rendered captured Rich output on a background it painted itself. The canvas
+# does not: it renders from the envelope's data rather than from tb's bytes, so
+# the full-strength rendering of the palette reaches it as CSS custom
+# properties instead. See cli/theme.css_variables.
 THEME = Theme(STYLES)
-
-# The same roles, undarkened, for a consumer that owns its background. Command
-# output rendered inside the TUI goes through capture() like everything else,
-# so without this the chrome would be full strength and the output beside it
-# would not — one screen, two brightnesses, for no reason the viewer can see.
-TUI_THEME = Theme(TUI_STYLES)
 
 # Two consoles, and the split matters. Rich auto-detects a TTY and drops colour
 # when piped, and honours NO_COLOR, so nothing here does manual detection.
