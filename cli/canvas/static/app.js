@@ -112,6 +112,20 @@ export function applyReload(files) {
   return "styles";
 }
 
+/* The bar behaves as the window's title bar.
+ *
+ * Only under the native shell, and only on the bar's own background — a
+ * mousedown on a button or the mode switch must press it, not drag the window.
+ * In a browser there is simply no API for this, so the handler is a no-op and
+ * the frame the browser drew is what you move by.
+ */
+function barDrag(event) {
+  if (event.button !== 0) return;
+  if (event.target.closest("button, input, .seg")) return;
+  const api = window.pywebview && window.pywebview.api;
+  if (api && api.start_move) api.start_move();
+}
+
 function useNow() {
   /* Drives the "12s ago" labels only. Distinct from the refresh clock in every
    * way that matters: this one may be throttled to a crawl in a hidden page
@@ -508,7 +522,7 @@ function App() {
 
   return html`
     <div class="app">
-      <div class="bar">
+      <div class="bar" onMouseDown=${barDrag}>
         <span class="brand">TACKLEBOX</span>
         <span class="host">${location.host}</span>
         <div class="spacer"></div>

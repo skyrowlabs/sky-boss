@@ -19,7 +19,7 @@
 
 html {
   /* The one number the whole surface is measured in. */
-  font-size: calc(4px * var(--tb-scale, 2));
+  font-size: calc(4px * var(--tb-scale, 1));
 }
 
 :root {
@@ -54,6 +54,12 @@ body {
 
 /* ------------------------------------------------------------------ top bar */
 
+/* The top bar *is* the title bar.
+ *
+ * The window is frameless, so this is what moves it. A browser could never
+ * have done this — there is no web API for a page to move its own window,
+ * which is most of why the native shell exists at all.
+ */
 .bar {
   display: flex; align-items: center; gap: 3.5rem;
   padding: 0 3.5rem; height: 9.5rem; flex: none;
@@ -61,11 +67,17 @@ body {
   background: var(--tb-surface);
   user-select: none;
 }
+/* No `-webkit-app-region`: WebKitGTK does not implement it, and neither does
+ * pywebview's GTK backend. The bar asks for the move in JavaScript instead —
+ * see `barDrag` in app.js and `Api.start_move` in cli/canvas/shell.py. */
 /* The controls never shrink; the spacer and the address absorb the squeeze.
  * Without this the segmented control was compressed until `floating` read as
  * `floatin` and the close button sat on top of it — at 2x the bar is simply
  * wider than it was, and a flex child's default is to give way. */
 .bar > *:not(.spacer) { flex: none; }
+/* Double-click a title bar to maximise; the shell has no title bar to do it
+ * for us, so the bar that replaced it keeps the gesture. */
+.bar { cursor: default; }
 .bar .host { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 
 .brand { color: var(--tb-brand); font-weight: 700; letter-spacing: .14em; white-space: nowrap; }

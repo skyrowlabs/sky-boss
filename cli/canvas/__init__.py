@@ -1,19 +1,19 @@
 """tb ui — the canvas.
 
 A command palette over a window canvas: every command opens a window, windows
-tile or float, and a pinned window re-runs its command on a cadence. It
-replaces `tb tui`, which proved the output contract works with a second
-consumer and then ran into the ceiling of its medium — overlapping draggable
-windows are the central metaphor here, and a terminal cannot do them.
+tile or float, and a pinned window re-runs itself on a cadence. It replaces
+`tb tui`, which proved the output contract works with a second consumer and
+then ran into the ceiling of its medium — overlapping draggable windows are the
+central metaphor here, and a terminal cannot do them.
 
 **A surface, not a verb.** It renders the same envelope every command returns
 rather than adding one of its own, which is why `tb run` stays the only door
 that acts even with the canvas in front of it.
 
-The browser is a launch flag rather than an architecture. `--app=` gives a
-chromeless window with its own taskbar entry; swapping to a native webview
-later replaces this module and nothing else, because everything the page talks
-to is HTTP.
+The window is a native webview (`cli/canvas/shell.py`), which is what makes it
+frameless, resizable, and draggable by its own bar. `--browser` opens it in
+Chromium instead, and `--no-browser` serves only — the mode to develop in,
+since it is the one where a page reload is the whole loop.
 """
 
 from __future__ import annotations
@@ -27,23 +27,22 @@ import time
 
 import rich_click as click
 
+from cli.canvas import shell
 from cli.canvas.server import Canvas, build
 from cli.helpers import STATE_DIR
 from cli.output import Result, emit
 
-# In preference order. All four are on workstation; the first three take `--app`,
-# which is the whole reason this is not just `webbrowser.open`.
+# In preference order, for `--browser`. All four are on workstation; the first
+# three take `--app`, which is the whole reason this is not `webbrowser.open`.
 BROWSERS = ("chromium", "google-chrome-stable", "google-chrome", "brave")
 
-# A profile of the canvas's own. Two reasons, and the second is the real one:
-# window geometry persists across launches, and a stray `--app` on the default
-# profile hands off to the already-running Chrome and returns immediately,
-# leaving nothing to wait on and no way to know the window ever opened.
+# A profile of the canvas's own, for `--browser`. Window geometry persists
+# across launches, and a stray `--app` on the default profile hands off to the
+# already-running Chrome and returns immediately, leaving nothing to wait on.
 PROFILE_DIR = STATE_DIR / "browser-profile"
 
-# Only ever used on a first run; after that the profile remembers.
-FIRST_RUN_SIZE = "1600,1000"
-
+# Only used when nothing else says otherwise.
+DEFAULT_SIZE = (1600, 1000)
 
 
 def _free_port() -> int:
@@ -60,24 +59,23 @@ def _browser() -> str | None:
     return None
 
 
-def _launch(binary: str, url: str, *, kiosk: bool, size: str | None) -> subprocess.Popen:
-    """Open the surface, with as little browser around it as the mode allows.
+def _parse_size(size: str | None) -> tuple[int, int]:
+    if not size:
+        return DEFAULT_SIZE
+    try:
+        width, height = (int(part) for part in size.replace("x", ",").split(","))
+    except ValueError:
+        raise click.BadParameter("expected WIDTH,HEIGHT") from None
+    return width, height
 
-    `--app` already removes the tab strip, the address bar and the bookmarks
-    bar. What it cannot remove is the frame, which the window manager draws —
-    and **there is no Chromium flag for a frameless window that is still
-    resizable.** `--kiosk` drops the frame by going full-screen, which is a
-    different thing and not a substitute: a full-screen window cannot be sized
-    or moved. It stays available for a wall display and is not the default.
 
-    Removing the title bar while keeping the window sizable is the window
-    manager's job, not the browser's. On KDE that is a KWin rule matched on the
-    window class, which is why `--class` is set here — but a rule is a change to
-    the operator's own desktop and belongs to them to make.
+def _launch_browser(binary: str, url: str, *, kiosk: bool, size: str | None) -> subprocess.Popen:
+    """Open the surface in Chromium, with as little browser around it as it allows.
 
-    `--size` overrides the remembered geometry; without it the profile
-    remembers, and a first run gets a sensible default rather than whatever
-    Chromium would otherwise pick.
+    `--app` removes the tab strip, the address bar and the bookmarks bar. What
+    it cannot remove is the frame, and no flag can while leaving the window
+    resizable — which is what the native shell is for. `--kiosk` drops the
+    frame by going full-screen, a different thing, kept for a wall display.
     """
     first_run = not PROFILE_DIR.exists()
     PROFILE_DIR.mkdir(parents=True, exist_ok=True)
@@ -94,10 +92,9 @@ def _launch(binary: str, url: str, *, kiosk: bool, size: str | None) -> subproce
     ]
     if kiosk:
         argv.append("--kiosk")
-    elif size:
-        argv.append(f"--window-size={size}")
-    elif first_run:
-        argv.append(f"--window-size={FIRST_RUN_SIZE}")
+    elif size or first_run:
+        width, height = _parse_size(size)
+        argv.append(f"--window-size={width},{height}")
 
     return subprocess.Popen(argv, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
@@ -105,26 +102,28 @@ def _launch(binary: str, url: str, *, kiosk: bool, size: str | None) -> subproce
 @click.command()
 @click.option("--port", type=int, default=None, help="Bind this port instead of a free one.")
 @click.option("--no-browser", is_flag=True, help="Serve only; print the URL and wait.")
+@click.option("--browser", is_flag=True, help="Open in Chromium instead of a native window.")
 @click.option(
     "--kiosk",
     is_flag=True,
-    help="Full-screen with no frame. Not sizable — for a wall display.",
+    help="Full-screen with no frame, for a wall display. Implies --browser.",
 )
-@click.option(
-    "--size",
-    default=None,
-    help="Window geometry as WIDTH,HEIGHT. Otherwise the profile remembers.",
-)
+@click.option("--size", default=None, help="Window geometry as WIDTH,HEIGHT.")
 @click.option(
     "--scale",
     type=float,
-    default=2.0,
+    default=1.0,
     show_default=True,
     help="How big the surface renders. Every size derives from this.",
 )
 @emit
 def ui(
-    port: int | None, no_browser: bool, kiosk: bool, size: str | None, scale: float
+    port: int | None,
+    no_browser: bool,
+    browser: bool,
+    kiosk: bool,
+    size: str | None,
+    scale: float,
 ) -> Result:
     """Open the canvas — a command palette over tiled and floating windows."""
     import uvicorn
@@ -134,9 +133,16 @@ def ui(
         result.ok = False
         result.data = {"error": "--scale must be positive"}
         return result
+
+    width, height = _parse_size(size)
     canvas = Canvas(scale=scale)
     port = port or _free_port()
     url = f"http://127.0.0.1:{port}/"
+
+    use_browser = browser or kiosk
+    if not use_browser and not no_browser and not shell.available():
+        use_browser = True
+        result.degrade("no native webview available; falling back to a browser window")
 
     config = uvicorn.Config(
         build(canvas),
@@ -148,12 +154,13 @@ def ui(
         access_log=False,
     )
     server = uvicorn.Server(config)
+    # uvicorn installs signal handlers only from the main thread, and the
+    # native shell demands that thread for itself. Declining them is the price
+    # of the window: Ctrl-C in the launching terminal is handled below instead.
+    server.install_signal_handlers = False
 
-    # uvicorn installs signal handlers only on the main thread, so the server
-    # runs there and the browser is watched from a helper. The alternative —
-    # server on a thread — silently loses Ctrl-C.
-    browser = None
     started = time.monotonic()
+    mode = "native"
 
     def stop() -> None:
         server.should_exit = True
@@ -161,21 +168,67 @@ def ui(
     # The surface's own close button, watched in every mode. It used to be
     # watched only inside the browser thread, so with `--no-browser` — the mode
     # you develop in — pressing it set the latch and nothing happened.
-    threading.Thread(
-        target=lambda: canvas.quitting.wait() and stop(), daemon=True
-    ).start()
+    threading.Thread(target=lambda: canvas.quitting.wait() and stop(), daemon=True).start()
 
-    with contextlib.suppress(KeyboardInterrupt):
-        server.run()
+    def wait_for_bind() -> None:
+        # The window must not race the bind, or it lands on a refused
+        # connection and shows an error page for a server that came up 40ms
+        # later.
+        while not server.started and time.monotonic() - started < 10:
+            time.sleep(0.05)
 
-    if browser is not None and browser.poll() is None:
-        browser.terminate()
+    if no_browser:
+        mode = "headless"
+        with contextlib.suppress(KeyboardInterrupt):
+            server.run()
+
+    elif use_browser:
+        mode = "kiosk" if kiosk else "browser"
+        binary = _browser()
+        if binary is None:
+            result.degrade(f"no chromium-family browser found; serving only — open {url}")
+            with contextlib.suppress(KeyboardInterrupt):
+                server.run()
+        else:
+            proc: list[subprocess.Popen] = []
+
+            def open_when_up() -> None:
+                wait_for_bind()
+                proc.append(_launch_browser(binary, url, kiosk=kiosk, size=size))
+                proc[0].wait()
+                # Nothing survives the last window — the same rule the watchers
+                # follow, applied to the process that owns them.
+                stop()
+
+            threading.Thread(target=open_when_up, daemon=True).start()
+            with contextlib.suppress(KeyboardInterrupt):
+                server.run()
+            if proc and proc[0].poll() is None:
+                proc[0].terminate()
+
+    else:
+        # GTK owns the main thread, so the server moves to a worker — the
+        # reverse of every other mode here, and the one real consequence of
+        # the swap.
+        thread = threading.Thread(target=server.run, daemon=True)
+        thread.start()
+        wait_for_bind()
+        with contextlib.suppress(KeyboardInterrupt):
+            shell.open_window(
+                url,
+                title="tackle-box",
+                width=width,
+                height=height,
+                on_closed=stop,
+            )
+        stop()
+        thread.join(timeout=5)
 
     result.data = {
         "url": url,
         "port": port,
         "scale": scale,
-        "mode": "full-screen" if kiosk else "windowed",
+        "mode": mode,
         "duration_s": round(time.monotonic() - started, 1),
     }
     return result

@@ -69,7 +69,7 @@ RELOAD_POLL_SECONDS = 0.5
 class Canvas:
     """One server instance. Holds the token and the live sessions."""
 
-    def __init__(self, *, token: str | None = None, scale: float = 2.0) -> None:
+    def __init__(self, *, token: str | None = None, scale: float = 1.0) -> None:
         self.token = token or secrets.token_urlsafe(32)
         self.sessions: dict[str, Session] = {}
         # How big the surface renders. One number, injected into the page, that
