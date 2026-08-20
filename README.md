@@ -99,16 +99,23 @@ pip install -r requirements-dev.txt
 
 | Editing | Picked up |
 |---|---|
-| `cli/canvas/static/*` | on reload — the files are read from disk per request |
+| `cli/canvas/static/*.css` | **live** — swapped in place, windows keep their state |
+| Any other static file | **live** — the page reloads itself, losing open windows |
 | Any Python | **never — restart** |
 
 ```bash
 tb ui --no-browser --port 8765          # then open http://127.0.0.1:8765/
 ```
 
-Reloading the page is the whole loop for HTML, CSS and JS. The frontend has **no automated
-tests** — there is no JS test runner and adding one means npm — so the pure parts (`unwrap`,
-`suggest`, `roleFor` in `render.js` and `app.js`) are where a mistake will not be caught for you.
+Save a file and the page reacts within about half a second — the server fingerprints `static/` on
+the session stream it is already running and pushes a frame. A CSS edit is swapped in place, so
+every window keeps its position, its pin, its chips and its last result while you adjust the
+styling. Anything else is a full reload, which does lose the open windows, because the module
+graph is already evaluated and half-old JavaScript holding live state is worse than starting over.
+
+The frontend has **no automated tests** — there is no JS test runner and adding one means npm — so
+the pure parts (`unwrap`, `suggest`, `roleFor`, `planReload`) are where a mistake will not be
+caught for you.
 
 **Python is not hot-reloadable here and deliberately is not made so.** A reload would leave a live
 session holding watchers registered against the old code, and the result would not be a crash,

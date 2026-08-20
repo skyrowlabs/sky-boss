@@ -69,6 +69,42 @@ function argvOf(win) {
   return [...win.argv, ...flags];
 }
 
+/* Live reload, driven by the server rather than by a timer here.
+ *
+ * A stylesheet edit is swapped in place, which is the difference between live
+ * reload and merely refreshing: every window keeps its position, its pin, its
+ * chips and its last result while you adjust the CSS. Reloading the page for a
+ * colour change would throw all of that away, and the canvas has no persistence
+ * — the windows exist only in this tab.
+ *
+ * Anything else is a full reload, because the module graph is already evaluated
+ * and there is no honest way to re-run it in place. That *does* lose every
+ * window, and it should: half-old, half-new JS holding live state is exactly
+ * the kind of wrongness that looks right.
+ */
+export function planReload(files) {
+  const onlyStyles = files.length > 0 && files.every((f) => f.endsWith(".css"));
+  return onlyStyles ? "styles" : "full";
+}
+
+export function applyReload(files) {
+  /* The decision is split from the act so it can be checked without stubbing
+   * navigation — `location.reload` cannot be redefined in a modern browser, and
+   * the attempt throws, which is how the first version of that check failed. */
+  if (planReload(files) === "full") {
+    location.reload();
+    return "full";
+  }
+  for (const link of document.querySelectorAll('link[rel="stylesheet"]')) {
+    const url = new URL(link.href, location.href);
+    // A changing query is what defeats the cache; the browser has no other
+    // reason to believe a file it fetched a second ago is different.
+    url.searchParams.set("v", String(Date.now()));
+    link.setAttribute("href", url.pathname + url.search);
+  }
+  return "styles";
+}
+
 function useNow() {
   /* Drives the "12s ago" labels only. Distinct from the refresh clock in every
    * way that matters: this one may be throttled to a crawl in a hidden page
@@ -266,6 +302,8 @@ function App() {
           for (const win of windowsRef.current) {
             if (win.pinned) api.watch(frame.session, win.id, argvOf(win), win.interval);
           }
+        } else if (frame.type === "reload") {
+          applyReload(frame.files);
         } else if (frame.type === "run") {
           setWindows((all) =>
             all.map((w) =>

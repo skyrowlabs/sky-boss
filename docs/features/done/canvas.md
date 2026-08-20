@@ -62,6 +62,10 @@ moment you stopped watching. Server-side also means one clock rather than N drif
 **Frontend** — Preact + htm as native ES modules, vendored, no build step and no `node_modules`.
 The mockup's layout logic is already DOM math and transfers directly.
 
+**Live reload rides the stream that already exists.** The server fingerprints `static/` on a
+half-second poll and pushes a `reload` frame when a file changes. A stylesheet edit is swapped in
+place; anything else is a full reload. There is no watcher library and no second channel.
+
 **Shell** — `tb ui` launches Chromium with `--app=`, which gives a chromeless window with its own
 taskbar entry. This is a launch flag rather than an architecture: swapping to pywebview later
 touches the launcher and nothing else. The system libraries for that (`webkit2gtk-4.1`,
@@ -102,6 +106,12 @@ auto-refreshing a write is a scheduler nobody asked for.
   pipes.
 
 ## Phases
+
+### Round 2 — live reload (2026-08-20)
+
+- [x] Server fingerprints `static/` and pushes a `reload` frame on the session stream.
+- [x] The page swaps the stylesheet in place for a CSS-only change, and reloads otherwise.
+- [x] Static responses carry `cache-control: no-cache`, so a reload cannot serve a stale module.
 
 ### Round 1 — replace the TUI with the canvas (2026-08-20)
 
@@ -220,3 +230,41 @@ is built out of them.
 **`cli/output.capture` now has no consumer.** It was the mechanism the TUI rendered through, and
 the canvas does not render tb's bytes at all. It is kept, tested and documented, but nothing in
 the shipped surface calls it. It is a candidate for deletion the next time this area is opened.
+
+
+### Round 2 — live reload (2026-08-20)
+
+The first question ever asked of this project was whether the surface could take a live code edit
+without dying. In the terminal the answer was no and deliberately so — widget classes were already
+instantiated and timers held bound methods captured at mount, so a reload would have produced
+wrong output that looked right. **In this medium the answer is yes for the half that matters.**
+
+**It rides the stream rather than adding anything.** The session already pushes frames on a
+half-second tick, so a fingerprint of `static/` costs nine `stat` calls per poll and a new frame
+type. No watcher library, no second channel, no `--dev` flag to remember: the whole thing is about
+forty lines because the hard part was built in Round 1 for another reason entirely.
+
+**A stylesheet edit is swapped in place, and that is the whole point.** Every window keeps its
+position, its pin, its chips and its last result while the CSS changes underneath it. Reloading
+the page for a colour change would throw all of that away — the canvas has no persistence, so the
+windows exist only in the tab. Anything that is not CSS is a full reload, which does lose every
+window, and should: the module graph is already evaluated, and half-old, half-new JavaScript
+holding live state is precisely the "wrong but looks right" failure the terminal version refused
+to risk. The rule did not change; the medium made half of it cheap.
+
+**`cache-control: no-cache` was needed and is not what it sounds like.** It means "revalidate
+before use", not "do not store", so the ETag still answers 304 and nothing is re-sent. Without it
+the browser applies heuristic freshness and can serve a module it fetched moments ago from memory
+— which is exactly the window live reload operates in.
+
+**Two checks failed before the code did, both worth recording.** A headless verification that
+edited a file on disk and looked for the page reacting proved nothing, because
+`--virtual-time-budget` fast-forwards page timers: the page took its "after" snapshot before the
+edit happened in wall-clock time. And stubbing `location.reload` to observe a full reload throws
+in a modern browser — `Location` will not be redefined. The fix for the second is better code
+rather than a better test: `planReload` decides and `applyReload` acts, so the decision is
+checkable without touching navigation at all.
+
+**Cleared the state directory of everything the removed systems left**: `jobs/`, `tui-history`,
+and 28 MB of `tui-stall.txt` from the freeze investigation. `browser-profile/` is the canvas's own
+and stays.

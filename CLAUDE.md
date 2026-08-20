@@ -156,9 +156,12 @@ before anything imports `cli`. **Nothing operator-specific in tracked files.**
 `pytest.ini` sets `pythonpath = .` so `cli` imports without installation, and `asyncio_mode = auto`
 because the canvas's session loop is async. Dev dependencies are in `requirements-dev.txt`.
 
-**To work on the surface**, run `tb ui --no-browser --port 8765` and point a browser at it — the
-static files are read from disk per request, so a reload picks up an edit with no restart. Only a
-change to Python needs the server restarted.
+**To work on the surface**, run `tb ui --no-browser --port 8765` and point a browser at it.
+**Live reload is on and rides the session stream** — the server fingerprints `static/` on its
+existing tick and pushes a `reload` frame. A CSS edit is swapped in place and every window keeps
+its state; anything else is a full reload and loses them, because the module graph is already
+evaluated and half-old JavaScript holding live state is the "wrong but looks right" failure. Only
+a change to Python needs a restart, and that one is not made hot-reloadable on purpose.
 
 **Test the decisions, not the ceremony.** The suite catches what would break silently: the
 exit-code mapping (including why partial is 3 and not 2), stdout purity under `--json`, that every

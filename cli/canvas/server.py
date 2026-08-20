@@ -59,6 +59,11 @@ TICK_SECONDS = 0.5
 # lingering as a session whose watchers still fire into a socket nobody reads.
 HEARTBEAT_SECONDS = 15.0
 
+# How often the static files are checked for an edit. Nine `stat` calls on a
+# local disk, so the cost is not worth tuning; this only bounds how long you
+# stare at a stale page after saving.
+RELOAD_POLL_SECONDS = 0.5
+
 
 class Canvas:
     """One server instance. Holds the token and the live sessions."""
@@ -178,15 +183,52 @@ def build(canvas: Canvas | None = None) -> Starlette:
             Route("/api/run", post_run, methods=["POST"]),
             Route("/api/watch", post_watch, methods=["POST"]),
             Route("/api/stream", stream),
-            Mount("/static", StaticFiles(directory=STATIC), name="static"),
+            Mount("/static", NoCacheStatic(directory=STATIC), name="static"),
         ]
     )
     app.state.canvas = canvas
     return app
 
 
+class NoCacheStatic(StaticFiles):
+    """Static files that must be revalidated before use.
+
+    `no-cache` does not mean "do not cache" — it means "ask first", so the ETag
+    still answers with a 304 and nothing is re-sent. Without it the browser
+    applies heuristic freshness and may serve a file it fetched moments ago
+    from memory, which is exactly the window in which live reload operates.
+    """
+
+    def file_response(self, *args, **kwargs):
+        response = super().file_response(*args, **kwargs)
+        response.headers["cache-control"] = "no-cache"
+        return response
+
+
 def _frame(payload: dict) -> str:
     return json.dumps(payload, default=str) + "\n"
+
+
+def fingerprint(directory: Path = STATIC) -> dict[str, float]:
+    """Modification times of everything the page is made of.
+
+    Vendored code is skipped — it does not change, and it is the bulk of the
+    directory.
+    """
+    return {
+        str(path.relative_to(directory)): path.stat().st_mtime
+        for path in directory.rglob("*")
+        if path.is_file() and "vendor" not in path.parts
+    }
+
+
+def changed(before: dict[str, float], after: dict[str, float]) -> list[str]:
+    """Which files differ. Additions and deletions count as changes."""
+    return sorted(
+        name
+        for name in set(before) | set(after)
+        if before.get(name) != after.get(name)
+    )
 
 
 async def stream_frames(
@@ -196,6 +238,7 @@ async def stream_frames(
     run=None,
     tick: float = TICK_SECONDS,
     heartbeat: float = HEARTBEAT_SECONDS,
+    watch_files: bool = True,
 ):
     """One session's whole life, as frames.
 
@@ -214,6 +257,8 @@ async def stream_frames(
     runner_fn = run or runner.run
     queue: asyncio.Queue = asyncio.Queue()
     tasks: set[asyncio.Task] = set()
+    stamps = fingerprint() if watch_files else {}
+    since_scan = 0.0
 
     async def fire(watcher) -> None:
         session.claim(watcher)
@@ -238,6 +283,21 @@ async def stream_frames(
                 task = asyncio.create_task(fire(watcher))
                 tasks.add(task)
                 task.add_done_callback(tasks.discard)
+            if watch_files:
+                since_scan += tick
+                if since_scan >= RELOAD_POLL_SECONDS:
+                    since_scan = 0.0
+                    # stat() is blocking, so it goes off the loop like every
+                    # other blocking call here. Nine files is fast enough that
+                    # this looks like superstition, and it is the discipline
+                    # that keeps the rule "no unbounded turn" true by default
+                    # rather than by luck.
+                    fresh = await asyncio.to_thread(fingerprint)
+                    edited = changed(stamps, fresh)
+                    if edited:
+                        stamps = fresh
+                        await queue.put({"type": "reload", "files": edited})
+
             drained = False
             while not queue.empty():
                 yield _frame(queue.get_nowait())
