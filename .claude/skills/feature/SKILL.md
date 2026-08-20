@@ -31,6 +31,8 @@ ls docs/features/ docs/features/done/
 grep -rl "<keyword>" docs/features/
 ```
 
+`README.md` and `_template.md` are not features — skip both when matching.
+
 Then decide:
 
 - **A slug or path** matching an existing doc → **execute mode**, Step 2.
