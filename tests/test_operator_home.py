@@ -154,3 +154,21 @@ def test_the_templates_the_scaffold_copies_are_shipped(tmp_path):
 
     missing = [name for _dir, name in LAYOUT if not (TEMPLATES / name).exists()]
     assert not missing, f"templates missing from the repo: {missing}"
+
+
+def test_the_wrapper_stops_cwd_from_shadowing_the_package():
+    """`python -m` prepends the current directory to sys.path, ahead of the
+    PYTHONPATH the wrapper carefully sets.
+
+    So running `tb` from inside any directory containing a `cli/` package
+    imports that one instead. Not hypothetical: installing this repo's systemd
+    units from inside an older checkout generated every unit with the old
+    WorkingDirectory — successfully, and silently wrong.
+
+    Asserted by reading the wrapper rather than by running it, because the
+    suite shells out to nothing.
+    """
+    wrapper = (PROJECT_ROOT / "tb").read_text()
+    assert "PYTHONSAFEPATH=1" in wrapper, (
+        "the wrapper must disable sys.path[0]=cwd; PYTHONPATH alone does not win"
+    )

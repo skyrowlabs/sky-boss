@@ -17,6 +17,15 @@ set -e
 SCRIPT_DIR="$( cd "$( dirname "$(realpath "${BASH_SOURCE[0]}")" )" && pwd )"
 export PYTHONPATH="$SCRIPT_DIR${PYTHONPATH:+:$PYTHONPATH}"
 
+# ...and stop the *cwd* winning anyway. `python -m` prepends the current
+# directory to sys.path ahead of PYTHONPATH, so running `tb` from inside any
+# directory that happens to contain a `cli/` package imports that one instead
+# of this repo's. That is not hypothetical: installing this repo's systemd
+# units from inside an older checkout generated every unit with the old
+# WorkingDirectory, silently and successfully. PYTHONSAFEPATH is the documented
+# switch for it (Python 3.11+, equivalent to -P).
+export PYTHONSAFEPATH=1
+
 VENV_PYTHON="$SCRIPT_DIR/.venv/bin/python"
 
 if [ -x "$VENV_PYTHON" ]; then
