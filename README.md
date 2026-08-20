@@ -82,6 +82,6 @@ appends on every run, and versioning it would make `git status` useless within a
 .venv/bin/python -m pytest -k stripe    # by name
 ```
 
-One doc per feature in `docs/features/`, from first sentence to done — the doc never moves, its
-`status:` transitions in frontmatter. `CLAUDE.md` carries the conventions and the decisions that
+One doc per feature, from first sentence to done. Open work is in `docs/features/`; a doc moves
+to `docs/features/done/` when its `status:` reaches `complete`. `CLAUDE.md` carries the conventions and the decisions that
 have already been argued out, including the ones deliberately rejected.

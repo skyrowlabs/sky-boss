@@ -5,7 +5,7 @@ reaches the terminal. Three consumers read command output — a human, ``tb
 brief`` merging across domains, and the MCP server — so a command that formats
 its own prose has to be written three times.
 
-See docs/features/output-contract.md.
+See docs/features/done/output-contract.md.
 """
 
 from __future__ import annotations
