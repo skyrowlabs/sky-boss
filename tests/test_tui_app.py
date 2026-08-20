@@ -995,3 +995,154 @@ def test_leaving_is_ordinary_when_nothing_is_wedged(monkeypatch):
 
     app_module.run()
     assert hard_exits == []
+
+
+# --------------------------------------------------- watch definitions reload
+#
+# Jobs have always been live; watches were loaded once in __init__ and never
+# again. Two YAML files in the same home, edited the same way, and one silently
+# did nothing until a restart. See Round 3 of the tui feature doc.
+
+
+def _watch_file(directory, name, command="check tools", every="30s"):
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / f"{name}.yaml").write_text(f"command: {command}\nevery: {every}\n")
+
+
+def _app_watching(tmp_path, monkeypatch, directory):
+    from cli.tui import app as app_module
+    from cli.tui.app import TackleBox
+
+    monkeypatch.setattr(app_module, "watch_signature", lambda: _sig(directory))
+    monkeypatch.setattr(app_module, "load_watches", lambda: _load(directory))
+    return TackleBox(history=History(path=tmp_path / "hist"))
+
+
+def _sig(directory):
+    from cli.watch import signature
+
+    return signature(directory)
+
+
+def _load(directory):
+    from cli.watch import load_watches
+
+    return load_watches(directory)
+
+
+def test_a_watch_added_after_start_is_picked_up(tmp_path, monkeypatch):
+    watches = tmp_path / "watches"
+    watches.mkdir()
+    app = _app_watching(tmp_path, monkeypatch, watches)
+
+    assert app.watches == {}, "nothing declared yet"
+
+    _watch_file(watches, "tools")
+    app.refresh_watch_defs()
+
+    assert set(app.watches) == {"tools"}
+
+
+def test_a_watch_edited_in_place_is_picked_up(tmp_path, monkeypatch):
+    watches = tmp_path / "watches"
+    _watch_file(watches, "tools", command="check tools")
+    app = _app_watching(tmp_path, monkeypatch, watches)
+    assert app.watches["tools"].command == "check tools"
+
+    _watch_file(watches, "tools", command="check drift")
+    app.refresh_watch_defs()
+
+    assert app.watches["tools"].command == "check drift"
+
+
+def test_a_removed_watch_leaves_the_rail(tmp_path, monkeypatch):
+    watches = tmp_path / "watches"
+    _watch_file(watches, "tools")
+    _watch_file(watches, "drift", command="check drift")
+    app = _app_watching(tmp_path, monkeypatch, watches)
+    assert set(app.watches) == {"tools", "drift"}
+
+    (watches / "drift.yaml").unlink()
+    app.refresh_watch_defs()
+
+    assert set(app.watches) == {"tools"}
+
+
+def test_an_unchanged_watch_keeps_its_last_result_across_a_reload(tmp_path, monkeypatch):
+    """A reload is usually one file being edited. Blanking every other watch
+    back to "not yet run" would throw away answers to pay for that."""
+    watches = tmp_path / "watches"
+    _watch_file(watches, "tools")
+    _watch_file(watches, "drift", command="check drift")
+    app = _app_watching(tmp_path, monkeypatch, watches)
+
+    app.watched = {"tools": (0, 100.0), "drift": (1, 100.0)}
+
+    # Edit one of them; the other must keep its answer.
+    _watch_file(watches, "drift", command="check drift", every="1h")
+    app.refresh_watch_defs()
+
+    assert app.watched["tools"] == (0, 100.0)
+    assert "drift" in app.watched, "only `every` changed — the answer still stands"
+
+
+def test_a_watch_whose_command_changed_drops_its_result(tmp_path, monkeypatch):
+    """A different command is a different question, so the old answer is not an
+    answer to it — showing it would be reporting the wrong thing as current."""
+    watches = tmp_path / "watches"
+    _watch_file(watches, "tools", command="check tools")
+    app = _app_watching(tmp_path, monkeypatch, watches)
+    app.watched = {"tools": (0, 100.0)}
+
+    _watch_file(watches, "tools", command="check drift")
+    app.refresh_watch_defs()
+
+    assert "tools" not in app.watched
+
+
+def test_an_injected_roster_is_never_reloaded(tmp_path, monkeypatch):
+    """The suite must stay free of the real watch directory: a test that quietly
+    re-read it would depend on whose machine it ran on."""
+    from cli.tui import app as app_module
+    from cli.tui.app import TackleBox
+
+    called = []
+    monkeypatch.setattr(app_module, "watch_signature", lambda: called.append("sig") or ())
+    monkeypatch.setattr(app_module, "load_watches", lambda: called.append("load") or ({}, []))
+
+    app = TackleBox(history=History(path=tmp_path / "hist"), watches={})
+    app.refresh_watch_defs()
+    app.refresh_watch_defs()
+
+    assert called == [], "an injected roster must not touch the real directory"
+
+
+def test_re_reading_is_guarded_so_the_tick_does_not_parse_yaml(tmp_path, monkeypatch):
+    """The signature is a readdir and a stat; the parse is what it guards."""
+    from cli.tui import app as app_module
+
+    watches = tmp_path / "watches"
+    _watch_file(watches, "tools")
+
+    loads = []
+
+    def counting_load():
+        loads.append(1)
+        return _load(watches)
+
+    monkeypatch.setattr(app_module, "watch_signature", lambda: _sig(watches))
+    monkeypatch.setattr(app_module, "load_watches", counting_load)
+
+    from cli.tui.app import TackleBox
+
+    app = TackleBox(history=History(path=tmp_path / "hist"))
+    assert len(loads) == 1, "loaded once at start, so the first paint has them"
+
+    for _ in range(50):
+        app.refresh_watch_defs()
+
+    assert len(loads) == 1, "nothing changed, so nothing should have been re-parsed"
+
+    _watch_file(watches, "tools", command="check drift")
+    app.refresh_watch_defs()
+    assert len(loads) == 2

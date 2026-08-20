@@ -15,9 +15,9 @@ second is the load-bearing one:
   alongside yours. That is only safe because a read verb cannot take a lane
   lock or mutate state.
 
-Definitions are versioned in the repo, next to jobs and inventory, because the
-git diff is the maintenance log. Machine divergence is a `hosts:` field, not a
-separate file location.
+Definitions live in `$TB_HOME/watches`, next to jobs and inventory, and are
+versioned in the operator's own repo because the git diff is the maintenance
+log. Machine divergence is a `hosts:` field, not a separate file location.
 """
 
 from __future__ import annotations
@@ -110,6 +110,35 @@ def parse_watch(data: object, source: Path) -> Watch:
         hosts=tuple(hosts),
         source=source,
     )
+
+
+def signature(directory: Path | None = None) -> tuple:
+    """A cheap value that changes whenever any watch definition does.
+
+    The surface re-reads definitions while it is open, so an edit shows up
+    without a restart. Parsing every file on every tick to discover that nothing
+    changed is the wrong trade for a directory edited twice a week, so the parse
+    is guarded by this instead: a readdir and a stat per file, against a handful
+    of files.
+
+    A directory mtime alone is not enough. It moves when a file is added,
+    removed or renamed, and **not** when an existing file's contents change —
+    which is the common case, and the one that would silently keep showing the
+    old definition. So each file's size and mtime are in here too.
+
+    An absent directory is the empty signature, never an error: the surface asks
+    for watches on its first tick, before any exist.
+    """
+    directory = directory or WATCHES_DIR
+    try:
+        return tuple(
+            (path.name, stat.st_mtime_ns, stat.st_size)
+            for path in sorted(directory.glob("*.yaml"))
+            if not path.name.startswith("_")
+            for stat in (path.stat(),)
+        )
+    except OSError:
+        return ()
 
 
 def load_watches(directory: Path | None = None) -> tuple[dict[str, Watch], list[str]]:
