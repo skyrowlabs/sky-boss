@@ -275,120 +275,40 @@ class TackleBox(App):
 
     TITLE = "tackle-box"
 
-    # Textual CSS takes variables, so the palette crosses into the stylesheet as
-    # $tb-* definitions rather than as interpolated hexes. Nothing below names a
-    # colour; cli/theme.py is the only place that does.
-    #
-    # These are the design system's tokens *unmodified*, unlike the CLI's, which
-    # are darkened to survive an unknown terminal. The surface paints its own
-    # void, so it is the one place the brand can be shown at full strength.
-    CSS = f"""
-    $tb-surface: {BG};
-    $tb-panel: {SURFACE};
-    $tb-input: {SURFACE_2};
-    $tb-border: {BORDER};
-    $tb-text: {TEXT};
-    $tb-muted: {TEXT_2};
-    $tb-dim: {TEXT_3};
-    $tb-accent: {BRAND};
-    $tb-rail: {RAIL_WIDTH};
-    $tb-repl: {REPL_ROWS};
-    """ + """
-    Screen { layout: vertical; background: $tb-surface; color: $tb-text; }
+    # A file, not a class attribute, so `textual run --dev` can watch it and
+    # re-parse on save. An inline stylesheet gives the watcher nothing to watch,
+    # which is why editing colours used to cost a restart per iteration.
+    # See cli/tui/tb.tcss and Round 3 of the tui feature doc.
+    CSS_PATH = "tb.tcss"
 
-    #banner {
-        height: 1;
-        background: $tb-panel;
-        color: $tb-accent;
-        text-style: bold;
-        padding: 0 1;
-    }
+    def get_css_variables(self) -> dict[str, str]:
+        """The palette, injected rather than interpolated.
 
-    #repl {
-        height: $tb-repl;
-        layout: horizontal;
-        background: $tb-panel;
-        border-top: solid $tb-border;
-        padding: 0 1;
-    }
+        Textual CSS takes variables, so the design system crosses into the
+        stylesheet as `$tb-*` names and `cli/theme.py` stays the only place a
+        hex is written. Moving the stylesheet into a file made this load-bearing
+        rather than merely tidy: `test_no_module_outside_the_palette_names_a_colour`
+        globs `cli/**/*.py`, so a `.tcss` full of hexes would have passed it in
+        silence. The test now covers `*.tcss` as well, and this is what lets the
+        file satisfy it.
 
-    /* The input takes the larger share: a command line is the longest string
-       on the surface, and the help pane is built to truncate. */
-    #inputpane { width: 2fr; }
-    #helppane { width: 1fr; padding: 0 0 0 1; }
-
-    #promptrow { height: 1; }
-    #brand { width: 5; color: $tb-accent; text-style: bold; }
-    #prompt {
-        width: 1fr;
-        height: 1;
-        border: none;
-        padding: 0;
-        background: $tb-panel;
-        color: $tb-text;
-    }
-    #prompt:focus { border: none; }
-
-    /* Top-aligned, so candidates sit directly under the line they complete
-       rather than floating clear of it at the foot of the pane. */
-    #completions { height: 1fr; color: $tb-dim; }
-
-    /* Nothing in the chrome may wrap. Truncation is Textual's job, not
-       Python's: a width measured at call time is the pre-layout fallback on
-       the first paint and stale after every drag, and the pane is the only
-       thing that reliably knows how wide it is. The _fit() helpers still run,
-       so the "…" lands on a word boundary the widget would cut mid-character;
-       this is the backstop that makes a stale width harmless. */
-    #helppane, #launch, #lanes, #progress, #watches, #updates, #completions {
-        text-wrap: nowrap;
-        text-overflow: ellipsis;
-    }
-
-    /* Chrome for the two widgets defined above. Their own DEFAULT_CSS parses
-       in a scope with no $tb-* bound, so the palette can only reach them from
-       here — and cli/theme.py stays the only file naming a colour. */
-    Separator { width: 1; height: 1fr; background: $tb-border; }
-    Separator:hover { background: $tb-accent; }
-
-    Expanded { align: center middle; }
-    Expanded > VerticalScroll {
-        width: 80%;
-        max-width: 100;
-        height: auto;
-        max-height: 80%;
-        padding: 1 2;
-        border: solid $tb-border;
-        background: $tb-panel;
-    }
-    #expanded-title { text-style: bold; }
-
-    #middle { height: 1fr; }
-
-    /* The idle state. Exactly one of these two is ever displayed. */
-    #launch { width: 1fr; padding: 1 1; background: $tb-surface; }
-    #launch.hidden, #body.hidden { display: none; }
-
-    #body {
-        width: 1fr;
-        padding: 0 1;
-        background: $tb-surface;
-        scrollbar-size-vertical: 1;
-    }
-
-    #rail {
-        width: $tb-rail;
-        background: $tb-panel;
-        padding: 0 1;
-    }
-    #rail.hidden, #railsep.hidden { display: none; }
-
-    /* A blank row between sections; without it the three headings read as one
-       list with words capitalised at random. */
-    #lanes { height: auto; margin-bottom: 1; }
-    #progress { height: auto; margin-bottom: 1; }
-    #watches { height: auto; margin-bottom: 1; }
-    #updates { height: 1fr; }
-    """
+        These are the tokens *unmodified*, unlike the CLI's, which are darkened
+        to survive an unknown terminal. The surface paints its own void, so it
+        is the one place the brand can be shown at full strength.
+        """
+        return {
+            **super().get_css_variables(),
+            "tb-surface": BG,
+            "tb-panel": SURFACE,
+            "tb-input": SURFACE_2,
+            "tb-border": BORDER,
+            "tb-text": TEXT,
+            "tb-muted": TEXT_2,
+            "tb-dim": TEXT_3,
+            "tb-accent": BRAND,
+            "tb-rail": str(RAIL_WIDTH),
+            "tb-repl": str(REPL_ROWS),
+        }
 
     BINDINGS = [
         # Shell conventions: ^C abandons the line you are typing, ^D leaves.

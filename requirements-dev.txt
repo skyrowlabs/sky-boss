@@ -1,1 +1,4 @@
 pytest>=8.0
+# `textual run --dev` — watches cli/tui/tb.tcss and reloads it on save.
+# See Round 3 of the tui feature doc.
+textual-dev>=1.7

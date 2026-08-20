@@ -17,14 +17,53 @@ HEX = re.compile(r"#[0-9a-fA-F]{6}\b")
 
 
 def test_no_module_outside_the_palette_names_a_colour():
+    """`.tcss` is in here for a reason, and it is not symmetry.
+
+    The surface's stylesheet used to be an f-string inside `app.py`, where this
+    test saw it. Moving it to a file so `textual run --dev` could reload it took
+    it out of the `*.py` glob — a stylesheet is the single most natural place
+    for someone to paste a hex, and it would have passed in silence. The tokens
+    reach it through `TackleBox.get_css_variables` instead.
+    """
     offenders = {}
-    for path in sorted((PROJECT_ROOT / "cli").rglob("*.py")):
-        if path.name == "theme.py":
-            continue
-        found = HEX.findall(path.read_text())
-        if found:
-            offenders[str(path.relative_to(PROJECT_ROOT))] = found
+    for pattern in ("*.py", "*.tcss"):
+        for path in sorted((PROJECT_ROOT / "cli").rglob(pattern)):
+            if path.name == "theme.py":
+                continue
+            found = HEX.findall(path.read_text())
+            if found:
+                offenders[str(path.relative_to(PROJECT_ROOT))] = found
     assert not offenders, f"a second palette is starting: {offenders}"
+
+
+def test_every_token_the_stylesheet_uses_is_defined():
+    """An undefined Textual CSS variable is a parse-time failure, so a typo here
+    takes the whole surface down on launch. Better to fail in the suite."""
+    import re as _re
+    import tempfile
+    from pathlib import Path as _Path
+
+    from cli.tui.app import TackleBox
+    from cli.tui.history import History
+
+    stylesheet = (PROJECT_ROOT / "cli" / "tui" / "tb.tcss").read_text()
+    used = set(_re.findall(r"\$(tb-[a-z0-9-]+)", stylesheet))
+    assert used, "found no $tb-* tokens at all — did the stylesheet move?"
+
+    app = TackleBox(history=History(path=_Path(tempfile.mkdtemp()) / "h"), watches={})
+    defined = set(app.get_css_variables())
+
+    assert used <= defined, f"undefined in get_css_variables: {sorted(used - defined)}"
+
+
+def test_the_stylesheet_defines_no_tokens_of_its_own():
+    """Every $tb-* comes from theme.py through get_css_variables. A definition
+    in the file would be a second source for a token and the two would drift."""
+    import re as _re
+
+    stylesheet = (PROJECT_ROOT / "cli" / "tui" / "tb.tcss").read_text()
+    defined_here = _re.findall(r"^\s*\$(tb-[a-z0-9-]+)\s*:", stylesheet, _re.MULTILINE)
+    assert not defined_here, f"the stylesheet defines its own tokens: {defined_here}"
 
 
 def test_the_rich_theme_is_built_from_the_palette():

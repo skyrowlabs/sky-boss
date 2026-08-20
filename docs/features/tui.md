@@ -387,12 +387,14 @@ commands at decoration time, so `cli/__init__.py` would reload last and the surf
 fresh command tree against a widget tree built from stale imports. `_invoke`'s catch-all would
 keep that from crashing, which is worse than crashing — wrong output that looks right.
 
-- [ ] Move the `CSS` body to `cli/tui/tb.tcss`; set `CSS_PATH = "tb.tcss"`
-- [ ] Override `get_css_variables()` to return the `$tb-*` tokens from `cli/theme.py`
-- [ ] Extend `test_no_module_outside_the_palette_names_a_colour` to glob `*.tcss`
-- [ ] Test that every `$tb-*` token the stylesheet references is defined — an undefined Textual
+- [x] Move the `CSS` body to `cli/tui/tb.tcss`; set `CSS_PATH = "tb.tcss"`
+- [x] Override `get_css_variables()` to return the `$tb-*` tokens from `cli/theme.py`
+- [x] Extend `test_no_module_outside_the_palette_names_a_colour` to glob `*.tcss`
+- [x] Test that every `$tb-*` token the stylesheet references is defined — an undefined Textual
       CSS variable fails at parse time, and it should fail in the suite rather than on launch
-- [ ] Confirm `textual run --dev cli.tui.app:TackleBox` live-reloads a colour change
+- [x] Test that the stylesheet defines no `$tb-*` of its own, so a token has one source
+- [x] Confirm `textual run --dev cli.tui.app:TackleBox` live-reloads a colour change
+- [x] Add `textual-dev` to `requirements-dev.txt` — the documented command needs it
 - [ ] Move `load_watches()` out of `__init__` into a `refresh_watch_defs()` guarded by the watch
       directory's mtime — not every tick, which is the wrong trade for an edit made twice a week
 - [ ] Preserve the injected-`watches` test seam: if watches were passed in, never reload
