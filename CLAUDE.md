@@ -225,6 +225,8 @@ is how a doc stops being able to stop anyone repeating it.
 generally rises — a doc covering three rounds of a system is more load-bearing than one covering
 its first.
 
+- `docs/features/README.md` — how the directory works, for a reader arriving cold. Orientation
+  only; it is not a feature doc and carries no frontmatter.
 - `docs/features/_template.md` — the skeleton. Sections: **Why** · **Shape** (including an explicit
   *"Does not do"*) · **Phases** with `- [ ]` boxes · **Notes**.
 - `.claude/skills/feature/SKILL.md` — the `/feature` skill. Takes an existing slug (execute) or a
