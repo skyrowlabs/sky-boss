@@ -1,0 +1,25 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Secrets — never committed
+.env
+
+# Scratch
+tmp/
+
+# Run state lives in ~/.local/state/tb/, not here (see CLAUDE.md § CLI setup).
+# This is a backstop for strays only.
+logs/
+
+# Operator content lives in ~/.tackle-box (its own git repo), never here.
+# See docs/features/operator-home.md. Backstop against a stray recommit.
+inventory/
+jobs/
+watches/
+
+# Operator context for this machine — never committed.
+# The published half is CLAUDE.md; see docs/features/operator-home.md.
+CLAUDE.local.md
