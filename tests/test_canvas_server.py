@@ -187,3 +187,14 @@ def test_the_static_directory_ships_only_what_the_page_needs():
         if path.is_file() and "__pycache__" not in path.parts
     }
     assert found == expected, f"unexpected: {found - expected}; missing: {expected - found}"
+
+
+def test_static_files_must_be_revalidated_before_use():
+    """Live reload operates inside the window where a browser would otherwise
+    serve a file it fetched moments ago from memory. `no-cache` means "ask
+    first", so the ETag still answers 304 and nothing is re-sent."""
+    canvas = Canvas(token="test-token")
+    client = TestClient(build(canvas))
+    response = client.get("/static/app.js")
+    assert response.status_code == 200
+    assert response.headers["cache-control"] == "no-cache"

@@ -178,3 +178,77 @@ def test_dropping_a_watcher_stops_it():
     session.set("w1", ["run"], interval=5)
     session.drop("w1")
     assert session.watchers == {}
+
+
+# --------------------------------------------------------------- live reload
+
+
+def test_an_edited_file_is_noticed(tmp_path):
+    from cli.canvas.server import changed, fingerprint
+
+    (tmp_path / "tb.css").write_text("a{}")
+    before = fingerprint(tmp_path)
+
+    (tmp_path / "tb.css").write_text("a{color:red}")
+    assert changed(before, fingerprint(tmp_path)) == ["tb.css"]
+
+
+def test_a_new_file_and_a_deleted_one_both_count_as_changes(tmp_path):
+    """A file appearing is the common case while building a page, and one
+    disappearing is how a rename looks from here."""
+    from cli.canvas.server import changed, fingerprint
+
+    (tmp_path / "a.js").write_text("1")
+    before = fingerprint(tmp_path)
+
+    (tmp_path / "b.js").write_text("2")
+    (tmp_path / "a.js").unlink()
+    assert changed(before, fingerprint(tmp_path)) == ["a.js", "b.js"]
+
+
+def test_vendored_code_is_not_watched(tmp_path):
+    """It does not change, and it is most of the directory."""
+    from cli.canvas.server import fingerprint
+
+    (tmp_path / "vendor").mkdir()
+    (tmp_path / "vendor" / "preact.mjs").write_text("x")
+    (tmp_path / "app.js").write_text("y")
+    assert list(fingerprint(tmp_path)) == ["app.js"]
+
+
+async def test_editing_a_file_pushes_a_reload_frame(monkeypatch):
+    """The whole point: the page learns about the edit without being asked."""
+    from cli.canvas import server as module
+
+    stamps = {"tb.css": 1.0}
+    monkeypatch.setattr(module, "fingerprint", lambda *a, **k: dict(stamps))
+
+    canvas = Canvas(token="t")
+    generator = stream_frames(
+        canvas, _session(canvas), run=fake_run, tick=0.001, heartbeat=1e9
+    )
+    try:
+        await frame(generator)  # hello
+        stamps["tb.css"] = 2.0
+        pushed = await frame(generator)
+        assert pushed == {"type": "reload", "files": ["tb.css"]}
+    finally:
+        await generator.aclose()
+
+
+async def test_an_unchanged_directory_pushes_nothing(monkeypatch):
+    """Otherwise the page would reload every half second forever."""
+    from cli.canvas import server as module
+
+    monkeypatch.setattr(module, "fingerprint", lambda *a, **k: {"tb.css": 1.0})
+
+    canvas = Canvas(token="t")
+    generator = stream_frames(
+        canvas, _session(canvas), run=fake_run, tick=0.001, heartbeat=0.05
+    )
+    try:
+        await frame(generator)  # hello
+        # The next thing to arrive is the heartbeat, not a reload.
+        assert (await frame(generator))["type"] == "beat"
+    finally:
+        await generator.aclose()
