@@ -22,11 +22,14 @@ Screen { layout: vertical; background: $tb-surface; color: $tb-text; }
     padding: 0 1;
 }
 
+/* Above the transcript, so the newest result sits directly beneath the line
+   that asked for it. The rule is on the bottom edge for the same reason it
+   used to be on the top: it separates the region from the output. */
 #repl {
     height: $tb-repl;
     layout: horizontal;
     background: $tb-panel;
-    border-top: solid $tb-border;
+    border-bottom: solid $tb-border;
     padding: 0 1;
 }
 
@@ -91,6 +94,14 @@ Expanded > VerticalScroll {
     padding: 0 1;
     background: $tb-surface;
     scrollbar-size-vertical: 1;
+}
+
+/* One block per dispatch, newest at the top. The gap is here rather than a
+   trailing blank line written into the block, which would be the last thing
+   inside it and read as part of its output. */
+.turn {
+    height: auto;
+    margin-bottom: 1;
 }
 
 #rail {

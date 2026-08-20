@@ -415,7 +415,105 @@ session to lose. That is exactly why the cheap answer is good enough. No `--dev`
 CLAUDE.md forbids. No config file for the surface: pane widths still are not persisted, and
 [[surface-panes]] decided that.
 
+### Round 4 — newest first, prompt on top (2026-08-20)
+
+**This reverses Round 1's layout decision, and the original argument is worth keeping visible.**
+Round 1 put the REPL region at the foot because "that is where a terminal puts its prompt and the
+transcript grows toward it." That is a true description of a terminal, and it is the wrong model
+for this surface. A terminal's prompt is at the bottom because its transcript is *append-only
+scrollback you have already read*. Here the transcript is a stack of results you are working
+through, and the thing you most want to look at is the one that just arrived. Putting the newest
+result at the bottom means every dispatch pushes it under the prompt and you read downward toward
+the thing you are typing into.
+
+Inverted: **the region is at the top and the newest result sits directly beneath it.** The result
+you just asked for is adjacent to the line you asked with, and nothing moves out from under you
+while you read.
+
+Inside the region nothing changes. The input stays at the *top* of it with candidates below and
+help to the right, because Round 1's reason for that still holds — everything else in the region
+describes the input line and hangs off it.
+
+**Within a turn, content still reads top-to-bottom.** Only the *turns* are stacked newest-first.
+Reversing the lines inside a result would turn every table upside down, which is not what "newest
+first" means to anyone.
+
+```
+  banner
+  ▸ check drift           ← the line you are typing
+  candidates | help
+──────────────────────────
+  ▸ check drift           ← the turn that just finished
+  <its output, read normally>
+
+  ▸ auto status           ← the turn before it
+  <its output>
+```
+
+**`RichLog` cannot do this.** It appends, and there is no prepend — the only way to get
+newest-first out of it is to clear and rewrite the whole log on every turn, which is O(total) per
+turn and would undo Round 2 by reintroducing exactly the unbounded on-loop render that froze the
+surface. So the transcript becomes a `VerticalScroll` of **turn blocks**, each block a container
+mounted at the top.
+
+That makes the turn an explicit thing rather than an implicit one, and it exposes an ordering bug
+that the flat transcript merely hid. `start()` echoes at the moment you press enter, but a line
+typed while a dispatch is running is *queued* — so two echoes can happen before the first result
+arrives. In a flat log that renders as echo, echo, output, output: already wrong, but readable. In
+turn blocks the second turn would swallow the first turn's output. **So the queue carries the
+block**, and a result is written into the block its own line opened.
+
+Round 2's per-write truncation is unchanged and still does the bounding work. `max_lines` on the
+`RichLog` is replaced by a cap on retained turns, which is the same idea in the unit this layout
+actually has.
+
+- [x] Move the REPL region above the transcript; `border-bottom` rather than `border-top`
+- [x] Replace the `RichLog` with a `Transcript` container that mounts turn blocks newest-first
+- [x] A turn block is opened by `start()`, carried on the queue, and written into by `finished()`
+- [x] `write_body` with no turn open starts one, so the mount hint and `last log` still work
+- [x] Cap retained turns; drop the oldest from the bottom
+- [x] New content scrolls to the top, not the end
+- [x] Give the app `transcript()` and `turns()` so tests stop reading widget internals
+- [x] Test: turns stack newest-first and content within a turn does not
+- [x] Test: a line queued behind a running dispatch gets its own block, in order
+- [x] Test: the region sits above the transcript, and the rail still sits beside it
+- [x] Test: Round 2's freeze guard still holds against the new widget
+
+**Does not do.** No configuration switch between the two orders — [[surface-panes]] refused a
+config file for the surface and this does not reopen it; the layout is a decision, not a
+preference. Content within a turn is not reversed. The rail is untouched: it is live state, not
+transcript, and has no order to invert.
+
 ## Notes
+
+**Round 4 — inverting the surface (2026-08-20).** The design predicted one ordering bug and the
+implementation found it was real, plus a second nobody predicted.
+
+*The predicted one.* `start()` echoes when you press enter, but a line typed while a dispatch is
+running is queued — so two blocks can be open before the first result lands. The round said "the
+queue carries the block", and it does. What the design got wrong was assuming that was enough:
+the first implementation also assigned the new block to `self.turn`, which is the block the
+*running* dispatch writes into. So typing a second line while the first was still running
+redirected the first one's output into the second one's block. The test caught it on the first
+run. `start()` now opens a block without claiming `self.turn`; only `pump()` claims it, because
+only `pump()` knows which line actually started.
+
+*The unpredicted one.* The keys hint at mount used to be written straight to the `RichLog`,
+bypassing `write_body` — and therefore bypassing `written = True`. Routing it through the single
+door made the surface consider itself non-idle from the first frame, so the launch screen never
+appeared. `idle` is "the transcript is empty", and chrome the surface printed to itself does not
+count; `write_body` takes `marks_written` for exactly that one caller. Worth knowing that the old
+bypass was load-bearing rather than sloppy.
+
+`Static` has no public accessor for the renderable it was given — `.renderable` does not exist in
+Textual 8. Rather than reach into `_Static__content`, each line keeps its source `Text` on the
+widget, which is what `transcript()` and `turns()` read. That is the same coupling those
+accessors were added to remove, so it would have been an odd place to reintroduce it.
+
+Seventeen tests failed on the first run of the new layout, and almost all of them for the same
+reason: they read `RichLog.lines` and unpacked Rich segments by hand. They were coupled to the
+widget rather than to the behaviour, so every one broke for a reason a reader of the test would
+not recognise. They go through `transcript()` now.
 
 **Round 3 — reload (2026-08-20).** The stylesheet move made an existing test load-bearing that
 had been merely tidy. `test_no_module_outside_the_palette_names_a_colour` globs `cli/**/*.py`;

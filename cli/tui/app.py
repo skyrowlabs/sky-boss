@@ -40,7 +40,7 @@ from textual.binding import Binding
 from textual.message import Message
 from textual.screen import ModalScreen
 from textual.containers import Horizontal, Vertical, VerticalScroll
-from textual.widgets import Input, RichLog, Static
+from textual.widgets import Input, Static
 
 from cli.jobs import LANES, load_jobs
 from cli.output import EXIT_OK, EXIT_PARTIAL, TUI_THEME
@@ -96,9 +96,11 @@ TRANSCRIPT_MAX_LINES = 10_000
 # Written a slice at a time, because RichLog.write is superlinear in the size of
 # a single renderable. Chunking the same 80k lines costs 1.48s against 7.62s.
 WRITE_CHUNK_LINES = 1_000
-# Scrollback, bounded. Unset, the transcript is a leak with no upper limit in a
-# surface designed to be left open for days.
-LOG_MAX_LINES = 50_000
+# Scrollback, bounded. Unbounded, the transcript is a leak with no upper limit
+# in a surface designed to be left open for days. Counted in turns rather than
+# lines because the turn is the unit this layout has — and a turn is already
+# bounded at TRANSCRIPT_MAX_LINES by `write_body`, so the product is bounded too.
+MAX_TURNS = 200
 
 # The name, on one row, above everything. It is chrome and nothing else reads
 # it, so it is deliberately outside the REPL row budget below.
@@ -270,6 +272,49 @@ class Expanded(ModalScreen):
         self.dismiss()
 
 
+class Transcript(VerticalScroll):
+    """The output, newest turn at the top.
+
+    A `RichLog` cannot do this. It appends, and there is no prepend — the only
+    way to get newest-first out of it is to clear and rewrite the whole log on
+    every turn, which is O(total) per turn and reintroduces exactly the
+    unbounded on-loop render that froze the surface in Round 2.
+
+    So the unit is a **turn block**: one container per dispatch, mounted at the
+    top, holding that dispatch's echo and output in the order they happened.
+    Turns stack newest-first; content inside a turn reads top-to-bottom, because
+    reversing the lines of a table is not what anyone means by "newest first".
+    """
+
+    def open_turn(self) -> Vertical:
+        """A new block at the top, for one dispatch."""
+        block = Vertical(classes="turn")
+        self.mount(block, before=0)
+        self.scroll_home(animate=False)
+        self._drop_oldest()
+        return block
+
+    def _drop_oldest(self) -> None:
+        blocks = self.query(".turn")
+        for block in list(blocks)[MAX_TURNS:]:
+            block.remove()
+
+    def write_into(self, block: Vertical, renderable) -> None:
+        """One renderable into a turn, appended within it.
+
+        Chunked by the same rule as everything else reaching the transcript —
+        see `TackleBox.write_body`, which is still the only door in.
+        """
+        for chunk in _bounded_chunks(renderable):
+            line = Static(chunk)
+            # Kept alongside rather than read back off the widget. `Static` has
+            # no public accessor for what it was given, and reaching into its
+            # internals to find out is the coupling `TackleBox.transcript` was
+            # added to remove.
+            line.source = chunk
+            block.mount(line)
+
+
 class TackleBox(App):
     """tb, held open."""
 
@@ -333,7 +378,12 @@ class TackleBox(App):
         # One dispatch at a time. Two concurrent `tb run`s would contend for the
         # same lane lock and one would come back `skipped`, which is a confusing
         # way to find out you double-typed.
-        self.queue: deque[str] = deque()
+        # (line, turn block). The block is carried rather than looked up,
+        # because a line typed while a dispatch runs is queued and echoes
+        # immediately — two blocks can be open before the first result lands,
+        # and a result belongs to the block its own line opened.
+        self.queue: deque = deque()
+        self.turn = None
         self.busy = False
         self.running_line = ""
         self.started_at = 0.0
@@ -366,27 +416,16 @@ class TackleBox(App):
 
     def compose(self) -> ComposeResult:
         yield Static(BANNER_TEXT, id="banner")
-        # The transcript and the rail share the middle. Live state sits beside
-        # the thing it describes rather than beside the thing you type: lanes
-        # and progress are about the run, and the run's output is right there.
-        with Horizontal(id="middle"):
-            yield Static(id="launch")
-            yield RichLog(
-                id="body",
-                highlight=False,
-                markup=False,
-                wrap=False,
-                auto_scroll=True,
-                max_lines=LOG_MAX_LINES,
-            )
-            yield Separator(id="railsep")
-            with Vertical(id="rail"):
-                yield Static(id="lanes")
-                yield Static(id="progress")
-                yield Static(id="watches")
-                yield Static(id="updates")
-        # The region is now only the line being typed: candidates on the left
-        # above the input, and what the line resolves to on the right.
+        # The region is above the transcript, and the newest result sits
+        # directly beneath it. Round 1 had this at the foot, on the reasoning
+        # that a terminal puts its prompt there — but a terminal's prompt is at
+        # the bottom because its transcript is scrollback you have already read.
+        # Here it is a stack of results you are working through, and the one
+        # that just arrived is the one you want. See Round 4.
+        #
+        # Inside the region nothing moved: the input is still at the top of it,
+        # because everything else here describes it — candidates below, help to
+        # the right, both hanging off the line above them.
         with Horizontal(id="repl"):
             with Vertical(id="inputpane"):
                 with Horizontal(id="promptrow"):
@@ -397,6 +436,18 @@ class TackleBox(App):
                 yield Static(id="completions")
             yield Separator(id="replsep")
             yield Static(id="helppane")
+        # The transcript and the rail share what is left. Live state sits beside
+        # the thing it describes rather than beside the thing you type: lanes
+        # and progress are about the run, and the run's output is right there.
+        with Horizontal(id="middle"):
+            yield Static(id="launch")
+            yield Transcript(id="body")
+            yield Separator(id="railsep")
+            with Vertical(id="rail"):
+                yield Static(id="lanes")
+                yield Static(id="progress")
+                yield Static(id="watches")
+                yield Static(id="updates")
 
     def on_mount(self) -> None:
         self.query_one(PromptInput).focus()
@@ -415,12 +466,14 @@ class TackleBox(App):
             PROGRESS_SECONDS, self.refresh_progress, pause=True
         )
         # The banner names the surface now, so the hint is only the keys.
-        self.query_one(RichLog).write(
+        self.write_body(
             Text(
                 "⇥ complete  ↑↓ history  ^O last log  ^L clear  ^D quit",
                 style=MUTED,
-            )
+            ),
+            marks_written=False,
         )
+        self.turn = None
 
     def on_unmount(self) -> None:
         # The watchdog stops with the app that owns it. Being a daemon means it
@@ -445,7 +498,7 @@ class TackleBox(App):
         """
         return not self.written
 
-    def write_body(self, renderable) -> None:
+    def write_body(self, renderable, marks_written: bool = True, block=None) -> None:
         """The one way anything reaches the transcript.
 
         Single path so `written` cannot drift from what is actually on screen —
@@ -467,15 +520,45 @@ class TackleBox(App):
         actually holds the surface open is that **no single turn may be
         unbounded**, and rendering a result is a turn like any other.
         """
-        self.written = True
-        log = self.query_one(RichLog)
-        for chunk in _bounded_chunks(renderable):
-            log.write(chunk)
+        # The keys hint is written at mount and must *not* end the idle state —
+        # `idle` is "the transcript is empty", and chrome the surface printed to
+        # itself is not something you asked for. Everything else marks it.
+        self.written = self.written or marks_written
+        transcript = self.query_one(Transcript)
+        if block is None:
+            if self.turn is None:
+                # Nothing opened a turn — the mount hint, `last log` without an
+                # echo. Each still deserves a block of its own.
+                self.turn = transcript.open_turn()
+            block = self.turn
+        transcript.write_into(block, renderable)
+
+    def transcript(self) -> str:
+        """Everything on screen, newest turn first, as plain text.
+
+        Exists so nothing has to reach into widget internals to find out what
+        the surface is showing. The old tests read `RichLog.lines` and unpacked
+        Rich segments by hand, which coupled them to the widget rather than to
+        the behaviour — and every one of them broke when the widget changed,
+        for no reason a reader of the test would recognise.
+        """
+        return "\n".join(self.turns())
+
+    def turns(self) -> list[str]:
+        """The transcript as blocks, newest first."""
+        blocks = []
+        for block in self.query_one(Transcript).query(".turn"):
+            lines = []
+            for line in block.query(Static):
+                source = getattr(line, "source", None)
+                lines.append(source.plain if isinstance(source, Text) else str(source or ""))
+            blocks.append("\n".join(lines))
+        return blocks
 
     def refresh_launch(self) -> None:
         idle = self.idle
         self.query_one("#launch", Static).set_class(not idle, "hidden")
-        self.query_one(RichLog).set_class(idle, "hidden")
+        self.query_one(Transcript).set_class(idle, "hidden")
         # The rail says what the launch screen already says, with less room.
         # Showing both prints the watch list twice on one screen.
         self.query_one("#rail", Vertical).set_class(idle or self.rail_too_narrow, "hidden")
@@ -884,7 +967,9 @@ class TackleBox(App):
     # ----------------------------------------------------------------- actions
 
     def action_clear(self) -> None:
-        self.query_one(RichLog).clear()
+        transcript = self.query_one(Transcript)
+        transcript.remove_children()
+        self.turn = None
         # Clearing takes you home rather than to a blank pane.
         self.written = False
         self.refresh_launch()
@@ -942,31 +1027,39 @@ class TackleBox(App):
         a running job would be theatre. `resolve_verb` returns None for
         anything Click knows, so no real command can be intercepted.
         """
-        self.echo(line)
+        # A block per line, opened here so the echo and everything that answers
+        # it land together however long the answer takes to arrive.
+        #
+        # Deliberately *not* assigned to `self.turn`. A line typed while a
+        # dispatch is running is queued but echoes immediately, so this block
+        # belongs to a line that has not started — and `self.turn` belongs to
+        # the one that has. Setting it here wrote the running dispatch's result
+        # into the block of the line typed after it.
+        block = self.query_one(Transcript).open_turn()
+        self.echo(line, block)
         match = resolve_verb(line)
         if match is not None:
             verb, args = match
             message = verb.action(self, args)
             if message is not None:
-                self.write_body(message)
-                self.write_body(Text(""))
+                self.write_body(message, block=block)
             return
-        self.queue.append(line)
+        self.queue.append((line, block))
         self.pump()
 
-    def echo(self, line: str) -> None:
+    def echo(self, line: str, block=None) -> None:
         """Put the typed line in the transcript, so the pane reads as a session."""
         prompt = Text(ECHO_PREFIX, style=MUTED)
         prompt.append(line, style=ACCENT_STYLE)
         # The echo is the first thing written, so this is where idle ends.
-        self.write_body(prompt)
+        self.write_body(prompt, block=block)
         self.refresh_launch()
 
     def pump(self) -> None:
         if self.busy or not self.queue:
             return
         self.busy = True
-        line = self.queue.popleft()
+        line, self.turn = self.queue.popleft()
         self.running_line = line
         self.started_at = time.monotonic()
         # Read once, here, rather than on every progress frame — it walks the
@@ -976,7 +1069,7 @@ class TackleBox(App):
         self.refresh_progress()
         # Width is read here, on the loop, because the worker must not touch a
         # widget from its thread.
-        self.work(line, self.query_one(RichLog).size.width or FALLBACK_WIDTH)
+        self.work(line, self.query_one(Transcript).size.width or FALLBACK_WIDTH)
 
     @work(thread=True)
     def work(self, line: str, width: int) -> None:
@@ -992,7 +1085,10 @@ class TackleBox(App):
             self.write_body(Text("(no output)", style=MUTED))
         if not result.ok:
             self.write_body(Text(f"exit {result.exit_code}", style=FAIL))
-        self.write_body(Text(""))
+        # The turn is closed. A block is spaced by CSS now rather than by a
+        # trailing blank line, which would have been the last thing in the
+        # block and read as part of it.
+        self.turn = None
         self.busy = False
         self.running_line = ""
         self.progress_timer.pause()
