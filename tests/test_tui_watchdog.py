@@ -176,3 +176,36 @@ def test_the_launch_screen_points_at_the_dump_when_there_was_one():
     ).plain
     assert "stalled" in rendered
     assert "/home/someone/.local/state/tb/tui-stall.txt" in rendered
+
+
+def test_the_watchdog_stops_with_the_app_that_owns_it(tmp_path):
+    """A daemon cannot hold the process open, which is not the same as being
+    free — it wakes every second for as long as it runs. Building several apps
+    in one process (the suite builds ~30) accumulated a poller per app, which
+    showed up as a timing-sensitive test flaking about one run in six.
+    """
+    import asyncio
+    import threading
+
+    from cli.tui.app import TackleBox
+    from cli.tui.history import History
+
+    def alive():
+        return sum(
+            1 for t in threading.enumerate() if t.name == "tb-tui-watchdog" and t.is_alive()
+        )
+
+    before = alive()
+
+    async def scenario():
+        for _ in range(4):
+            app = TackleBox(history=History(path=tmp_path / "hist"), watches={})
+            async with app.run_test(size=(100, 30)) as pilot:
+                await pilot.pause()
+                assert app.watchdog._thread is not None, "it should run while mounted"
+            assert app.watchdog._stop.is_set(), "and be told to stop on unmount"
+
+    asyncio.run(scenario())
+
+    # Each is stopped; the last may still be inside its poll wait, so allow one.
+    assert alive() <= before + 1

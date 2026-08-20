@@ -288,6 +288,12 @@ is why watch definitions carry `cwd:`.
   until something needs them. Python here is 3.14.7 — new enough that a dependency may lack wheels.
 - **Command shape:** `<group> <verb>` (`tb info assets`, `tb check drift`). `tb run` and the
   `tb doctor` alias are the only top-level verbs.
+- **`docs/CLI.md` is the command reference, and its listing is generated** from the live Click
+  tree by `tests/test_cli_reference.py` — regenerate with
+  `TB_WRITE_CLI_DOC=1 .venv/bin/python -m pytest -k cli_reference`. Same reason the TUI keeps no
+  command table: a hand-written reference is a mirror that drifts, and it is read exactly when the
+  reader cannot tell it is wrong. Only the block between the `<!-- reference:start -->` markers is
+  generated; the prose around it is written.
 - **`--json` is a root-group flag** stored in the Click context, so the output decorator handles
   every command with no per-command boilerplate.
 - **Shell completion:** for fish, `_TB_COMPLETE=fish_source tb > ~/.config/fish/completions/tb.fish`.

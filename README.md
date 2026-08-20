@@ -22,6 +22,10 @@ grows without bound; this one is closed at four. The property it buys: **`tb run
 door that writes**, so nothing changes state without a ledger entry, because there is no other
 way in.
 
+**[`docs/CLI.md`](docs/CLI.md) is the complete reference** — every command, argument and option,
+generated from the command tree and checked by the suite, alongside the output contract and exit
+codes.
+
 ## Install
 
 Requires Python 3.13+ and git.
