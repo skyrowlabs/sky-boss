@@ -3,15 +3,39 @@
  * Every colour here is a role from cli/theme.py, injected as a custom property
  * by the server. Tints are built with color-mix against those roles — an
  * rgba() literal would be a hex by another name and a test fails on one.
+ *
+ * **Every size is in rem, and 1rem is four scaled pixels.** The surface is
+ * driven from `--tb-scale`, injected by the server from `tb ui --scale`, so the
+ * whole UI grows or shrinks as one thing rather than as forty numbers that
+ * drift apart. Divide any design pixel by four to get its rem: 12px is 3rem,
+ * 6px is 1.5rem. At scale 1 the surface renders at its original size, and the
+ * default of 2 is twice that.
+ *
+ * Hairlines scale too. A border left at a literal 1px turns into a thread at
+ * 2x — technically still there, and gone as far as the eye is concerned.
  */
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
+html {
+  /* The one number the whole surface is measured in. */
+  font-size: calc(4px * var(--tb-scale, 2));
+}
+
 :root {
-  --tb-tint: color-mix(in srgb, var(--tb-brand) 12%, transparent);
-  --tb-edge: color-mix(in srgb, var(--tb-brand) 26%, transparent);
-  --tb-hair: color-mix(in srgb, var(--tb-text) 6%, transparent);
+  --tb-tint: color-mix(in srgb, var(--tb-brand) 14%, transparent);
+  --tb-edge: color-mix(in srgb, var(--tb-brand) 30%, transparent);
+  --tb-hair: color-mix(in srgb, var(--tb-text) 8%, transparent);
+  --tb-sink: color-mix(in srgb, var(--tb-bg) 70%, transparent);
   --mono: ui-monospace, "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
+
+  /* Softer, rounder. A window is a card rather than a box. */
+  --r-sm: 1rem;
+  --r-md: 2rem;
+  --r-lg: 3.5rem;
+
+  --hair: 0.25rem;
+  --lift: 0 1.5rem 4rem color-mix(in srgb, var(--tb-bg) 80%, transparent);
 }
 
 html, body { height: 100%; }
@@ -19,89 +43,110 @@ html, body { height: 100%; }
 body {
   background: var(--tb-bg);
   color: var(--tb-text);
-  font: 12px/1.45 var(--mono);
+  font: 3rem/1.45 var(--mono);
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
 }
 
 #root { height: 100%; }
 
-.app { display: flex; flex-direction: column; height: 100%; }
+.app { display: flex; flex-direction: column; height: 100%; padding: 1.5rem; gap: 1.5rem; }
 
 /* ------------------------------------------------------------------ top bar */
 
 .bar {
-  display: flex; align-items: center; gap: 14px;
-  padding: 0 14px; height: 34px; flex: none;
-  border-bottom: 1px solid var(--tb-hair);
+  display: flex; align-items: center; gap: 3.5rem;
+  padding: 0 3.5rem; height: 9.5rem; flex: none;
+  border: var(--hair) solid var(--tb-hair); border-radius: var(--r-md);
   background: var(--tb-surface);
   user-select: none;
 }
-.brand { color: var(--tb-brand); font-weight: 700; letter-spacing: .14em; }
-.host { color: var(--tb-text-2); }
+/* The controls never shrink; the spacer and the address absorb the squeeze.
+ * Without this the segmented control was compressed until `floating` read as
+ * `floatin` and the close button sat on top of it — at 2x the bar is simply
+ * wider than it was, and a flex child's default is to give way. */
+.bar > *:not(.spacer) { flex: none; }
+.bar .host { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+
+.brand { color: var(--tb-brand); font-weight: 700; letter-spacing: .14em; white-space: nowrap; }
+.host { color: var(--tb-text-2); white-space: nowrap; }
 .spacer { flex: 1; }
 
-.stat { color: var(--tb-text-3); letter-spacing: .1em; font-size: 11px; }
-.stat b { color: var(--tb-text-2); font-weight: 400; margin-left: 5px; }
+.stat {
+  color: var(--tb-text-3); letter-spacing: .1em; font-size: 2.75rem;
+  white-space: nowrap;
+}
+.stat b { color: var(--tb-text-2); font-weight: 400; margin-left: 1.25rem; }
 .stat.live b { color: var(--tb-brand); }
 .stat.alert b { color: var(--tb-warn); }
 
-.seg { display: flex; border: 1px solid var(--tb-hair); border-radius: 4px; overflow: hidden; }
+.seg {
+  display: flex; border: var(--hair) solid var(--tb-hair);
+  border-radius: var(--r-sm); overflow: hidden;
+}
 .seg button {
-  font: inherit; border: 0; padding: 2px 9px; cursor: pointer;
-  background: transparent; color: var(--tb-text-3);
+  font: inherit; border: 0; padding: 0.5rem 2.25rem; cursor: pointer;
+  background: transparent; color: var(--tb-text-3); white-space: nowrap;
 }
 .seg button.on { background: var(--tb-brand); color: var(--tb-bg); }
 
+/* The window has no frame of its own, so leaving must be inside it. */
+.quit {
+  font: inherit; cursor: pointer; background: transparent;
+  border: var(--hair) solid var(--tb-hair); border-radius: var(--r-sm);
+  color: var(--tb-text-3); padding: 0.5rem 2.25rem; line-height: 1;
+}
+.quit:hover { color: var(--tb-danger); border-color: var(--tb-danger); }
+
 /* ------------------------------------------------------------------ palette */
 
-.palette { flex: none; border-bottom: 1px solid var(--tb-hair); background: var(--tb-bg); }
-.palette.overlay {
-  position: fixed; inset: 46px 0 auto 0; margin: 0 auto; max-width: 720px;
-  border: 1px solid var(--tb-edge); border-radius: 8px; z-index: 999;
-  box-shadow: 0 24px 60px color-mix(in srgb, var(--tb-bg) 82%, transparent);
+.palette {
+  flex: none; background: var(--tb-surface);
+  border: var(--hair) solid var(--tb-hair); border-radius: var(--r-md);
+  overflow: hidden;
 }
-.scrim { position: fixed; inset: 0; z-index: 998;
-  background: color-mix(in srgb, var(--tb-bg) 62%, transparent); }
+.palette.overlay {
+  position: fixed; inset: 14rem 0 auto 0; margin: 0 auto; max-width: 190rem;
+  border-color: var(--tb-edge); border-radius: var(--r-lg); z-index: 999;
+  box-shadow: var(--lift);
+}
+.scrim { position: fixed; inset: 0; z-index: 998; background: var(--tb-sink); }
 
-.prompt { display: flex; align-items: center; gap: 10px; padding: 9px 14px; }
+.prompt { display: flex; align-items: center; gap: 2.5rem; padding: 2.25rem 3.5rem; }
 .chev { color: var(--tb-brand); }
 .prompt input {
   flex: 1; background: transparent; border: 0; outline: 0;
   font: inherit; color: var(--tb-text);
 }
 .prompt input::placeholder { color: var(--tb-text-3); }
-.hint { color: var(--tb-text-3); font-size: 11px; }
-.hint button {
-  font: inherit; background: transparent; color: var(--tb-text-3);
-  border: 1px solid var(--tb-hair); border-radius: 3px; padding: 1px 6px; cursor: pointer;
-}
+.hint { color: var(--tb-text-3); font-size: 2.75rem; }
 
-.suggestions { border-top: 1px solid var(--tb-hair); max-height: 40vh; overflow: auto; }
+.suggestions { border-top: var(--hair) solid var(--tb-hair); max-height: 40vh; overflow: auto; }
 .suggestion {
-  display: flex; align-items: baseline; gap: 12px; padding: 5px 14px; cursor: pointer;
+  display: flex; align-items: baseline; gap: 3rem; padding: 1.25rem 3.5rem; cursor: pointer;
 }
-.suggestion .mark { color: var(--tb-brand); width: 10px; }
-.suggestion .name { color: var(--tb-text-2); min-width: 132px; }
-.suggestion .desc { color: var(--tb-text-3); flex: 1; overflow: hidden;
-  white-space: nowrap; text-overflow: ellipsis; }
-.suggestion .meta { color: var(--tb-text-3); font-size: 11px; }
+.suggestion .mark { color: var(--tb-brand); width: 2.5rem; }
+.suggestion .name { color: var(--tb-text-2); min-width: 33rem; }
+.suggestion .desc {
+  color: var(--tb-text-3); flex: 1; overflow: hidden;
+  white-space: nowrap; text-overflow: ellipsis;
+}
+.suggestion .meta { color: var(--tb-text-3); font-size: 2.75rem; }
 .suggestion.sel { background: var(--tb-tint); }
 .suggestion.sel .name { color: var(--tb-text); }
 
 /* ------------------------------------------------------------------- canvas */
 
-.canvas { flex: 1; overflow: auto; position: relative; padding: 18px; }
+.canvas { flex: 1; overflow: auto; position: relative; padding: 2.5rem 0; }
 .canvas.tile {
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
-  gap: 16px; align-content: start;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(115rem, 1fr));
+  gap: 4rem; align-content: start;
 }
 .canvas.float .win { position: absolute; }
 
 /* A tile is bounded and scrolls inside. Without this a thirty-row table makes
- * one window taller than the canvas and pushes every other window off it — the
- * grid has no opinion about height, so it has to be given one here. */
-.canvas.tile .win { max-height: 460px; }
+ * one window taller than the canvas and pushes every other window off it. */
+.canvas.tile .win { max-height: 115rem; }
 
 .empty {
   position: absolute; inset: 0; display: grid; place-items: center;
@@ -112,75 +157,77 @@ body {
 
 .win {
   display: flex; flex-direction: column; min-height: 0;
-  background: var(--tb-surface); border: 1px solid var(--tb-hair);
-  border-radius: 7px; overflow: hidden;
+  background: var(--tb-surface); border: var(--hair) solid var(--tb-hair);
+  border-radius: var(--r-lg); overflow: hidden;
 }
 .win.wide { grid-column: 1 / -1; }
 .win.focus { border-color: var(--tb-edge); }
+.canvas.float .win { box-shadow: var(--lift); }
 
 .title {
-  display: flex; align-items: center; gap: 9px; flex: none;
-  padding: 6px 9px; border-bottom: 1px solid var(--tb-hair);
+  display: flex; align-items: center; gap: 2.25rem; flex: none;
+  padding: 1.5rem 2.25rem; border-bottom: var(--hair) solid var(--tb-hair);
   background: var(--tb-surface-2); user-select: none;
   flex-wrap: nowrap; min-width: 0;
 }
 .title > * { flex: none; }
 .canvas.float .title { cursor: move; }
-.dot { width: 6px; height: 6px; border-radius: 50%; background: var(--tb-ok); flex: none; }
+.dot { width: 1.5rem; height: 1.5rem; border-radius: 50%; background: var(--tb-ok); flex: none; }
 .dot.task { background: var(--tb-warn); }
 .dot.bad { background: var(--tb-danger); }
 .num { color: var(--tb-text-3); }
-/* The title must stay one line. A long argv — `run --cwd /some/long/path -- …`
- * — wrapped to three lines and pushed the controls out of reach, on the window
- * most likely to have a long argv. */
+/* The title stays one line. A long argv wrapped to three lines and pushed the
+ * controls out of reach, on the window most likely to have a long argv. */
 .cmd {
   color: var(--tb-text); min-width: 0; flex: 0 1 auto;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.age { color: var(--tb-text-3); font-size: 11px; white-space: nowrap; }
+.age { color: var(--tb-text-3); font-size: 2.75rem; white-space: nowrap; }
 .age.live { color: var(--tb-ok); }
 .age.bad { color: var(--tb-danger); }
 
 .tag {
-  color: var(--tb-brand); background: var(--tb-tint); border-radius: 3px;
-  padding: 0 5px; font-size: 11px; cursor: pointer;
+  color: var(--tb-brand); background: var(--tb-tint); border-radius: var(--r-sm);
+  padding: 0 1.25rem; font-size: 2.75rem; cursor: pointer;
 }
-.addtag { color: var(--tb-text-3); font-size: 11px; cursor: pointer; }
+.addtag { color: var(--tb-text-3); font-size: 2.75rem; cursor: pointer; }
 
 .tbtn {
-  font: inherit; font-size: 11px; cursor: pointer; border-radius: 3px;
-  padding: 1px 7px; background: transparent;
-  border: 1px solid var(--tb-hair); color: var(--tb-text-3);
+  font: inherit; font-size: 2.75rem; cursor: pointer; border-radius: var(--r-sm);
+  padding: 0.25rem 1.75rem; background: transparent;
+  border: var(--hair) solid var(--tb-hair); color: var(--tb-text-3);
 }
 .tbtn.on { background: var(--tb-tint); border-color: var(--tb-edge); color: var(--tb-brand); }
-.tbtn.plain { border-color: transparent; padding: 1px 4px; }
+.tbtn.plain { border-color: transparent; padding: 0.25rem 1rem; }
 .tbtn.plain:hover { color: var(--tb-text); }
 
 .chips {
-  display: flex; align-items: center; gap: 6px; flex-wrap: wrap; flex: none;
-  padding: 5px 9px; border-bottom: 1px solid var(--tb-hair);
+  display: flex; align-items: center; gap: 1.5rem; flex-wrap: wrap; flex: none;
+  padding: 1.25rem 2.25rem; border-bottom: var(--hair) solid var(--tb-hair);
 }
-.chips .label { color: var(--tb-text-3); font-size: 10px; letter-spacing: .1em; }
+.chips .label { color: var(--tb-text-3); font-size: 2.5rem; letter-spacing: .1em; }
 .chip {
-  font: inherit; font-size: 11px; cursor: pointer; border-radius: 3px; padding: 1px 7px;
-  background: var(--tb-surface-2); border: 1px solid var(--tb-hair); color: var(--tb-text-2);
+  font: inherit; font-size: 2.75rem; cursor: pointer; border-radius: var(--r-sm);
+  padding: 0.25rem 1.75rem;
+  background: var(--tb-surface-2); border: var(--hair) solid var(--tb-hair);
+  color: var(--tb-text-2);
 }
 .chip.on { background: var(--tb-tint); border-color: var(--tb-edge); color: var(--tb-brand); }
 
-.body { flex: 1; overflow: auto; padding: 7px 9px; min-height: 0; }
+.body { flex: 1; overflow: auto; padding: 1.75rem 2.25rem; min-height: 0; }
 
 .grid { display: table; width: 100%; border-spacing: 0; }
 .row { display: table-row; }
 .row > span {
-  display: table-cell; padding: 1px 12px 1px 0; white-space: nowrap;
+  display: table-cell; padding: 0.25rem 3rem 0.25rem 0; white-space: nowrap;
   vertical-align: top;
 }
 .row.head > span {
-  color: var(--tb-text-3); font-size: 10px; letter-spacing: .1em;
-  position: sticky; top: -7px; background: var(--tb-surface);
+  color: var(--tb-text-3); font-size: 2.5rem; letter-spacing: .1em;
+  position: sticky; top: -1.75rem; background: var(--tb-surface);
 }
 .row .wrap { white-space: normal; width: 100%; }
-.row.sub > span { color: var(--tb-text-3); padding-bottom: 4px; }
+.row.sub > span { color: var(--tb-text-3); padding-bottom: 1rem; }
 
 .v-num { color: var(--tb-brand); text-align: right; }
 .v-ok { color: var(--tb-ok); }
@@ -197,35 +244,36 @@ pre.raw {
   white-space: pre; color: var(--tb-text-2); font: inherit;
   min-width: min-content;
 }
-.truncated { color: var(--tb-warn); padding-top: 6px; }
+.truncated { color: var(--tb-warn); padding-top: 1.5rem; }
 .fail { color: var(--tb-danger); }
 .warn { color: var(--tb-warn); }
 .spin { color: var(--tb-text-3); }
 
 .foot {
-  display: flex; align-items: center; gap: 10px; flex: none;
-  padding: 4px 9px; border-top: 1px solid var(--tb-hair);
-  color: var(--tb-text-3); font-size: 11px;
+  display: flex; align-items: center; gap: 2.5rem; flex: none;
+  padding: 1rem 2.25rem; border-top: var(--hair) solid var(--tb-hair);
+  color: var(--tb-text-3); font-size: 2.75rem;
 }
 
 .resize {
-  position: absolute; right: 0; bottom: 0; width: 14px; height: 14px;
+  position: absolute; right: 0; bottom: 0; width: 3.5rem; height: 3.5rem;
   cursor: nwse-resize;
 }
 
 /* ---------------------------------------------------------------- bottom bar */
 
 .foot-bar {
-  display: flex; align-items: center; gap: 16px; flex: none;
-  padding: 0 14px; height: 26px;
-  border-top: 1px solid var(--tb-hair); background: var(--tb-surface);
-  color: var(--tb-text-3); font-size: 11px; user-select: none;
+  display: flex; align-items: center; gap: 4rem; flex: none;
+  padding: 0 3.5rem; height: 7rem;
+  border: var(--hair) solid var(--tb-hair); border-radius: var(--r-md);
+  background: var(--tb-surface);
+  color: var(--tb-text-3); font-size: 2.75rem; user-select: none;
 }
 .foot-bar .disconnected { color: var(--tb-danger); }
 
-::-webkit-scrollbar { width: 9px; height: 9px; }
+::-webkit-scrollbar { width: 2.5rem; height: 2.5rem; }
 ::-webkit-scrollbar-thumb {
-  background: color-mix(in srgb, var(--tb-text) 12%, transparent); border-radius: 5px;
+  background: color-mix(in srgb, var(--tb-text) 14%, transparent);
+  border-radius: var(--r-md);
 }
 ::-webkit-scrollbar-track { background: transparent; }
-

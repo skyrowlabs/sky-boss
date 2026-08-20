@@ -91,6 +91,14 @@ The rules that are not negotiable:
 - **Everything in `cli/canvas/static/` is served.** Anything left there is published; a test
   declares the inventory. Two scratch pages lived there during the build, one with a live token
   baked in.
+- **One number drives every size.** `--tb-scale` is injected from `tb ui --scale` and the
+  stylesheet is written in `rem` where `1rem` is four scaled pixels. Do not add a `px`. CSS `zoom`
+  was rejected because it breaks dragging — `clientX` is unzoomed and `left` is zoomed — and
+  `--force-device-scale-factor` because it *overrides* display scaling rather than multiplying it.
+- **No browser flag gives a frameless window that is still resizable.** `--kiosk` drops the frame
+  by going full-screen, which cannot be sized or moved. Stripping the title bar otherwise is the
+  window manager's job — a KWin rule on `--class=tackle-box` — and belongs to the operator.
+  The surface therefore carries its own close button, guarded like every other route.
 - **The frontend has no automated tests.** There is no JS test runner and adding one means npm.
   The pure parts — `unwrap`, `suggest`, `roleFor` — are what a runner would be for. Verified by
   rendering headless Chromium against the live server and reading the DOM back, which is not the

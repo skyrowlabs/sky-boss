@@ -40,6 +40,7 @@ def auth(extra=None):
         ("/api/catalog", "get"),
         ("/api/run", "post"),
         ("/api/watch", "post"),
+        ("/api/quit", "post"),
         ("/api/stream", "get"),
     ],
 )
@@ -198,3 +199,49 @@ def test_static_files_must_be_revalidated_before_use():
     response = client.get("/static/app.js")
     assert response.status_code == 200
     assert response.headers["cache-control"] == "no-cache"
+
+
+def test_the_close_button_is_guarded_like_every_other_route():
+    """Ending the session is a real effect. A page you did not open must not be
+    able to cause it any more than it may start a command."""
+    canvas = Canvas(token="test-token")
+    client = TestClient(build(canvas))
+
+    assert client.post("/api/quit", json={}).status_code == 403
+    assert client.post(
+        "/api/quit", headers={TOKEN_HEADER: "test-token", "Origin": "https://evil.example"}
+    ).status_code == 403
+    assert not canvas.quitting.is_set()
+
+
+def test_the_close_button_sets_the_latch_the_launcher_waits_on():
+    """Not `window.close()`, which is only reliably permitted on a window a
+    script opened — and a full-screen window is not one."""
+    canvas = Canvas(token="test-token")
+    client = TestClient(build(canvas))
+
+    assert client.post("/api/quit", headers=auth(), json={}).json() == {"quitting": True}
+    assert canvas.quitting.is_set()
+
+
+def test_the_favicon_is_drawn_from_the_palette():
+    """Without it the taskbar shows Chromium's default globe, so a surface with
+    no browser chrome still announces itself as a browser. Generated rather
+    than stored, because a static .svg would have to name a colour."""
+    from cli.theme import BRAND
+
+    canvas = Canvas(token="test-token")
+    response = TestClient(build(canvas)).get("/favicon.svg")
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("image/svg+xml")
+    assert BRAND in response.text
+
+
+def test_the_page_carries_the_scale():
+    """Every size in the stylesheet is measured in it, so if the substitution
+    silently stops the whole surface renders at the CSS fallback instead of at
+    the size that was asked for."""
+    canvas = Canvas(token="test-token", scale=3.0)
+    body = TestClient(build(canvas)).get("/").text
+    assert "__TB_SCALE__" not in body
+    assert "--tb-scale: 3.0" in body

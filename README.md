@@ -35,6 +35,14 @@ Only reads get a cadence. `tb run` executes whatever argv you hand it, so it is 
 re-running a read is a refresh, and re-running a write is a scheduler nobody asked for. Choosing
 `wrap` over `run` is how you assert this argv is a read.
 
+`tb ui --scale` sets how big the surface renders — every size derives from it, and it defaults to
+2. `--size WIDTH,HEIGHT` sets the window geometry; otherwise the profile remembers where you left
+it. `--kiosk` goes full-screen with no frame, for a wall display, and cannot be resized.
+
+The window has no tab strip, address bar or bookmarks bar. Its title bar belongs to your window
+manager — no browser flag removes that while leaving the window sizable — so the surface carries
+its own close button, which works whether or not a frame is there.
+
 The server binds loopback on an ephemeral port and dies with the window. It runs commands, so it
 requires a per-launch token in a custom header — which also forces a CORS preflight that is never
 answered, so a page on another site cannot reach it even blind.

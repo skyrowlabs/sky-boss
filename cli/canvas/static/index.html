@@ -6,7 +6,9 @@
 <title>tackle-box</title>
 <!-- The palette, injected from cli/theme.py. Nothing outside that module names
      a colour, so the stylesheet names roles and the server hands it values. -->
-<style>__TB_TOKENS__</style>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<!-- One number the whole stylesheet is measured in; `tb ui --scale` sets it. -->
+<style>__TB_TOKENS__ :root { --tb-scale: __TB_SCALE__; }</style>
 <link rel="stylesheet" href="/static/tb.css">
 </head>
 <body>

@@ -524,6 +524,7 @@ function App() {
             floating
           </button>
         </div>
+        <button class="quit" title="close tackle-box" onClick=${() => api.quit()}>✕</button>
       </div>
 
       ${!floating &&

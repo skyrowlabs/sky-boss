@@ -66,8 +66,8 @@ The mockup's layout logic is already DOM math and transfers directly.
 half-second poll and pushes a `reload` frame when a file changes. A stylesheet edit is swapped in
 place; anything else is a full reload. There is no watcher library and no second channel.
 
-**Shell** — `tb ui` launches Chromium with `--app=`, which gives a chromeless window with its own
-taskbar entry. This is a launch flag rather than an architecture: swapping to pywebview later
+**Shell** — `tb ui` launches Chromium with `--app=`, which gives a window with no tab strip, no
+address bar and no bookmarks bar, and its own taskbar entry. This is a launch flag rather than an architecture: swapping to pywebview later
 touches the launcher and nothing else. The system libraries for that (`webkit2gtk-4.1`,
 `python-gobject`) are already installed on workstation, though not visible from the venv.
 
@@ -106,6 +106,14 @@ auto-refreshing a write is a scheduler nobody asked for.
   pipes.
 
 ## Phases
+
+### Round 3 — the window itself (2026-08-20)
+
+- [x] One scale factor drives every size on the surface; `tb ui --scale`, default 2.
+- [x] Rounder corners, softer edges, and hairlines that scale with everything else.
+- [x] A favicon generated from the palette, so the window is not a generic globe.
+- [x] A close button in the surface, and `POST /api/quit` behind the same guards.
+- [x] `--kiosk` for a wall display, `--size` for geometry. Windowed stays the default.
 
 ### Round 2 — live reload (2026-08-20)
 
@@ -268,3 +276,45 @@ checkable without touching navigation at all.
 **Cleared the state directory of everything the removed systems left**: `jobs/`, `tui-history`,
 and 28 MB of `tui-stall.txt` from the freeze investigation. `browser-profile/` is the canvas's own
 and stays.
+
+
+### Round 3 — the window itself (2026-08-20)
+
+**Every size on the surface is now one number.** `--tb-scale` is injected into the page from
+`tb ui --scale`, and the stylesheet is written entirely in `rem` where `1rem` is four scaled
+pixels — so a design pixel divided by four is its rem. The alternative was forty numbers that
+drift apart the first time anyone adjusts one of them.
+
+Two approaches were rejected on the way. **CSS `zoom` is a one-liner and breaks dragging**: the
+drag maths compares `clientX`, which is in unzoomed viewport pixels, against `left`, which is in
+zoomed ones, so a window would move at half the speed of the mouse. And
+**`--force-device-scale-factor` overrides the display's own scaling rather than multiplying it**,
+so on a HiDPI screen "2" would mean *no change* rather than *twice as big* — the flag pins a value
+where the request was for a factor.
+
+Hairlines scale too. A 1px border left literal turns into a thread at 2x: still technically
+present, gone as far as the eye is concerned.
+
+**There is no Chromium flag for a frameless window that is still resizable.** `--kiosk` removes
+the frame by going full-screen, which is a different thing — it cannot be sized or moved, and was
+briefly the default until that was tried and was obviously wrong. It remains available for a wall
+display. Stripping the title bar while keeping the window sizable is the *window manager's* job:
+on KDE a KWin rule matched on the window class, which is why `--class=tackle-box` is set here. A
+rule is a change to the operator's own desktop and is theirs to make, so nothing here writes one.
+
+**The close button exists because the frame may not.** It sets a latch the launcher waits on,
+rather than calling `window.close()` — which is only reliably permitted on a window a script
+opened, and neither a full-screen window nor an `--app` window is one. It is guarded by the same
+token and origin checks as running a command: ending a session is a real effect, and a page you
+did not open must not be able to cause it.
+
+That latch was first watched only inside the browser thread, so with `--no-browser` — the mode you
+develop in — pressing the button set it and nothing happened. It is watched in every mode now.
+
+**Two bugs the screenshots caught that the tests could not.** The top bar's controls were shrinking
+under flex's default, so `floating` rendered as `floatin` with the close button sitting on top of
+it — invisible at 1x, obvious at 2x, and a class of fault no unit test here would have found. And
+the theme suite failed on `--tb-scale`, correctly: it is injected by the server rather than owned
+by the palette. The fix was to make the test state the real rule — **a token used with a fallback
+is exempt, a bare one is not** — because `var(--tb-scale, 2)` carries a default precisely so a
+failed substitution renders at normal size instead of collapsing the surface to zero.
