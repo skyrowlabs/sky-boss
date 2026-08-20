@@ -18,6 +18,9 @@ key_files:
   - tests/test_tui_live.py
   - tests/test_tui_complete.py
   - tests/test_tui_app.py
+  - cli/tui/watchdog.py      # round 2: detects a blocked loop from off it
+  - cli/tui/launch.py        # round 2: points at the stall dump when there is one
+  - tests/test_tui_watchdog.py
 ---
 
 # tb tui — a persistent surface over the envelope
@@ -323,14 +326,16 @@ this and `^Q` does not either.
       `os._exit` when one is still alive. No grace period and no second `^Q` needed; see Notes
 - [x] Test: a parked worker is detected, a daemon thread is not, the loop is ours, and a wedged
       worker does not delay leaving
-- [ ] Daemon watchdog thread, heartbeated by a loop timer, dumping all thread stacks to
+- [x] Daemon watchdog thread, heartbeated by a loop timer, dumping all thread stacks to
       `$STATE_DIR/tui-stall.txt` on a stall past threshold
+- [x] The launch screen points at the dump when one exists, so it gets found
 - [x] Test: a 200,000-line dispatch result never blocks the loop past ~0.3 s, asserted with a
       heartbeat timer in `run_test()` rather than by eye
 - [x] Test: the truncation marker appears and `last_envelopes` still holds the full envelope
 - [x] Test: ordinary output is neither truncated nor reordered by chunking
 - [x] Test: the transcript is bounded, and one result always fits inside the scrollback
-- [ ] Test: the stall dump is written when the loop is deliberately blocked
+- [x] Test: the stall dump is written when the loop is deliberately blocked, reported once per
+      stall rather than once per poll, and survives an unwritable state directory
 
 **Does not do.** Rendering does not go back on a thread — Textual widgets are not thread-safe and
 `call_from_thread` is the right boundary; the fix is to make the on-loop work small and
@@ -405,6 +410,42 @@ CLAUDE.md forbids. No config file for the surface: pane widths still are not per
 [[surface-panes]] decided that.
 
 ## Notes
+
+**Round 2, phase 2 — leaving (2026-08-20).** The spec called for a grace period and a
+double-`^Q`. Neither shipped, because both assumed the join was unavoidable and it is not:
+`App.run()` takes a `loop` parameter. Owning the loop skips `asyncio.run`'s
+`shutdown_default_executor`, and leaving through `os._exit` skips the atexit join that
+`concurrent.futures` registers. There are *two* joins, and a grace period would have been a timer
+racing the first of them. Measured out of process with a parked worker: 300 s to 0.24 s.
+
+The hard exit is conditional on a live non-daemon thread rather than unconditional, which turned
+out to matter for phase 3 — the watchdog is a thread, and a non-daemon one would have made every
+ordinary exit take the hard path.
+
+**Round 2, phase 3 — the watchdog (2026-08-20).** Detection has to be off-loop, which sounds
+obvious written down and is worth stating anyway: an async task cannot report a blocked loop,
+because the thing it would report is the reason it is not running. So a daemon thread watches a
+number that a loop timer bumps.
+
+The beat is a timer separate from `tick` rather than a line inside it. A tick slow enough to
+matter is precisely the case that must still be recorded, and beating inside `tick` would mean
+the beat stopped for the same reason the dump would never be written.
+
+The dump is `faulthandler.dump_traceback(all_threads=True)`, which names the blocking frame
+directly — verified end to end against a deliberately blocked loop, where it named the blocking
+function by name. Against the original bug it would have pointed at `RichLog.write` in one read,
+rather than a morning and four measurement harnesses.
+
+Two things noticed here and deliberately not fixed here:
+
+- **`STATE_DIR` is not redirected for the suite the way `TB_HOME` is.** `conftest.py` is emphatic
+  that a test must never read the operator's home, and the same argument applies to state — but
+  `STATE_DIR` is a bare `Path.home()` constant with no env override. This round dodged it by
+  stubbing the app in the exit tests rather than letting `run()` build a real one. Adding a
+  `TB_STATE` override is a change to what [[operator-home]] owns, so it belongs there.
+- **`inspect` renders a whole envelope into a `Static` inside a modal**, which is a second
+  unbounded on-loop render by the same argument that made `write_body` one. It has not bitten,
+  because an envelope is structured data rather than a log tail, but it is the same shape of bug.
 
 **Round 2 — the freeze (2026-08-20).** Diagnosed before any code changed; the measurement tables
 above are the evidence for the design rather than a record of surprises. Three hypotheses were

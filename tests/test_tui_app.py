@@ -927,6 +927,27 @@ def test_a_daemon_thread_is_not_a_reason_to_leave_hard(tmp_path):
         watchdog.join()
 
 
+class _StubApp:
+    """Stands in for the whole surface.
+
+    Patching `TackleBox.run` is not enough: `run()` constructs the app, and a
+    real one loads history from the state directory. `TB_HOME` is redirected for
+    the suite but `STATE_DIR` is not, so building one here would read whatever
+    the machine happens to have — the failure conftest exists to prevent.
+    """
+
+    seen: dict = {}
+
+    def __init__(self):
+        import threading
+
+        self.watchdog = type("W", (), {"stop": lambda self: None})()
+        _StubApp.seen = {}
+
+    def run(self, **kwargs):
+        _StubApp.seen = kwargs
+
+
 def test_the_surface_runs_on_a_loop_it_owns(monkeypatch):
     """Not `asyncio.run`. Owning the loop is what skips the first of the two
     joins; the second is skipped by leaving through `os._exit`."""
@@ -934,16 +955,11 @@ def test_the_surface_runs_on_a_loop_it_owns(monkeypatch):
 
     from cli.tui import app as app_module
 
-    seen = {}
-
-    def fake_run(self, **kwargs):
-        seen.update(kwargs)
-
-    monkeypatch.setattr(app_module.TackleBox, "run", fake_run)
+    monkeypatch.setattr(app_module, "TackleBox", _StubApp)
     monkeypatch.setattr(app_module, "_worker_thread_still_running", lambda: False)
     app_module.run()
 
-    assert isinstance(seen.get("loop"), _asyncio.AbstractEventLoop)
+    assert isinstance(_StubApp.seen.get("loop"), _asyncio.AbstractEventLoop)
 
 
 def test_a_wedged_worker_does_not_delay_leaving(monkeypatch):
@@ -955,7 +971,7 @@ def test_a_wedged_worker_does_not_delay_leaving(monkeypatch):
     release = threading.Event()
     worker = threading.Thread(target=release.wait, daemon=False)
 
-    monkeypatch.setattr(app_module.TackleBox, "run", lambda self, **kw: None)
+    monkeypatch.setattr(app_module, "TackleBox", _StubApp)
     monkeypatch.setattr(app_module.os, "_exit", lambda code: hard_exits.append(code))
 
     worker.start()
@@ -973,7 +989,7 @@ def test_leaving_is_ordinary_when_nothing_is_wedged(monkeypatch):
     from cli.tui import app as app_module
 
     hard_exits = []
-    monkeypatch.setattr(app_module.TackleBox, "run", lambda self, **kw: None)
+    monkeypatch.setattr(app_module, "TackleBox", _StubApp)
     monkeypatch.setattr(app_module.os, "_exit", lambda code: hard_exits.append(code))
     monkeypatch.setattr(app_module, "_worker_thread_still_running", lambda: False)
 
