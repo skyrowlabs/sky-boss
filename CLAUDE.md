@@ -20,17 +20,18 @@ has fallen behind.
 ## Scope
 
 **Commands are grouped by mood — what they do to the world — not by domain.** The domain axis
-grows without bound (every new machine or service is a new group); the mood axis is closed at
-four. See the `command-taxonomy` feature doc.
+grows without bound (every new machine or service is a new group); the mood axis is closed. See
+the `command-taxonomy` feature doc.
 
 | Group | Mood | Owns | Writes? |
 |---|---|---|---|
 | `tb run` | imperative | Run a job, an internal task, or ad-hoc argv — always with a lane, a ledger entry and a log | **yes** |
 | `tb auto` | temporal | Job definitions, lanes, scheduling, ledger, logs. The center of gravity | schedules only |
-| `tb info` | descriptive | What a thing *is* — `tb info assets` today; `tb info home`, `tb info net` later | never |
-| `tb check` | evaluative | What is *wrong* — `tools`, `unpushed`, `drift`. Bare `tb check` runs them all, worst-first | never |
 
-`tb doctor` is the one kept alias, onto `tb check tools`.
+**This was four moods until 2026-08-20**, when `tb info` and `tb check` were removed along with
+everything behind them — the assets/inventory subsystem, the drift and tools and unpushed checks,
+and watches. Round 2 of the `command-taxonomy` doc has the reasoning and, more usefully, what was
+lost. There are no aliases; `tb doctor` went with `tb check tools`.
 
 **Surfaces are the honest exception** — in none of the four moods, because they add no verb: they
 render the same envelope every command returns. `tb tui` is the interactive one; `tb mcp serve`
@@ -52,8 +53,6 @@ before, so no real command can be shadowed; `cli/tui/verbs.py` carries the rule.
 
 **Considered and deliberately rejected** — do not re-propose without being asked:
 
-- **`tb check unpushed` stays a data-risk question**, not a project-orchestration one: is any work
-  living on a single disk. It does not act on repos and must not grow into doing so.
 - **`tb power`** (energy telemetry) — premature; revisit when there is a site to measure.
 - **`tb ctx`** and **`tb secrets`** (unified context switching, a secrets manager as root of trust
   for `aws`/`gh`/`stripe`) — rejected. **External CLIs keep their own authentication.** `tb` is
@@ -112,7 +111,7 @@ Deterministic and agentic work share one management surface.
 integrations and device state; `tb home` is the operator CLI and the agentic layer above it.
 
 - **Security and locks are read-only from `tb`. No exceptions.** Read armed state, sensors, and
-  event history; surface them in `tb info home` and `tb check home`. **Never arm, disarm, unlock,
+  event history. **Never arm, disarm, unlock,
   or actuate.** The failure modes are asymmetric — a false disarm while away, or arming with
   someone home — and the MCP surface means any Claude session could reach it. Actuation stays
   where a human is deliberately present.
@@ -139,13 +138,13 @@ the `tui`, `surface-panes` and `surface-concepts` feature docs. Read those befor
   (`standalone_mode=False`); completion and the help pane read off the same tree. None can drift
   from the CLI.
 - **`cli/output.py` owns every byte**, including inside the surface. Its consoles are
-  thread-local, because watches refresh concurrently with what you type and module globals let
-  two captures steal each other's output.
+  thread-local, because a dispatch runs on a worker thread while you keep typing, and module
+  globals let two captures steal each other's output.
 - **Never decide a lane is held by whether its lock file exists** — the file outlives the lock.
   **Never probe by trying to take it**: `lane_lock` is non-blocking, so a poll holds the lane for
   an instant and a `tb run` in that window records `skipped`. Read `/proc/locks`.
-- **Every dispatch runs on a thread worker.** `check unpushed` walks the projects directory and
-  `run` blocks for a whole job; either on the event loop freezes the surface.
+- **Every dispatch runs on a thread worker.** `run` blocks for a whole job and `auto install`
+  shells out to systemd; either on the event loop freezes the surface.
 
 ## MCP
 
@@ -286,8 +285,8 @@ is why watch definitions carry `cwd:`.
 
 - **Dependencies:** `.venv` + `requirements.txt`. No `pyproject.toml`, pyright, or pre-commit
   until something needs them. Python here is 3.14.7 — new enough that a dependency may lack wheels.
-- **Command shape:** `<group> <verb>` (`tb info assets`, `tb check drift`). `tb run` and the
-  `tb doctor` alias are the only top-level verbs.
+- **Command shape:** `<group> <verb>` (`tb auto status`, `tb auto log`). `tb run` is the only
+  top-level verb.
 - **`docs/CLI.md` is the command reference, and its listing is generated** from the live Click
   tree by `tests/test_cli_reference.py` — regenerate with
   `TB_WRITE_CLI_DOC=1 .venv/bin/python -m pytest -k cli_reference`. Same reason the TUI keeps no
@@ -311,7 +310,7 @@ package-owned and reverts on update, so the fix is an override in `~/.config/fis
 | What | Where | Authored by | Versioned |
 |---|---|---|---|
 | Code, tests, docs, `templates/` | this repo | the project | here |
-| Inventory, job definitions, watches | `~/.tackle-box/` (`$TB_HOME`) | **the operator** | its own git repo |
+| Job definitions | `~/.tackle-box/` (`$TB_HOME`) | **the operator** | its own git repo |
 | Run ledger, logs | `~/.local/state/tb/` | the machine | never |
 
 Operator content used to live in this repo, justified by *the git diff is the maintenance log*.
@@ -320,13 +319,13 @@ not: a machine record carried a tailnet address into every commit, so the tool c
 published without publishing the operator. The `operator-home` feature doc has the whole thing.
 The rules that bite:
 
-- **Nothing in `cli/` may read `PROJECT_ROOT / "inventory" | "jobs" | "watches"`.** A leftover
+- **Nothing in `cli/` may read `PROJECT_ROOT / "jobs"`.** A leftover
   works on the one machine that still has the old directory and silently reads nothing everywhere
   else. `tests/test_operator_home.py` fails on one.
 - **No fallback, ever.** Two sources of truth for a system of record is worse than none, and
   editing one while tb reads the other fails silently.
-- **An absent home degrades, never raises.** The surface asks for jobs and watches on its first
-  tick, before any exist.
+- **An absent home degrades, never raises.** The surface asks for jobs on its first tick, before
+  any exist.
 - **The suite never reads the real `TB_HOME`** — `tests/conftest.py` redirects it before anything
   imports `cli`. A test that loads your machines depends on whose machine it runs on.
 - **Nothing operator-specific in tracked files.** Fixtures use `100.64.0.1` and
@@ -382,8 +381,8 @@ Shared with sibling CLIs so the family feels like one tool.
   A test also fails if any module outside `theme.py` names a hex. There is no theme switching.
 - **Commands return data; they never print.** All rendering goes through `cli/output.py` and the
   `Result` envelope (`ok` / `partial` / `data` / `warnings`). Exit codes: `0` ok, `1` hard failure,
-  `3` partial — **not 2**, which Click uses for usage errors. Bare `tb check` and the MCP server
-  are both consumers of that envelope — a command that prints prose has to be written twice. See
+  `3` partial — **not 2**, which Click uses for usage errors. The surface and the MCP server are
+  both consumers of that envelope — a command that prints prose has to be written twice. See
   the `output-contract` feature doc.
 - **Degrade gracefully.** An unauthenticated tool, unreachable host, or absent config warns in
   yellow on **stderr** and continues; it does not crash the rollup. Keep stdout clean so `--json`

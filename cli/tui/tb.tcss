@@ -60,7 +60,7 @@ Screen { layout: vertical; background: $tb-surface; color: $tb-text; }
    thing that reliably knows how wide it is. The _fit() helpers still run,
    so the "…" lands on a word boundary the widget would cut mid-character;
    this is the backstop that makes a stale width harmless. */
-#helppane, #launch, #lanes, #progress, #watches, #updates, #completions {
+#helppane, #launch, #lanes, #progress, #updates, #completions {
     text-wrap: nowrap;
     text-overflow: ellipsis;
 }
@@ -115,5 +115,4 @@ Expanded > VerticalScroll {
    list with words capitalised at random. */
 #lanes { height: auto; margin-bottom: 1; }
 #progress { height: auto; margin-bottom: 1; }
-#watches { height: auto; margin-bottom: 1; }
 #updates { height: 1fr; }

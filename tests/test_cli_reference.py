@@ -39,7 +39,7 @@ WRITING_ROOT = "run"
 # and bury `tb run` in the middle. Surfaces and the alias come last: neither is
 # a mood. Anything unlisted sorts after, alphabetically, so a new top-level
 # command appears in the reference the day it lands rather than being dropped.
-MOOD_ORDER = ("run", "auto", "info", "check", "tui", "doctor")
+MOOD_ORDER = ("run", "auto", "tui")
 
 
 def walk(group: click.Group = cli, prefix: str = "tb") -> list[tuple[str, click.Command]]:
@@ -202,14 +202,16 @@ def test_every_command_is_documented():
     assert not missing, f"not in the reference: {missing}"
 
 
-def test_the_alias_is_documented_under_the_name_you_type():
-    """`tb doctor` and `tb check tools` are one Command object, so they cannot
-    drift — but the object is named "tools", and walking by `.name` would print
-    a `tb tools` that does not exist."""
-    paths = {path for path, _ in walk()}
-    assert "tb doctor" in paths
-    assert "tb tools" not in paths
-    assert "tb check tools" in paths
+def test_the_reference_walks_by_registered_name_not_object_name():
+    """`tb doctor` used to be an alias whose Command object was named "tools",
+    and walking by `.name` printed a `tb tools` that did not exist. The alias is
+    gone, so this holds the rule with a stand-in rather than losing it."""
+    import rich_click as click
+
+    group = click.Group("tb")
+    group.add_command(click.Command("actual", help="x"), name="registered")
+
+    assert [p for p, _ in walk(group)] == ["tb registered"]
 
 
 def test_every_command_says_what_it_does():
@@ -235,7 +237,7 @@ def test_the_reference_reads_in_mood_order():
     """Alphabetical would open on `tb auto` and bury `tb run`, which is the one
     command whose position on the page carries meaning."""
     tops = [path for path, _ in walk() if path.count(" ") == 1]
-    assert tops[:4] == ["tb run", "tb auto", "tb info", "tb check"]
+    assert tops == ["tb run", "tb auto", "tb tui"]
 
 
 def test_a_new_top_level_command_would_still_be_listed():
@@ -264,9 +266,9 @@ def test_a_leaf_top_level_command_gets_one_heading():
     section heading and then repeated as its own subheading."""
     reference = build_reference()
     assert reference.count("### `tb run`") == 1
-    # The group case still nests: a heading for `tb check`, then one per verb.
-    assert "### `tb check`" in reference
-    assert "#### `tb check drift`" in reference
+    # The group case still nests: a heading for `tb auto`, then one per verb.
+    assert "### `tb auto`" in reference
+    assert "#### `tb auto status`" in reference
 
 
 def test_a_choice_option_names_its_choices():

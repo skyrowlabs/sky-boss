@@ -14,10 +14,10 @@ Every line typed goes through :mod:`cli.tui.dispatch`, so this module renders
 and schedules — it decides nothing about what a command means.
 
 The one rule that cannot be relaxed: **a dispatch never runs on the event
-loop.** `check unpushed` walks ~/skyrow.labs, `check tools` shells out to
-half a dozen CLIs, and `run` blocks for the whole duration of a job. Any of
-those on the loop freezes the surface on precisely the commands worth
-watching, and a surface that freezes is worse than the shell it replaced.
+loop.** `run` blocks for the whole duration of a job, and `auto install`
+shells out to systemd. Either on the loop freezes the surface on precisely the
+commands worth watching, and a surface that freezes is worse than the shell it
+replaced.
 """
 
 from __future__ import annotations
@@ -60,7 +60,6 @@ from cli.tui.live import (
     recent_runs,
     summarize,
 )
-from cli.watch import load_watches, signature as watch_signature
 
 # The undarkened roles. The CLI's are derived to survive an unknown terminal;
 # this surface paints its own background and does not need that concession.
@@ -369,9 +368,7 @@ class TackleBox(App):
         Binding("ctrl+o", "last_log", "last log", show=False),
     ]
 
-    def __init__(
-        self, history: History | None = None, watches: dict | None = None
-    ) -> None:
+    def __init__(self, history: History | None = None) -> None:
         super().__init__()
         self.history = history or History()
         self.watchdog = Watchdog()
@@ -389,28 +386,11 @@ class TackleBox(App):
         self.started_at = 0.0
         self.expected = None
         self.frame = 0
-        # name -> (exit code or None if it could not run, monotonic time taken).
-        # Empty until the first refresh, which is why a watch reads "…" rather
-        # than "clear" before it has ever run.
-        self.watched: dict[str, tuple[int | None, float]] = {}
-        self.watching: set[str] = set()
         # Whether anything has reached the transcript. See `idle`.
         self.written = False
         # The last dispatch's envelopes, kept so `inspect` never re-runs.
         self.last_envelopes: tuple[dict, ...] = ()
         self.last_envelope_line = ""
-        # Injectable for the same reason History is: the suite must stay free of
-        # subprocesses, and a watch is a real dispatch that shells out.
-        # Injected rosters never reload: the suite must stay free of the real
-        # watch directory, and a test that quietly re-read it would depend on
-        # whose machine it ran on.
-        self.watches_are_injected = watches is not None
-        self.watches: dict = watches or {}
-        self.watch_errors: list[str] = []
-        self.watch_defs_signature: tuple | None = None
-        if not self.watches_are_injected:
-            # Loaded here as well as on the tick so the first paint has them.
-            self.refresh_watch_defs()
 
     # ------------------------------------------------------------------ chrome
 
@@ -431,7 +411,7 @@ class TackleBox(App):
                 with Horizontal(id="promptrow"):
                     yield Static("tb ▸", id="brand")
                     yield PromptInput(
-                        self.history, id="prompt", placeholder="check, run <job>…"
+                        self.history, id="prompt", placeholder="auto status, run <job>…"
                     )
                 yield Static(id="completions")
             yield Separator(id="replsep")
@@ -446,7 +426,6 @@ class TackleBox(App):
             with Vertical(id="rail"):
                 yield Static(id="lanes")
                 yield Static(id="progress")
-                yield Static(id="watches")
                 yield Static(id="updates")
 
     def on_mount(self) -> None:
@@ -560,7 +539,7 @@ class TackleBox(App):
         self.query_one("#launch", Static).set_class(not idle, "hidden")
         self.query_one(Transcript).set_class(idle, "hidden")
         # The rail says what the launch screen already says, with less room.
-        # Showing both prints the watch list twice on one screen.
+        # Showing both says everything twice on one screen.
         self.query_one("#rail", Vertical).set_class(idle or self.rail_too_narrow, "hidden")
         self.query_one("#railsep", Separator).set_class(idle or self.rail_too_narrow, "hidden")
         if not idle:
@@ -568,20 +547,10 @@ class TackleBox(App):
 
         held = [lane.name for lane in lanes() if lane.busy]
         jobs, _problems = load_jobs()
-        cards = []
-        for name in sorted(self.watches):
-            glyph, style, age = self._watch_state(name)
-            watch = self.watches[name]
-            verdict = self._watch_verdict(name)
-            definition = f"{watch.command} · every {_every(watch.every)}"
-            if age:
-                definition += f" · {age} ago"
-            cards.append((name, glyph, style, verdict, definition))
 
         self.query_one("#launch", Static).update(
             launch_view(
                 jobs=len(jobs),
-                watches=cards,
                 lanes_held=held,
                 ledger_runs=ledger_size(),
                 recent=[
@@ -604,17 +573,6 @@ class TackleBox(App):
             return str(self.watchdog.path) if self.watchdog.path.exists() else None
         except OSError:
             return None
-
-    def _watch_verdict(self, name: str) -> str:
-        seen = self.watched.get(name)
-        if seen is None:
-            return "…" if name in self.watching else "not yet run"
-        code, _when = seen
-        if code == EXIT_OK:
-            return "clear"
-        if code == EXIT_PARTIAL:
-            return "degraded"
-        return "can't read"
 
     @property
     def rail_too_narrow(self) -> bool:
@@ -645,9 +603,6 @@ class TackleBox(App):
         self.refresh_lanes()
         self.refresh_updates()
         self.refresh_progress()
-        self.refresh_watch_defs()
-        self.refresh_watches()
-        self.render_watches()
         if self.idle:
             self.refresh_launch()
 
@@ -757,126 +712,6 @@ class TackleBox(App):
             line.append(f"  ({len(self.queue)} queued)", style=MUTED)
         target.update(line)
 
-    def refresh_watch_defs(self) -> None:
-        """Re-read the watch definitions if any of them changed.
-
-        Job definitions have always been live — `refresh_launch` calls
-        `load_jobs` every tick — and watches were not, because `load_watches`
-        ran once in `__init__`. Two YAML files in the same home, edited the same
-        way, and one of them silently did nothing until a restart. Nothing on
-        screen said which was which, which is what made it cost time rather than
-        merely being a limitation.
-
-        Results survive a reload for any watch whose command is unchanged. A
-        reload is usually one file being edited, and blanking the whole rail
-        back to "not yet run" would throw away every other watch's answer to pay
-        for it. A watch whose command *did* change is a different question, so
-        its old answer is dropped.
-        """
-        if self.watches_are_injected:
-            return
-
-        seen = watch_signature()
-        if seen == self.watch_defs_signature:
-            return
-        self.watch_defs_signature = seen
-
-        loaded, self.watch_errors = load_watches()
-        host = socket.gethostname()
-        fresh = {n: w for n, w in loaded.items() if w.applies_to(host)}
-
-        previous = self.watches
-        self.watched = {
-            name: result
-            for name, result in self.watched.items()
-            if name in fresh
-            and name in previous
-            and fresh[name].command == previous[name].command
-        }
-        self.watches = fresh
-
-    def refresh_watches(self) -> None:
-        """Start any watch that is due. Never blocks, never queues.
-
-        Deliberately not on `self.queue`: a watch must not make you wait to run
-        a command, and your command must not delay a watch. Two concurrent
-        dispatches are safe here only because a watch may name nothing but a
-        read verb — see cli/watch.py.
-        """
-        now = time.monotonic()
-        for name, watch in self.watches.items():
-            if name in self.watching:
-                continue
-            seen = self.watched.get(name)
-            if seen is not None and now - seen[1] < watch.every:
-                continue
-            self.watching.add(name)
-            self.run_watch(name, watch.command)
-
-    @work(thread=True, group="watch")
-    def run_watch(self, name: str, command: str) -> None:
-        # Its own group, so Textual does not treat it as replacing the
-        # dispatch worker — the two are meant to overlap.
-        try:
-            # redirect=False: sys.stdout is process-global and this runs
-            # alongside the foreground dispatch, which keeps it.
-            code = dispatch(command, redirect=False, theme=TUI_THEME).exit_code
-        except Exception:
-            # Reads as "cannot see" rather than "clear". A status board that
-            # collapses those two is worse than none.
-            code = None
-        self.call_from_thread(self.watch_finished, name, code)
-
-    def watch_finished(self, name: str, code: int | None) -> None:
-        self.watched[name] = (code, time.monotonic())
-        self.watching.discard(name)
-        self.render_watches()
-
-    def render_watches(self) -> None:
-        target = self.query_one("#watches", Static)
-        width = self._rail_width()
-        line = self._section("WATCH")
-
-        if self.watch_errors:
-            # A refused definition is shown, not swallowed. A watch that
-            # silently vanished would leave the rail looking like it reported.
-            line.append("\n")
-            line.append(_fit(f"{len(self.watch_errors)} refused", width), style=FAIL)
-        if not self.watches:
-            line.append("\n")
-            line.append("nothing watched", style=MUTED)
-            target.update(line)
-            return
-
-        name_width = max(6, width - 12)
-        for name in sorted(self.watches):
-            glyph, style, label = self._watch_state(name)
-            line.append("\n")
-            line.append(f"{glyph} ", style=style)
-            line.append(f"{_fit(name, name_width):<{name_width}} ", style=LABEL)
-            line.append(label, style=style)
-        target.update(line)
-
-    def _watch_state(self, name: str) -> tuple[str, object, str]:
-        """Exit code to a glyph, a style and an age.
-
-        The codes are tb's contract, not a guess: 0 ok, 3 partial, 1 a hard
-        failure and 2 Click's usage error. The last two mean the check could
-        not reach a verdict, which must never render as a clean one.
-        """
-        seen = self.watched.get(name)
-        if seen is None:
-            return ("○", MUTED, "…" if name in self.watching else "")
-        code, when = seen
-        age = _age(time.monotonic() - when)
-        if code == EXIT_OK:
-            return (BUSY_GLYPH, OK, age)
-        if code == EXIT_PARTIAL:
-            return (BUSY_GLYPH, WARN, age)
-        return ("⚠", FAIL, "can't read")
-
-    # --------------------------------------------------- progressive disclosure
-
     # Wide enough that nothing truncates twice, and taller than any pane.
     EXPANDED_WIDTH = 90
     EXPANDED_ROWS = 60
@@ -905,22 +740,6 @@ class TackleBox(App):
             duration = entry.get("duration_s")
             body.append(f"{duration}s" if duration is not None else "", style=NUM)
         self.expand("recent runs", body or Text("no runs recorded", style=MUTED))
-
-    @on(Click, "#watches")
-    def expand_watches(self) -> None:
-        body = Text()
-        for name in sorted(self.watches):
-            glyph, style, label = self._watch_state(name)
-            if body:
-                body.append("\n")
-            body.append(f"{glyph} ", style=style)
-            body.append(f"{name:<14}", style=LABEL)
-            body.append(f"{self.watches[name].command:<24}", style=MUTED)
-            body.append(label, style=style)
-        for problem in self.watch_errors:
-            body.append("\n")
-            body.append(problem, style=FAIL)
-        self.expand("watches", body or Text("nothing watched", style=MUTED))
 
     # ------------------------------------------------------------- separators
 
@@ -1153,8 +972,7 @@ def _every(seconds: int) -> str:
 
 
 def _age(seconds: float) -> str:
-    """Compact enough for the rail. Staleness is the point: a watch that last
-    ran an hour ago is not telling you about now."""
+    """Compact enough for the rail."""
     if seconds < 60:
         return f"{int(seconds)}s"
     if seconds < 3600:

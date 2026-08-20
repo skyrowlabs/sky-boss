@@ -35,24 +35,19 @@ Only the block between the markers is generated. Everything else on this page is
 
 <!-- index:start -->
 
-### Open — 6
+### Open — 2
 
 | Doc | Status | Value | What it covers |
 |---|---|---|---|
-| [asset-drift](asset-drift.md) | active | 2 | Baseline refresh and inventory revalidation — tb assets update |
 | [operator-home](operator-home.md) | active | 3 | The product and the operator's content, separated |
-| [asset-remote](asset-remote.md) | draft | 3 | Reaching the fleet — discovery and remote execution |
-| [bookmarks](bookmarks.md) | draft | 2 | Bookmark repository manager |
 | [locations](locations.md) | draft | 3 | Key locations — a registry and a two-way channel |
-| [pinned-watches](pinned-watches.md) | draft | 2 | Pinned watches — an external command, live, held on screen |
 
-### Done — 9
+### Done — 8
 
 | Doc | Status | Value | What it covers |
 |---|---|---|---|
 | [command-taxonomy](done/command-taxonomy.md) | complete | 3 | Command taxonomy — grouping by mood |
 | [jobs](done/jobs.md) | complete | 3 | Job management — tb auto |
-| [machine-baseline](done/machine-baseline.md) | complete | 3 | Machine baseline — tb assets describe |
 | [output-contract](done/output-contract.md) | complete | 3 | Uniform output contract |
 | [surface-concepts](done/surface-concepts.md) | complete | 3 | The idle state as a place, and the envelope without a second trip |
 | [surface-panes](done/surface-panes.md) | complete | 3 | Panes, progressive disclosure and watched conditions |

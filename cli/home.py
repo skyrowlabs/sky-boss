@@ -1,8 +1,8 @@
 """Creating the operator's home.
 
-`TB_HOME` holds what *you* wrote — machine records, job definitions, watches —
-as opposed to this repo, which holds what the project wrote. A fresh clone has
-neither the directory nor anything in it, so something has to make one.
+`TB_HOME` holds what *you* wrote — job definitions — as opposed to this repo,
+which holds what the project wrote. A fresh clone has neither the directory nor
+anything in it, so something has to make one.
 
 It lives behind `tb run` because it writes. That is not ceremony: a scaffold
 that fired automatically from a read command would be a write path with no
@@ -24,9 +24,7 @@ TEMPLATES = PROJECT_ROOT / "templates"
 # ignore a leading underscore, which is what makes a scaffolded home load
 # cleanly with no definitions in it yet.
 LAYOUT: tuple[tuple[str, str], ...] = (
-    ("inventory", "inventory.yaml"),
     ("jobs", "job.yaml"),
-    ("watches", "watch.yaml"),
 )
 
 
@@ -34,7 +32,7 @@ def init_home(home: Path | None = None) -> dict:
     """Create the home and seed it with templates.
 
     Refuses an existing home rather than merging into it. Overwriting is the
-    one thing that could destroy a machine record, and "it was already there"
+    one thing that could destroy a job definition, and "it was already there"
     is not enough information to decide what the caller wanted.
     """
     home = home or TB_HOME

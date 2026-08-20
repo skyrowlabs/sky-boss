@@ -4,8 +4,7 @@ A surface renders the envelope every command returns; it is deliberately not a
 fifth mood, and its one verb is "dispatch a string". That rule exists so
 `tb run` stays the single door that writes, and it is not relaxed here: these
 verbs change *what is shown* and never what exists. `inspect` reads an envelope
-already in hand. [[pinned-watches]] adds `watch` and `unwatch`, which move a
-declared watch between the rail and a pane.
+already in hand, and is the only one so far.
 
 **Checked after the real tree, never before.** A surface verb that shadowed a
 tb command would be the worst kind of drift — typing a real command and

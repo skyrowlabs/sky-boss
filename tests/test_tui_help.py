@@ -13,8 +13,8 @@ from cli.tui.help import ELLIPSIS, view
 
 def test_help_names_the_resolved_command_not_the_typed_prefix():
     # `resolve` steps over a partial word, so without the prefix descent this
-    # would explain the `check` group on the keystroke where you want `drift`.
-    assert view("check dr", width=60, rows=4).plain.startswith("drift")
+    # would explain the `auto` group on the keystroke where you want `status`.
+    assert view("auto sta", width=60, rows=4).plain.startswith("status")
 
 
 def test_an_ambiguous_prefix_explains_the_group_instead_of_guessing():
@@ -30,8 +30,8 @@ def test_an_ambiguous_prefix_explains_the_group_instead_of_guessing():
 
 
 def test_a_group_lists_its_subcommands_with_their_one_liners():
-    text = view("check ", width=70, rows=6).plain
-    assert "drift" in text and "Compare this machine" in text
+    text = view("auto ", width=70, rows=8).plain
+    assert "install" in text and "systemd user units" in text
 
 
 def test_a_command_lists_its_options_with_their_help():
@@ -43,21 +43,21 @@ def test_the_pane_is_derived_from_the_tree_not_a_table():
     """A command added to a group appears with no change to help.py."""
     from cli import cli
 
-    check = cli.commands["check"]
-    check.add_command(click.Command("invented", short_help="not written down anywhere"))
+    group = cli.commands["auto"]
+    group.add_command(click.Command("invented", short_help="not written down anywhere"))
     try:
-        text = view("check ", width=70, rows=8).plain
+        text = view("auto ", width=70, rows=8).plain
         assert "invented" in text and "not written down anywhere" in text
     finally:
-        del check.commands["invented"]
+        del group.commands["invented"]
 
 
 def test_long_lines_truncate_to_the_pane_rather_than_wrapping():
     """A wrapped description eats the rows the other options need."""
     width = 30
-    for line in view("check drift", width=width, rows=5).plain.split("\n"):
+    for line in view("auto log", width=width, rows=5).plain.split("\n"):
         assert len(line) <= width
-    assert ELLIPSIS in view("check drift", width=width, rows=5).plain
+    assert ELLIPSIS in view("auto log", width=width, rows=5).plain
 
 
 def test_the_root_group_is_called_tb_not_cli():

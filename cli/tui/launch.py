@@ -1,6 +1,6 @@
 """The idle state, built as a place rather than an empty transcript.
 
-Everything here is already loaded a second after launch — jobs, watches, lanes,
+Everything here is already loaded a second after launch — jobs, lanes,
 the ledger tail. The gap this closes is not knowledge, it is that none of it
 was shown until asked for, so the first thing you did every session was type
 something to find out where you were.
@@ -30,8 +30,9 @@ WARN = TUI_THEME.styles["tb.warn"]
 PAD = "   "
 
 # Enough of what to type to be a starting point, not a menu. These are the
-# three that answer "where am I" without changing anything.
-SUGGESTIONS = ("check", "auto status", "info assets")
+# three that answer "where am I" without changing anything — which is a shorter
+# list than it was, now that `check` and `info` are gone.
+SUGGESTIONS = ("auto status", "auto list", "run --help")
 
 
 def _plural(count: int, noun: str) -> str:
@@ -41,19 +42,13 @@ def _plural(count: int, noun: str) -> str:
 def view(
     *,
     jobs: int,
-    watches: list[tuple[str, str, object, str, str]],
     lanes_held: list[str],
     ledger_runs: int,
     recent: list[tuple[str, str, str, bool]],
     stall_dump: str | None = None,
     width: int = 80,
 ) -> Text:
-    """The whole screen.
-
-    ``watches`` is (name, glyph, style, verdict, definition) — already resolved
-    by the app, because deciding what a watch's exit code means belongs next to
-    the code that ran it, not here.
-    """
+    """The whole screen."""
     body = Text(no_wrap=True, overflow="ellipsis")
     body.append(PAD)
     body.append(f"{socket.gethostname()}\n", style=ACCENT)
@@ -62,22 +57,11 @@ def view(
     held = ", ".join(lanes_held)
     summary = [
         _plural(jobs, "job"),
-        _plural(len(watches), "watch").replace("watchs", "watches"),
         f"lanes {held} held" if held else "lanes clear",
         f"ledger {ledger_runs} runs",
     ]
     body.append(" · ".join(summary), style=MUTED)
     body.append("\n\n")
-
-    if watches:
-        for name, glyph, style, verdict, definition in watches:
-            body.append(PAD)
-            body.append(f"{glyph} ", style=style)
-            body.append(f"{name:<12}", style=LABEL)
-            body.append(f"{verdict:<14}", style=style)
-            body.append(definition, style=MUTED)
-            body.append("\n")
-        body.append("\n")
 
     if recent:
         body.append(PAD)
