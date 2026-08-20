@@ -9,7 +9,9 @@ import asyncio
 
 import pytest
 
-from textual.widgets import RichLog, Static
+from textual.widgets import Static
+
+from cli.tui.app import Transcript
 
 from cli.tui.app import ECHO_PREFIX
 from cli.tui.history import History
@@ -103,10 +105,9 @@ def test_the_surface_boots_and_dispatches(tmp_path):
                     break
                 await pilot.pause(0.02)
             assert not app.busy, "dispatch never completed"
-            return app.query_one("#body").lines
+            return app.transcript()
 
-    lines = asyncio.run(scenario())
-    rendered = "\n".join("".join(segment.text for segment in line._segments) for line in lines)
+    rendered = asyncio.run(scenario())
     assert f"{ECHO_PREFIX}check --list" in rendered
     assert "drift" in rendered and "tools" in rendered and "unpushed" in rendered
 
@@ -138,7 +139,7 @@ def _drive(tmp_path, keys, patch=None):
                     if not app.busy:
                         break
                     await pilot.pause(0.02)
-            return _rendered(app.query_one("#body").lines)
+            return app.transcript()
 
     if patch is not None:
         original = app_module.last_run
@@ -229,7 +230,7 @@ def test_the_launch_screen_is_up_at_start_and_gone_once_you_type(tmp_path):
         app = TackleBox(history=History(path=tmp_path / "hist"), watches={})
         async with app.run_test(size=(120, 24)) as pilot:
             await pilot.pause()
-            before = (app.query_one("#launch").display, app.query_one(RichLog).display)
+            before = (app.query_one("#launch").display, app.query_one(Transcript).display)
             await pilot.press(*"check --list")
             await pilot.press("enter")
             for _ in range(300):
@@ -237,7 +238,7 @@ def test_the_launch_screen_is_up_at_start_and_gone_once_you_type(tmp_path):
                     break
                 await pilot.pause(0.02)
             await pilot.pause()
-            return before, (app.query_one("#launch").display, app.query_one(RichLog).display)
+            return before, (app.query_one("#launch").display, app.query_one(Transcript).display)
 
     (launch_first, body_first), (launch_after, body_after) = asyncio.run(scenario())
     assert launch_first and not body_first
@@ -277,9 +278,9 @@ def test_the_rail_is_not_shown_beside_the_launch_screen(tmp_path):
 
 
 def test_idle_is_tracked_rather_than_read_off_the_hidden_transcript(tmp_path):
-    """RichLog.lines is the obvious source and unusable: while the launch
-    screen is up the transcript is display:none, so it has no size, renders no
-    lines, and the surface could never leave the state it was measuring."""
+    """Asking the widget is the obvious source and unusable: while the launch
+    screen is up the transcript is display:none, so it has no size and renders
+    nothing, and the surface could never leave the state it was measuring."""
     from rich.text import Text
 
     from cli.tui.app import TackleBox
@@ -290,10 +291,14 @@ def test_idle_is_tracked_rather_than_read_off_the_hidden_transcript(tmp_path):
             await pilot.pause()
             # The trap: written while hidden, so lines stays empty.
             app.write_body(Text("something"))
-            hidden_lines = len(app.query_one(RichLog).lines)
+            hidden_lines = sum(
+                len(block.query(Static))
+                for block in app.query_one(Transcript).query(".turn")
+                if block.region.height
+            )
             app.refresh_launch()
             await pilot.pause()
-            return hidden_lines, app.idle, app.query_one(RichLog).display
+            return hidden_lines, app.idle, app.query_one(Transcript).display
 
     hidden_lines, idle, body_shown = asyncio.run(scenario())
     assert hidden_lines == 0, "precondition: a hidden RichLog renders nothing"
@@ -341,7 +346,7 @@ def test_inspect_with_nothing_captured_says_so_rather_than_running_one(tmp_path)
             await pilot.press(*"inspect")
             await pilot.press("enter")
             await pilot.pause(0.1)
-            return app.busy, list(app.queue), _rendered(app.query_one(RichLog).lines)
+            return app.busy, list(app.queue), app.transcript()
 
     busy, queue, body = asyncio.run(scenario())
     assert not busy and queue == []
@@ -387,9 +392,11 @@ def test_the_banner_is_the_top_row_and_the_region_the_bottom(tmp_path):
 
     at = asyncio.run(scenario())
     assert at["#banner"].y == 0
-    assert at["#body"].y == BANNER_ROWS
-    assert at["#body"].bottom <= at["#repl"].y
-    assert at["#repl"].bottom == height
+    # The region is directly under the banner, and the transcript under it, so
+    # the newest result sits against the line that asked for it. Round 4.
+    assert at["#repl"].y == BANNER_ROWS
+    assert at["#body"].y == at["#repl"].bottom
+    assert at["#body"].bottom == height
 
 
 def test_the_input_is_the_first_row_of_the_region_not_the_last(tmp_path):
@@ -409,8 +416,10 @@ def test_the_input_is_the_first_row_of_the_region_not_the_last(tmp_path):
             }
 
     at = asyncio.run(scenario())
-    # First row inside the region, once its top rule is accounted for.
-    assert at["#prompt"].y == at["#repl"].y + BORDER_ROWS
+    # The rule moved to the bottom edge in Round 4, so the input is now the
+    # region's very first row. It is still the *first*, which is the part that
+    # was never about where the region sits.
+    assert at["#prompt"].y == at["#repl"].y
     # Candidates hang below the line they complete, not at the foot of the pane.
     assert at["#completions"].y == at["#prompt"].bottom
     # Level with the help pane's first row, which is the point of the move.
@@ -427,10 +436,9 @@ def test_the_rail_sits_right_of_the_transcript(tmp_path):
             return {n: app.query_one(n).region for n in ("#banner", "#body", "#rail", "#repl")}
 
     at = asyncio.run(scenario())
-    assert at["#body"].y == BANNER_ROWS  # transcript still starts under the banner
+    assert at["#body"].y == at["#repl"].bottom  # transcript starts under the region
     assert at["#rail"].x >= at["#body"].right
     assert at["#rail"].y == at["#body"].y  # side by side, not stacked
-    assert at["#rail"].bottom <= at["#repl"].y
 
 
 def test_a_narrow_terminal_hides_the_rail_instead_of_squeezing_the_output(tmp_path):
@@ -609,9 +617,13 @@ def test_clicking_a_truncated_pane_shows_it_whole(tmp_path):
 
 
 def test_the_transcript_is_never_parsed_as_markup(tmp_path):
-    """Disclosure is chrome-only. RichLog is markup=False so a tool printing
-    a bracketed path keeps it — that is why chrome, not the transcript, got
-    the clickable treatment."""
+    """Disclosure is chrome-only. A tool printing a bracketed path keeps it —
+    that is why chrome, not the transcript, got the clickable treatment.
+
+    The `RichLog` this used to assert on carried `markup=False`. Blocks are
+    `Static`s now, and a `Static` given an already-built `Text` never parses
+    markup at all: the bracket survives because it was never a tag.
+    """
     from rich.text import Text
 
     from cli.tui.app import TackleBox
@@ -619,12 +631,10 @@ def test_the_transcript_is_never_parsed_as_markup(tmp_path):
     async def scenario():
         app = TackleBox(history=History(path=tmp_path / "hist"), watches={})
         async with app.run_test(size=(120, 24)) as pilot:
-            body = app.query_one(RichLog)
-            assert not body.markup
             app.write_body(Text("[/home/you] [bold]not a style[/bold]"))
             app.refresh_launch()
             await pilot.pause()
-            return _rendered(body.lines)
+            return app.transcript()
 
     rendered = asyncio.run(scenario())
     assert "[/home/you]" in rendered and "[bold]" in rendered
@@ -725,7 +735,7 @@ def test_completions_render_in_the_region_not_the_transcript(tmp_path):
             await pilot.press("tab")
             await pilot.pause(0.05)
             shown = app.query_one("#completions").render()
-            return str(shown), _rendered(app.query_one("#body").lines)
+            return str(shown), app.transcript()
 
     completions, body = asyncio.run(scenario())
     assert "list" in completions and "log" in completions
@@ -776,7 +786,7 @@ def _write_and_time(tmp_path, text):
             app.write_body(text)
             await pilot.pause()
             await pilot.pause()
-            return max(beats or [0.0]), _rendered(app.query_one("#body").lines)
+            return max(beats or [0.0]), app.transcript()
 
     return asyncio.run(scenario())
 
@@ -819,14 +829,11 @@ def test_ordinary_output_is_not_truncated_or_reordered(tmp_path):
 
 
 def test_the_transcript_is_bounded(tmp_path):
-    from cli.tui.app import LOG_MAX_LINES, TRANSCRIPT_MAX_LINES
-
-    assert LOG_MAX_LINES >= TRANSCRIPT_MAX_LINES, (
-        "a single result must fit in the scrollback, or one command would evict "
-        "its own first line"
-    )
-
-    from cli.tui.app import TackleBox
+    """Counted in turns now, which is the unit this layout has. A turn is
+    already bounded at TRANSCRIPT_MAX_LINES by `write_body`, so the product of
+    the two is the ceiling — the transcript cannot grow without limit in a
+    surface designed to be left open for days."""
+    from cli.tui.app import MAX_TURNS, TackleBox
 
     async def scenario():
         from rich.text import Text
@@ -834,12 +841,18 @@ def test_the_transcript_is_bounded(tmp_path):
         app = TackleBox(history=History(path=tmp_path / "hist"), watches={})
         async with app.run_test(size=(120, 40)) as pilot:
             await _leave_idle(app, pilot)
-            for _ in range(12):
-                app.write_body(Text("\n".join(f"x {n}" for n in range(TRANSCRIPT_MAX_LINES))))
+            _no_dispatch(app)
+            for n in range(MAX_TURNS + 25):
+                app.start(f"turn {n}")
+                app.busy = False  # let the next one start rather than queue
             await pilot.pause()
-            return len(app.query_one("#body").lines)
+            return app.turns()
 
-    assert asyncio.run(scenario()) <= LOG_MAX_LINES
+    turns = asyncio.run(scenario())
+    assert len(turns) <= MAX_TURNS
+    # The oldest go, not the newest — dropping from the wrong end would throw
+    # away the thing you are looking at.
+    assert f"turn {MAX_TURNS + 24}" in turns[0]
 
 
 def test_a_non_text_renderable_still_reaches_the_transcript(tmp_path):
@@ -873,7 +886,7 @@ def test_truncating_the_transcript_does_not_touch_the_envelope(tmp_path):
             await _leave_idle(app, pilot)
             app.finished(result)
             await pilot.pause()
-            return app.last_envelopes, _rendered(app.query_one("#body").lines)
+            return app.last_envelopes, app.transcript()
 
     envelopes, rendered = asyncio.run(scenario())
 
@@ -1146,3 +1159,108 @@ def test_re_reading_is_guarded_so_the_tick_does_not_parse_yaml(tmp_path, monkeyp
     _watch_file(watches, "tools", command="check drift")
     app.refresh_watch_defs()
     assert len(loads) == 2
+
+
+# ----------------------------------------------------------- newest first
+#
+# Round 4 inverted the surface: the region is at the top and turns stack
+# newest-first beneath it. Content *within* a turn still reads top-to-bottom —
+# reversing the lines of a table is not what anyone means by "newest first".
+
+
+def _no_dispatch(app):
+    """Stub the thread worker.
+
+    These tests are about which block a line's output lands in, not about what
+    Click does with it. Left real, every made-up line here would dispatch, fail,
+    and write a usage error into the block being asserted on.
+    """
+    app.work = lambda line, width: None
+
+
+def _turns_after(tmp_path, lines):
+    from cli.tui.app import TackleBox
+
+    async def scenario():
+        app = TackleBox(history=History(path=tmp_path / "hist"), watches={})
+        async with app.run_test(size=(120, 40)) as pilot:
+            await pilot.pause()
+            _no_dispatch(app)
+            for line in lines:
+                app.start(line)
+            await pilot.pause()
+            return app.turns()
+
+    return asyncio.run(scenario())
+
+
+def test_turns_stack_newest_first(tmp_path):
+    turns = _turns_after(tmp_path, ["first", "second", "third"])
+
+    assert f"{ECHO_PREFIX}third" in turns[0]
+    assert f"{ECHO_PREFIX}second" in turns[1]
+    assert f"{ECHO_PREFIX}first" in turns[2]
+
+
+def test_content_within_a_turn_is_not_reversed(tmp_path):
+    """The half of "newest first" that must not be applied. A result read
+    bottom-up is a table upside down."""
+    from rich.text import Text
+
+    from cli.tui.app import TackleBox
+
+    async def scenario():
+        app = TackleBox(history=History(path=tmp_path / "hist"), watches={})
+        async with app.run_test(size=(120, 40)) as pilot:
+            await pilot.pause()
+            app.start("a command")
+            app.write_body(Text("row one\nrow two\nrow three"))
+            await pilot.pause()
+            return app.turns()[0]
+
+    block = asyncio.run(scenario())
+    assert block.index("row one") < block.index("row two") < block.index("row three")
+    # And the echo leads its own block rather than trailing it.
+    assert block.index(ECHO_PREFIX) < block.index("row one")
+
+
+def test_a_result_lands_in_the_block_its_own_line_opened(tmp_path):
+    """The ordering bug the flat transcript hid. A line typed while a dispatch
+    is running is queued and echoes immediately, so two blocks can be open
+    before the first result arrives — the queue carries the block so a result
+    cannot be written into the wrong one."""
+    from rich.text import Text
+
+    from cli.tui.app import TackleBox
+    from cli.tui.dispatch import Dispatch
+
+    async def scenario():
+        app = TackleBox(history=History(path=tmp_path / "hist"), watches={})
+        async with app.run_test(size=(120, 40)) as pilot:
+            await pilot.pause()
+            _no_dispatch(app)
+            app.start("first")
+            # "first" is now in flight, so "second" queues — and echoes anyway,
+            # opening a second block before the first has answered.
+            app.start("second")
+            assert app.busy and len(app.queue) == 1
+            # "first" comes back long after "second" was echoed.
+            app.finished(Dispatch("first", "output of first", 0, ()))
+            await pilot.pause()
+            return app.turns()
+
+    turns = asyncio.run(scenario())
+    newest, older = turns[0], turns[1]
+    assert f"{ECHO_PREFIX}second" in newest
+    assert "output of first" not in newest, "the result landed in the wrong block"
+    assert f"{ECHO_PREFIX}first" in older and "output of first" in older
+
+
+def test_the_freeze_guard_still_holds_for_the_new_widget(tmp_path):
+    """Round 2's bound is on `write_body`, which is still the only door in —
+    but the widget behind it changed, so the guard is re-measured rather than
+    assumed to have survived."""
+    from rich.text import Text
+
+    worst, _ = _write_and_time(tmp_path, Text("\n".join(f"line {n}" for n in range(200_000))))
+    assert worst < 1.0, f"the event loop was blocked for {worst:.2f}s"
