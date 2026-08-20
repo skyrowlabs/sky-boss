@@ -1,7 +1,7 @@
 ---
 slug: tui
 title: tb tui — a persistent surface over the envelope
-status: active
+status: complete
 created: 2026-08-19
 updated: 2026-08-20
 agent_value: 3
@@ -21,6 +21,9 @@ key_files:
   - cli/tui/watchdog.py      # round 2: detects a blocked loop from off it
   - cli/tui/launch.py        # round 2: points at the stall dump when there is one
   - tests/test_tui_watchdog.py
+  - cli/tui/tb.tcss          # round 3: the stylesheet, so --dev can reload it
+  - cli/watch.py             # round 3: signature(), the guard on re-parsing
+  - tests/test_theme.py      # round 3: the no-hex ratchet extended to *.tcss
 ---
 
 # tb tui — a persistent surface over the envelope
@@ -251,7 +254,7 @@ The whole risky part, and all of it testable without a terminal.
 - [x] Tab completion from Click's own tree, so it cannot drift from the CLI
 - [x] Job and task names complete from the same registries `tb run` uses
 
-#### Phase 5 — streaming — **deferred 2026-08-19, not built**
+#### Phase 5 — streaming — **deferred 2026-08-19, still not built**
 
 Still the right call after building the rest, and left open rather than cancelled. Judge it on
 the CLI's merits. It changes `run_job` for every caller, and the TUI is not
@@ -395,13 +398,14 @@ keep that from crashing, which is worse than crashing — wrong output that look
 - [x] Test that the stylesheet defines no `$tb-*` of its own, so a token has one source
 - [x] Confirm `textual run --dev cli.tui.app:TackleBox` live-reloads a colour change
 - [x] Add `textual-dev` to `requirements-dev.txt` — the documented command needs it
-- [ ] Move `load_watches()` out of `__init__` into a `refresh_watch_defs()` guarded by the watch
-      directory's mtime — not every tick, which is the wrong trade for an edit made twice a week
-- [ ] Preserve the injected-`watches` test seam: if watches were passed in, never reload
-- [ ] Keep `self.watched` results across a reload for watches whose name and command are
+- [x] Move `load_watches()` out of `__init__` into a `refresh_watch_defs()` guarded by a change
+      signature — not every tick, which is the wrong trade for an edit made twice a week
+- [x] Preserve the injected-`watches` test seam: if watches were passed in, never reload
+- [x] Keep `self.watched` results across a reload for watches whose name and command are
       unchanged, so editing one watch does not blank the rail
-- [ ] Test: a watch file appearing after mount is picked up; an injected roster is not
-- [ ] Record in `README.md` that Python edits need a restart, and the `textual run --dev` line
+- [x] Test: a watch appearing, being edited in place, or being removed is picked up; an
+      injected roster is not; and an idle tick re-parses nothing
+- [x] Record in `README.md` that Python edits need a restart, and the `textual run --dev` line
 
 **Does not do.** No Python hot reload by any mechanism — not `importlib.reload`, not a re-exec,
 not a supervisor that restarts on save. Restart is `^D` and `tb tui`; history persists to
@@ -412,6 +416,34 @@ CLAUDE.md forbids. No config file for the surface: pane widths still are not per
 [[surface-panes]] decided that.
 
 ## Notes
+
+**Round 3 — reload (2026-08-20).** The stylesheet move made an existing test load-bearing that
+had been merely tidy. `test_no_module_outside_the_palette_names_a_colour` globs `cli/**/*.py`;
+the moment the stylesheet became a `.tcss`, the single most natural place in the repo to paste a
+hex was outside the only test that looks for one. Extending the glob was not symmetry, it was the
+reason the move was safe to make. All three palette guards were verified by breaking the thing
+they describe and watching them fail.
+
+`textual-dev` was not installed. The documented `textual run --dev` line would have been a
+command that does not exist, so it is in `requirements-dev.txt` now.
+
+**A directory mtime is not enough**, which is the one thing here worth not rediscovering. The
+spec said "guarded by the watch directory's mtime", and a directory's mtime moves when a file is
+added, removed or renamed — but **not** when an existing file's contents change. That is the
+common case and precisely the one that had been broken: an edited definition would have gone on
+being ignored, with the guard making it look deliberate. `signature()` carries each file's size
+and mtime as well.
+
+Results survive a reload for any watch whose command is unchanged. A reload is usually one file
+being edited, and blanking the rail back to "not yet run" would throw away every other watch's
+answer to pay for it. A changed command drops its result, because a different command is a
+different question and the old answer is not an answer to it.
+
+Verified through the real tick rather than only by unit test: a watch added while the surface is
+open appears on the next tick, and twenty idle ticks re-parse nothing.
+
+While in `cli/watch.py`, its module docstring still said definitions are "versioned in the repo".
+They moved to `$TB_HOME` in [[operator-home]]; corrected.
 
 **Round 2, phase 2 — leaving (2026-08-20).** The spec called for a grace period and a
 double-`^Q`. Neither shipped, because both assumed the join was unavoidable and it is not:

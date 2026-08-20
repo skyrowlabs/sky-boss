@@ -60,7 +60,7 @@ from cli.tui.live import (
     recent_runs,
     summarize,
 )
-from cli.watch import load_watches
+from cli.watch import load_watches, signature as watch_signature
 
 # The undarkened roles. The CLI's are derived to survive an unknown terminal;
 # this surface paints its own background and does not need that concession.
@@ -351,12 +351,16 @@ class TackleBox(App):
         self.last_envelope_line = ""
         # Injectable for the same reason History is: the suite must stay free of
         # subprocesses, and a watch is a real dispatch that shells out.
-        if watches is None:
-            loaded, self.watch_errors = load_watches()
-            host = socket.gethostname()
-            self.watches = {n: w for n, w in loaded.items() if w.applies_to(host)}
-        else:
-            self.watches, self.watch_errors = watches, []
+        # Injected rosters never reload: the suite must stay free of the real
+        # watch directory, and a test that quietly re-read it would depend on
+        # whose machine it ran on.
+        self.watches_are_injected = watches is not None
+        self.watches: dict = watches or {}
+        self.watch_errors: list[str] = []
+        self.watch_defs_signature: tuple | None = None
+        if not self.watches_are_injected:
+            # Loaded here as well as on the tick so the first paint has them.
+            self.refresh_watch_defs()
 
     # ------------------------------------------------------------------ chrome
 
@@ -549,6 +553,7 @@ class TackleBox(App):
         self.refresh_lanes()
         self.refresh_updates()
         self.refresh_progress()
+        self.refresh_watch_defs()
         self.refresh_watches()
         self.render_watches()
         if self.idle:
@@ -659,6 +664,44 @@ class TackleBox(App):
         if self.queue:
             line.append(f"  ({len(self.queue)} queued)", style=MUTED)
         target.update(line)
+
+    def refresh_watch_defs(self) -> None:
+        """Re-read the watch definitions if any of them changed.
+
+        Job definitions have always been live — `refresh_launch` calls
+        `load_jobs` every tick — and watches were not, because `load_watches`
+        ran once in `__init__`. Two YAML files in the same home, edited the same
+        way, and one of them silently did nothing until a restart. Nothing on
+        screen said which was which, which is what made it cost time rather than
+        merely being a limitation.
+
+        Results survive a reload for any watch whose command is unchanged. A
+        reload is usually one file being edited, and blanking the whole rail
+        back to "not yet run" would throw away every other watch's answer to pay
+        for it. A watch whose command *did* change is a different question, so
+        its old answer is dropped.
+        """
+        if self.watches_are_injected:
+            return
+
+        seen = watch_signature()
+        if seen == self.watch_defs_signature:
+            return
+        self.watch_defs_signature = seen
+
+        loaded, self.watch_errors = load_watches()
+        host = socket.gethostname()
+        fresh = {n: w for n, w in loaded.items() if w.applies_to(host)}
+
+        previous = self.watches
+        self.watched = {
+            name: result
+            for name, result in self.watched.items()
+            if name in fresh
+            and name in previous
+            and fresh[name].command == previous[name].command
+        }
+        self.watches = fresh
 
     def refresh_watches(self) -> None:
         """Start any watch that is due. Never blocks, never queues.

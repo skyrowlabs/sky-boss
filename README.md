@@ -80,7 +80,34 @@ appends on every run, and versioning it would make `git status` useless within a
 ```bash
 .venv/bin/python -m pytest              # fast: no network, no subprocesses
 .venv/bin/python -m pytest -k stripe    # by name
+pip install -r requirements-dev.txt     # pytest, and textual-dev for the below
 ```
+
+### Working on the surface with it open
+
+Three kinds of edit behave three different ways, and it is worth knowing which is which.
+
+| Editing | Picked up |
+|---|---|
+| A job or watch definition in `~/.tackle-box/` | within a second, no restart |
+| `cli/tui/tb.tcss` | on save, under `textual run --dev` |
+| Any Python | **never — restart** |
+
+```bash
+textual console                             # in one terminal
+textual run --dev cli.tui.app:TackleBox     # in another; edit tb.tcss and watch it repaint
+```
+
+**Python is not hot-reloadable here and deliberately is not made so.** Widget classes are already
+instantiated, timers hold bound methods captured at mount, and `cli/output.py` owns thread-local
+consoles that a dispatch may be inside at the moment you reload. The result would not be a crash,
+which is the problem — it would be wrong output that looks right.
+
+Restart is cheap and nothing is lost: history persists to `~/.local/state/tb/tui-history`, and
+every live pane re-reads its state on the next tick. `^D` on an empty line, then `tb tui`.
+
+If the surface ever appears to hang, it writes `~/.local/state/tb/tui-stall.txt` — every thread's
+stack at the moment the event loop stopped — and says so on the launch screen next time it starts.
 
 One doc per feature, for the life of the feature — a change or a fix expands the doc that already
 owns it rather than adding a second. Open work is in `docs/features/`; `docs/features/done/` holds

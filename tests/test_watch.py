@@ -79,3 +79,69 @@ def test_an_absent_home_is_empty_rather_than_an_error():
     any, and a raise there would take the whole thing down on first run."""
     watches, problems = load_watches()
     assert watches == {} and problems == []
+
+
+# ------------------------------------------------------ change detection
+#
+# The surface re-reads definitions while it is open, guarded by `signature` so
+# the parse does not run on every tick. See Round 3 of the tui feature doc.
+
+
+def _write_watch(directory, name, command="check tools", every="30s"):
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / f"{name}.yaml").write_text(f"command: {command}\nevery: {every}\n")
+
+
+def test_an_absent_directory_has_the_empty_signature(tmp_path):
+    """The surface asks on its first tick, before any watches exist."""
+    from cli.watch import signature
+
+    assert signature(tmp_path / "nothing-here") == ()
+
+
+def test_the_signature_is_stable_while_nothing_changes(tmp_path):
+    from cli.watch import signature
+
+    _write_watch(tmp_path, "tools")
+    assert signature(tmp_path) == signature(tmp_path)
+
+
+def test_adding_a_watch_changes_the_signature(tmp_path):
+    from cli.watch import signature
+
+    _write_watch(tmp_path, "tools")
+    before = signature(tmp_path)
+    _write_watch(tmp_path, "drift", command="check drift")
+    assert signature(tmp_path) != before
+
+
+def test_removing_a_watch_changes_the_signature(tmp_path):
+    from cli.watch import signature
+
+    _write_watch(tmp_path, "tools")
+    _write_watch(tmp_path, "drift", command="check drift")
+    before = signature(tmp_path)
+    (tmp_path / "drift.yaml").unlink()
+    assert signature(tmp_path) != before
+
+
+def test_editing_a_watch_in_place_changes_the_signature(tmp_path):
+    """The case a directory mtime alone would miss, and the common one — a
+    definition edited in place would otherwise keep showing the old command."""
+    from cli.watch import signature
+
+    _write_watch(tmp_path, "tools", every="30s")
+    before = signature(tmp_path)
+    _write_watch(tmp_path, "tools", command="check drift", every="1h")
+    assert signature(tmp_path) != before
+
+
+def test_underscored_files_are_ignored_by_the_signature_too(tmp_path):
+    """`load_watches` skips them, so a template being edited must not look like
+    a change worth re-parsing for."""
+    from cli.watch import signature
+
+    _write_watch(tmp_path, "tools")
+    before = signature(tmp_path)
+    (tmp_path / "_template.yaml").write_text("command: check tools\n")
+    assert signature(tmp_path) == before
