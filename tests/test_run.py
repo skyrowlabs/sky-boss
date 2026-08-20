@@ -3,7 +3,7 @@
 The property under test is uniformity: a defined job, an internal task, and
 loose argv must all take a lane, land in the ledger, and produce a log. If any
 of the three can skip that, the "nothing changes state without a record" claim
-in docs/features/command-taxonomy.md is false.
+in docs/features/done/command-taxonomy.md is false.
 """
 
 import json

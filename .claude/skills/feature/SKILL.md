@@ -5,10 +5,12 @@ description: Write or execute a single feature doc in docs/features/. Takes eith
 
 # /feature — feature doc driver
 
-One doc per feature at `docs/features/<slug>.md`, cradle to grave. **The doc never moves.**
-`status:` transitions in frontmatter instead. This is deliberate — the sibling project
-(jam.sense) files completed specs into a second directory, and that `git mv` broke 141
-cross-document links before anyone noticed. One folder cannot have that bug.
+One doc per feature, cradle to grave. **Open work lives at `docs/features/<slug>.md`; a
+completed doc lives at `docs/features/done/<slug>.md`.** `status:` in frontmatter is the truth
+and the directory follows it — the doc moves once, at close-out, and never again.
+
+Cross-document links are `[[slug]]`, never relative paths. That is what makes the move safe, and
+it is the rule to defend — jam.sense's 141 dead links came from relative paths, not from moving.
 
 No subagents. This runs in a single session — tackle-box has no database and no test suite
 to delegate to, so a multi-agent pipeline would be ceremony.
@@ -17,10 +19,12 @@ to delegate to, so a multi-agent pipeline would be ceremony.
 
 Look at the argument:
 
-- **A slug or path** matching an existing `docs/features/*.md` → **execute mode**, start at Step 2.
+- **A slug or path** matching an existing doc in `docs/features/` *or* `docs/features/done/` →
+  **execute mode**, start at Step 2. A match in `done/` means the feature shipped: re-read it and
+  confirm what is actually being asked before reopening it.
 - **A description** with no matching doc → **write mode**, start at Step 1.
 
-If ambiguous, `ls docs/features/` and look for a near match before asking.
+If ambiguous, `ls docs/features/ docs/features/done/` and look for a near match before asking.
 
 ## Step 1 — Write the spec (write mode only)
 
@@ -56,13 +60,19 @@ explaining the block, and surface it. Do not mark a feature complete around a ho
   reading the doc.
 - `key_files:` filled in with what actually changed.
 - Update `CLAUDE.md` if the feature changed a convention, a scope boundary, or a rejected idea.
+- `git mv docs/features/<slug>.md docs/features/done/<slug>.md` — the one move, now that the doc
+  is closed. Then `grep -rn "docs/features/<slug>.md"` and fix any path reference in prose or a
+  code comment. `[[slug]]` links need no change; that is the point of them.
 
 Then report: what shipped, what deferred, which files changed.
 
 ## Rules
 
 1. **The doc is the state.** If it disagrees with reality, the doc is wrong — fix it.
-2. **Never move the doc.** Status lives in frontmatter.
+2. **The doc moves exactly once** — into `done/`, at close-out, when `status: complete` is set.
+   Never at any other point, and never back out again. Links are `[[slug]]` so the move breaks
+   nothing inside a doc; grep for `docs/features/<slug>.md` path references in prose and code
+   comments and fix those in the same commit.
 3. **Notes is not optional.** A feature that ships with an empty Notes section either had no
    surprises (rare) or lost them (common).
 4. **Do not build the index machinery** — categories, generated READMEs, link checkers. The

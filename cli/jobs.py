@@ -838,7 +838,7 @@ def list_jobs() -> Result:
 
 # `tb auto run` lived here. It moved to `tb run <job>`: running a job is the
 # imperative mood over it, and `auto` is the declarative one. See
-# docs/features/command-taxonomy.md.
+# docs/features/done/command-taxonomy.md.
 
 
 @auto.command()
