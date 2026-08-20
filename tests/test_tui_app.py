@@ -880,3 +880,102 @@ def test_truncating_the_transcript_does_not_touch_the_envelope(tmp_path):
     assert "2,000 more lines not shown" in rendered, "the transcript was bounded"
     assert envelopes == (envelope,), "the envelope survived whole"
     assert envelopes[0]["data"]["rows"][-1] == 49
+
+
+# ------------------------------------------------------------- leaving
+#
+# A thread worker cannot be cancelled. `App.exit()` calls `workers.cancel_all()`,
+# which for a thread cancels only the awaiting task — so a wedged `tb run` used
+# to cost 300s of dead terminal (asyncio's THREAD_JOIN_TIMEOUT) after the UI had
+# visibly gone. Measured out of process: 300s -> 0.24s. These pin the mechanism
+# rather than the duration, so the suite stays free of subprocesses.
+
+
+def test_a_parked_worker_thread_is_noticed(tmp_path):
+    import threading
+
+    from cli.tui.app import _worker_thread_still_running
+
+    assert not _worker_thread_still_running(), "nothing should be running yet"
+
+    release = threading.Event()
+    worker = threading.Thread(target=release.wait, daemon=False)
+    worker.start()
+    try:
+        assert _worker_thread_still_running()
+    finally:
+        release.set()
+        worker.join()
+
+    assert not _worker_thread_still_running()
+
+
+def test_a_daemon_thread_is_not_a_reason_to_leave_hard(tmp_path):
+    """The stall watchdog is a daemon and must not make every exit a hard one —
+    only threads a clean interpreter exit would actually wait for count."""
+    import threading
+
+    from cli.tui.app import _worker_thread_still_running
+
+    release = threading.Event()
+    watchdog = threading.Thread(target=release.wait, daemon=True)
+    watchdog.start()
+    try:
+        assert not _worker_thread_still_running()
+    finally:
+        release.set()
+        watchdog.join()
+
+
+def test_the_surface_runs_on_a_loop_it_owns(monkeypatch):
+    """Not `asyncio.run`. Owning the loop is what skips the first of the two
+    joins; the second is skipped by leaving through `os._exit`."""
+    import asyncio as _asyncio
+
+    from cli.tui import app as app_module
+
+    seen = {}
+
+    def fake_run(self, **kwargs):
+        seen.update(kwargs)
+
+    monkeypatch.setattr(app_module.TackleBox, "run", fake_run)
+    monkeypatch.setattr(app_module, "_worker_thread_still_running", lambda: False)
+    app_module.run()
+
+    assert isinstance(seen.get("loop"), _asyncio.AbstractEventLoop)
+
+
+def test_a_wedged_worker_does_not_delay_leaving(monkeypatch):
+    import threading
+
+    from cli.tui import app as app_module
+
+    hard_exits = []
+    release = threading.Event()
+    worker = threading.Thread(target=release.wait, daemon=False)
+
+    monkeypatch.setattr(app_module.TackleBox, "run", lambda self, **kw: None)
+    monkeypatch.setattr(app_module.os, "_exit", lambda code: hard_exits.append(code))
+
+    worker.start()
+    try:
+        app_module.run()
+    finally:
+        release.set()
+        worker.join()
+
+    assert hard_exits == [0], "a live worker must be left behind, not joined"
+
+
+def test_leaving_is_ordinary_when_nothing_is_wedged(monkeypatch):
+    """The hard exit is the exception, not the path every session takes."""
+    from cli.tui import app as app_module
+
+    hard_exits = []
+    monkeypatch.setattr(app_module.TackleBox, "run", lambda self, **kw: None)
+    monkeypatch.setattr(app_module.os, "_exit", lambda code: hard_exits.append(code))
+    monkeypatch.setattr(app_module, "_worker_thread_still_running", lambda: False)
+
+    app_module.run()
+    assert hard_exits == []
