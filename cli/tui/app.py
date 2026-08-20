@@ -50,6 +50,7 @@ from cli.tui.dispatch import Dispatch, dispatch
 from cli.tui.help import view as help_view
 from cli.tui.launch import view as launch_view
 from cli.tui.verbs import resolve as resolve_verb
+from cli.tui.watchdog import Watchdog
 from cli.tui.history import History
 from cli.tui.live import (
     expected_seconds,
@@ -138,6 +139,9 @@ FALLBACK_WIDTH = 100
 # catch a short job and cheap enough that nobody notices: it reads /proc/locks
 # and the last few KB of the ledger.
 TICK_SECONDS = 1.0
+# Faster than the tick, so a stall is measured against a recent beat rather than
+# against whenever the last repaint happened to land.
+WATCHDOG_BEAT_SECONDS = 0.5
 
 # The progress row is the one thing that has to look alive, and it only ticks
 # this fast while something is actually running.
@@ -405,6 +409,7 @@ class TackleBox(App):
     ) -> None:
         super().__init__()
         self.history = history or History()
+        self.watchdog = Watchdog()
         # One dispatch at a time. Two concurrent `tb run`s would contend for the
         # same lane lock and one would come back `skipped`, which is a confusing
         # way to find out you double-typed.
@@ -473,6 +478,13 @@ class TackleBox(App):
         self.query_one(PromptInput).focus()
         self.refresh_help("")
         self.refresh_launch()
+        # Off-loop, so it still runs when the loop does not — which is the only
+        # condition it exists to report. Its beat is a separate timer from the
+        # tick: a tick that got slow enough to matter is exactly the case that
+        # must still be recorded, and beating from inside `tick` would mean the
+        # beat stopped for the same reason the dump would never be written.
+        self.watchdog.start()
+        self.set_interval(WATCHDOG_BEAT_SECONDS, self.watchdog.beat)
         self.tick()
         self.set_interval(TICK_SECONDS, self.tick)
         self.progress_timer = self.set_interval(
@@ -561,8 +573,21 @@ class TackleBox(App):
                      entry.get("outcome") == "ok")
                     for entry in recent_runs(3)
                 ],
+                stall_dump=self._stall_dump(),
             )
         )
+
+    def _stall_dump(self) -> str | None:
+        """The stall file, if one is there to be read.
+
+        Checked on the tick rather than once at start, so a freeze that happens
+        *this* session is reported the moment the surface comes back — which is
+        the case where the operator is still watching and can say what they did.
+        """
+        try:
+            return str(self.watchdog.path) if self.watchdog.path.exists() else None
+        except OSError:
+            return None
 
     def _watch_verdict(self, name: str) -> str:
         seen = self.watched.get(name)
@@ -1114,11 +1139,15 @@ def run() -> None:
     """
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
+    app = TackleBox()
     try:
-        TackleBox().run(loop=loop)
+        app.run(loop=loop)
     finally:
         sys.stdout.flush()
         sys.stderr.flush()
+        # Not required for correctness — it is a daemon — but leaving it running
+        # would keep a dead app's clock ticking in any process that opens two.
+        app.watchdog.stop()
         if _worker_thread_still_running():
             os._exit(0)
         loop.close()

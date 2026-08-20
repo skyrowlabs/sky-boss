@@ -45,6 +45,7 @@ def view(
     lanes_held: list[str],
     ledger_runs: int,
     recent: list[tuple[str, str, str, bool]],
+    stall_dump: str | None = None,
     width: int = 80,
 ) -> Text:
     """The whole screen.
@@ -88,6 +89,16 @@ def view(
             body.append(outcome, style=OK if went_well else FAIL)
             body.append("\n")
         body.append("\n")
+
+    if stall_dump:
+        # Shown here rather than documented somewhere, because this is the one
+        # screen you are certainly looking at after a freeze — and a diagnostic
+        # nobody knows to go and read is the same as no diagnostic.
+        body.append(PAD)
+        body.append("⚠ ", style=WARN)
+        body.append("the surface stalled at some point — stacks in ", style=WARN)
+        body.append(stall_dump, style=LABEL)
+        body.append("\n\n")
 
     body.append(PAD)
     body.append("try  ", style=MUTED)
