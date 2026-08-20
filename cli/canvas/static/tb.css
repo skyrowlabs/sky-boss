@@ -98,6 +98,11 @@ body {
 }
 .canvas.float .win { position: absolute; }
 
+/* A tile is bounded and scrolls inside. Without this a thirty-row table makes
+ * one window taller than the canvas and pushes every other window off it — the
+ * grid has no opinion about height, so it has to be given one here. */
+.canvas.tile .win { max-height: 460px; }
+
 .empty {
   position: absolute; inset: 0; display: grid; place-items: center;
   color: var(--tb-text-3); pointer-events: none;
@@ -117,14 +122,22 @@ body {
   display: flex; align-items: center; gap: 9px; flex: none;
   padding: 6px 9px; border-bottom: 1px solid var(--tb-hair);
   background: var(--tb-surface-2); user-select: none;
+  flex-wrap: nowrap; min-width: 0;
 }
+.title > * { flex: none; }
 .canvas.float .title { cursor: move; }
 .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--tb-ok); flex: none; }
 .dot.task { background: var(--tb-warn); }
 .dot.bad { background: var(--tb-danger); }
 .num { color: var(--tb-text-3); }
-.cmd { color: var(--tb-text); }
-.age { color: var(--tb-text-3); font-size: 11px; }
+/* The title must stay one line. A long argv — `run --cwd /some/long/path -- …`
+ * — wrapped to three lines and pushed the controls out of reach, on the window
+ * most likely to have a long argv. */
+.cmd {
+  color: var(--tb-text); min-width: 0; flex: 0 1 auto;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.age { color: var(--tb-text-3); font-size: 11px; white-space: nowrap; }
 .age.live { color: var(--tb-ok); }
 .age.bad { color: var(--tb-danger); }
 

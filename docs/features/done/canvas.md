@@ -1,9 +1,20 @@
 ---
-status: draft
+status: complete
 created: 2026-08-20
 updated: 2026-08-20
 agent_value: 3
-key_files: []
+key_files:
+  - cli/canvas/server.py
+  - cli/canvas/watch.py
+  - cli/canvas/runner.py
+  - cli/canvas/catalog.py
+  - cli/canvas/__init__.py
+  - cli/canvas/static/app.js
+  - cli/canvas/static/render.js
+  - cli/canvas/static/api.js
+  - cli/canvas/static/tb.css
+  - cli/wrap.py
+  - cli/theme.py
 ---
 
 # The canvas — a command palette over a window canvas
@@ -36,8 +47,8 @@ A loopback HTTP server in Python, a static frontend, and `tb ui` to start both a
   This is the TUI's hardest-won invariant and it carries over unchanged: a catalog written down
   twice is a catalog that drifts, and a palette that offers a command that does not exist is worse
   than no palette.
-- `POST /run` — dispatch argv in-process, return the `Result` as JSON. Reuses `cli.output.capture`
-  and the in-process dispatch lifted out of `cli/tui/dispatch.py`.
+- `POST /run` — run argv in a **subprocess** (`tb --json …`) and return the envelope. Not
+  in-process; see the Notes entry for why that reversed.
 - `GET /watch` — an SSE stream per open window. **The refresh clock lives here, not in the
   browser.**
 
@@ -56,9 +67,15 @@ taskbar entry. This is a launch flag rather than an architecture: swapping to py
 touches the launcher and nothing else. The system libraries for that (`webkit2gtk-4.1`,
 `python-gobject`) are already installed on workstation, though not visible from the venv.
 
-**The wrapped-CLI contract is `--json`.** Chips like `--sort rtt` re-sort client-side, which means
-the frontend holds rows rather than a picture of rows. `jam pr list --json` already exists, which
-is why it is the demo.
+**The wrapped-CLI contract is `--json`,** and `tb wrap` is the door it comes through. Chips
+re-filter client-side, which means the frontend holds rows rather than a picture of rows.
+`jam pr list --json` already exists, which is why it is the demo.
+
+**`run` acts; `wrap` reads.** That split is what the canvas reads to decide whether a window may
+be given a cadence, and it is why `wrap` had to exist — with `run` as the only command, nothing on
+the canvas was pinnable and the whole watcher half was unreachable. `wrap` carries no raw output:
+a tool that printed something other than JSON has failed its contract, and the envelope says so
+rather than becoming a second `tb run`.
 
 **Security.** A loopback port that executes argv is remote code execution bound to a port — any
 page in any browser can POST to `127.0.0.1`. A capability token minted per launch and a strict
@@ -79,7 +96,8 @@ auto-refreshing a write is a scheduler nobody asked for.
 - **No ANSI-to-HTML fallback in Round 1.** A tool without `--json` is out of scope rather than
   half-supported. Rendering an ANSI table gives a picture of a table — no sorting, no chips, no
   resizing — and shipping it early would let it become the path everything takes.
-- **No build step, no npm, no TypeScript** until something needs them.
+- **No build step, no npm, no TypeScript** until something needs them. The cost is real and is
+  named in the Notes: the frontend has no automated tests.
 - **Not a terminal emulator and not a shell.** Argv only. No stdin, no interactive commands, no
   pipes.
 
@@ -87,23 +105,23 @@ auto-refreshing a write is a scheduler nobody asked for.
 
 ### Round 1 — replace the TUI with the canvas (2026-08-20)
 
-- [ ] **Phase 1 — the API.** `cli/canvas/server.py`: loopback Starlette, per-launch token, strict
+- [x] **Phase 1 — the API.** `cli/canvas/server.py`: loopback Starlette, per-launch token, strict
       `Origin` check. `GET /catalog` off the live Click tree, `POST /run` returning a `Result`.
       Lift the in-process dispatch out of `cli/tui/dispatch.py` before it is deleted. Tests cover
       the token, the origin rejection, and that the catalog cannot be a hardcoded table.
-- [ ] **Phase 2 — the watcher clock.** `GET /watch` as SSE, one scheduler per connection, cadence
+- [x] **Phase 2 — the watcher clock.** `GET /watch` as SSE, one scheduler per connection, cadence
       from `[0, 5, 30, 60, 300]`. Injectable clock, the way `cli/tui/watchdog.py` did it, so a
       cadence test costs milliseconds rather than five real seconds. Tests: a closed stream stops
       its watcher; an open one keeps firing.
-- [ ] **Phase 3 — the shell.** `tb ui` starts the server and opens the `--app` window. Vendored
+- [x] **Phase 3 — the shell.** `tb ui` starts the server and opens the `--app` window. Vendored
       Preact/htm, the palette wired to `/catalog`, one window rendering one `Result`. **Delete
       `cli/tui/` and the textual dependency in this phase**, not before — the canvas has to be
       able to dispatch and show a result before the thing it replaces goes.
-- [ ] **Phase 4 — the demo.** `jam pr list --json` end to end: structured table, chips that re-run
+- [x] **Phase 4 — the demo.** `jam pr list --json` end to end: structured table, chips that re-run
       with flags, pin, cadence, manual refresh. Needs `cwd` pinned to `~/skyrow.labs/jam.sense` —
       jam's wrapper resolves its venv against cwd, so it is not runnable from anywhere despite
       being on PATH.
-- [ ] **Phase 5 — window management.** Tiled and floating modes, drag, z-order on focus, close,
+- [x] **Phase 5 — window management.** Tiled and floating modes, drag, z-order on focus, close,
       tags, and the status bar counts.
 
 ## Notes
@@ -138,3 +156,67 @@ rather than written down. Dying: the watchdog, `os._exit` past a wedged worker, 
 Their *lessons* survive even though the code does not. A 120k-line result will kill a DOM as dead
 as it killed `RichLog`; the rule that no single result may be rendered unbounded has to be
 rebuilt on the new substrate rather than assumed away by the change of medium.
+
+
+### Round 1 — what actually got built (2026-08-20)
+
+**Reversed before writing a line of it: commands run in a subprocess, not in-process.** Phase 1
+said to lift `cli/tui/dispatch.py`. The original reasoning was sound for a terminal — the envelope
+comes back directly, there is no interpreter to start, and `capture` already existed to collect it.
+What it did not survive is that a watcher fires *unattended*. A thread cannot be cancelled, so
+`jam pr list` hanging on a `git fetch` would strand its thread forever, and six windows on a bad
+network would accumulate stuck threads until the server died. That is the 300-second thread-join
+bug rebuilt on new ground. A subprocess makes `--timeout` a guarantee rather than a hope, and
+`tb --json` already prints the envelope, so nothing parses human output. Introspection stayed
+in-process because reading the tree runs nothing: **reads in, execution out.**
+
+**`tb wrap` was added, which the doc did not call for.** Phase 4 asked for the `jam pr list` demo
+with pin and cadence, and it could not be built: `run` is the only command, `run` acts, and an
+acting command may not be given a cadence. So nothing was pinnable and Phase 2's entire mechanism
+was unreachable from the UI. The mockup had already drawn this line — `wrap docker ps` carries
+`watcher: true`, `run cam-health` carries `task: true` — and tb had no equivalent. `wrap` is not
+the passthrough `CLAUDE.md` rejects: it does something the wrapped tool cannot express, which is
+to hold itself open on a canvas and re-run itself, and it returns parsed data rather than bytes.
+
+**Two bugs that were real rather than test artifacts.**
+
+The session leaked when a window closed before its first tick. The `hello` yield sat outside the
+`try`, and a `GeneratorExit` at a yield outside a `try` skips the `finally` — which is the only
+thing that removes a session. Every fast open-and-close would have left one behind forever.
+
+The palette filtered on the whole typed line, so `run -- df -h /` matched no command, the
+suggestion list emptied, and Enter silently did nothing. Every command worth opening a window on
+takes arguments, so that was the entire feature. A line now names a command once its name is
+complete and a space follows; everything after is argv and narrows nothing.
+
+**Three things that hung rather than failed, all worth remembering.** Starlette's `TestClient`
+collects a whole response body before returning, so a stream that never ends cannot be opened
+through it at all — the session loop had to be lifted out of the route to be testable, which was
+the right shape anyway. Then a "stop after N frames" guard bounded how many frames were accepted
+and not how long to wait for one, so a loop that yielded nothing blocked on the first pull. The
+bound has to be a timeout. And a property about what *does not* happen is now tested against
+`Session.due()` rather than the generator, because proving a negative by waiting is how a suite
+gets slow.
+
+**`request.is_disconnected()` is unusable here** for the same `TestClient` reason, so cleanup runs
+through `GeneratorExit` and a dropped connection is noticed on the next write. That is what the
+heartbeat is for.
+
+**The frontend has no automated tests, and that is the round's real debt.** There is no JS test
+runner, and adding one means npm, which the shape section rules out. Everything was verified by
+rendering headless Chromium against the live server and reading the DOM back — which caught both
+frontend bugs above, and is not the same as a suite. The pure parts (`unwrap`, `suggest`,
+`roleFor`) are the parts worth testing and the parts a runner would be for. Worth revisiting if
+the frontend grows.
+
+**Deleted `TUI_STYLES`/`TUI_THEME`,** whose only consumer was the surface being replaced. The
+concept survives as `cli/theme.css_variables`: the canvas paints `BG` itself, so it takes the
+tokens undarkened, exactly as the TUI did, but it renders from the envelope's data rather than
+from tb's bytes so it needs CSS custom properties rather than a Rich theme. The hex scan now
+follows the surface rather than the language — `.css` and `.js` too, vendored code exempt — plus a
+check for `rgba()` literals, which is the form the drift would actually take here given the mockup
+is built out of them.
+
+**`cli/output.capture` now has no consumer.** It was the mechanism the TUI rendered through, and
+the canvas does not render tb's bytes at all. It is kept, tested and documented, but nothing in
+the shipped surface calls it. It is a candidate for deletion the next time this area is opened.

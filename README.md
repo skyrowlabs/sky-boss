@@ -1,26 +1,43 @@
 # tackle-box
 
-`tb` — a terminal surface, and one command that runs things.
+`tb` — a command palette over a window canvas, and two commands that reach other tools.
 
-**This is a scaffold.** It had a job layer, an asset register, a check suite and a watch system;
-all of it was removed on 2026-08-20 to design that half over from a clean base. What is left is
-the part worth keeping: an output contract, a palette, and a TUI that dispatches through the real
-command tree rather than mirroring it.
+**This is young.** It had a job layer, an asset register, a check suite and a watch system; all of
+it was removed on 2026-08-20 to design that half over from a clean base. What is left is the part
+worth keeping: an output contract, a palette, and a surface that drives the real command tree
+rather than mirroring it.
 
 ## What it does
 
 | Command | Does |
 |---|---|
-| `tb run -- <argv>` | Runs a command and reports what it printed |
-| `tb tui` | Holds tb open — input at the top, newest result under it |
+| `tb run -- <argv>` | Runs a command and reports what it printed. The only command that acts |
+| `tb wrap -- <argv>` | Reads another CLI's JSON as data, so a window can keep it fresh |
+| `tb ui` | Opens the canvas |
 
 ```bash
 tb run -- echo hello
-tb --json run -- ls -la
-tb tui
+tb --json wrap -- ip -j -br addr
+tb ui
 ```
 
 `--` separates tb's flags from the command's own.
+
+## The canvas
+
+`tb ui` opens a command palette over a canvas of windows. Every command opens a window; windows
+tile or float, drag, and stack. A window you pin re-runs its command on a cadence — 5s to 5m — and
+that clock lives in the server, keyed to the connection, so **a watcher pauses when you close the
+window and keeps running when you only minimize it.** A browser timer could not promise the second
+half: a hidden page has its timers clamped to about one fire per minute.
+
+Only reads get a cadence. `tb run` executes whatever argv you hand it, so it is never given one —
+re-running a read is a refresh, and re-running a write is a scheduler nobody asked for. Choosing
+`wrap` over `run` is how you assert this argv is a read.
+
+The server binds loopback on an ephemeral port and dies with the window. It runs commands, so it
+requires a per-launch token in a custom header — which also forces a CORS preflight that is never
+answered, so a page on another site cannot reach it even blind.
 
 ## Install
 
@@ -46,7 +63,7 @@ _TB_COMPLETE=fish_source tb > ~/.config/fish/completions/tb.fish
 ## The contract
 
 Every command returns a `Result` envelope and never prints. All rendering goes through
-`cli/output.py`, so the CLI, `--json` and the surface are three consumers of one thing rather than
+`cli/output.py`, so the CLI, `--json` and the canvas are three consumers of one thing rather than
 three formatters.
 
 | Exit | Meaning |
@@ -75,30 +92,26 @@ declares anything yet.
 
 ```bash
 .venv/bin/python -m pytest              # fast: no network
-pip install -r requirements-dev.txt     # pytest, and textual-dev for the below
+pip install -r requirements-dev.txt
 ```
 
 ### Working on the surface with it open
 
 | Editing | Picked up |
 |---|---|
-| `cli/tui/tb.tcss` | on save, under `textual run --dev` |
+| `cli/canvas/static/*` | on reload — the files are read from disk per request |
 | Any Python | **never — restart** |
 
 ```bash
-textual console                             # in one terminal
-textual run --dev cli.tui.app:TackleBox     # in another; edit tb.tcss and watch it repaint
+tb ui --no-browser --port 8765          # then open http://127.0.0.1:8765/
 ```
 
-**Python is not hot-reloadable here and deliberately is not made so.** Widget classes are already
-instantiated, timers hold bound methods captured at mount, and `cli/output.py` owns thread-local
-consoles a dispatch may be inside at the moment you reload. The result would not be a crash, which
-is the problem — it would be wrong output that looks right.
+Reloading the page is the whole loop for HTML, CSS and JS. The frontend has **no automated
+tests** — there is no JS test runner and adding one means npm — so the pure parts (`unwrap`,
+`suggest`, `roleFor` in `render.js` and `app.js`) are where a mistake will not be caught for you.
 
-Restart is cheap: history persists to `~/.local/state/tb/tui-history`. `^D` on an empty line, then
-`tb tui`.
-
-If the surface ever appears to hang it writes `~/.local/state/tb/tui-stall.txt` — every thread's
-stack at the moment the event loop stopped — and says so on the launch screen next time it starts.
+**Python is not hot-reloadable here and deliberately is not made so.** A reload would leave a live
+session holding watchers registered against the old code, and the result would not be a crash,
+which is the problem — it would be stale behaviour that looks right.
 
 `CLAUDE.md` carries the conventions and the decisions that have already been argued out.

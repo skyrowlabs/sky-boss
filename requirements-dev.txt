@@ -1,6 +1,7 @@
 pytest>=8.0
-# `textual run --dev` — watches cli/tui/tb.tcss and reloads it on save.
-# See Round 3 of the tui feature doc.
-textual-dev>=1.7
-httpx2          # starlette's TestClient
-pytest-asyncio  # the canvas's session loop is async
+
+# Starlette's TestClient refuses to import without it.
+httpx2>=2.12
+
+# The canvas's session loop is async; pytest.ini sets asyncio_mode = auto.
+pytest-asyncio>=1.4
