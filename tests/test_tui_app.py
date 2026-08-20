@@ -1,7 +1,7 @@
 """Tests for the surface: history recall, and that the app actually boots.
 
 The app test drives Textual's headless pilot through `asyncio.run` rather than
-adding pytest-asyncio for one case. It dispatches `auto list`, which reads a
+adding pytest-asyncio for one case. It dispatches `run -- true`, which is a
 registry and touches nothing — the suite stays free of subprocesses.
 """
 
@@ -26,11 +26,11 @@ def history(tmp_path):
 
 
 def test_recall_walks_backwards_then_returns_to_an_empty_line(history):
-    for line in ("auto status", "auto list", "run --help"):
+    for line in ("run -- date", "run -- echo hi", "run --help"):
         history.append(line)
 
     assert history.prev() == "run --help"
-    assert history.prev() == "auto list"
+    assert history.prev() == "run -- echo hi"
     assert history.next() == "run --help"
     # One past the newest is the slot where you compose something new. Without
     # it, down-arrow strands you on the last command with no way back to empty.
@@ -52,9 +52,9 @@ def test_consecutive_duplicates_are_not_recorded(history):
 
 def test_a_repeat_that_is_not_consecutive_is_recorded(history):
     history.append("check")
-    history.append("auto list")
+    history.append("run -- echo hi")
     history.append("check")
-    assert history.lines == ["check", "auto list", "check"]
+    assert history.lines == ["check", "run -- echo hi", "check"]
 
 
 def test_blank_lines_are_not_recorded(history):
@@ -64,9 +64,9 @@ def test_blank_lines_are_not_recorded(history):
 
 def test_submitting_returns_the_cursor_to_the_new_line_slot(history):
     history.append("check")
-    history.append("auto list")
+    history.append("run -- echo hi")
     history.prev()
-    history.append("auto list")
+    history.append("run -- echo hi")
     assert history.cursor == len(history.lines)
 
 
@@ -97,7 +97,7 @@ def test_the_surface_boots_and_dispatches(tmp_path):
     async def scenario():
         app = TackleBox(history=History(path=tmp_path / "hist"))
         async with app.run_test() as pilot:
-            await pilot.press(*"auto list")
+            await pilot.press(*"run -- true")
             await pilot.press("enter")
             # The dispatch runs on a thread; wait for it to hand back.
             for _ in range(200):
@@ -108,11 +108,11 @@ def test_the_surface_boots_and_dispatches(tmp_path):
             return app.transcript()
 
     rendered = asyncio.run(scenario())
-    assert f"{ECHO_PREFIX}auto list" in rendered
-    # `auto list` reads the job registry and touches nothing, so the suite stays
-    # free of subprocesses. With no jobs declared it still renders an envelope
-    # rather than nothing, which is the part worth asserting.
-    assert rendered.strip() != f"{ECHO_PREFIX}auto list"
+    assert f"{ECHO_PREFIX}run -- true" in rendered
+    # `run -- true` is the cheapest real dispatch there is: one builtin that
+    # prints nothing and exits 0. It still renders an envelope rather than
+    # nothing, which is the part worth asserting.
+    assert rendered.strip() != f"{ECHO_PREFIX}run -- true"
 
 
 async def _leave_idle(app, pilot):
@@ -154,18 +154,8 @@ def _drive(tmp_path, keys, patch=None):
     return asyncio.run(scenario())
 
 
-def test_the_log_shortcut_composes_the_line_it_runs(tmp_path):
-    # The point of the binding is that the run_id is never retyped — and that
-    # the transcript still shows exactly what was run, rather than the surface
-    # quietly reading a log file behind your back.
-    entry = {"job": "doctor", "run_id": "doctor-20260819T120000-000"}
-    rendered = _drive(tmp_path, ["ctrl+o"], patch=lambda *a, **k: entry)
-    assert f"{ECHO_PREFIX}auto log doctor --run doctor-20260819T120000-000" in rendered
 
 
-def test_the_log_shortcut_says_so_when_there_is_nothing_to_show(tmp_path):
-    rendered = _drive(tmp_path, ["ctrl+o"], patch=lambda *a, **k: None)
-    assert "no runs recorded yet" in rendered
 
 
 def _keys(tmp_path, keys, prefill=""):
@@ -234,7 +224,7 @@ def test_the_launch_screen_is_up_at_start_and_gone_once_you_type(tmp_path):
         async with app.run_test(size=(120, 24)) as pilot:
             await pilot.pause()
             before = (app.query_one("#launch").display, app.query_one(Transcript).display)
-            await pilot.press(*"auto list")
+            await pilot.press(*"run -- true")
             await pilot.press("enter")
             for _ in range(300):
                 if not app.busy:
@@ -263,21 +253,6 @@ def test_clearing_returns_home_rather_than_to_a_blank_pane(tmp_path):
     assert asyncio.run(scenario())
 
 
-def test_the_rail_is_not_shown_beside_the_launch_screen(tmp_path):
-    """Both list the watches. Side by side they would print them twice."""
-    from cli.tui.app import TackleBox
-
-    async def scenario():
-        app = TackleBox(history=History(path=tmp_path / "hist"))
-        async with app.run_test(size=(140, 24)) as pilot:
-            await pilot.pause()
-            idle_rail = app.query_one("#rail").display
-            await _leave_idle(app, pilot)
-            return idle_rail, app.query_one("#rail").display
-
-    idle_rail, busy_rail = asyncio.run(scenario())
-    assert not idle_rail, "the rail should be hidden while the launch screen is up"
-    assert busy_rail, "the rail should return with the transcript"
 
 
 def test_idle_is_tracked_rather_than_read_off_the_hidden_transcript(tmp_path):
@@ -319,7 +294,7 @@ def test_inspect_shows_the_last_envelope_without_running_anything(tmp_path):
     async def scenario():
         app = TackleBox(history=History(path=tmp_path / "hist"))
         async with app.run_test(size=(120, 24)) as pilot:
-            await pilot.press(*"auto list")
+            await pilot.press(*"run -- true")
             await pilot.press("enter")
             for _ in range(300):
                 if not app.busy:
@@ -337,7 +312,7 @@ def test_inspect_shows_the_last_envelope_without_running_anything(tmp_path):
     captured, busy, shown, text = asyncio.run(scenario())
     assert captured, "the dispatch should have captured an envelope"
     assert not busy, "inspect must not start a dispatch"
-    assert shown and '"command": "auto.list"' in text
+    assert shown and '"command": "run"' in text
 
 
 def test_inspect_with_nothing_captured_says_so_rather_than_running_one(tmp_path):
@@ -396,7 +371,7 @@ def test_the_banner_is_the_top_row_and_the_region_the_bottom(tmp_path):
     at = asyncio.run(scenario())
     assert at["#banner"].y == 0
     # The region is directly under the banner, and the transcript under it, so
-    # the newest result sits against the line that asked for it. Round 4.
+    # the newest result sits against the line that asked for it.
     assert at["#repl"].y == BANNER_ROWS
     assert at["#body"].y == at["#repl"].bottom
     assert at["#body"].bottom == height
@@ -419,7 +394,7 @@ def test_the_input_is_the_first_row_of_the_region_not_the_last(tmp_path):
             }
 
     at = asyncio.run(scenario())
-    # The rule moved to the bottom edge in Round 4, so the input is now the
+    # The rule sits on the bottom edge, so the input is the
     # region's very first row. It is still the *first*, which is the part that
     # was never about where the region sits.
     assert at["#prompt"].y == at["#repl"].y
@@ -429,62 +404,10 @@ def test_the_input_is_the_first_row_of_the_region_not_the_last(tmp_path):
     assert at["#helppane"].y == at["#prompt"].y
 
 
-def test_the_rail_sits_right_of_the_transcript(tmp_path):
-    from cli.tui.app import BANNER_ROWS, TackleBox
-
-    async def scenario():
-        app = TackleBox(history=History(path=tmp_path / "hist"))
-        async with app.run_test(size=(120, 24)) as pilot:
-            await _leave_idle(app, pilot)
-            return {n: app.query_one(n).region for n in ("#banner", "#body", "#rail", "#repl")}
-
-    at = asyncio.run(scenario())
-    assert at["#body"].y == at["#repl"].bottom  # transcript starts under the region
-    assert at["#rail"].x >= at["#body"].right
-    assert at["#rail"].y == at["#body"].y  # side by side, not stacked
 
 
-def test_a_narrow_terminal_hides_the_rail_instead_of_squeezing_the_output(tmp_path):
-    """Below the threshold the rail costs more than it is worth: it would
-    leave the transcript narrower than tb's tables reflow to."""
-    from cli.tui.app import RAIL_MIN_TOTAL_WIDTH, TackleBox
-
-    async def scenario(width):
-        app = TackleBox(history=History(path=tmp_path / "hist"))
-        async with app.run_test(size=(width, 24)) as pilot:
-            await _leave_idle(app, pilot)
-            rail = app.query_one("#rail")
-            return rail.display, app.query_one("#body").region.width
-
-    narrow_shown, narrow_body = asyncio.run(scenario(RAIL_MIN_TOTAL_WIDTH - 1))
-    wide_shown, wide_body = asyncio.run(scenario(RAIL_MIN_TOTAL_WIDTH + 20))
-
-    assert not narrow_shown, "the rail should be hidden below the threshold"
-    assert wide_shown
-    # Hidden means the transcript actually gets the width back.
-    assert narrow_body == RAIL_MIN_TOTAL_WIDTH - 1
 
 
-def test_the_progress_row_restacks_for_the_narrow_column(tmp_path):
-    """Bar, label and timing shared a line on the old wide strip. In 31
-    columns they cannot, and nothing in the rail may wrap."""
-    from cli.tui.app import RAIL_WIDTH, TackleBox
-
-    async def scenario():
-        app = TackleBox(history=History(path=tmp_path / "hist"))
-        async with app.run_test(size=(120, 24)) as pilot:
-            app.busy = True
-            app.running_line = "run a-job-with-a-deliberately-long-name --lane committing"
-            app.started_at = 0.0
-            app.expected = None
-            app.refresh_progress()
-            await pilot.pause()
-            return str(app.query_one("#progress").render())
-
-    rendered = asyncio.run(scenario())
-    assert rendered.startswith("NOW")
-    for line in rendered.split("\n"):
-        assert len(line) <= RAIL_WIDTH
 
 
 
@@ -510,7 +433,7 @@ def test_clicking_a_truncated_pane_shows_it_whole(tmp_path):
     async def scenario():
         app = TackleBox(history=History(path=tmp_path / "hist"))
         async with app.run_test(size=(120, 24)) as pilot:
-            await pilot.press(*"auto log")
+            await pilot.press(*"run")
             await pilot.pause(0.1)
             narrow = str(app.query_one("#helppane").render())
             await pilot.click("#helppane")
@@ -522,7 +445,7 @@ def test_clicking_a_truncated_pane_shows_it_whole(tmp_path):
     narrow, full = asyncio.run(scenario())
     # The pane truncates; the expansion is the escape hatch from that.
     assert "…" in narrow
-    assert "Show one run's captured output." in full
+    assert "Give up after this many seconds." in full
 
 
 def test_the_transcript_is_never_parsed_as_markup(tmp_path):
@@ -552,40 +475,26 @@ def test_the_transcript_is_never_parsed_as_markup(tmp_path):
 # ------------------------------------------------------------- separators
 
 
-def test_dragging_the_rail_divider_resizes_the_rail(tmp_path):
-    from cli.tui.app import Separator, TackleBox
-
-    async def scenario():
-        app = TackleBox(history=History(path=tmp_path / "hist"))
-        async with app.run_test(size=(140, 24)) as pilot:
-            await _leave_idle(app, pilot)
-            before = app.query_one("#rail").outer_size.width
-            sep = app.query_one("#railsep", Separator)
-            # Dragging left widens the rail: it lives right of its divider.
-            app.post_message(Separator.Dragged(sep, -8))
-            await pilot.pause()
-            return before, app.query_one("#rail").outer_size.width
-
-    before, after = asyncio.run(scenario())
-    assert after == before + 8
 
 
 def test_a_divider_cannot_be_dragged_past_a_pane_it_would_erase(tmp_path):
+    """One divider left, between the input and the help pane. The rail's went
+    with the rail."""
     from cli.tui.app import Separator, TackleBox
 
     async def scenario():
         app = TackleBox(history=History(path=tmp_path / "hist"))
         async with app.run_test(size=(140, 24)) as pilot:
             await _leave_idle(app, pilot)
-            sep = app.query_one("#railsep", Separator)
-            for _ in range(20):  # shove it hard the other way
-                app.post_message(Separator.Dragged(sep, 40))
+            sep = app.query_one("#replsep", Separator)
+            for _ in range(20):  # shove it hard, into the pane it would erase
+                app.post_message(Separator.Dragged(sep, -40))
                 await pilot.pause()
-            return app.query_one("#rail").outer_size.width
+            return app.query_one("#inputpane").outer_size.width
 
     from cli.tui.app import TackleBox as App
 
-    assert asyncio.run(scenario()) >= App.MIN_RAIL
+    assert asyncio.run(scenario()) >= App.MIN_INPUT
 
 
 def test_the_input_pane_takes_twice_the_help_pane(tmp_path):
@@ -613,12 +522,12 @@ def test_the_help_pane_tracks_the_line_being_typed(tmp_path):
     async def scenario():
         app = TackleBox(history=History(path=tmp_path / "hist"))
         async with app.run_test(size=(96, 24)) as pilot:
-            await pilot.press(*"auto sta")
+            await pilot.press(*"ru")
             await pilot.pause(0.1)
             return str(app.query_one("#helppane").render())
 
     # No dispatch was run; the pane explains the line without one.
-    assert "status" in asyncio.run(scenario())
+    assert "Run a command" in asyncio.run(scenario())
 
 
 def test_the_banner_names_the_surface(tmp_path):
@@ -639,17 +548,17 @@ def test_completions_render_in_the_region_not_the_transcript(tmp_path):
     async def scenario():
         app = TackleBox(history=History(path=tmp_path / "hist"))
         async with app.run_test() as pilot:
-            app.query_one("#prompt").value = "auto l"
-            app.query_one("#prompt").cursor_position = 6
+            app.query_one("#prompt").value = ""
+            app.query_one("#prompt").cursor_position = 0
             await pilot.press("tab")
             await pilot.pause(0.05)
             shown = app.query_one("#completions").render()
             return str(shown), app.transcript()
 
     completions, body = asyncio.run(scenario())
-    assert "list" in completions and "log" in completions
+    assert "run" in completions and "tui" in completions
     # Chrome in the transcript would mix it into the record of what was run.
-    assert "list  log" not in body
+    assert "run  tui" not in body
 
 
 # ------------------------------------------------------- a large result
@@ -657,8 +566,7 @@ def test_completions_render_in_the_region_not_the_transcript(tmp_path):
 # The surface used to be freezable by one chatty command. `RichLog.write` is
 # superlinear in the size of a single renderable and runs on the event loop, so
 # a big enough result blocked long enough that no key — including the ones that
-# leave — was ever read. These pin the two halves of the fix. See Round 2 of the
-# tui feature doc.
+# leave — was ever read. These pin the two halves of the fix.
 
 
 def _write_and_time(tmp_path, text):
@@ -919,13 +827,6 @@ def test_leaving_is_ordinary_when_nothing_is_wedged(monkeypatch):
     assert hard_exits == []
 
 
-# --------------------------------------------------- watch definitions reload
-#
-# Jobs have always been live; watches were loaded once in __init__ and never
-# again. Two YAML files in the same home, edited the same way, and one silently
-# did nothing until a restart. See Round 3 of the tui feature doc.
-
-
 
 
 
@@ -950,8 +851,7 @@ def test_leaving_is_ordinary_when_nothing_is_wedged(monkeypatch):
 
 # ----------------------------------------------------------- newest first
 #
-# Round 4 inverted the surface: the region is at the top and turns stack
-# newest-first beneath it. Content *within* a turn still reads top-to-bottom —
+# The region is at the top and turns stack newest-first beneath it. Content *within* a turn still reads top-to-bottom —
 # reversing the lines of a table is not what anyone means by "newest first".
 
 
@@ -1044,7 +944,7 @@ def test_a_result_lands_in_the_block_its_own_line_opened(tmp_path):
 
 
 def test_the_freeze_guard_still_holds_for_the_new_widget(tmp_path):
-    """Round 2's bound is on `write_body`, which is still the only door in —
+    """The bound is on `write_body`, which is the only door in —
     but the widget behind it changed, so the guard is re-measured rather than
     assumed to have survived."""
     from rich.text import Text

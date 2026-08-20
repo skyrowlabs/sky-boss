@@ -5,7 +5,6 @@ reaches the terminal. Three consumers read command output — a human, ``tb
 brief`` merging across domains, and the MCP server — so a command that formats
 its own prose has to be written three times.
 
-See the output-contract feature doc.
 """
 
 from __future__ import annotations
@@ -60,12 +59,15 @@ err_console = Console(theme=THEME, stderr=True, highlight=False)
 _local = threading.local()
 
 
+# `or` rather than a bare default: a thread that has finished a capture may
+# carry the attribute set to None, and a present-but-None attribute never falls
+# through to `getattr`'s default. See the restore in `capture`.
 def _out() -> Console:
-    return getattr(_local, "console", console)
+    return getattr(_local, "console", None) or console
 
 
 def _err() -> Console:
-    return getattr(_local, "err_console", err_console)
+    return getattr(_local, "err_console", None) or err_console
 
 
 # ============================================================================
@@ -81,7 +83,7 @@ class Capture:
     the structure away; a consumer that wanted the data had to run the command
     again, which for `tb run` means running the *job* again.
 
-    They collect on the capture rather than in a module global so a watch
+    They collect on the capture rather than in a module global so a background
     refreshing on another thread cannot leave its envelope where the
     foreground is about to read one.
     """
@@ -120,9 +122,8 @@ def capture(width: int = 100, redirect: bool = True, theme: Theme | None = None)
     `redirect` is the one process-global part and the only part a concurrent
     caller must decline. `sys.stdout` has no per-thread version, so two
     captures redirecting at once corrupt each other. The foreground dispatch
-    keeps it, because that is the one that can render `--help`; a watch passes
-    ``redirect=False`` and is safe without it, since a watch may not run
-    `--help` at all — cli/watch.py refuses one at load.
+    keeps it, because that is the one that can render `--help`. A caller that
+    knows nothing it runs can print `--help` may pass ``redirect=False``.
 
     `COLUMNS` is set for the same reason the redirect exists. rich-click's own
     console is built where nothing here can reach it, so swapping the globals
@@ -153,8 +154,22 @@ def capture(width: int = 100, redirect: bool = True, theme: Theme | None = None)
         # Restored on the exception path too. A surface that leaves this
         # swapped after one bad command goes silent for the rest of its life,
         # and a leaked COLUMNS would follow every later subprocess out.
-        _local.console, _local.err_console = saved
-        _local.capture = saved_capture
+        #
+        # *Unset* rather than set-to-None where there was nothing to restore.
+        # Assigning None leaves the attribute present, and `getattr(..., default)`
+        # only uses its default when the attribute is absent — so the first
+        # capture on a thread used to poison that thread's console for good.
+        # Thread-pool workers are reused, so the second dispatch on a recycled
+        # worker would crash on its first warning.
+        for name, value in (("console", saved[0]), ("err_console", saved[1])):
+            if value is None:
+                _local.__dict__.pop(name, None)
+            else:
+                setattr(_local, name, value)
+        if saved_capture is None:
+            _local.__dict__.pop("capture", None)
+        else:
+            _local.capture = saved_capture
         if saved_columns is None:
             os.environ.pop("COLUMNS", None)
         else:

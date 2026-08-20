@@ -369,3 +369,36 @@ def test_a_capture_restores_the_thread_it_was_taken_on():
         thread.join()
 
     assert seen["during"] is console, "a capture leaked across threads"
+
+
+def test_a_finished_capture_leaves_the_consoles_usable():
+    """The first capture on a thread used to poison that thread for good.
+
+    `capture` saved `getattr(_local, "console", None)` — None when nothing was
+    set — and then assigned it back, leaving the attribute *present and None*.
+    `getattr(_local, "console", console)` only falls through to its default when
+    the attribute is absent, so every later lookup returned None and the next
+    warning raised `'NoneType' object has no attribute 'print'`.
+
+    It bit in the suite first, but the real target is the surface: thread-pool
+    workers are reused, so the second dispatch on a recycled worker would have
+    crashed on its first warning.
+    """
+    from cli.output import _err, _out, capture
+
+    before = (_out(), _err())
+    with capture(width=80, redirect=False):
+        pass
+
+    assert _out() is not None and _err() is not None
+    assert (_out(), _err()) == before
+
+
+def test_a_nested_capture_restores_the_outer_one():
+    from cli.output import _out, capture
+
+    with capture(width=80, redirect=False):
+        outer = _out()
+        with capture(width=80, redirect=False):
+            assert _out() is not outer
+        assert _out() is outer, "the inner capture stole the outer one's console"

@@ -1,8 +1,8 @@
 """Input history for the surface, persisted between sessions.
 
 Lives in the state directory rather than the repo, for the same reason the
-ledger does: `git clean -xdf` must not be able to destroy it, and it should
-survive a reclone or the repo moving.
+stall dump does: `git clean -xdf` must not be able to destroy it, and it
+should survive a reclone or the repo moving.
 """
 
 from __future__ import annotations

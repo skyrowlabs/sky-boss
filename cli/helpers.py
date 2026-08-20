@@ -12,23 +12,11 @@ from pathlib import Path
 # path in this CLI derives from here. See CLAUDE.md § CLI setup.
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
-# Run state lives OUTSIDE the repo on purpose. A gitignored directory inside the
-# repo is exactly what `git clean -xdf` destroys, and the run ledger is durable
-# history. XDG state also survives a reclone or moving the repo.
-STATE_DIR = Path.home() / ".local" / "state" / "tb"
-
-# Everything *you* author, as opposed to everything the project does. Machine
-# job definitions and any machine-local config — one home,
-# outside this repo, and expected to be a git repository of its own.
-#
-# It is not under ~/.config because it is not configuration; it is a worktree
-# you cd into and commit in, and a system of record whose diff is the
-# maintenance log. XDG's config directory is an awkward place to keep one.
-#
-# The split it enforces is authorship: this repo holds what the project wrote,
-# TB_HOME holds what you wrote, and STATE_DIR holds what the machine wrote.
-# Mixing the first two is how a tailnet address ends up in a public commit.
-TB_HOME = Path(os.environ.get("TB_HOME") or Path.home() / ".tackle-box")
+# Machine-written state lives OUTSIDE the repo on purpose. A gitignored
+# directory inside the repo is exactly what `git clean -xdf` destroys, and this
+# holds things worth keeping across one — the surface's input history, and a
+# stall dump if it ever freezes. XDG state also survives a reclone or a move.
+STATE_DIR = Path(os.environ.get("TB_STATE") or Path.home() / ".local" / "state" / "tb")
 
 
 def run_command(

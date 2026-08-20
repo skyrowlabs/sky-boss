@@ -1,27 +1,26 @@
 """Suite-wide fixtures.
 
-**The suite never reads the real `TB_HOME`.** Job definitions belong to whoever
-is running tb, not to this project, so a test that loads them is a test whose
-result depends on whose machine it runs on — it passes here and fails on a fresh
-clone with an empty home, or worse, passes on both for different reasons.
+**The suite never touches the operator's real state directory.** `STATE_DIR`
+holds the surface's input history and its stall dumps; a test that read or wrote
+the real one would depend on — and damage — whatever the machine happens to have.
 
-`TB_HOME` is resolved once at import in `cli/helpers.py`, so this has to be set
-before anything imports `cli`. Module level in conftest is early enough:
-pytest imports it before collecting.
+It is resolved once at import in `cli/helpers.py`, so this has to be set before
+anything imports `cli`. Module level in conftest is early enough: pytest imports
+it before collecting.
 """
 
 import os
 import tempfile
 from pathlib import Path
 
-_ISOLATED = Path(tempfile.mkdtemp(prefix="tb-home-")) / "home"
-os.environ["TB_HOME"] = str(_ISOLATED)
+_ISOLATED = Path(tempfile.mkdtemp(prefix="tb-state-")) / "state"
+os.environ["TB_STATE"] = str(_ISOLATED)
 
 import pytest  # noqa: E402
 
 
 @pytest.fixture
-def tb_home():
-    """The isolated home, created empty. Populate it in the test that needs to."""
+def tb_state():
+    """The isolated state directory, created empty."""
     _ISOLATED.mkdir(parents=True, exist_ok=True)
     return _ISOLATED

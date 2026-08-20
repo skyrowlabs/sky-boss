@@ -99,13 +99,17 @@ def _descend(command: click.Command, line: str) -> click.Command:
     return command.commands[matches[0]] if len(matches) == 1 else command
 
 
-def view(line: str, *, width: int = 40, rows: int = 5) -> Text:
+def view(line: str, *, width: int = 40, rows: int = 5, tree=None) -> Text:
     """The help pane's contents for a partly-typed line.
 
     Never raises and never returns None — it repaints on every keystroke, and a
     dead pane mid-word would read as a crash.
+
+    ``tree`` is the same test seam `dispatch` and `candidates` carry: the real
+    tree is two leaf commands, which is not enough shape to test a descent
+    against. The surface always passes the real one.
     """
-    command = _descend(resolve(_path(line)), line)
+    command = _descend(resolve(_path(line), tree), line)
 
     # no_wrap: the pane truncates on purpose, and a wrapped option description
     # eats the rows the other options need. Belt and braces with _fit, which
@@ -113,7 +117,7 @@ def view(line: str, *, width: int = 40, rows: int = 5) -> Text:
     body = Text(no_wrap=True, overflow="ellipsis")
     # The root group's Click name is "cli" — the package it lives in, not the
     # program. Everywhere the user can see, it is tb.
-    title = "tb" if command is root else (command.name or "tb")
+    title = "tb" if command is (tree or root) else (command.name or "tb")
     body.append(_fit(title, width), style=TITLE)
 
     remaining = rows - 1

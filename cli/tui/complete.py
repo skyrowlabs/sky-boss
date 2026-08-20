@@ -12,47 +12,29 @@ import rich_click as click
 
 from cli import cli
 
-# Commands whose positional argument is a job name. Read from the parameter, so
-# a new command taking `name` completes without being listed anywhere.
-JOB_ARGUMENT = "name"
-
-# `tb run` takes loose argv, so its first positional is a job *or* an internal
-# task — the two things the imperative mood dispatches by name.
-RUN_ARGUMENT = "target"
-
-
-def _job_names() -> list[str]:
-    from cli.jobs import load_jobs
-
-    jobs, _errors = load_jobs()
-    return sorted(jobs)
-
-
-def _task_names() -> list[str]:
-    # The registry itself, not a copy. Data, not a call — the surface still
-    # cannot invoke a task, only name one.
-    from cli.run import REGISTRY
-
-    return sorted(task.name for task in REGISTRY)
-
-
 def _positional_candidates(command: click.Command) -> list[str]:
-    names = {param.name for param in command.params if isinstance(param, click.Argument)}
-    if RUN_ARGUMENT in names and command.name == "run":
-        return sorted(set(_job_names()) | set(_task_names()))
-    if JOB_ARGUMENT in names:
-        return _job_names()
+    """Nothing yet.
+
+    This used to complete job and task names off the registries. Both went with
+    the job layer; the hook stays because completing a positional is the thing a
+    surface is for, and the next registry that lands should plug in here rather
+    than growing a second completion path.
+    """
     return []
 
 
-def resolve(path: list[str]) -> click.Command:
+def resolve(path: list[str], root: click.Command | None = None) -> click.Command:
     """Walk as deep into the tree as the typed words go.
 
-    Anything that is not a subcommand — an option, a value, a job name — is
-    stepped over rather than stopping the walk, so `auto log doctor --ru` still
-    completes against `auto log`.
+    Anything that is not a subcommand — an option, a value, an argument — is
+    stepped over rather than stopping the walk, so `group verb thing --ru` still
+    completes against `group verb`.
+
+    ``root`` exists for the same reason `dispatch` takes one: the real tree is
+    two leaf commands at the moment, which is not enough shape to test a walk
+    against. The surface always passes the real one.
     """
-    command: click.Command = cli
+    command: click.Command = root or cli
     for token in path:
         if isinstance(command, click.Group) and token in command.commands:
             command = command.commands[token]
@@ -71,7 +53,7 @@ def _option_names(command: click.Command) -> list[str]:
     return sorted(options)
 
 
-def candidates(line: str) -> tuple[str, list[str]]:
+def candidates(line: str, root: click.Command | None = None) -> tuple[str, list[str]]:
     """The token being typed, and everything it could become.
 
     Split on whitespace rather than with shlex: a half-typed quote is normal
@@ -86,13 +68,13 @@ def candidates(line: str) -> tuple[str, list[str]]:
     if path and path[0] == "tb":
         path = path[1:]
 
-    command = resolve(path)
+    command = resolve(path, root)
 
     if prefix.startswith("-"):
         pool = _option_names(command)
     elif isinstance(command, click.Group):
         pool = sorted(command.commands)
-        if command is cli:
+        if command is (root or cli):
             # Surface verbs are typed at the top level like any other word, so
             # they complete like one. `names()` drops anything Click already
             # owns, so this can never offer a shadowed verb.
@@ -115,7 +97,7 @@ def _common_prefix(names: list[str]) -> str:
     return shortest
 
 
-def complete(line: str) -> tuple[str, list[str]]:
+def complete(line: str, root: click.Command | None = None) -> tuple[str, list[str]]:
     """The line after completing it, and any ambiguity left to show.
 
     A single match is filled in and a space added, because the next thing is
@@ -123,7 +105,7 @@ def complete(line: str) -> tuple[str, list[str]]:
     hand back the list — the shell contract everyone already has in their
     fingers.
     """
-    prefix, matches = candidates(line)
+    prefix, matches = candidates(line, root)
     if not matches:
         return line, []
     if len(matches) == 1:

@@ -1,28 +1,26 @@
 # tackle-box
 
-`tb` — the homebase operator CLI for a workstation and the machines around it. It pairs
-**deterministic scripts** with **agentic automations** behind one command, and holds them open in
-a terminal surface you can watch work happen in.
+`tb` — a terminal surface, and one command that runs things.
 
-It is a personal tool made general. Nothing in this repository describes any particular machine —
-your records live in `~/.tackle-box/`, which is yours and separate.
+**This is a scaffold.** It had a job layer, an asset register, a check suite and a watch system;
+all of it was removed on 2026-08-20 to design that half over from a clean base. What is left is
+the part worth keeping: an output contract, a palette, and a TUI that dispatches through the real
+command tree rather than mirroring it.
 
 ## What it does
 
-| Group | Mood | Owns |
-|---|---|---|
-| `tb run` | imperative | Run a job, an internal task, or ad-hoc argv — always with a lane, a ledger entry and a log |
-| `tb auto` | temporal | Job definitions, lanes, scheduling, ledger, logs |
-| `tb tui` | — | A surface over the same output, held open |
+| Command | Does |
+|---|---|
+| `tb run -- <argv>` | Runs a command and reports what it printed |
+| `tb tui` | Holds tb open — input at the top, newest result under it |
 
-Commands are grouped by **what they do to the world**, not by what they act on. The domain axis
-grows without bound; this one is closed. The property it buys: **`tb run` is the only
-door that writes**, so nothing changes state without a ledger entry, because there is no other
-way in.
+```bash
+tb run -- echo hello
+tb --json run -- ls -la
+tb tui
+```
 
-**[`docs/CLI.md`](docs/CLI.md) is the complete reference** — every command, argument and option,
-generated from the command tree and checked by the suite, alongside the output contract and exit
-codes.
+`--` separates tb's flags from the command's own.
 
 ## Install
 
@@ -45,52 +43,45 @@ _TB_COMPLETE=fish_source tb > ~/.config/fish/completions/tb.fish
 > and a fish function shadows PATH. Add `functions --query tb; and functions --erase tb` to
 > `~/.config/fish/config.fish`.
 
-## First run
+## The contract
 
-```bash
-tb run init-home     # creates ~/.tackle-box and seeds it with a job template
-tb auto list         # every declared job
-tb tui               # the surface
-```
+Every command returns a `Result` envelope and never prints. All rendering goes through
+`cli/output.py`, so the CLI, `--json` and the surface are three consumers of one thing rather than
+three formatters.
 
-`tb` works before any of that, but anything that reads your jobs will be empty until the home
-exists.
+| Exit | Meaning |
+|---|---|
+| `0` | ok |
+| `1` | hard failure |
+| `3` | partial — some of the work succeeded |
+
+Not `2`: Click uses it for usage errors, so a caller branching on exit codes would read a typo as
+a degraded run.
+
+`--json` is a root-group flag. Under it stdout carries the envelope and nothing else; warnings
+still go to stderr, so a pipeline is never broken by a degraded source.
 
 ## Where things live
 
-Three directories, and the rule for each is **who authored the bytes**.
+| Where | Holds | Versioned |
+|---|---|---|
+| this repo | code, tests, docs | here |
+| `~/.local/state/tb/` | input history, stall dumps | never |
 
-| Where | Holds | Authored by | Versioned |
-|---|---|---|---|
-| this repo | code, tests, docs, templates | the project | here |
-| `~/.tackle-box/` | job definitions | **you** | its own git repo |
-| `~/.local/state/tb/` | run ledger, logs | the machine | never |
-
-`$TB_HOME` overrides the middle one.
-
-Your content is separate because it is *yours* — job definitions name your machines and paths,
-and a tool you can publish must not carry them with it. It is a git repository of its
-own because a machine record's diff is its maintenance log: record the *why* inline as a field
-comment and the history answers "when did this change, and what were we thinking".
-
-The ledger stays out of both. It is the one thing here a machine writes rather than a person, it
-appends on every run, and versioning it would make `git status` useless within a day.
+`$TB_STATE` overrides the second. There is no operator content directory any more — nothing
+declares anything yet.
 
 ## Development
 
 ```bash
-.venv/bin/python -m pytest              # fast: no network, no subprocesses
-.venv/bin/python -m pytest -k stripe    # by name
+.venv/bin/python -m pytest              # fast: no network
 pip install -r requirements-dev.txt     # pytest, and textual-dev for the below
 ```
 
 ### Working on the surface with it open
 
-Three kinds of edit behave three different ways, and it is worth knowing which is which.
-
 | Editing | Picked up |
 |---|---|
-| A job definition in `~/.tackle-box/` | within a second, no restart |
 | `cli/tui/tb.tcss` | on save, under `textual run --dev` |
 | Any Python | **never — restart** |
 
@@ -101,17 +92,13 @@ textual run --dev cli.tui.app:TackleBox     # in another; edit tb.tcss and watch
 
 **Python is not hot-reloadable here and deliberately is not made so.** Widget classes are already
 instantiated, timers hold bound methods captured at mount, and `cli/output.py` owns thread-local
-consoles that a dispatch may be inside at the moment you reload. The result would not be a crash,
-which is the problem — it would be wrong output that looks right.
+consoles a dispatch may be inside at the moment you reload. The result would not be a crash, which
+is the problem — it would be wrong output that looks right.
 
-Restart is cheap and nothing is lost: history persists to `~/.local/state/tb/tui-history`, and
-every live pane re-reads its state on the next tick. `^D` on an empty line, then `tb tui`.
+Restart is cheap: history persists to `~/.local/state/tb/tui-history`. `^D` on an empty line, then
+`tb tui`.
 
-If the surface ever appears to hang, it writes `~/.local/state/tb/tui-stall.txt` — every thread's
+If the surface ever appears to hang it writes `~/.local/state/tb/tui-stall.txt` — every thread's
 stack at the moment the event loop stopped — and says so on the launch screen next time it starts.
 
-One doc per feature, for the life of the feature — a change or a fix expands the doc that already
-owns it rather than adding a second. Open work is in `docs/features/`; `docs/features/done/` holds
-features with no open work, and a doc moves back out when one reopens. `CLAUDE.md` carries the
-conventions and the decisions that have already been argued out, including the ones deliberately
-rejected.
+`CLAUDE.md` carries the conventions and the decisions that have already been argued out.
