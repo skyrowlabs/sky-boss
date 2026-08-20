@@ -1,0 +1,180 @@
+"""The session loop: what a window gets while it is open, and what stops when
+it is not.
+
+Driven directly rather than over HTTP. Starlette's `TestClient` collects a whole
+response body before returning, so a stream that never ends can never be opened
+through it — the first version of these tests hung instead of failing.
+
+The clock and the runner are injected. Proving a five-second cadence must not
+cost five seconds of suite, and proving a watcher fires must not require
+starting a subprocess.
+
+**Every pull is bounded.** The second version of these tests hung too, for a
+different reason worth remembering: a "stop after N frames" guard bounds how
+many frames you accept and not how long you wait for one, so a loop that yields
+nothing blocks on the first pull forever. The bound has to be a timeout.
+
+And a property about what *does not* happen is tested against `Session.due()`
+rather than the generator. Proving a negative by waiting is how a suite gets
+slow, and the generator fires exactly what `due()` hands it.
+"""
+
+import asyncio
+import json
+
+import pytest
+
+from cli.canvas.runner import Run
+from cli.canvas.server import Canvas, stream_frames
+from cli.canvas.watch import Session
+
+# Generous — this bounds a hang, it does not measure anything.
+PULL_TIMEOUT = 5.0
+
+
+class Clock:
+    """A hand-wound monotonic clock."""
+
+    def __init__(self) -> None:
+        self.t = 1000.0
+
+    def __call__(self) -> float:
+        return self.t
+
+    def advance(self, seconds: float) -> None:
+        self.t += seconds
+
+
+def fake_run(argv, **kwargs):
+    return Run(argv=list(argv), exit_code=0, duration_s=0.01, envelope={"data": argv})
+
+
+async def frame(generator) -> dict:
+    """The next frame, or a failure. Never an indefinite wait."""
+    return json.loads(await asyncio.wait_for(anext(generator), PULL_TIMEOUT))
+
+
+def _session(canvas: Canvas, clock=None) -> Session:
+    session = Session(id="s1") if clock is None else Session(id="s1", clock=clock)
+    canvas.sessions["s1"] = session
+    return session
+
+
+# ---------------------------------------------------------------- the stream
+
+
+async def test_the_first_frame_names_the_session():
+    canvas = Canvas(token="t")
+    generator = stream_frames(canvas, _session(canvas), run=fake_run, tick=0.001)
+    try:
+        assert await frame(generator) == {"type": "hello", "session": "s1"}
+    finally:
+        await generator.aclose()
+
+
+async def test_a_watcher_fires_when_its_cadence_comes_round():
+    clock = Clock()
+    canvas = Canvas(token="t")
+    session = _session(canvas, clock)
+    session.set("w1", ["run", "--", "echo", "hi"], interval=5)
+
+    generator = stream_frames(canvas, session, run=fake_run, tick=0.001, heartbeat=1e9)
+    try:
+        await frame(generator)  # hello
+        clock.advance(5)
+        fired = await frame(generator)
+        assert fired["type"] == "run"
+        assert fired["window"] == "w1"
+        assert fired["result"]["envelope"]["data"] == ["run", "--", "echo", "hi"]
+    finally:
+        await generator.aclose()
+
+
+async def test_a_quiet_session_still_sends_something():
+    """An idle window must not be indistinguishable from one whose connection
+    died — and without a write, the server never learns the socket is gone."""
+    canvas = Canvas(token="t")
+    generator = stream_frames(
+        canvas, _session(canvas), run=fake_run, tick=0.001, heartbeat=0.002
+    )
+    try:
+        await frame(generator)  # hello
+        assert (await frame(generator))["type"] == "beat"
+    finally:
+        await generator.aclose()
+
+
+async def test_closing_the_stream_takes_the_session_with_it():
+    """`pauses when the window closes`, expressed as the session ceasing to
+    exist — so there is no cleanup anybody can forget to do."""
+    canvas = Canvas(token="t")
+    generator = stream_frames(canvas, _session(canvas), run=fake_run, tick=0.001)
+    await frame(generator)
+    assert "s1" in canvas.sessions
+
+    await generator.aclose()
+    assert "s1" not in canvas.sessions
+
+
+# ----------------------------------------------------------------- the clock
+
+
+def test_a_watcher_with_no_cadence_never_becomes_due():
+    """Interval 0 is pinned-but-manual. A window that refreshed anyway would
+    re-run a command the operator deliberately said not to."""
+    clock = Clock()
+    session = Session(id="s1", clock=clock)
+    session.set("w1", ["run"], interval=0)
+
+    clock.advance(3600)
+    assert session.due() == []
+
+
+def test_a_slow_command_does_not_stack_up_behind_itself():
+    """An 8-second command on a 5-second cadence would otherwise queue runs
+    forever, each tick falling further behind the one before."""
+    clock = Clock()
+    session = Session(id="s1", clock=clock)
+    watcher = session.set("w1", ["run"], interval=5)
+
+    clock.advance(5)
+    assert session.due() == [watcher]
+
+    session.claim(watcher)
+    clock.advance(500)
+    assert session.due() == []
+
+    session.release(watcher)
+    clock.advance(5)
+    assert session.due() == [watcher]
+
+
+def test_changing_the_cadence_does_not_fire_once_more_on_the_way_past():
+    """Going 5s -> 300s measures from now. Measuring from the last run would
+    make the window refresh immediately as you slowed it down."""
+    clock = Clock()
+    session = Session(id="s1", clock=clock)
+    session.set("w1", ["run"], interval=5)
+    clock.advance(4)
+
+    session.set("w1", ["run"], interval=300)
+    clock.advance(10)
+    assert session.due() == []
+
+
+def test_re_registering_the_same_window_does_not_add_a_second_watcher():
+    """The client re-registers on every chip toggle. Two watchers on one window
+    would double the request rate invisibly."""
+    session = Session(id="s1")
+    session.set("w1", ["run", "a"], interval=5)
+    session.set("w1", ["run", "b"], interval=5)
+
+    assert len(session.watchers) == 1
+    assert session.watchers["w1"].argv == ["run", "b"]
+
+
+def test_dropping_a_watcher_stops_it():
+    session = Session(id="s1")
+    session.set("w1", ["run"], interval=5)
+    session.drop("w1")
+    assert session.watchers == {}

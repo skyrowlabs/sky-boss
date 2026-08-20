@@ -274,15 +274,26 @@ def test_help_honours_the_captured_width():
     """rich-click builds its own console, out of reach of the swap.
 
     Without COLUMNS set, `--help` renders at Rich's 80-column default whatever
-    width the consumer asked for. Invisible in a wide terminal and clipping in
-    a narrow pane, since the TUI's transcript does not wrap.
+    width the consumer asked for.
+
+    Invoked here rather than through a surface. `cli/tui/dispatch.py` used to
+    provide the invocation and went with the TUI; the property is capture's,
+    not the caller's, so the test now holds it directly.
     """
     import re
 
-    from cli.tui.dispatch import dispatch
+    import rich_click as click
+
+    from cli import cli
+    from cli.output import capture
 
     for width in (46, 60, 120):
-        text = re.sub(r"\x1b\[[0-9;]*m", "", dispatch("--help", width=width).text)
+        with capture(width=width) as captured:
+            try:
+                cli.main(args=["--help"], prog_name="tb", standalone_mode=False, obj={})
+            except click.exceptions.Exit:
+                pass
+        text = re.sub(r"\x1b\[[0-9;]*m", "", captured.text)
         widest = max(len(line) for line in text.split("\n"))
         assert widest <= width, f"help ran to {widest} columns at width {width}"
 
@@ -303,53 +314,60 @@ def test_capture_restores_columns_even_when_the_body_raises():
 
 def test_concurrent_captures_do_not_post_into_each_other():
     """capture() was safe while only one dispatch could be in flight — the
-    TUI's queue guaranteed it. Watches deliberately broke that guarantee, and
-    swapping module globals then meant two captures silently stole each other's
-    output: of four concurrent dispatches, two came back empty.
+    TUI's queue guaranteed it. Swapping module globals meant two concurrent
+    captures silently stole each other's output: of four concurrent dispatches,
+    two came back empty. Measured, not theorised.
 
-    Uses a toy tree rather than real commands so the suite keeps shelling out
-    to nothing.
+    The consoles are thread-local now, and this is the property that says so.
+    It outlived the surface that discovered it: the canvas runs commands out of
+    process, but `capture` is still the mechanism any in-process consumer would
+    use, and it is still reached from more than one thread at a time.
+
+    `redirect=False` throughout — `sys.stdout` has no per-thread version, so
+    the one process-global part is exactly the part a concurrent caller must
+    decline.
     """
     import threading
 
     import rich_click as click
 
     from cli.output import Result, capture, emit
-    from cli.tui.dispatch import dispatch
 
-    @click.group()
-    def root():
-        pass
-
-    @root.command()
+    @click.command()
     @emit
     def alpha():
         return Result(command="alpha", data={"who": "aaaaa"})
 
-    @root.command()
+    @click.command()
     @emit
     def beta():
         return Result(command="beta", data={"who": "bbbbb"})
 
-    results: dict[int, object] = {}
+    results: dict[int, str] = {}
 
-    def worker(index, line):
-        results[index] = dispatch(line, root=root, redirect=False)
+    def worker(index, command):
+        with capture(width=100, redirect=False) as captured:
+            try:
+                command.main(args=[], prog_name="tb", standalone_mode=False, obj={})
+            except click.exceptions.Exit:
+                pass
+        results[index] = captured.text
 
     threads = [
-        threading.Thread(target=worker, args=(i, line))
-        for i, line in enumerate(["alpha", "beta"] * 4)
+        threading.Thread(target=worker, args=(i, command))
+        for i, command in enumerate([alpha, beta] * 4)
     ]
     for thread in threads:
         thread.start()
     for thread in threads:
         thread.join()
 
-    for index, result in results.items():
+    assert len(results) == 8
+    for index, text in results.items():
         expected = "aaaaa" if index % 2 == 0 else "bbbbb"
         other = "bbbbb" if index % 2 == 0 else "aaaaa"
-        assert expected in result.text, f"dispatch {index} lost its own output"
-        assert other not in result.text, f"dispatch {index} received another's output"
+        assert expected in text, f"capture {index} lost its own output"
+        assert other not in text, f"capture {index} received another's output"
 
 
 def test_a_capture_restores_the_thread_it_was_taken_on():
