@@ -240,8 +240,27 @@ its first.
 - `agent_value` (1–3) tells a future session whether a completed doc is load-bearing design
   context or just history.
 
-**Do not build index machinery** — categories, generated READMEs, link checkers, index JSON. The
-frontmatter is already machine-readable; add tooling when volume demands it.
+**There is one index, and it is generated.** `docs/features/README.md` carries a table of every
+doc — slug, status, `agent_value`, title — built from frontmatter by
+`tests/test_features_index.py`, which fails when the file disagrees with the docs. Regenerate with
+`TB_WRITE_DOC_INDEX=1 .venv/bin/python -m pytest -k features_index`. Only the block between the
+`<!-- index:start -->` markers is generated; the rest of that page is prose.
+
+This reverses "do not build index machinery", and the reason the rule existed still stands: **an
+index is a copy, and a copy drifts.** What changed is that sixteen docs across two directories
+stopped being answerable with `ls`, and that a copy nothing maintains by hand cannot drift — the
+test is the whole feature, not an accessory to it. The same test also catches a doc whose
+`status:` disagrees with the directory it sits in, which is the other thing that goes quietly
+wrong now that docs move both ways.
+
+Note the one deliberate exception it creates: the index links are relative paths, the only ones in
+the repo. They are safe *because* they are generated — a doc moving into `done/` fails the test
+rather than leaving a dead link. Inside a doc, links stay `[[slug]]`.
+
+**Do not add a second index** — no categories, no JSON, no per-status pages, no link checker. The
+sibling project arrived here by a different route and now carries an 1,100-line docs module, three
+JSON index files and a CI validator to keep them honest. One generated table and one test is the
+whole of what this repo needs; add more only when something concrete demands it.
 
 ## CLI setup
 
