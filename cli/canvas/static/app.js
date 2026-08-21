@@ -143,7 +143,7 @@ function useNow() {
  * It is not a second list of commands. These come from the same /api/catalog
  * every other surface reads, filtered on `saved` — a property the *command*
  * carries, so a tool that stops existing stops appearing here with no code
- * involved. See docs/features/toolbox.md.
+ * involved. See [[toolbox]].
  */
 function Toolbox({ commands, open }) {
   const saved = commands.filter((c) => c.saved);

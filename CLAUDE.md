@@ -19,7 +19,9 @@ replaced by a browser one the same day. What exists:
 |---|---|
 | `tb run -- <argv>` | Runs a command and reports what it printed. **The only command that acts** |
 | `tb wrap -- <argv>` | Reads another CLI's JSON as data. A read, so a window may refresh it |
+| `tb tools` | Lists the operator's saved commands, and any that failed to load |
 | `tb ui` | Opens the canvas — a command palette over tiled and floating windows |
+| `tb <tool>` | Anything declared in `$TB_HOME/tools.toml`. See [[toolbox]] |
 
 **Check before you describe.** This is young and moving, and it just lost most of its surface area.
 When asked about a command or module, confirm it exists rather than inferring it from this
@@ -37,6 +39,11 @@ to decide whether a window may be given a refresh cadence, because **re-running 
 refresh and re-running a write is a scheduler nobody asked for.** tb cannot tell a read from a
 write by inspecting an argv and does not try: choosing `wrap` over `run` is the operator's
 assertion that this one is a read.
+
+A saved command **inherits** that assertion rather than restating it — `acts` comes from the first
+word of its argv and a declared one is ignored, so `[tool.deploy]` wrapping `run` is refused a
+cadence exactly as `tb run` is. This is also why a tool's argv must start with a tb command: a tool
+that could name a bare executable would be a second `tb run` that skips the split entirely.
 
 The removed design grouped commands by *mood* — imperative, temporal, descriptive, evaluative —
 rather than by domain, on the reasoning that the domain axis grows without bound while the mood
@@ -153,14 +160,20 @@ package-owned and reverts on update, so the fix is an override in `~/.config/fis
 | What | Where | Authored by | Versioned |
 |---|---|---|---|
 | Code, tests, docs | this repo | the project | here |
+| Saved commands (`tools.toml`) | `~/.config/tb/` (`$TB_HOME`) | the operator | never |
 | Browser profile for the canvas | `~/.local/state/tb/` (`$TB_STATE`) | the machine | never |
 
-There is **no operator content directory** at the moment — nothing declares anything. When one
-comes back, the rule it existed for still holds: operator content used to live in this repo,
-justified by *the git diff is the maintenance log*, and a machine record carried a tailnet address
-into every commit, so the tool could not be published without publishing the operator. Keep the
-two apart from the start, take no fallback path between them, and let an absent home degrade
-rather than raise.
+**`$TB_HOME` is the operator content directory, and it is outside the repo with no fallback path
+into it.** The rule it exists under: operator content used to live in this repo, justified by *the
+git diff is the maintenance log*, and a machine record carried a tailnet address into every commit,
+so the tool could not be published without publishing the operator. An absent home degrades to
+nothing declared rather than raising — a fresh clone has no tools and saying so every invocation
+would be noise. It is separate from `$TB_STATE` because `rm -rf ~/.local/state/tb` is a reasonable
+way to reset the surface and must not also delete every tool the operator wrote.
+
+**The suite redirects `TB_HOME` as well as `TB_STATE`**, and that one matters more: a tool is an
+argv tb will *run*, so a suite reading the real home would register the operator's commands into
+the tree under test.
 
 **The suite never touches the real state directory** — `tests/conftest.py` redirects `TB_STATE`
 before anything imports `cli`. **Nothing operator-specific in tracked files.**
@@ -257,10 +270,10 @@ Shared with sibling CLIs so the family feels like one tool.
 ## Feature workflow
 
 `docs/features/` holds three docs. `done/table-views.md` is the shaping contract — how a foreign
-CLI's JSON becomes a table worth reading. `canvas.md` is the surface, reopened at Round 5 for the
-chrome in the second mockup. `toolbox.md` is a draft: commands the operator saves, registered into
-the Click tree so the palette gets them for free. Every earlier spec was deleted with the system it
-described.
+CLI's JSON becomes a table worth reading. `done/toolbox.md` is the operator's saved commands,
+registered into the Click tree so the palette gets them for free. `canvas.md` is the surface, open
+at Round 5 for the rest of the chrome in the second mockup. Every earlier spec was deleted with the
+system it described.
 
 One doc per feature at `docs/features/<slug>.md`, from first sentence to done; completed docs move
 to `docs/features/done/`. `.claude/skills/feature/SKILL.md` drives it. The rules that earned their
