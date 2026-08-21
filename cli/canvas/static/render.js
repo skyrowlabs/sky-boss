@@ -53,6 +53,33 @@ function roleFor(key, value) {
   return "";
 }
 
+/* Reach a dotted key. Only `--cols` produces one; the heuristic never invents
+ * a dotted key, because flattening a nested dict turns one column into six. */
+function resolve(row, key) {
+  let current = row;
+  for (const part of String(key).split(".")) {
+    if (current === null || typeof current !== "object") return null;
+    current = current[part];
+  }
+  return current === undefined ? null : current;
+}
+
+/* A nested dict as one cell: `passed=2 skipped=7`, zeroes dropped.
+ *
+ * This is the one piece of `cli/view.py` that has a second implementation, and
+ * the duplication is deliberate rather than overlooked. The alternative is
+ * shipping the rendered string in the envelope, which would make the view a
+ * transformation of `data` instead of a description of it — the single
+ * property this whole feature rests on. Four lines that must agree is the
+ * cheaper of the two prices. Keep it in step with `summarise_mapping`.
+ */
+function summariseMapping(value) {
+  const parts = Object.entries(value)
+    .filter(([, v]) => v !== null && v !== undefined && v !== "" && v !== 0 && v !== false)
+    .map(([k, v]) => `${k}=${v}`);
+  return parts.length ? parts.join(" ") : "—";
+}
+
 function cellText(value) {
   if (value === null || value === undefined) return "—";
   if (typeof value === "boolean") return value ? "yes" : "no";
@@ -73,31 +100,70 @@ function columnsOf(rows) {
   return seen;
 }
 
-function Table({ rows }) {
+/* The columns a view describes, or every key at equal weight when there is no
+ * view. Nothing here decides which columns are worth showing — that is
+ * `cli/view.py`, deliberately, because this file has no test runner. */
+function columnSpecs(rows, view) {
+  if (view && view.columns) return view.columns;
+  return columnsOf(rows).map((key) => ({ key, label: key.toUpperCase() }));
+}
+
+function cellOf(row, spec) {
+  const value = resolve(row, spec.key);
+  if (spec.summarise && value && typeof value === "object" && !Array.isArray(value)) {
+    return summariseMapping(value);
+  }
+  return cellText(value);
+}
+
+/* A weight and a floor, straight from the view. `ch` rather than a pixel
+ * count: the stylesheet is written in scaled units and a window is draggable,
+ * so there is no fixed width for a character count to mean anything against. */
+function sizing(spec) {
+  if (!spec.flex) return undefined;
+  return `flex:${spec.flex} 1 0;min-width:${spec.min || 1}ch`;
+}
+
+function Table({ rows, view }) {
   /* An empty result is a result. Rendering nothing at all is indistinguishable
    * from a window that failed to load, and "no open pull requests" is exactly
    * the answer a pinned window exists to keep telling you. */
   if (rows.length === 0) return html`<div class="v-dim">no rows</div>`;
 
-  const columns = columnsOf(rows);
+  const specs = columnSpecs(rows, view);
+  const shaped = Boolean(view && view.columns);
   const shown = rows.slice(0, MAX_ROWS);
+  const hidden = (view && view.hidden) || [];
   return html`
-    <div class="grid">
+    <div class=${`grid ${shaped ? "shaped" : ""}`}>
       <div class="row head">
-        ${columns.map((c) => html`<span key=${c}>${c.toUpperCase()}</span>`)}
+        ${specs.map((s) => html`<span key=${s.key} style=${sizing(s)}>${s.label}</span>`)}
       </div>
       ${shown.map(
         (row, i) => html`
           <div class="row" key=${i}>
-            ${columns.map(
-              (c) => html`<span key=${c} class=${roleFor(c, row[c])}>${cellText(row[c])}</span>`
-            )}
+            ${specs.map((s) => {
+              const text = cellOf(row, s);
+              /* The full value stays reachable on hover. A clipped cell that
+               * cannot be recovered is a table that lies about what it holds. */
+              return html`<span
+                key=${s.key}
+                style=${sizing(s)}
+                title=${text}
+                class=${roleFor(s.key, resolve(row, s.key))}
+                >${text}</span
+              >`;
+            })}
           </div>
         `
       )}
       ${rows.length > shown.length &&
       html`<div class="row"><span class="truncated">
         ${rows.length - shown.length} more rows not shown
+      </span></div>`}
+      ${hidden.length > 0 &&
+      html`<div class="row"><span class="truncated">
+        ${hidden.length} columns hidden: ${hidden.join(", ")}
       </span></div>`}
     </div>
   `;
@@ -181,13 +247,18 @@ export function Body({ result }) {
   const view = unwrap(envelope);
   const warnings = envelope.warnings || [];
 
+  /* A view describes `data`. When the rows came out of `tb run`'s stdout
+   * instead, `data` is the run envelope and the view would be describing the
+   * wrong object — so it applies only to rows that are the data themselves. */
+  const shape = view.wrapped ? null : envelope.view;
+
   let body;
-  if (view.kind === "rows") body = html`<${Table} rows=${view.rows} />`;
+  if (view.kind === "rows") body = html`<${Table} rows=${view.rows} view=${shape} />`;
   else if (view.kind === "text") body = html`<${Raw} text=${view.text} />`;
   else if (Array.isArray(view.value)) {
     const rows = view.value;
     body = rows.every((r) => r && typeof r === "object" && !Array.isArray(r))
-      ? html`<${Table} rows=${rows} />`
+      ? html`<${Table} rows=${rows} view=${shape} />`
       : html`<${Raw} text=${rows.map(cellText).join("\n")} />`;
   } else if (view.value && typeof view.value === "object") {
     body = html`<${Mapping} value=${view.value} />`;

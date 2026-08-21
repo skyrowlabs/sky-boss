@@ -188,10 +188,10 @@ change at all** — `app.js` already treats everything past the command name as 
       and the stdout-purity test are untouched.
 - [x] `wrap` computes the view and attaches it. `data` unchanged — asserted by a test.
 - [x] `_render_columns` in `cli/output.py` honours a view when present, first-seen order when not.
-- [ ] `Table` in `render.js` honours a view when present. Full text of a clipped cell in `title`.
+- [x] `Table` in `render.js` honours a view when present. Full text of a clipped cell in `title`.
 - [x] `--cols` / `--drop` / `--no-shape` on `wrap`.
 - [x] Hidden columns reported as a warning naming them.
-- [ ] Verify against the live canvas headless, per [[canvas]] — the frontend still has no runner.
+- [x] Verify against the live canvas headless, per [[canvas]] — the frontend still has no runner.
 
 ## Notes
 
