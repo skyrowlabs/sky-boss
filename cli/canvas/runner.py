@@ -30,7 +30,7 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from cli.helpers import PROJECT_ROOT
+from cli.helpers import PROJECT_ROOT, child_env
 
 # The wrapper, not `python -m cli`. It resolves its own symlink, prefers the
 # venv and sets PYTHONSAFEPATH — all things this would otherwise have to
@@ -93,6 +93,12 @@ def run(
             text=True,
             timeout=timeout,
             check=False,
+            # Scrubbed even though this spawns `tb` itself: the wrapper sets
+            # both variables again on the way in, and it *appends* to any
+            # inherited PYTHONPATH, so without this a nested run accumulates
+            # the repo path twice. A command's environment is then identical
+            # whether it was reached from a terminal or from a watcher.
+            env=child_env(),
         )
     except subprocess.TimeoutExpired:
         return Run(

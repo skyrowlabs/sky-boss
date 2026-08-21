@@ -238,6 +238,12 @@ Shared with sibling CLIs so the family feels like one tool.
   modules call these rather than building paths directly.
 - **Ops commands act on real machines** via SSH, systemd, or the filesystem — never through an API
   client. Keep any HTTP behind a dedicated adapter module.
+- **A command tb spawns gets the operator's environment, not tb's.** Everything that shells out
+  goes through `child_env()` in `cli/helpers.py`, which drops `PYTHONPATH` and `PYTHONSAFEPATH` —
+  the two the wrapper exports so `python -m cli` resolves. Without it a wrapped Python tool imports
+  *this* `cli` package from anywhere on the machine. `PATH` is deliberately kept: stripping the
+  venv the wrapper prepends would be tb choosing which `python3` a foreign tool finds. Not a
+  clean room — scrub what tb added to boot and nothing else. See [[subprocess-env]].
 - **One palette, in `cli/theme.py`** — Skyrow Labs' **design system**, copied verbatim from its own
   `colors_and_type.css`, vendored at `docs/design/` so the copy is checkable. The system is
   dark-only by declaration.
