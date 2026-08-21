@@ -132,3 +132,14 @@ def test_the_scrub_is_two_variables_and_not_a_clean_room(monkeypatch):
     # PATH is the operator's: the wrapper prepends its venv's bin, and stripping
     # that would be tb choosing which python3 a foreign tool finds.
     assert env["PATH"] == os.environ["PATH"]
+
+
+def test_multi_line_output_renders_as_a_block_not_a_folded_cell(capsys):
+    """An aligned table folded into a key/value cell wraps at the column edge
+    and loses the alignment that was the reason to look at it."""
+    from cli.output import Result, render
+
+    render(Result("run", data={"exit_code": 0, "stdout": "PR     STATE\n#952   draft\n"}),
+           as_json=False)
+    out = capsys.readouterr().out
+    assert "PR     STATE" in out

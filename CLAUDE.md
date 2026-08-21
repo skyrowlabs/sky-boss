@@ -19,6 +19,7 @@ replaced by a browser one the same day. What exists:
 |---|---|
 | `tb run -- <argv>` | Runs a command and reports what it printed. **The only command that acts** |
 | `tb wrap -- <argv>` | Reads another CLI's JSON as data. A read, so a window may refresh it |
+| `tb read -- <argv>` | Shows what a command printed, verbatim. A read, for tools with no `--json` |
 | `tb tools` | Lists the operator's saved commands, and any that failed to load |
 | `tb ui` | Opens the canvas — a command palette over tiled and floating windows |
 | `tb <tool>` | Anything declared in `$TB_HOME/tools.toml`. See [[toolbox]] |
@@ -55,6 +56,9 @@ commands. If groups come back, group them that way and be slower to add one.
 - **`tb ctx`** and **`tb secrets`** (unified context switching, a secrets manager as root of trust
   for `aws`/`gh`/`stripe`). **External CLIs keep their own authentication.** `tb` is never in the
   credential path. This is what keeps a future MCP surface safe to expose.
+- **Parsing a tool's human output into rows.** `tb read` shows it verbatim and says that is what it
+  is doing; inferring columns from whitespace is the "silently wrong" failure, and a tool with real
+  structure has `--json`.
 - **Wrapping an external CLI for passthrough.** `tb gh pr list` is strictly worse than
   `gh pr list`. Reach for an external tool only where `tb` does something that tool cannot express.
   `tb wrap` is the carve-out and it earns it: holding a foreign CLI's output open on a canvas and
@@ -222,11 +226,14 @@ rather than by waiting for a silence.
 same reason the old watchdog did: proving a five-second cadence should not cost five seconds of
 suite.
 
-**Raw command output must not reach `data`** for anything the CLI runs on its own initiative — a
-probe can print a token, and `data` reaches stdout and any future MCP surface. `tb run` is the one
-exception and says so in its docstring: you named the argv, and seeing its output is the feature.
-**`tb wrap` is deliberately not a second exception** — it carries parsed data only, and a tool that
-printed something else has failed its contract.
+**Raw command output must not reach `data`** for anything the CLI runs **on its own initiative** —
+a probe can print a token, and `data` reaches stdout and any future MCP surface. The property that
+makes an exception safe is not which command it is, it is **who named the argv**: `tb run` and
+`tb read` both run an argv the operator typed, and seeing its output is the feature. Any command
+that shells out on its own initiative still keeps that output out of `data`.
+
+**`tb wrap` is deliberately not an exception even so** — it carries parsed data only, and a tool
+that printed something else has failed its contract. See [[text-reads]].
 
 **Gotcha:** never `from cli.<mod> import <same_name>` in `cli/__init__.py` — it rebinds the package
 attribute from the module to the Command and shadows the module. Import under an alias.
