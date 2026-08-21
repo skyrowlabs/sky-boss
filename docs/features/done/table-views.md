@@ -1,14 +1,17 @@
 ---
-status: active
+status: complete
 created: 2026-08-20
 updated: 2026-08-20
-agent_value: 2
+agent_value: 3
 key_files:
   - cli/view.py
   - cli/wrap.py
   - cli/output.py
   - cli/canvas/static/render.js
+  - cli/canvas/static/tb.css
   - tests/test_view.py
+  - tests/test_wrap.py
+  - tests/test_output.py
 ---
 
 # Table views — shaping a foreign CLI's JSON into a table worth reading
@@ -209,3 +212,62 @@ the moment tools existed, saved column sets existed too — with no view store, 
 format, and no edit to this feature at all. **A flag composes with a mechanism that saves argvs; a
 bespoke persistence layer would not have.** Worth remembering the next time something here is
 tempted to grow its own file.
+
+### Round 1 — what shipped, and what the implementation argued back (2026-08-20)
+
+Four of the six rules survived contact unchanged. The other two were wrong in
+ways only visible once there was output to look at.
+
+**"Push prose columns last" was wrong, and the budget made it worse.** The rule
+reads sensibly — prose eats width, so move it out of the way — and on a real
+pull-request table it moves `title` to the far right, where the column budget
+then hides it. The table you are left with identifies its rows by number alone.
+The fix is that the *first* prose column is the row's label and keeps its place;
+only the second and later ones move. `_label_of` in `cli/output.py` has treated
+the first string field as the label since long before this, so the corrected
+rule is one tb already believed.
+
+**Rich's `ratio` and `min_width` are mutually exclusive, undocumentedly so.**
+The first implementation handed `flex` straight to Rich as a column `ratio` and
+set `min_width` to the header length. Headers still truncated. Rich's ratio
+distribution builds its floor from `column.width or 1` and never consults
+`min_width`, so a weight-1 column is free to render at four characters —
+`MERGE_STATE` as `ME…`. Widths are resolved against the console in
+`_render_columns` instead, six lines of arithmetic.
+
+That bug produced the more useful rule underneath it: **a truncated value is a
+readable table with a detail elided; a truncated header is a column you cannot
+identify at all.** So every column now carries a `min` — its own label, capped
+— and the floor lives in the view rather than in either renderer, because both
+need it for the same reason and two copies would drift.
+
+**The fixture is synthetic and that was not laziness.** The obvious move was to
+paste a real `jam pr list --json` row in as a fixture. Real rows carry branch
+names and repository paths belonging to this operator, and nothing
+operator-specific goes in a tracked file. The fixture reproduces the *shape* —
+fourteen fields, a digest, an always-null column, a nested dict, two columns of
+prose — which is the whole of what is under test. Real rows were used to check
+the result, at a terminal, and not committed.
+
+**`summariseMapping` is duplicated in JavaScript, knowingly.** It is the only
+piece of `cli/view.py` with a second implementation. The alternative is putting
+the rendered string in the envelope, and that would make a view a
+*transformation* of `data` rather than a description of it — the one property
+the whole feature rests on. Four lines that have to agree is the cheaper price,
+and the comment in `render.js` says so at the site.
+
+**Still imperfect, deliberately.** On the real fourteen-field jam row the
+budget of eight still hides `checks`, which is one of the columns worth seeing.
+No heuristic that ranks columns by usefulness would be honest — it would be
+guessing at intent — so the answer is `--cols`, and the warning names exactly
+what went missing so you know to reach for it. Predictable beats clever here;
+a table that hides a different column each run would be worse than one that
+hides a known column every run.
+
+**Verification.** The frontend still has no test runner, so `render.js` was
+checked by rendering it headless against a fabricated envelope and reading the
+DOM back — the harness was built outside the repo, because
+`cli/canvas/static/` is *served*, and two scratch pages once lived there with a
+live token baked in. Then end to end against a live server: the catalog offers
+the three flags as chips, `wrap` stays `acts: false` so a window may still be
+pinned, and `/api/run` returns a view with `data` intact.
