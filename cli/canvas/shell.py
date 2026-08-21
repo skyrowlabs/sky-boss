@@ -135,6 +135,28 @@ def _name_the_window() -> None:
         pass
 
 
+def close_window() -> None:
+    """Close the window from another thread.
+
+    The counterpart to `on_closed`, and it was missing. Closing the *window*
+    told the server to stop; nothing told the *window* to stop when the server
+    was asked to, so the surface's own close button killed the server and left
+    a dead window on screen with the process still running. The browser modes
+    never showed it: one has no window, and the other terminates a child
+    process it can see.
+
+    Idempotent and silent — it races the ordinary close path by design, and
+    both arriving is the normal case rather than an error.
+    """
+    try:
+        import webview
+
+        for window in list(webview.windows):
+            window.destroy()
+    except Exception:
+        pass
+
+
 def open_window(url: str, *, title: str, width: int, height: int, on_closed) -> None:
     """Open the canvas and block until the window closes.
 
