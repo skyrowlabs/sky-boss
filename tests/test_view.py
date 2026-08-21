@@ -237,3 +237,17 @@ def test_a_column_missing_from_some_rows_is_still_seen():
     thing that must not be lost."""
     rows = [{"a": 1}, {"a": 2, "error": "boom"}]
     assert "error" in keys(shape(rows))
+
+
+def test_a_column_is_never_narrower_than_its_own_header(rows):
+    """A truncated value is a readable table with a detail elided. A truncated
+    header is a column you cannot identify at all — `ME…` could be merge_state
+    or metadata, and no amount of squinting at the values will say which."""
+    view = shape(rows, budget=99)
+    assert column(view, "merge_state")["min"] == len("MERGE_STATE")
+
+
+def test_the_header_floor_is_capped(rows):
+    """One pathologically long key must not squeeze every other column out."""
+    view = shape([{"a_really_quite_long_field_name": 1, "b": 2}])
+    assert column(view, "a_really_quite_long_field_name")["min"] == 14
