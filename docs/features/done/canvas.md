@@ -1,5 +1,5 @@
 ---
-status: active
+status: complete
 created: 2026-08-20
 updated: 2026-08-20
 agent_value: 3
@@ -427,3 +427,55 @@ counting the sleep before the button was pressed. Timed from the press, quit to 
 And `pgrep -f "m cli ui --port 8796"` matches the shell command *containing* that string, so a
 liveness check written that way reports its own caller as the process it is looking for, and every
 run says the process survived.
+
+### Round 5 — reading the second mockup against the build (2026-08-20)
+
+`Tackle Box Surface.dc.html` is data-bound rather than drawn — `sc-for`, `sc-if`
+and `{{ }}` over the same window model this already has — which makes it
+readable as a specification. Read against `app.js`, most of it turned out to be
+built: `win.num`, tags, pin and interval, `⟳`, `✕`, palette fixed and floating,
+tiled and floating, the clock, and all four counters.
+
+**One planned item did not exist to build.** The round was written claiming the
+window footer threw `summarise()` away. It does not, and never did —
+`app.js` has rendered it on the left with `duration_s` on the right since Round
+1. The claim was written from the mockup rather than from the file, which is the
+exact failure `CLAUDE.md` opens by warning about. Only the dim on the hint half
+was real work.
+
+**The progress bar had to be given a meaning before it could be built.** The
+mockup carries `hasProgress`, `progress` and `progressLabel` and never says what
+fills them, and the obvious reading — a bar for a running command — is not
+available: a subprocess has no percentage, and a bar that animates to look busy
+is decoration that reads as information. A *watcher* has one, because `interval`
+and `last_run` are both known. So the bar is time-to-next-refresh, shown only
+while pinned with a cadence and not mid-run, and the title bar keeps saying
+"running…" for the case with nothing to measure.
+
+It reads the label clock, which is throttled in a hidden page. That is correct
+and is what the Round 1 split bought: the *refresh* clock is in Python keyed to
+the connection, so a throttled bar lags behind a refresh that still happened on
+time. A stale bar is a cosmetic bug; a throttled scheduler would be a silent one.
+
+**The mockup was overruled once.** It wraps the chips row in
+`<sc-if value="{{ w.pinned }}">`. Following that would mean pinning a window you
+did not want pinned in order to toggle a flag on it, which is a mockup
+convenience rather than a rule. The `LINKED` label shipped; the gate did not.
+
+**A bug only a screenshot would have found.** `.grid.shaped` sets flex rows, but
+`.grid` was still `display: table`, and a table sizes to its content — so the
+rows were measured against the widest row rather than against the window. The
+columns clipped correctly *and* the table overflowed sideways, which reads as
+broken clipping when the container is what is wrong. Reading the DOM back would
+never have caught it: every element was present and every style was applied.
+It took rendering the page and looking at it.
+
+**Cushion.** The app's padding *is* the window's margin — the shell is frameless,
+so there is no title bar or border outside it to give the content room. Widened,
+along with the gaps between panels.
+
+**Deferred.** The sidebar is a card below the top bar rather than a flush panel
+beside it, where the mockup puts it. The bar is the window's title bar and calls
+`begin_move_drag`; narrowing it to reach the top-left corner would trade drag
+area for alignment. Worth revisiting only if the alignment turns out to matter
+more than the drag width.
