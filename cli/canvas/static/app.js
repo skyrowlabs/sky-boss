@@ -243,9 +243,35 @@ function Palette({ commands, query, setQuery, selected, setSelected, open, float
 
 // --------------------------------------------------------------------- window
 
+/* How far through this window's refresh interval we are.
+ *
+ * The mockup carries `hasProgress` / `progress` / `progressLabel` and does not
+ * say what fills them. A *running command* cannot: a subprocess has no
+ * percentage, and a bar that animates to look busy is decoration pretending to
+ * be information. A *watcher* can — the interval and the last run are both
+ * known — so this is the one quantity a bar here can honestly show.
+ *
+ * null when there is nothing measurable: unpinned, no cadence, never run, or a
+ * run in flight. The title bar already says "running…".
+ *
+ * This reads `now`, which is the label clock and may be throttled to a crawl in
+ * a hidden page. That is fine and is the point of the split: the *refresh*
+ * clock lives in Python keyed to the connection, so a throttled bar lags behind
+ * a refresh that still happened on time. A stale bar is a cosmetic bug; a
+ * throttled scheduler would be a silent one.
+ */
+function progressOf(win, now) {
+  if (!win.pinned || !win.interval || !win.ranAt || win.running) return null;
+  const elapsed = (now - win.ranAt) / 1000;
+  const remaining = Math.max(0, Math.ceil(win.interval - elapsed));
+  const percent = Math.min(100, Math.max(0, (elapsed / win.interval) * 100));
+  return { remaining, percent };
+}
+
 function Window({ win, now, layout, focused, actions, intervals }) {
   const age = win.ranAt ? Math.round((now - win.ranAt) / 1000) : null;
   const failed = win.result && (win.result.error || win.result.ok === false);
+  const countdown = progressOf(win, now);
 
   const style =
     layout === FLOAT
@@ -289,7 +315,7 @@ function Window({ win, now, layout, focused, actions, intervals }) {
       ${win.chips.length > 0 &&
       html`
         <div class="chips">
-          <span class="label">FLAGS</span>
+          <span class="label">LINKED</span>
           ${win.chips.map(
             (chip) => html`
               <button
@@ -305,12 +331,20 @@ function Window({ win, now, layout, focused, actions, intervals }) {
         </div>
       `}
 
+      ${countdown !== null &&
+      html`
+        <div class="progress">
+          <div class="track"><div class="fill" style=${`width:${countdown.percent}%`}></div></div>
+          <span class="until">next in ${countdown.remaining}s</span>
+        </div>
+      `}
+
       <div class="body"><${Body} result=${win.result} /></div>
 
       <div class="foot">
         <span>${summarise(win.result)}</span>
         <div class="spacer"></div>
-        <span>
+        <span class="hint">
           ${win.result && win.result.duration_s !== undefined ? `${win.result.duration_s}s` : ""}
         </span>
       </div>
