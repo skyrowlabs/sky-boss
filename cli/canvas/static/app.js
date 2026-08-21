@@ -138,6 +138,46 @@ function useNow() {
   return Date.now();
 }
 
+/* The toolbox: the operator's saved commands, down the left.
+ *
+ * It is not a second list of commands. These come from the same /api/catalog
+ * every other surface reads, filtered on `saved` — a property the *command*
+ * carries, so a tool that stops existing stops appearing here with no code
+ * involved. See docs/features/toolbox.md.
+ */
+function Toolbox({ commands, open }) {
+  const saved = commands.filter((c) => c.saved);
+  return html`
+    <div class="toolbox">
+      <div class="toolbox-head">TOOLBOX</div>
+      <div class="toolbox-list">
+        ${saved.length === 0 &&
+        html`<div class="toolbox-empty">
+          nothing saved yet — declare a tool in tools.toml
+        </div>`}
+        ${saved.map(
+          (c) => html`
+            <button
+              key=${c.name}
+              class="tool"
+              title=${c.summary || c.name}
+              onClick=${() => open(c, c.name, { interval: c.every })}
+            >
+              <span class="tool-name">${c.name}</span>
+              ${c.every > 0 && html`<span class="tool-every">${c.every}s</span>`}
+              ${c.acts && html`<span class="tool-acts" title="acts — never refreshed">!</span>`}
+            </button>
+          `
+        )}
+      </div>
+      <!-- An expression, not markup: htm does not decode HTML entities, so a
+           literal &lt; here renders as the four characters "&lt;" on screen.
+           Angle brackets inside a template have to arrive as a string. -->
+      <div class="toolbox-foot">${"tb <tool>"}</div>
+    </div>
+  `;
+}
+
 // --------------------------------------------------------------------- palette
 
 function Palette({ commands, query, setQuery, selected, setSelected, open, floating, close }) {
@@ -375,7 +415,7 @@ function App() {
       );
   }
 
-  function open(entry, typed) {
+  function open(entry, typed, initial) {
     /* Anything typed past the command name is argv. `run -- jam pr list --json`
      * has to reach the server whole; splitting it here would be a second
      * parser, and tb's own is the one that decides what an argv means. */
@@ -394,8 +434,12 @@ function App() {
         .filter((o) => o.is_flag)
         .map((o) => ({ flag: o.flag, help: o.help, on: false })),
       tags: [],
-      pinned: false,
-      interval: 0,
+      /* A tool may declare the cadence it opens on. Pinning it here rather
+       * than leaving it to a click is the whole point of saving it: the
+       * window you wanted is the window you get. Only a read can carry one —
+       * `every` is refused at load on a tool that acts. */
+      pinned: Boolean(initial && initial.interval),
+      interval: (initial && initial.interval) || 0,
       result: null,
       running: false,
       ranAt: null,
@@ -413,6 +457,9 @@ function App() {
     setFloating(false);
     setFocus(id);
     execute(id, argvOf(win));
+    /* Registered now rather than on the next session frame, so a tool that
+     * opens pinned starts its clock immediately instead of on the next tick. */
+    if (win.pinned) reWatch(win);
   }
 
   function patch(id, change) {
@@ -566,6 +613,8 @@ function App() {
         />
       `}
 
+      <div class="body">
+      <${Toolbox} commands=${commands} open=${open} />
       <div class=${`canvas ${layout}`} ref=${canvas}>
         ${windows.length === 0 &&
         html`<div class="empty">no windows open — run a command to open one</div>`}
@@ -580,6 +629,7 @@ function App() {
             intervals=${intervals}
           />`
         )}
+      </div>
       </div>
 
       <div class="foot-bar">

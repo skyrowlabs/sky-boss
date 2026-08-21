@@ -123,9 +123,12 @@ Already built, confirmed against `app.js` — `win.num`, `win.tags` with `＋tag
 interval controls, `⟳`, `✕`, palette fixed vs floating, tiled vs floating, the clock, and the
 tasks / windows / watchers / attention counters. This round is the remainder.
 
-- [ ] **TOOLBOX sidebar.** 184px, header `TOOLBOX`, footer `tb <tool>`. Lists catalog entries where
+- [x] **TOOLBOX sidebar.** 184px, header `TOOLBOX`, footer `tb <tool>`. Lists catalog entries where
       `tb_saved`; clicking one opens its window and takes its `every` as the starting interval.
-      The data behind it is [[toolbox]]; the chrome is here.
+      The data behind it is [[toolbox]]; the chrome is here. Shipped with [[toolbox]] Round 1, as a
+      card *below* the top bar rather than a flush panel beside it — the bar is the window's title
+      bar and calls `begin_move_drag`, so narrowing it would trade drag area for alignment with the
+      mockup. Revisit here if the alignment turns out to matter more than the drag width.
 - [ ] **Window footer** — `footer` and a dim right-aligned `footerHint`. `summarise()` in
       `render.js` already computes the left half ("14 rows", "partial", "failed") and it is
       currently thrown away.

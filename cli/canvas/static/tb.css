@@ -149,6 +149,45 @@ body {
 
 /* ------------------------------------------------------------------- canvas */
 
+/* ------------------------------------------------------------------ toolbox */
+
+/* The sidebar sits *below* the top bar rather than beside it, which is where
+ * the mockup puts it. The bar is the window's title bar — it is what calls
+ * begin_move_drag — so narrowing it to make room would trade drag area for
+ * alignment. It is also a card here rather than a flush panel, because that is
+ * this surface's own visual language. Chrome refinements belong to [[canvas]]
+ * Round 5; this is the shape that keeps the drag handle whole. */
+.body { display: flex; flex: 1; gap: 1.5rem; min-height: 0; }
+
+.toolbox {
+  flex: none; width: 46rem; display: flex; flex-direction: column;
+  border: var(--hair) solid var(--tb-hair); border-radius: var(--r-md);
+  background: var(--tb-surface); overflow: hidden;
+}
+.toolbox-head {
+  flex: none; padding: 2.5rem 3rem; color: var(--tb-brand);
+  font-weight: 700; letter-spacing: .16em; font-size: 2.75rem;
+  border-bottom: var(--hair) solid var(--tb-hair);
+}
+.toolbox-list { flex: 1; overflow: auto; padding: 1.5rem 0; }
+.toolbox-empty { padding: 1.5rem 3rem; color: var(--tb-text-3); line-height: 1.5; }
+.toolbox-foot {
+  flex: none; padding: 2.5rem 3rem; color: var(--tb-text-3);
+  border-top: var(--hair) solid var(--tb-hair);
+}
+
+.tool {
+  display: flex; align-items: center; gap: 2rem; width: 100%;
+  padding: 1.5rem 3rem; background: none; border: none; cursor: pointer;
+  color: var(--tb-text); font: inherit; text-align: left;
+}
+.tool:hover { background: color-mix(in srgb, var(--tb-brand) 10%, transparent); }
+.tool-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tool-every { flex: none; color: var(--tb-brand); }
+/* A tool that writes. It can never carry a cadence, and the marker is there so
+ * that is visible before you click rather than after. */
+.tool-acts { flex: none; color: var(--tb-warn); font-weight: 700; }
+
 .canvas { flex: 1; overflow: auto; position: relative; padding: 2.5rem 0; }
 .canvas.tile {
   display: grid; grid-template-columns: repeat(auto-fill, minmax(115rem, 1fr));

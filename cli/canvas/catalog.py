@@ -94,6 +94,9 @@ def walk(command: click.Command, path: tuple[str, ...] = ()) -> list[dict]:
             # in this module is the beginning of the command table the whole
             # design refuses to keep. The sidebar filters on this.
             "saved": getattr(command, "tb_saved", False),
+            # A saved command may declare the cadence it wants to open on.
+            # Zero for everything else, which is what a window starts at now.
+            "every": getattr(command, "tb_every", 0),
         }
     ]
 
