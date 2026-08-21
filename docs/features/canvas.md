@@ -129,21 +129,22 @@ tasks / windows / watchers / attention counters. This round is the remainder.
       card *below* the top bar rather than a flush panel beside it — the bar is the window's title
       bar and calls `begin_move_drag`, so narrowing it would trade drag area for alignment with the
       mockup. Revisit here if the alignment turns out to matter more than the drag width.
-- [ ] **Window footer** — `footer` and a dim right-aligned `footerHint`. `summarise()` in
-      `render.js` already computes the left half ("14 rows", "partial", "failed") and it is
-      currently thrown away.
-- [ ] **Refresh countdown as the progress bar.** The mockup carries `hasProgress` / `progress` /
+- [x] **Window footer** — **already existed.** `app.js` has rendered `summarise()` on the left and
+      `duration_s` on the right since Round 1; the claim that it was thrown away was written
+      without checking. All this round did was dim the right half, as the mockup draws it.
+- [x] **Refresh countdown as the progress bar.** The mockup carries `hasProgress` / `progress` /
       `progressLabel` and does not say what fills them. A running command cannot: a subprocess has
       no percentage and a bar that animates to look busy is decoration pretending to be
       information. **A watcher can** — `interval` and `last_run` are both known, so the bar is time
       until the next refresh and the label is `next in 12s`. Determinate, honest, and it answers
       the question a pinned window actually raises. Shown only when pinned with a non-zero
       interval; `hasProgress` is false otherwise.
-- [ ] **Label the chips row `LINKED`.** Cheap and it names something currently unnamed.
-- [ ] **Decide whether chips gate on `pinned`.** The mockup wraps the row in
-      `<sc-if value="{{ w.pinned }}">`; today chips render whenever the command has options. Gating
-      would mean an unpinned window cannot be re-filtered, which looks like a regression rather
-      than a rule — resolve before building, and record the answer in Notes either way.
+- [x] **Label the chips row `LINKED`.** Cheap and it names something currently unnamed.
+- [x] **Decide whether chips gate on `pinned`.** Resolved: they do not. The mockup wraps the row
+      in `<sc-if value="{{ w.pinned }}">`, and following it would mean pinning a window you did not
+      want pinned just to toggle a flag on it. The label ships; the gate does not.
+- [x] More cushion between the frame and the panels — the shell is frameless, so the app's padding
+      *is* the window margin and there is no border outside it to give the content room.
 
 ### Round 4 — a native window (2026-08-20)
 

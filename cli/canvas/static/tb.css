@@ -50,7 +50,10 @@ body {
 
 #root { height: 100%; }
 
-.app { display: flex; flex-direction: column; height: 100%; padding: 1.5rem; gap: 1.5rem; }
+/* The cushion between the window frame and the panels. Generous on purpose:
+ * the shell is frameless, so this padding *is* the window's margin — there is
+ * no title bar or border outside it to give the content room. */
+.app { display: flex; flex-direction: column; height: 100%; padding: 4rem; gap: 3rem; }
 
 /* ------------------------------------------------------------------ top bar */
 
@@ -157,7 +160,7 @@ body {
  * alignment. It is also a card here rather than a flush panel, because that is
  * this surface's own visual language. Chrome refinements belong to [[canvas]]
  * Round 5; this is the shape that keeps the drag handle whole. */
-.body { display: flex; flex: 1; gap: 1.5rem; min-height: 0; }
+.body { display: flex; flex: 1; gap: 3rem; min-height: 0; }
 
 .toolbox {
   flex: none; width: 46rem; display: flex; flex-direction: column;
@@ -286,6 +289,12 @@ body {
  * a character count was rejected: a window is draggable, so it has no fixed
  * width for one to mean anything against. The floor arrives as `ch`, which
  * scales with the font and so with --tb-scale like everything else. */
+/* `block`, not the `table` the unshaped grid uses. A table sizes to its
+ * content, so the flex rows inside one are measured against the widest row
+ * rather than against the window — the columns shrink correctly and the table
+ * still overflows sideways, which looks like the clipping is broken when it is
+ * the container that is wrong. */
+.grid.shaped { display: block; }
 .grid.shaped .row { display: flex; gap: 3rem; }
 .grid.shaped .row > span {
   display: block; overflow: hidden; text-overflow: ellipsis; padding: 0.25rem 0;
@@ -316,8 +325,26 @@ pre.raw {
 .foot {
   display: flex; align-items: center; gap: 2.5rem; flex: none;
   padding: 1rem 2.25rem; border-top: var(--hair) solid var(--tb-hair);
-  color: var(--tb-text-3); font-size: 2.75rem;
+  color: var(--tb-text-2); font-size: 2.75rem;
 }
+/* The right half is the quieter one, as the mockup draws it. */
+.foot .hint { color: var(--tb-text-3); }
+
+/* Time until this watcher fires again. Brand rather than warn: the top bar
+ * already counts WATCHERS in brand, and a countdown is not a warning. */
+.progress {
+  display: flex; align-items: center; gap: 2.5rem; flex: none;
+  padding: 2rem 2.25rem 0;
+}
+.progress .track {
+  position: relative; flex: 1; height: 1.5rem; border-radius: 100px;
+  background: var(--tb-surface-2); overflow: hidden;
+}
+.progress .fill {
+  position: absolute; left: 0; top: 0; bottom: 0;
+  background: var(--tb-brand); border-radius: 100px;
+}
+.progress .until { flex: none; color: var(--tb-text-3); font-size: 2.75rem; white-space: nowrap; }
 
 .resize {
   position: absolute; right: 0; bottom: 0; width: 3.5rem; height: 3.5rem;
