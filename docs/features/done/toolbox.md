@@ -1,5 +1,5 @@
 ---
-status: active
+status: complete
 created: 2026-08-20
 updated: 2026-08-20
 agent_value: 3
@@ -9,7 +9,10 @@ key_files:
   - cli/__init__.py
   - cli/canvas/catalog.py
   - cli/canvas/static/app.js
+  - cli/canvas/static/tb.css
+  - tools.example.toml
   - tests/test_tools.py
+  - tests/conftest.py
 ---
 
 # The toolbox — commands the operator saves
@@ -158,3 +161,52 @@ module.** A name in a skip-list is the beginning of the command table this desig
 
 ## Notes
 
+### Round 1 — what shipped, and the claim that did not survive (2026-08-20)
+
+The model held exactly as designed: a tool is a name plus a tb argv, registered
+onto the Click tree, and `tb jam-pr-list`, `tb --help`, shell completion and the
+palette all worked the moment registration did. The four rules earned their
+keep — a `[tool.run]` and a `["docker", "ps"]` were both in the first real
+`tools.toml` written by hand, and both were refused and named.
+
+**"`catalog.py` is untouched" was too strong, and one of the two lines it
+actually needed was a safety hole.** The Shape table originally claimed the
+palette would find a tool with no change to `cli/canvas/catalog.py` at all. The
+first line is benign: `saved` has to reach the sidebar somehow, and it is read
+off the command object exactly the way `tb_surface` is.
+
+The second is the interesting one. `acts` was computed as
+`path[:1] == ("run",)` — correct for every command that existed when it was
+written, and **wrong for a saved command by construction**, because the path of
+`tb deploy-thing` is one word and the `run` hiding inside it is invisible from
+there. Left alone, a tool wrapping `tb run` would have come back `acts: false`
+and the canvas would have offered a refresh cadence on a write. That is the
+exact failure the read/write split exists to prevent, arriving through the
+feature that was supposed to inherit the split rather than break it.
+
+The invariant the claim was *protecting* survived intact: nothing keeps a
+command table, and neither line names a command. What was wrong was the
+strength of the claim, not the design. A property read off a command object is
+still a property read off a command object even when a second one is needed.
+
+**Two smaller ones.** `htm` does not decode HTML entities, so `tb &lt;tool&gt;`
+in a template renders those four characters on screen rather than `tb <tool>`;
+angle brackets have to arrive as a string expression. Caught only by reading the
+DOM back, which is the argument for doing that at all.
+
+And the test asserting the shipped example names no home directory was written
+against the file *text*, where it immediately failed on a comment saying
+`~/.config/tb/tools.toml`. Naming the XDG default is documentation; the rule is
+about paths a real machine has. The test now parses the example and checks the
+*argvs*, which is the thing that could leak.
+
+**`TB_HOME` isolation matters more than `TB_STATE`'s.** A tool is an argv tb
+will run, so a suite that read the real home would register the operator's own
+commands into the tree under test, and `tb --help` would differ between two
+machines running the same suite. `tests/conftest.py` redirects it before
+anything imports `cli`, for the same reason and at the same point.
+
+**Not built, and still not wanted:** anything that writes. No `tb tool add`, no
+`POST /api/tools`, no save button. The argument in Shape rule 4 is unchanged by
+having built the read half — if anything it is stronger now that a tool is
+demonstrably an argv tb will execute on a cadence.
