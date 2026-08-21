@@ -187,7 +187,7 @@ change at all** — `app.js` already treats everything past the command name as 
 - [x] `Result` gains an optional `view`; `to_dict` omits the key when unset, so existing envelopes
       and the stdout-purity test are untouched.
 - [x] `wrap` computes the view and attaches it. `data` unchanged — asserted by a test.
-- [ ] `_render_columns` in `cli/output.py` honours a view when present, first-seen order when not.
+- [x] `_render_columns` in `cli/output.py` honours a view when present, first-seen order when not.
 - [ ] `Table` in `render.js` honours a view when present. Full text of a clipped cell in `title`.
 - [x] `--cols` / `--drop` / `--no-shape` on `wrap`.
 - [x] Hidden columns reported as a warning naming them.

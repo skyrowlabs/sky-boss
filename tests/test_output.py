@@ -441,3 +441,86 @@ def test_a_view_rides_beside_the_data_rather_than_filtering_it():
     envelope = Result(command="x", data=rows, view={"columns": [{"key": "a"}], "hidden": ["b"]}).to_dict()
     assert envelope["data"] == rows
     assert envelope["view"]["hidden"] == ["b"]
+
+
+def test_a_view_selects_and_orders_the_columns(capsys):
+    render(
+        Result(
+            "x",
+            data=[{"a": 1, "b": 2, "c": 3}],
+            view={
+                "columns": [
+                    {"key": "c", "label": "C", "flex": 1, "min": 1},
+                    {"key": "a", "label": "A", "flex": 1, "min": 1},
+                ],
+                "hidden": ["b"],
+            },
+        ),
+        as_json=False,
+    )
+    body = _body(capsys.readouterr().out)
+    assert body[0].split() == ["C", "A"]
+    assert "2" not in body[1]
+
+
+def test_a_view_summarises_a_nested_dict_into_one_cell(capsys):
+    render(
+        Result(
+            "x",
+            data=[{"checks": {"passed": 2, "failed": 0, "skipped": 7}}],
+            view={
+                "columns": [
+                    {"key": "checks", "label": "CHECKS", "flex": 3, "min": 6, "summarise": True}
+                ],
+                "hidden": [],
+            },
+        ),
+        as_json=False,
+    )
+    assert "passed=2 skipped=7" in _body(capsys.readouterr().out)[1]
+
+
+def test_no_view_renders_exactly_as_it_always_did(capsys):
+    """tb's own commands must be untouched by any of this — their fields were
+    chosen by whoever wrote the command."""
+    render(Result("x", data=[{"a": 1, "b": 2}]), as_json=False)
+    assert _body(capsys.readouterr().out)[0].split() == ["A", "B"]
+
+
+def test_a_column_is_never_squeezed_below_its_header(capsys):
+    """Rich's ratio distribution builds its floor from `column.width or 1` and
+    ignores `min_width`, so a proportional column can be crushed below its own
+    label — `MERGE_STATE` as `ME…`, a column you cannot identify. The widths
+    are resolved here instead, and this is what says so."""
+    from cli.output import capture
+
+    with capture(width=40, redirect=False) as captured:
+        render(
+            Result(
+                "x",
+                data=[{"merge_state": "CLEAN", "title": "x" * 200}],
+                view={
+                    "columns": [
+                        {"key": "merge_state", "label": "MERGE_STATE", "flex": 1, "min": 11},
+                        {"key": "title", "label": "TITLE", "flex": 5, "min": 5},
+                    ],
+                    "hidden": [],
+                },
+            ),
+            as_json=False,
+        )
+    assert "MERGE_STATE" in captured.text
+
+
+def test_a_view_outranks_the_status_list_convention(capsys):
+    """`ok` in every row normally picks the glyph rendering. An explicit view
+    looked at all the rows; the convention looked at one field."""
+    render(
+        Result(
+            "x",
+            data=[{"ok": True, "name": "one"}],
+            view={"columns": [{"key": "name", "label": "NAME", "flex": 1, "min": 4}], "hidden": ["ok"]},
+        ),
+        as_json=False,
+    )
+    assert _body(capsys.readouterr().out)[0].split() == ["NAME"]

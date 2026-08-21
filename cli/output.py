@@ -26,6 +26,7 @@ from rich.text import Text
 from rich.theme import Theme
 
 from cli.theme import STYLES
+from cli.view import resolve, summarise_mapping
 
 # Rendered in place of a missing value in a table cell.
 EMPTY = "-"
@@ -294,7 +295,7 @@ def _render_human(result: Result) -> None:
     elif result.partial:
         _err().print(f"[tb.warn]{UNKNOWN_GLYPH} {result.command} — partial[/tb.warn]")
 
-    _render_value(result.data, title=result.command or None)
+    _render_value(result.data, title=result.command or None, view=result.view)
 
 
 def _header(title: str | None, subtitle: str | None = None) -> None:
@@ -308,7 +309,7 @@ def _header(title: str | None, subtitle: str | None = None) -> None:
     _out().print()
 
 
-def _render_value(value: Any, title: str | None = None) -> None:
+def _render_value(value: Any, title: str | None = None, view: dict | None = None) -> None:
     if value is None:
         return
     if isinstance(value, str):
@@ -322,7 +323,7 @@ def _render_value(value: Any, title: str | None = None) -> None:
         _header(title, _plural(len(value), "section") if _is_nested(value) else None)
         _render_mapping(value)
     elif isinstance(value, (list, tuple)):
-        _render_sequence(list(value), title=title)
+        _render_sequence(list(value), title=title, view=view)
     else:
         click.echo(str(value))
 
@@ -381,7 +382,7 @@ def _is_block(value: Any) -> bool:
     )
 
 
-def _render_sequence(items: list, title: str | None = None) -> None:
+def _render_sequence(items: list, title: str | None = None, view: dict | None = None) -> None:
     if not items:
         return
     if not all(isinstance(item, dict) for item in items):
@@ -390,10 +391,13 @@ def _render_sequence(items: list, title: str | None = None) -> None:
             _out().print(Text("  ").append_text(_styled_value(item)))
         return
 
-    if all("ok" in item for item in items):
+    # A view is an explicit instruction about columns, so it outranks the
+    # status-list convention even when every row happens to carry `ok`. The
+    # heuristic looked at these rows; the convention only looked at one field.
+    if view is None and all("ok" in item for item in items):
         _render_status_list(items, title)
     else:
-        _render_columns(items, title)
+        _render_columns(items, title, view=view)
 
 
 def _render_status_list(rows: list[dict], title: str | None) -> None:
@@ -451,15 +455,56 @@ def _label_of(row: dict) -> Any:
     return next(iter(row.values()), "")
 
 
-def _render_columns(rows: list[dict], title: str | None, indent: int = 0) -> None:
-    """Borderless aligned columns for rows with no single status."""
+def _render_columns(
+    rows: list[dict], title: str | None, indent: int = 0, view: dict | None = None
+) -> None:
+    """Borderless aligned columns for rows with no single status.
+
+    Without a view this is what it always was: every key of every row, in
+    first-seen order, at equal width. That is right for data whose fields a
+    person chose, and it is what tb's own commands still get.
+
+    With one, the columns and their relative widths were decided in cli/view.py
+    and this only draws them — `no_wrap` with ellipsis overflow is what stops a
+    78-character title folding a one-row table into twelve lines.
+
+    The flex weights are resolved to absolute widths *here* rather than handed
+    to Rich as `ratio`. Rich's ratio distribution builds its floor from
+    `column.width or 1` and ignores `min_width` completely, so a ratio column
+    can be squeezed below its own header — `MERGE_STATE` rendering as `ME…`,
+    which is a column you cannot identify at all. Doing the arithmetic against
+    the console width costs six lines and honours the floor.
+    """
+    _header(title, _plural(len(rows), "row"))
+
+    if view:
+        table = Table(
+            box=None,
+            show_header=True,
+            header_style="tb.label",
+            pad_edge=False,
+            padding=(0, 3, 0, 0),
+            expand=True,
+        )
+        widths = _resolve_widths(view["columns"], _out().width - indent)
+        for column, width in zip(view["columns"], widths):
+            table.add_column(
+                column["label"],
+                justify=column.get("align", "left"),
+                width=width,
+                no_wrap=True,
+                overflow="ellipsis",
+            )
+        for row in rows:
+            table.add_row(*(_view_cell(row, column) for column in view["columns"]))
+        _out().print(Padding(table, (0, 0, 0, indent)) if indent else table)
+        return
+
     columns: list[str] = []
     for row in rows:
         for key in row:
             if key not in columns:
                 columns.append(key)
-
-    _header(title, _plural(len(rows), "row"))
 
     table = Table(box=None, show_header=True, header_style="tb.label", pad_edge=False, padding=(0, 3, 0, 0))
     for col in columns:
@@ -467,6 +512,46 @@ def _render_columns(rows: list[dict], title: str | None, indent: int = 0) -> Non
     for row in rows:
         table.add_row(*(_styled_value(row.get(col), col) for col in columns))
     _out().print(Padding(table, (0, 0, 0, indent)) if indent else table)
+
+
+# The right-hand padding each column carries, from the Table construction
+# above. Counted rather than guessed, because it is what separates a table that
+# fits from one that wraps at the last column.
+_COLUMN_PADDING = 3
+
+
+def _resolve_widths(columns: list[dict], available: int) -> list[int]:
+    """Flex weights as absolute character widths, never below a column's floor.
+
+    Every column starts at its floor — its own header, so no column is ever
+    unidentifiable — and whatever is left over is shared out in proportion to
+    the weights. If the floors alone do not fit, they are used anyway and the
+    table overflows: a table too wide for the terminal is a legible thing you
+    can widen, whereas a table of two-character stubs is not. The column budget
+    in cli/view.py is what keeps that case rare.
+    """
+    floors = [max(1, column.get("min", 1)) for column in columns]
+    spare = available - sum(floors) - _COLUMN_PADDING * len(columns)
+    if spare <= 0:
+        return floors
+
+    weights = [max(1, column.get("flex", 1)) for column in columns]
+    total = sum(weights)
+    return [
+        floor + (spare * weight) // total for floor, weight in zip(floors, weights)
+    ]
+
+
+def _view_cell(row: dict, column: dict) -> Text:
+    """One cell, as the view described it.
+
+    A dotted key only ever comes from `--cols`, so the lookup goes through
+    `resolve` either way rather than branching on whether it has a dot in it.
+    """
+    value = resolve(row, column["key"])
+    if column.get("summarise") and isinstance(value, dict):
+        return Text(summarise_mapping(value), style="tb.muted")
+    return _styled_value(value, column["key"])
 
 
 def _numeric_column(rows: list[dict], column: str) -> bool:

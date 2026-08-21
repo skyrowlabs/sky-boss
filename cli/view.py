@@ -41,6 +41,12 @@ OPAQUE_MIN = 32
 FLEX_UNIT = 12
 FLEX_MAX = 5
 
+# No column narrower than its own header, up to this. A truncated *value* is a
+# readable table with a detail elided; a truncated *header* is a column you
+# cannot identify at all, which is strictly worse. Capped so that one
+# pathologically long key cannot squeeze every other column out.
+LABEL_CAP = 14
+
 _HEX = re.compile(r"\A[0-9a-fA-F]+\Z")
 
 # Values that count as nothing. `0` and `False` are absent from this on
@@ -168,7 +174,16 @@ def _describe(key: str, rows: list[dict], *, dotted: bool = False) -> dict:
     values = [resolve(row, key) for row in rows] if dotted else _values(rows, key)
     mapping = _is_mapping(values)
     width = max([_cell_width(v) for v in values] + [len(key)])
-    column = {"key": key, "label": key.upper(), "flex": _flex(width)}
+    label = key.upper()
+    column = {
+        "key": key,
+        "label": label,
+        "flex": _flex(width),
+        # A floor, not a width. Both renderers apply it — Rich as `min_width`,
+        # the canvas as a `ch` min-width — because the reason for it is the
+        # same in both and a second opinion would drift.
+        "min": min(len(label), LABEL_CAP),
+    }
     if mapping:
         column["summarise"] = True
     if _is_numeric(values):
