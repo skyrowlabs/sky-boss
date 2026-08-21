@@ -126,9 +126,26 @@ def test_an_all_zero_mapping_renders_a_marker_not_an_empty_cell():
     assert summarise_mapping({"failed": 0, "pending": 0}) == "—"
 
 
-def test_prose_gets_more_width_than_a_number(rows):
+def test_prose_leaves_the_row_and_becomes_a_detail(rows):
+    """Round 1 tried to solve a 90-character title by *placing* it — push prose
+    last, keep the first one put. Round 2 stops giving it a share of the width
+    at all: a column you read gets its own line, and the columns you scan stay
+    narrow and aligned above it."""
     view = shape(rows, budget=99)
-    assert column(view, "title")["flex"] > column(view, "number")["flex"]
+    assert keys(view) == [k for k in keys(view) if k not in ("title", "next")]
+    assert [d["key"] for d in view["details"]] == ["title", "next"]
+
+
+def test_a_short_string_column_stays_inline(rows):
+    """The test is the value, not the name. A column called `title` holding
+    one-word statuses is a column you scan."""
+    view = shape([{"title": "CLEAN"}, {"title": "DIRTY"}])
+    assert keys(view) == ["title"]
+    assert view["details"] == []
+
+
+def test_a_number_keeps_the_narrowest_weight(rows):
+    view = shape(rows, budget=99)
     assert column(view, "number")["flex"] == 1
 
 
@@ -138,14 +155,14 @@ def test_a_numeric_column_is_right_aligned(rows):
     assert "align" not in column(view, "merge_state")
 
 
-def test_the_first_prose_column_keeps_its_place_and_later_ones_go_last(rows):
-    """The naive rule was "push prose last" and it was wrong: it moves `title`
-    to the end of a pull-request table, where a count budget then hides the one
-    column you identify a row by. The first string column is the row's label."""
-    view = shape(rows, budget=99)
-    order = keys(view)
-    assert order.index("title") < order.index("merge_state")
-    assert order[-1] == "next"
+def test_details_are_exempt_from_the_budget(rows):
+    """They cost a line each rather than a share of the width, so they are not
+    competing for the thing the budget rations. `next` was hidden by the budget
+    in Round 1 and is simply readable now."""
+    view = shape(rows, budget=2)
+    assert len(view["columns"]) == 2
+    assert [d["key"] for d in view["details"]] == ["title", "next"]
+    assert "next" not in view["hidden"]
 
 
 def test_the_budget_hides_the_tail_and_names_it(rows):
@@ -153,10 +170,10 @@ def test_the_budget_hides_the_tail_and_names_it(rows):
     table reads as complete when it is not."""
     view = shape(rows, budget=4)
     assert len(view["columns"]) == 4
-    assert "next" in view["hidden"]
-    # Everything the input had is either shown or named. Nothing vanishes.
-    shown_and_named = set(keys(view)) | set(view["hidden"])
-    assert shown_and_named == set(rows[0])
+    # Everything the input had is shown inline, shown as a detail, or named.
+    # Nothing vanishes without being accounted for somewhere.
+    accounted = set(keys(view)) | {d["key"] for d in view["details"]} | set(view["hidden"])
+    assert accounted == set(rows[0])
 
 
 def test_the_default_budget_is_applied(rows):

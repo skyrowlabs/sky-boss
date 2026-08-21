@@ -14,6 +14,7 @@ import functools
 import io
 import json
 import os
+import textwrap
 import threading
 from dataclasses import dataclass, field
 from typing import Any
@@ -30,6 +31,11 @@ from cli.view import resolve, summarise_mapping
 
 # Rendered in place of a missing value in a table cell.
 EMPTY = "-"
+
+# A shaped table is laid out by hand, so it needs its own bound. The surface has
+# had one since the terminal froze on a 120k-line result; the substrate changed
+# and the rule did not.
+MAX_TABLE_ROWS = 2000
 
 # The palette lives in cli/theme.py, so that this module, rich-click's --help
 # styling and the canvas's CSS cannot drift apart. Style *names* are the
@@ -478,26 +484,7 @@ def _render_columns(
     _header(title, _plural(len(rows), "row"))
 
     if view:
-        table = Table(
-            box=None,
-            show_header=True,
-            header_style="tb.label",
-            pad_edge=False,
-            padding=(0, 3, 0, 0),
-            expand=True,
-        )
-        widths = _resolve_widths(view["columns"], _out().width - indent)
-        for column, width in zip(view["columns"], widths):
-            table.add_column(
-                column["label"],
-                justify=column.get("align", "left"),
-                width=width,
-                no_wrap=True,
-                overflow="ellipsis",
-            )
-        for row in rows:
-            table.add_row(*(_view_cell(row, column) for column in view["columns"]))
-        _out().print(Padding(table, (0, 0, 0, indent)) if indent else table)
+        _render_view(rows, view, indent)
         return
 
     columns: list[str] = []
@@ -514,10 +501,10 @@ def _render_columns(
     _out().print(Padding(table, (0, 0, 0, indent)) if indent else table)
 
 
-# The right-hand padding each column carries, from the Table construction
-# above. Counted rather than guessed, because it is what separates a table that
-# fits from one that wraps at the last column.
-_COLUMN_PADDING = 3
+# The gutter between columns in a shaped table. Two rather than three: three
+# reads as generous until a foreign tool's tenth column is the one the budget
+# hides to pay for it.
+_COLUMN_PADDING = 2
 
 
 def _resolve_widths(columns: list[dict], available: int) -> list[int]:
@@ -531,15 +518,117 @@ def _resolve_widths(columns: list[dict], available: int) -> list[int]:
     in cli/view.py is what keeps that case rare.
     """
     floors = [max(1, column.get("min", 1)) for column in columns]
-    spare = available - sum(floors) - _COLUMN_PADDING * len(columns)
+    naturals = [max(floor, column.get("max", floor)) for floor, column in zip(floors, columns)]
+    gutters = _COLUMN_PADDING * max(0, len(columns) - 1)
+
+    # If every column can have the width it actually wants, give it that and
+    # leave the rest of the terminal empty. A table padded out to the full
+    # width to avoid looking unfinished is how `NUMBER` ends up eighteen
+    # characters wide with a three-digit number in it.
+    if sum(naturals) + gutters <= available:
+        return naturals
+
+    spare = available - sum(floors) - gutters
     if spare <= 0:
         return floors
 
     weights = [max(1, column.get("flex", 1)) for column in columns]
     total = sum(weights)
     return [
-        floor + (spare * weight) // total for floor, weight in zip(floors, weights)
+        min(natural, floor + (spare * weight) // total)
+        for floor, natural, weight in zip(floors, naturals, weights)
     ]
+
+
+def _render_view(rows: list[dict], view: dict, indent: int = 0) -> None:
+    """A shaped table, laid out by hand.
+
+    Rich's `Table` cannot do this: a detail line spans every column, and there
+    is no colspan. The widths were already being resolved here anyway — Rich's
+    `ratio` ignores `min_width`, which is why — so the remaining cost of owning
+    the layout is small and it buys the header rule, the detail lines and the
+    record spacing outright.
+    """
+    columns = view["columns"]
+    details = view.get("details") or []
+    widths = _resolve_widths(columns, _out().width - indent)
+    pad = " " * _COLUMN_PADDING
+    total = sum(widths) + _COLUMN_PADDING * max(0, len(columns) - 1)
+
+    # Detail lines start under the second column, so the identifier in the
+    # first stays the leftmost thing on the record and the prose hangs off it.
+    hang = (widths[0] + _COLUMN_PADDING) if widths else 0
+    body_width = max(20, _out().width - indent - hang)
+
+    def emit(text: Text) -> None:
+        _out().print(Padding(text, (0, 0, 0, indent)) if indent else text)
+
+    header = Text()
+    for i, (column, width) in enumerate(zip(columns, widths)):
+        if i:
+            header.append(pad)
+        last = i == len(columns) - 1
+        header.append(_fit(column["label"], width, column.get("align"), last), style="tb.label")
+    emit(header)
+    emit(Text("─" * total, style="tb.muted"))
+
+    for index, row in enumerate(rows[:MAX_TABLE_ROWS]):
+        line = Text()
+        for i, (column, width) in enumerate(zip(columns, widths)):
+            if i:
+                line.append(pad)
+            cell = _view_cell(row, column)
+            last = i == len(columns) - 1
+            line.append_text(_pad_text(cell, width, column.get("align"), last))
+        emit(line)
+
+        for column in details:
+            value = resolve(row, column["key"])
+            text = cellstr(value)
+            if not text or text == EMPTY:
+                continue
+            for chunk in textwrap.wrap(text, body_width) or [""]:
+                emit(Text(" " * hang + chunk, style="tb.muted"))
+
+        # Only when there is something hanging off the record. Without details
+        # the blank lines would be spacing a plain table apart for no reason.
+        if details and index < len(rows) - 1:
+            emit(Text(""))
+
+    if len(rows) > MAX_TABLE_ROWS:
+        emit(Text(f"{len(rows) - MAX_TABLE_ROWS} more rows not shown", style="tb.warn"))
+
+
+def _fit(text: str, width: int, align: str | None, last: bool = False) -> str:
+    clipped = text if len(text) <= width else text[: max(0, width - 1)] + "…"
+    if align == "right":
+        return clipped.rjust(width)
+    # The final column is not padded out: trailing spaces are invisible until
+    # someone selects the line or diffs the output, and then they are noise.
+    return clipped if last else clipped.ljust(width)
+
+
+def _pad_text(text: Text, width: int, align: str | None, last: bool = False) -> Text:
+    """Clip or pad a styled cell to exactly `width`, keeping its style."""
+    plain = text.plain
+    if len(plain) > width:
+        out = text[: max(0, width - 1)]
+        out.append("…")
+        return out
+    if align == "right":
+        return Text(" " * (width - len(plain))).append_text(text)
+    return text if last else text.append(" " * (width - len(plain)))
+
+
+def cellstr(value) -> str:
+    """A detail value as plain text. Styling is the caller's."""
+    if value is None:
+        return EMPTY
+    if isinstance(value, bool):
+        return "yes" if value else "no"
+    if isinstance(value, (list, tuple)):
+        return ", ".join(_cell(v) for v in value) if value else EMPTY
+    return str(value)
 
 
 def _view_cell(row: dict, column: dict) -> Text:

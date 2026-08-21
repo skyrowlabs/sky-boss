@@ -47,6 +47,11 @@ FLEX_MAX = 5
 # pathologically long key cannot squeeze every other column out.
 LABEL_CAP = 14
 
+# No inline column wider than this, however long its values. Prose leaves the
+# row entirely now, so anything still claiming forty characters is a value that
+# will read just as well clipped.
+NATURAL_CAP = 40
+
 _HEX = re.compile(r"\A[0-9a-fA-F]+\Z")
 
 # Values that count as nothing. `0` and `False` are absent from this on
@@ -179,10 +184,14 @@ def _describe(key: str, rows: list[dict], *, dotted: bool = False) -> dict:
         "key": key,
         "label": label,
         "flex": _flex(width),
-        # A floor, not a width. Both renderers apply it — Rich as `min_width`,
-        # the canvas as a `ch` min-width — because the reason for it is the
-        # same in both and a second opinion would drift.
+        # A floor, not a width. Both renderers apply it — because the reason
+        # for it is the same in both and a second opinion would drift.
         "min": min(len(label), LABEL_CAP),
+        # And the width it would take if nothing were competing. Since prose
+        # left the row, every remaining column is one you *scan*, and none of
+        # them wants to be wider than its own content — spreading spare width
+        # across four scan columns just puts eighteen spaces inside `NUMBER`.
+        "max": min(max(width, len(label)), NATURAL_CAP),
     }
     if mapping:
         column["summarise"] = True
@@ -191,29 +200,19 @@ def _describe(key: str, rows: list[dict], *, dotted: bool = False) -> dict:
     return column
 
 
-def _reorder(columns: list[dict], rows: list[dict]) -> list[dict]:
-    """Rule 5 — later prose columns go last; the first one stays put.
+def _is_prose(rows: list[dict], key: str) -> bool:
+    """Is this column something you read rather than something you scan?
 
-    The naive rule was "push prose last", and implementing it showed it was
-    wrong: it moves `title` to the end of a pull-request table, and a count
-    budget then hides the one column you identify a row by. The first string
-    column is the row's *label* — `_label_of` in cli/output.py has treated it
-    that way since long before this — so it keeps its position, and only the
-    second and later prose columns move.
+    Matched on the values, like every other rule here — a string column whose
+    longest value runs past `PROSE_WIDTH`. Deliberately *not* a list of blessed
+    names like `title` or `description`: the next tool calls it `subject`, or
+    `Command`, or `message`, and a name list goes stale the first time one does.
+    A column of one-word statuses called `title` stays inline, which is right.
     """
-    prose = []
-    for column in columns:
-        values = _values(rows, column["key"])
-        present = [v for v in values if v not in _EMPTY]
-        wide = present and all(isinstance(v, str) for v in present) and (
-            max(len(v) for v in present) > PROSE_WIDTH
-        )
-        prose.append(bool(wide))
-
-    first = prose.index(True) if True in prose else None
-    kept = [c for i, c in enumerate(columns) if not prose[i] or i == first]
-    moved = [c for i, c in enumerate(columns) if prose[i] and i != first]
-    return kept + moved
+    present = [v for v in _values(rows, key) if v not in _EMPTY]
+    if not present or not all(isinstance(v, str) for v in present):
+        return False
+    return max(len(v) for v in present) > PROSE_WIDTH
 
 
 def shape(
@@ -238,11 +237,15 @@ def shape(
 
     # An explicit column list defeats every rule. The operator looked at the
     # table and said what they wanted; a heuristic that argued would be a bug.
+    # An explicit list chooses *which* columns and in what order. It does not
+    # choose their layout: a 90-character title asked for by name is still a
+    # 90-character title, and clipping it into a share of the width would be
+    # obeying the letter of the request while destroying what was asked for.
     if cols:
-        return {
-            "columns": [_describe(key, rows, dotted="." in key) for key in cols],
-            "hidden": [],
-        }
+        chosen = [_describe(key, rows, dotted="." in key) for key in cols]
+        inline = [c for c in chosen if not _is_prose(rows, c["key"])]
+        details = [c for c in chosen if _is_prose(rows, c["key"])]
+        return {"columns": inline, "details": details, "hidden": []}
 
     if not enabled:
         return None
@@ -261,13 +264,27 @@ def shape(
             continue
         kept.append(key)
 
-    columns = _reorder([_describe(key, rows) for key in kept], rows)
+    # Rule 5 — prose leaves the row rather than being placed within it. A
+    # column you *read* gets the full width on its own line beneath the record;
+    # the columns you *scan* stay narrow and aligned above it.
+    #
+    # This replaces Round 1's ordering rule, which tried to solve the same
+    # problem by moving prose to the end of the row. See Notes: the honest
+    # version of "a title does not fit in a share of the width" is not to put
+    # it somewhere else in the row, it is to stop giving it a share.
+    details = [_describe(key, rows) for key in kept if _is_prose(rows, key)]
+    columns = [_describe(key, rows) for key in kept if not _is_prose(rows, key)]
 
     # Rule 6 — anything past the budget is hidden, and *named*. A silently
     # dropped column is the "looks right and isn't" failure: the table reads as
     # complete when it is not.
+    #
+    # Details are exempt: they cost a line each rather than a share of the
+    # width, so they are not competing for the thing the budget rations. That
+    # is a real recovery — `next` was being hidden by the budget in Round 1 and
+    # is simply readable now.
     if len(columns) > budget:
         hidden.extend(column["key"] for column in columns[budget:])
         columns = columns[:budget]
 
-    return {"columns": columns, "hidden": hidden}
+    return {"columns": columns, "details": details, "hidden": hidden}

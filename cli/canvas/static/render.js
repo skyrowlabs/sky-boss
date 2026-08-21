@@ -75,9 +75,21 @@ function resolve(row, key) {
  */
 function summariseMapping(value) {
   const parts = Object.entries(value)
-    .filter(([, v]) => v !== null && v !== undefined && v !== "" && v !== 0 && v !== false)
+    .filter(([, v]) => !isEmptyish(v))
     .map(([k, v]) => `${k}=${v}`);
   return parts.length ? parts.join(" ") : "—";
+}
+
+/* `_EMPTY` in cli/view.py, plus zero. Written out rather than inlined because
+ * the first version of this checked null/undefined/""/0/false and forgot empty
+ * arrays — so a `checks` dict carrying `failing_names: []` rendered
+ * `failing_names=` in the cell here while the terminal, correctly, dropped it.
+ * That is the drift the duplication was warned about, one day later. */
+function isEmptyish(v) {
+  if (v === null || v === undefined || v === "" || v === 0 || v === false) return true;
+  if (Array.isArray(v)) return v.length === 0;
+  if (typeof v === "object") return Object.keys(v).length === 0;
+  return false;
 }
 
 function cellText(value) {
@@ -121,7 +133,15 @@ function cellOf(row, spec) {
  * so there is no fixed width for a character count to mean anything against. */
 function sizing(spec) {
   if (!spec.flex) return undefined;
-  return `flex:${spec.flex} 1 0;min-width:${spec.min || 1}ch`;
+  const parts = [`flex:${spec.flex} 1 0`, `min-width:${spec.min || 1}ch`];
+  /* The width the column would take if nothing competed. Without it a table of
+   * four scan columns spreads them across the whole window, and a right-aligned
+   * `946` ends up nowhere near the `NUMBER` above it. */
+  if (spec.max) parts.push(`max-width:${spec.max}ch`);
+  /* On the header too, so the label sits over its own values rather than at
+   * the far side of a column the values are right-aligned in. */
+  if (spec.align === "right") parts.push("text-align:right");
+  return parts.join(";");
 }
 
 function Table({ rows, view }) {
@@ -134,6 +154,11 @@ function Table({ rows, view }) {
   const shaped = Boolean(view && view.columns);
   const shown = rows.slice(0, MAX_ROWS);
   const hidden = (view && view.hidden) || [];
+  /* Columns you *read* rather than scan. They left the row in the shaping
+   * layer, and here they get the full width on their own line beneath it —
+   * indented under the second column by a spacer carrying the first column's
+   * sizing, so the identifier stays the leftmost thing on the record. */
+  const details = (view && view.details) || [];
   return html`
     <div class=${`grid ${shaped ? "shaped" : ""}`}>
       <div class="row head">
@@ -141,18 +166,28 @@ function Table({ rows, view }) {
       </div>
       ${shown.map(
         (row, i) => html`
-          <div class="row" key=${i}>
-            ${specs.map((s) => {
-              const text = cellOf(row, s);
-              /* The full value stays reachable on hover. A clipped cell that
-               * cannot be recovered is a table that lies about what it holds. */
-              return html`<span
-                key=${s.key}
-                style=${sizing(s)}
-                title=${text}
-                class=${roleFor(s.key, resolve(row, s.key))}
-                >${text}</span
-              >`;
+          <div class=${`rec ${details.length ? "spaced" : ""}`} key=${i}>
+            <div class="row">
+              ${specs.map((s) => {
+                const text = cellOf(row, s);
+                /* The full value stays reachable on hover. A clipped cell that
+                 * cannot be recovered is a table that lies about what it holds. */
+                return html`<span
+                  key=${s.key}
+                  style=${sizing(s)}
+                  title=${text}
+                  class=${roleFor(s.key, resolve(row, s.key))}
+                  >${text}</span
+                >`;
+              })}
+            </div>
+            ${details.map((d) => {
+              const text = cellOf(row, d);
+              if (!text || text === "—") return null;
+              return html`<div class="row detail" key=${d.key}>
+                <span class="gut" style=${sizing(specs[0])}></span>
+                <span class="v-dim" title=${d.label}>${text}</span>
+              </div>`;
             })}
           </div>
         `

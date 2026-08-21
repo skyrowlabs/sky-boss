@@ -81,14 +81,16 @@ both renderers apply.
   "data": [ { "number": 945, "head": "cbb6c29…", "marker_payload": null, … } ],
   "view": {
     "columns": [
-      {"key": "number",      "label": "NUM",    "align": "right", "flex": 1},
-      {"key": "title",       "label": "TITLE",  "flex": 5},
-      {"key": "merge_state", "label": "MERGE",  "flex": 1},
-      {"key": "behind",      "label": "BEHIND", "align": "right", "flex": 1},
-      {"key": "checks",      "label": "CHECKS", "summarise": true, "flex": 2},
-      {"key": "next",        "label": "NEXT",   "flex": 3}
+      {"key": "number",      "label": "NUMBER",      "align": "right", "flex": 1, "min": 6, "max": 6},
+      {"key": "merge_state", "label": "MERGE_STATE",  "flex": 1, "min": 11, "max": 11},
+      {"key": "behind",      "label": "BEHIND",       "align": "right", "flex": 1, "min": 6, "max": 6},
+      {"key": "checks",      "label": "CHECKS",       "summarise": true, "flex": 2, "min": 6, "max": 18}
     ],
-    "hidden": ["head", "marker_payload", "is_draft", "labels", "execution"]
+    "details": [
+      {"key": "title", "label": "TITLE", "flex": 5, "min": 5, "max": 40},
+      {"key": "next",  "label": "NEXT",  "flex": 3, "min": 4, "max": 40}
+    ],
+    "hidden": ["head", "marker_payload", "execution"]
   },
   "warnings": ["5 columns hidden — use --cols to choose"]
 }
@@ -118,7 +120,27 @@ Ordered, each applied to the whole row set rather than to one row:
    `checks` → `passed=2 skipped=7`. One column, not six. The alternative — flattening to
    `checks.passed`, `checks.failed`, … — turns one column into six and makes the crowding worse,
    which is the problem we started with.
-4. **Clip prose rather than wrap it, and weight the columns.** Each column carries a `flex` — a
+4. **Prose leaves the row.** A column you *read* rather than *scan* — a string whose longest value
+   runs past `PROSE_WIDTH` — is not given a share of the width at all. It gets the full width on its
+   own line beneath the record, indented under the second column so the identifier stays the
+   leftmost thing:
+
+   ```
+   NUMBER  MERGE_STATE  BEHIND  CHECKS
+   ──────────────────────────────────────────────
+      946  CLEAN            19  passed=2 skipped=7
+           docs: use an absolute .venv/bin PATH prefix in the commit snippets
+   ```
+
+   Matched on values, like every other rule, and deliberately **not** on a list of blessed names
+   like `title` or `description`: the next tool calls it `subject`, or `Command`, or `message`, and
+   a name list goes stale the first time one does. A column of one-word statuses that happens to be
+   called `title` stays inline, which is right.
+
+   Details are **exempt from the column budget** — they cost a line each rather than a share of the
+   width, so they are not competing for what the budget rations.
+
+5. **Clip what is left, and weight the columns.** Each column carries a `flex` — a
    proportional width, not a character count — and long values are clipped with an ellipsis.
    Rich folds by default, and a folded 78-char title makes a one-row table twelve rows tall.
 
@@ -131,9 +153,12 @@ Ordered, each applied to the whole row set rather than to one row:
    authority for the shape.
 
    The canvas keeps the full text in a `title` attribute so hovering still shows it.
-5. **Push prose columns last.** Identifiers and verdicts are what you scan; prose is what you read
-   once you have found the row. First-seen order is otherwise preserved.
-6. **Budget the remainder.** If columns still exceed the budget, keep the leading ones and
+6. **Size a scan column to its content.** Every column carries a `max` — the width it would take if
+   nothing competed — and when everything fits, the table stops there and leaves the rest of the
+   terminal empty. Since prose left the row, nothing still in it wants to be wider than its own
+   values, and padding a table out to the full width to avoid looking unfinished is how `NUMBER`
+   ends up eighteen characters wide with a three-digit number in it.
+7. **Budget the remainder.** If columns still exceed the budget, keep the leading ones and
    **name the ones dropped in a warning.** A silently hidden column is the "looks right and isn't"
    failure — the table reads as complete when it is not.
 
@@ -143,7 +168,7 @@ On `wrap`, so the operator has recourse the moment a guess is wrong:
 
 | flag | does |
 |---|---|
-| `--cols number,title,checks.failed` | exactly these, in this order. Dotted paths reach into a nested dict. Defeats every rule above |
+| `--cols number,title,checks.failed` | exactly these, in this order. Dotted paths reach into a nested dict. Defeats every *selection* rule above — but not the detail layout, since a ninety-character title asked for by name is still a ninety-character title |
 | `--drop head,next` | subtractive — keep the heuristic, lose these |
 | `--no-shape` | every column, first-seen, as today. The escape hatch, and what the tests compare against |
 
@@ -181,6 +206,18 @@ change at all** — `app.js` already treats everything past the command name as 
   half-supported.
 
 ## Phases
+
+### Round 2 — a title is not a column (2026-08-20)
+
+- [x] Prose becomes a `details` list in the view rather than an inline column, exempt from the
+      budget. `_is_prose` matches on values; `_reorder` and Round 1's rule 5 are deleted.
+- [x] Columns carry `max`, their natural width, and a table that fits stops there.
+- [x] The terminal renderer lays a shaped table out by hand — Rich has no colspan and a detail line
+      spans every column.
+- [x] Header rule, a blank line between records when details are present, two-space gutters, dim
+      detail lines. Both renderers.
+- [x] `render.js` renders detail rows, aligned under the second column by a spacer carrying the
+      first column's sizing.
 
 ### Round 1 — shape a wrapped table (2026-08-20)
 
@@ -271,3 +308,53 @@ DOM back — the harness was built outside the repo, because
 live token baked in. Then end to end against a live server: the catalog offers
 the three flags as chips, `wrap` stays `acts: false` so a window may still be
 pinned, and `/api/run` returns a view with `data` intact.
+
+### Round 2 — a title is not a column (2026-08-20)
+
+Round 1 asked the wrong question about prose. It took "a ninety-character title does not fit in a
+share of the width" and looked for a better *place in the row* to put it — first "push prose last",
+then, when that hid the one column you identify a record by, "the first prose column keeps its
+place". Both are answers to "where in the row", and the honest answer is that it does not go in the
+row. **A column you read and a column you scan are different kinds of thing and a single row cannot
+serve both.**
+
+Which makes the fix subtractive, and it pays twice. Prose stops competing for width, so the scan
+columns can be sized to their own content instead of splitting the terminal between them. And
+details stop counting against the column budget, so `next` — hidden by the budget for the whole of
+Round 1 — is simply readable now. Round 1's Notes end by saying the budget still hid a column worth
+seeing and `--cols` was the recourse. Half of that turned out to be self-inflicted.
+
+**Detection stayed on values, against the request.** The ask named `title` specifically. A name
+list is the version that goes stale: the next tool calls it `subject`, or `Command`, or `message`,
+and a column of one-word statuses that happens to be called `title` would be promoted to its own
+line for no reason. `PROSE_WIDTH` already identified exactly the right columns in Round 1 and needed
+no help. This is the same argument that keeps `head` dropped for being uniform-length hex rather
+than for being called "head", and it is the third time it has come up.
+
+**The duplication warned about in Round 1 drifted within a day.** `summariseMapping` in
+`render.js` is the one piece of `cli/view.py` with a second implementation, and Round 1's Notes
+called it "four lines that must agree" and accepted the risk. They did not agree: the JavaScript
+checked `null`/`undefined`/`""`/`0`/`false` and forgot empty arrays, so a `checks` dict carrying
+`failing_names: []` rendered `failing_names=` in the canvas while the terminal correctly dropped it.
+Not caught by a test — there is no JS test runner, which is the whole reason the logic is supposed
+to live in Python. Caught by rendering both and reading them side by side. The accepted risk was
+real and the mitigation is that this is the *only* such function; if a second one appears, the
+trade should be re-argued rather than repeated.
+
+**Two rendering bugs that only a screenshot shows.** Neither is visible in a DOM dump, because in
+both cases every element was present and every style was applied:
+
+- The canvas ignored `align` and `max`, so four scan columns spread across the whole window and a
+  right-aligned `946` sat nowhere near the `NUMBER` above it.
+- `.row.head` carries `letter-spacing: .1em`. The column widths are a contract measured in `ch`,
+  and tracking silently makes a six-character label need more than six of them — so `NUMBER`
+  rendered as `NUMB…` inside a column sized to fit it exactly. Removed for shaped headers only;
+  the unshaped grid keeps its tracking, since nothing there is measured.
+
+**Rich was left behind for the view path.** `Table` has no colspan and a detail line spans every
+column. The widths were already being resolved by hand — Round 1 found that `ratio` ignores
+`min_width` — so owning the layout outright cost little and bought the header rule, the record
+spacing and the exact gutter with it.
+
+**Still true, and now for a smaller set:** the budget hides `checks` and `execution` on the real
+fourteen-field row. `--cols` is still the recourse and the warning still names what went missing.
