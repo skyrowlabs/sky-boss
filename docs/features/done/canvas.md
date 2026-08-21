@@ -97,9 +97,12 @@ auto-refreshing a write is a scheduler nobody asked for.
 - **No remote, no multi-user.** Loopback only, one operator, one machine.
 - **No credential handling.** Wrapped CLIs keep their own authentication; tb is never in the
   credential path. Unchanged from `CLAUDE.md`.
-- **No ANSI-to-HTML fallback in Round 1.** A tool without `--json` is out of scope rather than
-  half-supported. Rendering an ANSI table gives a picture of a table — no sorting, no chips, no
-  resizing — and shipping it early would let it become the path everything takes.
+- **No ANSI-to-HTML fallback.** Rendering an ANSI table gives a picture of a table — no sorting, no
+  chips, no resizing — and shipping it early would let it become the path everything takes. That
+  half stands: ANSI is *stripped*, never interpreted.
+
+  The other half — "a tool without `--json` is out of scope rather than half-supported" — was
+  reversed by [[text-reads]] on 2026-08-20. See the correction in Notes.
 - **No build step, no npm, no TypeScript** until something needs them. The cost is real and is
   named in the Notes: the frontend has no automated tests.
 - **Not a terminal emulator and not a shell.** Argv only. No stdin, no interactive commands, no
@@ -491,3 +494,18 @@ beside it, where the mockup puts it. The bar is the window's title bar and calls
 `begin_move_drag`; narrowing it to reach the top-left corner would trade drag
 area for alignment. Worth revisiting only if the alignment turns out to matter
 more than the drag width.
+
+### Correction — a tool without `--json` is back in scope (2026-08-20)
+
+Round 1's *Does not do* said "a tool without `--json` is out of scope rather than half-supported",
+and the reasoning under it was about **ANSI**: rendering escape codes as colour gives you a picture
+of a table, and a picture cannot be sorted or filtered.
+
+That reasoning was right and is untouched — [[text-reads]] strips ANSI rather than interpreting it.
+What the entry got wrong was the scope it drew from it. "Cannot be sorted" is a reason not to
+*pretend* text is a table; it is not a reason to refuse to show text at all. The tool this repo
+uses daily prints an aligned table with a legend under it that is better than anything rebuilt from
+its own JSON, and refusing to display it was refusing the operator their own tool's design.
+
+The real gap was never display in any case: `tb run` already carried the bytes. It was that `run`
+acts, so the only command that carried text was the one command that must never be put on a timer.

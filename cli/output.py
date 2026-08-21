@@ -368,6 +368,10 @@ def _render_mapping(mapping: dict, indent: int = 2) -> None:
         _out().print(Padding(Text(key, style="tb.accent"), (0, 0, 0, max(indent - 2, 0))))
         if isinstance(value, dict):
             _render_mapping(value, indent + 2)
+        elif isinstance(value, str):
+            # Verbatim, through click rather than a Console: a Console would
+            # soft-wrap it to the terminal width, which is the whole bug.
+            click.echo(value.rstrip("\n"))
         else:
             _render_columns(list(value), title=None, indent=indent)
         _out().print()
@@ -378,7 +382,13 @@ def _is_block(value: Any) -> bool:
 
     A dict, or a list of dicts — `gpus`, `disks`, `filesystems`. Without this a
     list of dicts renders as `str(dict)` inside a key/value row.
+
+    And multi-line text. `tb run` carries a command's stdout, and folding an
+    aligned table into a key/value cell wraps every row at the column edge and
+    destroys the alignment that was the reason to look at it.
     """
+    if isinstance(value, str):
+        return "\n" in value.strip()
     if isinstance(value, dict):
         return True
     return (
