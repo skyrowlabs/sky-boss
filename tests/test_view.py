@@ -1,0 +1,239 @@
+"""Shaping foreign rows into a table.
+
+The fixture below has the *shape* of `jam pr list --json` — fourteen fields, a
+sha, a field that is null in every row, a nested dict of counters, and two
+columns of prose — without its content. That is deliberate: real jam output
+carries branch names and paths belonging to this operator, and nothing
+operator-specific goes in a tracked file. The shape is what is under test.
+"""
+
+import copy
+
+import pytest
+
+from cli.view import (
+    DEFAULT_BUDGET,
+    resolve,
+    shape,
+    summarise_mapping,
+)
+
+
+@pytest.fixture
+def rows():
+    return [
+        {
+            "number": 945,
+            "title": "a subject line long enough to be prose rather than a label, easily past forty",
+            "is_draft": True,
+            "merge_state": "CLEAN",
+            "head": "cbb6c29e63a51108a663391b792217ee403780bf",
+            "head_ref": "topic/some-branch",
+            "base_ref": "develop",
+            "behind": 4,
+            "labels": ["generated"],
+            "marker": "absent",
+            "marker_payload": None,
+            "checks": {"passed": 2, "failed": 0, "skipped": 7, "pending": 0},
+            "execution": "n/a",
+            "next": "a second prose column, also comfortably past the forty character threshold",
+        },
+        {
+            "number": 946,
+            "title": "another subject line of the sort that would fold a terminal table apart",
+            "is_draft": False,
+            "merge_state": "DIRTY",
+            "head": "9f2a1b7c4d8e6f0a3b5c7d9e1f2a4b6c8d0e2f4a",
+            "head_ref": "topic/other-branch",
+            "base_ref": "develop",
+            "behind": 0,
+            "labels": [],
+            "marker": "present",
+            "marker_payload": None,
+            "checks": {"passed": 0, "failed": 3, "skipped": 1, "pending": 0},
+            "execution": "n/a",
+            "next": "a different second prose column, still well past the forty character mark",
+        },
+    ]
+
+
+def keys(view):
+    return [column["key"] for column in view["columns"]]
+
+
+def column(view, key):
+    return next(c for c in view["columns"] if c["key"] == key)
+
+
+# --------------------------------------------------------------- the rules
+
+
+def test_a_column_empty_in_every_row_is_hidden(rows):
+    """`marker_payload` is null in both. A column that never once carried a
+    value is pure width."""
+    view = shape(rows, budget=99)
+    assert "marker_payload" not in keys(view)
+    assert "marker_payload" in view["hidden"]
+
+
+def test_zero_is_not_empty(rows):
+    """A count of zero is an answer. `behind` is 0 in one row and must survive —
+    "0 behind" is frequently the thing you opened the window to see."""
+    view = shape(rows, budget=99)
+    assert "behind" in keys(view)
+
+
+def test_an_opaque_sha_is_hidden_but_a_branch_name_survives(rows):
+    """Matched on the values, never the name. `head` and `head_ref` differ by
+    four characters and only one of them is a digest."""
+    view = shape(rows, budget=99)
+    assert "head" in view["hidden"]
+    assert "head_ref" in keys(view)
+
+
+def test_hex_of_varying_length_is_not_an_opaque_id():
+    """Uniform length is what separates a digest from a column that merely
+    happens to be hex-ish. Without it, any column of hex-ish codes vanishes."""
+    rows = [
+        {"code": "abcdef0123456789abcdef0123456789"},
+        {"code": "abcdef0123456789abcdef012345"},
+    ]
+    view = shape(rows)
+    assert "code" in keys(view)
+
+
+def test_short_hex_is_not_an_opaque_id():
+    rows = [{"code": "deadbeef"}, {"code": "cafebabe"}]
+    assert "code" in keys(shape(rows))
+
+
+def test_a_nested_dict_is_summarised_into_one_column(rows):
+    """One column, not six. Flattening to checks.passed, checks.failed, … turns
+    one column into six and makes the crowding worse — the thing we are here to
+    fix."""
+    view = shape(rows, budget=99)
+    assert column(view, "checks")["summarise"] is True
+
+
+def test_summarise_drops_zero_and_null_members():
+    assert summarise_mapping({"passed": 2, "failed": 0, "skipped": 7}) == "passed=2 skipped=7"
+    assert summarise_mapping({"a": None, "b": ""}) == "—"
+
+
+def test_an_all_zero_mapping_renders_a_marker_not_an_empty_cell():
+    """It would otherwise summarise to nothing at all, and an empty cell in the
+    middle of a table looks like a bug rather than a fact."""
+    assert summarise_mapping({"failed": 0, "pending": 0}) == "—"
+
+
+def test_prose_gets_more_width_than_a_number(rows):
+    view = shape(rows, budget=99)
+    assert column(view, "title")["flex"] > column(view, "number")["flex"]
+    assert column(view, "number")["flex"] == 1
+
+
+def test_a_numeric_column_is_right_aligned(rows):
+    view = shape(rows, budget=99)
+    assert column(view, "number")["align"] == "right"
+    assert "align" not in column(view, "merge_state")
+
+
+def test_the_first_prose_column_keeps_its_place_and_later_ones_go_last(rows):
+    """The naive rule was "push prose last" and it was wrong: it moves `title`
+    to the end of a pull-request table, where a count budget then hides the one
+    column you identify a row by. The first string column is the row's label."""
+    view = shape(rows, budget=99)
+    order = keys(view)
+    assert order.index("title") < order.index("merge_state")
+    assert order[-1] == "next"
+
+
+def test_the_budget_hides_the_tail_and_names_it(rows):
+    """A silently dropped column is the "looks right and isn't" failure — the
+    table reads as complete when it is not."""
+    view = shape(rows, budget=4)
+    assert len(view["columns"]) == 4
+    assert "next" in view["hidden"]
+    # Everything the input had is either shown or named. Nothing vanishes.
+    shown_and_named = set(keys(view)) | set(view["hidden"])
+    assert shown_and_named == set(rows[0])
+
+
+def test_the_default_budget_is_applied(rows):
+    view = shape(rows)
+    assert len(view["columns"]) <= DEFAULT_BUDGET
+
+
+# ------------------------------------------------------------- the overrides
+
+
+def test_explicit_columns_defeat_every_rule(rows):
+    """The operator looked at the table and said what they wanted. A heuristic
+    that argued with that would be a bug."""
+    view = shape(rows, cols=["head", "marker_payload", "number"])
+    assert keys(view) == ["head", "marker_payload", "number"]
+    assert view["hidden"] == []
+
+
+def test_explicit_columns_reach_inside_a_nested_dict(rows):
+    view = shape(rows, cols=["checks.failed"])
+    assert keys(view) == ["checks.failed"]
+    assert column(view, "checks.failed")["align"] == "right"
+
+
+def test_resolve_walks_a_dotted_path(rows):
+    assert resolve(rows[0], "checks.failed") == 0
+    assert resolve(rows[1], "checks.failed") == 3
+    assert resolve(rows[0], "checks.nope") is None
+    assert resolve(rows[0], "number.nope") is None
+
+
+def test_drop_is_subtractive_and_keeps_the_heuristic(rows):
+    view = shape(rows, drop=["title"], budget=99)
+    assert "title" not in keys(view)
+    assert "title" in view["hidden"]
+    # still shaped: the sha is still gone
+    assert "head" in view["hidden"]
+
+
+def test_no_shape_returns_nothing_to_say(rows):
+    """None means render as you always did, and the envelope omits the key
+    entirely — so an unshaped result stays byte-identical to one from before
+    any of this existed."""
+    assert shape(rows, enabled=False) is None
+
+
+def test_explicit_columns_still_work_with_shaping_declined(rows):
+    """--cols is an instruction, not a hint. Declining the heuristic must not
+    also discard what the operator asked for by name."""
+    view = shape(rows, cols=["number"], enabled=False)
+    assert keys(view) == ["number"]
+
+
+# ------------------------------------------------------------- what it is not
+
+
+@pytest.mark.parametrize(
+    "data",
+    [None, "text", 3, {}, {"a": 1}, [], [1, 2, 3], [{"a": 1}, "not a row"]],
+)
+def test_anything_that_is_not_a_table_has_no_view(data):
+    assert shape(data) is None
+
+
+def test_shaping_never_touches_the_data(rows):
+    """Stated twice in the doc on purpose. `--json` and any future MCP consumer
+    keep every field, including the ones the table hides."""
+    before = copy.deepcopy(rows)
+    shape(rows)
+    shape(rows, cols=["checks.failed"])
+    shape(rows, drop=["title"])
+    assert rows == before
+
+
+def test_a_column_missing_from_some_rows_is_still_seen():
+    """First-seen order across every row, not from the first row alone. For a
+    table about what is wrong, a field only the broken row carries is the one
+    thing that must not be lost."""
+    rows = [{"a": 1}, {"a": 2, "error": "boom"}]
+    assert "error" in keys(shape(rows))
