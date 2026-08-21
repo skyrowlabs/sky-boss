@@ -18,6 +18,17 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 # stall dump if it ever freezes. XDG state also survives a reclone or a move.
 STATE_DIR = Path(os.environ.get("TB_STATE") or Path.home() / ".local" / "state" / "tb")
 
+# What the *operator* authored, as opposed to what the machine generated.
+# Separate from STATE_DIR on purpose: `rm -rf ~/.local/state/tb` is a reasonable
+# thing to do to reset the surface, and it must not also delete every tool the
+# operator wrote. Config rather than state, so XDG puts it under ~/.config.
+#
+# Outside the repo, and with no fallback path into it. Operator content used to
+# live in the tree and a machine record carried a tailnet address into every
+# commit, so the tool could not be published without publishing the operator.
+# An absent home degrades to nothing declared rather than raising.
+TB_HOME = Path(os.environ.get("TB_HOME") or Path.home() / ".config" / "tb")
+
 
 def run_command(
     args: list[str],

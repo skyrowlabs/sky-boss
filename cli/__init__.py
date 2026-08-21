@@ -109,3 +109,18 @@ cli.add_command(wrap_cmd)
 # that acts even with the canvas in front of it.
 cli.add_command(ui_cmd)
 
+# Aliased on import — `from cli.tools import tools` would rebind this package's
+# `tools` attribute from the module to the Command and shadow the module.
+from cli.tools import PROBLEMS, register, tools as tools_cmd  # noqa: E402
+
+cli.add_command(tools_cmd)
+
+# The operator's own commands, registered onto the tree *after* every builtin,
+# so a builtin always wins a name collision. This is the whole of what makes
+# the toolbox work: the palette, `--help` and shell completion all walk the
+# real tree, so none of them needed a line of code for tools to appear in them.
+#
+# Problems are collected rather than printed. Nothing has a Click context yet,
+# and stdout must stay clean for `--json`; `tb tools` reports them.
+PROBLEMS.extend(register(cli))
+

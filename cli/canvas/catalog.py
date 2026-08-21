@@ -83,7 +83,17 @@ def walk(command: click.Command, path: tuple[str, ...] = ()) -> list[dict]:
             # cadence, because re-running a read is a refresh and re-running a
             # write is a scheduler nobody asked for. The mockup encoded the
             # same rule before any of this existed.
-            "acts": path[:1] == ("run",),
+            # A saved command carries the verdict of whatever it expands to,
+            # because the path says nothing: `tb deploy-thing` is one word and
+            # the `run` it wraps is invisible from here. Getting this wrong
+            # would offer a refresh cadence on a write, which is the one thing
+            # the read/write split exists to prevent.
+            "acts": getattr(command, "tb_acts", None) or path[:1] == ("run",),
+            # Read off the command object, never a list of names here — the
+            # same rule `tb_surface` follows two lines up. A name written down
+            # in this module is the beginning of the command table the whole
+            # design refuses to keep. The sidebar filters on this.
+            "saved": getattr(command, "tb_saved", False),
         }
     ]
 

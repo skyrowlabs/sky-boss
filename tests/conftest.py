@@ -16,6 +16,13 @@ from pathlib import Path
 _ISOLATED = Path(tempfile.mkdtemp(prefix="tb-state-")) / "state"
 os.environ["TB_STATE"] = str(_ISOLATED)
 
+# And never the operator's real toolbox. This one matters more than STATE_DIR:
+# a tool is an argv tb will *run*, so a suite that read the real home would be
+# registering the operator's commands into the tree under test — and `tb
+# --help` would differ between two machines running the same suite.
+_ISOLATED_HOME = Path(tempfile.mkdtemp(prefix="tb-home-")) / "home"
+os.environ["TB_HOME"] = str(_ISOLATED_HOME)
+
 import pytest  # noqa: E402
 
 
@@ -24,3 +31,10 @@ def tb_state():
     """The isolated state directory, created empty."""
     _ISOLATED.mkdir(parents=True, exist_ok=True)
     return _ISOLATED
+
+
+@pytest.fixture
+def tb_home():
+    """The isolated operator home, created empty."""
+    _ISOLATED_HOME.mkdir(parents=True, exist_ok=True)
+    return _ISOLATED_HOME
