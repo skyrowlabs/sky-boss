@@ -77,7 +77,11 @@ body {
  * Without this the segmented control was compressed until `floating` read as
  * `floatin` and the close button sat on top of it — at 2x the bar is simply
  * wider than it was, and a flex child's default is to give way. */
-.bar > *:not(.spacer) { flex: none; }
+/* Everything in the bar is fixed-size except the two things that are not: the
+ * spacer, and the palette that flexes up to its eighty-character bound. This
+ * selector outranks a plain `.barpal { flex: … }`, so the exception has to be
+ * made here — without it the prompt collapses to zero width. */
+.bar > *:not(.spacer):not(.barpal) { flex: none; }
 /* Double-click a title bar to maximise; the shell has no title bar to do it
  * for us, so the bar that replaced it keeps the gesture. */
 .bar { cursor: default; }
@@ -126,6 +130,35 @@ body {
   box-shadow: var(--lift);
 }
 .scrim { position: fixed; inset: 0; z-index: 998; background: var(--tb-sink); }
+
+/* The palette in the top bar.
+ *
+ * Bounded at eighty characters rather than stretched: an argv longer than that
+ * is one you would rather save as a tool, and a prompt spanning a 3000px
+ * monitor is harder to read, not easier. `ch` because the input is monospace,
+ * so eighty of them is exactly eighty characters.
+ *
+ * `position: relative` is what the dropdown hangs off. The bar sets no
+ * overflow, so the list escapes it and floats over the canvas. */
+.barpal {
+  position: relative; display: flex; align-items: center; gap: 2rem;
+  flex: 1 1 auto; min-width: 0; max-width: 80ch;
+}
+.barpal input {
+  flex: 1; min-width: 0; background: transparent; border: 0; outline: 0;
+  font: inherit; color: var(--tb-text);
+}
+.barpal input::placeholder { color: var(--tb-text-3); }
+/* Only while the input has focus — a list that is always open is a menu, and
+ * this is a prompt. Wide enough to read a description in, whatever the input
+ * is bounded to. */
+.barpal .drop {
+  position: absolute; top: calc(100% + 1.75rem); left: 0; min-width: 150rem;
+  background: var(--tb-surface); border: var(--hair) solid var(--tb-edge);
+  border-radius: var(--r-md); overflow: hidden; z-index: 900;
+  box-shadow: var(--lift);
+}
+.barpal .drop .suggestions { border-top: 0; }
 
 .prompt { display: flex; align-items: center; gap: 2.5rem; padding: 2.25rem 3.5rem; }
 .chev { color: var(--tb-brand); }

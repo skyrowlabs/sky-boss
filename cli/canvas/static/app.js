@@ -180,15 +180,35 @@ function Toolbox({ commands, open }) {
 
 // --------------------------------------------------------------------- palette
 
-function Palette({ commands, query, setQuery, selected, setSelected, open, floating, close }) {
-  const input = useRef(null);
-  useEffect(() => {
-    if (floating && input.current) input.current.focus();
-  }, [floating]);
+/* The suggestion list, shared. Extracted when the palette moved into the top
+ * bar: the overlay shows it inline and the bar shows it as a dropdown, and two
+ * copies of a list whose selection semantics matter would drift. */
+function Suggestions({ shown, selected, open, query }) {
+  /* `onMouseDown` rather than `onClick`: it fires before the input's blur, so
+   * choosing a suggestion does not race the dropdown closing. */
+  return html`
+    <div class="suggestions">
+      ${shown.map(
+        (c, i) => html`
+          <div
+            key=${c.name}
+            class=${`suggestion ${i === selected ? "sel" : ""}`}
+            onMouseDown=${() => open(c, query)}
+          >
+            <span class="mark">${i === selected ? "▸" : ""}</span>
+            <span class="name">${c.name}</span>
+            <span class="desc">${c.summary}</span>
+            <span class="meta">${c.acts ? "acts" : "opens a window"}</span>
+          </div>
+        `
+      )}
+    </div>
+  `;
+}
 
-  const shown = suggest(commands, query).slice(0, 8);
-
-  function onKey(event) {
+/* Keyboard behaviour is identical wherever the palette is drawn. */
+function paletteKeys({ shown, selected, setSelected, open, query, onEscape }) {
+  return (event) => {
     if (event.key === "Enter" && shown.length) {
       open(shown[Math.min(selected, shown.length - 1)], query);
     } else if (event.key === "ArrowDown") {
@@ -197,10 +217,77 @@ function Palette({ commands, query, setQuery, selected, setSelected, open, float
     } else if (event.key === "ArrowUp") {
       event.preventDefault();
       setSelected(Math.max(selected - 1, 0));
-    } else if (event.key === "Escape" && floating) {
-      close();
+    } else if (event.key === "Escape" && onEscape) {
+      onEscape();
     }
-  }
+  };
+}
+
+/* The palette in the top bar.
+ *
+ * Bounded rather than full width: an argv long enough to need more than eighty
+ * characters is one you would rather save as a tool anyway, and a prompt
+ * stretched across a 3000px monitor is harder to read, not easier.
+ *
+ * The list appears only while the input has focus. A palette that permanently
+ * lists every command is a menu, and this is a prompt — the suggestions are an
+ * answer to something you started typing, so they belong to the moment you are
+ * typing it.
+ */
+function BarPalette({ commands, query, setQuery, selected, setSelected, open }) {
+  const input = useRef(null);
+  const [focused, setFocused] = useState(false);
+  const shown = suggest(commands, query).slice(0, 8);
+
+  const onKey = paletteKeys({
+    shown, selected, setSelected, open, query,
+    onEscape: () => input.current && input.current.blur(),
+  });
+
+  /* The bar is the window's title bar and starts a window drag on mousedown.
+   * Without this, clicking into the prompt moves the window instead of placing
+   * a cursor.
+   *
+   * Declared here rather than inline in the template: htm is a template-literal
+   * parser with no notion of comments, so a `/* … *\/` inside a tag is parsed
+   * as attribute text and silently mangles the element's children. That is how
+   * this input came to be missing from the DOM entirely. */
+  const stopDrag = (event) => event.stopPropagation();
+
+  return html`
+    <div class="barpal" onMouseDown=${stopDrag}>
+      <span class="chev">tb ▸</span>
+      <input
+        ref=${input}
+        value=${query}
+        placeholder="type a command"
+        onFocus=${() => setFocused(true)}
+        onBlur=${() => setFocused(false)}
+        onInput=${(e) => {
+          setQuery(e.target.value);
+          setSelected(0);
+        }}
+        onKeyDown=${onKey}
+      />
+      ${focused && shown.length > 0 &&
+      html`<div class="drop">
+        <${Suggestions} shown=${shown} selected=${selected} open=${open} query=${query} />
+      </div>`}
+    </div>
+  `;
+}
+
+function Palette({ commands, query, setQuery, selected, setSelected, open, floating, close }) {
+  const input = useRef(null);
+  useEffect(() => {
+    if (floating && input.current) input.current.focus();
+  }, [floating]);
+
+  const shown = suggest(commands, query).slice(0, 8);
+  const onKey = paletteKeys({
+    shown, selected, setSelected, open, query,
+    onEscape: floating ? close : null,
+  });
 
   return html`
     <div class=${`palette ${floating ? "overlay" : ""}`}>
@@ -219,24 +306,7 @@ function Palette({ commands, query, setQuery, selected, setSelected, open, float
         <span class="hint">⏎ open window · ^K palette</span>
       </div>
       ${shown.length > 0 &&
-      html`
-        <div class="suggestions">
-          ${shown.map(
-            (c, i) => html`
-              <div
-                key=${c.name}
-                class=${`suggestion ${i === selected ? "sel" : ""}`}
-                onMouseDown=${() => open(c, query)}
-              >
-                <span class="mark">${i === selected ? "▸" : ""}</span>
-                <span class="name">${c.name}</span>
-                <span class="desc">${c.summary}</span>
-                <span class="meta">${c.acts ? "acts" : "opens a window"}</span>
-              </div>
-            `
-          )}
-        </div>
-      `}
+      html`<${Suggestions} shown=${shown} selected=${selected} open=${open} query=${query} />`}
     </div>
   `;
 }
@@ -606,6 +676,14 @@ function App() {
       <div class="bar" onMouseDown=${barDrag}>
         <span class="brand">TACKLEBOX</span>
         <span class="host">${location.host}</span>
+        <${BarPalette}
+          commands=${commands}
+          query=${query}
+          setQuery=${setQuery}
+          selected=${selected}
+          setSelected=${setSelected}
+          open=${open}
+        />
         <div class="spacer"></div>
         <span class=${`stat ${running ? "live" : ""}`}>TASKS<b>${running}</b></span>
         <span class="stat">WINDOWS<b>${windows.length}</b></span>
@@ -622,16 +700,6 @@ function App() {
         <button class="quit" title="close tackle-box" onClick=${() => api.quit()}>✕</button>
       </div>
 
-      ${!floating &&
-      html`<${Palette}
-        commands=${commands}
-        query=${query}
-        setQuery=${setQuery}
-        selected=${selected}
-        setSelected=${setSelected}
-        open=${open}
-        floating=${false}
-      />`}
       ${floating &&
       html`
         <div class="scrim" onMouseDown=${() => setFloating(false)}></div>

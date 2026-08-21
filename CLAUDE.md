@@ -123,6 +123,11 @@ The rules that are not negotiable:
   watcher has one because `interval` and `last_run` are known. It reads the *label* clock, which a
   hidden page throttles — correct, and what the Python-side refresh clock buys: a stale bar is a
   cosmetic bug where a throttled scheduler would be a silent one.
+- **`htm` has no notion of a comment.** It is a template-literal parser, not JSX, so a `/* … */`
+  written *inside* a tag is parsed as attribute text and silently mangles that element's children.
+  It does not throw and the element still renders — the children just quietly vanish. Put comments
+  above the `html\`` block or inside a `${…}` expression. One in a `<div>` opening tag removed an
+  `<input>` from the DOM entirely, and only rendering the page found it.
 - **The frontend has no automated tests.** There is no JS test runner and adding one means npm.
   The pure parts — `unwrap`, `suggest`, `roleFor` — are what a runner would be for. Verified by
   rendering headless Chromium against the live server and reading the DOM back, which is not the

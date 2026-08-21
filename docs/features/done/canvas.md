@@ -112,6 +112,18 @@ auto-refreshing a write is a scheduler nobody asked for.
 
 ## Phases
 
+### Round 6 — the palette moves into the bar (2026-08-20)
+
+- [x] The fixed palette becomes an input in the top bar, bounded at `80ch`. Most argvs are short,
+      and a prompt spanning a 3000px monitor is harder to read rather than easier.
+- [x] Suggestions appear **only while the input has focus**, as a dropdown floating over the canvas.
+      A list that is always open is a menu; this is a prompt, and its suggestions answer something
+      you started typing.
+- [x] `Suggestions` and `paletteKeys` extracted, so the bar prompt and the `^K` overlay cannot drift
+      on selection semantics.
+- [x] The prompt stops the bar's window drag on mousedown, or clicking into it would move the
+      window instead of placing a cursor.
+
 ### Round 5 — the wireframe's chrome, and the toolbox sidebar (2026-08-20)
 
 `docs/design/Tackle Box Surface.dc.html` is a second mockup and a different kind of one: the
