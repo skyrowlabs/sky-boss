@@ -186,11 +186,11 @@ change at all** — `app.js` already treats everything past the command name as 
       Nothing wired yet.
 - [x] `Result` gains an optional `view`; `to_dict` omits the key when unset, so existing envelopes
       and the stdout-purity test are untouched.
-- [ ] `wrap` computes the view and attaches it. `data` unchanged — asserted by a test.
+- [x] `wrap` computes the view and attaches it. `data` unchanged — asserted by a test.
 - [ ] `_render_columns` in `cli/output.py` honours a view when present, first-seen order when not.
 - [ ] `Table` in `render.js` honours a view when present. Full text of a clipped cell in `title`.
-- [ ] `--cols` / `--drop` / `--no-shape` on `wrap`.
-- [ ] Hidden columns reported as a warning naming them.
+- [x] `--cols` / `--drop` / `--no-shape` on `wrap`.
+- [x] Hidden columns reported as a warning naming them.
 - [ ] Verify against the live canvas headless, per [[canvas]] — the frontend still has no runner.
 
 ## Notes
