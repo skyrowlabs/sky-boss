@@ -1,0 +1,47 @@
+# The toolbox — commands you save.
+#
+# Copy this to $TB_HOME/tools.toml (default ~/.config/tb/tools.toml) and edit
+# it. tb reads this file and never writes it: the canvas server is remote code
+# execution bound to a port, and a route that could write a file tb later runs
+# would turn a transient compromise into a persistent one.
+#
+# A tool is a NAME plus a TB ARGV. `argv` starts with a tb command — `run` or
+# `wrap` — never a bare executable. That is not a formality: a tool that could
+# name any executable would be a second `tb run`, one that skips the read/write
+# split everything else depends on.
+#
+#   wrap  reads another CLI's JSON. May be pinned and refreshed.
+#   run   acts. Never given a cadence, because re-running a write on a timer is
+#         a scheduler nobody asked for.
+#
+# `acts` is inherited from that first word and cannot be declared here. You
+# already asserted read-or-write by choosing `wrap` over `run`.
+#
+# A leading ~ in an argv is expanded, so your own paths work.
+# A tool takes no arguments: `tb prs 945` is an error, not an append.
+# A tool can never shadow a tb command; that declaration is skipped and named.
+# `tb tools` lists what loaded, and what was refused and why.
+
+[tool.prs]
+description = "Open pull requests"
+# Many tools resolve their environment against the working directory rather
+# than their installed location, so --cwd is often needed even on PATH.
+argv = ["wrap", "--cwd", "/path/to/your/checkout",
+        "--", "somecli", "pr", "list", "--json"]
+# Seconds between refreshes on the canvas. Only 0, 5, 30, 60 or 300 — the
+# surface cycles the interval through that list, and a window starting outside
+# it would jump to 0 on the first click instead of to the next cadence up.
+every = 30
+
+[tool.containers]
+description = "What is running"
+# --cols picks the columns when the automatic shaping guesses wrong; the
+# warning on a shaped table names what it hid, so you know what to ask for.
+argv = ["wrap", "--cols", "Names,Image,Status",
+        "--", "docker", "ps", "--format", "json"]
+every = 5
+
+[tool.disk]
+description = "What is left on this box"
+# This one acts, because `run` acts. No `every` is permitted on it.
+argv = ["run", "--", "df", "-h", "/"]

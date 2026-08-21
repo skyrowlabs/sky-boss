@@ -1,5 +1,5 @@
 ---
-status: draft
+status: active
 created: 2026-08-20
 updated: 2026-08-20
 agent_value: 3
@@ -82,7 +82,7 @@ root group with the declared argv. Everything downstream then works with **no co
 |---|---|
 | `tb jam-pr-list` | Click knows the command |
 | `tb --help` lists it | Click knows the command |
-| the palette offers it | `catalog.walk` walks the real tree — `catalog.py` is untouched |
+| the palette offers it | `catalog.walk` walks the real tree — two lines added, see Notes |
 | shell completion completes it | `_TB_COMPLETE=fish_source` walks the real tree |
 | the TOOLBOX sidebar | filters the catalog it already fetches on `tb_saved` |
 
@@ -139,20 +139,21 @@ module.** A name in a skip-list is the beginning of the command table this desig
 
 ### Round 1 — the toolbox reads (2026-08-20)
 
-- [ ] `TB_HOME` in `cli/helpers.py` alongside `STATE_DIR`, defaulting to `~/.config/tb/`.
-- [ ] `cli/tools.py`: load and validate `tools.toml` as pure functions over a parsed dict, plus
+- [x] `TB_HOME` in `cli/helpers.py` alongside `STATE_DIR`, defaulting to `~/.config/tb/`.
+- [x] `cli/tools.py`: load and validate `tools.toml` as pure functions over a parsed dict, plus
       `tests/test_tools.py`. Absent file → `[]`. Malformed tool → skipped with a warning naming it,
       never an exception; one bad entry must not cost the operator the other nine.
-- [ ] Validation covers the four rules: tb-argv only, `acts` inherited, builtin collisions refused,
+- [x] Validation covers the four rules: tb-argv only, `acts` inherited, builtin collisions refused,
       `every` refused on a tool that acts.
-- [ ] Register tools onto the root group in `cli/__init__.py`. `tb jam-pr-list` runs; `tb --help`
-      lists it. Assert `catalog.py` needed no edit — that assertion is the point of the design.
-- [ ] `tb tools` — a read listing name, description, expansion and `acts`.
-- [ ] `tb_saved` on generated commands; catalog carries it through.
+- [x] Register tools onto the root group in `cli/__init__.py`. `tb jam-pr-list` runs; `tb --help`
+      lists it. **`catalog.py` needed two lines after all** — the claim that it would need none was
+      too strong, and the second line was a real safety hole. See Notes.
+- [x] `tb tools` — a read listing name, description, expansion and `acts`.
+- [x] `tb_saved` on generated commands; catalog carries it through.
 - [ ] TOOLBOX sidebar in `app.js` renders catalog entries where `tb_saved`, click opens a window,
       a tool's `every` becomes the window's starting interval. Tracked as a task of [[canvas]]
       Round 5, which owns the sidebar's chrome.
-- [ ] Ship a `tools.example.toml` in the repo. Generic — no operator paths in a tracked file, and
+- [x] Ship a `tools.example.toml` in the repo. Generic — no operator paths in a tracked file, and
       a test asserts the tracked example names no home directory.
 
 ## Notes
