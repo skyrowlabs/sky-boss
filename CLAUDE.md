@@ -95,10 +95,21 @@ The rules that are not negotiable:
   stylesheet is written in `rem` where `1rem` is four scaled pixels. Do not add a `px`. CSS `zoom`
   was rejected because it breaks dragging — `clientX` is unzoomed and `left` is zoomed — and
   `--force-device-scale-factor` because it *overrides* display scaling rather than multiplying it.
-- **No browser flag gives a frameless window that is still resizable.** `--kiosk` drops the frame
-  by going full-screen, which cannot be sized or moved. Stripping the title bar otherwise is the
-  window manager's job — a KWin rule on `--class=tackle-box` — and belongs to the operator.
-  The surface therefore carries its own close button, guarded like every other route.
+- **The shell is a native webview** (`cli/canvas/shell.py`), because three things the operator
+  asked for are impossible in a browser: a frameless window that is still resizable, a page that
+  moves its own window, and no port exposed to any other tab. `--browser` and `--no-browser` keep
+  the old paths, and `--no-browser` is still the mode to develop in.
+- **`frameless=True` is requested and refused on KDE.** GTK reports `DECORATED = False` and KWin
+  draws a title bar anyway. Removing it is a window-manager rule matched on `WM_CLASS`, which is
+  why the shell sets one — and **nothing here writes that rule.** A desktop is the operator's.
+  The README carries the durable form.
+- **Drag is not `pywebview-drag-region`.** That is a Cocoa and Windows feature; the GTK backend has
+  no drag regions at all, only `easy_drag`, which makes the whole page a handle and would mean
+  dragging a window inside the canvas also drags the canvas. The bar calls
+  `Gtk.Window.begin_move_drag` instead, so the window manager owns the drag and it snaps and tiles
+  like every other window.
+- **The surface carries its own close button**, guarded like every other route, because the frame
+  it would otherwise rely on may not be there.
 - **The frontend has no automated tests.** There is no JS test runner and adding one means npm.
   The pure parts — `unwrap`, `suggest`, `roleFor` — are what a runner would be for. Verified by
   rendering headless Chromium against the live server and reading the DOM back, which is not the

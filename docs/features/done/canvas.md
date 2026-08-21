@@ -107,6 +107,13 @@ auto-refreshing a write is a scheduler nobody asked for.
 
 ## Phases
 
+### Round 4 — a native window (2026-08-20)
+
+- [x] The shell is a native webview; `--browser` and `--no-browser` keep the old paths.
+- [x] The surface's own bar moves the window, through the window manager.
+- [x] A stable `WM_CLASS`, so the desktop and any window rule can name it.
+- [x] Default scale back to 1.
+
 ### Round 3 — the window itself (2026-08-20)
 
 - [x] One scale factor drives every size on the surface; `tb ui --scale`, default 2.
@@ -318,3 +325,47 @@ the theme suite failed on `--tb-scale`, correctly: it is injected by the server 
 by the palette. The fix was to make the test state the real rule — **a token used with a fallback
 is exempt, a bare one is not** — because `var(--tb-scale, 2)` carries a default precisely so a
 failed substitution renders at normal size instead of collapsing the surface to zero.
+
+
+### Round 4 — a native window (2026-08-20)
+
+**The migration cost what it said it would.** Round 1 recorded pywebview as *deferred, not rejected*
+and promised the change would be "the launcher only". It was: `cli/canvas/shell.py` is new, the
+launcher chooses between it and Chromium, and the server, the frontend and all 106 tests were
+untouched. Everything the page talks to is still HTTP, which is what made the swap cheap.
+
+**GTK rather than Qt** because WebKitGTK 4.1 and python-gobject are already installed here, so the
+backend downloads nothing where Qt would bundle a second Chromium at 244 MB. The price is
+`include-system-site-packages` on `.venv`, since the bindings are system-owned. Venv packages still
+take precedence — checked, because that is the failure that would matter.
+
+**Three things that only appear when you run it.** WebKitGTK dies on a native Wayland session with
+`Gdk-Message: Error 71 (Protocol error)` before any window appears and with no other diagnostic; a
+bare GTK window realises fine on the same session, so it is WebKit's fault rather than GTK's, and
+it runs under XWayland instead. The DMABUF renderer then narrates `Failed to create GBM buffer` at
+the launching terminal on every resize. And pywebview probes Qt first on this install, reporting
+`No module named 'qtpy'` — which sends you hunting a Python package when the backend you want is
+present and working. All three are settled in `shell.py` rather than left to be rediscovered.
+
+**The drag region is not what the documentation says.** `pywebview-drag-region` is a Cocoa and
+Windows feature; **the GTK backend implements no drag regions at all**, offering only `easy_drag`,
+which makes the whole page a handle — exactly wrong on a canvas of draggable windows, where it
+would mean dragging a window inside the canvas also drags the canvas. So the bar asks for the move
+itself and hands it to `Gtk.Window.begin_move_drag`, which is what a real title bar does: the
+window manager takes over, so the drag snaps, tiles and crosses monitors instead of being
+reimplemented in JavaScript. **Confirmed working with a real mouse.**
+
+**`frameless=True` is requested and refused.** GTK reports `DECORATED = False` — verified against
+our exact arguments and against the same call in isolation — and KWin draws a title bar anyway.
+Confirmed on the operator's session, and confirmed to be the *native* window rather than a leftover
+browser one: the closed window's envelope named the same ephemeral port as the screenshot showing
+the frame. Removing it is therefore a window-manager rule matched on `WM_CLASS`, which is why the
+shell sets one. KDE's right-click *No Border* does it for a single window and does not persist; the
+durable form is in the README. **Nothing here writes that rule** — a desktop is the operator's, not
+the tool's.
+
+**Naming the window cost the shell its backend, once.** Importing `Gdk` without a version pins it
+to a default, and pywebview's own `gi.require_version('Gtk', '3.0')` then raises — so it concluded
+GTK was unavailable, fell through to Qt, and reported "You must have either QT or GTK with Python
+extensions installed" on a machine where GTK was installed and working. The requirements come
+first now, and the comment says why.

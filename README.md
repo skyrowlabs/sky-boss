@@ -39,9 +39,31 @@ re-running a read is a refresh, and re-running a write is a scheduler nobody ask
 2. `--size WIDTH,HEIGHT` sets the window geometry; otherwise the profile remembers where you left
 it. `--kiosk` goes full-screen with no frame, for a wall display, and cannot be resized.
 
-The window has no tab strip, address bar or bookmarks bar. Its title bar belongs to your window
-manager — no browser flag removes that while leaving the window sizable — so the surface carries
-its own close button, which works whether or not a frame is there.
+The window is a native webview, so it is frameless by request, resizable, and moved by dragging
+the surface's own top bar — none of which a browser can do, since no web API lets a page move its
+own window. `--browser` opens it in Chromium instead and `--no-browser` serves only, which is the
+mode to develop in.
+
+**On KDE the title bar comes back anyway.** GTK asks for no decorations and KWin draws one
+regardless. Right-click the title bar → *More Actions* → *No Border* hides it for that window
+only; to make it stick, add a rule matched on the window class:
+
+```ini
+# ~/.config/kwinrulesrc
+[General]
+rules=tackle-box
+
+[tackle-box]
+Description=tackle-box
+noborder=true
+noborderrule=2
+wmclass=tackle-box
+wmclasscomplete=false
+wmclassmatch=1
+```
+
+Then `qdbus6 org.kde.KWin /KWin reconfigure`. The surface carries its own close button, so removing
+the frame does not strand you.
 
 The server binds loopback on an ephemeral port and dies with the window. It runs commands, so it
 requires a per-launch token in a custom header — which also forces a CORS preflight that is never
