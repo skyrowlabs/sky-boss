@@ -295,11 +295,34 @@ body {
  * still overflows sideways, which looks like the clipping is broken when it is
  * the container that is wrong. */
 .grid.shaped { display: block; }
-.grid.shaped .row { display: flex; gap: 3rem; }
+/* Two rather than three: three reads as generous until a foreign tool's tenth
+ * column is the one the budget hides to pay for it. */
+.grid.shaped .row { display: flex; gap: 2rem; }
 .grid.shaped .row > span {
   display: block; overflow: hidden; text-overflow: ellipsis; padding: 0.25rem 0;
 }
-.grid.shaped .row.head > span { position: static; }
+/* A rule, so the header reads as a header rather than as the first row. */
+.grid.shaped .row.head {
+  position: sticky; top: -1.75rem; background: var(--tb-surface);
+  border-bottom: var(--hair) solid var(--tb-hair); margin-bottom: 0.5rem;
+}
+/* No letter-spacing on a shaped header. The column widths are a contract
+ * measured in `ch`, and tracking silently makes a six-character label need
+ * more than six of them — which renders as `NUMB…` under a column that was
+ * sized to fit `NUMBER` exactly. The unshaped grid keeps its tracking, since
+ * nothing there is measured. */
+.grid.shaped .row.head > span { position: static; letter-spacing: 0; }
+
+/* One record: its row, then whatever hangs off it. */
+.grid.shaped .rec.spaced { margin-bottom: 1.5rem; }
+/* A detail line owns the width. The leading spacer carries the first column's
+ * sizing so the prose starts under the second column, exactly as it does in
+ * the terminal — the identifier stays the leftmost thing on the record. */
+.grid.shaped .row.detail > span:last-child {
+  flex: 1; min-width: 0; white-space: normal; overflow: visible;
+  text-overflow: clip; padding-top: 0;
+}
+.grid.shaped .row.detail .gut { flex-shrink: 0; }
 .row.sub > span { color: var(--tb-text-3); padding-bottom: 1rem; }
 
 .v-num { color: var(--tb-brand); text-align: right; }

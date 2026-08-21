@@ -104,8 +104,15 @@ def _body(out: str) -> list[str]:
 
     Asserts on content rather than column positions — layout is exactly what
     the renderer is free to change.
+
+    Header rules are decoration and are dropped too, so an index into this list
+    means the same thing whether or not the table was shaped.
     """
-    return [l.rstrip() for l in out.splitlines() if l.strip() and not l.lstrip().startswith("●")]
+    return [
+        l.rstrip()
+        for l in out.splitlines()
+        if l.strip() and not l.lstrip().startswith("●") and set(l.strip()) != {"─"}
+    ]
 
 
 def test_columns_missing_key_renders_empty(capsys):
@@ -450,8 +457,8 @@ def test_a_view_selects_and_orders_the_columns(capsys):
             data=[{"a": 1, "b": 2, "c": 3}],
             view={
                 "columns": [
-                    {"key": "c", "label": "C", "flex": 1, "min": 1},
-                    {"key": "a", "label": "A", "flex": 1, "min": 1},
+                    {"key": "c", "label": "C", "flex": 1, "min": 1, "max": 4},
+                    {"key": "a", "label": "A", "flex": 1, "min": 1, "max": 4},
                 ],
                 "hidden": ["b"],
             },
@@ -470,7 +477,7 @@ def test_a_view_summarises_a_nested_dict_into_one_cell(capsys):
             data=[{"checks": {"passed": 2, "failed": 0, "skipped": 7}}],
             view={
                 "columns": [
-                    {"key": "checks", "label": "CHECKS", "flex": 3, "min": 6, "summarise": True}
+                    {"key": "checks", "label": "CHECKS", "flex": 3, "min": 6, "max": 24, "summarise": True}
                 ],
                 "hidden": [],
             },
@@ -501,8 +508,8 @@ def test_a_column_is_never_squeezed_below_its_header(capsys):
                 data=[{"merge_state": "CLEAN", "title": "x" * 200}],
                 view={
                     "columns": [
-                        {"key": "merge_state", "label": "MERGE_STATE", "flex": 1, "min": 11},
-                        {"key": "title", "label": "TITLE", "flex": 5, "min": 5},
+                        {"key": "merge_state", "label": "MERGE_STATE", "flex": 1, "min": 11, "max": 11},
+                        {"key": "title", "label": "TITLE", "flex": 5, "min": 5, "max": 200},
                     ],
                     "hidden": [],
                 },
@@ -519,8 +526,82 @@ def test_a_view_outranks_the_status_list_convention(capsys):
         Result(
             "x",
             data=[{"ok": True, "name": "one"}],
-            view={"columns": [{"key": "name", "label": "NAME", "flex": 1, "min": 4}], "hidden": ["ok"]},
+            view={"columns": [{"key": "name", "label": "NAME", "flex": 1, "min": 4, "max": 6}], "hidden": ["ok"]},
         ),
         as_json=False,
     )
     assert _body(capsys.readouterr().out)[0].split() == ["NAME"]
+
+
+def test_a_detail_column_gets_its_own_line_under_the_record(capsys):
+    """A ninety-character title does not fit in a share of the width, and
+    Round 1's answer — move it to the end of the row — only changed where it
+    got clipped. It gets a line."""
+    render(
+        Result(
+            "x",
+            data=[{"number": 946, "title": "a title far too long to sit inside a shared column"}],
+            view={
+                "columns": [{"key": "number", "label": "NUMBER", "flex": 1, "min": 6, "max": 6,
+                             "align": "right"}],
+                "details": [{"key": "title", "label": "TITLE", "flex": 1, "min": 5, "max": 60}],
+                "hidden": [],
+            },
+        ),
+        as_json=False,
+    )
+    body = _body(capsys.readouterr().out)
+    assert body[0].split() == ["NUMBER"]
+    assert "946" in body[1]
+    # In full, not clipped — that is the entire point of the change.
+    assert "a title far too long to sit inside a shared column" in body[2]
+
+
+def test_a_shaped_table_has_a_rule_under_its_header(capsys):
+    render(
+        Result("x", data=[{"a": 1}],
+               view={"columns": [{"key": "a", "label": "A", "flex": 1, "min": 1, "max": 1}],
+                     "hidden": []}),
+        as_json=False,
+    )
+    lines = [l for l in capsys.readouterr().out.splitlines() if l.strip()]
+    assert any(set(l.strip()) == {"─"} for l in lines)
+
+
+def test_a_shaped_table_leaves_no_trailing_whitespace(capsys):
+    """Invisible until someone selects the line or diffs the output, and then
+    it is noise."""
+    render(
+        Result("x", data=[{"a": 1, "b": "x"}],
+               view={"columns": [
+                   {"key": "a", "label": "A", "flex": 1, "min": 1, "max": 3},
+                   {"key": "b", "label": "BBBB", "flex": 1, "min": 4, "max": 4}],
+                   "hidden": []}),
+        as_json=False,
+    )
+    for line in capsys.readouterr().out.splitlines():
+        assert line == line.rstrip(), repr(line)
+
+
+def test_a_scan_column_is_not_padded_out_to_fill_the_terminal(capsys):
+    """Prose left the row, so no column left in it wants to be wider than its
+    own content. Spreading the spare width across four scan columns is how
+    NUMBER ends up eighteen characters wide with a three-digit number in it."""
+    from cli.output import _resolve_widths
+
+    columns = [
+        {"key": "number", "label": "NUMBER", "flex": 1, "min": 6, "max": 6},
+        {"key": "state", "label": "STATE", "flex": 1, "min": 5, "max": 7},
+    ]
+    assert _resolve_widths(columns, 200) == [6, 7]
+
+
+def test_columns_still_shrink_when_they_genuinely_do_not_fit(capsys):
+    from cli.output import _resolve_widths
+
+    columns = [
+        {"key": "a", "label": "A", "flex": 1, "min": 1, "max": 40},
+        {"key": "b", "label": "B", "flex": 1, "min": 1, "max": 40},
+    ]
+    widths = _resolve_widths(columns, 20)
+    assert sum(widths) <= 20
