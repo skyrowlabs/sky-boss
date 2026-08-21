@@ -109,6 +109,7 @@ auto-refreshing a write is a scheduler nobody asked for.
 
 ### Round 4 — a native window (2026-08-20)
 
+- [x] The close button closes the window, not only the server.
 - [x] The shell is a native webview; `--browser` and `--no-browser` keep the old paths.
 - [x] The surface's own bar moves the window, through the window manager.
 - [x] A stable `WM_CLASS`, so the desktop and any window rule can name it.
@@ -369,3 +370,21 @@ to a default, and pywebview's own `gi.require_version('Gtk', '3.0')` then raises
 GTK was unavailable, fell through to Qt, and reported "You must have either QT or GTK with Python
 extensions installed" on a machine where GTK was installed and working. The requirements come
 first now, and the comment says why.
+
+
+**The close button did not close the window.** Shutdown had one direction wired and not the other:
+closing the *window* told the server to stop, and nothing told the *window* to stop when the server
+was asked to. So the surface's own ✕ killed the server and left a dead window on screen with the
+process still running.
+
+Neither browser mode could have shown it. `--no-browser` has no window, and `--browser` terminates
+a child process it can see — the native shell is the only mode where the window lives inside the
+same process and has to be told. The test that existed proved the button *set the latch*; nothing
+proved anything listened, which is the half that was missing.
+
+Two things about measuring it are worth keeping. The fix looked slow — a `duration_s` of twenty
+seconds — until the measurement was done properly: that field covers the whole session, so it was
+counting the sleep before the button was pressed. Timed from the press, quit to exit is **0.31s**.
+And `pgrep -f "m cli ui --port 8796"` matches the shell command *containing* that string, so a
+liveness check written that way reports its own caller as the process it is looking for, and every
+run says the process survived.

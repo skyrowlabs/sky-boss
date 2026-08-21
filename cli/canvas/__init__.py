@@ -112,7 +112,7 @@ def _launch_browser(binary: str, url: str, *, kiosk: bool, size: str | None) -> 
 @click.option(
     "--scale",
     type=float,
-    default=1.0,
+    default=1.15,
     show_default=True,
     help="How big the surface renders. Every size derives from this.",
 )
@@ -162,8 +162,20 @@ def ui(
     started = time.monotonic()
     mode = "native"
 
+    # Whatever else has to be torn down when the session ends. Popped rather
+    # than iterated, so the two ways out — the window closing, and the
+    # surface's own close button — cannot each run it.
+    closers: list = []
+
     def stop() -> None:
         server.should_exit = True
+        # And do not wait for open connections. Every session holds a stream
+        # that never ends on its own, so there is nothing for a graceful
+        # shutdown to wait *for* — it would sit until the heartbeat noticed a
+        # socket nobody is reading.
+        server.force_exit = True
+        while closers:
+            closers.pop()()
 
     # The surface's own close button, watched in every mode. It used to be
     # watched only inside the browser thread, so with `--no-browser` — the mode
@@ -213,6 +225,10 @@ def ui(
         thread = threading.Thread(target=server.run, daemon=True)
         thread.start()
         wait_for_bind()
+        # The close button reaches the server, and the server has to be able to
+        # reach the window. Without this the ✕ stopped serving and left the
+        # window on screen.
+        closers.append(shell.close_window)
         with contextlib.suppress(KeyboardInterrupt):
             shell.open_window(
                 url,
