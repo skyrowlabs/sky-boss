@@ -150,7 +150,7 @@ module.** A name in a skip-list is the beginning of the command table this desig
       too strong, and the second line was a real safety hole. See Notes.
 - [x] `tb tools` — a read listing name, description, expansion and `acts`.
 - [x] `tb_saved` on generated commands; catalog carries it through.
-- [ ] TOOLBOX sidebar in `app.js` renders catalog entries where `tb_saved`, click opens a window,
+- [x] TOOLBOX sidebar in `app.js` renders catalog entries where `tb_saved`, click opens a window,
       a tool's `every` becomes the window's starting interval. Tracked as a task of [[canvas]]
       Round 5, which owns the sidebar's chrome.
 - [x] Ship a `tools.example.toml` in the repo. Generic — no operator paths in a tracked file, and
