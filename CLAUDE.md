@@ -81,6 +81,11 @@ The rules that are not negotiable:
   Click tree, so it cannot drift from the CLI. A palette offering a command that does not exist is
   worse than no palette, because it has already told you it does. A *surface* excludes itself by
   setting `tb_surface` on its own command object rather than by being named in a skip-list here.
+
+  **A raw command is not a drift.** Anything typed whose first word is not a tb command is offered
+  as `tb read -- <argv>`, synthesised from the query rather than from any list, with the expansion
+  shown before it runs. It defaults to `$HOME` — neutral, because the canvas inherits whatever
+  directory `tb ui` started in, and any repo with a `cli/` package shadows a tool's own.
 - **Only a read may be given a cadence.** See § Scope.
 - **The refresh clock lives in Python, keyed to the connection.** A watcher runs while its stream
   is open, so it pauses when the window closes and keeps running when the window is merely

@@ -165,7 +165,19 @@ def build(canvas: Canvas | None = None) -> Starlette:
     async def get_catalog(request: Request) -> Response:
         if not canvas.authorised(request):
             return _denied()
-        return JSONResponse({"commands": catalog(), "intervals": list(INTERVALS)})
+        # `home` is where a *raw* command runs unless the operator says
+        # otherwise. Neutral on purpose: the canvas inherits whatever directory
+        # `tb ui` was launched in, and launching it inside any repo with a
+        # `cli/` package makes `python -m cli` resolve to that one — which is
+        # how running `jam` from this repo produces tackle-box's own error.
+        # A home directory has no such package to shadow anything.
+        return JSONResponse(
+            {
+                "commands": catalog(),
+                "intervals": list(INTERVALS),
+                "home": str(Path.home()),
+            }
+        )
 
     async def post_run(request: Request) -> Response:
         if not canvas.authorised(request):

@@ -115,6 +115,20 @@ auto-refreshing a write is a scheduler nobody asked for.
 
 ## Phases
 
+### Round 7 — the palette accepts a command that is not tb's (2026-08-21)
+
+- [x] Anything typed whose first word is not a tb command is offered as a **raw command**, expanding
+      to `tb read -- <argv>`. The expansion is the suggestion's description, so what will run is
+      visible before Enter rather than discovered after.
+- [x] Appended rather than shown only when nothing else matched. `list` matches `tools` by
+      description, and a raw entry that hid behind a description match would be a palette that
+      sometimes accepts a command and sometimes silently does not.
+- [x] A raw window runs in `$HOME` by default, supplied by the server since the browser cannot know
+      it, and carries an **editable directory field**. Its argv is rebuilt from that field rather
+      than stored, so changing it re-points the watcher instead of leaving it on the old one.
+- [x] Expanding to `read` rather than `run`: the whole point is a window that refreshes, and only a
+      read may be given a cadence.
+
 ### Round 6 — the palette moves into the bar (2026-08-20)
 
 - [x] The fixed palette becomes an input in the top bar, bounded at `80ch`. Most argvs are short,
@@ -509,3 +523,31 @@ its own JSON, and refusing to display it was refusing the operator their own too
 
 The real gap was never display in any case: `tb run` already carried the bytes. It was that `run`
 acts, so the only command that carried text was the one command that must never be put on a timer.
+
+### Round 7 — a palette that accepts what you actually typed (2026-08-21)
+
+The request read as "stop making me call tb". What it turned out to mean is narrower and better:
+*stop making me type tb's prefix*. tb still executes — through `tb read`, which is what gives the
+window an envelope, a killable subprocess and a cadence. Only the typing changed.
+
+**The interesting problem was the working directory, not the parsing.** A raw command has no place
+to put `--cwd`, and the canvas inherits whatever directory `tb ui` was launched in — so a canvas
+started inside this repo runs `jam pr list` with tackle-box's `cli/` package shadowing jam's own
+and hands back tackle-box's error message. Defaulting to `$HOME` fixes it for a reason worth
+writing down: a home directory has no `cli/` package to shadow anything. It is neutral rather than
+merely conventional, and the same property makes it right for the next tool with the same bug.
+
+The window carries that directory as an editable field, and **rebuilds its argv from it** rather
+than storing the argv. Storing it would have left a watcher re-running the old directory after the
+field changed — a window claiming to show something it is not, which is the failure this surface
+keeps having to design against.
+
+**Appended, not conditional.** The obvious rule is "offer a raw command when nothing else matched",
+and it is wrong in a way that only shows up on particular input: `list` matches `tools` by its
+description, so a conditional raw entry would vanish for some queries and appear for others with no
+rule the operator could hold in their head. It is appended whenever the first word is not exactly a
+tb command, which is a rule you can state in one sentence.
+
+**And it expands to `read`, never `run`.** The whole point is a window that refreshes, and only a
+read may be given a cadence. A raw command that wants to write is typed with `run --` in front of
+it, which is the same explicit assertion `wrap` and `read` already ask for.

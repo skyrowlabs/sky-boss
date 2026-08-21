@@ -69,8 +69,50 @@ export function suggest(commands, query) {
   return [...byName, ...byText];
 }
 
+/* Anything typed that is not a tb command is offered as one anyway, run
+ * through `tb read` so it can be pinned and refreshed.
+ *
+ * Appended rather than shown only when nothing else matched: `list` matches
+ * `tools` by description, and a raw entry that hid behind a description match
+ * would be a palette that sometimes accepts a command and sometimes silently
+ * does not. Suppressed only when the first word is exactly a tb command, where
+ * the operator is plainly reaching for that command.
+ *
+ * The expansion goes in `summary`, so what will actually run is visible before
+ * Enter rather than discovered afterwards.
+ */
+export function rawEntry(query, home) {
+  const words = query.trim().split(/\s+/).filter(Boolean);
+  if (!words.length) return null;
+  return {
+    name: words.join(" "),
+    raw: true,
+    rawWords: words,
+    cwd: home,
+    argv: ["read", "--cwd", home, "--", ...words],
+    summary: `tb read -- ${words.join(" ")}`,
+    options: [],
+    acts: false,
+    saved: false,
+    every: 0,
+  };
+}
+
+export function withRaw(commands, query, home) {
+  const shown = suggest(commands, query);
+  const words = query.trim().split(/\s+/).filter(Boolean);
+  if (!words.length) return shown;
+  if (commands.some((c) => c.name === words[0])) return shown;
+  const raw = rawEntry(query, home);
+  return raw ? [...shown, raw] : shown;
+}
+
 /* argv for a window: its command, plus whichever chips are on. */
 function argvOf(win) {
+  /* A raw window owns an editable working directory, so its argv is rebuilt
+   * rather than stored — otherwise changing the directory would leave the
+   * watcher re-running the old one. */
+  if (win.raw) return ["read", "--cwd", win.cwd, "--", ...win.rawWords];
   const flags = [];
   for (const chip of win.chips) if (chip.on) flags.push(chip.flag);
   return [...win.argv, ...flags];
@@ -234,10 +276,10 @@ function paletteKeys({ shown, selected, setSelected, open, query, onEscape }) {
  * answer to something you started typing, so they belong to the moment you are
  * typing it.
  */
-function BarPalette({ commands, query, setQuery, selected, setSelected, open }) {
+function BarPalette({ commands, query, setQuery, selected, setSelected, open, home }) {
   const input = useRef(null);
   const [focused, setFocused] = useState(false);
-  const shown = suggest(commands, query).slice(0, 8);
+  const shown = withRaw(commands, query, home).slice(0, 8);
 
   const onKey = paletteKeys({
     shown, selected, setSelected, open, query,
@@ -277,13 +319,13 @@ function BarPalette({ commands, query, setQuery, selected, setSelected, open }) 
   `;
 }
 
-function Palette({ commands, query, setQuery, selected, setSelected, open, floating, close }) {
+function Palette({ commands, query, setQuery, selected, setSelected, open, floating, close, home }) {
   const input = useRef(null);
   useEffect(() => {
     if (floating && input.current) input.current.focus();
   }, [floating]);
 
-  const shown = suggest(commands, query).slice(0, 8);
+  const shown = withRaw(commands, query, home).slice(0, 8);
   const onKey = paletteKeys({
     shown, selected, setSelected, open, query,
     onEscape: floating ? close : null,
@@ -382,6 +424,18 @@ function Window({ win, now, layout, focused, actions, intervals }) {
         <button class="tbtn plain" title="close" onClick=${() => actions.close(win.id)}>✕</button>
       </div>
 
+      ${win.raw &&
+      html`
+        <div class="chips">
+          <span class="label">DIR</span>
+          <input
+            class="cwd"
+            value=${win.cwd}
+            title="where this command runs"
+            onChange=${(e) => actions.chdir(win.id, e.target.value)}
+          />
+        </div>
+      `}
       ${win.chips.length > 0 &&
       html`
         <div class="chips">
@@ -429,6 +483,9 @@ function Window({ win, now, layout, focused, actions, intervals }) {
 function App() {
   const [commands, setCommands] = useState([]);
   const [intervals, setIntervals] = useState([0, 5, 30, 60, 300]);
+  /* Where a raw command runs unless the window says otherwise. Supplied by the
+   * server rather than assumed, since the browser cannot know it. */
+  const [home, setHome] = useState("");
   const [windows, setWindows] = useState([]);
   const [layout, setLayout] = useState(TILE);
   const [query, setQuery] = useState("");
@@ -451,6 +508,7 @@ function App() {
     api.catalog().then((body) => {
       setCommands(body.commands);
       setIntervals(body.intervals);
+      setHome(body.home || "");
     });
   }, []);
 
@@ -524,7 +582,10 @@ function App() {
      * has to reach the server whole; splitting it here would be a second
      * parser, and tb's own is the one that decides what an argv means. */
     const words = typed.trim().split(/\s+/).filter(Boolean);
-    const extra = words.slice(entry.argv.length);
+    /* A raw entry was built from the query itself, so every word is already in
+     * its argv. Slicing by command length here would append them a second
+     * time. */
+    const extra = entry.raw ? [] : words.slice(entry.argv.length);
     const id = newId();
     const count = windowsRef.current.length;
 
@@ -532,8 +593,11 @@ function App() {
       id,
       num: count + 1,
       argv: [...entry.argv, ...extra],
-      label: [...entry.argv, ...extra].join(" "),
+      label: entry.raw ? entry.rawWords.join(" ") : [...entry.argv, ...extra].join(" "),
       acts: entry.acts,
+      raw: Boolean(entry.raw),
+      rawWords: entry.rawWords || null,
+      cwd: entry.cwd || null,
       chips: (entry.options || [])
         .filter((o) => o.is_flag)
         .map((o) => ({ flag: o.flag, help: o.help, on: false })),
@@ -588,6 +652,16 @@ function App() {
     refresh: (id) => {
       const win = windowsRef.current.find((w) => w.id === id);
       if (win) execute(id, argvOf(win));
+    },
+    /* Re-runs at once. A directory that changed but left the old output on
+     * screen is a window claiming to show something it is not. */
+    chdir: (id, cwd) => {
+      const win = windowsRef.current.find((w) => w.id === id);
+      if (!win || !win.raw || !cwd || cwd === win.cwd) return;
+      const next = { ...win, cwd };
+      patch(id, () => ({ cwd }));
+      reWatch(next);
+      execute(id, argvOf(next));
     },
     pin: (id) => {
       const win = windowsRef.current.find((w) => w.id === id);
@@ -683,6 +757,7 @@ function App() {
           selected=${selected}
           setSelected=${setSelected}
           open=${open}
+          home=${home}
         />
         <div class="spacer"></div>
         <span class=${`stat ${running ? "live" : ""}`}>TASKS<b>${running}</b></span>
@@ -710,6 +785,7 @@ function App() {
           selected=${selected}
           setSelected=${setSelected}
           open=${open}
+          home=${home}
           floating=${true}
           close=${() => setFloating(false)}
         />
