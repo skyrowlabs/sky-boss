@@ -20,6 +20,12 @@ subprocess's bytes into `data`, and this does not become the second. If the
 wrapped tool prints something that is not JSON, that is a failed contract rather
 than a payload — this says so and points at `tb run`, which exists to show you
 what a command actually printed.
+
+**It is the only command that shapes its own table.** A foreign tool's JSON has
+as many fields as its author needed, not as many as a table wants, so this
+attaches a `view` describing which of them to show. tb's own commands do not:
+their fields were chosen deliberately and auto-dropping one would be a bug
+wearing a feature's clothes. The view never edits `data`. See cli/view.py.
 """
 
 from __future__ import annotations
@@ -32,14 +38,25 @@ import time
 import rich_click as click
 
 from cli.output import Result, emit
+from cli.view import shape
 
 
 @click.command()
 @click.argument("argv", nargs=-1, required=True)
 @click.option("--timeout", type=int, default=60, help="Give up after this many seconds.")
 @click.option("--cwd", type=click.Path(file_okay=False, exists=True), help="Run it here.")
+@click.option("--cols", help="Show exactly these columns, in this order. Dotted paths allowed.")
+@click.option("--drop", help="Hide these columns, keeping the rest of the shaping.")
+@click.option("--no-shape", "no_shape", is_flag=True, help="Every column, in the order found.")
 @emit
-def wrap(argv: tuple[str, ...], timeout: int | None, cwd: str | None) -> Result:
+def wrap(
+    argv: tuple[str, ...],
+    timeout: int | None,
+    cwd: str | None,
+    cols: str | None,
+    drop: str | None,
+    no_shape: bool,
+) -> Result:
     """Read another CLI's JSON output as data.
 
     The wrapped tool has to be asked for JSON itself — the flag is not guessed,
@@ -50,6 +67,12 @@ def wrap(argv: tuple[str, ...], timeout: int | None, cwd: str | None) -> Result:
     Some tools resolve their own environment against the working directory
     rather than their installed location, so `--cwd` is often required even for
     a command that is on PATH.
+
+    Rows are shaped into a table worth reading — an empty column and an opaque
+    identifier are dropped, a nested dict is summarised, and anything past the
+    budget is hidden and named. `--cols` overrides that outright:
+
+        tb wrap --cols number,title,checks.failed -- jam pr list --json
     """
     result = Result()
     started = time.monotonic()
@@ -95,9 +118,33 @@ def wrap(argv: tuple[str, ...], timeout: int | None, cwd: str | None) -> Result:
     # A list of rows becomes the data outright, so a window renders a table
     # rather than a table nested one level down under a key nobody chose.
     result.data = parsed
-    if isinstance(parsed, list):
-        result.warnings = []
+
+    requested = _split(cols)
+    dropped = _split(drop)
+    result.view = shape(parsed, cols=requested, drop=dropped, enabled=not no_shape)
+
+    if result.view:
+        # Only what the operator did *not* ask to lose. A silently hidden
+        # column is the "looks right and isn't" failure — the table reads as
+        # complete when it is not — but naming a column back at someone who
+        # just typed `--drop` for it is noise.
+        surprising = [key for key in result.view["hidden"] if key not in dropped]
+        if surprising:
+            count = len(surprising)
+            result.warn(
+                f"{count} column{'' if count == 1 else 's'} hidden: "
+                f"{', '.join(surprising)} — use --cols to choose"
+            )
+
     return result
+
+
+def _split(value: str | None) -> list[str]:
+    """A comma-separated option as a list. Blank entries dropped, so a trailing
+    comma is a typo rather than a request for a nameless column."""
+    if not value:
+        return []
+    return [part.strip() for part in value.split(",") if part.strip()]
 
 
 def _first_line(text: str) -> str:
