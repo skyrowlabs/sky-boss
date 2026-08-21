@@ -16,7 +16,7 @@ the week after they were written.
 
 Only `wrap` calls this. tb's own commands return fields a person chose
 deliberately, and auto-dropping one of those would be a bug wearing a feature's
-clothes. See docs/features/table-views.md.
+clothes. See [[table-views]].
 """
 
 from __future__ import annotations

@@ -237,9 +237,17 @@ Shared with sibling CLIs so the family feels like one tool.
   literals, which is the form the drift would actually take here: the mockup is built out of them.
   Tints are `color-mix` against an injected role. There is no theme switching.
 - **Commands return data; they never print.** All rendering goes through `cli/output.py` and the
-  `Result` envelope (`ok` / `partial` / `data` / `warnings`). Exit codes: `0` ok, `1` hard failure,
-  `3` partial — **not 2**, which Click uses for usage errors. The surface is a second consumer of
-  that envelope — a command that prints prose has to be written twice.
+  `Result` envelope (`ok` / `partial` / `data` / `warnings`, plus an optional `view`). Exit codes:
+  `0` ok, `1` hard failure, `3` partial — **not 2**, which Click uses for usage errors. The surface
+  is a second consumer of that envelope — a command that prints prose has to be written twice.
+
+  **A `view` describes how to present `data`; it never filters it.** Only `wrap` sets one, because
+  only `wrap` carries fields nobody here chose — tb's own commands picked theirs deliberately and
+  auto-dropping one would be a bug wearing a feature's clothes. The key is *omitted* rather than
+  null when absent, so an unshaped envelope stays byte-identical to one from before views existed.
+  The rules live in `cli/view.py` and not in `render.js`, because the frontend has no test runner:
+  that puts the deciding half where pytest reaches it and leaves both renderers drawing what they
+  are told. See [[table-views]].
 - **Degrade gracefully.** An unreachable host or absent config warns in yellow on **stderr** and
   continues. Keep stdout clean so `--json` stays parseable, and never collapse "reports clear"
   into "cannot see".
@@ -248,8 +256,11 @@ Shared with sibling CLIs so the family feels like one tool.
 
 ## Feature workflow
 
-`docs/features/` holds one doc: `done/canvas.md`, the surface. Every earlier spec was deleted with
-the system it described.
+`docs/features/` holds three docs. `done/table-views.md` is the shaping contract — how a foreign
+CLI's JSON becomes a table worth reading. `canvas.md` is the surface, reopened at Round 5 for the
+chrome in the second mockup. `toolbox.md` is a draft: commands the operator saves, registered into
+the Click tree so the palette gets them for free. Every earlier spec was deleted with the system it
+described.
 
 One doc per feature at `docs/features/<slug>.md`, from first sentence to done; completed docs move
 to `docs/features/done/`. `.claude/skills/feature/SKILL.md` drives it. The rules that earned their
