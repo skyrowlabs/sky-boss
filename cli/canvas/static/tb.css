@@ -193,7 +193,10 @@ body {
  * alignment. It is also a card here rather than a flush panel, because that is
  * this surface's own visual language. Chrome refinements belong to [[canvas]]
  * Round 5; this is the shape that keeps the drag handle whole. */
-.body { display: flex; flex: 1; gap: 3rem; min-height: 0; }
+/* `.stage`, not `.body` — a window's content area was already `.body`, and a
+ * second rule on the same class silently gave every window `display: flex` and
+ * a 3rem gap. Same selector, same specificity, different element. */
+.stage { display: flex; flex: 1; gap: 3rem; min-height: 0; }
 
 .toolbox {
   flex: none; width: 46rem; display: flex; flex-direction: column;
@@ -344,7 +347,14 @@ body {
  * more than six of them — which renders as `NUMB…` under a column that was
  * sized to fit `NUMBER` exactly. The unshaped grid keeps its tracking, since
  * nothing there is measured. */
-.grid.shaped .row.head > span { position: static; letter-spacing: 0; }
+/* `ch` is font-size-relative, and the unshaped header is two thirds the size
+ * of the row beneath it — so `min-width: 6ch` reserved fewer pixels in the
+ * header than in the data row and every column drifted right of its label.
+ * A width contract in `ch` only holds if both rows agree on the font size.
+ * The header stays distinguishable by colour and case instead. */
+.grid.shaped .row.head > span {
+  position: static; letter-spacing: 0; font-size: inherit;
+}
 
 /* One record: its row, then whatever hangs off it. */
 .grid.shaped .rec.spaced { margin-bottom: 1.5rem; }

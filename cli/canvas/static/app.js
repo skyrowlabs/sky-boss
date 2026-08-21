@@ -715,7 +715,7 @@ function App() {
         />
       `}
 
-      <div class="body">
+      <div class="stage">
       <${Toolbox} commands=${commands} open=${open} />
       <div class=${`canvas ${layout}`} ref=${canvas}>
         ${windows.length === 0 &&
