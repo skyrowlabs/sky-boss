@@ -65,7 +65,8 @@ commands. If groups come back, group them that way and be slower to add one.
 ## The interactive surface
 
 `tb ui` opens **the canvas**: a command palette over a window canvas, where every command opens a
-window and a pinned window re-runs itself on a cadence. It is a consumer of the output contract,
+window and a pinned window re-runs itself on a cadence, with the operator's saved commands down
+the left. It is a consumer of the output contract,
 not a second CLI. It replaced `tb tui` on 2026-08-20 — the terminal could not do overlapping
 draggable windows, which is the central metaphor. `docs/features/done/canvas.md` records the whole
 design, and `docs/design/tackle-box-demo.html` is the mockup it was built from.
@@ -117,6 +118,11 @@ The rules that are not negotiable:
   like every other window.
 - **The surface carries its own close button**, guarded like every other route, because the frame
   it would otherwise rely on may not be there.
+- **A progress bar shows time to the next refresh, and nothing else.** A running subprocess has no
+  percentage, and a bar that animates to look busy is decoration that reads as information. A
+  watcher has one because `interval` and `last_run` are known. It reads the *label* clock, which a
+  hidden page throttles — correct, and what the Python-side refresh clock buys: a stale bar is a
+  cosmetic bug where a throttled scheduler would be a silent one.
 - **The frontend has no automated tests.** There is no JS test runner and adding one means npm.
   The pure parts — `unwrap`, `suggest`, `roleFor` — are what a runner would be for. Verified by
   rendering headless Chromium against the live server and reading the DOM back, which is not the
@@ -269,11 +275,10 @@ Shared with sibling CLIs so the family feels like one tool.
 
 ## Feature workflow
 
-`docs/features/` holds three docs. `done/table-views.md` is the shaping contract — how a foreign
-CLI's JSON becomes a table worth reading. `done/toolbox.md` is the operator's saved commands,
-registered into the Click tree so the palette gets them for free. `canvas.md` is the surface, open
-at Round 5 for the rest of the chrome in the second mockup. Every earlier spec was deleted with the
-system it described.
+`docs/features/` holds three docs, all complete. `done/canvas.md` is the surface, five rounds.
+`done/table-views.md` is the shaping contract — how a foreign CLI's JSON becomes a table worth
+reading. `done/toolbox.md` is the operator's saved commands, registered into the Click tree so the
+palette gets them for free. Every earlier spec was deleted with the system it described.
 
 One doc per feature at `docs/features/<slug>.md`, from first sentence to done; completed docs move
 to `docs/features/done/`. `.claude/skills/feature/SKILL.md` drives it. The rules that earned their
