@@ -184,7 +184,7 @@ change at all** — `app.js` already treats everything past the command name as 
 - [x] `cli/view.py`: the rules as pure functions over `list[dict]`, plus `tests/test_view.py`
       covering each rule and a fixture with the *shape* of `jam pr list` rather than its content.
       Nothing wired yet.
-- [ ] `Result` gains an optional `view`; `to_dict` omits the key when unset, so existing envelopes
+- [x] `Result` gains an optional `view`; `to_dict` omits the key when unset, so existing envelopes
       and the stdout-purity test are untouched.
 - [ ] `wrap` computes the view and attaches it. `data` unchanged — asserted by a test.
 - [ ] `_render_columns` in `cli/output.py` honours a view when present, first-seen order when not.

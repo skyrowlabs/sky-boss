@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="_ds/skyrow-labs-design-system-89d3f2cc-ca17-4f1d-a88b-7893b1e9b0b9/colors_and_type.css">
+<link rel="stylesheet" href="_ds/skyrow-labs-design-system-89d3f2cc-ca17-4f1d-a88b-7893b1e9b0b9/preview/_card.css">
+<link rel="stylesheet" href="_ds/skyrow-labs-design-system-89d3f2cc-ca17-4f1d-a88b-7893b1e9b0b9/uploads/style.css">
+<script src="_ds/skyrow-labs-design-system-89d3f2cc-ca17-4f1d-a88b-7893b1e9b0b9/_ds_bundle.js"></script>
+<style>
+body{margin:0;background:#05090e;font-family:'Inter',system-ui,sans-serif}
+a{color:#38bdf8;text-decoration:none}a:hover{color:#e8edf4}
+input{font-family:'JetBrains Mono',monospace}
+input::placeholder{color:#344050}
+</style></helmet>
+
+<div style="min-height:100vh;background:#05090e;display:flex">
+
+<div style="flex:none;width:184px;min-height:100vh;background:#0b1016;border-right:1px solid rgba(255,255,255,.055);display:flex;flex-direction:column">
+  <div style="display:flex;align-items:center;height:44px;padding:0 16px;border-bottom:1px solid rgba(255,255,255,.055)">
+    <span style="font:700 11px 'JetBrains Mono',monospace;letter-spacing:.16em;color:#38bdf8">TOOLBOX</span>
+  </div>
+  <div style="flex:1"></div>
+  <div style="padding:12px 16px;border-top:1px solid rgba(255,255,255,.055);font:400 10.5px 'JetBrains Mono',monospace;color:#344050">tb &lt;tool&gt;</div>
+</div>
+
+<div style="flex:1;min-width:0;min-height:100vh;display:flex;flex-direction:column">
+
+  <div style="display:flex;align-items:center;gap:14px;height:44px;padding:0 16px;background:#0b1016;border-bottom:1px solid rgba(255,255,255,.055);white-space:nowrap;flex:none">
+    <span style="font:400 11.5px 'JetBrains Mono',monospace;color:#7a8fa8">workstation</span>
+    <div style="flex:1"></div>
+    <span style="display:flex;align-items:center;gap:7px;font:400 11.5px 'JetBrains Mono',monospace;color:#7a8fa8"><span style="flex:none;width:5px;height:5px;border-radius:50%;background:#e6dc0e"></span>TASKS <span style="color:#e6dc0e">{{ runningCount }}</span></span>
+    <span style="display:flex;align-items:center;gap:7px;font:400 11.5px 'JetBrains Mono',monospace;color:#7a8fa8"><span style="flex:none;width:5px;height:5px;border-radius:50%;background:#4ade80"></span>WINDOWS <span style="color:#e8edf4">{{ windowCount }}</span></span>
+    <span style="display:flex;align-items:center;gap:7px;font:400 11.5px 'JetBrains Mono',monospace;color:#7a8fa8"><span style="flex:none;width:5px;height:5px;border-radius:50%;background:#38bdf8"></span>WATCHERS <span style="color:#e8edf4">{{ watcherCount }}</span></span>
+    <span style="display:flex;align-items:center;gap:7px;font:400 11.5px 'JetBrains Mono',monospace;color:#f4665b"><span style="flex:none;width:5px;height:5px;border-radius:50%;background:#f4665b"></span>ATTENTION <span>{{ attentionCount }}</span></span>
+    <span style="width:1px;height:16px;background:rgba(255,255,255,.09)"></span>
+    <div style="display:flex;gap:2px;padding:2px;background:#111820;border:1px solid rgba(255,255,255,.055);border-radius:7px">
+      <span onClick="{{ setTile }}" style="padding:3px 9px;border-radius:5px;font:500 10.5px 'JetBrains Mono',monospace;cursor:pointer;background:{{ tileBg }};color:{{ tileFg }}">tiled</span>
+      <span onClick="{{ setFloat }}" style="padding:3px 9px;border-radius:5px;font:500 10.5px 'JetBrains Mono',monospace;cursor:pointer;background:{{ floatBg }};color:{{ floatFg }}">floating</span>
+    </div>
+    <span style="font:400 11.5px 'JetBrains Mono',monospace;color:#344050">{{ clock }}</span>
+  </div>
+
+  <sc-if value="{{ paletteFixed }}" hint-placeholder-val="{{ true }}">
+  <div style="flex:none;padding:16px 18px 0">
+    <div style="display:flex;align-items:center;gap:12px;height:46px;padding:0 14px;background:#0b1016;border:1px solid rgba(56,189,248,.3);border-radius:10px;box-shadow:0 0 24px rgba(56,189,248,.12)">
+      <span style="font:700 12.5px 'JetBrains Mono',monospace;color:#38bdf8">tb ▸</span>
+      <input value="{{ query }}" onChange="{{ onQuery }}" onKeyDown="{{ onKey }}" placeholder="type a command — net hosts, tail, wrap docker ps, run cam-health" style="flex:1;min-width:0;background:transparent;border:none;outline:none;font:400 14.5px 'JetBrains Mono',monospace;color:#e8edf4;padding:0" />
+      <span onClick="{{ setPaletteFloating }}" style="padding:3px 9px;border-radius:100px;border:1px solid rgba(255,255,255,.09);font:400 10.5px 'JetBrains Mono',monospace;color:#7a8fa8;cursor:pointer;white-space:nowrap">palette: fixed</span>
+      <span style="font:400 10.5px 'JetBrains Mono',monospace;color:#7a8fa8;white-space:nowrap">⏎ open window</span>
+    </div>
+    <sc-if value="{{ showFixedList }}" hint-placeholder-val="{{ true }}">
+    <div style="margin-top:8px;padding:6px;background:#0b1016;border:1px solid rgba(255,255,255,.09);border-radius:10px;font:400 12.5px/1.6 'JetBrains Mono',monospace;white-space:nowrap">
+      <sc-for list="{{ suggestions }}" as="s" hint-placeholder-count="4">
+      <div onClick="{{ s.onPick }}" style="display:grid;grid-template-columns:16px 190px 1fr auto;gap:0 14px;align-items:baseline;padding:6px 10px;border-radius:7px;cursor:pointer;background:{{ s.bg }}">
+        <span style="color:{{ s.markColor }}">{{ s.mark }}</span>
+        <span style="color:{{ s.nameColor }};font-weight:500"><span style="color:#344050">tb </span>{{ s.cmd }}</span>
+        <span style="color:#7a8fa8">{{ s.desc }}</span>
+        <span style="color:#7a8fa8;font-size:11px">{{ s.meta }}</span>
+      </div>
+      </sc-for>
+    </div>
+    </sc-if>
+  </div>
+  </sc-if>
+
+  <div ref="{{ canvasRef }}" style="flex:1;min-height:0;position:relative;padding:16px 18px;overflow:auto">
+    <sc-if value="{{ tileMode }}" hint-placeholder-val="{{ true }}">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:14px;align-content:start">
+      <sc-for list="{{ windows }}" as="w" hint-placeholder-count="4">
+      <div onMouseDown="{{ w.onFocus }}" style="grid-column:{{ w.gridCol }};display:flex;flex-direction:column;min-height:0;background:#0b1016;border:1px solid {{ w.border }};border-radius:11px;overflow:hidden;box-shadow:{{ w.shadow }}">
+        <div style="display:flex;align-items:center;gap:10px;padding:9px 13px;border-bottom:1px solid rgba(255,255,255,.055);white-space:nowrap">
+          <span style="flex:none;width:6px;height:6px;border-radius:50%;background:{{ w.dot }}"></span>
+          <span style="font:400 10px 'JetBrains Mono',monospace;color:#344050">#{{ w.num }}</span>
+          <span style="font:500 12.5px 'JetBrains Mono',monospace;color:#e8edf4;overflow:hidden;text-overflow:ellipsis"><span style="color:#344050">tb </span>{{ w.cmd }}</span>
+          <span style="font:400 11px 'JetBrains Mono',monospace;color:{{ w.metaColor }};overflow:hidden;text-overflow:ellipsis">{{ w.meta }}</span>
+          <div style="flex:1"></div>
+          <sc-for list="{{ w.tags }}" as="t" hint-placeholder-count="1">
+          <span onClick="{{ t.onRemove }}" style="padding:2px 8px;border-radius:100px;background:rgba(74,222,128,.1);border:1px solid rgba(74,222,128,.22);font:500 10px 'JetBrains Mono',monospace;color:#4ade80;cursor:pointer">#{{ t.label }}</span>
+          </sc-for>
+          <span onClick="{{ w.onAddTag }}" style="font:400 11px 'JetBrains Mono',monospace;color:#7a8fa8;cursor:pointer">＋tag</span>
+          <span onClick="{{ w.onPin }}" style="padding:2px 8px;border-radius:100px;font:500 10px 'JetBrains Mono',monospace;cursor:pointer;background:{{ w.pinBg }};border:1px solid {{ w.pinBorder }};color:{{ w.pinFg }}">{{ w.pinLabel }}</span>
+          <span onClick="{{ w.onInterval }}" style="font:400 11px 'JetBrains Mono',monospace;color:{{ w.intervalColor }};cursor:pointer">{{ w.intervalLabel }}</span>
+          <span onClick="{{ w.onRefresh }}" style="font:400 12px 'JetBrains Mono',monospace;color:#7a8fa8;cursor:pointer">⟳</span>
+          <span onClick="{{ w.onClose }}" style="font:400 12px 'JetBrains Mono',monospace;color:#7a8fa8;cursor:pointer">✕</span>
+        </div>
+        <sc-if value="{{ w.pinned }}" hint-placeholder-val="{{ true }}">
+        <div style="flex:none;display:flex;align-items:center;flex-wrap:wrap;gap:6px 8px;padding:8px 13px;border-bottom:1px solid rgba(255,255,255,.055)">
+          <span style="font:600 9.5px 'Inter',sans-serif;letter-spacing:.1em;color:#344050">LINKED</span>
+          <sc-for list="{{ w.chips }}" as="c" hint-placeholder-count="2">
+          <span onClick="{{ c.onToggle }}" style="padding:2px 9px;border-radius:100px;cursor:pointer;font:400 11px 'JetBrains Mono',monospace;background:{{ c.bg }};border:1px solid {{ c.border }};color:{{ c.fg }}">{{ c.label }}</span>
+          </sc-for>
+        </div>
+        </sc-if>
+        <sc-if value="{{ w.hasProgress }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;align-items:center;gap:10px;padding:10px 13px 0">
+          <div style="position:relative;flex:1;height:6px;border-radius:100px;background:#111820;overflow:hidden">
+            <div style="position:absolute;left:0;top:0;bottom:0;width:{{ w.progress }};background:#e6dc0e;border-radius:100px"></div>
+          </div>
+          <span style="font:400 11.5px 'JetBrains Mono',monospace;color:#7a8fa8;white-space:nowrap">{{ w.progressLabel }}</span>
+        </div>
+        </sc-if>
+        <div style="padding:10px 13px;font:400 12.5px/1.6 'JetBrains Mono',monospace;overflow:hidden">
+          <sc-if value="{{ w.hasHead }}" hint-placeholder-val="{{ true }}">
+          <div style="display:flex;gap:12px;padding-bottom:4px">
+            <sc-for list="{{ w.head }}" as="h" hint-placeholder-count="4">
+            <span style="flex:{{ h.flex }};color:{{ h.c }};font:600 10px 'Inter',sans-serif;letter-spacing:.1em;white-space:nowrap;overflow:hidden">{{ h.t }}</span>
+            </sc-for>
+          </div>
+          </sc-if>
+          <sc-for list="{{ w.rows }}" as="r" hint-placeholder-count="5">
+          <div style="display:flex;gap:12px">
+            <sc-for list="{{ r.cells }}" as="c" hint-placeholder-count="4">
+            <span style="flex:{{ c.flex }};color:{{ c.c }};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ c.t }}</span>
+            </sc-for>
+          </div>
+          </sc-for>
+        </div>
+        <div style="display:flex;gap:14px;padding:8px 13px;border-top:1px solid rgba(255,255,255,.055);font:400 11px 'JetBrains Mono',monospace;color:#7a8fa8;white-space:nowrap;overflow:hidden">
+          <span>{{ w.footer }}</span><div style="flex:1"></div><span style="color:#344050">{{ w.footerHint }}</span>
+        </div>
+      </div>
+      </sc-for>
+    </div>
+    </sc-if>
+
+    <sc-if value="{{ floatMode }}" hint-placeholder-val="{{ false }}">
+    <div style="position:relative;height:{{ stageH }}">
+      <sc-for list="{{ windows }}" as="w" hint-placeholder-count="4">
+      <div style="position:absolute;left:{{ w.x }};top:{{ w.y }};width:{{ w.w }};height:{{ w.h }};z-index:{{ w.z }};display:flex;flex-direction:column;background:#0b1016;border:1px solid {{ w.border }};border-radius:11px;overflow:hidden;box-shadow:{{ w.floatShadow }}">
+        <div onMouseDown="{{ w.onDrag }}" style="display:flex;align-items:center;gap:10px;padding:9px 13px;border-bottom:1px solid rgba(255,255,255,.055);white-space:nowrap;cursor:move">
+          <span style="flex:none;width:6px;height:6px;border-radius:50%;background:{{ w.dot }}"></span>
+          <span style="font:400 10px 'JetBrains Mono',monospace;color:#344050">#{{ w.num }}</span>
+          <span style="font:500 12.5px 'JetBrains Mono',monospace;color:#e8edf4;overflow:hidden;text-overflow:ellipsis"><span style="color:#344050">tb </span>{{ w.cmd }}</span>
+          <span style="font:400 11px 'JetBrains Mono',monospace;color:{{ w.metaColor }};overflow:hidden;text-overflow:ellipsis">{{ w.meta }}</span>
+          <div style="flex:1"></div>
+          <sc-for list="{{ w.tags }}" as="t" hint-placeholder-count="1">
+          <span onClick="{{ t.onRemove }}" style="padding:2px 8px;border-radius:100px;background:rgba(74,222,128,.1);border:1px solid rgba(74,222,128,.22);font:500 10px 'JetBrains Mono',monospace;color:#4ade80;cursor:pointer">#{{ t.label }}</span>
+          </sc-for>
+          <span onClick="{{ w.onAddTag }}" style="font:400 11px 'JetBrains Mono',monospace;color:#7a8fa8;cursor:pointer">＋tag</span>
+          <span onClick="{{ w.onPin }}" style="padding:2px 8px;border-radius:100px;font:500 10px 'JetBrains Mono',monospace;cursor:pointer;background:{{ w.pinBg }};border:1px solid {{ w.pinBorder }};color:{{ w.pinFg }}">{{ w.pinLabel }}</span>
+          <span onClick="{{ w.onInterval }}" style="font:400 11px 'JetBrains Mono',monospace;color:{{ w.intervalColor }};cursor:pointer">{{ w.intervalLabel }}</span>
+          <span onClick="{{ w.onRefresh }}" style="font:400 12px 'JetBrains Mono',monospace;color:#7a8fa8;cursor:pointer">⟳</span>
+          <span onClick="{{ w.onClose }}" style="font:400 12px 'JetBrains Mono',monospace;color:#7a8fa8;cursor:pointer">✕</span>
+        </div>
+        <sc-if value="{{ w.pinned }}" hint-placeholder-val="{{ true }}">
+        <div style="flex:none;display:flex;align-items:center;flex-wrap:wrap;gap:6px 8px;padding:8px 13px;border-bottom:1px solid rgba(255,255,255,.055)">
+          <span style="font:600 9.5px 'Inter',sans-serif;letter-spacing:.1em;color:#344050">LINKED</span>
+          <sc-for list="{{ w.chips }}" as="c" hint-placeholder-count="2">
+          <span onClick="{{ c.onToggle }}" style="padding:2px 9px;border-radius:100px;cursor:pointer;font:400 11px 'JetBrains Mono',monospace;background:{{ c.bg }};border:1px solid {{ c.border }};color:{{ c.fg }}">{{ c.label }}</span>
+          </sc-for>
+        </div>
+        </sc-if>
+        <sc-if value="{{ w.hasProgress }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;align-items:center;gap:10px;padding:10px 13px 0">
+          <div style="position:relative;flex:1;height:6px;border-radius:100px;background:#111820;overflow:hidden">
+            <div style="position:absolute;left:0;top:0;bottom:0;width:{{ w.progress }};background:#e6dc0e;border-radius:100px"></div>
+          </div>
+          <span style="font:400 11.5px 'JetBrains Mono',monospace;color:#7a8fa8;white-space:nowrap">{{ w.progressLabel }}</span>
+        </div>
+        </sc-if>
+        <div style="flex:1;min-height:0;padding:10px 13px;font:400 12.5px/1.6 'JetBrains Mono',monospace;overflow:auto">
+          <sc-if value="{{ w.hasHead }}" hint-placeholder-val="{{ true }}">
+          <div style="display:flex;gap:12px;padding-bottom:4px">
+            <sc-for list="{{ w.head }}" as="h" hint-placeholder-count="4">
+            <span style="flex:{{ h.flex }};color:{{ h.c }};font:600 10px 'Inter',sans-serif;letter-spacing:.1em;white-space:nowrap;overflow:hidden">{{ h.t }}</span>
+            </sc-for>
+          </div>
+          </sc-if>
+          <sc-for list="{{ w.rows }}" as="r" hint-placeholder-count="5">
+          <div style="display:flex;gap:12px">
+            <sc-for list="{{ r.cells }}" as="c" hint-placeholder-count="4">
+            <span style="flex:{{ c.flex }};color:{{ c.c }};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ c.t }}</span>
+            </sc-for>
+          </div>
+          </sc-for>
+        </div>
+        <div style="display:flex;gap:14px;padding:8px 13px;border-top:1px solid rgba(255,255,255,.055);font:400 11px 'JetBrains Mono',monospace;color:#7a8fa8;white-space:nowrap;overflow:hidden">
+          <span>{{ w.footer }}</span><div style="flex:1"></div><span style="color:#344050">{{ w.footerHint }}</span>
+        </div>
+      </div>
+      </sc-for>
+    </div>
+    </sc-if>
+
+    <sc-if value="{{ noWindows }}" hint-placeholder-val="{{ false }}">
+    <div style="display:flex;align-items:center;justify-content:center;gap:10px;height:280px;border:1px dashed rgba(255,255,255,.09);border-radius:11px;font:400 12px 'JetBrains Mono',monospace;color:#7a8fa8">
+      <span>no windows open — run a command to open one</span>
+    </div>
+    </sc-if>
+  </div>
+
+  <div style="flex:none;display:flex;align-items:center;gap:18px;padding:12px 18px;border-top:1px solid rgba(255,255,255,.055);font:400 10.5px 'JetBrains Mono',monospace;color:#7a8fa8;white-space:nowrap">
+    <span>⏎ open window</span><span onClick="{{ togglePaletteMode }}" style="cursor:pointer;color:#38bdf8">^K palette</span><span>click PIN to pin</span><span>click ⟳ or the interval to refresh</span><span>✕ closes</span><div style="flex:1"></div><span style="color:#344050">layout: {{ layoutLabel }} · palette: {{ paletteLabel }}</span>
+  </div>
+</div>
+
+  <sc-if value="{{ paletteOverlayOpen }}" hint-placeholder-val="{{ false }}">
+  <div style="position:fixed;left:0;top:0;right:0;bottom:0;z-index:80;background:rgba(5,9,14,.62);display:flex;align-items:flex-start;justify-content:center;padding-top:14vh">
+    <div style="width:720px;max-width:92vw;background:rgba(11,16,22,.98);border:1px solid rgba(56,189,248,.3);border-radius:14px;box-shadow:0 28px 72px rgba(5,9,14,.8),0 0 24px rgba(56,189,248,.12);overflow:hidden">
+      <div style="display:flex;align-items:center;gap:12px;padding:0 16px;height:52px;border-bottom:1px solid rgba(255,255,255,.055)">
+        <span style="font:700 12.5px 'JetBrains Mono',monospace;color:#38bdf8">tb ▸</span>
+        <input value="{{ query }}" onChange="{{ onQuery }}" onKeyDown="{{ onKey }}" placeholder="type a command" style="flex:1;min-width:0;background:transparent;border:none;outline:none;font:400 15px 'JetBrains Mono',monospace;color:#e8edf4;padding:0" />
+        <span onClick="{{ setPaletteFixed }}" style="padding:3px 9px;border-radius:100px;border:1px solid rgba(255,255,255,.09);font:400 10.5px 'JetBrains Mono',monospace;color:#7a8fa8;cursor:pointer;white-space:nowrap">palette: floating</span>
+        <span onClick="{{ closeOverlay }}" style="font:400 12px 'JetBrains Mono',monospace;color:#7a8fa8;cursor:pointer">esc</span>
+      </div>
+      <div style="padding:6px;font:400 12.5px/1.6 'JetBrains Mono',monospace;white-space:nowrap">
+        <sc-for list="{{ suggestions }}" as="s" hint-placeholder-count="4">
+        <div onClick="{{ s.onPick }}" style="display:grid;grid-template-columns:16px 190px 1fr auto;gap:0 14px;align-items:baseline;padding:7px 10px;border-radius:7px;cursor:pointer;background:{{ s.bg }}">
+          <span style="color:{{ s.markColor }}">{{ s.mark }}</span>
+          <span style="color:{{ s.nameColor }};font-weight:500"><span style="color:#344050">tb </span>{{ s.cmd }}</span>
+          <span style="color:#7a8fa8">{{ s.desc }}</span>
+          <span style="color:#7a8fa8;font-size:11px">{{ s.meta }}</span>
+        </div>
+        </sc-for>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{}">
+const SKY='#38bdf8', TXT='#e8edf4', DIM='#7a8fa8', FAINT='#344050', GREEN='#4ade80', YELLOW='#e6dc0e', CORAL='#f4665b';
+const HOSTS=[
+  ['workstation','10.0.0.12','asrock',0.2,'now','self · wired','ok'],
+  ['pfsense','10.0.0.1','netgate',0.3,'now','gateway','ok'],
+  ['nas','10.0.0.20','synology',0.4,'now','storage · wired','ok'],
+  ['homebase','10.0.0.31','intel',0.6,'now','docker · wired','ok'],
+  ['shop-pi','10.0.0.51','raspberry',1.1,'now','sensors · wifi','ok'],
+  ['backup-pi','10.0.0.121','raspberry',1.9,'now','wired','ok'],
+  ['cam-front','10.0.0.62','reolink',2.4,'now','vlan20','ok'],
+  ['laptop','10.0.0.83','framework',3.1,'now','wifi','ok'],
+  ['unknown-3c','10.0.0.113','espressif',9.4,'11m','new · unclaimed','new'],
+  ['cam-drive','10.0.0.63','reolink',31,'now','vlan20','slow'],
+  ['cam-shop','10.0.0.64','reolink',null,'6h','down · vlan20','down']
+];
+const CATALOG={
+  'jam pr list':{desc:'wraps the jam CLI — open PRs, gates, what to do next',meta:'opens a window',span:2,chips:['--mine','--ready-only','--stale'],watcher:true},
+  'net hosts':{desc:'dense table of every known host',meta:'opens a window',span:2,chips:['--sort rtt','--down-only','--vlan 20'],watcher:true},
+  'net leases':{desc:'dhcpd leases, newest first',meta:'opens a window',span:1,chips:['--active','--expiring'],watcher:true},
+  'tail pfsense:dhcpd':{desc:'follow the gateway dhcp log',meta:'streams',span:1,chips:['--level warn+','--grep vlan20'],watcher:true,live:true},
+  'wrap docker ps':{desc:'return from another CLI, kept fresh',meta:'opens a window',span:1,chips:['--host homebase','--all'],watcher:true},
+  'run cam-health':{desc:'pre-scripted routine over every camera',meta:'~9s',span:1,chips:['--retry','--notify'],task:true},
+  'routines status':{desc:'last and next run of every routine',meta:'opens a window',span:1,chips:['--failed-only'],watcher:true}
+};
+const PRS=[
+  [935,'draft','CLEAN','current','2✓ passed','✗ absent','—','run jam pr ready <n>','fix(reporting): make implement-ready write the plan out of the ready queue',true],
+  [920,'draft','CLEAN','current','2✓ passed','✗ absent','—','run jam pr ready <n>','fix(reporting): refuse the integration gate on a tree that is not develop',true],
+  [919,'ready','CLEAN','current','4✓ passed','✓ verified','?','merge it','fix(reporting): delete docs_guard\'s copy of tree_permission so one gate explains',true],
+  [917,'ready','CLEAN','2 behind','4✓ passed','✓ verified','?','rebase then merge','feat(cli): jam pr list gains --mine and --stale',false],
+  [911,'draft','DIRTY','5 behind','1✗ failed','✗ absent','—','fix checks, re-run','chore(deps): bump pytest to 8.3',false]
+];
+const INTERVALS=[0,5,30,60,300];
+const cell=(t,c,flex)=>({t:t,c:c,flex:flex||'1 1 0'});
+function layoutFloat(ws,maxW){
+  const W=maxW||1160, gap=16; let x=24,y=24,rowH=0;
+  return ws.map(w=>{
+    const col=Math.max(300,(W-64)/2), ww=Math.min(w.w, w.w>700?W-48:col);
+    if(x>24&&x+ww>W){x=24;y+=rowH+gap;rowH=0;}
+    const p=Object.assign({},w,{x:x,y:y,w:ww});
+    x+=ww+gap; rowH=Math.max(rowH,w.h);
+    return p;
+  });
+}
+
+class Component extends DCLogic {
+  constructor(props){
+    super(props);
+    const mk=(cmd,pinned,interval,i,tags)=>({
+      id:'w'+i, cmd:cmd, pinned:pinned, interval:interval, seed:i*7+3, tags:tags||[],
+      chips:CATALOG[cmd].chips.map((l,j)=>({label:l,on:j===0})),
+      age:0, w:i===0?900:600, h:i===0?340:270, z:i+1
+    });
+    this.state={
+      query:'', layout:'tile', paletteMode:'fixed', overlay:false, tick:0, focus:'w0', zTop:9,
+      canvasW:1160,
+      windows:layoutFloat([mk('jam pr list',true,60,0,['jam']),mk('tail pfsense:dhcpd',true,0,1),mk('wrap docker ps',true,30,2),mk('run cam-health',false,0,3)],1160)
+    };
+  }
+  componentDidMount(){
+    this._t=setInterval(()=>this.setState(s=>{
+      const ws=s.windows.map(w=>{
+        const age=w.age+1;
+        if(w.pinned&&w.interval&&age>=w.interval) return Object.assign({},w,{age:0,seed:w.seed+1});
+        return Object.assign({},w,{age:age});
+      });
+      return {tick:s.tick+1,windows:ws};
+    }),1000);
+    this._k=(e)=>{
+      if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();this.togglePalette();}
+      if(e.key==='Escape') this.setState({overlay:false});
+    };
+    document.addEventListener('keydown',this._k);
+    this._r=()=>this.measure();
+    window.addEventListener('resize',this._r);
+    this.measure();
+  }
+  componentWillUnmount(){clearInterval(this._t);document.removeEventListener('keydown',this._k);window.removeEventListener('resize',this._r);}
+  measure(){
+    const el=this._canvas; if(!el) return;
+    const cw=el.clientWidth-36;
+    if(cw>0&&cw!==this.state.canvasW) this.setState({canvasW:cw});
+  }
+  goFloat(){
+    const el=this._canvas, cw=el?el.clientWidth-36:this.state.canvasW;
+    this.setState(s=>({layout:'float',canvasW:cw,windows:layoutFloat(s.windows,cw)}));
+  }
+
+  togglePalette(){
+    this.setState(s=>s.paletteMode==='floating'?{overlay:!s.overlay}:{paletteMode:'floating',overlay:true});
+  }
+  open(cmd){
+    this.setState(s=>{
+      const n=s.windows.length, i=(s.zTop+1);
+      const w={id:'w'+i+'_'+n,cmd:cmd,pinned:false,interval:0,seed:n*5+2,tags:[],
+        chips:CATALOG[cmd].chips.map((l,j)=>({label:l,on:j===0})),age:0,
+        w:cmd==='net hosts'?900:600,h:cmd==='net hosts'?340:270,z:i};
+      const row=s.windows.filter(x=>x.y===Math.max.apply(null,s.windows.map(y=>y.y).concat([24])));
+      const right=row.length?Math.max.apply(null,row.map(x=>x.x+x.w))+16:24;
+      const top=row.length?row[0].y:24;
+      const CW=s.canvasW;
+      if(right+Math.min(w.w,CW-48)<=CW){w.x=right;w.y=top;}
+      else {w.x=24;w.y=(row.length?top+Math.max.apply(null,row.map(x=>x.h)):0)+16;}
+      return {windows:s.windows.concat([w]),query:'',overlay:false,zTop:i,focus:w.id};
+    });
+  }
+  patch(id,fn){this.setState(s=>({windows:s.windows.map(w=>w.id===id?Object.assign({},w,fn(w)):w)}));}
+  startDrag(id,e){
+    const w=this.state.windows.find(x=>x.id===id); if(!w) return;
+    e.preventDefault();
+    const sx=e.clientX, sy=e.clientY, ox=w.x, oy=w.y;
+    const move=(ev)=>this.patch(id,()=>({x:Math.max(0,ox+ev.clientX-sx),y:Math.max(0,oy+ev.clientY-sy)}));
+    const up=()=>{document.removeEventListener('mousemove',move);document.removeEventListener('mouseup',up);};
+    document.addEventListener('mousemove',move);document.addEventListener('mouseup',up);
+    this.setState(s=>({zTop:s.zTop+1,focus:id,windows:s.windows.map(x=>x.id===id?Object.assign({},x,{z:s.zTop+1}):x)}));
+  }
+  jitter(base,seed,i){
+    if(base===null) return null;
+    const r=Math.abs(Math.sin((seed+1)*(i+2)*12.9898))%1;
+    return Math.max(0.1,base*(0.75+r*0.6));
+  }
+  body(w){
+    const cmd=w.cmd, on=(l)=>w.chips.some(c=>c.label===l&&c.on);
+    if(cmd==='net hosts'){
+      let rows=HOSTS;
+      if(on('--down-only')) rows=rows.filter(h=>h[6]==='down');
+      if(on('--vlan 20')) rows=rows.filter(h=>h[5].indexOf('vlan20')>=0);
+      const j=rows.map((h,i)=>[h,this.jitter(h[3],w.seed,i)]);
+      if(on('--sort rtt')) j.sort((a,b)=>(a[1]===null?1e9:a[1])-(b[1]===null?1e9:b[1]));
+      const col=(st)=>st==='down'?CORAL:st==='new'?YELLOW:TXT;
+      return {
+        head:[cell('HOST',FAINT,'0 0 130px'),cell('IP',FAINT,'0 0 100px'),cell('VENDOR',FAINT,'0 0 88px'),cell(on('--sort rtt')?'RTT ↑':'RTT',on('--sort rtt')?SKY:FAINT,'0 0 62px'),cell('SEEN',FAINT,'0 0 54px'),cell('TAGS',FAINT,'1 1 0')],
+        rows:j.map(([h,rtt])=>({cells:[
+          cell(h[0],col(h[6]),'0 0 130px'),cell(h[1],DIM,'0 0 100px'),cell(h[2],DIM,'0 0 88px'),
+          cell(rtt===null?'—':rtt.toFixed(1)+'ms',rtt===null?CORAL:rtt>20?YELLOW:GREEN,'0 0 62px'),
+          cell(h[4],h[4]==='now'?DIM:h[6]==='down'?CORAL:YELLOW,'0 0 54px'),
+          cell(h[5],h[6]==='down'?CORAL:h[6]==='new'?YELLOW:h[5].indexOf('·')>0?SKY:DIM,'1 1 0')]})),
+        footer:rows.length+' rows · '+rows.filter(h=>h[6]==='down').length+' down',
+        footerHint:'^R refresh now'
+      };
+    }
+    if(cmd==='jam pr list'){
+      let rows=PRS;
+      if(on('--ready-only')) rows=rows.filter(p=>p[1]==='ready');
+      if(on('--stale')) rows=rows.filter(p=>p[3]!=='current');
+      if(on('--mine')) rows=rows.filter(p=>p[9]);
+      const W=['0 0 52px','0 0 54px','0 0 60px','0 0 66px','0 0 80px','0 0 84px','0 0 28px','1 1 0'];
+      const out=[];
+      rows.forEach(p=>{
+        out.push({cells:[
+          cell('#'+p[0],TXT,W[0]),
+          cell(p[1],p[1]==='ready'?GREEN:SKY,W[1]),
+          cell(p[2],p[2]==='CLEAN'?GREEN:CORAL,W[2]),
+          cell(p[3],p[3]==='current'?DIM:YELLOW,W[3]),
+          cell(p[4],p[4].indexOf('✗')>=0?CORAL:GREEN,W[4]),
+          cell(p[5],p[5].indexOf('✓')>=0?GREEN:CORAL,W[5]),
+          cell(p[6],DIM,W[6]),
+          cell(p[7],p[7]==='merge it'?TXT:DIM,W[7])]});
+        out.push({cells:[cell('',FAINT,W[0]),cell(p[8],DIM,'1 1 0')]});
+      });
+      return {
+        head:[cell('PR',FAINT,W[0]),cell('STATE',FAINT,W[1]),cell('MERGE',FAINT,W[2]),cell('BEHIND',FAINT,W[3]),cell('CHECKS',FAINT,W[4]),cell('MARKER',FAINT,W[5]),cell('RAN',FAINT,W[6]),cell('NEXT',FAINT,W[7])],
+        rows:out,
+        footer:rows.length+' open · '+rows.filter(p=>p[1]==='ready').length+' ready to merge',
+        footerHint:'jam pr ready <n>'
+      };
+    }
+    if(cmd==='net leases'){
+      const base=[['10.0.0.113','unknown-3c','11m',YELLOW],['10.0.0.90','phone','1h 48m',DIM],['10.0.0.83','laptop','3h 02m',DIM],['10.0.0.44','printer','6h 11m',DIM],['10.0.0.71','tv-den','8h 40m',DIM]];
+      return {head:[cell('IP',FAINT,'0 0 96px'),cell('HOST',FAINT,'0 0 96px'),cell('EXPIRES',FAINT,'1 1 0')],
+        rows:base.map(r=>({cells:[cell(r[0],DIM,'0 0 96px'),cell(r[1],r[3]===YELLOW?YELLOW:TXT,'0 0 96px'),cell(r[2],r[3],'1 1 0')]})),
+        footer:'pool 92% used',footerHint:'5 of 42'};
+    }
+    if(cmd==='tail pfsense:dhcpd'){
+      const all=[['20:14:03','WARN','no free leases in pool vlan20'],['20:14:09','WARN','unknown client, offered 10.0.0.113'],['20:14:12','INFO','DHCPACK 10.0.0.113'],['20:14:20','WARN','lease pool 92% used'],['20:14:31','INFO','DHCPREQUEST 10.0.0.83 laptop']];
+      let rows=all;
+      if(on('--level warn+')) rows=rows.filter(r=>r[1]!=='INFO');
+      if(on('--grep vlan20')) rows=rows.filter(r=>r[2].indexOf('vlan20')>=0);
+      return {head:null,rows:rows.map(r=>({cells:[cell(r[0],FAINT,'0 0 58px'),cell(r[1],r[1]==='WARN'?YELLOW:SKY,'0 0 42px'),cell(r[2],r[1]==='WARN'?TXT:DIM,'1 1 0')]})),
+        footer:'following',footerHint:rows.length+' lines'};
+    }
+    if(cmd==='wrap docker ps'){
+      const base=[['jellyfin','12d',4],['paperless','12d',1],['grafana','12d',2],['postgres','12d',31],['frigate','exit 137',null]];
+      let rows=base; if(on('--all')) rows=base.concat([['mosquitto','3h',0]]);
+      return {head:[cell('NAME',FAINT,'1 1 0'),cell('UP',FAINT,'0 0 62px'),cell('CPU',FAINT,'0 0 40px')],
+        rows:rows.map(r=>({cells:[cell(r[0],r[2]===null?CORAL:TXT,'1 1 0'),cell(r[1],r[2]===null?CORAL:GREEN,'0 0 62px'),
+          cell(r[2]===null?'—':Math.round(this.jitter(Math.max(r[2],1),w.seed,r[0].length))+'%',r[2]===null?FAINT:r[2]>20?YELLOW:DIM,'0 0 40px')]})),
+        footer:rows.length+' containers · 1 exited',footerHint:'homebase'};
+    }
+    if(cmd==='run cam-health'){
+      const steps=[['cam-front','stream ok','✓',GREEN],['cam-drive','stream ok','✓',GREEN],['cam-shop','no route','✗',CORAL],['cam-side','probing','◐',YELLOW],['cam-yard','queued','·',FAINT]];
+      return {head:null,rows:steps.map(s=>({cells:[cell(s[2],s[3],'0 0 16px'),cell(s[0],s[3]===CORAL?TXT:DIM,'0 0 90px'),cell(s[1],s[3]===CORAL?TXT:DIM,'1 1 0')]})),
+        footer:'3 of 5 · 1 failed',footerHint:'^P pin to keep',progress:'42%',progressLabel:'4.1s / ~9.0s'};
+    }
+    const rt=[['nightly-backup','04:05','ok',GREEN],['cam-health','20:00','partial',YELLOW],['lease-audit','18:30','ok',GREEN],['firmware-sweep','Sun','ok',DIM]];
+    return {head:[cell('ROUTINE',FAINT,'1 1 0'),cell('LAST',FAINT,'0 0 44px'),cell('STATE',FAINT,'0 0 52px'),cell('NEXT',FAINT,'0 0 44px')],
+      rows:rt.map(r=>({cells:[cell(r[0],TXT,'1 1 0'),cell(r[1],DIM,'0 0 44px'),cell(r[2],r[3],'0 0 52px'),cell(r[1],SKY,'0 0 44px')]})),
+      footer:'4 routines',footerHint:'^J run'};
+  }
+  renderVals(){
+    const s=this.state, q=s.query.trim().toLowerCase();
+    const names=Object.keys(CATALOG).filter(n=>!q||n.indexOf(q)>=0||CATALOG[n].desc.indexOf(q)>=0);
+    const list=(names.length?names:Object.keys(CATALOG)).slice(0,5);
+    const suggestions=list.map((n,i)=>({
+      cmd:n, desc:CATALOG[n].desc, meta:CATALOG[n].meta, mark:i===0?'▸':'',
+      markColor:SKY, nameColor:i===0?TXT:DIM, bg:i===0?'rgba(56,189,248,.1)':'transparent',
+      onPick:()=>this.open(n)
+    }));
+    const windows=s.windows.map((w,i)=>{
+      const b=this.body(w), live=CATALOG[w.cmd].live, task=CATALOG[w.cmd].task;
+      const dot=task?YELLOW:live?GREEN:GREEN;
+      const meta=task?('running '+(4.1+s.tick%3).toFixed(1)+'s'):live?'live':(w.age+'s ago');
+      return {
+        id:w.id, num:i+1, cmd:w.cmd, gridCol:CATALOG[w.cmd].span===2?'1 / -1':'auto', dot:dot,
+        meta:meta, metaColor:task?YELLOW:live?GREEN:DIM,
+        pinned:w.pinned, pinLabel:w.pinned?'PINNED':'PIN',
+        pinBg:w.pinned?'rgba(56,189,248,.12)':'transparent',
+        pinBorder:w.pinned?'rgba(56,189,248,.24)':'rgba(255,255,255,.09)',
+        pinFg:w.pinned?SKY:DIM,
+        intervalLabel:w.pinned?(w.interval?'⟳ '+(w.interval>=60?(w.interval/60)+'m':w.interval+'s'):'⟳ manual'):'',
+        intervalColor:w.interval?DIM:FAINT,
+        tags:(w.tags||[]).map((t,j)=>({label:t,onRemove:()=>this.patch(w.id,ww=>({tags:ww.tags.filter((x,k)=>k!==j)}))})),
+        onAddTag:()=>this.patch(w.id,ww=>{const pool=['jam','review','release','net','ops'];const next=pool.find(p=>(ww.tags||[]).indexOf(p)<0);return {tags:(ww.tags||[]).concat(next?[next]:[])};}),
+        chips:w.chips.map((c,j)=>({label:c.label,bg:c.on?'rgba(56,189,248,.12)':'#111820',
+          border:c.on?'rgba(56,189,248,.24)':'rgba(255,255,255,.09)',fg:c.on?SKY:DIM,
+          onToggle:()=>this.patch(w.id,ww=>({chips:ww.chips.map((x,k)=>k===j?{label:x.label,on:!x.on}:x)}))})),
+        hasHead:!!b.head, head:b.head||[], rows:b.rows, footer:b.footer, footerHint:b.footerHint,
+        hasProgress:!!b.progress, progress:b.progress||'0%', progressLabel:b.progressLabel||'',
+        border:s.focus===w.id?'rgba(56,189,248,.34)':'rgba(255,255,255,.055)',
+        shadow:s.focus===w.id?'0 0 24px rgba(56,189,248,.06)':'none',
+        floatShadow:s.focus===w.id?'0 22px 54px rgba(5,9,14,.75),0 0 24px rgba(56,189,248,.1)':'0 18px 44px rgba(5,9,14,.6)',
+        x:Math.max(0,Math.min(w.x,Math.max(0,s.canvasW-Math.min(w.w,s.canvasW-24)-12)))+'px', y:w.y+'px',
+        w:Math.min(w.w,s.canvasW-24)+'px', h:w.h+'px', z:w.z,
+        onClose:()=>this.setState(st=>({windows:st.windows.filter(x=>x.id!==w.id)})),
+        onPin:()=>this.patch(w.id,ww=>({pinned:!ww.pinned,interval:ww.pinned?0:5})),
+        onInterval:()=>this.patch(w.id,ww=>({interval:INTERVALS[(INTERVALS.indexOf(ww.interval)+1)%INTERVALS.length],age:0})),
+        onRefresh:()=>this.patch(w.id,ww=>({seed:ww.seed+1,age:0})),
+        onFocus:()=>this.setState({focus:w.id}),
+        onDrag:(e)=>this.startDrag(w.id,e)
+      };
+    });
+    const tile=s.layout==='tile';
+    return {
+      query:s.query,
+      onQuery:(e)=>this.setState({query:e.target.value}),
+      onKey:(e)=>{ if(e.key==='Enter'&&suggestions.length) this.open(suggestions[0].cmd); },
+      suggestions:suggestions, showFixedList:s.query.trim().length>0,
+      paletteFixed:s.paletteMode==='fixed', paletteOverlayOpen:s.paletteMode==='floating'&&s.overlay,
+      setPaletteFloating:()=>this.setState({paletteMode:'floating',overlay:true}),
+      setPaletteFixed:()=>this.setState({paletteMode:'fixed',overlay:false}),
+      closeOverlay:()=>this.setState({overlay:false}),
+      togglePaletteMode:()=>this.togglePalette(),
+      paletteLabel:s.paletteMode,
+      tileMode:tile, floatMode:!tile, layoutLabel:tile?'tiled':'floating',
+      canvasRef:(el)=>{this._canvas=el;},
+      stageH:(s.windows.length?Math.max.apply(null,s.windows.map(w=>w.y+w.h))+24:640)+'px',
+      setTile:()=>this.setState({layout:'tile'}), setFloat:()=>this.goFloat(),
+      tileBg:tile?SKY:'transparent', tileFg:tile?'#05090e':DIM,
+      floatBg:tile?'transparent':SKY, floatFg:tile?DIM:'#05090e',
+      windows:windows, noWindows:windows.length===0,
+      windowCount:windows.length,
+      watcherCount:s.windows.filter(w=>w.pinned).length,
+      runningCount:s.windows.filter(w=>CATALOG[w.cmd].task).length,
+      attentionCount:2,
+      clock:'20:'+String(14+Math.floor(s.tick/60)).padStart(2,'0')
+    };
+  }
+}
+</script>
+</body>
+</html>

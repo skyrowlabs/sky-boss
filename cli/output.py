@@ -221,6 +221,12 @@ class Result:
     partial: bool = False
     warnings: list[str] = field(default_factory=list)
 
+    # How to *present* `data`, when the command has something to say about it.
+    # A hint, never a filter: `data` is complete whatever this holds, so a
+    # machine consumer keeps every field the table happens to hide. Only
+    # commands carrying foreign data set it — see cli/view.py.
+    view: Any = None
+
     def warn(self, message: str) -> None:
         """Record a degraded source.
 
@@ -235,13 +241,20 @@ class Result:
         self.partial = True
 
     def to_dict(self) -> dict:
-        return {
+        envelope = {
             "command": self.command,
             "ok": self.ok,
             "partial": self.partial,
             "data": self.data,
             "warnings": list(self.warnings),
         }
+        # Omitted rather than sent as null, so an envelope from a command with
+        # no opinion about presentation is byte-identical to one from before
+        # views existed. Every consumer already has to handle the key's
+        # absence; none of them should have to learn that null means default.
+        if self.view is not None:
+            envelope["view"] = self.view
+        return envelope
 
 
 # ============================================================================

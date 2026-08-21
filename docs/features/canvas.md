@@ -1,5 +1,5 @@
 ---
-status: complete
+status: active
 created: 2026-08-20
 updated: 2026-08-20
 agent_value: 3
@@ -104,8 +104,43 @@ auto-refreshing a write is a scheduler nobody asked for.
   named in the Notes: the frontend has no automated tests.
 - **Not a terminal emulator and not a shell.** Argv only. No stdin, no interactive commands, no
   pipes.
+- **The surface never writes a tool.** Round 5 renders the TOOLBOX sidebar and opens what is in it;
+  it gains no route that creates or edits one. The server is remote code execution bound to a port,
+  and a write route would turn a transient compromise into a persistent one. See [[toolbox]].
+- **No indeterminate progress bar.** A bar that animates without measuring something is decoration
+  that reads as information. Round 5 ships the bar only for the one quantity actually known.
 
 ## Phases
+
+### Round 5 — the wireframe's chrome, and the toolbox sidebar (2026-08-20)
+
+`docs/design/Tackle Box Surface.dc.html` is a second mockup and a different kind of one: the
+original demo is static HTML, this is **data-bound** — `sc-for`, `sc-if` and `{{ }}` over the same
+window model the canvas already has. That makes it readable as a specification rather than a
+picture, and reading it against the build shows most of it is already here.
+
+Already built, confirmed against `app.js` — `win.num`, `win.tags` with `＋tag`, the pin and
+interval controls, `⟳`, `✕`, palette fixed vs floating, tiled vs floating, the clock, and the
+tasks / windows / watchers / attention counters. This round is the remainder.
+
+- [ ] **TOOLBOX sidebar.** 184px, header `TOOLBOX`, footer `tb <tool>`. Lists catalog entries where
+      `tb_saved`; clicking one opens its window and takes its `every` as the starting interval.
+      The data behind it is [[toolbox]]; the chrome is here.
+- [ ] **Window footer** — `footer` and a dim right-aligned `footerHint`. `summarise()` in
+      `render.js` already computes the left half ("14 rows", "partial", "failed") and it is
+      currently thrown away.
+- [ ] **Refresh countdown as the progress bar.** The mockup carries `hasProgress` / `progress` /
+      `progressLabel` and does not say what fills them. A running command cannot: a subprocess has
+      no percentage and a bar that animates to look busy is decoration pretending to be
+      information. **A watcher can** — `interval` and `last_run` are both known, so the bar is time
+      until the next refresh and the label is `next in 12s`. Determinate, honest, and it answers
+      the question a pinned window actually raises. Shown only when pinned with a non-zero
+      interval; `hasProgress` is false otherwise.
+- [ ] **Label the chips row `LINKED`.** Cheap and it names something currently unnamed.
+- [ ] **Decide whether chips gate on `pinned`.** The mockup wraps the row in
+      `<sc-if value="{{ w.pinned }}">`; today chips render whenever the command has options. Gating
+      would mean an unpinned window cannot be re-filtered, which looks like a regression rather
+      than a rule — resolve before building, and record the answer in Notes either way.
 
 ### Round 4 — a native window (2026-08-20)
 

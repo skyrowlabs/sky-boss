@@ -420,3 +420,24 @@ def test_a_nested_capture_restores_the_outer_one():
         with capture(width=80, redirect=False):
             assert _out() is not outer
         assert _out() is outer, "the inner capture stole the outer one's console"
+
+
+# ============================================================================
+# The view hint
+# ============================================================================
+
+
+def test_an_envelope_with_no_view_does_not_carry_the_key():
+    """Omitted rather than null. An envelope from a command with no opinion
+    about presentation stays byte-identical to one from before views existed,
+    so nothing downstream has to learn that null means default."""
+    assert "view" not in Result(command="x", data=[{"a": 1}]).to_dict()
+
+
+def test_a_view_rides_beside_the_data_rather_than_filtering_it():
+    """The property the whole feature rests on: `data` is complete whatever the
+    view says, so `--json` and any future MCP consumer keep every field."""
+    rows = [{"a": 1, "b": 2}]
+    envelope = Result(command="x", data=rows, view={"columns": [{"key": "a"}], "hidden": ["b"]}).to_dict()
+    assert envelope["data"] == rows
+    assert envelope["view"]["hidden"] == ["b"]
