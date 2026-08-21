@@ -108,6 +108,33 @@ class Api:
             pass
 
 
+WM_CLASS = "tackle-box"
+
+
+def _name_the_window() -> None:
+    """Give the window a class of its own. Best effort; cosmetic if it fails.
+
+    **The version requirements are not optional.** Importing `Gdk` without
+    them pins it to a default, and pywebview's own `gi.require_version('Gtk',
+    '3.0')` then raises — so it concludes GTK is unavailable, falls through to
+    Qt, and reports "You must have either QT or GTK with Python extensions
+    installed" on a machine where GTK is installed and working. Naming the
+    window cost the shell its backend, once.
+    """
+    try:
+        import gi
+
+        gi.require_version("Gtk", "3.0")
+        gi.require_version("Gdk", "3.0")
+        from gi.repository import Gdk, GLib
+
+        GLib.set_prgname(WM_CLASS)
+        GLib.set_application_name("tackle-box")
+        Gdk.set_program_class(WM_CLASS)
+    except Exception:
+        pass
+
+
 def open_window(url: str, *, title: str, width: int, height: int, on_closed) -> None:
     """Open the canvas and block until the window closes.
 
@@ -124,6 +151,12 @@ def open_window(url: str, *, title: str, width: int, height: int, on_closed) -> 
     # already made the choice themselves.
     for name, value in ENVIRONMENT.items():
         os.environ.setdefault(name, value)
+
+    # A stable window class, so the desktop can tell this window from every
+    # other WebKit one — for the taskbar, and for a window-manager rule if the
+    # operator wants one. GTK derives it from the program name, which would
+    # otherwise be whatever argv[0] happened to be: `python`, or `-m`.
+    _name_the_window()
 
     window = webview.create_window(
         title,
