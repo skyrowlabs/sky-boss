@@ -296,6 +296,15 @@ body {
   padding: 1.25rem 2.25rem; border-bottom: var(--hair) solid var(--tb-hair);
 }
 .chips .label { color: var(--tb-text-3); font-size: 2.5rem; letter-spacing: .1em; }
+/* A raw window's working directory. An input rather than a dialog: the shell
+ * has no modal for this either, and a browser prompt() blocks every later
+ * event the surface depends on. */
+.chips .cwd {
+  flex: 1; min-width: 0; background: var(--tb-surface-2); color: var(--tb-text-2);
+  border: var(--hair) solid var(--tb-hair); border-radius: var(--r-sm);
+  padding: 0.25rem 1.5rem; font: inherit; outline: 0;
+}
+.chips .cwd:focus { border-color: var(--tb-edge); color: var(--tb-text); }
 .chip {
   font: inherit; font-size: 2.75rem; cursor: pointer; border-radius: var(--r-sm);
   padding: 0.25rem 1.75rem;
