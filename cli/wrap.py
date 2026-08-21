@@ -37,6 +37,7 @@ import time
 
 import rich_click as click
 
+from cli.helpers import child_env
 from cli.output import Result, emit
 from cli.view import shape
 
@@ -79,7 +80,14 @@ def wrap(
 
     try:
         proc = subprocess.run(
-            list(argv), capture_output=True, text=True, timeout=timeout, cwd=cwd, check=False
+            list(argv),
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            cwd=cwd,
+            check=False,
+            # The operator's environment, not tb's. See [[subprocess-env]].
+            env=child_env(),
         )
     except FileNotFoundError:
         result.ok = False

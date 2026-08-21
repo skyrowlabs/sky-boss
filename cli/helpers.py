@@ -30,6 +30,31 @@ STATE_DIR = Path(os.environ.get("TB_STATE") or Path.home() / ".local" / "state" 
 TB_HOME = Path(os.environ.get("TB_HOME") or Path.home() / ".config" / "tb")
 
 
+# What tb's own wrapper exports so that `python -m cli` resolves against this
+# repo rather than against whatever directory you are standing in. Both are
+# load-bearing for tb — see CLAUDE.md § CLI setup — and neither is any business
+# of a command tb spawns.
+#
+# `PATH` is deliberately absent. The wrapper prepends its venv's bin to it, and
+# stripping that would be tb deciding which `python3` a foreign tool finds,
+# which is the operator's business. Scrub what tb added to boot, nothing else.
+BOOTSTRAP = ("PYTHONPATH", "PYTHONSAFEPATH")
+
+
+def child_env() -> dict[str, str]:
+    """The environment a spawned command should see: the operator's, not tb's.
+
+    Without this, `tb run -- python3 -c "import cli"` imports *this* package
+    from anywhere on the machine, because `subprocess` inherits the parent
+    environment and tb's wrapper put the repo on `PYTHONPATH`.
+
+    It was found by manually testing something else: `tb wrap -- jam …`
+    succeeded from inside this repo when running `jam` directly there fails, and
+    the leak was what made it work. See [[subprocess-env]].
+    """
+    return {k: v for k, v in os.environ.items() if k not in BOOTSTRAP}
+
+
 def run_command(
     args: list[str],
     *,
@@ -50,4 +75,5 @@ def run_command(
         cwd=cwd,
         timeout=timeout,
         check=check,
+        env=child_env(),
     )

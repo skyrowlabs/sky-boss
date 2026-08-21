@@ -8,10 +8,13 @@ failure modes that are not a non-zero exit.
 """
 
 import json
+import os
+import sys
 
 from click.testing import CliRunner
 
 from cli import cli
+from cli.helpers import child_env
 
 
 def _envelope(res):
@@ -89,3 +92,43 @@ def test_the_argv_is_never_run_through_a_shell():
 def test_run_requires_something_to_run():
     res = CliRunner().invoke(cli, ["run"])
     assert res.exit_code == 2, "a usage error, which is Click's 2 and never tb's"
+
+
+# ============================================================================
+# The subprocess boundary
+# ============================================================================
+
+
+def test_a_spawned_command_does_not_inherit_tbs_import_path(tmp_path):
+    """tb's wrapper puts this repo on PYTHONPATH so `python -m cli` resolves.
+    A command tb runs is not tb and must not get it — otherwise a wrapped
+    Python tool imports *this* package from anywhere on the machine.
+
+    Asserted as the property an operator would check by hand rather than by
+    inspecting the environment, so a change to how the wrapper bootstraps
+    cannot quietly satisfy it.
+    """
+    result = CliRunner().invoke(
+        cli,
+        ["--json", "run", "--cwd", str(tmp_path), "--",
+         sys.executable, "-c", "import cli"],
+    )
+    envelope = json.loads(result.stdout)
+    assert envelope["data"]["exit_code"] != 0
+    assert "ModuleNotFoundError" in envelope["data"]["stderr"]
+
+
+def test_the_scrub_is_two_variables_and_not_a_clean_room(monkeypatch):
+    """A wrapped tool needs HOME, PATH, SSH_AUTH_SOCK and whatever tokens the
+    operator's shell would have given it. Only what tb added to boot is taken."""
+    monkeypatch.setenv("PYTHONPATH", "/somewhere")
+    monkeypatch.setenv("PYTHONSAFEPATH", "1")
+    monkeypatch.setenv("TB_A_REAL_VARIABLE", "kept")
+
+    env = child_env()
+    assert "PYTHONPATH" not in env
+    assert "PYTHONSAFEPATH" not in env
+    assert env["TB_A_REAL_VARIABLE"] == "kept"
+    # PATH is the operator's: the wrapper prepends its venv's bin, and stripping
+    # that would be tb choosing which python3 a foreign tool finds.
+    assert env["PATH"] == os.environ["PATH"]
