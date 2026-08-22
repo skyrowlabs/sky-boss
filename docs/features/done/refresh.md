@@ -138,3 +138,10 @@ What the execution argued back:
 - The resident loop went on the **alternate screen** (watch(1)/htop style) so hours of redraw
   leave the scrollback intact; inline rendering was considered for small tmux panes and can be
   argued as its own round if wanted.
+
+### 2026-08-22 — the seam was used ([[capture]])
+
+`--from` gained its first values beyond `json`, exactly as designed: a *name* resolving to a
+kind or to an operator-declared format in `$TB_HOME/formats.toml` — the next format arrived as
+a value with its own parsing contract, not a redesign. The Choice list became name resolution
+in the process; the refusal still lists what would have worked.
