@@ -1,4 +1,4 @@
-"""tb wrap — the read-only door to another CLI.
+"""tb data — the read-only door to another CLI.
 
 The properties worth defending are the two boundaries it draws. It must not
 become a second `tb run` by quietly carrying raw output, and it must not become
@@ -13,7 +13,7 @@ from cli import cli
 
 
 def invoke(args):
-    result = CliRunner().invoke(cli, ["--json", "wrap", *args])
+    result = CliRunner().invoke(cli, ["--json", "data", *args])
     return result, json.loads(result.stdout) if result.stdout.strip() else None
 
 
@@ -64,14 +64,14 @@ def test_a_missing_command_fails_rather_than_raising():
     assert "no such command" in envelope["data"]["error"]
 
 
-def test_wrap_is_a_read_so_the_canvas_may_pin_it():
+def test_data_is_a_read_so_the_canvas_may_pin_it():
     """The whole reason it is a separate command from `run`. If this flips, the
     canvas stops offering a cadence on the only kind of window that should have
     one."""
     from cli.canvas.catalog import catalog
 
     entries = {entry["name"]: entry for entry in catalog()}
-    assert entries["wrap"]["acts"] is False
+    assert entries["data"]["acts"] is False
     assert entries["run"]["acts"] is True
 
 
@@ -141,3 +141,23 @@ def test_a_failed_tool_carries_no_view():
     every other failure has."""
     _, envelope = invoke(["--", "sh", "-c", "echo boom >&2; exit 3"])
     assert "view" not in envelope
+
+
+# ============================================================================
+# --from
+# ============================================================================
+
+
+def test_from_json_is_the_default_made_explicit():
+    """`--from json` and no flag are the same invocation. JSON stops being an
+    invisible assumption; the next format arrives as a value, not a redesign."""
+    _, envelope = invoke(["--from", "json", "--", "printf", '[{"a": 1}]'])
+    assert envelope["ok"] is True
+    assert envelope["data"] == [{"a": 1}]
+
+
+def test_an_unknown_format_is_a_usage_error_not_a_guess():
+    """Exit 2 — Click's refusal — rather than a parser silently guessing. A
+    speculative csv parser is how 'silently wrong' gets back in."""
+    result, _ = invoke(["--from", "csv", "--", "printf", "a,b"])
+    assert result.exit_code == 2

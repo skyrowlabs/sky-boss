@@ -18,7 +18,7 @@ replaced by a browser one the same day. What exists:
 | Command | Does |
 |---|---|
 | `tb run -- <argv>` | Runs a command and reports what it printed. **The only command that acts** |
-| `tb wrap -- <argv>` | Reads another CLI's JSON as data. A read, so a window may refresh it |
+| `tb data -- <argv>` | Reads another CLI's JSON as data. A read, so a window may refresh it |
 | `tb read -- <argv>` | Shows what a command printed, verbatim. A read, for tools with no `--json` |
 | `tb tools` | Lists the operator's saved commands, and any that failed to load |
 | `tb ui` | Opens the canvas — a command palette over tiled and floating windows |
@@ -38,7 +38,7 @@ commands.
 That line is now load-bearing rather than aesthetic. The canvas reads it — `acts` in the catalog —
 to decide whether a window may be given a refresh cadence, because **re-running a read is a
 refresh and re-running a write is a scheduler nobody asked for.** tb cannot tell a read from a
-write by inspecting an argv and does not try: choosing `wrap` over `run` is the operator's
+write by inspecting an argv and does not try: choosing `data` over `run` is the operator's
 assertion that this one is a read.
 
 A saved command **inherits** that assertion rather than restating it — `acts` comes from the first
@@ -61,7 +61,7 @@ commands. If groups come back, group them that way and be slower to add one.
   structure has `--json`.
 - **Wrapping an external CLI for passthrough.** `tb gh pr list` is strictly worse than
   `gh pr list`. Reach for an external tool only where `tb` does something that tool cannot express.
-  `tb wrap` is the carve-out and it earns it: holding a foreign CLI's output open on a canvas and
+  `tb data` is the carve-out and it earns it: holding a foreign CLI's output open on a canvas and
   re-running it on a cadence is not something that CLI can do for itself. It returns *parsed data*
   — a tool that printed something other than JSON has failed its contract, and the envelope says
   so rather than carrying the bytes.
@@ -217,7 +217,7 @@ a change to Python needs a restart, and that one is not made hot-reloadable on p
 
 **Test the decisions, not the ceremony.** The suite catches what would break silently: the
 exit-code mapping (including why partial is 3 and not 2), stdout purity under `--json`, that every
-API route refuses an unauthenticated request, that a watcher dies with its window, and that `wrap`
+API route refuses an unauthenticated request, that a watcher dies with its window, and that `data`
 never carries a failed tool's output.
 
 **Bound every wait.** Three tests hung rather than failed while the canvas was being built. A
@@ -237,7 +237,7 @@ makes an exception safe is not which command it is, it is **who named the argv**
 `tb read` both run an argv the operator typed, and seeing its output is the feature. Any command
 that shells out on its own initiative still keeps that output out of `data`.
 
-**`tb wrap` is deliberately not an exception even so** — it carries parsed data only, and a tool
+**`tb data` is deliberately not an exception even so** — it carries parsed data only, and a tool
 that printed something else has failed its contract. See [[text-reads]].
 
 **Gotcha:** never `from cli.<mod> import <same_name>` in `cli/__init__.py` — it rebinds the package
@@ -283,8 +283,8 @@ Shared with sibling CLIs so the family feels like one tool.
   `0` ok, `1` hard failure, `3` partial — **not 2**, which Click uses for usage errors. The surface
   is a second consumer of that envelope — a command that prints prose has to be written twice.
 
-  **A `view` describes how to present `data`; it never filters it.** Only `wrap` sets one, because
-  only `wrap` carries fields nobody here chose — tb's own commands picked theirs deliberately and
+  **A `view` describes how to present `data`; it never filters it.** Only `data` sets one, because
+  only `data` carries fields nobody here chose — tb's own commands picked theirs deliberately and
   auto-dropping one would be a bug wearing a feature's clothes. The key is *omitted* rather than
   null when absent, so an unshaped envelope stays byte-identical to one from before views existed.
   The rules live in `cli/view.py` and not in `render.js`, because the frontend has no test runner:

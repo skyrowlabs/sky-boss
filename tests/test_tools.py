@@ -20,14 +20,14 @@ from cli.tools import load, parse
 # The live tree as the validator sees it: what is runnable and whether it acts,
 # plus every name on the root group. The second set is larger because a surface
 # excludes itself from the first and must still not be shadowable.
-COMMANDS = {"run": True, "wrap": False}
-REGISTERED = {"run", "wrap", "ui"}
+COMMANDS = {"run": True, "data": False}
+REGISTERED = {"run", "data", "ui"}
 
 GOOD = {
     "tool": {
         "prs": {
             "description": "open PRs",
-            "argv": ["wrap", "--", "somecli", "list", "--json"],
+            "argv": ["data", "--", "somecli", "list", "--json"],
             "every": 30,
         }
     }
@@ -61,23 +61,33 @@ def test_the_refusal_names_the_way_to_do_it():
     """The mistake this catches is someone writing a shell command. Refusing
     without saying which tb command would have run it wastes the trip."""
     _, problems = one({"tool": {"x": {"argv": ["docker", "ps"]}}})
-    assert "wrap" in problems[0] and "run" in problems[0]
+    assert "data" in problems[0] and "run" in problems[0]
 
 
-@pytest.mark.parametrize("argv", [[], "wrap", ["wrap", 3], None])
+@pytest.mark.parametrize("argv", [[], "data", ["data", 3], None])
 def test_argv_must_be_a_non_empty_list_of_strings(argv):
     _, problems = one({"tool": {"x": {"argv": argv}}})
     assert "non-empty list of strings" in problems[0]
+
+
+def test_a_tool_still_saying_wrap_fails_loudly_by_name():
+    """The migration path for a hard rename with no alias. A saved tool whose
+    argv starts with the old word must not fall into the generic not-a-tb-command
+    refusal — the operator wrote `wrap` when `wrap` was right, and the message
+    owes them the new name. `tb tools` lists it; see [[refresh]]."""
+    tools, problems = one({"tool": {"prs": {"argv": ["wrap", "--", "x", "--json"]}}})
+    assert tools == []
+    assert "renamed" in problems[0] and "'data'" in problems[0]
 
 
 # ------------------------------------------------------- rule 2: acts inherits
 
 
 def test_acts_is_inherited_from_the_expansion_not_declared():
-    """The operator already asserted read-or-write by choosing `run` or `wrap`.
+    """The operator already asserted read-or-write by choosing `run` or `data`.
     Asking again in the TOML would invite them to contradict themselves, and a
     safety property must have exactly one source."""
-    tools, _ = one({"tool": {"w": {"argv": ["wrap", "--", "x"]}}})
+    tools, _ = one({"tool": {"w": {"argv": ["data", "--", "x"]}}})
     assert tools[0].acts is False
     tools, _ = one({"tool": {"r": {"argv": ["run", "--", "x"]}}})
     assert tools[0].acts is True
@@ -91,19 +101,19 @@ def test_a_declared_acts_field_is_ignored_rather_than_believed():
 # --------------------------------------------------- rule 3: builtins win
 
 
-@pytest.mark.parametrize("name", ["run", "wrap", "ui"])
+@pytest.mark.parametrize("name", ["run", "data", "ui"])
 def test_a_tool_can_never_shadow_a_tb_command(name):
     """A stray [tool.run] silently redefining the one door that writes is the
     worst thing this file could do. `ui` is in the set too even though it
     excludes itself from the palette."""
-    tools, problems = one({"tool": {name: {"argv": ["wrap", "--", "x"]}}})
+    tools, problems = one({"tool": {name: {"argv": ["data", "--", "x"]}}})
     assert tools == []
     assert "already has this name" in problems[0]
 
 
 @pytest.mark.parametrize("name", ["--evil", "has space", "Caps", "a/b", "a.b", ""])
 def test_a_name_that_is_not_a_command_word_is_refused(name):
-    _, problems = one({"tool": {name: {"argv": ["wrap", "--", "x"]}}})
+    _, problems = one({"tool": {name: {"argv": ["data", "--", "x"]}}})
     assert "lowercase letters" in problems[0]
 
 
@@ -127,13 +137,13 @@ def test_a_cadence_outside_the_surfaces_list_is_refused():
     """The surface cycles the interval through a fixed list. A window starting
     on a value outside it jumps to 0 on the first click rather than to the next
     cadence up."""
-    _, problems = one({"tool": {"x": {"argv": ["wrap", "--", "y"], "every": 45}}})
+    _, problems = one({"tool": {"x": {"argv": ["data", "--", "y"], "every": 45}}})
     assert "every must be one of" in problems[0]
 
 
 def test_a_boolean_is_not_a_cadence():
     """`True` is an int in Python and would otherwise pass as one second."""
-    _, problems = one({"tool": {"x": {"argv": ["wrap", "--", "y"], "every": True}}})
+    _, problems = one({"tool": {"x": {"argv": ["data", "--", "y"], "every": True}}})
     assert "integer number of seconds" in problems[0]
 
 
@@ -146,7 +156,7 @@ def test_one_bad_tool_does_not_cost_the_operator_the_good_ones():
     tools, problems = one(
         {
             "tool": {
-                "good": {"argv": ["wrap", "--", "x"]},
+                "good": {"argv": ["data", "--", "x"]},
                 "bad": {"argv": ["docker", "ps"]},
                 "alsogood": {"argv": ["run", "--", "y"]},
             }
@@ -173,13 +183,13 @@ def test_a_file_that_cannot_be_parsed_is_reported_rather_than_raised(tmp_path):
 
 def test_a_tilde_in_an_argv_is_expanded():
     """The whole point is that these are the operator's own paths."""
-    tools, _ = one({"tool": {"x": {"argv": ["wrap", "--cwd", "~/somewhere", "--", "y"]}}})
+    tools, _ = one({"tool": {"x": {"argv": ["data", "--cwd", "~/somewhere", "--", "y"]}}})
     assert tools[0].argv[2].startswith("/")
     assert "~" not in tools[0].argv[2]
 
 
 def test_a_tilde_inside_a_value_is_left_alone():
-    tools, _ = one({"tool": {"x": {"argv": ["wrap", "--", "y", "a~b"]}}})
+    tools, _ = one({"tool": {"x": {"argv": ["data", "--", "y", "a~b"]}}})
     assert tools[0].argv[-1] == "a~b"
 
 
@@ -211,7 +221,7 @@ def saved(tmp_path):
 
 
 def test_a_tool_is_an_ordinary_command_on_the_tree(saved):
-    saved('[tool.prs]\nargv = ["wrap", "--", "printf", "[]"]\n')
+    saved('[tool.prs]\nargv = ["data", "--", "printf", "[]"]\n')
     assert "prs" in cli.commands
 
 
@@ -219,7 +229,7 @@ def test_the_palette_finds_a_tool_without_the_catalog_knowing_about_tools(saved)
     """The point of registering rather than listing. `cli/canvas/catalog.py`
     walks the live tree, so a tool appears in the palette with its real summary
     and its real options and nothing there had to learn what a tool is."""
-    saved('[tool.prs]\ndescription = "open PRs"\nargv = ["wrap", "--", "printf", "[]"]\n')
+    saved('[tool.prs]\ndescription = "open PRs"\nargv = ["data", "--", "printf", "[]"]\n')
     entry = {e["name"]: e for e in walk(cli)}["prs"]
     assert entry["summary"] == "open PRs"
     assert entry["saved"] is True
@@ -235,8 +245,8 @@ def test_a_tool_wrapping_run_is_marked_as_acting_in_the_catalog(saved):
     assert entry["acts"] is True
 
 
-def test_a_tool_wrapping_wrap_stays_pinnable(saved):
-    saved('[tool.prs]\nargv = ["wrap", "--", "printf", "[]"]\n')
+def test_a_tool_wrapping_data_stays_pinnable(saved):
+    saved('[tool.prs]\nargv = ["data", "--", "printf", "[]"]\n')
     assert {e["name"]: e for e in walk(cli)}["prs"]["acts"] is False
 
 
@@ -244,7 +254,7 @@ def test_a_builtin_is_never_replaced(saved):
     """The worst thing this file could do is silently redefine the one door
     that writes."""
     before = cli.commands["run"]
-    problems = saved('[tool.run]\nargv = ["wrap", "--", "printf", "[]"]\n')
+    problems = saved('[tool.run]\nargv = ["data", "--", "printf", "[]"]\n')
     assert cli.commands["run"] is before
     assert problems and "already has this name" in problems[0]
 
@@ -252,18 +262,18 @@ def test_a_builtin_is_never_replaced(saved):
 def test_running_a_tool_dispatches_to_its_expansion(saved):
     from click.testing import CliRunner
 
-    saved('[tool.prs]\nargv = ["wrap", "--", "printf", "[{\\"a\\": 1}]"]\n')
+    saved('[tool.prs]\nargv = ["data", "--", "printf", "[{\\"a\\": 1}]"]\n')
     result = CliRunner().invoke(cli, ["--json", "prs"])
     envelope = json.loads(result.stdout)
     assert envelope["data"] == [{"a": 1}]
 
 
 def test_the_envelope_names_the_tool_rather_than_what_it_expanded_to(saved):
-    """The operator ran `prs`. An envelope that came back saying `wrap` would
+    """The operator ran `prs`. An envelope that came back saying `data` would
     be describing an implementation detail they did not type."""
     from click.testing import CliRunner
 
-    saved('[tool.prs]\nargv = ["wrap", "--", "printf", "[{\\"a\\": 1}]"]\n')
+    saved('[tool.prs]\nargv = ["data", "--", "printf", "[{\\"a\\": 1}]"]\n')
     result = CliRunner().invoke(cli, ["--json", "prs"])
     assert json.loads(result.stdout)["command"] == "prs"
 
@@ -274,7 +284,7 @@ def test_a_tool_takes_no_arguments(saved):
     would say the run was degraded."""
     from click.testing import CliRunner
 
-    saved('[tool.prs]\nargv = ["wrap", "--", "printf", "[]"]\n')
+    saved('[tool.prs]\nargv = ["data", "--", "printf", "[]"]\n')
     result = CliRunner().invoke(cli, ["prs", "945"])
     assert result.exit_code == 2
 
