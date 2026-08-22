@@ -274,7 +274,7 @@ ignore a warning.
       the row-truncation line already uses. Today floors that do not fit are used anyway and
       the table overflows sideways — that stays the *last* resort, for a single column too
       wide for the terminal, and is no longer the common case.
-- [ ] **The canvas fits to its window.** The same tail arithmetic in `render.js` against the
+- [x] **The canvas fits to its window.** The same tail arithmetic in `render.js` against the
       measured body width — arithmetic, not judgment, which is the standard that file is held
       to. Plus a fix for the truncated headers visible in the operator's screenshot
       (`NUMBE…`, `IS_DRAF…`, `MERGE_STAT…` inside columns floored to fit them exactly): the
