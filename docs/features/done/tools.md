@@ -1,10 +1,15 @@
 ---
-status: active
+status: complete
 created: 2026-08-20
 updated: 2026-08-22
 agent_value: 3
 key_files:
   - cli/tools.py
+  - cli/helpers.py
+  - cli/output.py
+  - cli/read.py
+  - cli/data.py
+  - cli/follow.py
   - cli/helpers.py
   - cli/__init__.py
   - cli/canvas/catalog.py
@@ -315,7 +320,7 @@ result.** The envelope says where it went; under `--json` that is a field, not p
 - [x] **What it says.** The envelope carries where it went and what it will run; `--help` on all
       three carries the flag with a runnable example, which the [[refresh]] help test already
       enforces. `tb tools` needs no change — the new entry is an entry.
-- [ ] **Docs.** CLAUDE.md's `$TB_HOME` row says the operator *and* `--save` author `tools.toml`;
+- [x] **Docs.** CLAUDE.md's `$TB_HOME` row says the operator *and* `--save` author `tools.toml`;
       its "Nothing here writes" claim, if it carries one, is amended with the same reversal.
 
 ## Notes
@@ -450,3 +455,39 @@ The doc took the new slug `[[tools]]` rather than the project taking a different
 instead of matching the concept's nickname. Nothing in the prose was scrubbed — "the toolbox" is
 still what the collection is called, here and in `cli/tools.py`, and the 16 links that pointed at
 `[[toolbox]]` were rewritten in one pass. This is the only doc whose slug the rename touched.
+
+### Round 3 — executed (2026-08-22)
+
+What the execution argued back:
+
+- **`sys.argv` could not be the source, and finding that out early shaped the design.** "Save
+  what you typed" reads like `sys.argv[1:]` until you write the first test: under a `CliRunner`
+  that is *pytest's* argv, so every test of the feature would have been an integration test
+  against a real process. The record is taken in `Root.main` instead — the one place both a
+  terminal and the suite pass through — which made `saved_argv` a pure function over a list and
+  the round-trip assertion cheap. A seam that exists for testability usually costs something;
+  this one was also the only correct place.
+- **The cadence had to be lifted out of the argv, and the spec's one line about it was
+  load-bearing.** `refresh` is recorded as the tool's *field*, so `--refresh 30` must not also
+  survive inside the saved argv — left there, `tb tools prs` would go resident on its own, and
+  [[refresh]] is explicit that residency is never ambient. Lifting it turned out to need a
+  second rule immediately: a value the surface cannot cycle to (`--refresh 7`) is refused **at
+  save time**, because writing cleanly and then failing to load is the worst of both outcomes
+  and the operator would meet it days later.
+- **The `--` boundary is where a naive scan would have corrupted an argv.** `tb read --save=mine
+  -- sometool --save=theirs` is legal and means two different things by the same word. Click
+  never parsed the second one as ours, so neither does the scan: it stops looking at `--` and
+  copies the rest verbatim. This is the failure that would have been invisible until someone
+  wrapped a tool that happens to have a `--save` of its own.
+- **The envelope needed a human half the spec did not mention.** "The envelope says where it
+  went; under `--json` that is a field, not prose" — true, and it leaves the *human* path saying
+  nothing at all, so `tb read --save=x -- thing` would print the output and no confirmation. The
+  answer is one `saved_note` on stderr, called from `render`, naming the **expansion** rather
+  than just the file: the file says a write happened, the expansion is the operator's one chance
+  to notice the saved line is not the line they meant while they still remember typing it.
+- **Hand-rolled TOML escaping earned its keep on the first real run.** `tb read --save greet --
+  printf 'hello %s\n' world` round-tripped through `"hello %s\\n"` and came back printing a
+  newline, which is exactly the case a naive `f'"{part}"'` would have silently broken. The
+  stdlib reads TOML and does not write it, and this is the whole reason appending — rather than
+  re-serialising the operator's file — is the safe shape.
+
