@@ -131,13 +131,29 @@ function cellOf(row, spec) {
 /* A weight and a floor, straight from the view. `ch` rather than a pixel
  * count: the stylesheet is written in scaled units and a window is draggable,
  * so there is no fixed width for a character count to mean anything against. */
+/* A quarter character of slack on every ch-derived bound.
+ *
+ * A column whose floor equals its label exactly — `NUMBER` at 6, `MERGE_STATE`
+ * at 11 — asks the engine for precisely as many `ch` as the label renders in.
+ * Blink lands that on the nose; WebKitGTK, which is what the native shell runs,
+ * rounds the flex distribution a hair under and the ellipsis fires, so the
+ * header reads `NUMBE…` inside a column sized to fit it. A truncated *header*
+ * is a column you cannot identify at all — the rule this file has followed
+ * since Round 1 — so the bound gets a rounding guard.
+ *
+ * In `ch` rather than a pixel because the error scales with the font: the
+ * stylesheet is written in scaled units and a hardcoded pixel would stop
+ * covering the gap the moment --tb-scale moved. Ten columns cost 2.5ch total.
+ */
+const SLACK = 0.25;
+
 function sizing(spec) {
   if (!spec.flex) return undefined;
-  const parts = [`flex:${spec.flex} 1 0`, `min-width:${spec.min || 1}ch`];
+  const parts = [`flex:${spec.flex} 1 0`, `min-width:${(spec.min || 1) + SLACK}ch`];
   /* The width the column would take if nothing competed. Without it a table of
    * four scan columns spreads them across the whole window, and a right-aligned
    * `946` ends up nowhere near the `NUMBER` above it. */
-  if (spec.max) parts.push(`max-width:${spec.max}ch`);
+  if (spec.max) parts.push(`max-width:${spec.max + SLACK}ch`);
   /* On the header too, so the label sits over its own values rather than at
    * the far side of a column the values are right-aligned in. */
   if (spec.align === "right") parts.push("text-align:right");
