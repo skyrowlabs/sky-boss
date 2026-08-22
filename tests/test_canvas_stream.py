@@ -90,6 +90,47 @@ async def test_a_watcher_fires_when_its_cadence_comes_round():
         await generator.aclose()
 
 
+async def test_a_watchers_frame_wears_resident_chrome_beside_the_envelope():
+    """The [[chrome]] facts ride the transport, never the envelope. The frame
+    carries shape, attention and the two numbers the bar reads — and the
+    envelope inside is exactly what the runner produced, untouched."""
+    clock = Clock()
+    canvas = Canvas(token="t")
+    session = _session(canvas, clock)
+    session.set("w1", ["data", "--", "printf", "[]"], interval=30)
+
+    generator = stream_frames(canvas, session, run=fake_run, tick=0.001, heartbeat=1e9)
+    try:
+        await frame(generator)  # hello
+        clock.advance(30)
+        fired = await frame(generator)
+        chrome = fired["result"]["chrome"]
+        assert chrome["shape"] == "resident"
+        assert chrome["attention"] == "ok"
+        assert chrome["interval"] == 30
+        assert chrome["last_run"] > 0 and chrome["ran_at"] > 0
+        assert "chrome" not in fired["result"]["envelope"]
+        assert fired["result"]["envelope"] == {"data": ["data", "--", "printf", "[]"]}
+    finally:
+        await generator.aclose()
+
+
+def test_chrome_for_tells_an_act_from_an_observe_through_the_catalog():
+    """Inherited, never inferred from the path — the same rule the cadence
+    control follows. A failed run wears failed, mechanically."""
+    from cli.canvas.server import chrome_for
+
+    ran = {"ok": True, "duration_s": 0.4, "envelope": {"ok": True, "partial": False, "warnings": []}}
+    assert chrome_for(["run", "--", "true"], ran, now=1000.0)["shape"] == "act"
+    assert chrome_for(["data", "--", "x"], ran, now=1000.0)["shape"] == "snapshot"
+    assert chrome_for(["data", "--", "x"], ran, interval=30, now=1000.0)["shape"] == "resident"
+
+    failed = {"ok": False, "duration_s": 0.4, "envelope": {"ok": False, "warnings": ["boom"]}}
+    facts = chrome_for(["data", "--", "x"], failed, now=1000.0)
+    assert facts["attention"] == "failed"
+    assert facts["warnings"] == 1
+
+
 async def test_a_quiet_session_still_sends_something():
     """An idle window must not be indistinguishable from one whose connection
     died — and without a write, the server never learns the socket is gone."""

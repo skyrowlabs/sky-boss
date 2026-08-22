@@ -404,6 +404,9 @@ pre.raw {
 }
 /* The right half is the quieter one, as the mockup draws it. */
 .foot .hint { color: var(--tb-text-3); }
+/* A hidden column was named, or a source degraded — the chrome carries the
+ * count and the count deserves the warn role, not the muted one. */
+.foot-warn { color: var(--tb-warn); }
 
 /* Time until this watcher fires again. Brand rather than warn: the top bar
  * already counts WATCHERS in brand, and a countdown is not a warning. */

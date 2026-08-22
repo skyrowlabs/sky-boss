@@ -33,6 +33,7 @@ import asyncio
 import json
 import secrets
 import threading
+import time
 import uuid
 from pathlib import Path
 
@@ -42,6 +43,7 @@ from starlette.responses import HTMLResponse, JSONResponse, Response, StreamingR
 from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 
+from cli import chrome as chrome_
 from cli.canvas import runner
 from cli.canvas.catalog import catalog
 from cli.canvas.watch import INTERVALS, Session
@@ -191,7 +193,9 @@ def build(canvas: Canvas | None = None) -> Starlette:
         # driving every open stream. Same rule the TUI learned the hard way, in
         # a new medium: no single turn of the event loop may be unbounded.
         result = await asyncio.to_thread(runner.run, argv, timeout=int(timeout))
-        return JSONResponse(result.to_dict())
+        payload = result.to_dict()
+        payload["chrome"] = chrome_for(argv, payload)
+        return JSONResponse(payload)
 
     async def post_watch(request: Request) -> Response:
         """Register, re-point, or stop one window's watcher."""
@@ -269,6 +273,44 @@ class NoCacheStatic(StaticFiles):
         return response
 
 
+def chrome_for(argv: list[str], run: dict, *, interval: int = 0, now: float | None = None) -> dict:
+    """The [[chrome]] facts for one canvas run, assembled where the surface
+    knows them — the deciding half in Python, exactly as the view's is.
+
+    Attached beside the envelope in the transport, never inside it: the
+    envelope stays byte-identical to the CLI's own, and the boundary test in
+    tests/test_chrome.py holds that line.
+
+    `last_run` is stamped in epoch seconds at result time, which is the same
+    moment the page stamps `ranAt` today — the bar's numbers come from the
+    contract without changing what they count. The watcher's own monotonic
+    clock never ships; a monotonic reading means nothing to another process.
+    """
+    envelope = run.get("envelope") or {}
+    ok = bool(run.get("ok")) and envelope.get("ok", True) is not False
+    partial = bool(envelope.get("partial"))
+    warnings = len(envelope.get("warnings") or [])
+    source = " ".join(argv)
+    ran_at = time.time() if now is None else now
+    duration = run.get("duration_s")
+
+    if interval:
+        facts = chrome_.resident(
+            source, ok=ok, partial=partial, warnings=warnings,
+            ran_at=ran_at, duration_s=duration, interval=interval, last_run=ran_at,
+        )
+    else:
+        # Inherited, never inferred from the path: a saved tool's `acts` came
+        # from its expansion, and the catalog is the one place that knows it.
+        acts = {e["name"]: e["acts"] for e in catalog()}.get(argv[0], argv[0] == "run")
+        build = chrome_.act if acts else chrome_.snapshot
+        facts = build(
+            source, ok=ok, partial=partial, warnings=warnings,
+            ran_at=ran_at, duration_s=duration,
+        )
+    return facts.to_dict()
+
+
 def _frame(payload: dict) -> str:
     return json.dumps(payload, default=str) + "\n"
 
@@ -328,8 +370,12 @@ async def stream_frames(
         session.claim(watcher)
         try:
             result = await asyncio.to_thread(runner_fn, list(watcher.argv))
+            payload = result.to_dict()
+            payload["chrome"] = chrome_for(
+                list(watcher.argv), payload, interval=watcher.interval
+            )
             await queue.put(
-                {"type": "run", "window": watcher.window_id, "result": result.to_dict()}
+                {"type": "run", "window": watcher.window_id, "result": payload}
             )
         finally:
             session.release(watcher)
