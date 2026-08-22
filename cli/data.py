@@ -82,7 +82,12 @@ from cli.view import shape
     type=click.IntRange(min=1),
     default=None,
     metavar="SECONDS",
-    help="Stay resident and re-run every N seconds, watch(1)-style. Ctrl-C to leave.",
+    help="Stay resident and re-run every N seconds, watch(1)-style. q, Esc or Ctrl-C to leave.",
+)
+@click.option(
+    "--screen",
+    is_flag=True,
+    help="Redraw on the alternate screen instead of inline. Restores the terminal on exit.",
 )
 @emit
 def data(
@@ -94,6 +99,7 @@ def data(
     no_shape: bool,
     from_: str,
     refresh: int | None,
+    screen: bool,
 ) -> Result:
     """Read another CLI's structured output as data. An observe — a window may
     pin it and refresh it on a cadence, and `--refresh` is the same rule in
@@ -111,8 +117,8 @@ def data(
     a command that is on PATH.
 
     Rows are shaped into a table worth reading — an empty column and an opaque
-    identifier are dropped, a nested dict is summarised, and anything past the
-    budget is hidden and named. `--cols` overrides that outright:
+    identifier are dropped, a nested dict is summarised, and anything that does
+    not fit the width is named. `--cols` overrides that outright:
 
         tb data --cols number,title,checks.failed -- jam pr list --json
 
@@ -129,7 +135,7 @@ def data(
     if problem:
         raise click.UsageError(problem)
     if refresh is not None:
-        _reside(argv, timeout, cwd, cols, drop, no_shape, from_, refresh)
+        _reside(argv, timeout, cwd, cols, drop, no_shape, from_, refresh, screen)
     return _once(argv, timeout, cwd, cols, drop, no_shape, from_)
 
 
@@ -142,10 +148,11 @@ def _reside(
     no_shape: bool,
     from_: str,
     refresh: int,
+    screen: bool = False,
 ) -> None:
     """Go resident, or refuse. Same contract as `read`'s: never returns
-    normally, ends at Ctrl-C, and the clean Exit skips `emit`'s rendering
-    because the last frame is already on the screen."""
+    normally, ends when the operator leaves, and the clean Exit skips
+    `emit`'s rendering because the last frame is already on the screen."""
     from cli import resident
 
     ctx = click.get_current_context()
@@ -156,7 +163,10 @@ def _reside(
         raise click.UsageError("--refresh and --json refuse each other")
     source = f"{ctx.info_name} -- {shlex.join(argv)}"
     resident.reside(
-        source, refresh, lambda: _once(argv, timeout, cwd, cols, drop, no_shape, from_)
+        source,
+        refresh,
+        lambda: _once(argv, timeout, cwd, cols, drop, no_shape, from_),
+        screen=screen,
     )
     raise click.exceptions.Exit(0)
 

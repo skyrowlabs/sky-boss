@@ -25,10 +25,17 @@ import time
 from typing import Callable
 
 from rich.console import Console, Group
+from rich.live import Live
 from rich.text import Text
 
 from cli import chrome as chrome_
+from cli import keys
 from cli.output import THEME, Result, band_text, capture, render
+
+# Room the inline rendering leaves around the body: the two chrome bands, the
+# prompt the frame is drawn under, and one line of slack so a redraw never
+# pushes its own top off the screen.
+_INLINE_MARGIN = 4
 
 
 class Residency:
@@ -87,17 +94,22 @@ def loop(
     state: Residency,
     run_once: Callable[[], Result],
     draw: Callable[[Result | None], None],
-    sleep: Callable[[float], None],
+    wait: Callable[[float], str | None],
     *,
     ticks: int | None = None,
 ) -> None:
-    """Run when due, redraw every tick, until interrupted.
+    """Run when due, redraw every tick, until the operator leaves.
 
     `draw` is called with a fresh result when one was produced and None on a
     countdown-only tick — the bands change every second, the body only when
     a run does. `ticks` bounds the loop under test; this loop is synchronous
     and pull-driven, so the bound is on time as well as frames — the hang the
     suite's rules exist to prevent cannot hide in it.
+
+    `wait(seconds)` is the tick *and* the key poll — one primitive, so `q`
+    lands the moment it is pressed instead of up to a second later. A plain
+    sleep returning None is a valid `wait`, which is what the suite injects
+    and what a non-terminal gets. See [[keys]].
     """
     count = 0
     while ticks is None or count < ticks:
@@ -109,8 +121,29 @@ def loop(
             draw(result)
         else:
             draw(None)
-        sleep(1)
+        if keys.leaves(wait(keys.TICK)):
+            return
         count += 1
+
+
+def clip(body: Text, limit: int) -> Text:
+    """The body, at most `limit` lines, saying so when it cut.
+
+    Inline residency can only repaint what it can address, so a frame taller
+    than the terminal would scroll its own top away and append instead of
+    replacing. Clipping keeps the redraw honest and keeps [[canvas]]'s rule —
+    no single result renders unbounded — in the surface that rule came from.
+    """
+    lines = body.split("\n")
+    if limit < 1 or len(lines) <= limit:
+        return body
+    kept = list(lines)[: max(1, limit - 1)]
+    out = Text("\n").join(kept)
+    dropped = len(lines) - len(kept)
+    out.append(
+        f"\n{dropped} more lines not shown — --screen for the full view", style="tb.warn"
+    )
+    return out
 
 
 def reside(
@@ -119,17 +152,24 @@ def reside(
     run_once: Callable[[], Result],
     *,
     clock: Callable[[], float] = time.time,
-    sleep: Callable[[float], None] = time.sleep,
+    wait: Callable[[float], str | None] | None = None,
     console: Console | None = None,
-    screen: bool = True,
+    screen: bool = False,
     ticks: int | None = None,
 ) -> None:
-    """The whole resident rendering: alternate screen, bands, body, Ctrl-C.
+    """The whole resident rendering: bands, body, and a way out.
 
-    Alternate screen rather than inline, the way watch(1) and htop do it:
-    the scrollback is restored intact on exit, which matters because a
-    resident invocation may redraw for hours and a terminal's history is
-    the operator's. Ctrl-C is the way out and leaves nothing behind.
+    **Inline by default** — the frame is drawn below the prompt and redrawn
+    in place, so leaving it leaves the last frame on screen exactly as a
+    one-shot does. Round 1 took the alternate screen instead, reasoning that
+    a residency may redraw for hours and the scrollback is the operator's;
+    true, and it optimised for the wrong session. The common one is *run a
+    read, look at it, leave* — and there the alternate screen destroys the
+    output it was protecting. `screen=True` (`--screen`) keeps the old
+    behaviour for the long residency the original argument was about.
+
+    `q`, `Esc` and Ctrl-C all leave. See [[keys]] for why the first two exist
+    and why they degrade to nothing without a terminal.
 
     The body is tb's own rendering, captured — `cli/output.py` owns every
     byte that reaches a terminal, and a surface that renders elsewhere takes
@@ -140,7 +180,7 @@ def reside(
     state = Residency(source, interval, clock)
     body = Text("")
 
-    def draw(result: Result | None) -> None:
+    def frame_for(result: Result | None) -> Group:
         nonlocal body
         if result is not None:
             with capture(width=out.width) as captured:
@@ -148,17 +188,39 @@ def reside(
             body = Text.from_ansi(captured.text)
         facts = state.chrome()
         top, bottom = chrome_.status_bands(facts, clock(), out.width)
-        frame = Group(band_text(top), body, band_text(bottom))
-        out.clear()
-        out.print(frame)
+        shown = body if screen else clip(body, out.height - _INLINE_MARGIN)
+        return Group(band_text(top), shown, band_text(bottom))
+
+    def run(wait_for: Callable[[float], str | None]) -> None:
+        if screen:
+            def draw(result: Result | None) -> None:
+                out.clear()
+                out.print(frame_for(result))
+
+            with out.screen():
+                loop(state, run_once, draw, wait_for, ticks=ticks)
+            return
+
+        # Live owns the cursor and the in-place repaint. `transient=False` is
+        # the point of the whole round: the last frame stays on the screen
+        # when the loop ends, the way a one-shot's output does.
+        with Live(console=out, auto_refresh=False, transient=False) as live:
+            loop(
+                state,
+                run_once,
+                lambda result: live.update(frame_for(result), refresh=True),
+                wait_for,
+                ticks=ticks,
+            )
 
     try:
-        if screen:
-            with out.screen():
-                loop(state, run_once, draw, sleep, ticks=ticks)
+        if wait is not None:
+            run(wait)
         else:
-            loop(state, run_once, draw, sleep, ticks=ticks)
+            with keys.reader() as wait_for:
+                run(wait_for)
     except KeyboardInterrupt:
-        # The way out, not a failure. The screen context has already put the
-        # terminal back; leaving quietly is the whole contract.
+        # Still a way out, and still not a failure. Whatever owned the
+        # terminal — the screen context, Live, the key reader — has already
+        # put it back; leaving quietly is the whole contract.
         pass

@@ -58,11 +58,20 @@ def strip_ansi(text: str) -> str:
     type=click.IntRange(min=1),
     default=None,
     metavar="SECONDS",
-    help="Stay resident and re-run every N seconds, watch(1)-style. Ctrl-C to leave.",
+    help="Stay resident and re-run every N seconds, watch(1)-style. q, Esc or Ctrl-C to leave.",
+)
+@click.option(
+    "--screen",
+    is_flag=True,
+    help="Redraw on the alternate screen instead of inline. Restores the terminal on exit.",
 )
 @emit
 def read_(
-    argv: tuple[str, ...], timeout: int | None, cwd: str | None, refresh: int | None
+    argv: tuple[str, ...],
+    timeout: int | None,
+    cwd: str | None,
+    refresh: int | None,
+    screen: bool,
 ) -> Result:
     """Show what a command printed. An observe — a window may pin it and
     refresh it on a cadence, and `--refresh` is the same rule in the terminal:
@@ -74,7 +83,7 @@ def read_(
     use `tb data`.
     """
     if refresh is not None:
-        _reside(argv, timeout, cwd, refresh)
+        _reside(argv, timeout, cwd, refresh, screen)
     ctx = click.get_current_context()
     if not (ctx.find_root().obj or {}).get("as_json"):
         # Live accrual: output shows while the process runs, exit stamps the
@@ -181,10 +190,16 @@ def _once(argv: tuple[str, ...], timeout: int | None, cwd: str | None) -> Result
     return result
 
 
-def _reside(argv: tuple[str, ...], timeout: int | None, cwd: str | None, refresh: int) -> None:
-    """Go resident, or refuse. Never returns normally — the loop ends at
-    Ctrl-C, and the clean Exit skips `emit`'s rendering because the last
-    frame is already on the screen."""
+def _reside(
+    argv: tuple[str, ...],
+    timeout: int | None,
+    cwd: str | None,
+    refresh: int,
+    screen: bool = False,
+) -> None:
+    """Go resident, or refuse. Never returns normally — the loop ends when
+    the operator leaves, and the clean Exit skips `emit`'s rendering because
+    the last frame is already on the screen."""
     from cli import resident
 
     ctx = click.get_current_context()
@@ -194,5 +209,5 @@ def _reside(argv: tuple[str, ...], timeout: int | None, cwd: str | None, refresh
         # consumer that wants a cadence is what the canvas API is for.
         raise click.UsageError("--refresh and --json refuse each other")
     source = f"{ctx.info_name} -- {shlex.join(argv)}"
-    resident.reside(source, refresh, lambda: _once(argv, timeout, cwd))
+    resident.reside(source, refresh, lambda: _once(argv, timeout, cwd), screen=screen)
     raise click.exceptions.Exit(0)

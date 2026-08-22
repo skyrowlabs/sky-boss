@@ -130,14 +130,14 @@ that, plus redrawing.
 resident read is a view, not a pager, and the moment it grows a scroll position it owes the
 operator a scrollbar and a search. No key bindings other than `q`, `Esc` and Ctrl-C.
 
-- [ ] **The key reader.** A small TTY helper: cbreak on entry, restored on every exit path,
+- [x] **The key reader.** A small TTY helper: cbreak on entry, restored on every exit path,
       `select` with a zero timeout on the loop's existing tick, `q`/`Esc` end the loop. Not a
       TTY → no reader, no error, Ctrl-C unchanged. Tested against a fake stdin rather than a
       real terminal, the way every other clock here is injected.
-- [ ] **Inline residency.** `reside()` draws in place below the prompt; the body is clipped to
+- [x] **Inline residency.** `reside()` draws in place below the prompt; the body is clipped to
       the room available and says so. `--screen` restores the alternate screen. The chrome
       bands are unchanged — they already carry the countdown and the verdict.
-- [ ] **The default flips, and the flag says so.** `--refresh`'s help gains the one line that
+- [x] **The default flips, and the flag says so.** `--refresh`'s help gains the one line that
       matters — how to leave — since [[refresh]]'s own rule is that help is the doc. `--screen`
       documents what it is for (a long residency, scrollback preserved).
 - [ ] **Docs.** Shape's "Ctrl-C to leave" is already amended above; CLAUDE.md's `data`/`read`

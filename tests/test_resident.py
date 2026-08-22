@@ -91,7 +91,7 @@ def test_the_loop_runs_when_due_and_only_redraws_otherwise():
         state,
         run_once=lambda: (runs.append(clock()), ok_result())[1],
         draw=lambda result: frames.append(result is not None),
-        sleep=clock.sleep,
+        wait=clock.sleep,
         ticks=61,
     )
     assert len(runs) == 3
@@ -122,7 +122,7 @@ def test_reside_renders_bands_around_the_body_and_leaves_on_interrupt():
 
     reside(
         "jam-prs", 30, run_once,
-        clock=clock, sleep=clock.sleep, console=recording, screen=False, ticks=3,
+        clock=clock, wait=clock.sleep, console=recording, screen=False, ticks=3,
     )
     text = recording.export_text()
     assert "jam-prs" in text and "refresh 30s" in text
@@ -134,7 +134,7 @@ def test_reside_renders_bands_around_the_body_and_leaves_on_interrupt():
 
     reside(
         "jam-prs", 30, interrupted,
-        clock=clock, sleep=clock.sleep, console=recording, screen=False, ticks=3,
+        clock=clock, wait=clock.sleep, console=recording, screen=False, ticks=3,
     )  # returning at all is the assertion
 
 
@@ -275,3 +275,96 @@ def test_a_keyword_that_acts_has_no_refresh_option_at_all(tmp_path):
         assert "No such option" in result.output
     finally:
         undeclare()
+
+
+# ============================================================================
+# Leaving, and staying in place — [[refresh]] round 2
+# ============================================================================
+
+
+def test_a_leave_key_ends_the_loop_before_its_ticks_are_spent():
+    """`q` is the way a view is closed. It must not wait for the tick to be
+    over, and it must not need the bound to stop the loop."""
+    clock = Clock()
+    frames = []
+    state = Residency("x", 30, clock)
+    keys_pressed = iter([None, None, "q"])
+
+    def wait(seconds):
+        clock.sleep(seconds)
+        return next(keys_pressed, None)
+
+    loop(state, ok_result, lambda r: frames.append(r), wait, ticks=100)
+    # Three ticks drawn, then gone — not a hundred.
+    assert clock.now == 1_766_000_000.0 + 3
+
+
+def test_esc_leaves_and_an_ordinary_key_does_not():
+    for key, expected_ticks in (("\x1b", 1), ("j", 5)):
+        clock = Clock()
+        state = Residency("x", 30, clock)
+        loop(state, ok_result, lambda _: None, lambda s: (clock.sleep(s), key)[1], ticks=5)
+        assert clock.now == 1_766_000_000.0 + expected_ticks
+
+
+def test_the_body_is_clipped_to_the_room_inline_has():
+    """An inline redraw can only repaint what it can address, so a frame
+    taller than the terminal would append instead of replacing."""
+    from rich.text import Text
+
+    from cli.resident import clip
+
+    body = Text("\n".join(f"line {i}" for i in range(50)))
+    out = clip(body, 10)
+    lines = out.plain.split("\n")
+    assert len(lines) == 10
+    assert "more lines not shown" in lines[-1]
+    assert "--screen" in lines[-1]
+
+
+def test_a_body_that_fits_is_left_exactly_alone():
+    from rich.text import Text
+
+    from cli.resident import clip
+
+    body = Text("one\ntwo\nthree")
+    assert clip(body, 10).plain == body.plain
+
+
+def test_the_alternate_screen_is_no_longer_the_default():
+    """The reversal, asserted where it is easiest to regress. Round 1 took the
+    screen and the output vanished on exit; inline leaves the last frame the
+    way a one-shot does."""
+    import inspect
+
+    from cli.resident import reside
+
+    assert inspect.signature(reside).parameters["screen"].default is False
+
+
+def test_read_and_data_offer_screen_in_help():
+    for command in ("read", "data"):
+        help_text = CliRunner().invoke(cli, [command, "--help"]).output
+        assert "--screen" in help_text
+        assert "alternate screen" in help_text
+
+
+def test_the_refresh_help_says_how_to_leave():
+    """Help is the doc ([[refresh]]) — and the one thing the operator needed
+    and could not find was the way out."""
+    for command in ("read", "data"):
+        help_text = CliRunner().invoke(cli, [command, "--help"]).output
+        assert "q, Esc or Ctrl-C to leave" in help_text
+
+
+def test_the_screen_flag_reaches_the_resident_loop(monkeypatch):
+    seen = {}
+    monkeypatch.setattr(
+        "cli.resident.reside",
+        lambda source, interval, run_once, **kw: seen.update(kw),
+    )
+    CliRunner().invoke(cli, ["read", "--refresh", "5", "--screen", "--", "printf", "hi"])
+    assert seen["screen"] is True
+    seen.clear()
+    CliRunner().invoke(cli, ["read", "--refresh", "5", "--", "printf", "hi"])
+    assert seen["screen"] is False
