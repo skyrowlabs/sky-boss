@@ -29,6 +29,18 @@ STATE_DIR = Path(os.environ.get("TB_STATE") or Path.home() / ".local" / "state" 
 # An absent home degrades to nothing declared rather than raising.
 TB_HOME = Path(os.environ.get("TB_HOME") or Path.home() / ".config" / "tb")
 
+# The argv this process was invoked with, after the root's `-t` rewrite and
+# before Click consumed any of it. Set once by `Root.main` in cli/__init__.py.
+#
+# It exists for one caller: `--save` writes down **what you typed** rather than
+# rebuilding a line from parsed options, because a saved tool whose expansion
+# does not match the line that created it fails invisibly until the day it runs
+# ([[tools]] round 3). `sys.argv` cannot serve that — under a `CliRunner` it is
+# pytest's argv — so the record is taken where the real args arrive, which is
+# the one place both the terminal and the suite pass through. Mutated in place
+# so importers keep the same list.
+INVOCATION: list[str] = []
+
 
 # What tb's own wrapper exports so that `python -m cli` resolves against this
 # repo rather than against whatever directory you are standing in. Both are

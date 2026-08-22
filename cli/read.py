@@ -29,6 +29,7 @@ import time
 
 import rich_click as click
 
+from cli import tools as tools_
 from cli.helpers import child_env
 from cli.output import Result, band, emit
 
@@ -65,6 +66,13 @@ def strip_ansi(text: str) -> str:
     is_flag=True,
     help="Redraw on the alternate screen instead of inline. Restores the terminal on exit.",
 )
+@click.option(
+    "--save",
+    "save",
+    metavar="NAME",
+    default=None,
+    help="Save this invocation as a saved command called NAME, then run it.",
+)
 @emit
 def read_(
     argv: tuple[str, ...],
@@ -72,6 +80,7 @@ def read_(
     cwd: str | None,
     refresh: int | None,
     screen: bool,
+    save: str | None,
 ) -> Result:
     """Show what a command printed. An observe — a window may pin it and
     refresh it on a cadence, and `--refresh` is the same rule in the terminal:
@@ -81,17 +90,28 @@ def read_(
     For a tool with no `--json`. It shows the tool's own output verbatim.
     Nothing is parsed — when structure is wanted, ask the tool for JSON and
     use `tb data`.
+
+    `--save` keeps the line you just got right, then runs it:
+
+        tb read --save status -- sometool status
     """
+    ctx = click.get_current_context()
+    # Saved *before* the run, so a resident invocation saves at all (it never
+    # reaches its own exit) and a failing one still saves. You are saving an
+    # argv, not a result. See [[tools]] round 3.
+    saved = tools_.save_invocation(save, ctx.info_name) if save else None
     if refresh is not None:
         _reside(argv, timeout, cwd, refresh, screen)
-    ctx = click.get_current_context()
     if not (ctx.find_root().obj or {}).get("as_json"):
         # Live accrual: output shows while the process runs, exit stamps the
         # status. A Job is a stream that ends — see [[follow]]. The envelope
         # path below is untouched; under --json it is still built complete,
         # once, at exit.
-        return _accrued(argv, timeout, cwd, source=f"{ctx.info_name} -- {shlex.join(argv)}")
-    return _once(argv, timeout, cwd)
+        result = _accrued(argv, timeout, cwd, source=f"{ctx.info_name} -- {shlex.join(argv)}")
+    else:
+        result = _once(argv, timeout, cwd)
+    result.saved = saved
+    return result
 
 
 def _accrued(

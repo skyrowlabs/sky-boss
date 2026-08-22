@@ -234,6 +234,10 @@ class Result:
     # commands carrying foreign data set it — see cli/view.py.
     view: Any = None
 
+    # Where `--save` wrote this invocation, when it did. Never set by anything
+    # else: a command that saved nothing carries no key at all. See [[tools]].
+    saved: Any = None
+
     def warn(self, message: str) -> None:
         """Record a degraded source.
 
@@ -261,6 +265,11 @@ class Result:
         # absence; none of them should have to learn that null means default.
         if self.view is not None:
             envelope["view"] = self.view
+        # Same rule as `view`, for the same reason: omitted rather than null,
+        # so an envelope from a command that saved nothing is byte-identical
+        # to one from before saving existed.
+        if self.saved is not None:
+            envelope["saved"] = self.saved
         return envelope
 
 
@@ -275,7 +284,34 @@ def render(result: Result, as_json: bool = False) -> None:
         _render_json(result)
     else:
         _render_human(result)
+        # Prose only for a human: under `--json` the same fact is already in
+        # the envelope, and saying it twice would put it on stdout as well.
+        saved_note(result.saved)
     _render_warnings(result)
+
+
+def saved_note(saved: dict | None) -> None:
+    """Say what `--save` wrote, on stderr. See [[tools]] round 3.
+
+    stderr for the reason every band uses it: this is status, not payload, and
+    `tb read --save=x -- thing | grep` must still see exactly the lines the
+    tool printed.
+
+    It names the **expansion**, not just the file. The file tells you a write
+    happened; the expansion is the operator's one chance to notice that the
+    saved line is not the line they meant, while they still remember typing it.
+    """
+    if not saved:
+        return
+    spans = [
+        ("saved ", "tb.label"),
+        (saved["name"], "tb.accent"),
+        (" → ", "tb.muted"),
+        (saved["runs"], "tb.path"),
+    ]
+    if saved.get("refresh"):
+        spans.append((f"  refresh {saved['refresh']}s", "tb.muted"))
+    band(spans)
 
 
 def _render_json(result: Result) -> None:
