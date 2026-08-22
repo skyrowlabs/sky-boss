@@ -41,6 +41,23 @@ def test_a_group_is_not_itself_an_entry():
     assert "auto" not in [entry["name"] for entry in walk(_tree())]
 
 
+def test_a_group_that_runs_bare_is_also_a_leaf():
+    """`tb tools` with no subcommand renders the toolbox listing, so the group
+    is a runnable entry as well as a container — a window may hold the listing
+    open. A plain group still is not one; the test above stands."""
+    root = click.Group("tb")
+    group = click.Group("tools", invoke_without_command=True)
+    group.short_help = "List the toolbox."
+    group.add_command(click.Command("prs", short_help="open PRs"))
+    root.add_command(group)
+    names = [entry["name"] for entry in walk(root)]
+    assert "tools" in names and "tools prs" in names
+
+
+def test_the_real_tree_offers_the_bare_toolbox_listing():
+    assert "tools" in [entry["name"] for entry in catalog()]
+
+
 def test_options_become_chips_and_arguments_do_not():
     """A chip inserts a flag. Inserting a positional would build an argv the
     operator never meant, in a position that changes what the command reads."""

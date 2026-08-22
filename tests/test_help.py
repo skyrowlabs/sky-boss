@@ -20,8 +20,11 @@ CONTRACT_WORDS = ("acts", "observe", "a read", "surface", "saved command")
 
 def leaves(command=cli, path=("tb",)):
     """Every runnable leaf, surfaces included — `tb ui` excludes itself from
-    the palette, not from the documentation standard."""
+    the palette, not from the documentation standard. A group that runs bare
+    (`tb tools`) is runnable, so it meets the standard too."""
     if isinstance(command, click.Group):
+        if command.invoke_without_command:
+            yield " ".join(path), command
         for name in sorted(command.commands):
             yield from leaves(command.commands[name], path + (name,))
     else:
@@ -62,12 +65,16 @@ def test_a_saved_tool_is_born_covered(tmp_path):
     from cli.tools import register
 
     (tmp_path / "tools.toml").write_text('[tool.prs]\nargv = ["data", "--", "printf", "[]"]\n')
+    from cli.tools import tools as tools_group
+
     try:
         register(cli, home=tmp_path)
-        found = dict(leaves())["tb prs"]
+        found = dict(leaves())["tb tools prs"]
         lines = [line.strip() for line in found.help.splitlines()]
         assert any(line.startswith("tb data") for line in lines)
         assert "saved command" in found.help.lower()
     finally:
-        for name in [n for n, c in list(cli.commands.items()) if getattr(c, "tb_saved", False)]:
-            del cli.commands[name]
+        for name in [
+            n for n, c in list(tools_group.commands.items()) if getattr(c, "tb_saved", False)
+        ]:
+            del tools_group.commands[name]

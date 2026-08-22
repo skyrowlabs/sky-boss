@@ -355,7 +355,19 @@ def resolve_follow(argv: list[str], root=None) -> tuple[str, list[str], str | No
         root = root_group
 
     argv = list(argv)
+    # Descend the tree while the words name groups — a saved keyword lives at
+    # `tools <name>` since [[toolbox]] round 2, and the server resolves it off
+    # the live tree exactly because nothing client-side keeps a command table.
     command = root.commands.get(argv[0]) if argv else None
+    consumed = 1
+    while (
+        command is not None
+        and hasattr(command, "commands")
+        and consumed < len(argv)
+        and argv[consumed] in command.commands
+    ):
+        command = command.commands[argv[consumed]]
+        consumed += 1
     if command is not None and getattr(command, "tb_saved", False):
         argv = list(getattr(command, "tb_argv", argv))
     if not argv or argv[0] != "follow":

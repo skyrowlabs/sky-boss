@@ -1,5 +1,5 @@
 ---
-status: draft
+status: active
 created: 2026-08-20
 updated: 2026-08-22
 agent_value: 3
@@ -203,7 +203,7 @@ Does not do, this round: no change to tools.toml (declarations are untouched; on
 address moves), no back-compat top-level registration — a hard move, one operator, and the
 palette teaches the new spelling immediately.
 
-- [ ] **The group.** `tools` becomes `invoke_without_command`; registration targets it;
+- [x] **The group.** `tools` becomes `invoke_without_command`; registration targets it;
       the listing behavior is byte-identical when bare. Shadowing tests retire into
       structure; name-shape validation stays.
 - [ ] **`-t`.** Root-level argv rewrite with tests: `tb -t x` ≡ `tb tools x`, `tb -t` ≡

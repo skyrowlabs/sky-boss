@@ -68,10 +68,20 @@ def walk(command: click.Command, path: tuple[str, ...] = ()) -> list[dict]:
         return []
     if isinstance(command, click.Group):
         entries: list[dict] = []
+        # A group that runs bare is a leaf as well as a container: `tb tools`
+        # with no subcommand renders the toolbox listing, and a window may
+        # hold that open. A plain group still is not an entry — opening a
+        # window on one would run nothing and show nothing.
+        if path and command.invoke_without_command:
+            entries.extend(_leaf(command, path))
         for name in sorted(command.commands):
             entries.extend(walk(command.commands[name], path + (name,)))
         return entries
 
+    return _leaf(command, path)
+
+
+def _leaf(command: click.Command, path: tuple[str, ...]) -> list[dict]:
     return [
         {
             "name": " ".join(path),
