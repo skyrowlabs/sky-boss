@@ -208,27 +208,32 @@ def follow_file(
     *,
     limit: int = DEFAULT_LINES,
     clock: Callable[[], float] = time.time,
-    sleep: Callable[[float], None] = time.sleep,
+    wait: Callable[[float], str | None] | None = None,
     console=None,
-    screen: bool = True,
+    screen: bool = False,
     ticks: int | None = None,
     fs: RealFs | None = None,
 ) -> None:
     """The terminal rendering: the same residency the process form has, with
     the cursor's stat knowledge in the bands — quiet and dead are different
-    words because the loop stats the file."""
+    words because the loop stats the file.
+
+    **Leaving leaves nothing behind here.** `q`, `Esc` and Ctrl-C all end the
+    loop, and a file has nothing to kill — the offset dies with the window
+    and reopening backfills fresh. The process form's `q` terminates its
+    child; both are "close the window", and the commands differ in what a
+    window owns rather than in what the key means. See [[follow]] round 2.
+    """
     from rich.console import Console, Group
-    from rich.text import Text
 
     from cli import chrome as chrome_
+    from cli import resident
     from cli.output import THEME, band_text
-    from cli import highlight as highlight_
-    from cli.read import strip_ansi
 
     out = console or Console(theme=THEME, highlight=False)
     cursor = FileCursor(path, limit=limit, fs=fs, clock=clock)
 
-    def draw() -> None:
+    def frame() -> Group:
         kept = cursor.lines()
         facts = chrome_.cursor(
             path,
@@ -239,32 +244,9 @@ def follow_file(
             ring_limit=limit,
         )
         top, bottom = chrome_.status_bands(facts, clock(), out.width)
-        body = Text()
-        for line in kept:
-            if line.stderr:
-                # The cursor's own voice — rotation, truncation — keeps its
-                # warn tint; highlight never re-tags it. See [[highlight]].
-                body.append(strip_ansi(line.text) + "\n", style="tb.warn")
-            else:
-                body.append_text(band_text(highlight_.spans(strip_ansi(line.text))))
-                body.append("\n")
-        out.clear()
-        out.print(Group(band_text(top), body, band_text(bottom)))
+        body = resident.stream_body(kept)
+        # The tail: the newest lines are the ones a log is followed for.
+        shown = body if screen else resident.clip(body, resident.room(out), tail=True)
+        return Group(band_text(top), shown, band_text(bottom))
 
-    count = 0
-    try:
-        if screen:
-            with out.screen():
-                while ticks is None or count < ticks:
-                    draw()
-                    sleep(1)
-                    cursor.tick()
-                    count += 1
-        else:
-            while ticks is None or count < ticks:
-                draw()
-                sleep(1)
-                cursor.tick()
-                count += 1
-    except KeyboardInterrupt:
-        pass
+    resident.hold(frame, tick=cursor.tick, console=out, screen=screen, ticks=ticks, wait=wait)

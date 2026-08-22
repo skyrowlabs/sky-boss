@@ -1,7 +1,15 @@
-"""The terminal's resident loop — `--refresh`, spelled the way watch(1) works.
+"""The terminal's resident views — how they draw, and how they are left.
+
+Two of them live here now. `--refresh` ([[refresh]]) is the terminal's
+rendering of the refresh rule, and it is what this module was written for;
+`hold`, `clip`, `room` and `stream_body` are the parts [[follow]] round 2
+found it shares with a stream. Sharing them is not a tidiness argument: `q`
+and `Esc` must mean the same thing in every resident view, and two loops
+holding their own opinion about leaving would drift the week they were
+written.
 
 **The terminal is a surface too.** The refresh rule — re-run a snapshot on a
-cadence — lived only in canvas machinery until [[refresh]]; this module is the
+cadence — lived only in canvas machinery until [[refresh]]; this is the
 terminal's rendering of the same rule. The two never share a scheduler: a
 terminal residency is owned by its process and dies at Ctrl-C, a canvas
 cadence is owned by its stream and dies with its window. Nothing here
@@ -126,24 +134,129 @@ def loop(
         count += 1
 
 
-def clip(body: Text, limit: int) -> Text:
+def room(console: Console) -> int:
+    """How many body lines an inline frame may draw on this terminal."""
+    return console.height - _INLINE_MARGIN
+
+
+def clip(body: Text, limit: int, *, tail: bool = False) -> Text:
     """The body, at most `limit` lines, saying so when it cut.
 
     Inline residency can only repaint what it can address, so a frame taller
     than the terminal would scroll its own top away and append instead of
     replacing. Clipping keeps the redraw honest and keeps [[canvas]]'s rule —
     no single result renders unbounded — in the surface that rule came from.
+
+    **Which end survives is the caller's, and it is not a detail.** A
+    snapshot's interesting end is the *top* — headers, the first rows. A
+    stream's is the *bottom* — the newest lines. `tail=True` keeps the newest
+    and leads with the marker, because for a follow this is not an edge case:
+    the ring holds 200 lines against a terminal's forty, so every inline
+    frame is clipped, and a follow that kept the head would pin the oldest
+    lines on screen and never show a new one. See [[follow]] round 2.
     """
     lines = body.split("\n")
     if limit < 1 or len(lines) <= limit:
         return body
-    kept = list(lines)[: max(1, limit - 1)]
-    out = Text("\n").join(kept)
-    dropped = len(lines) - len(kept)
-    out.append(
-        f"\n{dropped} more lines not shown — --screen for the full view", style="tb.warn"
-    )
+    keep = max(1, limit - 1)
+    dropped = len(lines) - keep
+    marker = f"{dropped} more lines not shown — --screen for the full view"
+    if tail:
+        out = Text(marker, style="tb.warn")
+        out.append("\n")
+        out.append_text(Text("\n").join(list(lines)[-keep:]))
+        return out
+    out = Text("\n").join(list(lines)[:keep])
+    out.append(f"\n{marker}", style="tb.warn")
     return out
+
+
+def hold(
+    frame: Callable[[], Group],
+    *,
+    tick: Callable[[], None] | None = None,
+    console: Console,
+    screen: bool = False,
+    ticks: int | None = None,
+    wait: Callable[[float], str | None] | None = None,
+) -> None:
+    """Draw a frame every tick until the operator leaves.
+
+    The residency a *stream* has: no cadence, no verdict, nothing to re-run —
+    a frame that is redrawn, an optional `tick` that advances whatever the
+    frame reads, and one way out. `reside` keeps its own loop because it has
+    a run to schedule; what both share is this — inline by default, `q`,
+    `Esc` and Ctrl-C leave, and `ticks` bounds it under test.
+
+    The caller owns what leaving *means*. `hold` returns; a follow's caller
+    kills its child in a `finally`, and that difference is the point rather
+    than an inconsistency. See [[follow]] round 2.
+    """
+
+    def run(wait_for: Callable[[float], str | None]) -> None:
+        if screen:
+            def draw() -> None:
+                console.clear()
+                console.print(frame())
+
+            with console.screen():
+                _turn(draw, tick, wait_for, ticks)
+            return
+
+        # Live owns the cursor and the in-place repaint, exactly as it does
+        # for `reside`; `transient=False` leaves the last frame on screen, so
+        # leaving a follow leaves the tail of the log you were watching.
+        with Live(console=console, auto_refresh=False, transient=False) as live:
+            _turn(lambda: live.update(frame(), refresh=True), tick, wait_for, ticks)
+
+    try:
+        if wait is not None:
+            run(wait)
+        else:
+            with keys.reader() as wait_for:
+                run(wait_for)
+    except KeyboardInterrupt:
+        # Still a way out, and still not a failure.
+        pass
+
+
+def _turn(
+    draw: Callable[[], None],
+    tick: Callable[[], None] | None,
+    wait: Callable[[float], str | None],
+    ticks: int | None,
+) -> None:
+    count = 0
+    while ticks is None or count < ticks:
+        draw()
+        if keys.leaves(wait(keys.TICK)):
+            return
+        if tick is not None:
+            tick()
+        count += 1
+
+
+def stream_body(lines) -> Text:
+    """A ring of lines as one renderable — the body both follow forms draw.
+
+    One assembler on purpose: two renderers holding their own opinions about
+    how a stderr line looks would drift the week they were written. stdout
+    lines are tinted lexically through [[highlight]]; stderr lines — and the
+    cursor's own rotation and truncation announcements, which ride the same
+    tag — keep their warn tint and are never re-tagged. The text reaches the
+    screen verbatim either way, because marks ride beside it, never instead.
+    """
+    from cli import highlight as highlight_
+    from cli.read import strip_ansi
+
+    body = Text()
+    for line in lines:
+        if line.stderr:
+            body.append(strip_ansi(line.text) + "\n", style="tb.warn")
+        else:
+            body.append_text(band_text(highlight_.spans(strip_ansi(line.text))))
+            body.append("\n")
+    return body
 
 
 def reside(
@@ -188,7 +301,7 @@ def reside(
             body = Text.from_ansi(captured.text)
         facts = state.chrome()
         top, bottom = chrome_.status_bands(facts, clock(), out.width)
-        shown = body if screen else clip(body, out.height - _INLINE_MARGIN)
+        shown = body if screen else clip(body, room(out))
         return Group(band_text(top), shown, band_text(bottom))
 
     def run(wait_for: Callable[[float], str | None]) -> None:

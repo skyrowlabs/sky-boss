@@ -16,8 +16,12 @@ restart is the operator's act, never the surface's initiative.
 
 **Resident by nature.** No `--refresh` here ([[refresh]] owns that flag, on
 snapshot reads only), no envelope under `--json` — a stream has no single
-envelope, and the canvas API is the machine path. Ctrl-C leaves, and for a
-process, kills.
+envelope, and the canvas API is the machine path. `q`, `Esc` and Ctrl-C all
+leave, and for a process, leaving kills — the stream *is* the window, and
+[[canvas]]'s rule that nothing survives the last window is the same rule.
+That is the one place this differs from a resident read, which leaves a
+finished process behind, and `--help` says so rather than making a reader
+infer it. See [[follow]] round 2.
 """
 
 from __future__ import annotations
@@ -25,17 +29,14 @@ from __future__ import annotations
 import shlex
 import shutil
 import time
-from pathlib import Path
 from typing import Callable
 
 import rich_click as click
 from rich.console import Console, Group
-from rich.text import Text
 
 from cli import chrome as chrome_
-from cli import highlight as highlight_
+from cli import resident
 from cli.output import THEME, band_text
-from cli.read import strip_ansi
 from cli.stream import DEFAULT_LINES, ChildStream
 
 
@@ -69,9 +70,14 @@ def is_file_form(argv: tuple[str, ...]) -> bool:
     show_default=True,
     help="How many lines the window keeps.",
 )
-def follow(argv: tuple[str, ...], cwd: str | None, lines: int) -> None:
+@click.option(
+    "--screen",
+    is_flag=True,
+    help="Redraw on the alternate screen instead of inline. Restores the terminal on exit.",
+)
+def follow(argv: tuple[str, ...], cwd: str | None, lines: int, screen: bool) -> None:
     """Follow a command that streams, or a file that grows. An observe,
-    resident by nature — Ctrl-C leaves, and for a command, kills it.
+    resident by nature:
 
         tb follow -- journalctl -f
 
@@ -81,6 +87,13 @@ def follow(argv: tuple[str, ...], cwd: str | None, lines: int) -> None:
     command. Any exit — zero included — shows as a plainly visible dead
     state; restarting is yours. Lines are kept in a bounded ring; the file
     or the scrollback remains the record.
+
+    q, Esc or Ctrl-C to leave — and leaving a command kills it, because the
+    stream is the window. A file is only let go of.
+
+    The newest lines are drawn inline below the prompt and stay there when
+    you leave; `--screen` uses the alternate screen instead, which shows the
+    whole ring and hands the terminal back as it was.
     """
     ctx = click.get_current_context()
     if (ctx.find_root().obj or {}).get("as_json"):
@@ -93,9 +106,9 @@ def follow(argv: tuple[str, ...], cwd: str | None, lines: int) -> None:
         # and dead get different words.
         from cli.filefollow import follow_file
 
-        follow_file(argv[0], limit=lines)
+        follow_file(argv[0], limit=lines, screen=screen)
     else:
-        follow_process(list(argv), cwd=cwd, limit=lines)
+        follow_process(list(argv), cwd=cwd, limit=lines, screen=screen)
 
 
 # Read by the catalog the way `tb_surface` and `tb_acts` are: a property on
@@ -110,18 +123,22 @@ def follow_process(
     cwd: str | None = None,
     limit: int = DEFAULT_LINES,
     clock: Callable[[], float] = time.time,
-    sleep: Callable[[float], None] = time.sleep,
+    wait: Callable[[float], str | None] | None = None,
     console: Console | None = None,
-    screen: bool = True,
+    screen: bool = False,
     ticks: int | None = None,
     spawn=ChildStream,
 ) -> None:
     """The process form's whole rendering: ring, chrome bands, dead state.
 
-    The same alternate-screen residency `--refresh` uses, drawing a ring
-    instead of re-running a snapshot. The dead state keeps drawing until
-    Ctrl-C — a corpse on screen is information, and clearing it would be the
-    surface deciding the operator had seen enough.
+    The same residency `--refresh` has, drawing a ring instead of re-running
+    a snapshot — inline by default since round 2, so leaving leaves the tail
+    of the log you were watching. The dead state keeps drawing until you go:
+    a corpse on screen is information, and clearing it would be the surface
+    deciding the operator had seen enough.
+
+    **Leaving kills.** `q`, `Esc` and Ctrl-C all end the loop, and the child
+    goes with it — the terminal's window is the loop.
     """
     out = console or Console(theme=THEME, highlight=False)
     source = shlex.join(argv)
@@ -133,7 +150,7 @@ def follow_process(
 
     exited_at: float | None = None
 
-    def draw() -> None:
+    def frame() -> Group:
         nonlocal exited_at
         code = child.exit_code
         if code is not None and exited_at is None:
@@ -148,35 +165,15 @@ def follow_process(
             ring_limit=limit,
         )
         top, bottom = chrome_.status_bands(facts, clock(), out.width)
-        body = Text()
-        for line in kept:
-            if line.stderr:
-                # stderr joins the stream, tagged rather than merged blind —
-                # its warn tint is [[follow]]'s and highlight never re-tags it.
-                body.append(strip_ansi(line.text) + "\n", style="tb.warn")
-            else:
-                # Lexical tint through the same span assembler the chrome
-                # bands use; the text is verbatim either way. See [[highlight]].
-                body.append_text(band_text(highlight_.spans(strip_ansi(line.text))))
-                body.append("\n")
-        out.clear()
-        out.print(Group(band_text(top), body, band_text(bottom)))
+        body = resident.stream_body(kept)
+        # The tail, always: a stream's interesting end is the newest line,
+        # and the ring outruns the terminal on every frame. See [[follow]] r2.
+        shown = body if screen else resident.clip(body, resident.room(out), tail=True)
+        return Group(band_text(top), shown, band_text(bottom))
 
-    count = 0
     try:
-        if screen:
-            with out.screen():
-                while ticks is None or count < ticks:
-                    draw()
-                    sleep(1)
-                    count += 1
-        else:
-            while ticks is None or count < ticks:
-                draw()
-                sleep(1)
-                count += 1
-    except KeyboardInterrupt:
-        pass
+        resident.hold(frame, console=out, screen=screen, ticks=ticks, wait=wait)
     finally:
-        # Streams die with their window. The terminal's window is the loop.
+        # Streams die with their window. The terminal's window is the loop,
+        # and `q` closing it is the same act Ctrl-C was.
         child.kill()

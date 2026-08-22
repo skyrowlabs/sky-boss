@@ -192,7 +192,7 @@ def test_the_terminal_bands_carry_the_stat_knowledge():
     follow_file(
         "x.log",
         clock=lambda: 500.0,
-        sleep=lambda s: None,
+        wait=lambda s: None,
         console=recording,
         screen=False,
         ticks=2,
@@ -223,7 +223,7 @@ def test_the_cursor_body_tints_through_the_same_rules(monkeypatch):
     follow_file(
         "x.log",
         clock=lambda: 500.0,
-        sleep=lambda s: None,
+        wait=lambda s: None,
         console=recording,
         screen=False,
         ticks=1,
@@ -240,10 +240,63 @@ def test_an_absent_file_renders_as_waiting():
     follow_file(
         "never.log",
         clock=lambda: 500.0,
-        sleep=lambda s: None,
+        wait=lambda s: None,
         console=recording,
         screen=False,
         ticks=1,
         fs=FakeFs(),
     )
     assert "waiting for it to exist" in recording.export_text()
+
+
+# ============================================================================
+# Leaving, and where the frame is drawn — [[follow]] round 2
+# ============================================================================
+
+
+def test_q_leaves_a_file_follow_before_its_ticks_are_spent():
+    """One command, one way out: the cursor loop takes the same keys the
+    process form does, and nothing is killed because a file owns nothing."""
+    from rich.console import Console
+
+    fs = FakeFs()
+    fs.put("x.log", "line-a\n", mtime=320.0)
+    pressed = iter([None, None, "q"])
+    spent = []
+
+    def wait(seconds):
+        spent.append(seconds)
+        return next(pressed, None)
+
+    follow_file(
+        "x.log",
+        clock=lambda: 500.0,
+        wait=wait,
+        console=Console(record=True, width=78, force_terminal=True),
+        screen=False,
+        ticks=100,
+        fs=fs,
+    )
+    assert len(spent) == 3
+
+
+def test_the_inline_cursor_frame_keeps_the_newest_lines():
+    """A log's interesting end is its tail. The ring outruns the terminal on
+    every frame, so keeping the head would pin the oldest lines forever."""
+    from rich.console import Console
+
+    fs = FakeFs()
+    fs.put("x.log", "".join(f"line {i}\n" for i in range(40)), mtime=320.0)
+    recording = Console(record=True, width=78, height=12, force_terminal=True)
+    follow_file(
+        "x.log",
+        clock=lambda: 500.0,
+        wait=lambda s: "q",
+        console=recording,
+        screen=False,
+        ticks=1,
+        fs=fs,
+    )
+    text = recording.export_text()
+    assert "line 39" in text and "line 0\n" not in text
+    assert "more lines not shown" in text
