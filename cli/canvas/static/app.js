@@ -94,7 +94,7 @@ export function rawEntry(query, home) {
     options: [],
     acts: false,
     saved: false,
-    every: 0,
+    refresh: 0,
   };
 }
 
@@ -203,10 +203,10 @@ function Toolbox({ commands, open }) {
               key=${c.name}
               class="tool"
               title=${c.summary || c.name}
-              onClick=${() => open(c, c.name, { interval: c.every })}
+              onClick=${() => open(c, c.name, { interval: c.refresh })}
             >
               <span class="tool-name">${c.name}</span>
-              ${c.every > 0 && html`<span class="tool-every">${c.every}s</span>`}
+              ${c.refresh > 0 && html`<span class="tool-refresh">${c.refresh}s</span>`}
               ${c.acts && html`<span class="tool-acts" title="acts — never refreshed">!</span>`}
             </button>
           `
@@ -605,7 +605,7 @@ function App() {
       /* A tool may declare the cadence it opens on. Pinning it here rather
        * than leaving it to a click is the whole point of saving it: the
        * window you wanted is the window you get. Only a read can carry one —
-       * `every` is refused at load on a tool that acts. */
+       * `refresh` is refused at load on a tool that acts. */
       pinned: Boolean(initial && initial.interval),
       interval: (initial && initial.interval) || 0,
       result: null,

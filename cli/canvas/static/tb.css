@@ -222,7 +222,7 @@ body {
 }
 .tool:hover { background: color-mix(in srgb, var(--tb-brand) 10%, transparent); }
 .tool-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tool-every { flex: none; color: var(--tb-brand); }
+.tool-refresh { flex: none; color: var(--tb-brand); }
 /* A tool that writes. It can never carry a cadence, and the marker is there so
  * that is visible before you click rather than after. */
 .tool-acts { flex: none; color: var(--tb-warn); font-weight: 700; }

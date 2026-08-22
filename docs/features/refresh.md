@@ -78,7 +78,7 @@ a confusion trap.
       `--from json`; alias-import in `cli/__init__.py`; update CLAUDE.md's command table and the
       operator's `tools.toml` (one entry). The failed-to-load path proves the loud migration
       message.
-- [ ] **`every` → `refresh`** in the [[toolbox]] loader and its validation messages; docs.
+- [x] **`every` → `refresh`** in the [[toolbox]] loader and its validation messages; docs.
 - [ ] **`--refresh` on `read` and `data`.** Resident terminal loop over an injectable clock
       (tests assert the mechanism, not five real seconds); redraw in place; Ctrl-C; bare-flag
       uses the keyword default; refused together with `--json`. The running-since clock and
