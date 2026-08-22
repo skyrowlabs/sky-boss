@@ -68,6 +68,13 @@ from cli.view import shape
     show_default=True,
     help="The format the tool prints.",
 )
+@click.option(
+    "--refresh",
+    type=click.IntRange(min=1),
+    default=None,
+    metavar="SECONDS",
+    help="Stay resident and re-run every N seconds, watch(1)-style. Ctrl-C to leave.",
+)
 @emit
 def data(
     argv: tuple[str, ...],
@@ -77,9 +84,13 @@ def data(
     drop: str | None,
     no_shape: bool,
     from_: str,
+    refresh: int | None,
 ) -> Result:
     """Read another CLI's structured output as data. An observe — a window may
-    pin it and refresh it on a cadence.
+    pin it and refresh it on a cadence, and `--refresh` is the same rule in
+    the terminal:
+
+        tb data --refresh 30 -- jam pr list --json
 
     The tool has to be asked for JSON itself — the flag is not guessed, because
     tools spell it differently and a wrong guess is a confusing failure:
@@ -96,6 +107,44 @@ def data(
 
         tb data --cols number,title,checks.failed -- jam pr list --json
     """
+    if refresh is not None:
+        _reside(argv, timeout, cwd, cols, drop, no_shape, refresh)
+    return _once(argv, timeout, cwd, cols, drop, no_shape)
+
+
+def _reside(
+    argv: tuple[str, ...],
+    timeout: int | None,
+    cwd: str | None,
+    cols: str | None,
+    drop: str | None,
+    no_shape: bool,
+    refresh: int,
+) -> None:
+    """Go resident, or refuse. Same contract as `read`'s: never returns
+    normally, ends at Ctrl-C, and the clean Exit skips `emit`'s rendering
+    because the last frame is already on the screen."""
+    from cli import resident
+
+    ctx = click.get_current_context()
+    if (ctx.find_root().obj or {}).get("as_json"):
+        # A resident redraw is a human rendering; under --json it would be an
+        # endless stream of envelopes on a pipe that expects one. A machine
+        # consumer that wants a cadence is what the canvas API is for.
+        raise click.UsageError("--refresh and --json refuse each other")
+    source = f"{ctx.info_name} -- {shlex.join(argv)}"
+    resident.reside(source, refresh, lambda: _once(argv, timeout, cwd, cols, drop, no_shape))
+    raise click.exceptions.Exit(0)
+
+
+def _once(
+    argv: tuple[str, ...],
+    timeout: int | None,
+    cwd: str | None,
+    cols: str | None,
+    drop: str | None,
+    no_shape: bool,
+) -> Result:
     result = Result()
     started = time.monotonic()
 

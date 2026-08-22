@@ -23,6 +23,7 @@ does not try. See docs/features/done/text-reads.md — or rather [[text-reads]].
 from __future__ import annotations
 
 import re
+import shlex
 import subprocess
 import time
 
@@ -52,18 +53,32 @@ def strip_ansi(text: str) -> str:
 @click.argument("argv", nargs=-1, required=True)
 @click.option("--timeout", type=int, default=60, help="Give up after this many seconds.")
 @click.option("--cwd", type=click.Path(file_okay=False, exists=True), help="Run it here.")
+@click.option(
+    "--refresh",
+    type=click.IntRange(min=1),
+    default=None,
+    metavar="SECONDS",
+    help="Stay resident and re-run every N seconds, watch(1)-style. Ctrl-C to leave.",
+)
 @emit
-def read_(argv: tuple[str, ...], timeout: int | None, cwd: str | None) -> Result:
-    """Show what a command printed, and keep showing it.
+def read_(
+    argv: tuple[str, ...], timeout: int | None, cwd: str | None, refresh: int | None
+) -> Result:
+    """Show what a command printed. An observe — a window may pin it and
+    refresh it on a cadence, and `--refresh` is the same rule in the terminal:
 
-    For a tool with no `--json`. Unlike `tb run` this is declared a *read*, so a
-    window may pin it and refresh it on a cadence:
+        tb read --refresh 30 --cwd ~/some/repo -- sometool status
 
-        tb read --cwd ~/some/repo -- sometool status
-
-    It shows the tool's own output verbatim. Nothing is parsed — when structure
-    is wanted, ask the tool for JSON and use `tb data`.
+    For a tool with no `--json`. It shows the tool's own output verbatim.
+    Nothing is parsed — when structure is wanted, ask the tool for JSON and
+    use `tb data`.
     """
+    if refresh is not None:
+        _reside(argv, timeout, cwd, refresh)
+    return _once(argv, timeout, cwd)
+
+
+def _once(argv: tuple[str, ...], timeout: int | None, cwd: str | None) -> Result:
     result = Result()
     started = time.monotonic()
 
@@ -102,3 +117,20 @@ def read_(argv: tuple[str, ...], timeout: int | None, cwd: str | None) -> Result
         result.warn(f"exited {proc.returncode} after {round(time.monotonic() - started, 2)}s")
 
     return result
+
+
+def _reside(argv: tuple[str, ...], timeout: int | None, cwd: str | None, refresh: int) -> None:
+    """Go resident, or refuse. Never returns normally — the loop ends at
+    Ctrl-C, and the clean Exit skips `emit`'s rendering because the last
+    frame is already on the screen."""
+    from cli import resident
+
+    ctx = click.get_current_context()
+    if (ctx.find_root().obj or {}).get("as_json"):
+        # A resident redraw is a human rendering; under --json it would be an
+        # endless stream of envelopes on a pipe that expects one. A machine
+        # consumer that wants a cadence is what the canvas API is for.
+        raise click.UsageError("--refresh and --json refuse each other")
+    source = f"{ctx.info_name} -- {shlex.join(argv)}"
+    resident.reside(source, refresh, lambda: _once(argv, timeout, cwd))
+    raise click.exceptions.Exit(0)
