@@ -157,7 +157,7 @@ runs `tb --json data --from … -- …` through the runner unchanged. No canvas 
       formats; unknown names are usage errors listing what would have worked; the envelope
       mapping; the failed-contract error naming both recourses; `--help` gains the runnable
       example — the [[refresh]] help test enforces it.
-- [ ] **The free rides, proven.** A saved tool whose argv says `--from <format>` loads and
+- [x] **The free rides, proven.** A saved tool whose argv says `--from <format>` loads and
       lands on the canvas as a refreshing table with zero canvas changes — asserted by test,
       because "no code needed" is a claim that rots silently. The suite redirects `TB_HOME`,
       so declared formats in tests never touch the operator's file.

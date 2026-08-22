@@ -292,3 +292,53 @@ def test_an_absent_jq_degrades_loudly_at_use_naming_the_format(monkeypatch, tmp_
     data, error = transform({}, ".", "pr-summary")
     assert data is None
     assert "jq is not on PATH" in error and "pr-summary" in error
+
+
+# ============================================================================
+# The free rides — asserted, because "no code needed" is a claim that rots
+# ============================================================================
+
+
+def test_a_saved_tool_carrying_a_format_rides_every_rail(tmp_path, monkeypatch):
+    """`--from jam-status` sits inside a saved tool's argv like any other
+    option; `acts` inherits from `data` as always; the catalog offers it as a
+    pinnable read with its declared cadence; and running it end-to-end parses
+    through the format — with zero canvas or toolbox code knowing what a
+    format is. The suite redirects TB_HOME, so nothing here touches the
+    operator's files."""
+    import json
+    import unittest.mock
+
+    from click.testing import CliRunner
+
+    import cli.capture as capture_mod
+    from cli import cli
+    from cli.canvas.catalog import walk
+    from cli.tools import register, tools as tools_group
+
+    (tmp_path / "formats.toml").write_text(
+        '[format.jam-status]\nkind = "lines"\npattern = \'(?P<pr>#\\d+) (?P<state>\\w+)\'\n'
+    )
+    (tmp_path / "tools.toml").write_text(
+        "[tool.statuses]\n"
+        'argv = ["data", "--from", "jam-status", "--", "printf", "#1 open\\\\n#2 draft\\\\n"]\n'
+        "refresh = 30\n"
+    )
+    try:
+        with unittest.mock.patch.object(capture_mod, "TB_HOME", tmp_path):
+            assert register(cli, home=tmp_path) == []
+            entry = {e["name"]: e for e in walk(cli)}["tools statuses"]
+            assert entry["acts"] is False and entry["refresh"] == 30
+
+            result = CliRunner().invoke(cli, ["--json", "tools", "statuses"])
+            envelope = json.loads(result.stdout)
+            assert envelope["ok"] is True
+            assert envelope["data"] == [
+                {"pr": "#1", "state": "open"},
+                {"pr": "#2", "state": "draft"},
+            ]
+    finally:
+        for name in [
+            n for n, c in list(tools_group.commands.items()) if getattr(c, "tb_saved", False)
+        ]:
+            del tools_group.commands[name]
