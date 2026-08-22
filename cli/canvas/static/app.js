@@ -423,7 +423,9 @@ function streamLabel(win) {
  * never carries marks and keeps its warn tint. */
 function markedLine(l) {
   if (l.stderr || !l.marks || !l.marks.length)
-    return html`<span class=${l.stderr ? "err" : ""}>${l.text + "\n"}</span>`;
+    return html`<span class=${l.voice ? "voice" : l.stderr ? "err" : ""}
+      >${l.text + "\n"}</span
+    >`;
   const parts = [];
   let cursor = 0;
   for (const [start, end, role] of l.marks) {

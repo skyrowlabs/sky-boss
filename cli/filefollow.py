@@ -166,10 +166,11 @@ class FileCursor:
             self.ring.push(Line(text=line, stderr=False, at=now))
 
     def _event(self, message: str) -> None:
-        """An announcement in the stream, tagged the way stderr lines are so
-        it renders tinted — the cursor's own voice, distinct from the
-        file's, without a third channel to plumb."""
-        self.ring.push(Line(text=f"— {message} —", stderr=True, at=self.clock()))
+        """An announcement in the stream — the cursor's own voice, distinct
+        from the file's. It carries `voice` as well as `stderr`: round 4 of
+        [[highlight]] made an ordinary stderr line grey, because a second
+        channel is not a severity, and these must stay loud."""
+        self.ring.push(Line(text=f"— {message} —", stderr=True, voice=True, at=self.clock()))
 
     # ---------------------------------------------- the follower's interface
 

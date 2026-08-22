@@ -95,6 +95,44 @@ _REF = re.compile(r"#\d+")
 # means a number is tinted only when it is a number.
 _NUMBER = re.compile(r"(?<![\w-])\d[\d,_]*(?:\.\d+)?(?:%|[a-zA-Z]{1,3})?(?![\w-])")
 
+# ---------------------------------------------------------------- round 4
+#
+# **A glyph that means one thing everywhere, and a word that *is* its own
+# colour.** Both are still shape rather than judgment, which is the line this
+# module has held since round 1 — but the reasoning is worth stating because
+# they look like the vocabulary rules that are refused.
+#
+# A check mark is not tb deciding a line went well; it is tb reading a symbol
+# whose meaning is not in dispute, and `tb data` already renders a true
+# boolean as a green `✓` and a false one as a red `✗` (`_cell` in
+# cli/output.py). One value vocabulary, two surfaces — a check is green in a
+# table cell, so it is green in a log line.
+#
+# `red` is the same claim in its strongest form: the word denotes the colour.
+# There is no inference between "the text says red" and "show it red", which
+# is exactly what separates this from "the text says ERROR, so it is bad".
+_OK_GLYPH = re.compile(r"[\u2713\u2714\u2705\u2611]\uFE0F?")
+_FAIL_GLYPH = re.compile(r"[\u2716\u2717\u2718\u274C\u2612]\uFE0F?|\U0001F534")
+_WARN_GLYPH = re.compile(r"[\u26A0\u26D4]\uFE0F?|\U0001F7E1")
+_OK_EMOJI = re.compile(r"\U0001F7E2|\U0001F7E9")
+_INFO_GLYPH = re.compile(r"\U0001F535|\U0001F7E6")
+
+# A word that names a colour, in that colour. Standalone only — `\b` on both
+# sides, so `reported` is not `red`.
+_COLOUR_WORDS = {
+    "red": "tb.fail",
+    "green": "tb.ok",
+    "yellow": "tb.warn",
+    "amber": "tb.warn",
+    "orange": "tb.warn",
+    "blue": "tb.accent",
+    "grey": "tb.muted",
+    "gray": "tb.muted",
+}
+_COLOUR_WORD = re.compile(
+    r"\b(?:" + "|".join(sorted(_COLOUR_WORDS)) + r")\b", re.IGNORECASE
+)
+
 # Markdown emphasis, which the agent prose in these logs leans on for its
 # findings. **Bold is a weight, not a colour**, so it composes with whatever
 # colour a mark already carries instead of competing for the same slot — the
@@ -117,6 +155,11 @@ MAX_MARKS = 64
 _RULES: tuple[tuple[re.Pattern, str, bool], ...] = (
     (_CODE, "tb.path", False),
     (_URL, "tb.path", True),
+    (_OK_GLYPH, "tb.ok", False),
+    (_OK_EMOJI, "tb.ok", False),
+    (_FAIL_GLYPH, "tb.fail", False),
+    (_WARN_GLYPH, "tb.warn", False),
+    (_INFO_GLYPH, "tb.accent", False),
     (_PATH, "tb.path", True),
     (_DATE, "tb.num", False),
     (_TIME, "tb.num", False),
@@ -166,6 +209,14 @@ def marks(text: str, ruleset: "Ruleset | None" = None) -> list[Mark]:
             if any(start < e and s < end for s, e, _ in found):
                 continue  # first match wins, no nesting
             found.append((start, end, role))
+
+    # A colour word takes the colour it names. Its role comes from the word
+    # itself rather than from the rule, which is why it cannot ride `_RULES`.
+    for match in _COLOUR_WORD.finditer(text):
+        start, end = match.start(), match.end()
+        if any(start < e and s < end for s, e, _ in found):
+            continue
+        found.append((start, end, _COLOUR_WORDS[match.group(0).lower()]))
 
     if ruleset is not None:
         for pattern, role in ruleset.rules:

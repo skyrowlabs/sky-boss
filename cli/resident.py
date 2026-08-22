@@ -162,7 +162,13 @@ def clip(body: Text, limit: int, *, tail: bool = False) -> Text:
     dropped = len(lines) - keep
     marker = f"{dropped} more lines not shown — --screen for the full view"
     if tail:
-        out = Text(marker, style="tb.warn")
+        # `Text(marker, style=...)` would set the *base* style of the whole
+        # object, and everything appended after it would inherit warn — which
+        # is exactly what happened: a follow's ring always outruns the
+        # terminal, so every inline frame is clipped and every line came out
+        # yellow. The marker is a span, like the head branch's below.
+        out = Text()
+        out.append(marker, style="tb.warn")
         out.append("\n")
         out.append_text(Text("\n").join(list(lines)[-keep:]))
         return out
@@ -244,9 +250,10 @@ def stream_body(lines, ruleset=None) -> Text:
 
     One assembler on purpose: two renderers holding their own opinions about
     how a stderr line looks would drift the week they were written. stdout
-    lines are tinted lexically through [[highlight]]; stderr lines — and the
-    cursor's own rotation and truncation announcements, which ride the same
-    tag — keep their warn tint and are never re-tagged. The text reaches the
+    lines are tinted lexically through [[highlight]]; a stderr line is grey,
+    because a second channel is not a severity; and tb's own announcements —
+    a rotation, a truncation — keep the warning tint, which is what `voice`
+    is for. None of them are re-tagged lexically. The text reaches the
     screen verbatim either way, because marks ride beside it, never instead.
     """
     from cli import highlight as highlight_
@@ -255,7 +262,14 @@ def stream_body(lines, ruleset=None) -> Text:
     body = Text()
     for line in lines:
         if line.stderr:
-            body.append(strip_ansi(line.text) + "\n", style="tb.warn")
+            # Grey, not warn. A tool talking on stderr is using its second
+            # channel — progress, banners, a summary — and painting all of it
+            # yellow is the same judgment-in-a-regex's-clothes this module
+            # refuses elsewhere. tb's *own* voice keeps the warning tint.
+            body.append(
+                strip_ansi(line.text) + "\n",
+                style="tb.warn" if getattr(line, "voice", False) else "tb.label",
+            )
         else:
             body.append_text(band_text(highlight_.spans(strip_ansi(line.text), ruleset)))
             body.append("\n")

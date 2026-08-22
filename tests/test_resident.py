@@ -399,3 +399,28 @@ def test_the_head_clip_is_untouched_by_the_direction_landing():
     out = clip(body, 10).plain.split("\n")
     assert out[:9] == [f"line {i}" for i in range(9)]
     assert "more lines not shown" in out[-1]
+
+
+def test_clipping_a_stream_does_not_repaint_the_body():
+    """The defect the operator reported as "the default colour for tb follow
+    is yellow". `Text(marker, style=...)` sets the *base* style of the whole
+    object, so everything appended after the dropped-lines marker inherited
+    warn — and because a follow's ring always outruns the terminal, every
+    inline frame is clipped and every line came out yellow. The marker is a
+    span, not a base style."""
+    from rich.text import Text
+
+    from cli.resident import clip
+
+    body = Text()
+    for i in range(40):
+        body.append("value", style="tb.num")
+        body.append(f" {i}\n")
+
+    out = clip(body, 10, tail=True)
+    assert out.style == ""  # nothing inherits the marker's warn
+    warn = [s for s in out.spans if str(s.style) == "tb.warn"]
+    assert len(warn) == 1
+    assert out.plain[warn[0].start : warn[0].end].startswith("31 more lines")
+    # ...and the body's own roles survived the cut.
+    assert any(str(s.style) == "tb.num" for s in out.spans)

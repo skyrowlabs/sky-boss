@@ -395,7 +395,11 @@ body {
 /* A held-open stream's tail. The err tag is the stderr marker [[follow]]
  * specs — one style today, a Rule's tint tomorrow. */
 pre.stream { margin: 0; }
-pre.stream .err { color: var(--tb-warn); }
+/* A second channel is not a severity: an ordinary stderr line is grey, and
+ * only tb's own announcements — rotation, truncation — wear the warning
+ * colour. See [[highlight]] round 4. */
+pre.stream .err { color: var(--tb-text-2); }
+pre.stream .voice { color: var(--tb-warn); }
 /* Lexical tint — role classes fed by marks from [[highlight]]. The path role
    underlines instead of taking a hue of its own: links look like destinations
    without this file growing a colour the palette does not have. */
