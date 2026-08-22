@@ -20,7 +20,7 @@ directory:
 
 ```
 $ cd /tmp && tb run -- python3 -c "import cli; print(cli.__file__)"
-   /home/jeston/skyrow.labs/tackle-box/cli/__init__.py
+   <repo>/cli/__init__.py
 
 $ cd /tmp && python3 -c "import cli"
    ModuleNotFoundError: No module named 'cli'
@@ -41,7 +41,7 @@ export PYTHONSAFEPATH=1
 Both are load-bearing and neither is wrong — `CLAUDE.md` § CLI setup explains at length why
 `PYTHONSAFEPATH=1` exists, and it has already prevented one silent bug. What nothing decided is
 that a *child* should get them. `subprocess.run` inherits the parent environment by default, so
-every `tb run`, every `tb wrap`, and every watcher refresh runs its command with tackle-box on
+every `tb run`, every `tb wrap`, and every watcher refresh runs its command with toolbox on
 `PYTHONPATH`.
 
 **This was found by manually testing the thing it masks.** `tb wrap -- jam pr list --json`
@@ -53,12 +53,12 @@ wrapper does not set `PYTHONSAFEPATH`, so `python -m cli` prepends the current d
 `sys.path` and **any directory containing a `cli/` package shadows jam's own**:
 
 ```
-jam from tackle-box (has a cli/ package):    exit=1
+jam from toolbox (has a cli/ package):       exit=1
 jam from /tmp (no cli/ package):             exit=0
-jam from tackle-box, PYTHONSAFEPATH=1:       exit=0
+jam from toolbox, PYTHONSAFEPATH=1:          exit=0
 ```
 
-The error it printed — `missing required Python dependencies` — is tackle-box's own message from
+The error it printed — `missing required Python dependencies` — is toolbox's own message from
 `cli/__init__.py:18`. jam was running tb's CLI. That is jam.sense's bug to fix and this document
 does not propose fixing it here, but it is the reason `--cwd` genuinely is needed for jam, and it
 is **not** the reason `CLAUDE.local.md` currently records. That note says jam resolves `.venv`

@@ -908,7 +908,7 @@ function App() {
   return html`
     <div class="app">
       <div class="bar" onMouseDown=${barDrag}>
-        <span class="brand">TACKLEBOX</span>
+        <span class="brand">TOOLBOX</span>
         <span class="host">${location.host}</span>
         <${BarPalette}
           commands=${commands}

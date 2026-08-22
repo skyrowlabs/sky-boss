@@ -1,4 +1,4 @@
-"""toolbox CLI — homebase operator tool for workstation.
+"""toolbox CLI — the homebase operator tool for a primary workstation.
 
 This package implements the CLI as a collection of command group modules.
 
@@ -120,9 +120,10 @@ def get_version() -> str:
 @click.option("--json", "as_json", is_flag=True, help="Emit machine-readable JSON on stdout.")
 @click.pass_context
 def cli(ctx: click.Context, as_json: bool) -> None:
-    """toolbox — homebase operator CLI for workstation.
+    """toolbox — the homebase operator CLI.
 
-    Deterministic scripts and agentic automations across the home network.
+    Deterministic scripts and agentic automations across a primary workstation
+    and the machines around it.
     """
     ctx.ensure_object(dict)
     ctx.obj["as_json"] = as_json
