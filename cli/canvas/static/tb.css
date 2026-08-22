@@ -175,6 +175,10 @@ body {
 }
 .suggestion .mark { color: var(--tb-brand); width: 2.5rem; }
 .suggestion .name { color: var(--tb-text-2); min-width: 33rem; }
+.suggestion .saved-badge {
+  flex: none; color: var(--tb-brand); font-size: 2.75rem;
+  border: var(--hair) solid var(--tb-hair); border-radius: 1rem; padding: 0 1.5rem;
+}
 .suggestion .desc {
   color: var(--tb-text-3); flex: 1; overflow: hidden;
   white-space: nowrap; text-overflow: ellipsis;
