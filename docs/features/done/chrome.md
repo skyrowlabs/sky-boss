@@ -1,10 +1,11 @@
 ---
 status: complete
 created: 2026-08-21
-updated: 2026-08-21
+updated: 2026-08-22
 agent_value: 3
 key_files:
   - cli/chrome.py
+  - cli/output.py
   - cli/resident.py
   - cli/canvas/server.py
   - cli/canvas/static/app.js
@@ -106,6 +107,34 @@ untouched by this feature existing, byte for byte.
 - [x] **The envelope boundary test.** An envelope produced with chrome active is byte-identical
       to one produced before this feature existed.
 
+### Round 2 — the facts wear their own roles (2026-08-22)
+
+Rendered against the live cron.log, the round-1 bands are correct and illegible in exactly the
+common case: the whole band takes the attention color, so a *quiet* window — the normal state,
+for hours — draws its most useful facts (`quiet 22m · last write 03:46:52`) in the dimmest grey
+on screen. One color per band was the cheap first rendering, not a decision worth keeping.
+
+The polish: **each fact in the band wears its own theme role, and the frame stays dim.**
+Corners and fills are always muted — they are furniture. The source is the strongest thing in
+the band (bold), the shape words stay muted, clocks and stamps take the label role, counts take
+the number role, and only the *state-bearing* fact takes the attention color: the countdown in
+accent, a death in danger, a rotation in warn, a verdict word in its verdict's color. Quiet's
+clock renders in label — readable and calm — because quiet is the state the band exists to
+make legible, not to hide.
+
+Still one contract: the spans are computed in `cli/chrome.py` as `(text, role)` pairs — the
+deciding half where pytest reaches it — and `status_lines` keeps returning the same plain
+strings by joining them, so every width and truncation property already proven stays proven.
+Renderers assemble spans into styled text; none of them grows an opinion. No new colors: every
+role named already lives in `cli/theme.py`, and the no-hex scan does not move.
+
+- [x] **Spans, pure.** `status_bands()` beside `status_lines()`: the same band layout as
+      `(text, role)` spans, width-exact, left side truncating by span. Tests: roles per fact,
+      fills always muted, plain-join identical to `status_lines`.
+- [x] **Renderers assemble.** `cli/output.py` gains the span-to-Text assembler; the resident
+      loop, both follow forms and the run/read exit stamps render through it. The whole-band
+      role styling is retired.
+
 ## Notes
 
 ### Round 1 — written as spec, from spec review (2026-08-21)
@@ -139,3 +168,17 @@ execution argued back:
 - The cursor constructor takes the *loop's* state verbatim and refuses any word outside its
   vocabulary — chrome carries verdicts, it never re-derives them, and the ValueError is what
   keeps a future caller from inventing a tenth attention word without meeting this doc first.
+
+### Round 2 — executed (2026-08-22)
+
+Prompted by the operator rendering the round-1 bands against the live cron.log and asking for
+color and aesthetics. Scoped deliberately to band polish: line-level tinting (timestamps, job
+tags, ⚠ lines) was offered and not chosen — it crosses [[file-follow]]'s "does not parse"
+boundary and belongs to the Rule branch's highlight rung when it comes.
+
+`status_lines` survived as the spans joined, so the whole round changed zero plain-text bytes —
+every width and truncation test proved the styled rendering by construction, and the suite's
+only new tests are about roles. `ROLE[attention]` still exists and still drives the canvas dot
+and the theme mapping; what retired is only the terminal's whole-band application of it. The
+verdict word wears `ROLE[word]` directly, which quietly guarantees the bottom band and the
+canvas dot can never disagree about what color a verdict is.

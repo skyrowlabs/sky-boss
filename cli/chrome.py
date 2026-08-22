@@ -253,93 +253,151 @@ def countdown(chrome: Chrome, now: float) -> int | None:
 
 _MIN_FILL = 3
 
+# One span of a band: text plus the theme role it wears, None for the
+# terminal's default. The frame — corners and fills — is always muted: it is
+# furniture, and furniture that competes with facts is the round-1 mistake
+# this layer exists to not repeat.
+Span = tuple[str, str | None]
 
-def _band(left: str, right: str, width: int, corners: str) -> str:
-    """One box-drawing band: `┌ left ───── right ┐`.
+_FRAME = "tb.muted"
+
+
+def _top_spans(chrome: Chrome, now: float) -> tuple[list[Span], list[Span]]:
+    """The title band: identity on the left, liveness on the right.
+
+    The source is the strongest thing in the band; the shape words stay
+    muted. On the right, only a state-bearing fact takes the attention
+    color — the countdown in accent, a death in danger, a rotation in warn —
+    while quiet's clock wears the label role: readable and calm, because
+    quiet is the state the band exists to make legible, not to hide.
+    """
+    left: list[Span] = [(chrome.source, "bold")]
+    if chrome.shape == "resident" and chrome.interval:
+        left.append((f" · refresh {chrome.interval}s", _FRAME))
+    elif chrome.shape in ("stream", "cursor"):
+        left.append((" · follow", _FRAME))
+
+    right: list[Span] = []
+    if chrome.shape == "resident":
+        if chrome.running_since is not None:
+            right = [(f"running {ago(now - chrome.running_since)}", "tb.accent")]
+        else:
+            remaining = countdown(chrome, now)
+            if remaining is not None:
+                right = [(f"⟳ next in {remaining}s", "tb.accent")]
+    elif chrome.shape == "stream":
+        if chrome.attention == "dead":
+            text = f"dead · exited {chrome.exit_code}"
+            if chrome.exited_at is not None:
+                text += f" at {clock(chrome.exited_at)}"
+            right = [(text, "tb.fail")]
+        elif chrome.last_line_at is not None:
+            right = [(f"last line {ago(now - chrome.last_line_at)} ago", "tb.label")]
+    elif chrome.shape == "cursor":
+        if chrome.attention == "absent":
+            right = [("waiting for it to exist", "tb.warn")]
+        elif chrome.attention == "rotated":
+            right = [("rotated", "tb.warn")]
+        elif chrome.last_write_at is not None:
+            right = [
+                (f"quiet {ago(now - chrome.last_write_at)}", "tb.label"),
+                (f" · last write {clock(chrome.last_write_at)}", "tb.label"),
+            ]
+
+    return left, right
+
+
+def _bottom_spans(chrome: Chrome, now: float) -> tuple[list[Span], list[Span]]:
+    """The footer band: verdict and cost on the left, nothing on the right.
+    The verdict word wears its verdict's color; clocks and stamps take the
+    label role, counts the number role, warnings the warn role."""
+    left: list[Span] = []
+    if chrome.shape in ("snapshot", "resident", "act"):
+        word = chrome.attention if chrome.running_since is None else "running"
+        left.append((word, ROLE.get(word, "tb.label")))
+        if chrome.duration_s is not None:
+            left.append((f" · {chrome.duration_s:.1f}s", "tb.num"))
+        if chrome.ran_at is not None:
+            left.append((f" · ran {clock(chrome.ran_at)}", "tb.label"))
+        if chrome.warnings:
+            plural = "" if chrome.warnings == 1 else "s"
+            left.append((f" · {chrome.warnings} warning{plural}", "tb.warn"))
+    else:
+        lead = ""
+        if chrome.size_bytes is not None:
+            # The one byte-formatter the CLI already has — two of these is
+            # exactly the drift this module exists to prevent.
+            from cli.output import humanize_bytes
+
+            left.append((humanize_bytes(chrome.size_bytes), "tb.num"))
+            lead = " · "
+        if chrome.ring_shown is not None and chrome.ring_limit is not None:
+            shown = min(chrome.ring_shown, chrome.ring_limit)
+            left.append((f"{lead}showing last {shown}", "tb.label"))
+
+    return left, []
+
+
+def _clip(spans: list[Span], room: int) -> list[Span]:
+    """Truncate a span list to `room` characters, ellipsis included, keeping
+    each surviving character's role."""
+    total = sum(len(text) for text, _ in spans)
+    if total <= room:
+        return list(spans)
+    budget = max(0, room - 1)
+    out: list[Span] = []
+    for text, role in spans:
+        if budget <= 0:
+            break
+        take = text[:budget]
+        out.append((take, role))
+        budget -= len(take)
+    out.append(("…", out[-1][1] if out else None))
+    return out
+
+
+def _assemble(left: list[Span], right: list[Span], width: int, corners: str) -> list[Span]:
+    """One box-drawing band as spans: `┌ left ───── right ┐`.
 
     Exactly `width` characters when width allows; the left side gives way
     first, because the right side is the live half (a countdown, a clock) and
     a clock you cannot see is the silent failure the chrome exists to avoid.
     """
     open_c, close_c = corners
-    tail = f" {right} {close_c}" if right else close_c
-    room = width - len(open_c) - 1 - 1 - _MIN_FILL - len(tail)
-    if len(left) > room:
-        left = left[: max(0, room - 1)] + "…"
-    fill = max(_MIN_FILL, width - len(open_c) - 1 - len(left) - 1 - len(tail))
-    return f"{open_c} {left} {'─' * fill}{tail}"
+    right_len = sum(len(text) for text, _ in right)
+    tail_len = (right_len + 3) if right else 1
+    room = width - 1 - 1 - 1 - _MIN_FILL - tail_len
+    left = _clip(left, room)
+    left_len = sum(len(text) for text, _ in left)
+    fill = max(_MIN_FILL, width - 1 - 1 - left_len - 1 - tail_len)
 
-
-def _top_facts(chrome: Chrome, now: float) -> tuple[str, str]:
-    """The title band: identity on the left, liveness on the right."""
-    left = [chrome.source]
-    if chrome.shape == "resident" and chrome.interval:
-        left.append(f"refresh {chrome.interval}s")
-    elif chrome.shape in ("stream", "cursor"):
-        left.append("follow")
-
-    right = ""
-    if chrome.shape == "resident":
-        if chrome.running_since is not None:
-            right = f"running {ago(now - chrome.running_since)}"
-        else:
-            remaining = countdown(chrome, now)
-            if remaining is not None:
-                right = f"⟳ next in {remaining}s"
-    elif chrome.shape == "stream":
-        if chrome.attention == "dead":
-            right = f"dead · exited {chrome.exit_code}"
-            if chrome.exited_at is not None:
-                right += f" at {clock(chrome.exited_at)}"
-        elif chrome.last_line_at is not None:
-            right = f"last line {ago(now - chrome.last_line_at)} ago"
-    elif chrome.shape == "cursor":
-        if chrome.attention == "absent":
-            right = "waiting for it to exist"
-        elif chrome.attention == "rotated":
-            right = "rotated"
-        elif chrome.last_write_at is not None:
-            right = f"quiet {ago(now - chrome.last_write_at)} · last write {clock(chrome.last_write_at)}"
-
-    return " · ".join(left), right
-
-
-def _bottom_facts(chrome: Chrome, now: float) -> tuple[str, str]:
-    """The footer band: verdict and cost on the left, bounds on the right."""
-    left: list[str] = []
-    if chrome.shape in ("snapshot", "resident", "act"):
-        left.append(chrome.attention if chrome.running_since is None else "running")
-        if chrome.duration_s is not None:
-            left.append(f"{chrome.duration_s:.1f}s")
-        if chrome.ran_at is not None:
-            left.append(f"ran {clock(chrome.ran_at)}")
-        if chrome.warnings:
-            left.append(f"{chrome.warnings} warning" + ("" if chrome.warnings == 1 else "s"))
+    spans: list[Span] = [(f"{open_c} ", _FRAME), *left, (" " + "─" * fill, _FRAME)]
+    if right:
+        spans.append((" ", None))
+        spans.extend(right)
+        spans.append((f" {close_c}", _FRAME))
     else:
-        if chrome.size_bytes is not None:
-            # The one byte-formatter the CLI already has — two of these is
-            # exactly the drift this module exists to prevent.
-            from cli.output import humanize_bytes
+        spans.append((close_c, _FRAME))
+    return spans
 
-            left.append(humanize_bytes(chrome.size_bytes))
-        if chrome.ring_shown is not None and chrome.ring_limit is not None:
-            left.append(f"showing last {min(chrome.ring_shown, chrome.ring_limit)}")
 
-    return " · ".join(left), ""
+def status_bands(chrome: Chrome, now: float, width: int) -> tuple[list[Span], list[Span]]:
+    """The two terminal bands as `(text, role)` spans — the deciding half of
+    the round-2 polish, where pytest reaches it. Renderers assemble these
+    into styled text and add nothing. No spinners, no percentages — a
+    running subprocess has no percentage, and a bar that animates to look
+    busy is decoration that reads as information."""
+    top_left, top_right = _top_spans(chrome, now)
+    bottom_left, bottom_right = _bottom_spans(chrome, now)
+    return (
+        _assemble(top_left, top_right, width, "┌┐"),
+        _assemble(bottom_left, bottom_right, width, "└┘"),
+    )
 
 
 def status_lines(chrome: Chrome, now: float, width: int) -> tuple[str, str]:
-    """The two terminal bands, as plain strings exactly `width` wide.
-
-    Plain strings on purpose: the facts and their layout are the tested
-    contract, and the caller applies the theme role (`ROLE[attention]`)
-    to the whole band. No spinners, no percentages — a running subprocess
-    has no percentage, and a bar that animates to look busy is decoration
-    that reads as information.
-    """
-    top_left, top_right = _top_facts(chrome, now)
-    bottom_left, bottom_right = _bottom_facts(chrome, now)
-    return (
-        _band(top_left, top_right, width, "┌┐"),
-        _band(bottom_left, bottom_right, width, "└┘"),
-    )
+    """The same bands as plain strings — the spans joined, byte-identical to
+    what round 1 drew, which is what keeps every width and truncation
+    property proven once proven."""
+    top, bottom = status_bands(chrome, now, width)
+    return "".join(text for text, _ in top), "".join(text for text, _ in bottom)

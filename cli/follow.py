@@ -33,7 +33,7 @@ from rich.console import Console, Group
 from rich.text import Text
 
 from cli import chrome as chrome_
-from cli.output import THEME
+from cli.output import THEME, band_text
 from cli.read import strip_ansi
 from cli.stream import DEFAULT_LINES, ChildStream
 
@@ -146,15 +146,14 @@ def follow_process(
             ring_shown=len(kept),
             ring_limit=limit,
         )
-        top, bottom = chrome_.status_lines(facts, clock(), out.width)
-        style = chrome_.ROLE[facts.attention]
+        top, bottom = chrome_.status_bands(facts, clock(), out.width)
         body = Text()
         for line in kept:
             # stderr joins the stream, tagged rather than merged blind — the
             # tag is one style today and a Rule's tint tomorrow.
             body.append(strip_ansi(line.text) + "\n", style="tb.warn" if line.stderr else None)
         out.clear()
-        out.print(Group(Text(top, style=style), body, Text(bottom, style=style)))
+        out.print(Group(band_text(top), body, band_text(bottom)))
 
     count = 0
     try:

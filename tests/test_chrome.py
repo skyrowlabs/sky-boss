@@ -194,6 +194,63 @@ def test_a_running_resident_shows_running_not_a_stale_countdown():
     assert "running" in bottom
 
 
+def test_the_spans_join_to_exactly_the_plain_lines():
+    """The round-2 contract: status_lines is the spans joined, so every
+    width and truncation property proven against the strings holds for the
+    styled rendering by construction."""
+    from cli.chrome import status_bands
+
+    c = resident("jam-prs", ok=True, interval=30, last_run=NOW - 18,
+                 ran_at=NOW - 18, duration_s=0.4, warnings=1)
+    top_spans, bottom_spans = status_bands(c, NOW, width=64)
+    top, bottom = status_lines(c, NOW, width=64)
+    assert "".join(t for t, _ in top_spans) == top
+    assert "".join(t for t, _ in bottom_spans) == bottom
+
+
+def test_the_frame_is_furniture_and_the_facts_wear_their_roles():
+    """Corners and fills always muted; the source bold; the countdown in
+    accent; the verdict word in its verdict's color; warnings in warn. One
+    color per band was the round-1 mistake this round retires."""
+    from cli.chrome import status_bands
+
+    c = resident("jam-prs", ok=True, interval=30, last_run=NOW - 18,
+                 ran_at=NOW - 18, duration_s=0.4, warnings=1)
+    top, bottom = status_bands(c, NOW, width=64)
+
+    roles = dict(top + bottom)
+    assert roles["jam-prs"] == "bold"
+    assert roles["⟳ next in 12s"] == "tb.accent"
+    assert roles["ok"] == "tb.ok"
+    assert roles[" · 1 warning"] == "tb.warn"
+    for text, role in top + bottom:
+        if "─" in text or text in ("┌ ", "└ ", "┐", "┘", " ┐", " ┘"):
+            assert role == "tb.muted", (text, role)
+
+
+def test_quiet_is_legible_not_hidden():
+    """Quiet's clock wears the label role — the state the band exists to
+    make legible must not be the dimmest thing on screen."""
+    from cli.chrome import status_bands
+
+    c = cursor("cron.log", state="quiet", last_write_at=NOW - 180, size_bytes=1000)
+    top, _ = status_bands(c, NOW, width=72)
+    roles = dict(top)
+    assert roles["quiet 3m"] == "tb.label"
+
+
+def test_a_death_and_a_rotation_wear_their_alarm_colors():
+    from cli.chrome import status_bands
+
+    dead = stream("x", exit_code=1, exited_at=NOW)
+    top, _ = status_bands(dead, NOW, width=70)
+    assert any(role == "tb.fail" and "dead" in text for text, role in top)
+
+    rotated = cursor("x.log", state="rotated")
+    top, _ = status_bands(rotated, NOW, width=70)
+    assert ("rotated", "tb.warn") in top
+
+
 def test_no_band_animates_to_look_busy():
     """No spinners, no percentages. A running subprocess has no percentage,
     and decoration that reads as information is the rejected thing."""
