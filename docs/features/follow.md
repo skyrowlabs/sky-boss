@@ -1,7 +1,7 @@
 ---
-status: complete
+status: draft
 created: 2026-08-21
-updated: 2026-08-21
+updated: 2026-08-22
 agent_value: 3
 key_files:
   - cli/stream.py
@@ -84,6 +84,70 @@ arrived. ANSI stripped per [[text-reads]].
 
 ## Phases
 
+### Round 2 — leaving a stream, and what it leaves behind (2026-08-22)
+
+[[refresh]] round 2 gave the resident *read* `q`, `Esc` and an inline redraw, on the operator's
+report that the alternate screen took the terminal and could not be left. **`tb follow` has the
+identical defect and did not get the fix**, deliberately: this doc records "Ctrl-C leaves (and
+kills)" as a decision, and changing a recorded decision belongs in the doc that recorded it.
+The operator asked for this round immediately after. Both follow forms are in scope — the
+process stream here and the file cursor in [[file-follow]] — because they are one command with
+one way out.
+
+**1. `q` and `Esc` leave, alongside Ctrl-C.** The reader already exists as `cli/keys.py`,
+written shared for exactly this: cbreak on a real terminal, polled by the `select` that is
+already the loop's tick, drained so an arrow key cannot quit, and absent entirely when stdin is
+not a terminal. Nothing new is designed here; it is applied.
+
+**And leaving still kills.** This is the one place the two commands genuinely differ, and it is
+worth stating rather than inheriting quietly: a resident *read* leaves a finished process
+behind, while `q` on `tb follow -- journalctl -f` **terminates the child**, exactly as Ctrl-C
+does today. Making the gentler-looking key do the same forceful thing is correct — the stream
+*is* the window, and [[canvas]]'s rule that nothing survives the last window is the same rule —
+but a reader should not have to infer it. `--help` says it.
+
+**2. Inline redraw becomes the default here too, with one real difference.** Same argument as
+[[refresh]]: leaving should leave what you were looking at, and today the tail of the log you
+were watching vanishes the instant you press Ctrl-C. `--screen` keeps the alternate screen.
+
+The difference is **which end gets clipped**, and it is not a detail:
+
+> A snapshot's interesting end is the **top** — headers, the first rows. A stream's interesting
+> end is the **bottom** — the newest lines. `clip` in `cli/resident.py` keeps the head and says
+> how many it dropped, which is right for a table and exactly wrong for a log.
+
+This is not an edge case for follow, it is the normal case: the ring holds 200 lines by default
+and a terminal shows perhaps forty, so **every** inline follow frame is clipped. A follow that
+kept the head would pin the oldest lines on screen and never show a new one — the feature
+inverted. So the round adds a direction to the clip rather than reusing it as-is, and the
+`N more lines` marker moves to the top of the body where the lines it counts actually went.
+
+**Does not do:**
+
+- **No detach, no background.** `q` closes and kills; it does not hand the process off to keep
+  running unattended. That is the scheduler-not-daemon line, and a follow that survived its
+  window would cross it.
+- **No scrolling or paging.** Inherited unchanged from [[refresh]] round 2 — a resident view is
+  a view. Scrollback and `less` already exist.
+- **No change to dispatch, the ring, the chrome, or the canvas.** This round is how a terminal
+  follow is left and where it draws. The canvas's follow windows are unaffected: they close by
+  closing, which was never in doubt.
+
+- [ ] **Both forms take `q` and `Esc`.** `follow_process` and `follow_file` adopt `cli/keys.py`,
+      replacing their `sleep(1)` with the same key-polling wait the resident loop uses; Ctrl-C
+      unchanged, and leaving still kills a process child. Tested with the injected wait both
+      loops already accept.
+- [ ] **Inline by default, `--screen` for the alternate screen.** `clip` grows a direction and
+      both follow bodies ask for the tail; the dropped-lines marker leads the body instead of
+      trailing it. A terminal-shaped end-to-end check through a pty, as [[refresh]] round 2's
+      did, because the suite drives these loops with `screen=False` and never sees the real one.
+- [ ] **`--help` says how to leave, and that leaving kills.** The [[refresh]] help test enforces
+      the example; this adds the sentence a reader would otherwise have to infer.
+- [ ] **The record.** [[file-follow]] gains a dated Notes entry — its loop changed, its "Ctrl-C
+      ends it" line is amended, and the reason to read *this* doc for the leaving contract is
+      stated there. The constitution needs nothing: it says `follow` is resident, which is
+      still true.
+
 ### Round 1 — the streaming runner and the follow command (2026-08-21)
 
 - [x] **The runner.** Async line-streaming subprocess execution (extending `cli/canvas/runner.py`
@@ -145,3 +209,28 @@ What the execution argued back:
 - **The session's `finally` sends SIGTERM fire-and-forget** rather than waiting out the grace
   period: it runs inside `GeneratorExit`, where a blocking wait has nowhere to happen. The
   terminal form waits properly; a canvas child that ignores SIGTERM is reaped at server exit.
+
+### Round 2 — drafted, awaiting the word (2026-08-22)
+
+Asked for directly after [[refresh]] round 2 shipped, which is the cleanest possible provenance:
+the operator hit the defect on `--refresh`, that round fixed it there and deliberately stopped at
+the boundary this doc drew, and the flag raised at handover — *"follow still leaves only on
+Ctrl-C"* — came back as "draft it".
+
+**Nothing here is new mechanism.** `cli/keys.py` was written shared and is already proven against
+a real pty; `--screen` and the inline default are [[refresh]] round 2's shape applied to a second
+pair of loops. The round exists because the *decision* is this doc's, not because the code is
+hard.
+
+**The one genuine design finding is the clip direction**, and it only surfaced by asking what
+inline means for a stream rather than assuming the read's answer generalised. `clip` keeps the
+head, which is right for a table and inverts a log — and because a follow's ring is 200 lines
+against a terminal's forty, it would have inverted *every* frame rather than an occasional one.
+A shared helper that was correct for its first caller and silently wrong for its second is the
+failure this project keeps finding in duplicated logic; here it would have been the same failure
+in *shared* logic, which is worth noting as a caution against treating sharing as the safe
+default.
+
+**Recorded because it looks like an inconsistency and is not:** `q` on a follow kills the child,
+while `q` on a resident read leaves nothing running. Both are "close the window"; the commands
+differ in what a window owns, not in what the key means.
