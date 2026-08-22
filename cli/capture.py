@@ -24,8 +24,12 @@ at all is a verdict the caller must wear, not an empty table.
 
 from __future__ import annotations
 
+import json
 import re
+import subprocess
 from dataclasses import dataclass
+
+from cli.helpers import child_env
 
 FORMATS_FILE = "formats.toml"
 
@@ -110,6 +114,81 @@ def _shape(value: str | None):
     if _FLOAT.match(value):
         return float(value)
     return value
+
+
+# ============================================================================
+# The transform stage
+# ============================================================================
+
+
+def transform(data, program: str, name: str, timeout: int | None = None):
+    """Parsed data through the operator's own `jq` binary. Returns
+    `(data, None)` or `(None, reason)`.
+
+    The binary rather than a Python binding: tb does not reimplement a JSON
+    language, and a wheel is a gamble on 3.14 that buys nothing over the jq
+    already on the machine. It runs through `child_env()` like everything tb
+    spawns — the operator's environment, not tb's. See [[subprocess-env]].
+
+    Absent jq degrades loudly *at use*, naming the format that wanted it;
+    formats without a `jq` field never reach this function. A failing program
+    is a failed contract carrying jq's own stderr — the same honesty rule as
+    everything else here.
+    """
+    try:
+        proc = subprocess.run(
+            ["jq", program],
+            input=json.dumps(data),
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            check=False,
+            env=child_env(),
+        )
+    except FileNotFoundError:
+        return None, f"jq is not on PATH — format {name!r} declares a jq transform"
+    except subprocess.TimeoutExpired:
+        return None, f"jq timed out after {timeout}s running format {name!r}"
+
+    if proc.returncode != 0:
+        reason = _first_line(proc.stderr) or f"jq exited {proc.returncode}"
+        return None, f"format {name!r}: {reason}"
+
+    return _values(proc.stdout, name)
+
+
+def _values(stdout: str, name: str):
+    """jq's output as data. One value is the data; a stream of values — the
+    `.[]` idiom — becomes a list, because that is what the operator's program
+    plainly meant. No output at all (`empty`) is null, honestly."""
+    decoder = json.JSONDecoder()
+    text = stdout.strip()
+    values = []
+    index = 0
+    while index < len(text):
+        try:
+            value, end = decoder.raw_decode(text, index)
+        except json.JSONDecodeError:
+            # jq emits JSON on success; anything else here is a contract
+            # violation worth naming rather than carrying.
+            return None, f"format {name!r}: jq printed something that is not JSON"
+        values.append(value)
+        index = end
+        while index < len(text) and text[index] in " \t\r\n":
+            index += 1
+
+    if not values:
+        return None, None
+    if len(values) == 1:
+        return values[0], None
+    return values, None
+
+
+def _first_line(text: str) -> str:
+    for line in text.splitlines():
+        if line.strip():
+            return line.strip()
+    return ""
 
 
 def unmatched_warning(captured: Captured, name: str) -> str | None:
