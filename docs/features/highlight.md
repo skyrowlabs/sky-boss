@@ -1,5 +1,5 @@
 ---
-status: draft
+status: active
 created: 2026-08-22
 updated: 2026-08-22
 agent_value: 3
@@ -162,16 +162,16 @@ since the first unbounded render froze one.
   that restyled them would be tb overriding the font.
 - **No change to `data`, envelopes, `--json`, or accrual output.** Tint is rendering.
 
-- [ ] **The rules.** `cli/highlight.py` gains ref, number, date, time, code, path, bold and
+- [x] **The rules.** `cli/highlight.py` gains ref, number, date, time, code, path, bold and
       heading, with an explicit priority so a number inside a code span does not tint twice —
       timestamp, tag, code, url, path, date, time, ref, number. `MAX_MARKS` caps the line.
-- [ ] **The number rule does not eat the following word.** Found in the prototype: a rule that
+- [x] **The number rule does not eat the following word.** Found in the prototype: a rule that
       allowed a spaced unit tinted `8 issue`, `104 archive`, `50 candidate` — the numeral plus
       whatever English word came next. Only a directly attached `%` or short unit joins.
-- [ ] **Both surfaces, unchanged in shape.** Terminal forms tint through `spans()`; the canvas
+- [x] **Both surfaces, unchanged in shape.** Terminal forms tint through `spans()`; the canvas
       already applies marks dumbly and needs the roles to exist as CSS classes — `mk-num` joins
       `mk-muted`/`mk-accent`/`mk-path`, and bold is a weight, not a colour.
-- [ ] **Tests per rule, plus the properties that make tinting safe**: `spans` still joins back
+- [x] **Tests per rule, plus the properties that make tinting safe**: `spans` still joins back
       to exactly the text, marks never overlap, the cap holds on a pathological line, and a
       line with nothing to tint still carries no marks at all.
 
