@@ -1,5 +1,5 @@
 ---
-status: active
+status: complete
 created: 2026-08-20
 updated: 2026-08-22
 agent_value: 3
@@ -8,6 +8,7 @@ key_files:
   - cli/helpers.py
   - cli/__init__.py
   - cli/canvas/catalog.py
+  - cli/canvas/server.py
   - cli/canvas/static/app.js
   - cli/canvas/static/tb.css
   - tools.example.toml
@@ -108,9 +109,12 @@ module.** A name in a skip-list is the beginning of the command table this desig
    and a safety property must have one source. It follows that **`every` on a tool that acts is
    refused at load**, for the same reason the canvas hides the pin control on one.
 
-3. **A builtin always wins.** A tool named `run`, `wrap`, `ui` or `tools` is skipped with a warning
-   naming the collision. Nothing operator-authored may shadow a tb command — otherwise a stray
-   `[tool.run]` silently redefines the one door that writes.
+3. **A builtin always wins.** *(Round 2 retired this into structure: saved commands live behind
+   the `tools` group, where `[tool.run]` collides with nothing — `tb run` is the builtin and
+   `tb tools run` is the tool. The rule below was validation while tools sat on the root, and its
+   reasoning is kept as written.)* A tool named `run`, `wrap`, `ui` or `tools` is skipped with a
+   warning naming the collision. Nothing operator-authored may shadow a tb command — otherwise a
+   stray `[tool.run]` silently redefines the one door that writes.
 
 4. **tb never writes this file.** Creation is `$EDITOR`. The canvas server is remote code execution
    bound to a port and is treated that way; giving it a route that writes a file tb will later
@@ -210,7 +214,7 @@ palette teaches the new spelling immediately.
       `tb tools`, and `-t` anywhere else is untouched.
 - [x] **Surfaces.** Envelope says `tools.<name>` (test updated with the reversal noted);
       palette/sidebar show the short name; canvas execution unchanged through the runner.
-- [ ] **Docs.** CLAUDE.md command table says `tb tools <name>` / `tb -t <name>`; `tb tools`
+- [x] **Docs.** CLAUDE.md command table says `tb tools <name>` / `tb -t <name>`; `tb tools`
       help carries the refresh-default sentence; [[refresh]] bare-flag prose confirmed
       unchanged.
 
@@ -279,3 +283,29 @@ above with round 1's reasoning kept: registration-for-free was the argument, and
 nesting; only the root-level address and the shadowing rule change. The REFRESH-column
 question was resolved as presentation, not model — the field is a default, the flag is a
 request, one number by design.
+
+### Round 2 — shipped (2026-08-22)
+
+The move held its promise: the group is `invoke_without_command`, registration targets it,
+and the bare listing came through byte-identical without a second listing command. Three
+things worth recording:
+
+- **The dotted envelope path cost nothing.** `make_command` already built the sub-context
+  with the group's context as parent, so `_command_path` produced `tools.jam-pr-list` the
+  moment registration moved — the surfaces phase's envelope work landed inside the group
+  phase, by construction rather than by code.
+- **The catalog needed one honest new idea**: a group that runs bare is a leaf as well as a
+  container, so `walk` offers `tb tools` (the listing, pinnable) while plain groups stay
+  out. And `resolve_follow` now descends groups to find a saved keyword, still server-side,
+  still off the live tree.
+- **The short name nearly ate an argument.** `open()` in app.js sliced typed words by the
+  argv's length; with `prs` naming the two-word argv `tools prs`, the first word typed after
+  the name would have been dropped silently. Caught by reading the flow, fixed by counting
+  the words the typed text spent *naming* the entry. The palette's short-name matching was
+  verified by importing the live module inside the served page — the no-test-runner
+  workaround in its newest form.
+
+`-t` is one function applied in the root group's `main`, and the prefix form
+(`tb -t --refresh 30 x`) needed no rule of its own — it is an ordinary usage error because
+the group owns no such option. Deliberately not built: any back-compat top-level
+registration; the palette teaches the new spelling by showing it.
