@@ -47,12 +47,25 @@ function intervalLabel(seconds) {
  * Longest name first, so `auto log ...` resolves to `auto log` rather than to
  * `auto` when both exist.
  */
+/* A saved command's own name — the last word of its catalog path. Derived,
+ * never stored: `tools jam-pr-list` is the address since [[toolbox]] round 2,
+ * `jam-pr-list` is the name the operator gave it, and the sidebar and the
+ * palette show the name. Typing either form finds it. */
+export function shortOf(entry) {
+  return entry.name.split(" ").pop();
+}
+
+function namesEntry(q, c) {
+  if (q === c.name || q.startsWith(c.name + " ")) return true;
+  return Boolean(c.saved) && (q === shortOf(c) || q.startsWith(shortOf(c) + " "));
+}
+
 export function suggest(commands, query) {
   const q = query.trim().toLowerCase();
   if (!q) return commands;
 
   const named = commands
-    .filter((c) => q === c.name || q.startsWith(c.name + " "))
+    .filter((c) => namesEntry(q, c))
     .sort((a, b) => b.name.length - a.name.length);
   if (named.length) return named;
 
@@ -62,9 +75,10 @@ export function suggest(commands, query) {
    * prefix of one command's name would silently run a different one.
    */
   const head = q.split(/\s+/)[0];
-  const byName = commands.filter((c) => c.name.startsWith(q));
+  const prefixed = (c) => c.name.startsWith(q) || (c.saved && shortOf(c).startsWith(q));
+  const byName = commands.filter(prefixed);
   const byText = commands.filter(
-    (c) => !c.name.startsWith(q) && (c.summary || "").toLowerCase().includes(head)
+    (c) => !prefixed(c) && (c.summary || "").toLowerCase().includes(head)
   );
   return [...byName, ...byText];
 }
@@ -102,7 +116,8 @@ export function withRaw(commands, query, home) {
   const shown = suggest(commands, query);
   const words = query.trim().split(/\s+/).filter(Boolean);
   if (!words.length) return shown;
-  if (commands.some((c) => c.name === words[0])) return shown;
+  if (commands.some((c) => c.name === words[0] || (c.saved && shortOf(c) === words[0])))
+    return shown;
   const raw = rawEntry(query, home);
   return raw ? [...shown, raw] : shown;
 }
@@ -203,9 +218,9 @@ function Toolbox({ commands, open }) {
               key=${c.name}
               class="tool"
               title=${c.summary || c.name}
-              onClick=${() => open(c, c.name, { interval: c.refresh })}
+              onClick=${() => open(c, shortOf(c), { interval: c.refresh })}
             >
-              <span class="tool-name">${c.name}</span>
+              <span class="tool-name">${shortOf(c)}</span>
               ${c.refresh > 0 && html`<span class="tool-refresh">${c.refresh}s</span>`}
               ${c.acts && html`<span class="tool-acts" title="acts — never refreshed">!</span>`}
             </button>
@@ -215,7 +230,7 @@ function Toolbox({ commands, open }) {
       <!-- An expression, not markup: htm does not decode HTML entities, so a
            literal &lt; here renders as the four characters "&lt;" on screen.
            Angle brackets inside a template have to arrive as a string. -->
-      <div class="toolbox-foot">${"tb <tool>"}</div>
+      <div class="toolbox-foot">${"tb -t <tool>"}</div>
     </div>
   `;
 }
@@ -238,7 +253,8 @@ function Suggestions({ shown, selected, open, query }) {
             onMouseDown=${() => open(c, query)}
           >
             <span class="mark">${i === selected ? "▸" : ""}</span>
-            <span class="name">${c.name}</span>
+            <span class="name">${c.saved ? shortOf(c) : c.name}</span>
+            ${c.saved && html`<span class="saved-badge">saved</span>`}
             <span class="desc">${c.summary}</span>
             <span class="meta">${c.acts ? "acts" : "opens a window"}</span>
           </div>
@@ -682,8 +698,21 @@ function App() {
     const words = typed.trim().split(/\s+/).filter(Boolean);
     /* A raw entry was built from the query itself, so every word is already in
      * its argv. Slicing by command length here would append them a second
-     * time. */
-    const extra = entry.raw ? [] : words.slice(entry.argv.length);
+     * time.
+     *
+     * For anything else, drop however many words the typed text spent *naming*
+     * the entry — which is not always the argv's length, because a saved
+     * command answers to its short name: `prs` names the two-word argv
+     * `tools prs`. Counting argv words there would eat the first argument
+     * typed after the name, silently. */
+    const q = typed.trim().toLowerCase();
+    const named =
+      q === entry.name || q.startsWith(entry.name + " ")
+        ? entry.name.split(" ").length
+        : entry.saved && (q === shortOf(entry) || q.startsWith(shortOf(entry) + " "))
+          ? 1
+          : entry.argv.length;
+    const extra = entry.raw ? [] : words.slice(named);
     const id = newId();
     const count = windowsRef.current.length;
 
