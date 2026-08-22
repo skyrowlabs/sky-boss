@@ -48,7 +48,7 @@ def child_env() -> dict[str, str]:
     from anywhere on the machine, because `subprocess` inherits the parent
     environment and tb's wrapper put the repo on `PYTHONPATH`.
 
-    It was found by manually testing something else: `tb wrap -- jam …`
+    It was found by manually testing something else: `tb data -- jam …`
     succeeded from inside this repo when running `jam` directly there fails, and
     the leak was what made it work. See [[subprocess-env]].
     """

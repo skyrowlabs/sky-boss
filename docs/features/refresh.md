@@ -74,7 +74,7 @@ a confusion trap.
 
 ### Round 1 — the realignment (2026-08-21)
 
-- [ ] **`wrap` → `data`, plus `--from`.** Rename module/command/tests/catalog references; add
+- [x] **`wrap` → `data`, plus `--from`.** Rename module/command/tests/catalog references; add
       `--from json`; alias-import in `cli/__init__.py`; update CLAUDE.md's command table and the
       operator's `tools.toml` (one entry). The failed-to-load path proves the loud migration
       message.

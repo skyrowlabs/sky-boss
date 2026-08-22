@@ -3,7 +3,7 @@
 **A view is not the data.** Nothing here edits a row. `shape` returns a
 *description* of how to present them — which columns, in what order, at what
 relative width — and the envelope carries it beside `data` rather than instead
-of it. `tb wrap --json | jq` keeps every field, and so does any future MCP
+of it. `tb --json data | jq` keeps every field, and so does any future MCP
 consumer; dropping a column to make a table prettier would be trading a machine
 contract for a human one.
 
@@ -14,7 +14,7 @@ correct — *render these columns in this order*. It also means there is exactly
 one opinion about column selection; two renderers holding their own would drift
 the week after they were written.
 
-Only `wrap` calls this. tb's own commands return fields a person chose
+Only `data` calls this. tb's own commands return fields a person chose
 deliberately, and auto-dropping one of those would be a bug wearing a feature's
 clothes. See [[table-views]].
 """

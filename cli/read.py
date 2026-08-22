@@ -15,7 +15,7 @@ rule was drawn in the wrong place.** That rule exists because a probe tb chose
 to run can print a token. The property that makes an exception safe was never
 run-ness — it is that the *operator named the argv*. `read` names it too.
 
-**Choosing `read` asserts this argv is a read**, exactly as choosing `wrap`
+**Choosing `read` asserts this argv is a read**, exactly as choosing `data`
 over `run` does. tb cannot tell a read from a write by inspecting an argv and
 does not try. See docs/features/done/text-reads.md — or rather [[text-reads]].
 """
@@ -62,7 +62,7 @@ def read_(argv: tuple[str, ...], timeout: int | None, cwd: str | None) -> Result
         tb read --cwd ~/some/repo -- sometool status
 
     It shows the tool's own output verbatim. Nothing is parsed — when structure
-    is wanted, ask the tool for JSON and use `tb wrap`.
+    is wanted, ask the tool for JSON and use `tb data`.
     """
     result = Result()
     started = time.monotonic()

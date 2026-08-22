@@ -96,14 +96,18 @@ def cli(ctx: click.Context, as_json: bool) -> None:
 # ============================================================================
 
 from cli.canvas import ui as ui_cmd  # noqa: E402
+
+# Aliased on import — `from cli.data import data` would rebind this package's
+# `data` attribute from the module to the Command and shadow the module, the
+# same gotcha `read` and `tools` dodge below.
+from cli.data import data as data_cmd  # noqa: E402
 from cli.read import read_ as read_cmd  # noqa: E402
 from cli.run import run as run_cmd  # noqa: E402
-from cli.wrap import wrap as wrap_cmd  # noqa: E402
 
-# `run` acts; `wrap` reads. That split is what the canvas reads to decide
-# whether a window may be given a refresh cadence. See cli/wrap.py.
+# `run` acts; `data` reads. That split is what the canvas reads to decide
+# whether a window may be given a refresh cadence. See cli/data.py.
 cli.add_command(run_cmd)
-cli.add_command(wrap_cmd)
+cli.add_command(data_cmd)
 
 # `read` shows what a tool printed and is a *read*, so a window may pin it.
 # `run` remains the only command that acts; carrying output is not what makes

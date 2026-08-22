@@ -1,7 +1,7 @@
 """The toolbox — commands the operator saved.
 
 A tool is a **name plus a tb argv**. `tb jam-pr-list` expands to
-`tb wrap --cwd … -- jam pr list --json` and runs it. That is the whole model,
+`tb data --cwd … -- jam pr list --json` and runs it. That is the whole model,
 and everything below is the consequences of keeping it that small.
 
 **Tools are registered into the Click tree, not held in a list.** tb's hardest
@@ -15,7 +15,7 @@ a test says so.
 **The argv is a tb argv, never a shell argv.** A tool cannot name an arbitrary
 executable, because a tool that could would be a second `tb run` — one that
 skips the read/write distinction the design rests on. Everything a tool wants is
-reachable through `run` or `wrap`, and going through them is what keeps `tb run`
+reachable through `run` or `data`, and going through them is what keeps `tb run`
 the single command that acts.
 
 **Nothing here writes.** Creation is `$EDITOR`. The canvas server is remote code
@@ -43,6 +43,11 @@ TOOLS_FILE = "tools.toml"
 # The shape of a name that can be a Click command and a shell word at once. No
 # leading dash (it would parse as an option), no dots or slashes, no spaces.
 _NAME = re.compile(r"\A[a-z0-9][a-z0-9-]*\Z")
+
+# Old spellings, kept only to say what the new one is. Hard renames carry no
+# aliases — one operator, one tools.toml — so the whole cost of a rename is
+# one loud message here rather than a second name to test forever.
+RENAMED = {"wrap": "data"}
 
 
 @dataclass(frozen=True)
@@ -137,13 +142,19 @@ def _check(
     argv = body.get("argv")
     if not isinstance(argv, list) or not argv or not all(isinstance(p, str) for p in argv):
         return "argv must be a non-empty list of strings"
+    if argv[0] in RENAMED:
+        # The migration message. A hard rename with no alias means a saved tool
+        # still saying the old word must fail *loudly by name* — and `tb tools`
+        # listing what failed to load is exactly where the operator whose tool
+        # vanished will look. See [[refresh]].
+        return f"{argv[0]!r} was renamed {RENAMED[argv[0]]!r} — edit the tool's argv"
     if argv[0] not in commands:
         # Names the alternative rather than just refusing: the mistake this
         # catches is someone writing a shell command, and the fix is to say
         # which tb command would have run it.
         return (
             f"argv must start with a tb command, not {argv[0]!r} — "
-            "wrap it in `run` or `wrap`"
+            "put it behind `run` or `data`"
         )
 
     every = body.get("every", 0)
@@ -196,7 +207,7 @@ def make_command(tool: Tool) -> click.Command:
     """A Click command that re-dispatches into the tree.
 
     The sub-context is built with the *tool's* name as its `info_name`, so the
-    envelope comes back saying `jam-pr-list` rather than `wrap`. The operator
+    envelope comes back saying `jam-pr-list` rather than `data`. The operator
     ran the tool; the envelope should agree.
 
     It takes no arguments, so `tb jam-pr-list 945` is a usage error rather than

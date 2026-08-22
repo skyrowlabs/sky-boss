@@ -1,15 +1,21 @@
-"""tb wrap — read another CLI's structured output as data.
+"""tb data — read another CLI's structured output as data.
 
 **This is not passthrough.** `tb gh pr list` would be strictly worse than
 `gh pr list`, and CLAUDE.md rejects that on sight. The carve-out it leaves is
 for a tool that does something the wrapped tool cannot express, and this one
-does exactly that: it turns a foreign CLI's JSON into a tb envelope, which is
-what lets a window keep it fresh, sort it, and filter it. `jam` cannot hold
-itself open on a canvas and re-run itself every thirty seconds.
+does exactly that: it turns a foreign CLI's structured output into a tb
+envelope, which is what lets a window keep it fresh, sort it, and filter it.
+`jam` cannot hold itself open on a canvas and re-run itself every thirty
+seconds.
+
+**The name is the contract.** This command was born `wrap`, which named the
+mechanism; `data` names what it promises — parsed data or a failed contract,
+never carried bytes — and the contract is the half that matters. Renamed
+2026-08-21, hard, no alias; see [[refresh]].
 
 **Why it is a separate command from `tb run`.** `run` acts — you named an argv
 and tb will execute whatever it is, so it may never be given a refresh cadence,
-because re-running a write on a timer is a scheduler nobody asked for. `wrap` is
+because re-running a write on a timer is a scheduler nobody asked for. `data` is
 the operator's declaration that the argv is a *read*, which is what makes it
 safe to pin. tb cannot tell the difference by inspection and does not try; the
 choice of command is the assertion, exactly as the mockup encoded it before any
@@ -49,21 +55,36 @@ from cli.view import shape
 @click.option("--cols", help="Show exactly these columns, in this order. Dotted paths allowed.")
 @click.option("--drop", help="Hide these columns, keeping the rest of the shaping.")
 @click.option("--no-shape", "no_shape", is_flag=True, help="Every column, in the order found.")
+# One option with enumerable values, never a flag per format. `json` is the
+# only value today; csv or yaml arrive as *values with their own parsing
+# contracts*, one at a time, when something real needs them. And `data` never
+# grows its own `--json` — the root owns that spelling for envelope output,
+# and one flag meaning two things at two levels is a confusion trap.
+@click.option(
+    "--from",
+    "from_",
+    type=click.Choice(["json"]),
+    default="json",
+    show_default=True,
+    help="The format the tool prints.",
+)
 @emit
-def wrap(
+def data(
     argv: tuple[str, ...],
     timeout: int | None,
     cwd: str | None,
     cols: str | None,
     drop: str | None,
     no_shape: bool,
+    from_: str,
 ) -> Result:
-    """Read another CLI's JSON output as data.
+    """Read another CLI's structured output as data. An observe — a window may
+    pin it and refresh it on a cadence.
 
-    The wrapped tool has to be asked for JSON itself — the flag is not guessed,
-    because tools spell it differently and a wrong guess is a confusing failure:
+    The tool has to be asked for JSON itself — the flag is not guessed, because
+    tools spell it differently and a wrong guess is a confusing failure:
 
-        tb wrap -- jam pr list --json
+        tb data -- jam pr list --json
 
     Some tools resolve their own environment against the working directory
     rather than their installed location, so `--cwd` is often required even for
@@ -73,7 +94,7 @@ def wrap(
     identifier are dropped, a nested dict is summarised, and anything past the
     budget is hidden and named. `--cols` overrides that outright:
 
-        tb wrap --cols number,title,checks.failed -- jam pr list --json
+        tb data --cols number,title,checks.failed -- jam pr list --json
     """
     result = Result()
     started = time.monotonic()
