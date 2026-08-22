@@ -1,4 +1,6 @@
-# toolbox
+<p align="center">
+  <img src="docs/design/readme-banner.png" alt="toolbox — by SKYROW.LABS · tb --help" width="799">
+</p>
 
 `tb` — a command palette over a window canvas, and two commands that reach other tools.
 

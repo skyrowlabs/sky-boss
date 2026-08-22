@@ -482,6 +482,8 @@ def _frame_line(line, ruleset=None) -> dict:
     rules live in Python and the page applies them dumbly. A stderr line is
     the stream's own voice and is never re-tagged. See [[highlight]]."""
     out = {"text": line.text, "stderr": line.stderr}
+    if getattr(line, "voice", False):
+        out["voice"] = True
     if not line.stderr:
         found = highlight_.marks(line.text, ruleset)
         if found:

@@ -295,3 +295,48 @@ def test_declared_rules_still_respect_the_cap():
     from cli.highlight import MAX_MARKS
 
     assert len(marks("a " * 400, rules)) <= MAX_MARKS
+
+
+# ============================================================================
+# Round 4 — glyphs that mean one thing, and words that are their own colour
+# ============================================================================
+
+
+def test_a_check_is_green_and_a_cross_is_red():
+    """Not tb judging a line: `tb data` already renders a true boolean as a
+    green ✓ and a false one as a red ✗. One value vocabulary, two surfaces."""
+    for glyph in ("✓", "✔", "✅"):
+        assert role_of(f"{glyph} ok · 0s", glyph) == "tb.ok", glyph
+    for glyph in ("✗", "✖", "❌"):
+        assert role_of(f"{glyph} failed", glyph) == "tb.fail", glyph
+
+
+def test_a_warning_sign_is_warn_even_with_its_variation_selector():
+    """`⚠️` is two codepoints — the sign plus U+FE0F. Matching only the first
+    would tint half a glyph and leave the selector bare."""
+    assert role_of("⚠️  19 diff(s) truncated", "⚠️") == "tb.warn"
+
+
+def test_a_coloured_circle_shows_its_own_colour():
+    assert role_of("status 🔴 down", "🔴") == "tb.fail"
+    assert role_of("status 🟢 up", "🟢") == "tb.ok"
+
+
+def test_a_word_that_names_a_colour_is_shown_in_it():
+    """The strongest form of shape-not-judgment: the word denotes the colour.
+    There is no inference between "the text says red" and "show it red" — which
+    is exactly what separates this from "the text says ERROR, so it is bad"."""
+    line = "the light was red, then green, then yellow"
+    assert [(t, r) for t, r in _tinted(line)] == [
+        ("red", "tb.fail"),
+        ("green", "tb.ok"),
+        ("yellow", "tb.warn"),
+    ]
+
+
+def test_a_colour_word_inside_another_word_is_not_one():
+    assert marks("reported greenery in Greenland") == []
+
+
+def test_a_glyph_inside_a_code_span_stays_code():
+    assert [t for t, _ in _tinted("run `check ✔ thing` now")] == ["`check ✔ thing`"]

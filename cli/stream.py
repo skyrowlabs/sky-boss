@@ -51,6 +51,12 @@ class Line:
     text: str
     stderr: bool
     at: float
+    # tb's own announcement — a rotation, a truncation — pushed into the
+    # stream because an event worth seeing belongs where the eyes are. It
+    # rode the `stderr` tag until [[highlight]] round 4 made stderr grey;
+    # the cursor's voice has to stay loud, so it gets a channel of its own
+    # rather than borrowing one whose meaning changed underneath it.
+    voice: bool = False
 
 
 class Ring:

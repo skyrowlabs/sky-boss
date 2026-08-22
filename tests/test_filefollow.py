@@ -302,3 +302,22 @@ def test_the_inline_cursor_frame_keeps_the_newest_lines():
     text = recording.export_text()
     assert "line 39" in text and "line 0\n" not in text
     assert "more lines not shown" in text
+
+
+def test_the_cursors_own_voice_stays_loud_when_stderr_goes_grey():
+    """A tool talking on stderr is using its second channel — progress, a
+    banner, a summary — and painting all of it yellow is a judgment. tb's own
+    announcements are not that, so they carry `voice` rather than borrowing a
+    tag whose meaning changed underneath them. See [[highlight]] round 4."""
+    from cli.resident import stream_body
+    from cli.stream import Line
+
+    body = stream_body(
+        [
+            Line(text="tool progress", stderr=True, at=1.0),
+            Line(text="— rotated —", stderr=True, voice=True, at=1.0),
+        ]
+    )
+    styles = {body.plain[s.start : s.end].strip(): str(s.style) for s in body.spans}
+    assert styles["tool progress"] == "tb.label"
+    assert styles["— rotated —"] == "tb.warn"

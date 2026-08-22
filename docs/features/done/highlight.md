@@ -244,6 +244,61 @@ operator's own file on the operator's own machine, the same trust level as `tool
 - [x] **The canvas gets them too**, read from the same file server-side — marks arrive as marks
       and the frontend stays dumb, which is round 1's rule and the reason it is still true.
 
+### Round 4 — the yellow, the glyphs, and the colour words (2026-08-22)
+
+Reported against the live stream: *"the default colour for tb follow is yellow, can you make it
+a grayish colour. There are checks that should naturally be green, Xs red, escalated yellow, red
+is red — when words say a colour we should display that colour."*
+
+**The yellow was a defect, not a default**, and it was introduced by [[follow]] round 2. The
+tail-clip built its frame as `Text(marker, style="tb.warn")`, which sets the *base* style of the
+whole Text object rather than styling the marker — so every line appended after it inherited
+warn. And because a follow's ring always outruns the terminal, **every inline frame is clipped**,
+so every line came out yellow. The round-2 test asserted the clip's text and never its styles,
+which is exactly the gap a rendered check would have closed and a unit test did not. Fixed, with
+a test on the styles.
+
+**Three rules, and all three are still shape rather than judgment** — worth arguing, because
+they look like the vocabulary rules this doc refuses:
+
+- **A check is green, a cross is red, a warning sign is warn.** Not tb deciding a line went
+  well: `tb data` already renders a true boolean as a green `✓` and a false one as a red `✗`
+  (`_cell` in `cli/output.py`). One value vocabulary, two surfaces — the same rule round 2 ran
+  on. `⚠️` is two codepoints (the sign plus U+FE0F) and both are claimed, or the glyph tints
+  half.
+- **A coloured circle shows its colour** — `🔴` red, `🟢` green.
+- **A word that names a colour is shown in it.** The strongest form of the claim: the word
+  *denotes* the colour. There is no inference between "the text says red" and "show it red",
+  which is precisely what separates it from "the text says ERROR, so it is bad". Standalone
+  words only, so `greenery` and `Greenland` are neither.
+
+**An ordinary stderr line is now grey, and tb's own voice keeps the warning tint.** Painting all
+of stderr yellow was the same judgment-in-a-regex's-clothes this module refuses everywhere else:
+a tool talking on its second channel is reporting progress or printing a banner as often as it
+is failing. The cursor's rotation and truncation announcements *are* tb speaking and must stay
+loud, so they gain `voice` on the `Line` rather than borrowing a tag whose meaning changed
+underneath them.
+
+**"escalated yellow" is the operator's, and round 3 is where it goes.** It is vocabulary — it
+means something in one grid and nothing anywhere else — so it is declared, not shipped.
+
+**Does not do:**
+
+- **No status colour on the whole line.** A green `✔` does not make its line green: the line
+  still carries a timestamp, a job name and durations that have their own roles, and a line-wide
+  wash would erase all of them to say one thing.
+- **No process-state glyphs.** `▶ ▣ ⤼ ⤴` are jam's own vocabulary for started, held, skipped and
+  escalated — a shape rule for them would be tb guessing another tool's semantics from a
+  codepoint. They belong in a declared ruleset, which is where they went.
+
+- [x] **The clip regression.** The marker is a span, not a base style; a test asserts the body's
+      roles survive the cut.
+- [x] **Glyph and colour-word rules**, positioned so a glyph inside a code span stays code.
+- [x] **stderr grey, `voice` warn**, on both surfaces — `Line.voice`, the terminal body, the
+      frame line, and a `.voice` class beside `.err`.
+- [x] **The operator's own vocabulary declared**, proving round 3 carries the half tb refuses to
+      guess.
+
 ## Notes
 
 ### Round 1 — drafted, awaiting the word (2026-08-22)
@@ -328,4 +383,22 @@ What the execution argued back:
   and their load problems join the same degrade list.
 - Verified end to end against the live cron.log with a real `[highlight.jam]` declared — four
   rules, all firing, with the built-ins unmoved underneath them.
+
+### Round 4 — executed (2026-08-22)
+
+**The bug is the lesson.** `Text(marker, style=...)` styling the *whole object* rather than the
+initial string is an ordinary Rich footgun, and it survived round 2's tests, its prototype and a
+rasterised preview — because the preview rendered `spans()` directly and never went through
+`clip()`, and the test asserted which lines survived the cut rather than what colour they were.
+The operator found it in one look at a real stream. Two habits come out of it: a rendering check
+has to run the *whole* path, and a test that asserts text should assert style when style is the
+feature.
+
+**Everything else the round asked for turned out to already have an argument in the doc.** The
+check-is-green rule is round 2's shared-value-vocabulary rule applied to a glyph instead of a
+number; the colour-word rule is the shape-not-judgment line at its clearest; and "escalated
+yellow" is round 3 doing exactly the job it was built for, which is the first evidence that the
+shape/vocabulary split holds up under a real request rather than only in the spec. The one thing
+that needed a genuinely new decision was stderr, and it went the same way for the same reason: a
+second channel is not a severity.
 
