@@ -1,7 +1,7 @@
 ---
 status: complete
 created: 2026-08-20
-updated: 2026-08-20
+updated: 2026-08-21
 agent_value: 3
 key_files:
   - cli/tools.py
@@ -210,3 +210,9 @@ anything imports `cli`, for the same reason and at the same point.
 `POST /api/tools`, no save button. The argument in Shape rule 4 is unchanged by
 having built the read half — if anything it is stronger now that a tool is
 demonstrably an argv tb will execute on a cadence.
+
+### 2026-08-21 — the words moved; the history stays (supersession)
+
+`wrap` was renamed `data` and the `every` field renamed `refresh` — hard renames, no aliases;
+see [[refresh]]. This doc predates the rename and its prose says `wrap` because it *was*
+`wrap`; that is history being accurate, and nothing above has been scrubbed.

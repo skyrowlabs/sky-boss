@@ -18,8 +18,8 @@ replaced by a browser one the same day. What exists:
 | Command | Does |
 |---|---|
 | `tb run -- <argv>` | Runs a command and reports what it printed. **The only command that acts** |
-| `tb data -- <argv>` | Reads another CLI's JSON as data. A read, so a window may refresh it |
-| `tb read -- <argv>` | Shows what a command printed, verbatim. A read, for tools with no `--json` |
+| `tb data -- <argv>` | Reads another CLI's JSON as data. An observe; `--refresh N` keeps it resident |
+| `tb read -- <argv>` | Shows what a command printed, verbatim. An observe, for tools with no `--json` |
 | `tb tools` | Lists the operator's saved commands, and any that failed to load |
 | `tb ui` | Opens the canvas — a command palette over tiled and floating windows |
 | `tb <tool>` | Anything declared in `$TB_HOME/tools.toml`. See [[toolbox]] |
@@ -298,10 +298,14 @@ Shared with sibling CLIs so the family feels like one tool.
 
 ## Feature workflow
 
-`docs/features/` holds three docs, all complete. `done/canvas.md` is the surface, five rounds.
-`done/table-views.md` is the shaping contract — how a foreign CLI's JSON becomes a table worth
-reading. `done/toolbox.md` is the operator's saved commands, registered into the Click tree so the
-palette gets them for free. Every earlier spec was deleted with the system it described.
+`docs/design/fundamentals.md` is **the constitution**: the 2026-08-21 pass that treated the
+built surface as pure concept and decided the eight primitives, with dated decisions and
+visible reversals. Feature specs convert it into buildable rounds; read it before proposing a
+primitive-level change. `docs/features/done/` holds the completed docs — `canvas.md` (the
+surface, five rounds), `table-views.md` (the shaping contract), `toolbox.md` (saved commands),
+`text-reads.md`, `subprocess-env.md`, and the constitution's rounds as they land. Every earlier
+spec was deleted with the system it described; the done docs that predate the 2026-08-21
+renames say `wrap`/`every` on purpose — dated, never scrubbed.
 
 One doc per feature at `docs/features/<slug>.md`, from first sentence to done; completed docs move
 to `docs/features/done/`. `.claude/skills/feature/SKILL.md` drives it. The rules that earned their

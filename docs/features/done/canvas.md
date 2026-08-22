@@ -1,7 +1,7 @@
 ---
 status: complete
 created: 2026-08-20
-updated: 2026-08-20
+updated: 2026-08-21
 agent_value: 3
 key_files:
   - cli/canvas/server.py
@@ -13,7 +13,7 @@ key_files:
   - cli/canvas/static/render.js
   - cli/canvas/static/api.js
   - cli/canvas/static/tb.css
-  - cli/wrap.py
+  - cli/data.py
   - cli/theme.py
 ---
 
@@ -551,3 +551,9 @@ tb command, which is a rule you can state in one sentence.
 **And it expands to `read`, never `run`.** The whole point is a window that refreshes, and only a
 read may be given a cadence. A raw command that wants to write is typed with `run --` in front of
 it, which is the same explicit assertion `wrap` and `read` already ask for.
+
+### 2026-08-21 — the words moved; the history stays (supersession)
+
+`wrap` was renamed `data` and the `every` field renamed `refresh` — hard renames, no aliases;
+see [[refresh]]. This doc predates the rename and its prose says `wrap` because it *was*
+`wrap`; that is history being accurate, and nothing above has been scrubbed.

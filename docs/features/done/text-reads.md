@@ -1,7 +1,7 @@
 ---
 status: complete
 created: 2026-08-20
-updated: 2026-08-20
+updated: 2026-08-21
 agent_value: 3
 key_files:
   - cli/read.py
@@ -133,3 +133,9 @@ a wide table through it.
 continuation lines, a value containing a space (`1✓ passed`), and four lines of prose legend — a
 column-inference heuristic would get some of that right and the rest silently wrong. A tool with
 real structure has `--json`, and [[table-views]] is already waiting for it.
+
+### 2026-08-21 — the words moved; the history stays (supersession)
+
+`wrap` was renamed `data` and the `every` field renamed `refresh` — hard renames, no aliases;
+see [[refresh]]. This doc predates the rename and its prose says `wrap` because it *was*
+`wrap`; that is history being accurate, and nothing above has been scrubbed.
