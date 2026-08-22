@@ -321,6 +321,60 @@ def test_a_tool_takes_no_arguments(saved):
 
 
 # ============================================================================
+# -t — the short spelling
+# ============================================================================
+
+from cli import expand_t  # noqa: E402
+
+
+def test_dash_t_stands_where_a_command_word_could():
+    assert expand_t(["-t", "prs"]) == ["tools", "prs"]
+    assert expand_t(["-t"]) == ["tools"]
+    assert expand_t(["--json", "-t", "prs"]) == ["--json", "tools", "prs"]
+
+
+def test_a_dash_t_belonging_to_someone_else_is_never_touched():
+    """The rewrite stops at the first command word or `--` — past that point
+    every token is somebody's argv, not tb's."""
+    assert expand_t(["read", "--", "ls", "-t"]) == ["read", "--", "ls", "-t"]
+    assert expand_t(["run", "-t"]) == ["run", "-t"]
+    assert expand_t(["tools", "-t"]) == ["tools", "-t"]
+
+
+def test_the_rewrite_happens_once():
+    assert expand_t(["-t", "-t"]) == ["tools", "-t"]
+
+
+def test_dash_t_runs_a_saved_command_end_to_end(saved):
+    from click.testing import CliRunner
+
+    saved('[tool.prs]\nargv = ["data", "--", "printf", "[{\\"a\\": 1}]"]\n')
+    result = CliRunner().invoke(cli, ["--json", "-t", "prs"])
+    envelope = json.loads(result.stdout)
+    assert envelope["command"] == "tools.prs"
+    assert envelope["data"] == [{"a": 1}]
+
+
+def test_bare_dash_t_is_the_listing(saved):
+    from click.testing import CliRunner
+
+    saved('[tool.prs]\nargv = ["data", "--", "printf", "[]"]\n')
+    result = CliRunner().invoke(cli, ["--json", "-t"])
+    assert json.loads(result.stdout)["command"] == "tools"
+
+
+def test_the_prefix_form_is_a_usage_error(saved):
+    """`tb -t --refresh 30 prs` was considered and rejected: it would teach
+    the group a forwarded option that belongs to the leaf. It falls out as an
+    ordinary usage error rather than needing a rule of its own."""
+    from click.testing import CliRunner
+
+    saved('[tool.prs]\nargv = ["data", "--", "printf", "[]"]\n')
+    result = CliRunner().invoke(cli, ["-t", "--refresh", "30", "prs"])
+    assert result.exit_code == 2
+
+
+# ============================================================================
 # The shipped example
 # ============================================================================
 

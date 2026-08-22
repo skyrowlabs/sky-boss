@@ -206,7 +206,7 @@ palette teaches the new spelling immediately.
 - [x] **The group.** `tools` becomes `invoke_without_command`; registration targets it;
       the listing behavior is byte-identical when bare. Shadowing tests retire into
       structure; name-shape validation stays.
-- [ ] **`-t`.** Root-level argv rewrite with tests: `tb -t x` ≡ `tb tools x`, `tb -t` ≡
+- [x] **`-t`.** Root-level argv rewrite with tests: `tb -t x` ≡ `tb tools x`, `tb -t` ≡
       `tb tools`, and `-t` anywhere else is untouched.
 - [ ] **Surfaces.** Envelope says `tools.<name>` (test updated with the reversal noted);
       palette/sidebar show the short name; canvas execution unchanged through the runner.

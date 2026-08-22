@@ -62,6 +62,43 @@ HELP_CONFIG = RichHelpConfiguration(
 )
 
 
+def expand_t(args: list[str]) -> list[str]:
+    """`-t` as an argv spelling of `tools`, rewritten before parsing.
+
+    Not a Click alias and not a flag with behavior: the rewrite happens in
+    argv, once, here — so `tb -t jam-pr-list --refresh 30` *is*
+    `tb tools jam-pr-list --refresh 30` and every downstream consumer sees
+    the long form. Options follow the tool name, as on every tb command; the
+    prefix form (`tb -t --refresh 30 x`) was rejected — it would teach the
+    group a forwarded option that belongs to the leaf, and it falls out as an
+    ordinary usage error.
+
+    Only the token standing where a command word could: root flags are
+    skipped, and the scan stops at the first command word or `--`, so a `-t`
+    belonging to someone else's argv is never touched.
+    """
+    out = list(args)
+    for i, token in enumerate(out):
+        if token == "--":
+            break
+        if token == "-t":
+            out[i] = "tools"
+            break
+        if token.startswith("-"):
+            continue
+        break
+    return out
+
+
+class Root(click.RichGroup):
+    """The root group, with the `-t` spelling rewritten ahead of Click."""
+
+    def main(self, args=None, *pargs, **kwargs):
+        if args is None:
+            args = sys.argv[1:]
+        return super().main(expand_t(list(args)), *pargs, **kwargs)
+
+
 def get_version() -> str:
     """Version from git describe, falling back to 'dev'."""
     try:
@@ -77,7 +114,7 @@ def get_version() -> str:
     return "dev"
 
 
-@click.group()
+@click.group(cls=Root)
 @rich_config(help_config=HELP_CONFIG)
 @click.version_option(version=get_version(), prog_name="tackle-box")
 @click.option("--json", "as_json", is_flag=True, help="Emit machine-readable JSON on stdout.")
