@@ -83,8 +83,8 @@ def _accrued(argv: tuple[str, ...], timeout: int | None, cwd: str | None) -> Res
         ran_at=time.time(),
         duration_s=outcome.duration_s,
     )
-    _, bottom = chrome_.status_lines(facts, time.time(), width=min(80, output_width()))
-    band(bottom, chrome_.ROLE[facts.attention])
+    _, bottom = chrome_.status_bands(facts, time.time(), width=min(80, output_width()))
+    band(bottom)
     # The lines already reached the terminal, on the streams they arrived on.
     result.data = None
     return result

@@ -120,8 +120,8 @@ def _accrued(
         ran_at=time.time(),
         duration_s=outcome.duration_s,
     )
-    _, bottom = chrome_.status_lines(facts, time.time(), width=min(80, output_width()))
-    band(bottom, chrome_.ROLE[facts.attention])
+    _, bottom = chrome_.status_bands(facts, time.time(), width=min(80, output_width()))
+    band(bottom)
     # The lines already reached the terminal; the envelope is not re-rendered.
     result.data = None
     return result

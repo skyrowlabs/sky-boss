@@ -709,14 +709,24 @@ def _cell(value: Any) -> str:
 # ============================================================================
 
 
-def band(text: str, style: str) -> None:
+def band_text(spans) -> Text:
+    """Chrome band spans assembled into styled Text. The roles were decided
+    in cli/chrome.py; this only applies them — neither renderer grows an
+    opinion. See [[chrome]]."""
+    text = Text()
+    for chunk, role in spans:
+        text.append(chunk, style=role)
+    return text
+
+
+def band(spans) -> None:
     """One chrome band line, on stderr through whichever console owns it.
 
     stderr, deliberately: a band is status, not payload. `tb read -- x | grep`
     must see exactly the lines the tool printed, the same purity rule that
     keeps warnings off stdout. See [[chrome]].
     """
-    _err().print(Text(text, style=style), highlight=False)
+    _err().print(band_text(spans), highlight=False)
 
 
 def exit_code(result: Result) -> int:

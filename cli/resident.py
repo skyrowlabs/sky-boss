@@ -28,7 +28,7 @@ from rich.console import Console, Group
 from rich.text import Text
 
 from cli import chrome as chrome_
-from cli.output import THEME, Result, capture, render
+from cli.output import THEME, Result, band_text, capture, render
 
 
 class Residency:
@@ -147,9 +147,8 @@ def reside(
                 render(result, as_json=False)
             body = Text.from_ansi(captured.text)
         facts = state.chrome()
-        top, bottom = chrome_.status_lines(facts, clock(), out.width)
-        style = chrome_.ROLE[facts.attention]
-        frame = Group(Text(top, style=style), body, Text(bottom, style=style))
+        top, bottom = chrome_.status_bands(facts, clock(), out.width)
+        frame = Group(band_text(top), body, band_text(bottom))
         out.clear()
         out.print(frame)
 

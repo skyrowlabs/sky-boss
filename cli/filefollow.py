@@ -221,7 +221,7 @@ def follow_file(
     from rich.text import Text
 
     from cli import chrome as chrome_
-    from cli.output import THEME
+    from cli.output import THEME, band_text
     from cli.read import strip_ansi
 
     out = console or Console(theme=THEME, highlight=False)
@@ -237,13 +237,12 @@ def follow_file(
             ring_shown=len(kept),
             ring_limit=limit,
         )
-        top, bottom = chrome_.status_lines(facts, clock(), out.width)
-        style = chrome_.ROLE[facts.attention]
+        top, bottom = chrome_.status_bands(facts, clock(), out.width)
         body = Text()
         for line in kept:
             body.append(strip_ansi(line.text) + "\n", style="tb.warn" if line.stderr else None)
         out.clear()
-        out.print(Group(Text(top, style=style), body, Text(bottom, style=style)))
+        out.print(Group(band_text(top), body, band_text(bottom)))
 
     count = 0
     try:
