@@ -1,7 +1,7 @@
 ---
-status: complete
+status: draft
 created: 2026-08-20
-updated: 2026-08-21
+updated: 2026-08-22
 agent_value: 3
 key_files:
   - cli/view.py
@@ -162,6 +162,12 @@ Ordered, each applied to the whole row set rather than to one row:
    **name the ones dropped in a warning.** A silently hidden column is the "looks right and isn't"
    failure — the table reads as complete when it is not.
 
+   *Reversed in Round 3 (2026-08-22): the budget was a fixed **count** (eight), decided in Python
+   where no width is known, and it hid the same two columns at every window size. The half that
+   survives is the second sentence — nothing is dropped silently, ever. What moves is **who
+   counts**: fitting is arithmetic against a width, and only a renderer knows its width. See
+   Round 3.*
+
 ### The overrides
 
 On `wrap`, so the operator has recourse the moment a guess is wrong:
@@ -206,6 +212,78 @@ change at all** — `app.js` already treats everything past the command name as 
   half-supported.
 
 ## Phases
+
+### Round 3 — the budget is a fit, not a count (2026-08-22)
+
+Reported by the operator against the live canvas: *"it's hiding columns even though there is
+room."* Measured on the real fourteen-field `jam pr list --json`, six rows:
+
+| | |
+|---|---|
+| columns worth showing after every rule | **10** |
+| sum of their floors (`min`) + gutters | **98 ch** |
+| sum of their natural widths (`max`) | **126 ch** |
+| the operator's terminal | 100 columns |
+| the canvas window in the screenshot | comfortably wider |
+| columns actually drawn | **8** — the budget |
+
+So all ten fit at their floors in a 100-column terminal, and fit with room to spare on the
+canvas, and two were dropped anyway. `head` is *correctly* gone (uniform-length hex — a sha);
+`checks` and `execution` were taken by the count alone. This doc's Notes have said so twice,
+in Round 1 and again in Round 2 — *"the budget hides `checks` and `execution` on the real
+fourteen-field row, `--cols` is the recourse"* — which is the tell that the recourse was
+covering for a rule that was wrong rather than merely imperfect.
+
+**The diagnosis: two different decisions were wearing one number.**
+
+- *Which columns are worth showing at all, in what order, at what floor and weight* — a
+  judgment about the data. Belongs in Python, where pytest reaches it. Unchanged.
+- *How many of them fit right now* — arithmetic against a width **nobody in Python knows**.
+  The canvas is a draggable window; the terminal is whatever `COLUMNS` says this second.
+
+The second was being answered in Python with a constant, which is why the answer could not
+depend on the thing it was supposedly about.
+
+**And the canvas never needed a count.** It already fits to available space — `.grid.shaped
+.row` is a flexbox and every cell carries `flex:N 1 0; min-width:Xch; max-width:Ych` straight
+from the view. CSS has been doing exactly what the operator is asking for since Round 1; the
+budget was the only thing standing in front of it. The terminal likewise already resolves
+widths against `_out().width` in `_resolve_widths`, and already has the tail-drop arithmetic
+in all but name.
+
+**So `shape()` stops truncating.** The view carries every column worth showing, ordered, with
+floors and weights; each renderer takes columns while their floors still fit its own width and
+**names what it could not draw**, in the same place it already says "N more rows not shown".
+This is the pattern the doc already set for `min`: *"the floor lives in the view rather than in
+either renderer, because both need it for the same reason and two copies would drift"* — one
+contract, two correct renderings.
+
+**`hidden` narrows to mean one thing.** Hidden *by rule* — empty in every row, an opaque
+identifier, explicitly `--drop`ped — is a property of the **run**: true at any width, correct
+in the envelope, worth a warning. Overflowing the width is a property of the **drawing**: it
+differs per renderer, changes when you drag a window, and has no business in an envelope a
+machine consumer reads. Splitting them is what lets the warning finally mean something —
+today it fires on a window with room to spare, which is the fastest way to teach someone to
+ignore a warning.
+
+- [ ] **`shape()` stops truncating.** `DEFAULT_BUDGET` and the `budget` parameter retire;
+      `hidden` means hidden-by-rule only. `tests/test_view.py` updated — the budget tests
+      become fit tests against a declared width.
+- [ ] **The terminal fits to its console.** `_resolve_widths` in `cli/output.py` takes columns
+      while floors fit, and `_render_view` prints `N columns not shown: …` in the dim style
+      the row-truncation line already uses. Today floors that do not fit are used anyway and
+      the table overflows sideways — that stays the *last* resort, for a single column too
+      wide for the terminal, and is no longer the common case.
+- [ ] **The canvas fits to its window.** The same tail arithmetic in `render.js` against the
+      measured body width — arithmetic, not judgment, which is the standard that file is held
+      to. Plus a fix for the truncated headers visible in the operator's screenshot
+      (`NUMBE…`, `IS_DRAF…`, `MERGE_STAT…` inside columns floored to fit them exactly): the
+      terminal renders the same labels in full, so this is a canvas-side `ch`-rounding
+      question, cause to confirm before fixing.
+- [ ] **The warning narrows.** `cli/data.py` warns only about rule-hidden columns. A window
+      with room stops being told it is missing something.
+- [ ] **Docs.** Rule 7's reversal is already recorded above; Round 1's and Round 2's
+      "still imperfect" notes get their dated resolution.
 
 ### Round 2 — a title is not a column (2026-08-20)
 
@@ -364,3 +442,28 @@ fourteen-field row. `--cols` is still the recourse and the warning still names w
 `wrap` was renamed `data` and the `every` field renamed `refresh` — hard renames, no aliases;
 see [[refresh]]. This doc predates the rename and its prose says `wrap` because it *was*
 `wrap`; that is history being accurate, and nothing above has been scrubbed.
+
+### Round 3 — drafted, awaiting the word (2026-08-22)
+
+Raised by the operator from the canvas, in the form the doc had been half-admitting for two
+rounds: *"it's hiding columns even though there is room."* The measurement is in the round
+above and it settles it — ten columns, ninety-eight characters of floor, a hundred-column
+terminal, eight drawn.
+
+**What makes this a reversal rather than a tuning.** Raising the count to ten would fix this
+table and nothing else; the defect is not the number, it is that a *count* cannot answer a
+question about *width*. Both renderers already know their width and already do width
+arithmetic — the terminal in `_resolve_widths`, the canvas in flexbox — so the budget was a
+third, blinder opinion sitting upstream of two informed ones.
+
+**The line that does not move.** Round 1 put the heuristic in Python because the frontend has
+no test runner, and that argument is untouched: *selection* stays in `cli/view.py`, tested.
+What moves is *fitting*, which was never a judgment — "take columns while the running total
+still fits" is arithmetic of the kind `render.js` is already trusted with, and is the same
+reason both renderers already apply `min` themselves.
+
+**A cost, accepted:** `view.hidden` stops being the whole story of what you cannot see. That
+is the honest shape — a warning in an envelope cannot describe a window the operator is still
+dragging — but it does mean the answer to "what am I not seeing" now lives in two places: the
+envelope for rule-hidden, the rendering for width-hidden. Both name names, which is the
+property Round 1 actually cared about.
