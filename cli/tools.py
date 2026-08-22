@@ -24,9 +24,15 @@ skips the read/write distinction the design rests on. Everything a tool wants is
 reachable through `run` or `data`, and going through them is what keeps `tb run`
 the single command that acts.
 
-**Nothing here writes.** Creation is `$EDITOR`. The canvas server is remote code
-execution bound to a port; a route that wrote a file tb will later *execute*
-would convert a transient compromise into a persistent one. See [[tools]].
+**No *surface* writes this file, and tb only ever appends to it.** Round 3
+narrowed "nothing here writes" rather than reversing it: the argument under
+that sentence was about the canvas server — remote code execution bound to a
+port, where a *route* that wrote a file tb later runs would turn a transient
+compromise into a persistent one. None of that describes `--save`, typed by
+the operator in their own shell at the same trust level as `$EDITOR`. So
+there is still no route and still no button; there is `save()`, which
+**appends one block and never touches a line the operator wrote**. Editing and
+deleting stay `$EDITOR`'s. See [[tools]].
 """
 
 from __future__ import annotations
@@ -389,3 +395,151 @@ def _listing() -> Result:
 
 def _argv_of(command: click.Command) -> tuple[str, ...]:
     return getattr(command, "tb_argv", ())
+
+
+# ============================================================================
+# Saving — the one write, and it only ever appends
+# ============================================================================
+#
+# See [[tools]] round 3. The rule this lives under: **tb never touches a line
+# the operator wrote.** Round-tripping the file would mean a TOML *writer*
+# (the stdlib only reads) deciding how a hand-written file should look —
+# comments dropped, argv lists reflowed, keys reordered. Appending one block
+# sidesteps all of it and buys the stronger claim. It is also why there is no
+# overwrite: you cannot edit in place if you never rewrite.
+
+
+def saved_argv(invocation: list[str], command: str) -> list[str]:
+    """The tb argv to save, taken from the line that is running.
+
+    **What you typed, minus the flag that asked.** Not rebuilt from parsed
+    options: a tool whose expansion does not match the line that created it is
+    the failure this feature would otherwise introduce, and it would stay
+    invisible until the day the tool ran.
+
+    Three things the scan has to get right:
+
+    - It starts at the **command word**, so root flags (`--json`) are dropped —
+      a tool's argv begins with a tb command by contract.
+    - It stops looking at `--`. Everything after that belongs to the wrapped
+      tool, and a `--save` in *there* is the foreign command's own flag. Click
+      never parsed it as ours, so neither does this.
+    - `--refresh` is **lifted out of the argv into the tool's field**, because
+      a cadence baked into a saved argv would make `tb tools <name>` go
+      resident on its own. Residency is never ambient ([[refresh]]): the field
+      is the canvas's starting cadence and a terminal keyword still runs once.
+    """
+    try:
+        start = invocation.index(command)
+    except ValueError:  # pragma: no cover — Click found it, so it is there
+        raise click.UsageError(f"cannot tell what to save from: tb {' '.join(invocation)}")
+
+    out: list[str] = []
+    skip = False
+    for token in invocation[start:]:
+        if skip:
+            skip = False
+            continue
+        if token == "--":
+            # Everything past here is the wrapped tool's, verbatim.
+            out.append(token)
+            out.extend(invocation[invocation.index(token, start) + 1 :])
+            break
+        if token == "--save" or token == "--refresh":
+            skip = True  # the space-separated form takes the next token too
+            continue
+        if token.startswith("--save=") or token.startswith("--refresh="):
+            continue
+        out.append(token)
+    return out
+
+
+def cadence_of(invocation: list[str], command: str) -> int:
+    """The `--refresh` in force on this invocation, as the tool's field.
+
+    Zero when there is none. Read off the same argv rather than off Click's
+    parsed value so that the two halves of `saved_argv` — what is lifted out
+    and what is written down — cannot disagree.
+    """
+    tokens = invocation[invocation.index(command) :]
+    for index, token in enumerate(tokens):
+        if token == "--":
+            break
+        if token == "--refresh" and index + 1 < len(tokens):
+            value = tokens[index + 1]
+            return int(value) if value.lstrip("-").isdigit() else 0
+        if token.startswith("--refresh="):
+            value = token.split("=", 1)[1]
+            return int(value) if value.lstrip("-").isdigit() else 0
+    return 0
+
+
+def _toml_string(value: str) -> str:
+    """One TOML basic string. Escaped by hand, because the stdlib only reads.
+
+    Deliberately small: an argv part is text, and the four escapes TOML needs
+    for text are backslash, quote, and the two control characters that could
+    plausibly appear in one. Anything more exotic would be a sign the argv is
+    not what it claims to be.
+    """
+    escaped = (
+        value.replace("\\", "\\\\")
+        .replace('"', '\\"')
+        .replace("\n", "\\n")
+        .replace("\t", "\\t")
+    )
+    return f'"{escaped}"'
+
+
+def block(name: str, argv: list[str], refresh: int = 0) -> str:
+    """The text appended to `tools.toml` for one saved tool."""
+    parts = ", ".join(_toml_string(part) for part in argv)
+    lines = [f"[tool.{name}]", f"argv = [{parts}]"]
+    if refresh:
+        lines.append(f"refresh = {refresh}")
+    return "\n".join(lines) + "\n"
+
+
+def save(
+    name: str,
+    argv: list[str],
+    refresh: int = 0,
+    home: Path | None = None,
+) -> Path:
+    """Append one tool. Returns the file it was written to.
+
+    Refuses rather than overwrites: a name already declared is an edit, and
+    edits are `$EDITOR`'s. Refuses a cadence the surface cannot cycle to, for
+    the same reason the loader does — a tool that writes cleanly and then
+    fails to load is the worst of both.
+    """
+    if not _NAME.match(name):
+        raise click.UsageError(
+            f"{name!r} cannot be a tool name — lowercase letters, digits and hyphens"
+        )
+
+    existing = read(home)
+    if "__error__" in existing:
+        # Appending to a file tb cannot parse would bury the operator's real
+        # problem under a second one.
+        raise click.UsageError(f"{existing['__error__']} — fix the file before saving into it")
+    declared = (existing.get("tool") or {}).get(name)
+    if declared is not None:
+        runs = " ".join(str(part) for part in (declared.get("argv") or []))
+        raise click.UsageError(
+            f"{name!r} is already a tool — it runs `tb {runs}`. Edit the file to change it."
+        )
+
+    if refresh and refresh not in INTERVALS:
+        allowed = ", ".join(str(i) for i in INTERVALS)
+        raise click.UsageError(f"a saved refresh must be one of {allowed} — got {refresh}")
+
+    path = home_file(home)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    # Append, with a blank line ahead of the block when the file already has
+    # content and does not end in one. Nothing above is read back and rewritten.
+    with path.open("a", encoding="utf-8") as handle:
+        if path.stat().st_size:
+            handle.write("\n")
+        handle.write(block(name, argv, refresh))
+    return path

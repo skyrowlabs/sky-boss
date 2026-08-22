@@ -300,7 +300,7 @@ result.** The envelope says where it went; under `--json` that is a field, not p
 - **No validation of the world.** A saved argv naming a host, a repo or a tool that is not there
   fails when it runs, exactly as a hand-written one does.
 
-- [ ] **The writer.** `save()` in `cli/tools.py`: validate the name against `_NAME`, refuse one
+- [x] **The writer.** `save()` in `cli/tools.py`: validate the name against `_NAME`, refuse one
       already declared (naming its expansion), append a `[tool.<name>]` block with the argv and
       any `refresh`. Pure-ish over an injected home; tests write to `tmp_path` and never to the
       real `$TB_HOME` (`conftest.py` already redirects it, and this is the round where that

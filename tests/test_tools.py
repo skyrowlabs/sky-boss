@@ -452,3 +452,141 @@ def test_the_example_demonstrates_both_sides_of_the_read_write_split():
     by_name = {t.name: t for t in tools}
     assert by_name["disk"].acts is True and by_name["disk"].refresh == 0
     assert by_name["prs"].acts is False and by_name["prs"].refresh == 30
+
+
+# ============================================================================
+# Saving — [[tools]] round 3
+# ============================================================================
+
+
+def test_the_saved_argv_is_the_line_you_typed_minus_the_flag():
+    from cli.tools import saved_argv
+
+    invocation = ["--json", "data", "--cols", "a,b", "--save=prs", "--", "jam", "pr", "list"]
+    assert saved_argv(invocation, "data") == ["data", "--cols", "a,b", "--", "jam", "pr", "list"]
+
+
+def test_the_space_form_of_the_flag_takes_its_value_with_it():
+    from cli.tools import saved_argv
+
+    assert saved_argv(["read", "--save", "x", "--", "ls"], "read") == ["read", "--", "ls"]
+
+
+def test_a_save_flag_after_the_separator_belongs_to_the_wrapped_tool():
+    """Click never parsed it as ours — everything past `--` is the foreign
+    command's, and rewriting it would corrupt the argv being saved."""
+    from cli.tools import saved_argv
+
+    invocation = ["read", "--save=mine", "--", "sometool", "--save=theirs"]
+    assert saved_argv(invocation, "read") == ["read", "--", "sometool", "--save=theirs"]
+
+
+def test_a_cadence_is_lifted_out_of_the_argv_into_the_field():
+    """A `--refresh` baked into a saved argv would make `tb tools <name>` go
+    resident on its own, and residency is never ambient — see [[refresh]]."""
+    from cli.tools import cadence_of, saved_argv
+
+    for invocation in (
+        ["data", "--refresh", "30", "--", "jam", "pr", "list"],
+        ["data", "--refresh=30", "--", "jam", "pr", "list"],
+    ):
+        assert saved_argv(invocation, "data") == ["data", "--", "jam", "pr", "list"]
+        assert cadence_of(invocation, "data") == 30
+
+
+def test_no_cadence_is_zero_not_a_guess():
+    from cli.tools import cadence_of
+
+    assert cadence_of(["data", "--", "x"], "data") == 0
+
+
+def test_saving_appends_and_never_touches_what_is_already_there(tmp_path):
+    """The whole safety argument in one assertion: the operator's comments,
+    spacing and hand-written tools survive byte-for-byte."""
+    from cli.tools import save
+
+    handwritten = (
+        "# my tools, hand-written\n\n"
+        '[tool.disk]\n# why this one acts\nargv = ["run", "--", "df", "-h"]\n'
+    )
+    (tmp_path / "tools.toml").write_text(handwritten)
+
+    save("prs", ["data", "--", "jam", "pr", "list"], home=tmp_path)
+
+    after = (tmp_path / "tools.toml").read_text()
+    assert after.startswith(handwritten)
+    assert '[tool.prs]' in after
+    assert 'argv = ["data", "--", "jam", "pr", "list"]' in after
+
+
+def test_saving_into_an_absent_home_creates_it(tmp_path):
+    from cli.tools import save
+
+    home = tmp_path / "nothing" / "here"
+    path = save("prs", ["read", "--", "ls"], home=home)
+    assert path.exists()
+    assert path.read_text().startswith("[tool.prs]")
+
+
+def test_a_name_already_declared_is_refused_and_told_what_it_runs(tmp_path):
+    """No overwrite: a name that exists is an edit, and edits are $EDITOR's."""
+    import rich_click as click
+    import pytest
+
+    from cli.tools import save
+
+    save("prs", ["data", "--", "jam", "pr", "list"], home=tmp_path)
+    with pytest.raises(click.UsageError) as caught:
+        save("prs", ["read", "--", "ls"], home=tmp_path)
+    assert "already a tool" in str(caught.value)
+    assert "tb data -- jam pr list" in str(caught.value)
+
+
+def test_a_cadence_the_surface_cannot_cycle_to_is_refused_at_save_time(tmp_path):
+    """Saving cleanly and then failing to load is the worst of both."""
+    import rich_click as click
+    import pytest
+
+    from cli.tools import save
+
+    with pytest.raises(click.UsageError) as caught:
+        save("prs", ["data", "--", "x"], refresh=7, home=tmp_path)
+    assert "must be one of" in str(caught.value)
+    assert not (tmp_path / "tools.toml").exists()
+
+
+def test_a_name_that_could_not_be_a_command_is_refused(tmp_path):
+    import rich_click as click
+    import pytest
+
+    from cli.tools import save
+
+    for bad in ("--prs", "my tool", "Prs", "a.b"):
+        with pytest.raises(click.UsageError):
+            save(bad, ["read", "--", "ls"], home=tmp_path)
+
+
+def test_an_unparseable_file_is_not_appended_to(tmp_path):
+    """Appending to a file tb cannot read would bury the real problem."""
+    import rich_click as click
+    import pytest
+
+    from cli.tools import save
+
+    (tmp_path / "tools.toml").write_text("this is not toml [[[\n")
+    with pytest.raises(click.UsageError) as caught:
+        save("prs", ["read", "--", "ls"], home=tmp_path)
+    assert "fix the file" in str(caught.value)
+
+
+def test_a_saved_block_survives_a_round_trip_through_the_real_loader(tmp_path):
+    """Proven by re-reading rather than by trusting the writer: quotes,
+    separators and odd characters all come back as the same argv."""
+    from cli.tools import load, save
+
+    argv = ["data", "--cols", 'a,"b"', "--cwd", "/tmp/x y", "--", "jam", "pr", "list", "--json"]
+    save("prs", argv, refresh=30, home=tmp_path)
+    tools, problems = load({"data": False, "run": True}, home=tmp_path)
+    assert problems == []
+    assert [t.argv for t in tools] == [argv]
+    assert tools[0].refresh == 30
