@@ -12,7 +12,6 @@ import copy
 import pytest
 
 from cli.view import (
-    DEFAULT_BUDGET,
     resolve,
     shape,
     summarise_mapping,
@@ -71,7 +70,7 @@ def column(view, key):
 def test_a_column_empty_in_every_row_is_hidden(rows):
     """`marker_payload` is null in both. A column that never once carried a
     value is pure width."""
-    view = shape(rows, budget=99)
+    view = shape(rows)
     assert "marker_payload" not in keys(view)
     assert "marker_payload" in view["hidden"]
 
@@ -79,14 +78,14 @@ def test_a_column_empty_in_every_row_is_hidden(rows):
 def test_zero_is_not_empty(rows):
     """A count of zero is an answer. `behind` is 0 in one row and must survive —
     "0 behind" is frequently the thing you opened the window to see."""
-    view = shape(rows, budget=99)
+    view = shape(rows)
     assert "behind" in keys(view)
 
 
 def test_an_opaque_sha_is_hidden_but_a_branch_name_survives(rows):
     """Matched on the values, never the name. `head` and `head_ref` differ by
     four characters and only one of them is a digest."""
-    view = shape(rows, budget=99)
+    view = shape(rows)
     assert "head" in view["hidden"]
     assert "head_ref" in keys(view)
 
@@ -111,7 +110,7 @@ def test_a_nested_dict_is_summarised_into_one_column(rows):
     """One column, not six. Flattening to checks.passed, checks.failed, … turns
     one column into six and makes the crowding worse — the thing we are here to
     fix."""
-    view = shape(rows, budget=99)
+    view = shape(rows)
     assert column(view, "checks")["summarise"] is True
 
 
@@ -131,7 +130,7 @@ def test_prose_leaves_the_row_and_becomes_a_detail(rows):
     last, keep the first one put. Round 2 stops giving it a share of the width
     at all: a column you read gets its own line, and the columns you scan stay
     narrow and aligned above it."""
-    view = shape(rows, budget=99)
+    view = shape(rows)
     assert keys(view) == [k for k in keys(view) if k not in ("title", "next")]
     assert [d["key"] for d in view["details"]] == ["title", "next"]
 
@@ -145,40 +144,58 @@ def test_a_short_string_column_stays_inline(rows):
 
 
 def test_a_number_keeps_the_narrowest_weight(rows):
-    view = shape(rows, budget=99)
+    view = shape(rows)
     assert column(view, "number")["flex"] == 1
 
 
 def test_a_numeric_column_is_right_aligned(rows):
-    view = shape(rows, budget=99)
+    view = shape(rows)
     assert column(view, "number")["align"] == "right"
     assert "align" not in column(view, "merge_state")
 
 
-def test_details_are_exempt_from_the_budget(rows):
-    """They cost a line each rather than a share of the width, so they are not
-    competing for the thing the budget rations. `next` was hidden by the budget
-    in Round 1 and is simply readable now."""
-    view = shape(rows, budget=2)
-    assert len(view["columns"]) == 2
+def test_prose_leaves_the_row_without_being_hidden(rows):
+    """Details cost a line each rather than a share of the width. They are not
+    columns and they are not hidden — they are the other half of the record."""
+    view = shape(rows)
     assert [d["key"] for d in view["details"]] == ["title", "next"]
-    assert "next" not in view["hidden"]
+    assert "next" not in view["hidden"] and "title" not in view["hidden"]
+    assert "next" not in keys(view) and "title" not in keys(view)
 
 
-def test_the_budget_hides_the_tail_and_names_it(rows):
-    """A silently dropped column is the "looks right and isn't" failure — the
-    table reads as complete when it is not."""
-    view = shape(rows, budget=4)
-    assert len(view["columns"]) == 4
-    # Everything the input had is shown inline, shown as a detail, or named.
-    # Nothing vanishes without being accounted for somewhere.
+def test_every_column_worth_showing_survives_the_shaping(rows):
+    """Round 3: there is no count here any more. `shape` says which columns
+    are worth showing; how many *fit* is arithmetic against a width, and no
+    width is known in this module."""
+    view = shape(rows)
+    assert keys(view) == [
+        "number",
+        "is_draft",
+        "merge_state",
+        "head_ref",
+        "base_ref",
+        "behind",
+        "labels",
+        "marker",
+        "checks",
+        "execution",
+    ]
+
+
+def test_hidden_means_hidden_by_rule_and_nothing_else(rows):
+    """A property of the *run*, true at any width — which is what makes it
+    correct in an envelope a machine consumer reads. A column that did not fit
+    the window is the drawing's business, and each renderer reports its own."""
+    view = shape(rows)
+    assert set(view["hidden"]) == {"head", "marker_payload"}
+
+
+def test_nothing_vanishes_without_being_accounted_for(rows):
+    """The half of the old budget rule that survives: everything the input
+    carried is a column, a detail, or named as hidden."""
+    view = shape(rows)
     accounted = set(keys(view)) | {d["key"] for d in view["details"]} | set(view["hidden"])
     assert accounted == set(rows[0])
-
-
-def test_the_default_budget_is_applied(rows):
-    view = shape(rows)
-    assert len(view["columns"]) <= DEFAULT_BUDGET
 
 
 # ------------------------------------------------------------- the overrides
@@ -206,7 +223,7 @@ def test_resolve_walks_a_dotted_path(rows):
 
 
 def test_drop_is_subtractive_and_keeps_the_heuristic(rows):
-    view = shape(rows, drop=["title"], budget=99)
+    view = shape(rows, drop=["title"])
     assert "title" not in keys(view)
     assert "title" in view["hidden"]
     # still shaped: the sha is still gone
@@ -260,7 +277,7 @@ def test_a_column_is_never_narrower_than_its_own_header(rows):
     """A truncated value is a readable table with a detail elided. A truncated
     header is a column you cannot identify at all — `ME…` could be merge_state
     or metadata, and no amount of squinting at the values will say which."""
-    view = shape(rows, budget=99)
+    view = shape(rows)
     assert column(view, "merge_state")["min"] == len("MERGE_STATE")
 
 

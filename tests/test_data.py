@@ -290,3 +290,30 @@ def test_a_failing_jq_program_fails_the_contract_with_jqs_words(tmp_path):
     assert result.exit_code == 1
     assert envelope["ok"] is False
     assert "summary" in envelope["data"]["error"]
+
+
+# ============================================================================
+# The warning narrows — [[table-views]] round 3
+# ============================================================================
+
+
+def test_the_warning_names_rule_hidden_columns_only():
+    """A column hidden because it is an opaque sha is true at any width and
+    belongs in the envelope. A column that did not fit the terminal is the
+    drawing's business and must not degrade a machine consumer's result."""
+    sha = "cbb6c29e63a51108a663391b792217ee403780bf"
+    rows = json.dumps([{"n": 1, "head": sha, "empty": None, "a": "x", "b": "y"}])
+    _, envelope = invoke(["--", "printf", "%s", rows])
+    assert set(envelope["view"]["hidden"]) == {"head", "empty"}
+    assert len(envelope["warnings"]) == 1
+    assert "head" in envelope["warnings"][0] and "empty" in envelope["warnings"][0]
+
+
+def test_a_wide_table_does_not_warn_merely_for_being_wide():
+    """The operator's report, as an envelope property: a window with room was
+    being told it was missing something."""
+    rows = json.dumps([{f"c{i}": f"v{i}" for i in range(12)}])
+    _, envelope = invoke(["--", "printf", "%s", rows])
+    assert envelope["view"]["hidden"] == []
+    assert envelope["warnings"] == []
+    assert len(envelope["view"]["columns"]) == 12

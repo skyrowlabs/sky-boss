@@ -517,6 +517,31 @@ def _render_columns(
 _COLUMN_PADDING = 2
 
 
+def fit_columns(columns: list[dict], available: int) -> tuple[list[dict], list[str]]:
+    """As many leading columns as fit at their floors, and the keys of the rest.
+
+    **This is the terminal's half of [[table-views]] round 3.** `cli/view.py`
+    says which columns are worth showing; how many fit is arithmetic against a
+    width, and only a renderer knows its width. The canvas answers the same
+    question differently *because its substrate differs* — a browser can scroll
+    sideways and a terminal cannot — which is why this is not shared code.
+
+    The first column is kept whatever its floor: a table with no columns is
+    worse than one that overflows by a character, and the overflow is at least
+    something you can widen the terminal to read.
+    """
+    kept: list[dict] = []
+    used = 0
+    for column in columns:
+        floor = max(1, column.get("min", 1))
+        gutter = _COLUMN_PADDING if kept else 0
+        if kept and used + gutter + floor > available:
+            break
+        used += gutter + floor
+        kept.append(column)
+    return kept, [column["key"] for column in columns[len(kept) :]]
+
+
 def _resolve_widths(columns: list[dict], available: int) -> list[int]:
     """Flex weights as absolute character widths, never below a column's floor.
 
@@ -559,7 +584,7 @@ def _render_view(rows: list[dict], view: dict, indent: int = 0) -> None:
     the layout is small and it buys the header rule, the detail lines and the
     record spacing outright.
     """
-    columns = view["columns"]
+    columns, overflowed = fit_columns(view["columns"], _out().width - indent)
     details = view.get("details") or []
     widths = _resolve_widths(columns, _out().width - indent)
     pad = " " * _COLUMN_PADDING
@@ -607,6 +632,19 @@ def _render_view(rows: list[dict], view: dict, indent: int = 0) -> None:
 
     if len(rows) > MAX_TABLE_ROWS:
         emit(Text(f"{len(rows) - MAX_TABLE_ROWS} more rows not shown", style="tb.warn"))
+
+    # Named, never silent — the half of the old budget rule that survives. It
+    # belongs here rather than in the envelope's warnings because it is a fact
+    # about *this drawing at this width*, and widening the terminal changes it.
+    if overflowed:
+        count = len(overflowed)
+        emit(
+            Text(
+                f"{count} column{'' if count == 1 else 's'} did not fit: "
+                f"{', '.join(overflowed)} — widen, or use --cols",
+                style="tb.warn",
+            )
+        )
 
 
 def _fit(text: str, width: int, align: str | None, last: bool = False) -> str:
