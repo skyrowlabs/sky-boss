@@ -1,10 +1,15 @@
 ---
-status: active
+status: complete
 created: 2026-08-22
 updated: 2026-08-22
 agent_value: 2
 key_files:
   - cli/highlight.py
+  - cli/follow.py
+  - cli/filefollow.py
+  - cli/canvas/server.py
+  - cli/canvas/static/app.js
+  - cli/canvas/static/tb.css
   - tests/test_highlight.py
 ---
 
@@ -89,7 +94,7 @@ outside `cli/theme.py` in any language.
       offsets in role-classed spans and changes nothing else (in `app.js`, where the stream
       body actually lives — the spec said `render.js` and was wrong by one file). Verified by
       driving the live server's page and reading the DOM back, per house practice.
-- [ ] **The boundary, amended on the record.** [[file-follow]] gains a dated Notes entry:
+- [x] **The boundary, amended on the record.** [[file-follow]] gains a dated Notes entry:
       recognition-for-tinting permitted by [[highlight]], parsing/filtering/judging still
       refused, original argument left standing. The constitution's escalation-ladder entry
       gains the pointer that its first rung landed.
@@ -105,3 +110,23 @@ line tinting deferred; this doc is the deferred half arriving through the front 
 highlight patterns and any severity vocabulary were considered for round 1 and parked: they
 are declarations of judgment, and the Rule branch that owns judgment has not been designed yet
 — landing its first opinionated tenant early would shape that design by accident.
+
+### Round 1 — shipped (2026-08-22)
+
+Four commits, no reversals. What the build added:
+
+- **`spans()` earned its place beside `marks()`.** The terminal forms want (chunk, role)
+  pairs — the chrome bands' shape — so the module offers both readings of the same rules,
+  and the test that `spans` joins back to exactly the text is the one property that makes
+  tinting safe to apply anywhere.
+- **The spec was wrong by one file.** The canvas stream body lives in `app.js`, not
+  `render.js`; marks are applied there. The deciding half stayed in Python either way,
+  which was the point.
+- **The path role costs the canvas no new hue.** `mk-path` is text-2 underlined — links
+  look like destinations without `tb.css` growing a colour the palette does not have. The
+  terminal keeps its existing `tb.path` steel blue.
+- **A frame line with nothing to tint carries no `marks` key at all** — quiet frames stay
+  byte-identical to before this round, the same omitted-not-null rule the envelope's `view`
+  follows.
+- Verified live: a stamped log followed on the canvas rendered muted timestamps, accent
+  tags, an underlined URL, and untinted prose, with `textContent` equal to the file's bytes.

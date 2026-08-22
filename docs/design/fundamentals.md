@@ -241,6 +241,10 @@ mute. The ladder: highlight the line → tint the window → a peripheral canvas
 opt-in desktop notification. Every rung dies with the last window. **Loud is allowed; daemon is
 not.**
 
+*2026-08-22 — the first rung landed, in its pre-Rule form: [[highlight]] tints followed lines
+by lexical shape (timestamp, tag, URL) with no judgment vocabulary. Operator-declared highlight
+rules — the ladder's real first rung — remain the Rule branch's, undesigned.*
+
 ### 2026-08-21 — one verb: `follow`
 
 **`follow` fronts both resident forms; `watch` is retired as a command name.**

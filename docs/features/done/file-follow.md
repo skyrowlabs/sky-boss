@@ -83,6 +83,9 @@ that through the standard [[toolbox]] rule. ANSI is stripped, never interpreted,
   argument: timestamped lines, untimestamped `[isolation]` lines, blank spacers, multi-line
   blocks — any structure inferred here would be silently wrong. Highlighting and the delta view
   are Rule branches that bind *onto* this loop later; they are not this loop.
+  *(Amended 2026-08-22 by [[highlight]], narrowly: recognition-for-tinting is permitted —
+  marks ride beside the verbatim text and a missed match costs a color, not a fact. Parsing,
+  filtering and judging stay refused; the argument above stands for structure.)*
 - **Does not use inotify.** The poll rides ticks that already exist and costs one `stat` when
   nothing changed. Event-driven wakeups are an optimization with a portability bill; earn them
   with a real latency complaint first.
@@ -155,3 +158,12 @@ What the execution argued back:
 - Verified live end-to-end through the canvas: backfill arrived `quiet`, growth arrived
   `running`, a `mv`-rotation arrived announced with the new file's tail, and the quiet frames
   in between carried chrome only.
+
+### 2026-08-22 — the boundary, amended by [[highlight]]
+
+The first Rule-branch rung landed: followed lines now carry lexical tint — a leading
+timestamp muted, a positional `[tag]` in the accent, a URL in the path role — computed by one
+pure rule set in `cli/highlight.py` and applied by both terminal forms and the canvas. The
+amendment is recognition-for-tinting only: lines stay verbatim, unfiltered, unordered, and
+the "does not parse, filter, or judge" argument above stands untouched for structure. The
+cursor's own voice (rotation, truncation) keeps its warn tint; highlight never re-tags it.
