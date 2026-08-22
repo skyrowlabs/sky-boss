@@ -396,6 +396,12 @@ body {
  * specs — one style today, a Rule's tint tomorrow. */
 pre.stream { margin: 0; }
 pre.stream .err { color: var(--tb-warn); }
+/* Lexical tint — role classes fed by marks from [[highlight]]. The path role
+   underlines instead of taking a hue of its own: links look like destinations
+   without this file growing a colour the palette does not have. */
+pre.stream .mk-muted { color: var(--tb-text-3); }
+pre.stream .mk-accent { color: var(--tb-brand); }
+pre.stream .mk-path { color: var(--tb-text-2); text-decoration: underline; }
 .dead-band {
   display: flex; align-items: center; gap: 2.5rem;
   padding: 1.5rem 2.25rem; color: var(--tb-danger);

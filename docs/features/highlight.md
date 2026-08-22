@@ -85,9 +85,10 @@ outside `cli/theme.py` in any language.
       pathological line (200 KB, no spaces) returns in bounded time.
 - [x] **The terminal forms tint.** Both follow bodies apply marks via the span assembler the
       chrome bands already use; stderr/announcement lines keep their warn tint untouched.
-- [ ] **The canvas applies marks.** Frame lines gain `marks`; `render.js` wraps the offsets in
-      role-classed spans and changes nothing else. Verified by rendering headless Chromium
-      against the live server, per house practice.
+- [x] **The canvas applies marks.** Frame lines gain `marks`; the stream body wraps the
+      offsets in role-classed spans and changes nothing else (in `app.js`, where the stream
+      body actually lives — the spec said `render.js` and was wrong by one file). Verified by
+      driving the live server's page and reading the DOM back, per house practice.
 - [ ] **The boundary, amended on the record.** [[file-follow]] gains a dated Notes entry:
       recognition-for-tinting permitted by [[highlight]], parsing/filtering/judging still
       refused, original argument left standing. The constitution's escalation-ladder entry

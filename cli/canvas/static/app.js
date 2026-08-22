@@ -416,6 +416,27 @@ function streamLabel(win) {
   return c.attention;
 }
 
+/* One followed line, marks applied dumbly. The rules live in Python and the
+ * offsets arrive beside the verbatim text ([[highlight]]); this only slices
+ * and wraps — a page holding its own opinion about what a timestamp looks
+ * like is the drift the one-rule-set design exists to prevent. A stderr line
+ * never carries marks and keeps its warn tint. */
+function markedLine(l) {
+  if (l.stderr || !l.marks || !l.marks.length)
+    return html`<span class=${l.stderr ? "err" : ""}>${l.text + "\n"}</span>`;
+  const parts = [];
+  let cursor = 0;
+  for (const [start, end, role] of l.marks) {
+    if (start > cursor) parts.push(l.text.slice(cursor, start));
+    parts.push(
+      html`<span class=${"mk-" + role.replace("tb.", "")}>${l.text.slice(start, end)}</span>`
+    );
+    cursor = end;
+  }
+  parts.push(l.text.slice(cursor) + "\n");
+  return html`<span>${parts}</span>`;
+}
+
 function StreamBody({ win, actions }) {
   const bodyRef = useRef(null);
   useEffect(() => {
@@ -426,7 +447,7 @@ function StreamBody({ win, actions }) {
   return html`
     <div class="body" ref=${bodyRef}>
       <pre class="raw stream">
-${win.streamLines.map((l) => html`<span class=${l.stderr ? "err" : ""}>${l.text + "\n"}</span>`)}</pre
+${win.streamLines.map(markedLine)}</pre
       >
       ${dead &&
       html`<div class="dead-band">

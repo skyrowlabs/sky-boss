@@ -162,6 +162,36 @@ def test_a_follower_frames_its_fresh_lines_with_stream_chrome():
     assert follower_frames(session, now=101.0) == []
 
 
+def test_a_frame_line_carries_marks_beside_its_verbatim_text():
+    """[[highlight]]: the rules live in Python; the page slices offsets. The
+    text ships untouched — marks ride beside it, and a line with nothing to
+    tint carries no key at all rather than an empty list."""
+    from cli.canvas.server import Follower, follower_frames
+
+    session = Session(id="s1")
+    stamped = "2026-01-01T00:00:00 [job] ok"
+    session.followers["w1"] = Follower(
+        child=FakeChild([stamped, "plain prose"]), argv=["x"]
+    )
+
+    lines = follower_frames(session, now=100.0)[0]["lines"]
+    assert lines[0]["text"] == stamped
+    assert lines[0]["marks"] == [
+        (0, len("2026-01-01T00:00:00"), "tb.muted"),
+        (20, 20 + len("[job]"), "tb.accent"),
+    ]
+    assert "marks" not in lines[1]
+
+
+def test_a_stderr_frame_line_is_never_retagged():
+    from cli.stream import Line
+
+    from cli.canvas.server import _frame_line
+
+    line = _frame_line(Line(text="[rotated] 2026-01-01T00:00:00", stderr=True, at=1.0))
+    assert "marks" not in line and line["stderr"] is True
+
+
 def test_a_followers_death_is_announced_exactly_once():
     """Dead is an event to display; a frame per tick forever would make the
     corpse louder than the living stream ever was."""
