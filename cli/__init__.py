@@ -91,12 +91,35 @@ def expand_t(args: list[str]) -> list[str]:
 
 
 class Root(click.RichGroup):
-    """The root group, with the `-t` spelling rewritten ahead of Click."""
+    """The root group: the `-t` spelling rewritten ahead of Click, and the mark.
+
+    The mark is drawn here rather than written into the help text because it
+    is *painted* — per-cell colour, a background of its own — and a help string
+    is one styled block. Only the root has it: `tb read --help` is a reference
+    page you may be reading for the third time today, and a banner over every
+    one of them is a banner nobody sees. See [[header]].
+    """
 
     def main(self, args=None, *pargs, **kwargs):
         if args is None:
             args = sys.argv[1:]
         return super().main(expand_t(list(args)), *pargs, **kwargs)
+
+    def format_help(self, ctx, formatter):
+        from rich.console import Console
+
+        from cli import banner
+
+        # `--json` says a machine is reading, and a machine reading help is
+        # already in trouble — but painting a logo into its pipe is tb making
+        # it worse. The same reflex as everywhere else: nothing decorative
+        # goes out when the envelope was asked for.
+        if not (ctx.find_root().obj or {}).get("as_json"):
+            console = Console()
+            version = get_version()
+            if not banner.show(console, version):
+                console.print(banner.plain(version))
+        super().format_help(ctx, formatter)
 
 
 def get_version() -> str:
@@ -120,11 +143,10 @@ def get_version() -> str:
 @click.option("--json", "as_json", is_flag=True, help="Emit machine-readable JSON on stdout.")
 @click.pass_context
 def cli(ctx: click.Context, as_json: bool) -> None:
-    """toolbox — the homebase operator CLI.
-
-    Deterministic scripts and agentic automations across a primary workstation
-    and the machines around it.
-    """
+    # The title and subtitle that used to sit here are the mark now — drawn by
+    # `Root.format_help` above, see [[header]]. What is left is the one line
+    # that still earns its place under a logo: what this thing does.
+    """Deterministic scripts and agentic automations, one command each."""
     ctx.ensure_object(dict)
     ctx.obj["as_json"] = as_json
 
