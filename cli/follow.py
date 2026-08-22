@@ -33,6 +33,7 @@ from rich.console import Console, Group
 from rich.text import Text
 
 from cli import chrome as chrome_
+from cli import highlight as highlight_
 from cli.output import THEME, band_text
 from cli.read import strip_ansi
 from cli.stream import DEFAULT_LINES, ChildStream
@@ -149,9 +150,15 @@ def follow_process(
         top, bottom = chrome_.status_bands(facts, clock(), out.width)
         body = Text()
         for line in kept:
-            # stderr joins the stream, tagged rather than merged blind — the
-            # tag is one style today and a Rule's tint tomorrow.
-            body.append(strip_ansi(line.text) + "\n", style="tb.warn" if line.stderr else None)
+            if line.stderr:
+                # stderr joins the stream, tagged rather than merged blind —
+                # its warn tint is [[follow]]'s and highlight never re-tags it.
+                body.append(strip_ansi(line.text) + "\n", style="tb.warn")
+            else:
+                # Lexical tint through the same span assembler the chrome
+                # bands use; the text is verbatim either way. See [[highlight]].
+                body.append_text(band_text(highlight_.spans(strip_ansi(line.text))))
+                body.append("\n")
         out.clear()
         out.print(Group(band_text(top), body, band_text(bottom)))
 
