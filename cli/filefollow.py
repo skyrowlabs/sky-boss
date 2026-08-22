@@ -222,6 +222,7 @@ def follow_file(
 
     from cli import chrome as chrome_
     from cli.output import THEME, band_text
+    from cli import highlight as highlight_
     from cli.read import strip_ansi
 
     out = console or Console(theme=THEME, highlight=False)
@@ -240,7 +241,13 @@ def follow_file(
         top, bottom = chrome_.status_bands(facts, clock(), out.width)
         body = Text()
         for line in kept:
-            body.append(strip_ansi(line.text) + "\n", style="tb.warn" if line.stderr else None)
+            if line.stderr:
+                # The cursor's own voice — rotation, truncation — keeps its
+                # warn tint; highlight never re-tags it. See [[highlight]].
+                body.append(strip_ansi(line.text) + "\n", style="tb.warn")
+            else:
+                body.append_text(band_text(highlight_.spans(strip_ansi(line.text))))
+                body.append("\n")
         out.clear()
         out.print(Group(band_text(top), body, band_text(bottom)))
 

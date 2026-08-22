@@ -83,7 +83,7 @@ outside `cli/theme.py` in any language.
       timestamp, tag and URL; overlaps resolved (first match wins, no nesting). Tests per
       rule, plus the properties: text never altered, a non-matching line yields no marks, a
       pathological line (200 KB, no spaces) returns in bounded time.
-- [ ] **The terminal forms tint.** Both follow bodies apply marks via the span assembler the
+- [x] **The terminal forms tint.** Both follow bodies apply marks via the span assembler the
       chrome bands already use; stderr/announcement lines keep their warn tint untouched.
 - [ ] **The canvas applies marks.** Frame lines gain `marks`; `render.js` wraps the offsets in
       role-classed spans and changes nothing else. Verified by rendering headless Chromium

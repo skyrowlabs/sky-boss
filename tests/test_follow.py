@@ -131,6 +131,27 @@ def test_a_live_stream_shows_its_ring_and_its_last_line_clock():
     assert "last line 1m ago" in text  # 160 - 100, read from the ring
 
 
+def test_the_body_tints_stdout_lines_and_never_retags_stderr(monkeypatch):
+    """The [[highlight]] seam: stdout lines go through `spans`, stderr lines
+    keep their warn tint untouched — and the text reaches the screen verbatim
+    either way, because marks ride beside it, never instead of it."""
+    from cli import highlight
+
+    seen = []
+    real = highlight.spans
+
+    def recording_spans(text):
+        seen.append(text)
+        return real(text)
+
+    monkeypatch.setattr(highlight, "spans", recording_spans)
+    stamped = "2026-01-01T00:00:00 [job] https://example.com done"
+    text, _ = drive(FakeChild([(stamped, False), ("rotated away", True)]))
+    assert stamped in text  # verbatim, tint or no tint
+    assert stamped in seen
+    assert "rotated away" not in seen
+
+
 def test_any_exit_is_a_plainly_visible_death_with_its_code():
     """Exit 0 included: choosing follow asserted the process was expected
     not to exit, so ending at all is the event."""

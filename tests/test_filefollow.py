@@ -205,6 +205,34 @@ def test_the_terminal_bands_carry_the_stat_knowledge():
     assert "showing last 2" in text
 
 
+def test_the_cursor_body_tints_through_the_same_rules(monkeypatch):
+    """Both follow bodies tint through one `spans` — two renderers holding
+    their own opinions would drift the week they were written."""
+    from rich.console import Console
+
+    from cli import highlight
+
+    seen = []
+    real = highlight.spans
+    monkeypatch.setattr(highlight, "spans", lambda t: seen.append(t) or real(t))
+
+    fs = FakeFs()
+    stamped = "2026-01-01T00:00:00 [cron] ran"
+    fs.put("x.log", stamped + "\n", mtime=320.0)
+    recording = Console(record=True, width=78, force_terminal=True)
+    follow_file(
+        "x.log",
+        clock=lambda: 500.0,
+        sleep=lambda s: None,
+        console=recording,
+        screen=False,
+        ticks=1,
+        fs=fs,
+    )
+    assert stamped in recording.export_text()
+    assert stamped in seen
+
+
 def test_an_absent_file_renders_as_waiting():
     from rich.console import Console
 
