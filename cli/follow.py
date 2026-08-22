@@ -75,7 +75,16 @@ def is_file_form(argv: tuple[str, ...]) -> bool:
     is_flag=True,
     help="Redraw on the alternate screen instead of inline. Restores the terminal on exit.",
 )
-def follow(argv: tuple[str, ...], cwd: str | None, lines: int, screen: bool) -> None:
+@click.option(
+    "--save",
+    "save",
+    metavar="NAME",
+    default=None,
+    help="Save this invocation as a saved command called NAME, then follow it.",
+)
+def follow(
+    argv: tuple[str, ...], cwd: str | None, lines: int, screen: bool, save: str | None
+) -> None:
     """Follow a command that streams, or a file that grows. An observe,
     resident by nature:
 
@@ -94,12 +103,26 @@ def follow(argv: tuple[str, ...], cwd: str | None, lines: int, screen: bool) -> 
     The newest lines are drawn inline below the prompt and stay there when
     you leave; `--screen` uses the alternate screen instead, which shows the
     whole ring and hands the terminal back as it was.
+
+    `--save` keeps the line, then follows it:
+
+        tb follow --save cron -- journalctl -f
     """
     ctx = click.get_current_context()
     if (ctx.find_root().obj or {}).get("as_json"):
         # A stream has no single envelope to emit. The canvas API is the
         # machine path; --json here would be a promise nothing can keep.
         raise click.UsageError("follow is resident and emits no envelope — --json has no meaning here")
+
+    # Saved before the stream opens, which is the only order available here: a
+    # follow is resident by nature and never reaches its own exit. Announced
+    # on stderr rather than in an envelope, because a stream has none — see
+    # [[tools]] round 3.
+    if save:
+        from cli import tools as tools_
+        from cli.output import saved_note
+
+        saved_note(tools_.save_invocation(save, ctx.info_name))
 
     if is_file_form(argv):
         # The native cursor, [[file-follow]]: tb can stat a file, so quiet

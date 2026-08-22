@@ -47,7 +47,7 @@ import rich_click as click
 
 from cli.canvas.catalog import walk
 from cli.canvas.watch import INTERVALS
-from cli.helpers import TB_HOME
+from cli.helpers import INVOCATION, TB_HOME
 from cli.output import Result, emit
 
 TOOLS_FILE = "tools.toml"
@@ -543,3 +543,28 @@ def save(
             handle.write("\n")
         handle.write(block(name, argv, refresh))
     return path
+
+
+def save_invocation(name: str, command: str, invocation: list[str] | None = None) -> dict:
+    """Save the line that is running, as `name`. The three observes' one call.
+
+    Reads the recorded invocation rather than Click's parsed values — see
+    `saved_argv` for why, and `INVOCATION` in cli/helpers.py for why it is
+    recorded at all. `invocation` is injectable so the suite can hand one in
+    without a process.
+
+    Returns what the envelope should say: the name, the file it went to, and
+    the expansion it will run. **What it will run** is the half worth carrying
+    — it is the operator's one chance to notice that the saved line is not the
+    line they meant, while they still remember what they typed.
+    """
+    line = INVOCATION if invocation is None else invocation
+    argv = saved_argv(line, command)
+    refresh = cadence_of(line, command)
+    path = save(name, argv, refresh)
+    return {
+        "name": name,
+        "file": str(path),
+        "runs": "tb " + shlex.join(argv),
+        **({"refresh": refresh} if refresh else {}),
+    }

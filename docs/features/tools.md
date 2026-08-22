@@ -305,14 +305,14 @@ result.** The envelope says where it went; under `--json` that is a field, not p
       any `refresh`. Pure-ish over an injected home; tests write to `tmp_path` and never to the
       real `$TB_HOME` (`conftest.py` already redirects it, and this is the round where that
       matters most). The module docstring's "Nothing here writes" is amended with the reversal.
-- [ ] **The flag, on the three observes.** `--save NAME` on `data`, `read` and `follow`; absent
+- [x] **The flag, on the three observes.** `--save NAME` on `data`, `read` and `follow`; absent
       from `run`. The argv is reconstructed from the invocation, and a test asserts the
       round-trip: save a real invocation, re-register the file, and the tool's expansion equals
       the line that made it — including `--cols`, `--cwd`, `--from` and the `--` separator.
-- [ ] **Save, then run.** The write happens before execution, so a resident command saves and a
+- [x] **Save, then run.** The write happens before execution, so a resident command saves and a
       failing command still saves. Proven on `follow` without opening a stream, the way the
       dispatch test already proves the file form.
-- [ ] **What it says.** The envelope carries where it went and what it will run; `--help` on all
+- [x] **What it says.** The envelope carries where it went and what it will run; `--help` on all
       three carries the flag with a runnable example, which the [[refresh]] help test already
       enforces. `tb tools` needs no change — the new entry is an entry.
 - [ ] **Docs.** CLAUDE.md's `$TB_HOME` row says the operator *and* `--save` author `tools.toml`;

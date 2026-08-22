@@ -21,7 +21,7 @@ except ImportError:
     print("  python3 -m venv .venv && .venv/bin/pip install -r requirements.txt", file=sys.stderr)
     sys.exit(1)
 
-from cli.helpers import PROJECT_ROOT, run_command  # noqa: E402
+from cli.helpers import INVOCATION, PROJECT_ROOT, run_command  # noqa: E402
 from cli.theme import (  # noqa: E402
     CLI_BRAND,
     CLI_DANGER,
@@ -103,7 +103,12 @@ class Root(click.RichGroup):
     def main(self, args=None, *pargs, **kwargs):
         if args is None:
             args = sys.argv[1:]
-        return super().main(expand_t(list(args)), *pargs, **kwargs)
+        expanded = expand_t(list(args))
+        # Recorded before Click sees it, so `--save` can write down the line
+        # the operator typed rather than one rebuilt from parsed options.
+        # See `INVOCATION` in cli/helpers.py and [[tools]] round 3.
+        INVOCATION[:] = expanded
+        return super().main(expanded, *pargs, **kwargs)
 
     def format_help(self, ctx, formatter):
         from rich.console import Console

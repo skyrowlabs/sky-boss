@@ -89,6 +89,13 @@ from cli.view import shape
     is_flag=True,
     help="Redraw on the alternate screen instead of inline. Restores the terminal on exit.",
 )
+@click.option(
+    "--save",
+    "save",
+    metavar="NAME",
+    default=None,
+    help="Save this invocation as a saved command called NAME, then run it.",
+)
 @emit
 def data(
     argv: tuple[str, ...],
@@ -100,6 +107,7 @@ def data(
     from_: str,
     refresh: int | None,
     screen: bool,
+    save: str | None,
 ) -> Result:
     """Read another CLI's structured output as data. An observe — a window may
     pin it and refresh it on a cadence, and `--refresh` is the same rule in
@@ -127,6 +135,11 @@ def data(
     program reshaping the parse, or both:
 
         tb data --from pr-summary -- jam pr list --json
+
+    `--save` keeps a line that took three tries to get right, then runs it —
+    a `--refresh` in force becomes the saved command's own cadence:
+
+        tb data --cols number,title --save prs -- jam pr list --json
     """
     # Resolved here so a bad name is a usage error before anything runs —
     # and resolved again on every run, so a pinned window re-reads the
@@ -134,9 +147,19 @@ def data(
     _, problem = capture_.resolve(from_)
     if problem:
         raise click.UsageError(problem)
+    # Saved *before* the run, so a resident invocation saves at all (it never
+    # reaches its own exit) and a failing one still saves. You are saving an
+    # argv, not a result. See [[tools]] round 3.
+    saved = None
+    if save:
+        from cli import tools as tools_
+
+        saved = tools_.save_invocation(save, click.get_current_context().info_name)
     if refresh is not None:
         _reside(argv, timeout, cwd, cols, drop, no_shape, from_, refresh, screen)
-    return _once(argv, timeout, cwd, cols, drop, no_shape, from_)
+    result = _once(argv, timeout, cwd, cols, drop, no_shape, from_)
+    result.saved = saved
+    return result
 
 
 def _reside(

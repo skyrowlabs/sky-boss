@@ -590,3 +590,137 @@ def test_a_saved_block_survives_a_round_trip_through_the_real_loader(tmp_path):
     assert problems == []
     assert [t.argv for t in tools] == [argv]
     assert tools[0].refresh == 30
+
+
+# ---------------------------------------------------------- the flag on the tree
+
+
+def test_run_never_takes_save():
+    """The absence in `run --help` is the act/observe split made visible,
+    exactly as `--refresh`'s absence is. `--save` saves by example, and the
+    example ran — a write saved by having just been performed is a different
+    act, and one that earns opening the file."""
+    from click.testing import CliRunner
+
+    from cli import cli
+
+    result = CliRunner().invoke(cli, ["run", "--save", "x", "--", "true"])
+    assert result.exit_code == 2
+    assert "No such option" in result.output
+    assert "--save" not in CliRunner().invoke(cli, ["run", "--help"]).output
+
+
+def test_the_three_observes_offer_save_with_an_example():
+    from click.testing import CliRunner
+
+    from cli import cli
+
+    for command in ("read", "data", "follow"):
+        help_text = " ".join(CliRunner().invoke(cli, [command, "--help"]).output.split())
+        assert "--save" in help_text, command
+        # Help is the doc ([[refresh]]): the flag carries a line you can paste.
+        assert f"tb {command}" in help_text and "--save" in help_text, command
+
+
+def test_a_saved_read_round_trips_through_the_real_loader(tmp_path, monkeypatch):
+    """The property the whole feature rests on: the registered tool's
+    expansion is the line that made it. A tool that merely *looked* right
+    would stay invisible until the day it ran."""
+    from click.testing import CliRunner
+
+    from cli import cli
+    from cli.tools import register, tools as tools_group
+
+    monkeypatch.setenv("TB_HOME", str(tmp_path))
+    monkeypatch.setattr("cli.helpers.TB_HOME", tmp_path)
+    monkeypatch.setattr("cli.tools.TB_HOME", tmp_path)
+
+    typed = ["read", "--cwd", str(tmp_path), "--save", "greet", "--", "printf", "hi"]
+    result = CliRunner().invoke(cli, typed)
+    assert result.exit_code == 0
+
+    try:
+        problems = register(cli, home=tmp_path)
+        assert problems == []
+        saved = tools_group.commands["greet"]
+        assert list(saved.tb_argv) == [t for t in typed if t not in ("--save", "greet")]
+    finally:
+        for name in [
+            n for n, c in list(tools_group.commands.items()) if getattr(c, "tb_saved", False)
+        ]:
+            del tools_group.commands[name]
+
+
+def test_the_envelope_carries_where_it_went_and_what_it_runs(tmp_path, monkeypatch):
+    import json
+
+    from click.testing import CliRunner
+
+    from cli import cli
+
+    monkeypatch.setattr("cli.tools.TB_HOME", tmp_path)
+    result = CliRunner().invoke(cli, ["--json", "read", "--save", "greet", "--", "printf", "hi"])
+    envelope = json.loads(result.stdout)
+    assert envelope["saved"]["name"] == "greet"
+    assert envelope["saved"]["runs"] == "tb read -- printf hi"
+    assert envelope["saved"]["file"] == str(tmp_path / "tools.toml")
+
+
+def test_an_envelope_that_saved_nothing_is_byte_identical_to_before(tmp_path, monkeypatch):
+    """Same rule as `view`: omitted rather than null, so no consumer has to
+    learn that null means "did not save"."""
+    import json
+
+    from click.testing import CliRunner
+
+    from cli import cli
+
+    monkeypatch.setattr("cli.tools.TB_HOME", tmp_path)
+    envelope = json.loads(CliRunner().invoke(cli, ["--json", "read", "--", "printf", "hi"]).stdout)
+    assert "saved" not in envelope
+
+
+def test_a_failing_command_still_saves_because_an_argv_is_not_a_result(tmp_path, monkeypatch):
+    from click.testing import CliRunner
+
+    from cli import cli
+
+    monkeypatch.setattr("cli.tools.TB_HOME", tmp_path)
+    result = CliRunner().invoke(cli, ["read", "--save", "nope", "--", "false"])
+    assert result.exit_code == 1
+    assert "[tool.nope]" in (tmp_path / "tools.toml").read_text()
+
+
+def test_a_resident_read_saves_before_it_goes_resident(tmp_path, monkeypatch):
+    """A residency never reaches its own exit, so saving after the run would
+    mean the flag silently did nothing on exactly the invocations most worth
+    keeping."""
+    from click.testing import CliRunner
+
+    from cli import cli
+
+    monkeypatch.setattr("cli.tools.TB_HOME", tmp_path)
+    monkeypatch.setattr("cli.resident.reside", lambda source, interval, run_once, **kw: None)
+    result = CliRunner().invoke(
+        cli, ["read", "--refresh", "30", "--save", "prs", "--", "printf", "hi"]
+    )
+    assert result.exit_code == 0
+    saved = (tmp_path / "tools.toml").read_text()
+    # The cadence is lifted into the field, not left in the argv.
+    assert 'argv = ["read", "--", "printf", "hi"]' in saved
+    assert "refresh = 30" in saved
+
+
+def test_a_follow_saves_without_opening_a_stream(tmp_path, monkeypatch):
+    """Proven the way the dispatch test proves the file form — by
+    intercepting the residency, because a real one would block the suite."""
+    from click.testing import CliRunner
+
+    from cli import cli
+
+    monkeypatch.setattr("cli.tools.TB_HOME", tmp_path)
+    monkeypatch.setattr("cli.filefollow.follow_file", lambda path, **kw: None)
+    result = CliRunner().invoke(cli, ["follow", "--save", "cron", "x/y.log"])
+    assert result.exit_code == 0
+    assert 'argv = ["follow", "x/y.log"]' in (tmp_path / "tools.toml").read_text()
+    assert "saved cron" in result.output
