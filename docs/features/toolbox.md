@@ -1,5 +1,5 @@
 ---
-status: complete
+status: active
 created: 2026-08-20
 updated: 2026-08-22
 agent_value: 3
@@ -116,11 +116,15 @@ module.** A name in a skip-list is the beginning of the command table this desig
    warning naming the collision. Nothing operator-authored may shadow a tb command — otherwise a
    stray `[tool.run]` silently redefines the one door that writes.
 
-4. **tb never writes this file.** Creation is `$EDITOR`. The canvas server is remote code execution
-   bound to a port and is treated that way; giving it a route that writes a file tb will later
-   *execute* would convert a transient compromise into a persistent one. A hostile page that
-   defeated the header-and-token guard today gets one command; with a write route it would get
-   every command from then on. That is not a trade worth making for a save button, and the button
+4. **No *surface* writes this file, and tb only ever appends to it.** *(Round 3, 2026-08-22,
+   narrowed this from "tb never writes this file" — `--save` writes one appended block from the
+   terminal. The security argument below is unchanged and is what the narrowing was measured
+   against; the sentence it was protecting was broader than the argument.)* Creation and every
+   edit are `$EDITOR`'s. The canvas server is remote code execution bound to a port and is
+   treated that way; giving it a route that writes a file tb will later *execute* would convert
+   a transient compromise into a persistent one. A hostile page that defeated the
+   header-and-token guard today gets one command; with a write route it would get every command
+   from then on. That is not a trade worth making for a save button, and the button
    can be added later against a design that has thought about it.
 
 `~` in an argv is expanded, since the whole point is that these are operator paths.
@@ -131,7 +135,10 @@ module.** A name in a skip-list is the beginning of the command table this desig
 
 - **No writing, from anywhere.** No `tb tool add`, no `POST /api/tools`, no "save this window as a
   tool" button. See rule 4. This is the round that proves the read half; the write half is a
-  separate design with a security argument to make.
+  separate design with a security argument to make. *(Round 3 built exactly that separate design
+  and kept two thirds of this line: there is still no route and still no button. What exists is
+  `--save`, typed by the operator in their own terminal — the same trust level as `$EDITOR`,
+  reached the same way.)*
 - **No arguments.** A tool is a *fixed* argv. `tb jam-pr-list 945` is refused rather than appended,
   because a tool that takes arguments is a shell function, and this is not a shell.
 - **No groups, no nesting.** Flat names at the top level. `tb jam-pr-list`, not `tb jam pr-list`.
@@ -217,6 +224,95 @@ palette teaches the new spelling immediately.
 - [x] **Docs.** CLAUDE.md command table says `tb tools <name>` / `tb -t <name>`; `tb tools`
       help carries the refresh-default sentence; [[refresh]] bare-flag prose confirmed
       unchanged.
+
+### Round 3 — saving the command you just ran (2026-08-22)
+
+**The gap is the one round 1 named and deferred.** A tool is a name plus a tb argv, and the only
+way to make one is to open `$EDITOR`, remember the TOML shape, and retype an argv you had
+working thirty seconds ago in your shell. The command this whole doc exists to make easy is
+*still* 110 characters the first time, and the moment you have it right is the moment you are
+furthest from a text editor.
+
+    tb data --cols number,title,merge_state --cwd ~/skyrow.labs/jam.sense \
+            -- jam pr list --json --save=prs
+
+Then `tb tools prs` forever. **Save by example, from the terminal, at the end of the command
+that worked.**
+
+**This narrows rule 4 and keeps its argument intact.** The rule said *tb never writes this
+file*; the argument underneath it was about **the canvas server**, which is remote code
+execution bound to a port, and about a *route* that would turn a transient compromise into a
+persistent one. None of that applies to a flag the operator types in their own shell — that is
+the same trust level as `$EDITOR`, arrived at by a shorter path. What survives unchanged: no
+`POST /api/tools`, no save button on a window, no write from any surface. The narrowing is
+recorded in Shape rule 4 with the original sentence visible beside it.
+
+**Three properties make the write safe to have at all:**
+
+1. **tb appends; it never rewrites.** The saved entry is a `[tool.<name>]` block added at the
+   end of the file. Nothing above it is re-serialised, reordered, or reformatted, so every
+   comment, blank line and hand-written argv the operator wrote survives byte-for-byte. This is
+   not politeness — round-tripping TOML would mean either a writer dependency or tb's own
+   serialiser deciding how the operator's file should look, and both are ways to lose a file
+   that is not tb's. **Editing and deleting stay `$EDITOR`'s**, which is also why there is no
+   `--save` overwrite: a name already declared is refused, naming what it currently runs.
+2. **The saved argv is what you typed.** Taken from the invocation itself, from the tb command
+   word onward, with the `--save` token removed and nothing else added, normalised or guessed.
+   A tool whose expansion does not match the line that created it is the failure this feature
+   would otherwise introduce, and it would be invisible until the day the tool ran.
+3. **Nothing about the tool model changes.** `acts` is still inherited from `argv[0]`, a
+   `refresh` in force at save time is recorded as the tool's field, a follow still refuses one,
+   and the entry is loaded by the same loader that reads a hand-written one — proven by
+   re-registering the file after the write rather than by trusting the writer.
+
+**`--save` is on the observes only — `data`, `read` and `follow`.** `run` does not take it, and
+the absence in `run --help` is the act/observe split made visible exactly as `--refresh`'s
+absence already is. `tools.toml` still *accepts* `[tool.deploy]` over `run`; the asymmetry is
+deliberate and it is about the gesture rather than the file — **`--save` saves by example, and
+the example ran.** A read that ran twice costs nothing; a write saved by having just been
+performed is a different act, and one that deserves the deliberation of opening the file. The
+operator's call, taken 2026-08-22.
+
+**It saves, then runs.** The flag is appended to a command that is about to do its job, and it
+does its job — for `follow`, the tool is written and then the stream opens. Saving first is
+what makes the resident commands work at all (a follow never reaches its own exit), and it
+means the tool exists even if the run fails, which is correct: **you are saving an argv, not a
+result.** The envelope says where it went; under `--json` that is a field, not prose.
+
+**Does not do:**
+
+- **No description, no editing, no removal.** `--save` writes a name and an argv. A description,
+  a changed argv, a deleted tool: `$EDITOR`, one file, no ceremony. A `--describe` flag is a
+  second thing to type at exactly the moment the operator wants to type less.
+- **No overwrite, no `--force`.** An existing name is refused with what it currently runs. The
+  fix is to edit the file, which is the one place edits happen.
+- **Still no route and still no button.** The canvas gains nothing. Its argv path can carry the
+  flag the same way it can carry any word, and that is honestly not a new hole: a client that
+  can reach the API can already ask for `tb run -- <anything>`, which is strictly more. tb does
+  not filter the flag out server-side, because a filter would be the server keeping a list of
+  tb's flags — the command table this design refuses to keep, in its most brittle form.
+- **No `~` re-contraction.** The shell expanded `~` before tb ever saw it, so an absolute path is
+  what gets saved. `_expand` still exists for the hand-written `~` in a file the operator typed.
+- **No validation of the world.** A saved argv naming a host, a repo or a tool that is not there
+  fails when it runs, exactly as a hand-written one does.
+
+- [ ] **The writer.** `save()` in `cli/tools.py`: validate the name against `_NAME`, refuse one
+      already declared (naming its expansion), append a `[tool.<name>]` block with the argv and
+      any `refresh`. Pure-ish over an injected home; tests write to `tmp_path` and never to the
+      real `$TB_HOME` (`conftest.py` already redirects it, and this is the round where that
+      matters most). The module docstring's "Nothing here writes" is amended with the reversal.
+- [ ] **The flag, on the three observes.** `--save NAME` on `data`, `read` and `follow`; absent
+      from `run`. The argv is reconstructed from the invocation, and a test asserts the
+      round-trip: save a real invocation, re-register the file, and the tool's expansion equals
+      the line that made it — including `--cols`, `--cwd`, `--from` and the `--` separator.
+- [ ] **Save, then run.** The write happens before execution, so a resident command saves and a
+      failing command still saves. Proven on `follow` without opening a stream, the way the
+      dispatch test already proves the file form.
+- [ ] **What it says.** The envelope carries where it went and what it will run; `--help` on all
+      three carries the flag with a runnable example, which the [[refresh]] help test already
+      enforces. `tb tools` needs no change — the new entry is an entry.
+- [ ] **Docs.** CLAUDE.md's `$TB_HOME` row says the operator *and* `--save` author `tools.toml`;
+      its "Nothing here writes" claim, if it carries one, is amended with the same reversal.
 
 ## Notes
 
@@ -309,3 +405,35 @@ things worth recording:
 (`tb -t --refresh 30 x`) needed no rule of its own — it is an ordinary usage error because
 the group owns no such option. Deliberately not built: any back-compat top-level
 registration; the palette teaches the new spelling by showing it.
+
+### Round 3 — drafted, awaiting the word (2026-08-22)
+
+Asked for in the same breath as [[follow]] round 2: *"i think we also need to spec a save
+mechanism that allows someone to append a `--save=[name-of-tool]` to the end of data, read, and
+follow commands."* The three commands named are the three observes, and the two decisions that
+were the operator's rather than the doc's were put to them directly and answered the same day:
+**observes only**, and **save then run**.
+
+**The interesting part of this round is what it does *not* reverse.** Round 1 ended with "Not
+built, and still not wanted: anything that writes", and it would have been easy to read that as
+settled and refuse the request, or to read the request as permission and drop the rule. Neither
+is right. The sentence was broader than the argument holding it up: every word of the reasoning
+is about the *canvas server* — a port, a route, a transient compromise made persistent. A flag
+typed in the operator's own shell is not any of those things, and the rule survives in the form
+its argument actually supports. That is the whole reason Notes accretes rather than rewrites:
+the original argument was still legible, so it could be checked against the new request instead
+of remembered as a slogan.
+
+**Append-only was the design decision, not the flag.** The obvious shape — read the TOML, add a
+key, write it back — quietly requires a TOML *writer* (stdlib has `tomllib`, which only reads),
+and whichever one you pick then owns how the operator's hand-written file looks: comments gone,
+argv lists reflowed, ordering by whatever the serialiser prefers. Appending one block sidesteps
+all of it and buys a stronger claim than tidiness: **tb never touches a line the operator
+wrote.** It is also what makes "no overwrite" natural rather than a restriction — you cannot
+edit in place if you never rewrite, so editing stays exactly where it already was.
+
+**The property most worth testing is the round-trip**, and it is testable end to end because
+the loader is already pure over an injected home: save an invocation, re-register the file, and
+assert the registered tool's expansion is the line that created it. A save that produced a tool
+which merely *looked* right would be invisible until the day it ran — the same class of failure
+as the `every`-field rename in [[refresh]] round 1, which is the precedent for insisting on it.
