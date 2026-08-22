@@ -88,11 +88,11 @@ def follow(argv: tuple[str, ...], cwd: str | None, lines: int) -> None:
         raise click.UsageError("follow is resident and emits no envelope — --json has no meaning here")
 
     if is_file_form(argv):
-        # The native cursor, [[file-follow]] — built in its own round.
-        raise click.UsageError(
-            f"{argv[0]!r} is a file, and the file form lands with [[file-follow]] — "
-            "for now: tb follow -- tail -F " + shlex.quote(argv[0])
-        )
+        # The native cursor, [[file-follow]]: tb can stat a file, so quiet
+        # and dead get different words.
+        from cli.filefollow import follow_file
+
+        follow_file(argv[0], limit=lines)
     else:
         follow_process(list(argv), cwd=cwd, limit=lines)
 
