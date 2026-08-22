@@ -155,7 +155,7 @@ now resolves it through `realpath` and is cwd-independent. A note like that is n
 it actively stops the next person looking, because the question already appears answered. Corrected
 in place, with the measurements.
 
-**The argv did not change, and that is the point.** `--cwd ~/skyrow.labs/jam.sense` was already
+**The argv did not change, and that is the point.** `--cwd ~/src/jam.sense` was already
 what the tool declared, and it is still right — it just now works for the reason the operator
 thought it did rather than by accident of an inherited variable. The state before this round was
 the dangerous one: the argv that worked was the argv that would break the moment *either* bug was

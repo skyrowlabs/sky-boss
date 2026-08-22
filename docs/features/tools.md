@@ -28,7 +28,7 @@ The command this repo exists to make easy currently reads:
 
 ```
 tb wrap --cols number,title,merge_state,behind,checks.failed \
-        --cwd ~/skyrow.labs/jam.sense -- jam pr list --json
+        --cwd ~/src/jam.sense -- jam pr list --json
 ```
 
 That is 110 characters, three of which are the part you were thinking about. It has to be retyped
@@ -57,7 +57,7 @@ A file the operator writes, at `$TB_HOME/tools.toml`:
 [tool.jam-pr-list]
 description = "Open PRs, with the merge column GitHub cannot show"
 argv  = ["wrap", "--cols", "number,title,merge_state,behind,checks.failed",
-         "--cwd", "~/skyrow.labs/jam.sense",
+         "--cwd", "~/src/jam.sense",
          "--", "jam", "pr", "list", "--json"]
 every = 30
 ```
@@ -67,7 +67,7 @@ browser profile, which is machine-generated and something you would reasonably `
 the canvas. A file you authored must not be in the blast radius of that.
 
 And **not in the repo**, which is the rule [[canvas]] and `CLAUDE.md` both paid for already: the
-`--cwd` above is `~/skyrow.labs/jam.sense`, an operator path, exactly the class of thing that
+`--cwd` above is `~/src/jam.sense`, an operator path, exactly the class of thing that
 carried a tailnet address into every commit last time operator content lived here. Keep the two
 apart from the start, take no fallback path between them, and **let an absent home degrade rather
 than raise** — no file means zero tools, exit 0, and no warning, because a fresh clone having no
@@ -237,7 +237,7 @@ working thirty seconds ago in your shell. The command this whole doc exists to m
 *still* 110 characters the first time, and the moment you have it right is the moment you are
 furthest from a text editor.
 
-    tb data --cols number,title,merge_state --cwd ~/skyrow.labs/jam.sense \
+    tb data --cols number,title,merge_state --cwd ~/src/jam.sense \
             -- jam pr list --json --save=prs
 
 Then `tb tools prs` forever. **Save by example, from the terminal, at the end of the command

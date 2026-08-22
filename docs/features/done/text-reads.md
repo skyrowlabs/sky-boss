@@ -40,7 +40,7 @@ that must never be put on a timer.**
 `tb read -- <argv>`: like `tb run`, except it is declared a read.
 
 ```
-tb read --cwd ~/skyrow.labs/jam.sense -- jam pr list
+tb read --cwd ~/src/jam.sense -- jam pr list
 ```
 
 `data` is **the text itself** — a plain string, not an object wrapping one. That is the whole

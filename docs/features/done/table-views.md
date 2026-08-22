@@ -22,7 +22,7 @@ key_files:
 the canvas and re-run it on a cadence — exists today and needs no new plumbing:
 
 ```
-tb wrap --cwd ~/skyrow.labs/jam.sense -- jam pr list --json
+tb wrap --cwd ~/src/jam.sense -- jam pr list --json
 ```
 
 parses, lands in the envelope as a list of rows, gets `acts: false` from the catalog so the window
@@ -206,7 +206,7 @@ change at all** — `app.js` already treats everything past the command name as 
   shaping contract.
 - **Does not touch `data`.** Stated twice on purpose.
 - **Does not guess a tool's JSON flag**, and does not learn `--cwd` for a tool that needs one.
-  `jam` requires `--cwd ~/skyrow.labs/jam.sense` because its wrapper resolves `.venv` against the
+  `jam` requires `--cwd ~/src/jam.sense` because its wrapper resolves `.venv` against the
   working directory; that is jam.sense's bug to fix and tb should not grow a workaround for it.
 - **Does not do ANSI.** Unchanged from [[canvas]]: a tool without JSON is out of scope rather than
   half-supported.

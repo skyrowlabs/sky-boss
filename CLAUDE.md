@@ -23,10 +23,12 @@ the tool could not be published without publishing the operator. Machine-specifi
 in `CLAUDE.local.md`, which is gitignored. **A host name in a tracked file is a bug to fix, not
 context to preserve.**
 
-**Operator *paths* are a known exception and are still here.** Feature docs use
-`~/skyrow.labs/jam.sense` as their worked example throughout, because the concrete case is what
-makes those arguments good, and genericising them costs the evidence. That is the next
-publication scrub, deliberately deferred — not an oversight to fix piecemeal.
+**A real example is kept on purpose.** Feature docs work through `jam pr list --json` — a sibling
+CLI — rather than a placeholder, because the arguments are load-bearing on a *real* tool: why
+`--cwd` is needed at all, why fourteen columns is the wrong number, why a foreign CLI cannot hold
+itself open. A `mytool` makes those paragraphs vague and unfalsifiable. What was removed is the
+**path** it lived at, which said something about a machine; what stayed is a tool name, which does
+not. Apply that test to the next example rather than reaching for a placeholder by reflex.
 
 **It is young.** On 2026-08-20 the job layer, the asset register, the check suite and the watch
 system were removed to design that half over from a clean base, and the terminal surface was
@@ -317,7 +319,6 @@ Shared with sibling CLIs so the family feels like one tool.
 - **Degrade gracefully.** An unreachable host or absent config warns in yellow on **stderr** and
   continues. Keep stdout clean so `--json` stays parseable, and never collapse "reports clear"
   into "cannot see".
-- **Machines are addressed by Tailnet IP** (`100.x`) where one exists, not LAN IP.
 - **`.env` is gitignored and never committed.** Ship a `.env.example`.
 
 ## Feature workflow

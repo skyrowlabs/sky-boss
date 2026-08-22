@@ -212,7 +212,7 @@ tasks / windows / watchers / attention counters. This round is the remainder.
       `cli/tui/` and the textual dependency in this phase**, not before — the canvas has to be
       able to dispatch and show a result before the thing it replaces goes.
 - [x] **Phase 4 — the demo.** `jam pr list --json` end to end: structured table, chips that re-run
-      with flags, pin, cadence, manual refresh. Needs `cwd` pinned to `~/skyrow.labs/jam.sense` —
+      with flags, pin, cadence, manual refresh. Needs `cwd` pinned to `~/src/jam.sense` —
       jam's wrapper resolves its venv against cwd, so it is not runnable from anywhere despite
       being on PATH.
 - [x] **Phase 5 — window management.** Tiled and floating modes, drag, z-order on focus, close,
