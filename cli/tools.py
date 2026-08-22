@@ -57,7 +57,7 @@ class Tool:
     name: str
     argv: list[str]
     description: str = ""
-    every: int = 0
+    refresh: int = 0
     acts: bool = False
 
 
@@ -116,7 +116,7 @@ def parse(raw: dict, commands: dict[str, bool], registered: set[str]) -> tuple[l
                 name=name,
                 argv=argv,
                 description=str(body.get("description", "")),
-                every=int(body.get("every", 0)),
+                refresh=int(body.get("refresh", 0)),
                 acts=commands[argv[0]],
             )
         )
@@ -157,19 +157,24 @@ def _check(
             "put it behind `run` or `data`"
         )
 
-    every = body.get("every", 0)
-    if not isinstance(every, int) or isinstance(every, bool):
-        return "every must be an integer number of seconds"
-    if every and commands[argv[0]]:
+    if "every" in body:
+        # The field-side half of the same migration `RENAMED` handles for
+        # commands: one word for one number, `refresh`, flag and field alike.
+        return "'every' was renamed 'refresh' — edit the tool"
+
+    refresh = body.get("refresh", 0)
+    if not isinstance(refresh, int) or isinstance(refresh, bool):
+        return "refresh must be an integer number of seconds"
+    if refresh and commands[argv[0]]:
         # The same rule the canvas enforces by hiding the pin control: only a
         # read may be given a cadence, because re-running a read is a refresh
         # and re-running a write is a scheduler nobody asked for.
-        return f"every is not allowed on a tool that acts (`{argv[0]}` writes)"
-    if every not in INTERVALS:
+        return f"refresh is not allowed on a tool that acts (`{argv[0]}` writes)"
+    if refresh not in INTERVALS:
         # Not pedantry: the surface cycles the interval through this list, and
         # a window starting on a value outside it would jump to 0 on the first
         # click rather than to the next cadence up.
-        return f"every must be one of {', '.join(str(i) for i in INTERVALS)}"
+        return f"refresh must be one of {', '.join(str(i) for i in INTERVALS)}"
 
     return None
 
@@ -233,7 +238,7 @@ def make_command(tool: Tool) -> click.Command:
     # A property on the command, so the catalog reads it the way it reads
     # `tb_surface` rather than by consulting a list of names.
     command.tb_saved = True
-    command.tb_every = tool.every
+    command.tb_refresh = tool.refresh
     command.tb_argv = tuple(tool.argv)
     # Inherited, never declared. The catalog reads this rather than the command
     # path, because the path of `tb deploy-thing` says nothing about the `run`
@@ -276,7 +281,7 @@ def tools() -> Result:
             "description": command.short_help or "",
             "runs": " ".join(("tb", *_argv_of(command))),
             "acts": getattr(command, "tb_acts", False),
-            "every": getattr(command, "tb_every", 0),
+            "refresh": getattr(command, "tb_refresh", 0),
         }
         for name, command in sorted(root.commands.items())
         if getattr(command, "tb_saved", False)

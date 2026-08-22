@@ -96,7 +96,7 @@ def walk(command: click.Command, path: tuple[str, ...] = ()) -> list[dict]:
             "saved": getattr(command, "tb_saved", False),
             # A saved command may declare the cadence it wants to open on.
             # Zero for everything else, which is what a window starts at now.
-            "every": getattr(command, "tb_every", 0),
+            "refresh": getattr(command, "tb_refresh", 0),
         }
     ]
 

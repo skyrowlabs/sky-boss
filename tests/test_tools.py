@@ -28,7 +28,7 @@ GOOD = {
         "prs": {
             "description": "open PRs",
             "argv": ["data", "--", "somecli", "list", "--json"],
-            "every": 30,
+            "refresh": 30,
         }
     }
 }
@@ -42,7 +42,7 @@ def test_a_declared_tool_becomes_a_tool():
     tools, problems = one(GOOD)
     assert problems == []
     assert tools[0].name == "prs"
-    assert tools[0].every == 30
+    assert tools[0].refresh == 30
     assert tools[0].description == "open PRs"
 
 
@@ -123,28 +123,37 @@ def test_a_name_that_is_not_a_command_word_is_refused(name):
 def test_a_tool_that_acts_may_not_carry_a_cadence():
     """The same rule the canvas enforces by hiding the pin control. Re-running
     a read is a refresh; re-running a write is a scheduler nobody asked for."""
-    tools, problems = one({"tool": {"r": {"argv": ["run", "--", "x"], "every": 30}}})
+    tools, problems = one({"tool": {"r": {"argv": ["run", "--", "x"], "refresh": 30}}})
     assert tools == []
     assert "not allowed on a tool that acts" in problems[0]
 
 
 def test_a_tool_that_acts_is_fine_without_one():
     tools, problems = one({"tool": {"r": {"argv": ["run", "--", "x"]}}})
-    assert problems == [] and tools[0].every == 0
+    assert problems == [] and tools[0].refresh == 0
 
 
 def test_a_cadence_outside_the_surfaces_list_is_refused():
     """The surface cycles the interval through a fixed list. A window starting
     on a value outside it jumps to 0 on the first click rather than to the next
     cadence up."""
-    _, problems = one({"tool": {"x": {"argv": ["data", "--", "y"], "every": 45}}})
-    assert "every must be one of" in problems[0]
+    _, problems = one({"tool": {"x": {"argv": ["data", "--", "y"], "refresh": 45}}})
+    assert "refresh must be one of" in problems[0]
 
 
 def test_a_boolean_is_not_a_cadence():
     """`True` is an int in Python and would otherwise pass as one second."""
-    _, problems = one({"tool": {"x": {"argv": ["data", "--", "y"], "every": True}}})
+    _, problems = one({"tool": {"x": {"argv": ["data", "--", "y"], "refresh": True}}})
     assert "integer number of seconds" in problems[0]
+
+
+def test_a_tool_still_saying_every_fails_loudly_by_name():
+    """The field-side half of the rename migration. `every` must not be
+    silently ignored as an unknown field — the tool would load and open at
+    cadence 0, which is the 'wrong but looks right' failure."""
+    tools, problems = one({"tool": {"x": {"argv": ["data", "--", "y"], "every": 30}}})
+    assert tools == []
+    assert "renamed" in problems[0] and "refresh" in problems[0]
 
 
 # ------------------------------------------------------------ degrading well
@@ -338,5 +347,5 @@ def test_the_example_demonstrates_both_sides_of_the_read_write_split():
     with EXAMPLE.open("rb") as handle:
         tools, _ = parse(tomllib.load(handle), COMMANDS, REGISTERED)
     by_name = {t.name: t for t in tools}
-    assert by_name["disk"].acts is True and by_name["disk"].every == 0
-    assert by_name["prs"].acts is False and by_name["prs"].every == 30
+    assert by_name["disk"].acts is True and by_name["disk"].refresh == 0
+    assert by_name["prs"].acts is False and by_name["prs"].refresh == 30

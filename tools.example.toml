@@ -31,7 +31,7 @@ argv = ["data", "--cwd", "/path/to/your/checkout",
 # Seconds between refreshes on the canvas. Only 0, 5, 30, 60 or 300 — the
 # surface cycles the interval through that list, and a window starting outside
 # it would jump to 0 on the first click instead of to the next cadence up.
-every = 30
+refresh = 30
 
 [tool.containers]
 description = "What is running"
@@ -39,9 +39,9 @@ description = "What is running"
 # warning on a shaped table names what it hid, so you know what to ask for.
 argv = ["data", "--cols", "Names,Image,Status",
         "--", "docker", "ps", "--format", "json"]
-every = 5
+refresh = 5
 
 [tool.disk]
 description = "What is left on this box"
-# This one acts, because `run` acts. No `every` is permitted on it.
+# This one acts, because `run` acts. No `refresh` is permitted on it.
 argv = ["run", "--", "df", "-h", "/"]
