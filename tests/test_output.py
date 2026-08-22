@@ -605,3 +605,61 @@ def test_columns_still_shrink_when_they_genuinely_do_not_fit(capsys):
     ]
     widths = _resolve_widths(columns, 20)
     assert sum(widths) <= 20
+
+
+# ============================================================================
+# Fitting columns to the width — [[table-views]] round 3
+# ============================================================================
+
+from cli.output import _render_value, fit_columns  # noqa: E402
+
+
+def _cols(*mins):
+    return [{"key": f"c{i}", "label": f"C{i}", "min": m} for i, m in enumerate(mins)]
+
+
+def test_every_column_fits_when_there_is_room():
+    """The operator's report: ten columns whose floors summed to 98 in a
+    100-column terminal, eight drawn. Nothing may be dropped while it fits."""
+    kept, over = fit_columns(_cols(6, 8, 11, 8, 6, 6, 6, 14, 6, 9), 100)
+    assert len(kept) == 10 and over == []
+
+
+def test_the_tail_that_does_not_fit_is_dropped_and_named():
+    # 6 + 2 + 8 = 16 fits in 20; the third would need 16 + 2 + 11 = 29.
+    kept, over = fit_columns(_cols(6, 8, 11), 20)
+    assert [c["key"] for c in kept] == ["c0", "c1"]
+    assert over == ["c2"]
+
+
+def test_gutters_are_counted_against_the_width():
+    """Two columns of six in a width of twelve do not fit — the gutter between
+    them is real width and a fit that ignored it would overflow by exactly the
+    amount it forgot."""
+    kept, _ = fit_columns(_cols(6, 6), 12)
+    assert len(kept) == 1
+    kept, _ = fit_columns(_cols(6, 6), 14)
+    assert len(kept) == 2
+
+
+def test_the_first_column_is_kept_however_narrow_the_terminal():
+    """A table with no columns is worse than one that overflows — and an
+    overflow is at least something you can widen the terminal to read."""
+    kept, over = fit_columns(_cols(40, 40), 10)
+    assert [c["key"] for c in kept] == ["c0"] and over == ["c1"]
+
+
+def test_a_column_that_did_not_fit_is_reported_in_the_drawing(capsys):
+    """Not in the envelope: it is a fact about this drawing at this width, and
+    widening the terminal changes it. `hidden` stays the run's business."""
+    rows = [{"a": 1, "b": 2, "c": 3}]
+    # Floors wide enough that the second cannot fit beside the first in any
+    # console the suite runs under.
+    view = {"columns": _cols(50, 50, 50), "details": [], "hidden": []}
+    for column, key in zip(view["columns"], ("a", "b", "c")):
+        column["key"] = key
+    _render_value(rows, title=None, view=view)
+    out = capsys.readouterr().out
+    assert "2 columns did not fit: b, c" in out
+    # The envelope's own vocabulary stays out of the drawing's report.
+    assert "hidden" not in out

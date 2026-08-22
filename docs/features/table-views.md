@@ -266,10 +266,10 @@ machine consumer reads. Splitting them is what lets the warning finally mean som
 today it fires on a window with room to spare, which is the fastest way to teach someone to
 ignore a warning.
 
-- [ ] **`shape()` stops truncating.** `DEFAULT_BUDGET` and the `budget` parameter retire;
+- [x] **`shape()` stops truncating.** `DEFAULT_BUDGET` and the `budget` parameter retire;
       `hidden` means hidden-by-rule only. `tests/test_view.py` updated — the budget tests
       become fit tests against a declared width.
-- [ ] **The terminal fits to its console.** `_resolve_widths` in `cli/output.py` takes columns
+- [x] **The terminal fits to its console.** `_resolve_widths` in `cli/output.py` takes columns
       while floors fit, and `_render_view` prints `N columns not shown: …` in the dim style
       the row-truncation line already uses. Today floors that do not fit are used anyway and
       the table overflows sideways — that stays the *last* resort, for a single column too
@@ -280,7 +280,7 @@ ignore a warning.
       (`NUMBE…`, `IS_DRAF…`, `MERGE_STAT…` inside columns floored to fit them exactly): the
       terminal renders the same labels in full, so this is a canvas-side `ch`-rounding
       question, cause to confirm before fixing.
-- [ ] **The warning narrows.** `cli/data.py` warns only about rule-hidden columns. A window
+- [x] **The warning narrows.** `cli/data.py` warns only about rule-hidden columns. A window
       with room stops being told it is missing something.
 - [ ] **Docs.** Rule 7's reversal is already recorded above; Round 1's and Round 2's
       "still imperfect" notes get their dated resolution.

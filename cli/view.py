@@ -23,10 +23,12 @@ from __future__ import annotations
 
 import re
 
-# How many columns a shaped table may show before the rest are hidden and
-# named. Eight across a 100-column terminal is about twelve characters each,
-# which is tight but readable; past that every column is a stub.
-DEFAULT_BUDGET = 8
+# There is no column budget here. There was — a fixed count of eight — and it
+# hid the same two columns whether the window had room for them or not, because
+# a *count* cannot answer a question about *width* and nothing in this module
+# knows a width. Fitting is now each renderer's, against the width only it
+# knows; this module decides which columns are worth showing and in what order.
+# See [[table-views]] round 3.
 
 # A string column wider than this is prose — something you read once you have
 # found the row, not something you scan across rows.
@@ -221,7 +223,6 @@ def shape(
     cols: list[str] | None = None,
     drop: list[str] | None = None,
     enabled: bool = True,
-    budget: int = DEFAULT_BUDGET,
 ) -> dict | None:
     """Describe how to present these rows, or None if there is nothing to say.
 
@@ -229,6 +230,12 @@ def shape(
     was declined with `--no-shape`. The envelope omits the key entirely in that
     case, so an unshaped result is byte-identical to one from before this
     existed.
+
+    Every column worth showing is returned. **`hidden` means hidden by rule** —
+    empty in every row, an opaque identifier, or explicitly dropped — which is
+    a property of the *run*, true at any width and worth an envelope warning.
+    A column that does not fit is a property of the *drawing*, and each
+    renderer reports its own. See [[table-views]] round 3.
     """
     if not is_rows(data):
         return None
@@ -274,17 +281,5 @@ def shape(
     # it somewhere else in the row, it is to stop giving it a share.
     details = [_describe(key, rows) for key in kept if _is_prose(rows, key)]
     columns = [_describe(key, rows) for key in kept if not _is_prose(rows, key)]
-
-    # Rule 6 — anything past the budget is hidden, and *named*. A silently
-    # dropped column is the "looks right and isn't" failure: the table reads as
-    # complete when it is not.
-    #
-    # Details are exempt: they cost a line each rather than a share of the
-    # width, so they are not competing for the thing the budget rations. That
-    # is a real recovery — `next` was being hidden by the budget in Round 1 and
-    # is simply readable now.
-    if len(columns) > budget:
-        hidden.extend(column["key"] for column in columns[budget:])
-        columns = columns[:budget]
 
     return {"columns": columns, "details": details, "hidden": hidden}
