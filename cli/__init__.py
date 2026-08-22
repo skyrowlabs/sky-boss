@@ -1,4 +1,4 @@
-"""tackle-box CLI — homebase operator tool for workstation.
+"""toolbox CLI — homebase operator tool for workstation.
 
 This package implements the CLI as a collection of command group modules.
 
@@ -116,11 +116,11 @@ def get_version() -> str:
 
 @click.group(cls=Root)
 @rich_config(help_config=HELP_CONFIG)
-@click.version_option(version=get_version(), prog_name="tackle-box")
+@click.version_option(version=get_version(), prog_name="toolbox")
 @click.option("--json", "as_json", is_flag=True, help="Emit machine-readable JSON on stdout.")
 @click.pass_context
 def cli(ctx: click.Context, as_json: bool) -> None:
-    """tackle-box — homebase operator CLI for workstation.
+    """toolbox — homebase operator CLI for workstation.
 
     Deterministic scripts and agentic automations across the home network.
     """

@@ -150,7 +150,7 @@ operator a scrollbar and a search. No key bindings other than `q`, `Esc` and Ctr
       `--from json`; alias-import in `cli/__init__.py`; update CLAUDE.md's command table and the
       operator's `tools.toml` (one entry). The failed-to-load path proves the loud migration
       message.
-- [x] **`every` → `refresh`** in the [[toolbox]] loader and its validation messages; docs.
+- [x] **`every` → `refresh`** in the [[tools]] loader and its validation messages; docs.
 - [x] **`--refresh` on `read` and `data`.** Resident terminal loop over an injectable clock
       (tests assert the mechanism, not five real seconds); redraw in place; Ctrl-C; bare-flag
       uses the keyword default; refused together with `--json`. The running-since clock and
@@ -196,7 +196,7 @@ What the execution argued back:
 - **Bare `--refresh` on a keyword is Click's `flag_value` trick** (`is_flag=False,
   flag_value=0`), and the option is attached only to tools that observe — a tool that acts
   does not grow the flag at all, mirroring how `run` itself shows the split by absence.
-- **Five done docs needed the supersession line, not three.** [[toolbox]] and [[canvas]] also
+- **Five done docs needed the supersession line, not three.** [[tools]] and [[canvas]] also
   predate the rename and say `wrap`/`every` throughout; the spec had named only the three the
   operator asked about. Same treatment: key_files re-pointed, one dated Notes entry, prose
   untouched.

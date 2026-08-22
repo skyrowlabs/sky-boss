@@ -77,7 +77,7 @@ remains the scrollback of record. Same rule as every result here — no single w
 unbounded.
 
 **A read, and savable.** `follow` observes; a keyword whose argv starts with `follow` inherits
-that through the standard [[toolbox]] rule. ANSI is stripped, never interpreted, per
+that through the standard [[tools]] rule. ANSI is stripped, never interpreted, per
 [[text-reads]].
 
 **Does not do:**

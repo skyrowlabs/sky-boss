@@ -1,5 +1,5 @@
 #!/bin/bash
-# tackle-box CLI wrapper
+# toolbox CLI wrapper
 #
 # Usage: tb [command] [options]
 #

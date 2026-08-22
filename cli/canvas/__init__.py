@@ -88,7 +88,7 @@ def _launch_browser(binary: str, url: str, *, kiosk: bool, size: str | None) -> 
         "--no-default-browser-check",
         # So the window manager files it under its own name rather than
         # grouping it with every other Chromium window.
-        "--class=tackle-box",
+        "--class=toolbox",
     ]
     if kiosk:
         argv.append("--kiosk")
@@ -239,7 +239,7 @@ def ui(
         with contextlib.suppress(KeyboardInterrupt):
             shell.open_window(
                 url,
-                title="tackle-box",
+                title="toolbox",
                 width=width,
                 height=height,
                 on_closed=stop,

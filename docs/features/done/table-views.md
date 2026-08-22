@@ -191,7 +191,7 @@ change at all** — `app.js` already treats everything past the command name as 
   *in this feature*. `wrap --cols …` is typed per window and dies with it, which keeps the canvas's
   "nothing survives the last window" intact.
 
-  Persistence arrives from the other direction instead. [[toolbox]] gives the operator a
+  Persistence arrives from the other direction instead. [[tools]] gives the operator a
   `tools.toml`, and because a tool is simply a **tb argv**, a saved column set is already
   expressible without this feature growing a store of its own:
 
@@ -320,7 +320,7 @@ operator content directory again — the original line read "worth reopening onc
 operator content directory again — there is not one now, and re-introducing one for this would be
 the tail wagging the dog."
 
-That reasoning held and the conclusion still did not survive the afternoon, because [[toolbox]]
+That reasoning held and the conclusion still did not survive the afternoon, because [[tools]]
 turned up needing the same directory for its own reasons and got there first. The useful part is
 *why the reversal cost nothing*: a tool is a tb argv, and `--cols` is a flag on a tb command, so
 the moment tools existed, saved column sets existed too — with no view store, no second config

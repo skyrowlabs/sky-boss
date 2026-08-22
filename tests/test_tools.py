@@ -5,7 +5,7 @@ becoming a way around tb's own rules: a tool expands to a tb command and not a
 shell command, it inherits `acts` rather than declaring it, and it may only
 carry a cadence if it reads. The fourth — a builtin always wins — retired into
 structure in round 2: saved commands live behind the `tools` group, where
-`[tool.run]` collides with nothing. See [[toolbox]].
+`[tool.run]` collides with nothing. See [[tools]].
 
 Everything here drives `parse` directly. It is a pure function over a parsed
 dict, which is what makes the interesting half testable without a file.
