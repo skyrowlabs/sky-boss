@@ -45,6 +45,9 @@ replaced by a browser one the same day. What exists:
 | `tb ui` | Opens the canvas — a command palette over tiled and floating windows |
 | `tb tools <name>` | Runs a saved command; `tb -t <name>` is the short spelling. See [[tools]] |
 
+`tb` and `tb --help` open with the mark — `docs/design/cli-header.png` drawn in half-blocks, see
+[[header]]. It refuses to draw on a narrow or non-terminal surface rather than wrapping.
+
 **Check before you describe.** This is young and moving, and it just lost most of its surface area.
 When asked about a command or module, confirm it exists rather than inferring it from this
 document, and correct the document when it has fallen behind.
@@ -298,6 +301,13 @@ Shared with sibling CLIs so the family feels like one tool.
   what the design system calls it — and a test asserts that every hue the CLI darkens ships to the
   canvas undarkened. The contrast floor is measured rather than eyeballed: two grey roles missed it
   by a hair while looking perfectly fine.
+
+  **The mark is the one thing outside that floor**, and the escape clause is the canvas's own:
+  it *paints its own background*, so it takes the tokens at full strength. Not a convenience —
+  its hues fail in opposite directions (the light handle on white, the dark slate on black), so
+  no pair of darkened values exists. It lives outside `STYLES` for exactly that reason and a test
+  says so, because darkening it back is the tidy-looking change that dims a brand mark for no
+  reader. See [[header]].
 
   A test fails if any file outside `theme.py` names a hex, **in any language** — the scan covers
   `.py`, `.css` and `.js`, because the surface now has all three and a stylesheet is the most

@@ -70,6 +70,30 @@ DANGER = "#f4665b"  # --danger
 BORDER = TEXT_3
 
 # ============================================================================
+# The mark
+# ============================================================================
+#
+# `docs/design/cli-header.png` drawn in half-blocks — see cli/banner.py. These
+# are the design system's own values, undarkened, and that is deliberate: the
+# mark **paints its own background**, so it is in the same position the canvas
+# is in rather than the CLI's. The derivations below exist because tb prints
+# into a terminal whose background nobody here knows; a painted panel removes
+# the unknown.
+#
+# It is also the only answer available. The mark's hues fail in *opposite*
+# directions — the light handle disappears on white, the dark slate disappears
+# on black — so there is no single colour a two-sided floor could accept for
+# either. Darkening them to satisfy a rule they are outside of would dim the
+# brand mark and still not make it legible on both.
+#
+# `SURFACE_2` rather than `BG` because that is what the PNG uses (#13171c is
+# the inset-well token, not the void).
+LOGO_BG = SURFACE_2
+LOGO_BRAND = BRAND
+LOGO_DARK = TEXT_3
+LOGO_LIGHT = TEXT
+
+# ============================================================================
 # CLI-safe derivations
 # ============================================================================
 #
