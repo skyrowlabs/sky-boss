@@ -1,9 +1,15 @@
 ---
-status: active
+status: complete
 created: 2026-08-21
 updated: 2026-08-21
-agent_value: 2
-key_files: []
+agent_value: 3
+key_files:
+  - cli/chrome.py
+  - cli/resident.py
+  - cli/canvas/server.py
+  - cli/canvas/static/app.js
+  - tests/test_chrome.py
+  - tests/test_canvas_stream.py
 ---
 
 # Chrome — what a window knows about its output
@@ -95,7 +101,7 @@ untouched by this feature existing, byte for byte.
       attention state; no real time anywhere.
 - [x] **The terminal rendering.** Status lines for the one-time and resident forms; [[refresh]]'s
       resident loop renders through it from birth rather than growing its own.
-- [ ] **The canvas rendering.** Title-bar and footer band from the same facts; the existing
+- [x] **The canvas rendering.** Title-bar and footer band from the same facts; the existing
       progress bar re-pointed at the contract's `interval`/`last_run` unchanged in behavior.
 - [x] **The envelope boundary test.** An envelope produced with chrome active is byte-identical
       to one produced before this feature existed.
@@ -111,3 +117,25 @@ ways. Consolidated here *before* divergence — the cheapest moment — on the s
 put the view heuristic in Python and the palette in one file. Build order places this right
 after [[refresh]], which creates the first resident terminal rendering to hang it on;
 [[follow]] and [[file-follow]] then render through it rather than migrating onto it.
+
+### Round 1 — executed (2026-08-21)
+
+The first two phases were pulled *inside* [[refresh]]'s execution, between its renames and its
+`--refresh` phase, so the resident loop rendered through `status_lines` from birth. What the
+execution argued back:
+
+- **The transport was already the right seam.** The canvas never shipped bare envelopes — the
+  runner's `Run.to_dict()` wraps one — so `chrome` attaches beside `envelope` in the frame and
+  the run response, and the envelope inside stays byte-identical without any migration. The
+  boundary test pins the envelope's exact key order instead of asserting a negative.
+- **The watcher's monotonic clock never ships.** `last_run` in the contract is stamped in epoch
+  seconds at result time — the same moment the page stamped `ranAt` before — because a
+  monotonic reading means nothing to another process. The bar reads the contract's number with
+  identical behavior, falling back to the local stamp for a window that has not heard from the
+  server yet.
+- **`acts` comes through the catalog at assembly time**, never from `argv[0] == "run"` alone —
+  a saved tool's first word is its own name, and the catalog is the one place that knows what
+  it expands to. Same inheritance rule as the cadence control, applied a third time.
+- The cursor constructor takes the *loop's* state verbatim and refuses any word outside its
+  vocabulary — chrome carries verdicts, it never re-derives them, and the ValueError is what
+  keeps a future caller from inventing a tenth attention word without meeting this doc first.

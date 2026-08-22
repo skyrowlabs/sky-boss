@@ -373,8 +373,14 @@ function Palette({ commands, query, setQuery, selected, setSelected, open, float
  * throttled scheduler would be a silent one.
  */
 function progressOf(win, now) {
-  if (!win.pinned || !win.interval || !win.ranAt || win.running) return null;
-  const elapsed = (now - win.ranAt) / 1000;
+  /* Re-pointed at the chrome contract's last_run (epoch seconds, stamped at
+   * result time in Python) when a result has one; the local stamp remains the
+   * fallback for a window that has not heard from the server yet. Same
+   * numbers, same behavior — the deciding half just lives where pytest is. */
+  const chrome = win.result && win.result.chrome;
+  const since = chrome && chrome.last_run ? chrome.last_run * 1000 : win.ranAt;
+  if (!win.pinned || !win.interval || !since || win.running) return null;
+  const elapsed = (now - since) / 1000;
   const remaining = Math.max(0, Math.ceil(win.interval - elapsed));
   const percent = Math.min(100, Math.max(0, (elapsed / win.interval) * 100));
   return { remaining, percent };
@@ -382,7 +388,10 @@ function progressOf(win, now) {
 
 function Window({ win, now, layout, focused, actions, intervals }) {
   const age = win.ranAt ? Math.round((now - win.ranAt) / 1000) : null;
-  const failed = win.result && (win.result.error || win.result.ok === false);
+  const chrome = win.result && win.result.chrome;
+  const failed = chrome
+    ? chrome.attention === "failed" || chrome.attention === "dead"
+    : win.result && (win.result.error || win.result.ok === false);
   const countdown = progressOf(win, now);
 
   const style =
@@ -467,8 +476,13 @@ function Window({ win, now, layout, focused, actions, intervals }) {
 
       <div class="foot">
         <span>${summarise(win.result)}</span>
+        ${chrome && chrome.warnings > 0 &&
+        html`<span class="foot-warn">
+          ${chrome.warnings} warning${chrome.warnings === 1 ? "" : "s"}
+        </span>`}
         <div class="spacer"></div>
         <span class="hint">
+          ${chrome && chrome.attention ? `${chrome.attention} · ` : ""}
           ${win.result && win.result.duration_s !== undefined ? `${win.result.duration_s}s` : ""}
         </span>
       </div>
