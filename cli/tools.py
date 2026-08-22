@@ -222,13 +222,40 @@ def make_command(tool: Tool) -> click.Command:
 
     @click.command(name=tool.name, short_help=tool.description or _expansion(tool))
     @click.pass_context
-    def command(ctx: click.Context) -> None:
+    def command(ctx: click.Context, refresh: int | None = None) -> None:
         from cli import cli as root
 
+        args = list(tool.argv[1:])
+        if refresh is not None:
+            # Bare `--refresh` (Click hands over the flag_value, 0) adopts the
+            # tool's own field — the canvas default cadence, asked for
+            # explicitly. A keyword in the terminal still runs once unless
+            # the flag is given; residency is never ambient.
+            interval = tool.refresh if refresh == 0 else refresh
+            if interval <= 0:
+                raise click.UsageError(
+                    f"{tool.name} declares no refresh — give a value: --refresh 30"
+                )
+            args = ["--refresh", str(interval), *args]
+
         target = root.get_command(ctx, tool.argv[0])
-        sub_ctx = target.make_context(tool.name, list(tool.argv[1:]), parent=ctx.parent)
+        sub_ctx = target.make_context(tool.name, args, parent=ctx.parent)
         with sub_ctx:
             target.invoke(sub_ctx)
+
+    if not tool.acts:
+        # Only an observe may go resident; on a tool that acts the option
+        # does not exist at all, which keeps the act/observe split visible
+        # in `--help` exactly as it is on `run` itself.
+        command = click.option(
+            "--refresh",
+            is_flag=False,
+            flag_value=0,
+            default=None,
+            type=click.IntRange(min=0),
+            metavar="[SECONDS]",
+            help="Stay resident, re-running every N seconds (bare: the tool's own refresh).",
+        )(command)
 
     command.help = (
         f"{tool.description}\n\nA saved command. Runs:\n\n    {_expansion(tool)}"
