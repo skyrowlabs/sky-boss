@@ -30,7 +30,7 @@ import time
 import rich_click as click
 
 from cli.helpers import child_env
-from cli.output import Result, emit
+from cli.output import Result, band, emit
 
 # A 120k-line result kills a browser tab as dead as it killed a RichLog. The
 # substrate changed; the rule did not.
@@ -75,7 +75,69 @@ def read_(
     """
     if refresh is not None:
         _reside(argv, timeout, cwd, refresh)
+    ctx = click.get_current_context()
+    if not (ctx.find_root().obj or {}).get("as_json"):
+        # Live accrual: output shows while the process runs, exit stamps the
+        # status. A Job is a stream that ends — see [[follow]]. The envelope
+        # path below is untouched; under --json it is still built complete,
+        # once, at exit.
+        return _accrued(argv, timeout, cwd, source=f"{ctx.info_name} -- {shlex.join(argv)}")
     return _once(argv, timeout, cwd)
+
+
+def _accrued(
+    argv: tuple[str, ...], timeout: int | None, cwd: str | None, source: str
+) -> Result:
+    """The streaming human rendering: lines as they arrive on the stream they
+    arrived on, a chrome stamp on stderr at exit. stdout stays exactly the
+    lines the tool printed, so a pipe sees what it always saw."""
+    from cli import chrome as chrome_
+    from cli import stream as stream_
+
+    result = Result()
+    try:
+        outcome = stream_.accrue(list(argv), timeout=timeout, cwd=cwd, echo=_echo_line)
+    except FileNotFoundError:
+        result.ok = False
+        result.data = f"no such command: {argv[0]}"
+        return result
+
+    if outcome.timed_out:
+        result.ok = False
+        result.data = f"timed out after {timeout}s"
+        return result
+
+    result.ok = outcome.exit_code == 0
+    if outcome.truncated:
+        result.warn("output truncated in the envelope; the terminal has all of it")
+    if not result.ok:
+        result.warn(f"exited {outcome.exit_code} after {outcome.duration_s}s")
+
+    facts = chrome_.snapshot(
+        source,
+        ok=result.ok,
+        warnings=len(result.warnings),
+        ran_at=time.time(),
+        duration_s=outcome.duration_s,
+    )
+    _, bottom = chrome_.status_lines(facts, time.time(), width=min(80, output_width()))
+    band(bottom, chrome_.ROLE[facts.attention])
+    # The lines already reached the terminal; the envelope is not re-rendered.
+    result.data = None
+    return result
+
+
+def _echo_line(line) -> None:
+    """stdout lines to stdout, stderr lines to stderr — tagged, never merged
+    blind, per [[follow]]."""
+    text = strip_ansi(line.text)
+    click.echo(text, err=line.stderr)
+
+
+def output_width() -> int:
+    import shutil
+
+    return shutil.get_terminal_size((100, 24)).columns
 
 
 def _once(argv: tuple[str, ...], timeout: int | None, cwd: str | None) -> Result:

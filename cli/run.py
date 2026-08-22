@@ -22,7 +22,7 @@ import time
 import rich_click as click
 
 from cli.helpers import child_env
-from cli.output import Result, emit
+from cli.output import Result, band, emit
 
 
 @click.command()
@@ -38,7 +38,59 @@ def run(argv: tuple[str, ...], timeout: int | None, cwd: str | None) -> Result:
     Use `--` before any argv that has its own flags:
 
         tb run -- ls -la
+
+    In a terminal, output shows while the command runs — a ten-minute build
+    accrues instead of appearing all at once at exit. Under `--json` the
+    envelope is still emitted once, complete, at exit.
     """
+    ctx = click.get_current_context()
+    if not (ctx.find_root().obj or {}).get("as_json"):
+        # A Job is a stream that ends — see [[follow]]. The envelope path
+        # below is what --json and every machine consumer still get.
+        return _accrued(argv, timeout, cwd)
+    return _once(argv, timeout, cwd)
+
+
+def _accrued(argv: tuple[str, ...], timeout: int | None, cwd: str | None) -> Result:
+    """Stream the lines as they arrive; stamp the act on stderr at exit. The
+    stamp is chrome, so it never says a countdown — an act is stamped once."""
+    from cli import chrome as chrome_
+    from cli import stream as stream_
+    from cli.read import _echo_line, output_width
+
+    result = Result()
+    try:
+        outcome = stream_.accrue(list(argv), timeout=timeout, cwd=cwd, echo=_echo_line)
+    except FileNotFoundError:
+        result.ok = False
+        result.data = {"argv": list(argv), "error": f"no such command: {argv[0]}"}
+        return result
+
+    if outcome.timed_out:
+        result.ok = False
+        result.data = {"argv": list(argv), "error": f"timed out after {timeout}s",
+                       "duration_s": outcome.duration_s}
+        return result
+
+    result.ok = outcome.exit_code == 0
+    if outcome.stderr.strip() and result.ok:
+        result.warn("wrote to stderr")
+
+    facts = chrome_.act(
+        f"run -- {shlex.join(argv)}",
+        ok=result.ok,
+        warnings=len(result.warnings),
+        ran_at=time.time(),
+        duration_s=outcome.duration_s,
+    )
+    _, bottom = chrome_.status_lines(facts, time.time(), width=min(80, output_width()))
+    band(bottom, chrome_.ROLE[facts.attention])
+    # The lines already reached the terminal, on the streams they arrived on.
+    result.data = None
+    return result
+
+
+def _once(argv: tuple[str, ...], timeout: int | None, cwd: str | None) -> Result:
     result = Result()
     started = time.monotonic()
 

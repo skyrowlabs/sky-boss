@@ -97,6 +97,10 @@ def walk(command: click.Command, path: tuple[str, ...] = ()) -> list[dict]:
             # A saved command may declare the cadence it wants to open on.
             # Zero for everything else, which is what a window starts at now.
             "refresh": getattr(command, "tb_refresh", 0),
+            # Resident by nature: no cadence control at all — a stream is not
+            # refreshed, it is open. `follow` sets this; a saved command
+            # inherits it from its expansion like everything else.
+            "resident": getattr(command, "tb_resident", False),
         }
     ]
 

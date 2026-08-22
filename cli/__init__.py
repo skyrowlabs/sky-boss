@@ -114,6 +114,12 @@ cli.add_command(data_cmd)
 # a command a write. See [[text-reads]].
 cli.add_command(read_cmd)
 
+# One verb, two mechanisms: a path is the file cursor, anything else is the
+# process stream. Resident by nature, so it takes no cadence. See [[follow]].
+from cli.follow import follow as follow_cmd  # noqa: E402
+
+cli.add_command(follow_cmd)
+
 # A surface, not a verb. It renders the same envelope every command returns
 # rather than adding one of its own, which is why `tb run` stays the only door
 # that acts even with the canvas in front of it.

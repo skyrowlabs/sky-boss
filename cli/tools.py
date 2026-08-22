@@ -59,6 +59,7 @@ class Tool:
     description: str = ""
     refresh: int = 0
     acts: bool = False
+    resident: bool = False
 
 
 def home_file(home: Path | None = None) -> Path:
@@ -85,7 +86,12 @@ def read(home: Path | None = None) -> dict:
         return {"__error__": f"{path}: {exc}"}
 
 
-def parse(raw: dict, commands: dict[str, bool], registered: set[str]) -> tuple[list[Tool], list[str]]:
+def parse(
+    raw: dict,
+    commands: dict[str, bool],
+    registered: set[str],
+    resident: frozenset[str] = frozenset(),
+) -> tuple[list[Tool], list[str]]:
     """Validate declarations against the live tree. Pure — reads no file.
 
     `commands` maps a runnable tb command to whether it acts; `registered` is
@@ -105,7 +111,7 @@ def parse(raw: dict, commands: dict[str, bool], registered: set[str]) -> tuple[l
     seen: set[str] = set()
 
     for name, body in (raw.get("tool") or {}).items():
-        problem = _check(name, body, commands, registered, seen)
+        problem = _check(name, body, commands, registered, seen, resident)
         if problem:
             problems.append(f"tool {name!r}: {problem}")
             continue
@@ -118,6 +124,7 @@ def parse(raw: dict, commands: dict[str, bool], registered: set[str]) -> tuple[l
                 description=str(body.get("description", "")),
                 refresh=int(body.get("refresh", 0)),
                 acts=commands[argv[0]],
+                resident=argv[0] in resident,
             )
         )
 
@@ -125,7 +132,12 @@ def parse(raw: dict, commands: dict[str, bool], registered: set[str]) -> tuple[l
 
 
 def _check(
-    name: str, body, commands: dict[str, bool], registered: set[str], seen: set[str]
+    name: str,
+    body,
+    commands: dict[str, bool],
+    registered: set[str],
+    seen: set[str],
+    resident: frozenset[str] = frozenset(),
 ) -> str | None:
     """The reason this declaration is unusable, or None."""
     if not isinstance(body, dict):
@@ -165,6 +177,11 @@ def _check(
     refresh = body.get("refresh", 0)
     if not isinstance(refresh, int) or isinstance(refresh, bool):
         return "refresh must be an integer number of seconds"
+    if refresh and argv[0] in resident:
+        # A stream is not refreshed, it is open. Declaring a cadence on a
+        # follow would load fine and mean nothing — the "wrong but looks
+        # right" failure this loader exists to catch.
+        return f"refresh is not allowed on a follow (`{argv[0]}` is resident by nature)"
     if refresh and commands[argv[0]]:
         # The same rule the canvas enforces by hiding the pin control: only a
         # read may be given a cadence, because re-running a read is a refresh
@@ -187,10 +204,13 @@ def _expand(part: str) -> str:
 
 
 def load(
-    commands: dict[str, bool], registered: set[str], home: Path | None = None
+    commands: dict[str, bool],
+    registered: set[str],
+    home: Path | None = None,
+    resident: frozenset[str] = frozenset(),
 ) -> tuple[list[Tool], list[str]]:
     """Every declared tool, and every reason one was skipped."""
-    return parse(read(home), commands, registered)
+    return parse(read(home), commands, registered, resident)
 
 
 # ============================================================================
@@ -243,10 +263,15 @@ def make_command(tool: Tool) -> click.Command:
         with sub_ctx:
             target.invoke(sub_ctx)
 
-    if not tool.acts:
-        # Only an observe may go resident; on a tool that acts the option
-        # does not exist at all, which keeps the act/observe split visible
-        # in `--help` exactly as it is on `run` itself.
+    # A property on the command, inherited from the expansion like `acts` —
+    # the catalog reads it to withhold the cadence control from stream
+    # windows, saved or typed alike.
+    command.tb_resident = tool.resident
+
+    if not tool.acts and not tool.resident:
+        # Only a snapshot observe may take a cadence; on a tool that acts —
+        # or one that is resident by nature — the option does not exist at
+        # all, which keeps the split visible in `--help` as it is on `run`.
         command = click.option(
             "--refresh",
             is_flag=False,
@@ -283,8 +308,10 @@ def register(root: click.Group, home: Path | None = None) -> list[str]:
     list written down somewhere.
     """
     registered = set(root.commands)
-    commands = {entry["name"]: entry["acts"] for entry in walk(root)}
-    tools, problems = load(commands, registered, home)
+    entries = walk(root)
+    commands = {entry["name"]: entry["acts"] for entry in entries}
+    resident = frozenset(entry["name"] for entry in entries if entry.get("resident"))
+    tools, problems = load(commands, registered, home, resident)
     for tool in tools:
         root.add_command(make_command(tool))
     return problems
