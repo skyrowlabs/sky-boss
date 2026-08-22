@@ -145,7 +145,7 @@ runs `tb --json data --from … -- …` through the runner unchanged. No canvas 
 - [x] **The capture, pure.** `cli/capture.py` and `tests/test_capture.py`: matching, group
       naming, number shaping, blank-line skip, unmatched counting with sample, the
       nothing-matched verdict. No subprocess, no file I/O in the mechanism tests.
-- [ ] **The transform stage.** The `jq` field on any format: spawn the operator's binary
+- [x] **The transform stage.** The `jq` field on any format: spawn the operator's binary
       through `child_env()`, stdin in, parsed JSON out; jq's failure is a failed contract
       carrying its stderr; absent binary degrades loudly at use naming the format. Tests use
       the real `jq` where present and prove the degrade path by injected PATH.

@@ -112,3 +112,57 @@ def test_a_pathological_line_returns_in_bounded_time():
 def test_captured_is_a_value_the_caller_cannot_quietly_mutate():
     with pytest.raises(Exception):
         Captured([], 0, 0, None).total = 5
+
+
+# ============================================================================
+# The transform stage
+# ============================================================================
+
+import shutil  # noqa: E402
+
+from cli.capture import transform  # noqa: E402
+
+needs_jq = pytest.mark.skipif(shutil.which("jq") is None, reason="no jq on PATH")
+
+
+@needs_jq
+def test_the_transform_is_the_operators_own_jq():
+    data, error = transform([{"a": 1}, {"a": 2}], "{count: length}", "summary")
+    assert error is None
+    assert data == {"count": 2}
+
+
+@needs_jq
+def test_a_stream_of_values_becomes_a_list():
+    """The `.[]` idiom plainly means the elements, so a multi-value output is
+    a list rather than an error about not being one document."""
+    data, error = transform([1, 2, 3], ".[]", "each")
+    assert error is None
+    assert data == [1, 2, 3]
+
+
+@needs_jq
+def test_no_output_at_all_is_null_honestly():
+    data, error = transform([1], "empty", "nothing")
+    assert data is None and error is None
+
+
+@needs_jq
+def test_a_failing_program_is_a_failed_contract_carrying_jqs_own_stderr():
+    data, error = transform({"a": 1}, ".b | keys", "broken")
+    assert data is None
+    assert error.startswith("format 'broken':")
+    # jq's own words, not a paraphrase — the operator debugs the program with
+    # the message jq gave.
+    assert "null" in error
+
+
+def test_an_absent_jq_degrades_loudly_at_use_naming_the_format(monkeypatch, tmp_path):
+    """The environment is injected the same way the operator's is — through
+    child_env — so the test proves the degrade without uninstalling anything."""
+    import cli.capture as capture_mod
+
+    monkeypatch.setattr(capture_mod, "child_env", lambda: {"PATH": str(tmp_path)})
+    data, error = transform({}, ".", "pr-summary")
+    assert data is None
+    assert "jq is not on PATH" in error and "pr-summary" in error
