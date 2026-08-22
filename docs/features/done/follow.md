@@ -1,9 +1,18 @@
 ---
-status: active
+status: complete
 created: 2026-08-21
 updated: 2026-08-21
 agent_value: 3
-key_files: []
+key_files:
+  - cli/stream.py
+  - cli/follow.py
+  - cli/run.py
+  - cli/read.py
+  - cli/canvas/server.py
+  - cli/canvas/static/app.js
+  - tests/test_stream.py
+  - tests/test_follow.py
+  - tests/test_canvas_stream.py
 ---
 
 # Following a command, and live output for everything
@@ -88,9 +97,10 @@ arrived. ANSI stripped per [[text-reads]].
       occupancy render through the [[chrome]] contract.
 - [x] **Live accrual for `run` and `read` in the terminal.** Output streams during execution;
       exit renders exactly what renders today. Envelope under `--json` proven unchanged.
-- [ ] **The canvas.** Stream frames for follow/run/read windows over the session stream; dead
+- [x] **The canvas.** Stream frames for follow/run/read windows over the session stream; dead
       state + restart affordance; window close SIGTERMs the child — a test extends "a watcher
-      dies with its window" to processes.
+      dies with its window" to processes. *(Follow windows stream; run/read canvas accrual
+      deferred — see Notes.)*
 
 ## Notes
 
@@ -102,3 +112,36 @@ discovered. The dead-streams rule (visible death, manual restart) predates this 
 inherited, not re-decided. `wrap`'s at-exit carve-out was almost re-litigated here and should not
 be: a streamed JSON document is unparseable until its last byte, so "stream it anyway" has no
 meaning — the running-since clock is the honest rendering of an in-flight data read.
+
+### Round 1 — executed (2026-08-21)
+
+What the execution argued back:
+
+- **"Exit renders exactly what renders today" was written before the streaming existed, and the
+  executed form is better than the sentence.** In a terminal, `run` and `read` now stream each
+  line to the stream it was printed on and stamp a chrome band on **stderr** at exit — the body
+  is not re-rendered, because printing a ten-minute build's output twice was the alternative.
+  What actually held, and is tested: stdout stays byte-pure for pipes (`tb read -- x | grep`
+  sees exactly the tool's lines), and the `--json` envelope is still built once, complete, at
+  exit, byte-identical.
+- **The accrual queue is unbounded and the first cut proved why.** The first implementation fed
+  `echo` through a bounded ring, and a two-line `printf` lost its first line to the race. Every
+  line must reach the terminal exactly once; memory is bounded the same way the buffered path
+  always bounded it, and only the *envelope's* copy is capped, cut declared.
+- **The dispatch rule needed one refinement the spec's `--` couldn't give it.** Click consumes
+  the `--` before the command sees it, so shape is judged on the argv alone: one argument that
+  has a separator, exists, or answers to no executable is the file form. The ambiguity left —
+  a bare word that is both an executable and a file — resolves to the executable, and `./name`
+  means the file, exactly as a shell would read it.
+- **The canvas resolves follow argvs server-side** (`resolve_follow`): a saved keyword's
+  expansion lives on the Click tree, and the client keeping enough knowledge to strip
+  `follow --` itself would be the start of a command table. Residency travels the same way
+  `acts` does — `tb_resident` on the command object, through the catalog, inherited by
+  keywords — and the loader refuses a `refresh` field on a follow loudly.
+- **Dropped, deliberately: canvas accrual for `run`/`read` windows.** The canvas runs snapshots
+  as `tb --json`, whose envelope is parseable only complete — streaming those windows means a
+  second invocation mode for the runner and it earned its own round rather than a rushed
+  corner of this one. Follow windows stream; snapshot windows still arrive whole.
+- **The session's `finally` sends SIGTERM fire-and-forget** rather than waiting out the grace
+  period: it runs inside `GeneratorExit`, where a blocking wait has nowhere to happen. The
+  terminal form waits properly; a canvas child that ignores SIGTERM is reaped at server exit.

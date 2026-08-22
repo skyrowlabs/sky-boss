@@ -388,6 +388,16 @@ body {
  * wrapping folds a long row into what reads as two shorter ones with the
  * columns no longer lining up — worst on exactly the output `tb run` shows
  * most. It scrolls sideways instead, the way the table does. */
+/* A held-open stream's tail. The err tag is the stderr marker [[follow]]
+ * specs — one style today, a Rule's tint tomorrow. */
+pre.stream { margin: 0; }
+pre.stream .err { color: var(--tb-warn); }
+.dead-band {
+  display: flex; align-items: center; gap: 2.5rem;
+  padding: 1.5rem 2.25rem; color: var(--tb-danger);
+  border-top: var(--hair) solid var(--tb-hair);
+}
+
 pre.raw {
   white-space: pre; color: var(--tb-text-2); font: inherit;
   min-width: min-content;

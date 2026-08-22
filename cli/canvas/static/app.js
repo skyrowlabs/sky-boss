@@ -386,9 +386,33 @@ function progressOf(win, now) {
   return { remaining, percent };
 }
 
+/* The tail of a held-open stream. Newest lines stay in view — a live log
+ * window showing anything but its tail is broken — and stderr lines carry
+ * the tag as a style, which is the tint a Rule will drive later. */
+function StreamBody({ win, actions }) {
+  const bodyRef = useRef(null);
+  useEffect(() => {
+    const node = bodyRef.current;
+    if (node) node.scrollTop = node.scrollHeight;
+  }, [win.streamLines]);
+  const dead = win.chrome && win.chrome.attention === "dead";
+  return html`
+    <div class="body" ref=${bodyRef}>
+      <pre class="raw stream">
+${win.streamLines.map((l) => html`<span class=${l.stderr ? "err" : ""}>${l.text + "\n"}</span>`)}</pre
+      >
+      ${dead &&
+      html`<div class="dead-band">
+        exited ${win.chrome.exit_code}
+        <button class="tbtn" onClick=${() => actions.refresh(win.id)}>restart</button>
+      </div>`}
+    </div>
+  `;
+}
+
 function Window({ win, now, layout, focused, actions, intervals }) {
   const age = win.ranAt ? Math.round((now - win.ranAt) / 1000) : null;
-  const chrome = win.result && win.result.chrome;
+  const chrome = (win.result && win.result.chrome) || win.chrome;
   const failed = chrome
     ? chrome.attention === "failed" || chrome.attention === "dead"
     : win.result && (win.result.error || win.result.ok === false);
@@ -410,7 +434,17 @@ function Window({ win, now, layout, focused, actions, intervals }) {
         <span class="num">#${win.num}</span>
         <span class="cmd">${win.label}</span>
         <span class=${`age ${failed ? "bad" : ""}`}>
-          ${win.running ? "running…" : age === null ? "" : `${age}s ago`}
+          ${win.stream
+            ? win.chrome && win.chrome.attention === "dead"
+              ? `dead · exited ${win.chrome.exit_code}`
+              : win.streamLines.length
+                ? "live"
+                : "starting…"
+            : win.running
+              ? "running…"
+              : age === null
+                ? ""
+                : `${age}s ago`}
         </span>
         <div class="spacer"></div>
         ${win.tags.map(
@@ -420,6 +454,7 @@ function Window({ win, now, layout, focused, actions, intervals }) {
         )}
         <span class="addtag" onClick=${() => actions.tag(win.id)}>＋tag</span>
         ${!win.acts &&
+        !win.stream &&
         html`
           <button class=${`tbtn ${win.pinned ? "on" : ""}`} onClick=${() => actions.pin(win.id)}>
             ${win.pinned ? "PINNED" : "PIN"}
@@ -472,10 +507,16 @@ function Window({ win, now, layout, focused, actions, intervals }) {
         </div>
       `}
 
-      <div class="body"><${Body} result=${win.result} /></div>
+      ${win.stream
+        ? html`<${StreamBody} win=${win} actions=${actions} />`
+        : html`<div class="body"><${Body} result=${win.result} /></div>`}
 
       <div class="foot">
-        <span>${summarise(win.result)}</span>
+        <span>
+          ${win.stream
+            ? `showing last ${win.streamLines.length}`
+            : summarise(win.result)}
+        </span>
         ${chrome && chrome.warnings > 0 &&
         html`<span class="foot-warn">
           ${chrome.warnings} warning${chrome.warnings === 1 ? "" : "s"}
@@ -538,9 +579,22 @@ function App() {
            * saying PINNED, never refreshing again. */
           for (const win of windowsRef.current) {
             if (win.pinned) api.watch(frame.session, win.id, argvOf(win), win.interval);
+            /* A follow window's child died with the old session; a reconnect
+             * spawns a fresh one, which is the honest reading of "nothing
+             * survives the last window". */
+            if (win.stream) api.follow(frame.session, win.id, argvOf(win));
           }
         } else if (frame.type === "reload") {
           applyReload(frame.files);
+        } else if (frame.type === "stream") {
+          setWindows((all) =>
+            all.map((w) => {
+              if (w.id !== frame.window) return w;
+              const limit = (frame.chrome && frame.chrome.ring_limit) || 200;
+              const lines = [...(w.streamLines || []), ...frame.lines].slice(-limit);
+              return { ...w, streamLines: lines, chrome: frame.chrome, running: false };
+            })
+          );
         } else if (frame.type === "run") {
           setWindows((all) =>
             all.map((w) =>
@@ -569,7 +623,30 @@ function App() {
     return () => document.removeEventListener("keydown", onKey);
   }, []);
 
-  function execute(id, argv) {
+  function execute(id, argv, stream = null) {
+    /* `stream` is passed explicitly from open(), because the state update
+     * that adds the window has not landed in windowsRef yet on the very
+     * first execute. Everywhere else the window is looked up. */
+    const win = windowsRef.current.find((w) => w.id === id);
+    if (stream === null) stream = Boolean(win && win.stream);
+    if (stream) {
+      /* Streams are held open by the server, not run to completion. This is
+       * also the restart affordance: re-POSTing kills the corpse and spawns
+       * fresh, so the ⟳ button means "again" for a stream too. */
+      setWindows((all) =>
+        all.map((w) => (w.id === id ? { ...w, streamLines: [], running: true } : w))
+      );
+      if (sessionRef.current) {
+        api.follow(sessionRef.current, id, argv).catch((error) =>
+          setWindows((all) =>
+            all.map((w) =>
+              w.id === id ? { ...w, result: { error: String(error) }, running: false } : w
+            )
+          )
+        );
+      }
+      return;
+    }
     setWindows((all) => all.map((w) => (w.id === id ? { ...w, running: true } : w)));
     api
       .run(argv)
@@ -609,6 +686,11 @@ function App() {
       argv: [...entry.argv, ...extra],
       label: entry.raw ? entry.rawWords.join(" ") : [...entry.argv, ...extra].join(" "),
       acts: entry.acts,
+      /* Resident by nature — a stream is held open, not run. Inherited from
+       * the catalog, so a saved keyword wrapping follow is one too. */
+      stream: Boolean(entry.resident),
+      streamLines: [],
+      chrome: null,
       raw: Boolean(entry.raw),
       rawWords: entry.rawWords || null,
       cwd: entry.cwd || null,
@@ -638,7 +720,7 @@ function App() {
     setSelected(0);
     setFloating(false);
     setFocus(id);
-    execute(id, argvOf(win));
+    execute(id, argvOf(win), win.stream);
     /* Registered now rather than on the next session frame, so a tool that
      * opens pinned starts its clock immediately instead of on the next tick. */
     if (win.pinned) reWatch(win);
@@ -660,7 +742,14 @@ function App() {
       if (layout === FLOAT) patch(id, () => ({ z: ++zTop.current }));
     },
     close: (id) => {
-      if (sessionRef.current) api.unwatch(sessionRef.current, id);
+      const win = windowsRef.current.find((w) => w.id === id);
+      if (sessionRef.current) {
+        api.unwatch(sessionRef.current, id);
+        /* Closing a follow's window SIGTERMs its process — streams die with
+         * their window, which is what keeps a follow a stream and not a
+         * service manager. */
+        if (win && win.stream) api.unfollow(sessionRef.current, id);
+      }
       setWindows((all) => all.filter((w) => w.id !== id));
     },
     refresh: (id) => {
