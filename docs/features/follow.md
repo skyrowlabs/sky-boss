@@ -1,5 +1,5 @@
 ---
-status: draft
+status: active
 created: 2026-08-21
 updated: 2026-08-21
 agent_value: 3
@@ -77,16 +77,16 @@ arrived. ANSI stripped per [[text-reads]].
 
 ### Round 1 — the streaming runner and the follow command (2026-08-21)
 
-- [ ] **The runner.** Async line-streaming subprocess execution (extending `cli/canvas/runner.py`
+- [x] **The runner.** Async line-streaming subprocess execution (extending `cli/canvas/runner.py`
       or a shared module it and the CLI both use): bounded ring, stderr tagging, cancellation
       that kills the process. Tests: bounded waits only, a hung child is killable, the ring
       bounds memory, no real sleeps — drive with injected pipes.
-- [ ] **`tb follow` in the terminal.** Resident, ring + last-line clock, dead state with exit
+- [x] **`tb follow` in the terminal.** Resident, ring + last-line clock, dead state with exit
       code, Ctrl-C leaves (and kills). Registered as an observe; keywords with
       `argv[0] == "follow"` inherit it. Full `--help` stating the contract with a runnable
       example — the [[refresh]] help test enforces it from birth. Clock, dead state and ring
       occupancy render through the [[chrome]] contract.
-- [ ] **Live accrual for `run` and `read` in the terminal.** Output streams during execution;
+- [x] **Live accrual for `run` and `read` in the terminal.** Output streams during execution;
       exit renders exactly what renders today. Envelope under `--json` proven unchanged.
 - [ ] **The canvas.** Stream frames for follow/run/read windows over the session stream; dead
       state + restart affordance; window close SIGTERMs the child — a test extends "a watcher

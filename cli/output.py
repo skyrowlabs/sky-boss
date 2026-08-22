@@ -709,6 +709,16 @@ def _cell(value: Any) -> str:
 # ============================================================================
 
 
+def band(text: str, style: str) -> None:
+    """One chrome band line, on stderr through whichever console owns it.
+
+    stderr, deliberately: a band is status, not payload. `tb read -- x | grep`
+    must see exactly the lines the tool printed, the same purity rule that
+    keeps warnings off stdout. See [[chrome]].
+    """
+    _err().print(Text(text, style=style), highlight=False)
+
+
 def exit_code(result: Result) -> int:
     """Map a result onto its process exit code."""
     if not result.ok:
