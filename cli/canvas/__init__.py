@@ -32,8 +32,8 @@ from cli.canvas.server import Canvas, build
 from cli.helpers import STATE_DIR
 from cli.output import Result, emit
 
-# In preference order, for `--browser`. All four are on workstation; the first
-# three take `--app`, which is the whole reason this is not `webbrowser.open`.
+# In preference order, for `--browser`. The first three take `--app`, which is
+# the whole reason this is not `webbrowser.open`.
 BROWSERS = ("chromium", "google-chrome-stable", "google-chrome", "brave")
 
 # A profile of the canvas's own, for `--browser`. Window geometry persists

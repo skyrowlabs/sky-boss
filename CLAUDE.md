@@ -11,14 +11,22 @@ absent and nothing here depends on it.
 **toolbox** is the homebase kit for a primary workstation and the machines around it, behind one
 operator CLI: `tb`.
 
-**It was called `tackle-box` until 2026-08-22**; the repo is now `skyrowlabs/toolbox` and the
-checkout is `~/src/toolbox`. Docs under `docs/features/done/` still say tackle-box where
-they were describing something at the time — **dated, never scrubbed**, the same rule that leaves
-`wrap` in the docs written before it became `data`. Two things kept the old name on purpose: the
-design mockups (`docs/design/tackle-box-demo.html`, `Tackle Box Surface.dc.html`), which are
-artifacts with their own names, and nothing else. The saved-commands doc changed slug in the same
-pass — `[[toolbox]]` is now **[[tools]]**, because the word now names the repo and the doc
-documents `tb tools`.
+**It was called `tackle-box` until 2026-08-22.** The name is gone from the working tree — code,
+docs, mockups and their filenames — because it would otherwise read as a second project. Git
+history keeps it, deliberately: rewriting history to chase a rename is a cost with no reader.
+
+**This is a machine-neutral repo, as of the 2026-08-22 pass.** Nothing tracked here names a host,
+a distro, a desktop environment, or a window-manager rule — the mechanisms are documented, the
+machine that hit them is not. That is not squeamishness: it is the same rule as `$TB_HOME`.
+Operator content used to live in this repo and carried a tailnet address into every commit, so
+the tool could not be published without publishing the operator. Machine-specific context belongs
+in `CLAUDE.local.md`, which is gitignored. **A host name in a tracked file is a bug to fix, not
+context to preserve.**
+
+**Operator *paths* are a known exception and are still here.** Feature docs use
+`~/src/jam.sense` as their worked example throughout, because the concrete case is what
+makes those arguments good, and genericising them costs the evidence. That is the next
+publication scrub, deliberately deferred — not an oversight to fix piecemeal.
 
 **It is young.** On 2026-08-20 the job layer, the asset register, the check suite and the watch
 system were removed to design that half over from a clean base, and the terminal surface was
@@ -87,7 +95,7 @@ window and a pinned window re-runs itself on a cadence, with the operator's save
 the left. It is a consumer of the output contract,
 not a second CLI. It replaced `tb tui` on 2026-08-20 — the terminal could not do overlapping
 draggable windows, which is the central metaphor. `docs/features/done/canvas.md` records the whole
-design, and `docs/design/tackle-box-demo.html` is the mockup it was built from.
+design, and `docs/design/toolbox-demo.html` is the mockup it was built from.
 
 The rules that are not negotiable:
 
@@ -130,10 +138,11 @@ The rules that are not negotiable:
   asked for are impossible in a browser: a frameless window that is still resizable, a page that
   moves its own window, and no port exposed to any other tab. `--browser` and `--no-browser` keep
   the old paths, and `--no-browser` is still the mode to develop in.
-- **`frameless=True` is requested and refused on KDE.** GTK reports `DECORATED = False` and KWin
-  draws a title bar anyway. Removing it is a window-manager rule matched on `WM_CLASS`, which is
-  why the shell sets one — and **nothing here writes that rule.** A desktop is the operator's.
-  The README carries the durable form.
+- **`frameless=True` is a request, and a window manager may refuse it.** GTK reports
+  `DECORATED = False` and the window manager can still draw a title bar — measured, not assumed.
+  Removing it is a window-manager rule matched on `WM_CLASS`, which is why the shell sets one
+  (`toolbox`) — and **nothing here writes that rule.** A desktop belongs to whoever runs it, the
+  spelling differs per environment, and a tool that edited one would be reaching outside itself.
 - **Drag is not `pywebview-drag-region`.** That is a Cocoa and Windows feature; the GTK backend has
   no drag regions at all, only `easy_drag`, which makes the whole page a handle and would mean
   dragging a window inside the canvas also drags the canvas. The bar calls
@@ -183,11 +192,11 @@ child's cwd, 112 tests failing from a tmp dir. Read the wrapper's comments befor
   every command with no per-command boilerplate.
 - **Shell completion:** for fish, `_TB_COMPLETE=fish_source tb > ~/.config/fish/completions/tb.fish`.
 
-**If your login shell is fish**, note that a fish *function* shadows PATH. CachyOS's packaged fish
-config defines `alias tb='nc termbin.com 9999'`, which resolves ahead of this CLI. That file is
-package-owned and reverts on update, so the fix is an override in `~/.config/fish/config.fish`:
-`functions --query tb; and functions --erase tb`. If `tb` ever stops resolving after a
-`cachyos-fish-config` update, check there first.
+**If your login shell is fish**, note that a fish *function* resolves ahead of PATH. A
+distro-packaged fish config that defines a `tb` alias will therefore shadow this CLI, and because
+that file is package-owned it comes back on update. The fix is an override in
+`~/.config/fish/config.fish`: `functions --query tb; and functions --erase tb`. If `tb` ever stops
+resolving after a system update, check there first.
 
 ### Where things live
 

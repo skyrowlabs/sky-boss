@@ -117,8 +117,8 @@ STYLES: dict[str, str] = {
 def css_variables() -> dict[str, str]:
     """The tokens the canvas's stylesheet reads, as CSS custom properties.
 
-    The same move `TackleBox.get_css_variables` made for Textual, for the same
-    reason: the stylesheet has to live in a file a browser can reload, and a
+    The same move the removed Textual app made for its own stylesheet, for the
+    same reason: the stylesheet has to live in a file a browser can reload, and a
     file outside this module may not name a colour. So it names roles and this
     hands it the values.
 

@@ -44,26 +44,14 @@ the surface's own top bar — none of which a browser can do, since no web API l
 own window. `--browser` opens it in Chromium instead and `--no-browser` serves only, which is the
 mode to develop in.
 
-**On KDE the title bar comes back anyway.** GTK asks for no decorations and KWin draws one
-regardless. Right-click the title bar → *More Actions* → *No Border* hides it for that window
-only; to make it stick, add a rule matched on the window class:
+**Your window manager may draw a title bar anyway.** Frameless is a *request* — GTK reports the
+window as undecorated and some window managers decorate it regardless. Stripping the frame while
+keeping the window resizable is the window manager's job, done with a rule matched on the window
+class, which is `toolbox`.
 
-```ini
-# ~/.config/kwinrulesrc
-[General]
-rules=toolbox
-
-[toolbox]
-Description=toolbox
-noborder=true
-noborderrule=2
-wmclass=toolbox
-wmclasscomplete=false
-wmclassmatch=1
-```
-
-Then `qdbus6 org.kde.KWin /KWin reconfigure`. The surface carries its own close button, so removing
-the frame does not strand you.
+**Writing that rule is yours.** A desktop belongs to whoever runs it, so nothing here edits a
+window-manager config, and the spelling differs per environment. The surface carries its own close
+button, so removing the frame does not strand you.
 
 The server binds loopback on an ephemeral port and dies with the window. It runs commands, so it
 requires a per-launch token in a custom header — which also forces a CORS preflight that is never
@@ -86,9 +74,10 @@ Fish completions, if you use fish:
 _TB_COMPLETE=fish_source tb > ~/.config/fish/completions/tb.fish
 ```
 
-> **fish users on CachyOS:** the shipped fish config defines `alias tb='nc termbin.com 9999'`,
-> and a fish function shadows PATH. Add `functions --query tb; and functions --erase tb` to
-> `~/.config/fish/config.fish`.
+> **fish users:** a fish *function* resolves ahead of PATH, so a distro-packaged fish config that
+> defines a `tb` alias will shadow this CLI. If `tb` runs something unexpected, check with
+> `functions --query tb`, and erase it in `~/.config/fish/config.fish`:
+> `functions --query tb; and functions --erase tb`.
 
 ## The contract
 

@@ -333,7 +333,7 @@ body {
 
 /* A shaped table is flex rather than table layout, because what the view
  * carries is a *proportional* width and `display: table` has no way to spend
- * one. This is the mockup's own model — `Tackle Box Surface.dc.html` sizes
+ * one. This is the mockup's own model — `Toolbox Surface.dc.html` sizes
  * every cell with `flex` and clips it with an ellipsis — and it is the reason
  * a character count was rejected: a window is draggable, so it has no fixed
  * width for one to mean anything against. The floor arrives as `ch`, which

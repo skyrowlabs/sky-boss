@@ -40,7 +40,7 @@ Neither of those is a fact about tb. They are facts about *this operator's machi
 and there is nowhere to put them. So they get retyped, or more realistically they get retyped
 wrong and the window comes back with fourteen columns again.
 
-The wireframe already has the answer drawn: `Tackle Box Surface.dc.html` carries a 184px sidebar
+The wireframe already has the answer drawn: `Toolbox Surface.dc.html` carries a 184px sidebar
 headed **TOOLBOX**, with a footer reading `tb <tool>`. The sidebar is empty — a `flex:1` spacer
 between a header and a footer. This is the feature that fills it, and the footer is the whole
 specification in three words: **a saved command is invocable as `tb <name>`.**
@@ -444,7 +444,7 @@ as the `every`-field rename in [[refresh]] round 1, which is the precedent for i
 
 ### 2026-08-22 — the slug moved, the name did not
 
-The repo was renamed tackle-box → toolbox, which put the project and this doc on the same word.
+The repo took the name **toolbox**, which put the project and this doc on the same word.
 The doc took the new slug `[[tools]]` rather than the project taking a different one: it documents
 `tb tools`, which is where round 2 put saved commands anyway, so the slug now matches the command
 instead of matching the concept's nickname. Nothing in the prose was scrubbed — "the toolbox" is

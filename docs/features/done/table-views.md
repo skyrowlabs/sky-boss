@@ -145,7 +145,7 @@ Ordered, each applied to the whole row set rather than to one row:
    Rich folds by default, and a folded 78-char title makes a one-row table twelve rows tall.
 
    `flex` rather than `clip` because **a character count is not portable across the two
-   renderers.** `Tackle Box Surface.dc.html` settles this: every cell there is
+   renderers.** `Toolbox Surface.dc.html` settles this: every cell there is
    `nowrap; overflow:hidden; text-overflow:ellipsis` inside a `flex:{{ c.flex }}` span, so the
    canvas gets clipping free from CSS at whatever width the window happens to be — and a window is
    draggable, so it has no fixed width to compute a character count against. Rich maps the same

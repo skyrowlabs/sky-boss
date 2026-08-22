@@ -28,7 +28,7 @@ terminal cannot do that well. Free-form overlapping windows are the central meta
 every hour spent making Textual do them is an hour spent fighting the framework rather than
 building the thing.
 
-The mockup at `docs/design/tackle-box-demo.html` is the target, and it is clickable rather than
+The mockup at `docs/design/toolbox-demo.html` is the target, and it is clickable rather than
 drawn, so the interactions are already settled: `Ctrl-K` for the palette, chips that re-run a
 command with different flags, a per-window refresh interval, tags, and a status bar counting
 tasks, windows, watchers and things wanting attention.
@@ -69,7 +69,7 @@ place; anything else is a full reload. There is no watcher library and no second
 **Shell** — `tb ui` launches Chromium with `--app=`, which gives a window with no tab strip, no
 address bar and no bookmarks bar, and its own taskbar entry. This is a launch flag rather than an architecture: swapping to pywebview later
 touches the launcher and nothing else. The system libraries for that (`webkit2gtk-4.1`,
-`python-gobject`) are already installed on workstation, though not visible from the venv.
+`python-gobject`) are already installed system-wide here, though not visible from the venv.
 
 **The wrapped-CLI contract is `--json`,** and `tb wrap` is the door it comes through. Chips
 re-filter client-side, which means the frontend holds rows rather than a picture of rows.
@@ -143,7 +143,7 @@ auto-refreshing a write is a scheduler nobody asked for.
 
 ### Round 5 — the wireframe's chrome, and the toolbox sidebar (2026-08-20)
 
-`docs/design/Tackle Box Surface.dc.html` is a second mockup and a different kind of one: the
+`docs/design/Toolbox Surface.dc.html` is a second mockup and a different kind of one: the
 original demo is static HTML, this is **data-bound** — `sc-for`, `sc-if` and `{{ }}` over the same
 window model the canvas already has. That makes it readable as a specification rather than a
 picture, and reading it against the build shows most of it is already here.
@@ -375,8 +375,8 @@ present, gone as far as the eye is concerned.
 the frame by going full-screen, which is a different thing — it cannot be sized or moved, and was
 briefly the default until that was tried and was obviously wrong. It remains available for a wall
 display. Stripping the title bar while keeping the window sizable is the *window manager's* job:
-on KDE a KWin rule matched on the window class, which is why `--class=tackle-box` is set here. A
-rule is a change to the operator's own desktop and is theirs to make, so nothing here writes one.
+a rule matched on the window class, which is why `--class=toolbox` is set here. A rule is a change
+to someone's own desktop and is theirs to make, so nothing here writes one.
 
 **The close button exists because the frame may not.** It sets a latch the launcher waits on,
 rather than calling `window.close()` — which is only reliably permitted on a window a script
@@ -425,13 +425,12 @@ window manager takes over, so the drag snaps, tiles and crosses monitors instead
 reimplemented in JavaScript. **Confirmed working with a real mouse.**
 
 **`frameless=True` is requested and refused.** GTK reports `DECORATED = False` — verified against
-our exact arguments and against the same call in isolation — and KWin draws a title bar anyway.
-Confirmed on the operator's session, and confirmed to be the *native* window rather than a leftover
-browser one: the closed window's envelope named the same ephemeral port as the screenshot showing
-the frame. Removing it is therefore a window-manager rule matched on `WM_CLASS`, which is why the
-shell sets one. KDE's right-click *No Border* does it for a single window and does not persist; the
-durable form is in the README. **Nothing here writes that rule** — a desktop is the operator's, not
-the tool's.
+our exact arguments and against the same call in isolation — and the window manager draws a title
+bar anyway. Confirmed on a live session, and confirmed to be the *native* window rather than a
+leftover browser one: the closed window's envelope named the same ephemeral port as the screenshot
+showing the frame. Removing it is therefore a window-manager rule matched on `WM_CLASS`, which is
+why the shell sets one. Per-window overrides exist in most environments and do not persist; a rule
+does. **Nothing here writes that rule** — a desktop belongs to whoever runs it, not to the tool.
 
 **Naming the window cost the shell its backend, once.** Importing `Gdk` without a version pins it
 to a default, and pywebview's own `gi.require_version('Gtk', '3.0')` then raises — so it concluded
@@ -459,7 +458,7 @@ run says the process survived.
 
 ### Round 5 — reading the second mockup against the build (2026-08-20)
 
-`Tackle Box Surface.dc.html` is data-bound rather than drawn — `sc-for`, `sc-if`
+`Toolbox Surface.dc.html` is data-bound rather than drawn — `sc-for`, `sc-if`
 and `{{ }}` over the same window model this already has — which makes it
 readable as a specification. Read against `app.js`, most of it turned out to be
 built: `win.num`, tags, pin and interval, `⟳`, `✕`, palette fixed and floating,
@@ -532,8 +531,8 @@ window an envelope, a killable subprocess and a cadence. Only the typing changed
 
 **The interesting problem was the working directory, not the parsing.** A raw command has no place
 to put `--cwd`, and the canvas inherits whatever directory `tb ui` was launched in — so a canvas
-started inside this repo runs `jam pr list` with tackle-box's `cli/` package shadowing jam's own
-and hands back tackle-box's error message. Defaulting to `$HOME` fixes it for a reason worth
+started inside this repo runs `jam pr list` with toolbox's `cli/` package shadowing jam's own
+and hands back toolbox's error message. Defaulting to `$HOME` fixes it for a reason worth
 writing down: a home directory has no `cli/` package to shadow anything. It is neutral rather than
 merely conventional, and the same property makes it right for the next tool with the same bug.
 
@@ -558,11 +557,16 @@ it, which is the same explicit assertion `wrap` and `read` already ask for.
 see [[refresh]]. This doc predates the rename and its prose says `wrap` because it *was*
 `wrap`; that is history being accurate, and nothing above has been scrubbed.
 
-### 2026-08-22 — the project was renamed; one line here is actionable (supersession)
+### 2026-08-22 — renamed, and made machine-neutral (supersession)
 
-tackle-box became **toolbox**. This doc predates the rename and says tackle-box throughout, which
-is history being accurate — with one exception a reader could act on and get wrong: the window
-class. **`WM_CLASS` and `--class` are now `toolbox`**, so a KWin rule written from the passage
-above would match nothing. The README carries the durable form and is the copy to paste. Nothing
-else here changed, and nothing above has been scrubbed.
+The project was renamed, and the old name was scrubbed from this doc rather than left dated.
+That is a deliberate exception to *dated, never scrubbed*, which governs superseded **arguments** —
+a decision left visible beside its reversal is the most useful thing in one of these files. A
+project's own name is not an argument, and two names for one thing in one repo reads as two
+projects. **`WM_CLASS` and `--class` are now `toolbox`.**
+
+The same pass removed the host, distro and desktop-environment names this doc carried. The
+engineering survives unchanged — frameless is a request a window manager may refuse, and the
+measurement that proved it is still here. What went is the claim that it is *this* desktop's
+behaviour, which was never the point and could not be published.
 
