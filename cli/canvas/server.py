@@ -251,13 +251,23 @@ def build(canvas: Canvas | None = None) -> Starlette:
 
         argv = [str(a) for a in (body.get("argv") or [])]
         try:
-            foreign, cwd, lines = resolve_follow(argv)
+            kind, foreign, cwd, lines = resolve_follow(argv)
         except ValueError as exc:
             return JSONResponse({"error": str(exc)}, status_code=400)
         try:
-            child = await asyncio.to_thread(
-                lambda: stream_.ChildStream(foreign, cwd=cwd, limit=lines)
-            )
+            if kind == "file":
+                from cli.filefollow import FileCursor
+
+                path = foreign[0]
+                if cwd and not path.startswith("/"):
+                    path = str(Path(cwd) / path)
+                child = await asyncio.to_thread(
+                    lambda: FileCursor(path, limit=lines)
+                )
+            else:
+                child = await asyncio.to_thread(
+                    lambda: stream_.ChildStream(foreign, cwd=cwd, limit=lines)
+                )
         except (FileNotFoundError, OSError) as exc:
             return JSONResponse({"error": str(exc)}, status_code=400)
         session.followers[window_id] = Follower(child=child, argv=foreign)
@@ -317,23 +327,27 @@ class NoCacheStatic(StaticFiles):
 
 @dataclass
 class Follower:
-    """One window's held-open stream, and where its frames left off."""
+    """One window's held-open stream — a process's or a file's — and where
+    its frames left off."""
 
-    child: stream_.ChildStream
+    child: object  # ChildStream or FileCursor; one interface, see [[file-follow]]
     argv: list[str]
     shipped: int = 0
     exited_at: float | None = None
     dead_announced: bool = False
+    last_state: str | None = None
 
 
-def resolve_follow(argv: list[str], root=None) -> tuple[list[str], str | None, int]:
-    """A tb-level follow argv down to the foreign argv it spawns.
+def resolve_follow(argv: list[str], root=None) -> tuple[str, list[str], str | None, int]:
+    """A tb-level follow argv down to what it follows.
 
     The client sends what the operator typed or saved — `follow -- journalctl
-    -f`, or a keyword like `logs` — and the *server* resolves it, because a
-    saved command's expansion lives on the Click tree and nothing client-side
-    may keep a command table. Raises ValueError with the reason when the argv
-    is not a process follow.
+    -f`, `follow cron.log`, or a keyword like `logs` — and the *server*
+    resolves it, because a saved command's expansion lives on the Click tree
+    and nothing client-side may keep a command table. Returns
+    `("process", foreign_argv, cwd, lines)` or `("file", [path], cwd, lines)`
+    by the same shape rule the CLI dispatches on; raises ValueError when the
+    argv is not a follow at all.
     """
     if root is None:
         from cli import cli as root_group
@@ -373,10 +387,8 @@ def resolve_follow(argv: list[str], root=None) -> tuple[list[str], str | None, i
     from cli.follow import is_file_form
 
     if is_file_form(tuple(foreign)):
-        # The cursor window arrives with [[file-follow]]; refusing beats
-        # spawning a path as if it were a command.
-        raise ValueError("the file form is not on the canvas yet — see [[file-follow]]")
-    return foreign, cwd, lines
+        return "file", foreign, cwd, lines
+    return "process", foreign, cwd, lines
 
 
 def follower_frames(session: Session, now: float | None = None) -> list[dict]:
@@ -385,23 +397,41 @@ def follower_frames(session: Session, now: float | None = None) -> list[dict]:
     frames: list[dict] = []
     moment = time.time() if now is None else now
     for window_id, follower in list(session.followers.items()):
-        fresh, follower.shipped = follower.child.fresh(follower.shipped)
-        code = follower.child.exit_code
+        child = follower.child
+        fresh, follower.shipped = child.fresh(follower.shipped)
+        code = child.exit_code
         if code is not None and follower.exited_at is None:
             follower.exited_at = moment
         newly_dead = code is not None and not follower.dead_announced
-        if not fresh and not newly_dead:
+
+        cursor_state = getattr(child, "state", None)
+        state_changed = cursor_state is not None and cursor_state != follower.last_state
+        if not fresh and not newly_dead and not state_changed:
             continue
         if newly_dead:
             follower.dead_announced = True
-        facts = chrome_.stream(
-            " ".join(follower.argv),
-            last_line_at=follower.child.last_line_at,
-            exit_code=code,
-            exited_at=follower.exited_at,
-            ring_shown=len(follower.child.lines()),
-            ring_limit=follower.child.ring.limit,
-        )
+        follower.last_state = cursor_state
+
+        if cursor_state is not None:
+            # A file: the chrome carries what the loop statted — quiet,
+            # absent and rotated are the cursor's verdicts, never re-derived.
+            facts = chrome_.cursor(
+                " ".join(follower.argv),
+                state=cursor_state,
+                last_write_at=child.last_write_at,
+                size_bytes=child.size,
+                ring_shown=len(child.lines()),
+                ring_limit=child.ring.limit,
+            )
+        else:
+            facts = chrome_.stream(
+                " ".join(follower.argv),
+                last_line_at=child.last_line_at,
+                exit_code=code,
+                exited_at=follower.exited_at,
+                ring_shown=len(child.lines()),
+                ring_limit=child.ring.limit,
+            )
         frames.append(
             {
                 "type": "stream",
@@ -535,7 +565,14 @@ async def stream_frames(
                 task.add_done_callback(tasks.discard)
             # Followers ride the same tick the watchers do — the frame is
             # whatever arrived since the last one, and a death is announced
-            # exactly once. Lock operations only; nothing here blocks.
+            # exactly once. A file cursor advances by being ticked, and its
+            # stat is blocking, so it goes off the loop like every other
+            # blocking call here; a process stream fills itself from its
+            # pump threads and has no tick.
+            for follower in list(session.followers.values()):
+                advance = getattr(follower.child, "tick", None)
+                if advance is not None:
+                    await asyncio.to_thread(advance)
             for stream_frame in follower_frames(session):
                 await queue.put(stream_frame)
             if watch_files:
@@ -582,8 +619,10 @@ async def stream_frames(
         # the server exits. The terminal form waits properly; see
         # cli/follow.py.
         for follower in session.followers.values():
+            proc = getattr(follower.child, "proc", None)  # a cursor has none
             try:
-                follower.child.proc.terminate()
+                if proc is not None:
+                    proc.terminate()
             except OSError:
                 pass
         canvas.sessions.pop(session.id, None)

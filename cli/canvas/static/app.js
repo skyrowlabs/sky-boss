@@ -389,6 +389,17 @@ function progressOf(win, now) {
 /* The tail of a held-open stream. Newest lines stay in view — a live log
  * window showing anything but its tail is broken — and stderr lines carry
  * the tag as a style, which is the tint a Rule will drive later. */
+/* The title label for a held-open stream. The attention word is the chrome's
+ * verdict — quiet, absent and rotated come from a stat, dead from an exit —
+ * and this only chooses the friendlier spelling of two of them. */
+function streamLabel(win) {
+  const c = win.chrome;
+  if (!c) return win.streamLines.length ? "live" : "starting…";
+  if (c.attention === "dead") return `dead · exited ${c.exit_code}`;
+  if (c.attention === "running") return "live";
+  return c.attention;
+}
+
 function StreamBody({ win, actions }) {
   const bodyRef = useRef(null);
   useEffect(() => {
@@ -435,11 +446,7 @@ function Window({ win, now, layout, focused, actions, intervals }) {
         <span class="cmd">${win.label}</span>
         <span class=${`age ${failed ? "bad" : ""}`}>
           ${win.stream
-            ? win.chrome && win.chrome.attention === "dead"
-              ? `dead · exited ${win.chrome.exit_code}`
-              : win.streamLines.length
-                ? "live"
-                : "starting…"
+            ? streamLabel(win)
             : win.running
               ? "running…"
               : age === null

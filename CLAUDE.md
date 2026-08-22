@@ -21,6 +21,7 @@ replaced by a browser one the same day. What exists:
 | `tb data -- <argv>` | Reads another CLI's JSON as data. An observe; `--refresh N` keeps it resident |
 | `tb read -- <argv>` | Shows what a command printed, verbatim. An observe, for tools with no `--json` |
 | `tb follow -- <argv>` | Holds a command's stream open. Resident by nature; any exit is a visible death |
+| `tb follow <path>` | Follows a file with a native stat cursor, so quiet and dead are different words |
 | `tb tools` | Lists the operator's saved commands, and any that failed to load |
 | `tb ui` | Opens the canvas — a command palette over tiled and floating windows |
 | `tb <tool>` | Anything declared in `$TB_HOME/tools.toml`. See [[toolbox]] |

@@ -201,16 +201,24 @@ async def test_a_followers_child_dies_with_its_session():
 def test_resolve_follow_resolves_keywords_and_strips_the_fence():
     from cli.canvas.server import resolve_follow
 
-    foreign, cwd, lines = resolve_follow(["follow", "--", "journalctl", "-f"])
+    kind, foreign, cwd, lines = resolve_follow(["follow", "--", "journalctl", "-f"])
+    assert kind == "process"
     assert foreign == ["journalctl", "-f"] and cwd is None
 
-    foreign, cwd, lines = resolve_follow(
+    kind, foreign, cwd, lines = resolve_follow(
         ["follow", "--cwd", "/tmp", "--lines", "50", "--", "sh", "-c", "true"]
     )
     assert foreign == ["sh", "-c", "true"] and cwd == "/tmp" and lines == 50
 
 
-def test_resolve_follow_refuses_what_is_not_a_process_follow():
+def test_resolve_follow_tells_a_file_by_the_same_shape_rule_as_the_cli():
+    from cli.canvas.server import resolve_follow
+
+    kind, foreign, cwd, lines = resolve_follow(["follow", "some/path.log"])
+    assert kind == "file" and foreign == ["some/path.log"]
+
+
+def test_resolve_follow_refuses_what_is_not_a_follow():
     import pytest
 
     from cli.canvas.server import resolve_follow
@@ -219,8 +227,34 @@ def test_resolve_follow_refuses_what_is_not_a_process_follow():
         resolve_follow(["run", "--", "true"])  # not a follow at all
     with pytest.raises(ValueError):
         resolve_follow(["follow"])  # nothing to follow
-    with pytest.raises(ValueError):
-        resolve_follow(["follow", "some/path.log"])  # the file form, later
+
+
+def test_a_cursor_follower_frames_the_stat_verdict_as_cursor_chrome():
+    """The file form on the canvas: quiet, absent and rotated travel as the
+    cursor's own words, and a state change frames out even with no lines —
+    a window whose file vanished must not keep saying quiet."""
+    from cli.canvas.server import Follower, follower_frames
+    from cli.filefollow import FileCursor
+    from tests.test_filefollow import FakeFs
+
+    fs = FakeFs()
+    fs.put("x.log", "one\n", mtime=90.0)
+    cursor = FileCursor("x.log", fs=fs, clock=lambda: 100.0)
+    session = Session(id="s1")
+    session.followers["w1"] = Follower(child=cursor, argv=["x.log"])
+
+    frames = follower_frames(session, now=100.0)
+    assert frames[0]["chrome"]["shape"] == "cursor"
+    assert frames[0]["chrome"]["attention"] == "quiet"
+    assert [l["text"] for l in frames[0]["lines"]] == ["one"]
+
+    # Nothing changed → no frame; the file vanishing → a frame, stateful.
+    cursor.tick()
+    assert follower_frames(session, now=101.0) == []
+    fs.gone("x.log")
+    cursor.tick()
+    frames = follower_frames(session, now=102.0)
+    assert frames[0]["chrome"]["attention"] == "absent"
 
 
 def test_chrome_for_tells_an_act_from_an_observe_through_the_catalog():

@@ -1,9 +1,14 @@
 ---
-status: draft
+status: complete
 created: 2026-08-21
 updated: 2026-08-21
-agent_value: 2
-key_files: []
+agent_value: 3
+key_files:
+  - cli/filefollow.py
+  - cli/follow.py
+  - cli/canvas/server.py
+  - tests/test_filefollow.py
+  - tests/test_canvas_stream.py
 ---
 
 # Following a file — the native cursor
@@ -92,18 +97,18 @@ that through the standard [[toolbox]] rule. ANSI is stripped, never interpreted,
 
 ### Round 1 — the cursor and the path form (2026-08-21)
 
-- [ ] **The cursor, pure.** A `FileCursor` (module beside `cli/follow.py`) over an injectable
+- [x] **The cursor, pure.** A `FileCursor` (module beside `cli/follow.py`) over an injectable
       clock and filesystem: backfill, advance, quiet, rotation, truncation,
       absent-then-appearing. Tests assert the mechanism, never the timing — no sleeps, no
       tmp-file races; the fs is a fake.
-- [ ] **`tb follow <path>` in the terminal.** Resident rendering with the status line and ring;
+- [x] **`tb follow <path>` in the terminal.** Resident rendering with the status line and ring;
       `--lines`; Ctrl-C exits cleanly. Absent and rotated states visible. The path form's help
       and example live in `follow`'s `--help` beside the process form — the [[refresh]] help
       test enforces it from birth.
-- [ ] **The canvas window.** A stream-framed window kind on the session stream: append frames,
+- [x] **The canvas window.** A stream-framed window kind on the session stream: append frames,
       the liveness clock in the chrome, absent/rotated/quiet states. Follow windows get no
       cadence picker — they are resident by nature, and only snapshot reads get cadences.
-- [ ] **Keywords and docs.** `argv[0] == "follow"` with a path loads and inherits observe; the
+- [x] **Keywords and docs.** `argv[0] == "follow"` with a path loads and inherits observe; the
       palette offers it; CLAUDE.md's command table gains the row.
 
 ## Notes
@@ -123,3 +128,30 @@ without meeting the stat argument first.
 demonstrated the naming fighting Unix muscle memory — `-f` is `--follow` everywhere, for files
 and commands alike — so one verb now fronts both mechanisms and this doc's slug became
 `file-follow`. The mechanism was not touched; only its name on the surface.
+
+### Round 1 — executed (2026-08-21)
+
+What the execution argued back:
+
+- **Rotation and truncation announcements live in the ring**, as lines marked with the stderr
+  tag — the cursor's own voice, tinted like a process's stderr, without plumbing a third
+  channel. The alternative was chrome-only announcement, and an event that scrolls with the
+  lines it interrupted is worth more than one that vanishes on the next state change.
+- **The backfill is bounded at 256 KiB** and drops the fragment at the cut — following a
+  gigabyte log opens by reading its tail, and a file that *appears* already huge under a
+  waiting cursor gets the same treatment.
+- **Truncation wears the `rotated` attention word.** It is the same class of event — the
+  history you were reading is gone, the cursor started over — and a fourth word would have
+  widened the chrome vocabulary for a distinction the announcement line already makes.
+- **On the canvas, the cursor is a follower like any other.** One interface (`fresh`, `lines`,
+  `exit_code`, `kill`) covers both mechanisms; the server ticks a cursor off the event loop
+  because stat blocks, and a *state change with no new lines* still frames out — a window
+  whose file vanished must not keep saying quiet. `exit_code` is permanently None: a file
+  never dies, absent is a state to wait out.
+- **A CLI test blocked the suite once**: invoking the real path form under CliRunner enters
+  the residency and never returns — which is what resident-by-nature means. Dispatch is
+  proven by interception, the residency by driving `follow_file` with a fake fs, injected
+  clock and a tick bound. The suite stays at two and a half seconds.
+- Verified live end-to-end through the canvas: backfill arrived `quiet`, growth arrived
+  `running`, a `mv`-rotation arrived announced with the new file's tail, and the quiet frames
+  in between carried chrome only.

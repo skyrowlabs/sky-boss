@@ -66,10 +66,20 @@ def test_follow_is_an_observe_and_resident_in_the_catalog():
     assert entry["resident"] is True
 
 
-def test_the_file_form_names_its_own_round_until_it_lands():
-    result = CliRunner().invoke(cli, ["follow", "x/y.log"])
-    assert result.exit_code == 2
-    assert "file-follow" in result.output
+def test_the_file_form_dispatches_to_the_cursor(monkeypatch):
+    """A path routes to the native cursor ([[file-follow]]), proven by
+    intercepting it — invoking the real residency would block the suite,
+    which is exactly what resident-by-nature means."""
+    calls = {}
+
+    def fake_follow_file(path, *, limit):
+        calls["path"] = path
+        calls["limit"] = limit
+
+    monkeypatch.setattr("cli.filefollow.follow_file", fake_follow_file)
+    result = CliRunner().invoke(cli, ["follow", "--lines", "50", "x/y.log"])
+    assert result.exit_code == 0
+    assert calls == {"path": "x/y.log", "limit": 50}
 
 
 # ============================================================================
@@ -133,6 +143,24 @@ def test_the_child_dies_with_the_loop():
     the same rule the canvas has for watchers, extended to processes."""
     _, child = drive(FakeChild([("x", False)]))
     assert child.killed is True
+
+
+def test_a_keyword_wrapping_a_file_follow_loads_and_inherits_observe(tmp_path):
+    """`[tool.cron]` over `follow <path>`: loads, observes, resident — and
+    the tilde expands, because these are the operator's own paths."""
+    from cli.canvas.catalog import walk
+    from cli.tools import register
+
+    (tmp_path / "tools.toml").write_text('[tool.cron]\nargv = ["follow", "~/logs/cron.log"]\n')
+    try:
+        problems = register(cli, home=tmp_path)
+        assert problems == []
+        entry = {e["name"]: e for e in walk(cli)}["cron"]
+        assert entry["acts"] is False and entry["resident"] is True
+        assert cli.commands["cron"].tb_argv[1].startswith("/")
+    finally:
+        for name in [n for n, c in list(cli.commands.items()) if getattr(c, "tb_saved", False)]:
+            del cli.commands[name]
 
 
 def test_a_keyword_wrapping_follow_inherits_residency_and_refuses_a_cadence(tmp_path):
