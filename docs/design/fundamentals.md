@@ -189,7 +189,7 @@ acting verb, four observing contracts.
 
 **`--refresh <seconds>` on `read` and `data` makes the invocation resident.** Without it, an
 invocation runs once, prints, exits — unchanged. With it, the command does not exit: it re-runs
-every N seconds and redraws in place, `watch(1)`-style, Ctrl-C to leave. This came from the
+every N seconds and redraws in place, `watch(1)`-style, `q`/`Esc`/Ctrl-C to leave. This came from the
 operator's framing — "a run without options is one time; we need a flag that doesn't exit" — and
 it is bigger than a launch-time cadence flag: it makes the *terminal* a rendering of the refresh
 rule, beside the canvas. One refresh concept, two renderings, the same shape as the

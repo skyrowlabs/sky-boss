@@ -1,10 +1,11 @@
 ---
-status: draft
+status: complete
 created: 2026-08-21
 updated: 2026-08-22
 agent_value: 3
 key_files:
   - cli/data.py
+  - cli/keys.py
   - cli/read.py
   - cli/resident.py
   - cli/tools.py
@@ -140,7 +141,7 @@ operator a scrollbar and a search. No key bindings other than `q`, `Esc` and Ctr
 - [x] **The default flips, and the flag says so.** `--refresh`'s help gains the one line that
       matters — how to leave — since [[refresh]]'s own rule is that help is the doc. `--screen`
       documents what it is for (a long residency, scrollback preserved).
-- [ ] **Docs.** Shape's "Ctrl-C to leave" is already amended above; CLAUDE.md's `data`/`read`
+- [x] **Docs.** Shape's "Ctrl-C to leave" is already amended above; CLAUDE.md's `data`/`read`
       rows gain nothing (they say "resident", which stays true).
 
 ### Round 1 — the realignment (2026-08-21)
@@ -228,3 +229,37 @@ is only which one is the default.
 it takes a scroll position it owes the operator a scrollbar, a search, and a decision about
 what happens to the position when the next refresh lands — which is a pager, and `tb read |
 less` is already a pager.
+
+### Round 2 — shipped (2026-08-22)
+
+Both halves landed as drafted, and the honest cost stayed the size it was advertised at.
+
+**The tick and the key poll became one primitive, which is why `q` is instant.** The loop used
+to `sleep(1)`; it now waits up to a second *for a key* through `select`, so a keypress ends the
+frame it arrives in rather than up to a second later. `loop`'s parameter was renamed `sleep` →
+`wait`, and because a sleep that returns None is a valid `wait`, the suite's injected clock kept
+working untouched — the pure layer needed no new concept to absorb this.
+
+**An arrow key nearly quit the view.** Esc arrives as the first byte of `Esc [ A`, so reading one
+byte and comparing it to the leave set makes Up close the window — and leaves `[` and `A` in the
+buffer for the shell that gets the terminal back. `_drain` swallows the rest of the sequence.
+Found by writing the test for it rather than by pressing it, which is the only reason it was
+found before the operator did.
+
+**The suite still cannot see the thing that shipped, and that is now recorded rather than
+merely true.** Every resident test drives `reside()` with `screen=False` and an injected wait,
+so the alternate screen shipped for a day untested and unseen. The new tests use a real `pty`
+where the behaviour is genuinely terminal-shaped — cbreak restored on an exception, a keypress
+read back, an escape sequence drained — and the end-to-end check (`q`, `Esc`, Ctrl-C, `--screen`)
+was driven through a pty outside the suite.
+
+**Ctrl-C looked broken and was not.** Driven through a bare pty it kept running, because a child
+that is not the terminal's foreground process group receives `\x03` as a *byte* rather than as
+SIGINT — the harness was wrong, not the loop. Re-driven with `setsid` and `TIOCSCTTY` it exits 0
+and leaves the frame on screen. Worth remembering the next time a signal appears not to arrive
+in a test: check who owns the terminal before changing the code.
+
+**Left alone deliberately:** [[follow]] and [[file-follow]] still take the alternate screen and
+still leave only on Ctrl-C. The same `q`/`Esc` argument applies to them and the module was
+written to be shared, but their docs record "Ctrl-C leaves" as a decision, and changing a
+recorded decision is a round in *their* docs rather than a quiet extension of this one.
