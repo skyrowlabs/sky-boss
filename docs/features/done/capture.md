@@ -1,11 +1,14 @@
 ---
-status: active
+status: complete
 created: 2026-08-22
 updated: 2026-08-22
-agent_value: 2
+agent_value: 3
 key_files:
   - cli/capture.py
+  - cli/data.py
+  - cli/tools.py
   - tests/test_capture.py
+  - tests/test_data.py
 ---
 
 # Capture — named formats: parse, transform, present
@@ -161,7 +164,7 @@ runs `tb --json data --from … -- …` through the runner unchanged. No canvas 
       lands on the canvas as a refreshing table with zero canvas changes — asserted by test,
       because "no code needed" is a claim that rots silently. The suite redirects `TB_HOME`,
       so declared formats in tests never touch the operator's file.
-- [ ] **Docs.** CLAUDE.md: the rejected-list entry for parsing human output gains its dated
+- [x] **Docs.** CLAUDE.md: the rejected-list entry for parsing human output gains its dated
       narrowing (*declared* capture in, inference still out); the "Where things live" table
       gains `formats.toml`; [[refresh]]'s Notes gain one line pointing here as the first
       `--from` addition after `json`.
@@ -193,3 +196,32 @@ Named-only was kept, and the argument improved: consistency with the regex rulin
 weak reason; the pinned-window-as-REPL loop — formats re-read on every cadence tick — is the
 strong one. `jc` remains noted as the zero-code parse for classic tools; a format can wrap
 its output with a jq reshape the day that is wanted.
+
+### Round 1 — shipped (2026-08-22)
+
+Built in five commits, one per phase, and the design held without a reversal. What the build
+added to the record:
+
+- **The REPL property fell out of *where* resolution runs, not out of new machinery.**
+  `--from` resolves once at command entry (a bad name is a usage error before anything runs)
+  and *again* inside every `_once` — the canvas re-enters there each tick, so an edit to
+  `formats.toml` under a pinned window lands on the next refresh, and a name that breaks
+  mid-residency fails that frame loudly and recovers on the next.
+- **Small rulings made while building, each on the honest side:** a `json` format with
+  neither `pattern` nor `jq` is refused ("declares nothing") rather than loading as a
+  confusing alias; a `pattern` on a `json` format is refused rather than ignored; jq's
+  multi-value output (`.[]`) becomes a list because that is what the program plainly meant;
+  `empty` output is null; resolving a *declared-and-refused* name answers with why it was
+  refused, because "no such format" about a format the operator wrote is the least helpful
+  true sentence available. Zero input lines is *not* the failed contract — the tool
+  genuinely printed nothing, and "reports clear" must not collapse into "cannot see".
+- **The lines kind strips ANSI before matching**, exactly as `read` strips it before
+  showing — the first tool that decides it is talking to a terminal would otherwise plant
+  `\x1b[32m` in the middle of a named group.
+- **`tb tools`' data grew from a list to `{tools, formats}`** — the shape change round 2 of
+  [[toolbox]] anticipated ("per [[capture]] when it lands"). One door for "what did I
+  declare"; both problem lists degrade the same envelope.
+- Proven live against `df -P`: rows under one format, a jq-reduced key/value card under
+  another, the unmatched warning naming the header lines it skipped. The free rides are
+  pinned by test — a saved tool carrying `--from` loads, catalogs as a pinnable read with
+  its cadence, and parses end to end with no canvas or toolbox code knowing what a format is.

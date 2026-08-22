@@ -58,9 +58,12 @@ commands. If groups come back, group them that way and be slower to add one.
 - **`tb ctx`** and **`tb secrets`** (unified context switching, a secrets manager as root of trust
   for `aws`/`gh`/`stripe`). **External CLIs keep their own authentication.** `tb` is never in the
   credential path. This is what keeps a future MCP surface safe to expose.
-- **Parsing a tool's human output into rows.** `tb read` shows it verbatim and says that is what it
-  is doing; inferring columns from whitespace is the "silently wrong" failure, and a tool with real
-  structure has `--json`.
+- **Parsing a tool's human output into rows** — *narrowed 2026-08-22 by [[capture]]: **declared**
+  capture is in; inference stays out.* `tb read` shows it verbatim and says that is what it is
+  doing; inferring columns from whitespace is the "silently wrong" failure, and a tool with real
+  structure has `--json`. What [[capture]] added is the operator asserting the structure by name —
+  a format in `$TB_HOME/formats.toml` with a pattern and optionally a jq transform, named on
+  `tb data --from <name>`. No format, no table; a `--pretty` flag that guesses remains rejected.
 - **Wrapping an external CLI for passthrough.** `tb gh pr list` is strictly worse than
   `gh pr list`. Reach for an external tool only where `tb` does something that tool cannot express.
   `tb data` is the carve-out and it earns it: holding a foreign CLI's output open on a canvas and
@@ -183,6 +186,7 @@ package-owned and reverts on update, so the fix is an override in `~/.config/fis
 |---|---|---|---|
 | Code, tests, docs | this repo | the project | here |
 | Saved commands (`tools.toml`) | `~/.config/tb/` (`$TB_HOME`) | the operator | never |
+| Capture formats (`formats.toml`) | `~/.config/tb/` (`$TB_HOME`) | the operator | never |
 | Browser profile for the canvas | `~/.local/state/tb/` (`$TB_STATE`) | the machine | never |
 
 **`$TB_HOME` is the operator content directory, and it is outside the repo with no fallback path
