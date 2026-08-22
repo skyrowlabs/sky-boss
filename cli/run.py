@@ -31,7 +31,9 @@ from cli.output import Result, emit
 @click.option("--cwd", type=click.Path(file_okay=False, exists=True), help="Run it here.")
 @emit
 def run(argv: tuple[str, ...], timeout: int | None, cwd: str | None) -> Result:
-    """Run a command and report what it printed.
+    """Run a command and report what it printed. The only command that acts —
+    it runs once, ever, and never takes a cadence, because re-running a write
+    on a timer is a scheduler nobody asked for.
 
     Use `--` before any argv that has its own flags:
 
