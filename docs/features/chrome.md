@@ -1,5 +1,5 @@
 ---
-status: draft
+status: active
 created: 2026-08-21
 updated: 2026-08-21
 agent_value: 2
@@ -90,14 +90,14 @@ untouched by this feature existing, byte for byte.
 
 ### Round 1 — one contract, two renderings (2026-08-21)
 
-- [ ] **The facts, pure.** `cli/chrome.py`: the per-shape fact set assembled from envelope +
+- [x] **The facts, pure.** `cli/chrome.py`: the per-shape fact set assembled from envelope +
       surface state over an injectable clock. Tests cover every shape and every mechanical
       attention state; no real time anywhere.
-- [ ] **The terminal rendering.** Status lines for the one-time and resident forms; [[refresh]]'s
+- [x] **The terminal rendering.** Status lines for the one-time and resident forms; [[refresh]]'s
       resident loop renders through it from birth rather than growing its own.
 - [ ] **The canvas rendering.** Title-bar and footer band from the same facts; the existing
       progress bar re-pointed at the contract's `interval`/`last_run` unchanged in behavior.
-- [ ] **The envelope boundary test.** An envelope produced with chrome active is byte-identical
+- [x] **The envelope boundary test.** An envelope produced with chrome active is byte-identical
       to one produced before this feature existed.
 
 ## Notes
