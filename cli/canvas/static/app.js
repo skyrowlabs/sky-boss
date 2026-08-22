@@ -428,9 +428,14 @@ function markedLine(l) {
   let cursor = 0;
   for (const [start, end, role] of l.marks) {
     if (start > cursor) parts.push(l.text.slice(cursor, start));
-    parts.push(
-      html`<span class=${"mk-" + role.replace("tb.", "")}>${l.text.slice(start, end)}</span>`
-    );
+    /* A role may be composite — "bold tb.path" — because bold is a weight
+     * rather than a colour and composes instead of competing for the slot.
+     * Each word becomes its own class; CSS stacks them for free. */
+    const classes = role
+      .split(" ")
+      .map((r) => "mk-" + r.replace("tb.", ""))
+      .join(" ");
+    parts.push(html`<span class=${classes}>${l.text.slice(start, end)}</span>`);
     cursor = end;
   }
   parts.push(l.text.slice(cursor) + "\n");

@@ -402,6 +402,12 @@ pre.stream .err { color: var(--tb-warn); }
 pre.stream .mk-muted { color: var(--tb-text-3); }
 pre.stream .mk-accent { color: var(--tb-brand); }
 pre.stream .mk-path { color: var(--tb-text-2); text-decoration: underline; }
+/* Round 2's value kinds. `mk-num` is the brand token because a number wears
+ * the brand in a table cell too — one value vocabulary, two surfaces. `mk-bold`
+ * is a weight and composes with any of the above, which is why a mark's role
+ * may carry two class names. See [[highlight]]. */
+pre.stream .mk-num { color: var(--tb-brand); }
+pre.stream .mk-bold { font-weight: 700; }
 .dead-band {
   display: flex; align-items: center; gap: 2.5rem;
   padding: 1.5rem 2.25rem; color: var(--tb-danger);
