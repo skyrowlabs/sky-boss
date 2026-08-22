@@ -24,7 +24,7 @@ replaced by a browser one the same day. What exists:
 | `tb follow <path>` | Follows a file with a native stat cursor, so quiet and dead are different words |
 | `tb tools` | Lists the operator's saved commands, and any that failed to load |
 | `tb ui` | Opens the canvas — a command palette over tiled and floating windows |
-| `tb <tool>` | Anything declared in `$TB_HOME/tools.toml`. See [[toolbox]] |
+| `tb tools <name>` | Runs a saved command; `tb -t <name>` is the short spelling. See [[toolbox]] |
 
 **Check before you describe.** This is young and moving, and it just lost most of its surface area.
 When asked about a command or module, confirm it exists rather than inferring it from this
