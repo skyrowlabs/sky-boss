@@ -218,6 +218,26 @@ def test_resolve_follow_tells_a_file_by_the_same_shape_rule_as_the_cli():
     assert kind == "file" and foreign == ["some/path.log"]
 
 
+def test_resolve_follow_descends_to_a_saved_keyword_behind_the_tools_group(tmp_path):
+    """A saved keyword lives at `tools <name>` since [[toolbox]] round 2, and
+    the server resolves its expansion off the live tree — the client sends the
+    catalog argv and keeps no command table."""
+    from cli import cli
+    from cli.canvas.server import resolve_follow
+    from cli.tools import register, tools as tools_group
+
+    (tmp_path / "tools.toml").write_text('[tool.logs]\nargv = ["follow", "--", "journalctl", "-f"]\n')
+    try:
+        assert register(cli, home=tmp_path) == []
+        kind, foreign, cwd, lines = resolve_follow(["tools", "logs"])
+        assert kind == "process" and foreign == ["journalctl", "-f"]
+    finally:
+        for name in [
+            n for n, c in list(tools_group.commands.items()) if getattr(c, "tb_saved", False)
+        ]:
+            del tools_group.commands[name]
+
+
 def test_resolve_follow_refuses_what_is_not_a_follow():
     import pytest
 

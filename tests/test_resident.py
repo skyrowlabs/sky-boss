@@ -207,8 +207,12 @@ def declare(tmp_path, toml_text):
 
 
 def undeclare():
-    for name in [n for n, c in list(cli.commands.items()) if getattr(c, "tb_saved", False)]:
-        del cli.commands[name]
+    from cli.tools import tools as tools_group
+
+    for name in [
+        n for n, c in list(tools_group.commands.items()) if getattr(c, "tb_saved", False)
+    ]:
+        del tools_group.commands[name]
 
 
 def test_a_keyword_runs_once_unless_the_flag_is_given(tmp_path):
@@ -216,7 +220,7 @@ def test_a_keyword_runs_once_unless_the_flag_is_given(tmp_path):
     terminal is always asked for explicitly."""
     try:
         declare(tmp_path, '[tool.prs]\nargv = ["data", "--", "printf", "[]"]\nrefresh = 30\n')
-        result = CliRunner().invoke(cli, ["--json", "prs"])
+        result = CliRunner().invoke(cli, ["--json", "tools", "prs"])
         assert json.loads(result.stdout)["ok"] is True  # ran once, exited
     finally:
         undeclare()
@@ -231,7 +235,7 @@ def test_a_bare_refresh_on_a_keyword_adopts_its_own_field(tmp_path, monkeypatch)
     monkeypatch.setattr("cli.resident.reside", fake_reside)
     try:
         declare(tmp_path, '[tool.prs]\nargv = ["data", "--", "printf", "[]"]\nrefresh = 30\n')
-        result = CliRunner().invoke(cli, ["prs", "--refresh"])
+        result = CliRunner().invoke(cli, ["tools", "prs", "--refresh"])
         assert result.exit_code == 0
         assert calls["interval"] == 30
     finally:
@@ -245,7 +249,7 @@ def test_an_explicit_value_outranks_the_field(tmp_path, monkeypatch):
     )
     try:
         declare(tmp_path, '[tool.prs]\nargv = ["data", "--", "printf", "[]"]\nrefresh = 30\n')
-        assert CliRunner().invoke(cli, ["prs", "--refresh", "5"]).exit_code == 0
+        assert CliRunner().invoke(cli, ["tools", "prs", "--refresh", "5"]).exit_code == 0
         assert calls["interval"] == 5
     finally:
         undeclare()
@@ -254,7 +258,7 @@ def test_an_explicit_value_outranks_the_field(tmp_path, monkeypatch):
 def test_a_bare_refresh_on_a_keyword_with_no_field_asks_for_a_value(tmp_path):
     try:
         declare(tmp_path, '[tool.prs]\nargv = ["data", "--", "printf", "[]"]\n')
-        result = CliRunner().invoke(cli, ["prs", "--refresh"])
+        result = CliRunner().invoke(cli, ["tools", "prs", "--refresh"])
         assert result.exit_code == 2
         assert "declares no refresh" in result.output
     finally:
@@ -266,7 +270,7 @@ def test_a_keyword_that_acts_has_no_refresh_option_at_all(tmp_path):
     the split shows in --help rather than in a runtime refusal."""
     try:
         declare(tmp_path, '[tool.deploy]\nargv = ["run", "--", "true"]\n')
-        result = CliRunner().invoke(cli, ["deploy", "--refresh"])
+        result = CliRunner().invoke(cli, ["tools", "deploy", "--refresh"])
         assert result.exit_code == 2
         assert "No such option" in result.output
     finally:

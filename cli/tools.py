@@ -8,9 +8,15 @@ and everything below is the consequences of keeping it that small.
 invariant is that nothing keeps a command table — the palette walks the live
 tree, so it cannot offer a command that does not exist. A toolbox that was a
 second list of commands would break that on day one. Registering them instead
-means `tb <name>`, `tb --help`, the palette, and shell completion all work with
-no code anywhere else: `cli/canvas/catalog.py` is untouched by this feature and
-a test says so.
+means `tb tools <name>`, `tb --help`, the palette, and shell completion all
+work with no code anywhere else.
+
+**Saved commands live behind the `tools` group** (round 2 — they were on the
+root until 2026-08-22). The builtin/operator line is the sharpest line in the
+design, and on the root it was invisible in the one listing that matters most.
+Nesting also retired the shadowing rule into structure: `tb tools run`
+collides with nothing, so "a builtin always wins" stopped being validation.
+`-t` is an argv spelling of `tools`, rewritten at the root — see cli/__init__.
 
 **The argv is a tb argv, never a shell argv.** A tool cannot name an arbitrary
 executable, because a tool that could would be a second `tb run` — one that
@@ -89,15 +95,14 @@ def read(home: Path | None = None) -> dict:
 def parse(
     raw: dict,
     commands: dict[str, bool],
-    registered: set[str],
     resident: frozenset[str] = frozenset(),
 ) -> tuple[list[Tool], list[str]]:
     """Validate declarations against the live tree. Pure — reads no file.
 
-    `commands` maps a runnable tb command to whether it acts; `registered` is
-    every name already on the root group, which is a larger set because a
-    surface like `tb ui` excludes itself from the first one and must still not
-    be shadowable.
+    `commands` maps a runnable tb command to whether it acts. There is no
+    shadowing check any more: round 2 moved saved commands behind the `tools`
+    group, where `[tool.run]` collides with nothing — the rule became
+    structure. Only the *shape* of a name is still validated.
 
     Returns the tools that survived and a problem for each that did not. **One
     bad entry must not cost the operator the other nine**, so nothing here
@@ -111,7 +116,7 @@ def parse(
     seen: set[str] = set()
 
     for name, body in (raw.get("tool") or {}).items():
-        problem = _check(name, body, commands, registered, seen, resident)
+        problem = _check(name, body, commands, seen, resident)
         if problem:
             problems.append(f"tool {name!r}: {problem}")
             continue
@@ -135,7 +140,6 @@ def _check(
     name: str,
     body,
     commands: dict[str, bool],
-    registered: set[str],
     seen: set[str],
     resident: frozenset[str] = frozenset(),
 ) -> str | None:
@@ -144,10 +148,6 @@ def _check(
         return "not a table"
     if not _NAME.match(name):
         return "name must be lowercase letters, digits and hyphens"
-    # A builtin always wins. Otherwise a stray `[tool.run]` silently redefines
-    # the one door that writes, which is the worst thing this file could do.
-    if name in registered:
-        return "a tb command already has this name"
     if name in seen:
         return "declared twice"
 
@@ -205,12 +205,11 @@ def _expand(part: str) -> str:
 
 def load(
     commands: dict[str, bool],
-    registered: set[str],
     home: Path | None = None,
     resident: frozenset[str] = frozenset(),
 ) -> tuple[list[Tool], list[str]]:
     """Every declared tool, and every reason one was skipped."""
-    return parse(read(home), commands, registered, resident)
+    return parse(read(home), commands, resident)
 
 
 # ============================================================================
@@ -231,9 +230,11 @@ def _expansion(tool: Tool) -> str:
 def make_command(tool: Tool) -> click.Command:
     """A Click command that re-dispatches into the tree.
 
-    The sub-context is built with the *tool's* name as its `info_name`, so the
-    envelope comes back saying `jam-pr-list` rather than `data`. The operator
-    ran the tool; the envelope should agree.
+    The sub-context is built with the *tool's* name as its `info_name` and the
+    `tools` group's context as its parent, so the envelope comes back saying
+    `tools.jam-pr-list` rather than `data`. Round 1 said the bare name, because
+    `data` was an implementation detail the operator did not type; `tools.` is
+    something they *do* type, and the dotted path is the standing convention.
 
     It takes no arguments, so `tb jam-pr-list 945` is a usage error rather than
     something appended to the argv. A tool that took arguments would be a shell
@@ -300,36 +301,56 @@ def make_command(tool: Tool) -> click.Command:
 
 
 def register(root: click.Group, home: Path | None = None) -> list[str]:
-    """Put every declared tool on the group. Returns the problems found.
+    """Put every declared tool behind the `tools` group. Returns the problems.
 
-    `registered` is read *before* anything is added, so one tool cannot shadow
-    another that happened to load first — and the builtins are all already
-    there, which is what makes rule 3 a matter of ordering rather than of a
-    list written down somewhere.
+    Registration targets the group rather than the root (round 2): the
+    builtin/operator line is the sharpest line in the design, and nesting is
+    what makes it visible in `tb --help`. It is also what retired the
+    shadowing rule into structure — a saved `run` lives at `tb tools run` and
+    collides with nothing.
+
+    `commands` and `resident` are still read off the *root's* walk, because a
+    tool's argv starts with a root-level tb command and inherits its verdicts.
     """
-    registered = set(root.commands)
     entries = walk(root)
     commands = {entry["name"]: entry["acts"] for entry in entries}
     resident = frozenset(entry["name"] for entry in entries if entry.get("resident"))
-    tools, problems = load(commands, registered, home, resident)
-    for tool in tools:
-        root.add_command(make_command(tool))
+    loaded, problems = load(commands, home, resident)
+    for tool in loaded:
+        tools.add_command(make_command(tool))
     return problems
 
 
-@click.command()
-@emit
-def tools() -> Result:
-    """List the saved commands in the toolbox. An observe — it runs nothing:
+@click.group(invoke_without_command=True)
+@click.pass_context
+def tools(ctx: click.Context) -> None:
+    """The toolbox — the operator's saved commands, behind their own door.
+
+    Bare, it lists what is declared. An observe — it runs nothing:
 
         tb tools
 
     It reports what is declared and, importantly, what was declared and
-    refused — a tool that fails to load is otherwise invisible, and the operator
-    who wrote it has no way to tell it apart from one they forgot to write.
-    """
-    from cli import cli as root
+    refused — a tool that fails to load is otherwise invisible, and the
+    operator who wrote it has no way to tell it apart from one they forgot to
+    write.
 
+    A saved command runs behind this group, spelled long or short:
+
+        tb tools jam-pr-list --refresh 30
+        tb -t jam-pr-list --refresh 30
+
+    A tool's `refresh` field is a default, never a cadence in force — the
+    canvas opens the tool's window at it and a bare `--refresh` adopts it, but
+    in a terminal a saved command always runs once unless the flag is given.
+    """
+    if ctx.invoked_subcommand is None:
+        _listing()
+
+
+@emit
+def _listing() -> Result:
+    """The bare `tb tools` rendering — one door for "what did I save"."""
     result = Result()
     result.data = [
         {
@@ -339,7 +360,7 @@ def tools() -> Result:
             "acts": getattr(command, "tb_acts", False),
             "refresh": getattr(command, "tb_refresh", 0),
         }
-        for name, command in sorted(root.commands.items())
+        for name, command in sorted(tools.commands.items())
         if getattr(command, "tb_saved", False)
     ]
 

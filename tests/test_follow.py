@@ -151,22 +151,26 @@ def test_a_keyword_wrapping_a_file_follow_loads_and_inherits_observe(tmp_path):
     from cli.canvas.catalog import walk
     from cli.tools import register
 
+    from cli.tools import tools as tools_group
+
     (tmp_path / "tools.toml").write_text('[tool.cron]\nargv = ["follow", "~/logs/cron.log"]\n')
     try:
         problems = register(cli, home=tmp_path)
         assert problems == []
-        entry = {e["name"]: e for e in walk(cli)}["cron"]
+        entry = {e["name"]: e for e in walk(cli)}["tools cron"]
         assert entry["acts"] is False and entry["resident"] is True
-        assert cli.commands["cron"].tb_argv[1].startswith("/")
+        assert tools_group.commands["cron"].tb_argv[1].startswith("/")
     finally:
-        for name in [n for n, c in list(cli.commands.items()) if getattr(c, "tb_saved", False)]:
-            del cli.commands[name]
+        for name in [
+            n for n, c in list(tools_group.commands.items()) if getattr(c, "tb_saved", False)
+        ]:
+            del tools_group.commands[name]
 
 
 def test_a_keyword_wrapping_follow_inherits_residency_and_refuses_a_cadence(tmp_path):
     """Inherited like acts: declaring refresh on a follow would load and mean
     nothing — the loader refuses it loudly instead."""
-    from cli.tools import register
+    from cli.tools import register, tools as tools_group
 
     (tmp_path / "tools.toml").write_text(
         '[tool.logs]\nargv = ["follow", "--", "journalctl", "-f"]\nrefresh = 30\n'
@@ -174,7 +178,7 @@ def test_a_keyword_wrapping_follow_inherits_residency_and_refuses_a_cadence(tmp_
     try:
         problems = register(cli, home=tmp_path)
         assert any("resident by nature" in p for p in problems)
-        assert "logs" not in cli.commands
+        assert "logs" not in tools_group.commands
 
         (tmp_path / "tools.toml").write_text(
             '[tool.logs]\nargv = ["follow", "--", "journalctl", "-f"]\n'
@@ -183,9 +187,11 @@ def test_a_keyword_wrapping_follow_inherits_residency_and_refuses_a_cadence(tmp_
         assert problems == []
         from cli.canvas.catalog import walk
 
-        entry = {e["name"]: e for e in walk(cli)}["logs"]
+        entry = {e["name"]: e for e in walk(cli)}["tools logs"]
         assert entry["resident"] is True
         assert entry["acts"] is False
     finally:
-        for name in [n for n, c in list(cli.commands.items()) if getattr(c, "tb_saved", False)]:
-            del cli.commands[name]
+        for name in [
+            n for n, c in list(tools_group.commands.items()) if getattr(c, "tb_saved", False)
+        ]:
+            del tools_group.commands[name]
