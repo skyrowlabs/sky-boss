@@ -149,7 +149,7 @@ runs `tb --json data --from … -- …` through the runner unchanged. No canvas 
       through `child_env()`, stdin in, parsed JSON out; jq's failure is a failed contract
       carrying its stderr; absent binary degrades loudly at use naming the format. Tests use
       the real `jq` where present and prove the degrade path by injected PATH.
-- [ ] **`formats.toml`.** Loader beside the toolbox's, sharing its degrade-gracefully rules:
+- [x] **`formats.toml`.** Loader beside the toolbox's, sharing its degrade-gracefully rules:
       validation (known kind, compilable pattern, ≥1 named group, builtin names win), loud
       per-format failures, absent file degrades to nothing declared. `tb tools` lists
       declared formats and their failures.

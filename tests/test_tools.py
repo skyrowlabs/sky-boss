@@ -278,14 +278,41 @@ def test_a_saved_run_no_longer_collides_with_the_builtin(saved):
 
 def test_the_bare_group_still_lists(saved):
     """`tb tools` with no subcommand is the listing it always was — one door
-    for "what did I save", not a group that demands a subcommand."""
+    for "what did I declare", not a group that demands a subcommand. Formats
+    ride in the same envelope since [[capture]] landed."""
     from click.testing import CliRunner
 
     saved('[tool.prs]\nargv = ["data", "--", "printf", "[]"]\n')
     result = CliRunner().invoke(cli, ["--json", "tools"])
     envelope = json.loads(result.stdout)
     assert envelope["command"] == "tools"
-    assert [row["name"] for row in envelope["data"]] == ["prs"]
+    assert [row["name"] for row in envelope["data"]["tools"]] == ["prs"]
+    assert envelope["data"]["formats"] == []
+
+
+def test_the_listing_reports_formats_beside_tools(saved, tmp_path):
+    """One door: declared formats appear with their kind and description, and
+    a format's load failure lands in the same degrade list a tool's does."""
+    from click.testing import CliRunner
+
+    import cli.capture as capture_mod
+
+    (tmp_path / "formats.toml").write_text(
+        '[format.jam-status]\ndescription = "PR, state, title"\nkind = "lines"\n'
+        'pattern = \'(?P<pr>#\\d+) (?P<state>\\w+)\'\n'
+        '[format.broken]\nkind = "nope"\n'
+    )
+    saved('[tool.prs]\nargv = ["data", "--", "printf", "[]"]\n')
+    import unittest.mock
+
+    with unittest.mock.patch.object(capture_mod, "TB_HOME", tmp_path):
+        result = CliRunner().invoke(cli, ["--json", "tools"])
+    envelope = json.loads(result.stdout)
+    assert envelope["data"]["formats"] == [
+        {"name": "jam-status", "kind": "lines", "description": "PR, state, title"}
+    ]
+    assert envelope["partial"] is True
+    assert any("unknown kind" in w for w in envelope["warnings"])
 
 
 def test_running_a_tool_dispatches_to_its_expansion(saved):

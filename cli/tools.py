@@ -350,9 +350,17 @@ def tools(ctx: click.Context) -> None:
 
 @emit
 def _listing() -> Result:
-    """The bare `tb tools` rendering — one door for "what did I save"."""
+    """The bare `tb tools` rendering — one door for "what did I declare".
+
+    Formats ride in the same listing (see [[capture]]): this is already the
+    one place the operator looks for "what did I declare, and what was
+    refused", and a second listing command would split that. Their load
+    problems land in the same degrade list a tool's do.
+    """
+    from cli import capture as capture_
+
     result = Result()
-    result.data = [
+    declared = [
         {
             "name": name,
             "description": command.short_help or "",
@@ -364,7 +372,16 @@ def _listing() -> Result:
         if getattr(command, "tb_saved", False)
     ]
 
-    for problem in PROBLEMS:
+    formats, format_problems = capture_.load_formats()
+    result.data = {
+        "tools": declared,
+        "formats": [
+            {"name": fmt.name, "kind": fmt.kind, "description": fmt.description}
+            for fmt in sorted(formats, key=lambda f: f.name)
+        ],
+    }
+
+    for problem in (*PROBLEMS, *format_problems):
         result.degrade(problem)
 
     return result
