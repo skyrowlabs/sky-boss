@@ -125,7 +125,14 @@ def ui(
     size: str | None,
     scale: float,
 ) -> Result:
-    """Open the canvas — a command palette over tiled and floating windows."""
+    """Open the canvas — a command palette over tiled and floating windows.
+
+    A surface, not a verb: it renders the same envelope every command returns
+    and adds none of its own, which is why `tb run` stays the only door that
+    acts even with the canvas in front of it. Development mode:
+
+        tb ui --no-browser --port 8765
+    """
     import uvicorn
 
     result = Result()

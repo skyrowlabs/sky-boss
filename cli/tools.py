@@ -293,9 +293,11 @@ def register(root: click.Group, home: Path | None = None) -> list[str]:
 @click.command()
 @emit
 def tools() -> Result:
-    """List the saved commands in the toolbox.
+    """List the saved commands in the toolbox. An observe — it runs nothing:
 
-    A read. It reports what is declared and, importantly, what was declared and
+        tb tools
+
+    It reports what is declared and, importantly, what was declared and
     refused — a tool that fails to load is otherwise invisible, and the operator
     who wrote it has no way to tell it apart from one they forgot to write.
     """

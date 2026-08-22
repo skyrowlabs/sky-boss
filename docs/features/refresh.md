@@ -84,7 +84,7 @@ a confusion trap.
       uses the keyword default; refused together with `--json`. The running-since clock and
       countdown render through the [[chrome]] contract rather than growing their own status
       line.
-- [ ] **Help is the doc.** A tree-walking test fails any command whose `--help` lacks a runnable
+- [x] **Help is the doc.** A tree-walking test fails any command whose `--help` lacks a runnable
       example, and every existing command (`run`, `read`, `data`, `tools`, `ui`) is brought up to
       the standard — contract stated (acts/observes, once/resident), example included. Lands in
       this round so [[follow]] and [[file-follow]] are born covered. The palette inherits the same
