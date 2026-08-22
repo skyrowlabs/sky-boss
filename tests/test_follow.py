@@ -72,14 +72,13 @@ def test_the_file_form_dispatches_to_the_cursor(monkeypatch):
     which is exactly what resident-by-nature means."""
     calls = {}
 
-    def fake_follow_file(path, *, limit):
-        calls["path"] = path
-        calls["limit"] = limit
+    def fake_follow_file(path, *, limit, screen):
+        calls.update(path=path, limit=limit, screen=screen)
 
     monkeypatch.setattr("cli.filefollow.follow_file", fake_follow_file)
     result = CliRunner().invoke(cli, ["follow", "--lines", "50", "x/y.log"])
     assert result.exit_code == 0
-    assert calls == {"path": "x/y.log", "limit": 50}
+    assert calls == {"path": "x/y.log", "limit": 50, "screen": False}
 
 
 # ============================================================================
@@ -115,7 +114,7 @@ def drive(child, ticks=2):
     follow_process(
         ["journalctl", "-f"],
         clock=lambda: 160.0,
-        sleep=lambda s: None,
+        wait=lambda s: None,
         console=recording,
         screen=False,
         ticks=ticks,
@@ -216,3 +215,155 @@ def test_a_keyword_wrapping_follow_inherits_residency_and_refuses_a_cadence(tmp_
             n for n, c in list(tools_group.commands.items()) if getattr(c, "tb_saved", False)
         ]:
             del tools_group.commands[name]
+
+
+# ============================================================================
+# Leaving, and where the frame is drawn — [[follow]] round 2
+# ============================================================================
+
+
+def keyed(child, keys_pressed, ticks=100, screen=False):
+    """Drive the loop with a scripted key at every wait, and report how many
+    ticks it actually spent — the same shape [[refresh]] round 2's loop tests
+    use, so a key that leaves is proven by the loop *ending*, not by a bound."""
+    from rich.console import Console
+
+    pressed = iter(keys_pressed)
+    spent = []
+
+    def wait(seconds):
+        spent.append(seconds)
+        return next(pressed, None)
+
+    follow_process(
+        ["journalctl", "-f"],
+        clock=lambda: 160.0,
+        wait=wait,
+        console=Console(record=True, width=70, force_terminal=True),
+        screen=screen,
+        ticks=ticks,
+        spawn=lambda argv, cwd=None, limit=None: child,
+    )
+    return len(spent)
+
+
+def test_q_leaves_a_stream_before_its_ticks_are_spent():
+    assert keyed(FakeChild([("x", False)]), [None, None, "q"]) == 3
+
+
+def test_esc_leaves_and_an_ordinary_key_does_not():
+    assert keyed(FakeChild([("x", False)]), ["\x1b"]) == 1
+    assert keyed(FakeChild([("x", False)]), ["j"], ticks=5) == 5
+
+
+def test_leaving_with_q_kills_the_child_exactly_as_ctrl_c_does():
+    """The one place the two resident commands genuinely differ. A resident
+    read leaves a finished process behind; `q` on a follow terminates its
+    child, because the stream *is* the window."""
+    child = FakeChild([("x", False)])
+    keyed(child, ["q"])
+    assert child.killed is True
+
+
+def test_the_alternate_screen_is_no_longer_the_default_for_a_stream():
+    """The reversal, asserted where it is easiest to regress: leaving should
+    leave the tail of the log you were watching on the screen."""
+    import inspect
+
+    from cli.filefollow import follow_file
+
+    assert inspect.signature(follow_process).parameters["screen"].default is False
+    assert inspect.signature(follow_file).parameters["screen"].default is False
+
+
+def test_an_inline_frame_shows_the_newest_lines_not_the_oldest():
+    """The clip direction, end to end. The ring holds 200 lines against a
+    terminal's forty, so *every* inline follow frame is clipped — a follow
+    that kept the head would pin the oldest lines and never show a new one."""
+    from rich.console import Console
+
+    child = FakeChild([(f"line {i}", False) for i in range(40)])
+    child._ring = Ring(limit=200)
+    for i in range(40):
+        child._ring.push(Line(text=f"line {i}", stderr=False, at=100.0))
+
+    recording = Console(record=True, width=70, height=12, force_terminal=True)
+    follow_process(
+        ["journalctl", "-f"],
+        clock=lambda: 160.0,
+        wait=lambda s: "q",
+        console=recording,
+        screen=False,
+        ticks=1,
+        spawn=lambda argv, cwd=None, limit=None: child,
+    )
+    text = recording.export_text()
+    assert "line 39" in text and "line 0" not in text
+    assert "more lines not shown" in text
+
+
+def test_the_screen_flag_reaches_both_forms(monkeypatch):
+    seen = {}
+    monkeypatch.setattr("cli.follow.follow_process", lambda argv, **kw: seen.update(kw))
+    CliRunner().invoke(cli, ["follow", "--screen", "--", "journalctl", "-f"])
+    assert seen["screen"] is True
+    seen.clear()
+    CliRunner().invoke(cli, ["follow", "--", "journalctl", "-f"])
+    assert seen["screen"] is False
+
+
+def test_the_help_says_how_to_leave_and_that_leaving_kills():
+    """Help is the doc ([[refresh]]). Leaving killing the child is the one
+    thing a reader would otherwise have to infer, so it is written down."""
+    help_text = CliRunner().invoke(cli, ["follow", "--help"]).output
+    assert "q, Esc or Ctrl-C to leave" in help_text
+    assert "kills it" in help_text
+    assert "--screen" in help_text and "alternate screen" in help_text
+
+
+def test_a_real_terminal_leaves_on_q_and_kills_the_child():
+    """Terminal-shaped, end to end: a real pty, a real cbreak reader, and the
+    real inline rendering. Everything above drives the loop with an injected
+    wait and `screen=False`, so nothing else here ever sees the path the
+    operator actually runs.
+
+    The key is pressed *after* the reader is in cbreak, because
+    `tty.setcbreak` flushes the input queue (TCSAFLUSH) — a byte written
+    before the residency starts is discarded, which is correct behaviour and
+    was only visible from a real terminal. Bounded either way: `ticks` caps
+    the wait at three seconds, and leaving on the key is proven by the loop
+    ending in well under one.
+    """
+    import os
+    import pty
+    import sys
+    import threading
+    import time as time_
+
+    primary, secondary = pty.openpty()
+    stdin = os.fdopen(secondary, "r", buffering=1)
+    screen_out = os.fdopen(os.dup(secondary), "w", buffering=1)
+    real_stdin = sys.stdin
+    child = FakeChild([("a line", False)])
+    press = threading.Timer(0.2, lambda: os.write(primary, b"q"))
+    try:
+        from rich.console import Console
+
+        sys.stdin = stdin
+        press.start()
+        started = time_.monotonic()
+        follow_process(
+            ["journalctl", "-f"],
+            clock=lambda: 160.0,
+            console=Console(file=screen_out, width=70, height=12, force_terminal=True),
+            ticks=3,
+            spawn=lambda argv, cwd=None, limit=None: child,
+        )
+        assert time_.monotonic() - started < 1.0  # left on the key, not the bound
+        assert child.killed is True
+    finally:
+        press.cancel()
+        sys.stdin = real_stdin
+        stdin.close()
+        screen_out.close()
+        os.close(primary)

@@ -1,17 +1,22 @@
 ---
-status: draft
+status: complete
 created: 2026-08-21
 updated: 2026-08-22
 agent_value: 3
 key_files:
   - cli/stream.py
   - cli/follow.py
+  - cli/filefollow.py
+  - cli/resident.py
+  - cli/keys.py
   - cli/run.py
   - cli/read.py
   - cli/canvas/server.py
   - cli/canvas/static/app.js
   - tests/test_stream.py
   - tests/test_follow.py
+  - tests/test_filefollow.py
+  - tests/test_resident.py
   - tests/test_canvas_stream.py
 ---
 
@@ -70,6 +75,10 @@ is what lets a future Rule tint those lines without re-plumbing.
 
 **Bounded.** Same ring as [[file-follow]] (default 200 lines, `--lines`). Liveness clock = last line
 arrived. ANSI stripped per [[text-reads]].
+
+**`q`, `Esc` and Ctrl-C all leave, and leaving kills** (round 2, amending round 1's "Ctrl-C
+leaves (and kills)"). The frame is drawn inline below the prompt by default, keeping the
+**tail** of the ring; `--screen` takes the alternate screen and shows the whole ring.
 
 **Does not do:**
 
@@ -133,17 +142,17 @@ inverted. So the round adds a direction to the clip rather than reusing it as-is
   follow is left and where it draws. The canvas's follow windows are unaffected: they close by
   closing, which was never in doubt.
 
-- [ ] **Both forms take `q` and `Esc`.** `follow_process` and `follow_file` adopt `cli/keys.py`,
+- [x] **Both forms take `q` and `Esc`.** `follow_process` and `follow_file` adopt `cli/keys.py`,
       replacing their `sleep(1)` with the same key-polling wait the resident loop uses; Ctrl-C
       unchanged, and leaving still kills a process child. Tested with the injected wait both
       loops already accept.
-- [ ] **Inline by default, `--screen` for the alternate screen.** `clip` grows a direction and
+- [x] **Inline by default, `--screen` for the alternate screen.** `clip` grows a direction and
       both follow bodies ask for the tail; the dropped-lines marker leads the body instead of
       trailing it. A terminal-shaped end-to-end check through a pty, as [[refresh]] round 2's
       did, because the suite drives these loops with `screen=False` and never sees the real one.
-- [ ] **`--help` says how to leave, and that leaving kills.** The [[refresh]] help test enforces
+- [x] **`--help` says how to leave, and that leaving kills.** The [[refresh]] help test enforces
       the example; this adds the sentence a reader would otherwise have to infer.
-- [ ] **The record.** [[file-follow]] gains a dated Notes entry — its loop changed, its "Ctrl-C
+- [x] **The record.** [[file-follow]] gains a dated Notes entry — its loop changed, its "Ctrl-C
       ends it" line is amended, and the reason to read *this* doc for the leaving contract is
       stated there. The constitution needs nothing: it says `follow` is resident, which is
       still true.
@@ -234,3 +243,42 @@ default.
 **Recorded because it looks like an inconsistency and is not:** `q` on a follow kills the child,
 while `q` on a resident read leaves nothing running. Both are "close the window"; the commands
 differ in what a window owns, not in what the key means.
+
+### Round 2 — executed (2026-08-22)
+
+The round was right that nothing new had to be designed, and wrong about how little would move.
+What the execution argued back:
+
+- **The clip direction was the finding the draft predicted, and sharing went further than it
+  planned.** Both follow loops, both frame assemblers and both clip calls collapsed into
+  `cli/resident.py` — `hold`, `room`, `clip(..., tail=True)` and `stream_body`. The draft's
+  caution ("a shared helper correct for its first caller and silently wrong for its second") is
+  the reason to share *deliberately* rather than the reason not to: `clip` now takes a direction
+  and both callers state which end they mean, which is exactly the failure made impossible
+  instead of merely avoided. `stream_body` was already duplicated between the two forms before
+  this round; one assembler is what the existing test *"both follow bodies tint through one
+  `spans`"* was already asserting by hand.
+- **`cli/resident.py` grew a charter rather than a helper.** It was written as "the terminal's
+  rendering of the refresh rule"; it is now "the terminal's resident views — how they draw and
+  how they are left", which is the honest description of a module that owns `q` for two commands
+  that share nothing else. The alternative was a lazy cross-import between `follow.py` and
+  `filefollow.py`, which would have put the leaving contract in whichever module happened to
+  import first.
+- **`tty.setcbreak` flushes the input queue, and only a real terminal shows it.** The pty
+  end-to-end check pressed `q` before starting the residency and passed alone, passed in its own
+  file, and hung for a hundred seconds inside the full suite — a race, not a failure, because
+  `setcbreak` uses `TCSAFLUSH` and discards whatever is already queued. The key is now pressed
+  after the reader is in cbreak. Two lessons, both already project rules: **bound every wait**
+  (the bound was `ticks=100`, which is a hundred *seconds* when each tick is a real one-second
+  select — a bound on frames is not a bound on time when the wait is real), and a test that only
+  passes in isolation has not passed. The behaviour itself is correct and left alone: a key typed
+  before the first frame appears is dropped.
+- **`--screen` had to reach the file form too**, which the phase list implied and the dispatch
+  did not: `follow` now passes it to both `follow_file` and `follow_process`, and the round's one
+  test-shaped surprise was that the existing dispatch test asserted the *exact* call kwargs.
+- **Verified against a real terminal, not only the suite.** A pty harness ran the actual `tb`
+  through all three shapes — process inline, process `--screen`, file inline. Inline draws
+  `room()` lines with the marker leading, `q` leaves, `--screen` hands the terminal back
+  (`?1049l`), and the child is gone. The suite proves the mechanism; this proved the rendering,
+  which is the half `screen=False` and an injected wait never see.
+

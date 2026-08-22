@@ -1,11 +1,13 @@
 ---
 status: complete
 created: 2026-08-21
-updated: 2026-08-21
+updated: 2026-08-22
 agent_value: 3
 key_files:
   - cli/filefollow.py
   - cli/follow.py
+  - cli/resident.py
+  - cli/keys.py
   - cli/canvas/server.py
   - tests/test_filefollow.py
   - tests/test_canvas_stream.py
@@ -61,7 +63,8 @@ offset. Each tick, stat again and compare:
 **The tick rides what exists.** On the canvas, the poll is driven by the same Python-side,
 connection-keyed clock every watcher uses ([[canvas]]) — the cursor pauses when its window
 closes and keeps running while it is merely minimized, and nothing survives the last window. In
-the terminal, the resident loop owns its own tick and Ctrl-C ends it.
+the terminal, the resident loop owns its own tick, and `q`, `Esc` or Ctrl-C ends it — amended
+2026-08-22 by [[follow]] round 2, which owns the leaving contract for both follow forms.
 
 **The status line is the feature.** `following · last write 19:00 (3m ago) · 198 KB` — quiet
 and dead are different words because the loop stats the file. It renders through the [[chrome]]
@@ -167,3 +170,19 @@ pure rule set in `cli/highlight.py` and applied by both terminal forms and the c
 amendment is recognition-for-tinting only: lines stay verbatim, unfiltered, unordered, and
 the "does not parse, filter, or judge" argument above stands untouched for structure. The
 cursor's own voice (rotation, truncation) keeps its warn tint; highlight never re-tags it.
+
+### 2026-08-22 — how it is left, and where it draws, moved to [[follow]]
+
+The cursor loop changed shape without changing what it does. Round 1's *"Ctrl-C exits cleanly"*
+is now *"`q`, `Esc` or Ctrl-C"*, and the frame is drawn **inline below the prompt** by default
+rather than on the alternate screen — `--screen` keeps the old behaviour. Both follow forms
+took the change together, because they are one command with one way out, and **[[follow]] round
+2 is where that contract is recorded**: it is the doc that wrote down "Ctrl-C leaves (and
+kills)", so it is the doc that reverses it. Read it for the reasoning, including the one place
+the two forms genuinely differ — leaving a process kills its child, leaving a file lets go of an
+offset.
+
+The mechanical consequence here: `follow_file` takes a `wait` where it took a `sleep`, and the
+loop, the frame clipping and the body assembler are now shared with the process form through
+`cli/resident.py`. The clip keeps the **tail** — a log's interesting end is its newest line, and
+the ring outruns the terminal on every frame.

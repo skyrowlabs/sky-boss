@@ -368,3 +368,34 @@ def test_the_screen_flag_reaches_the_resident_loop(monkeypatch):
     seen.clear()
     CliRunner().invoke(cli, ["read", "--refresh", "5", "--", "printf", "hi"])
     assert seen["screen"] is False
+
+
+# ============================================================================
+# Which end the clip keeps — [[follow]] round 2
+# ============================================================================
+
+
+def test_a_stream_body_is_clipped_from_the_tail_with_the_marker_leading():
+    """A snapshot's interesting end is the top; a stream's is the bottom. The
+    shared helper takes a direction rather than being correct for its first
+    caller and silently wrong for its second."""
+    from rich.text import Text
+
+    from cli.resident import clip
+
+    body = Text("\n".join(f"line {i}" for i in range(50)))
+    out = clip(body, 10, tail=True).plain.split("\n")
+    assert len(out) == 10
+    assert "more lines not shown" in out[0]  # the marker leads, where the
+    assert out[1:] == [f"line {i}" for i in range(41, 50)]  # dropped lines went
+
+
+def test_the_head_clip_is_untouched_by_the_direction_landing():
+    from rich.text import Text
+
+    from cli.resident import clip
+
+    body = Text("\n".join(f"line {i}" for i in range(50)))
+    out = clip(body, 10).plain.split("\n")
+    assert out[:9] == [f"line {i}" for i in range(9)]
+    assert "more lines not shown" in out[-1]
