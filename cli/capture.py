@@ -27,9 +27,11 @@ from __future__ import annotations
 import json
 import re
 import subprocess
+import tomllib
 from dataclasses import dataclass
+from pathlib import Path
 
-from cli.helpers import child_env
+from cli.helpers import TB_HOME, child_env
 
 FORMATS_FILE = "formats.toml"
 
@@ -114,6 +116,133 @@ def _shape(value: str | None):
     if _FLOAT.match(value):
         return float(value)
     return value
+
+
+# ============================================================================
+# The formats file — operator declarations, outside the repo
+# ============================================================================
+
+# The shape of a name that can stand after `--from` and in a TOML header.
+# Same alphabet as a tool's name, for the same reasons.
+_NAME = re.compile(r"\A[a-z0-9][a-z0-9-]*\Z")
+
+
+def read(home: Path | None = None) -> dict:
+    """The raw TOML, or an empty mapping. An absent home degrades to nothing
+    declared — a fresh clone has no formats and saying so every invocation
+    would be noise — while a file that exists and cannot be parsed is worth
+    reporting: the operator wrote it and is expecting it to work."""
+    path = (home or TB_HOME) / FORMATS_FILE
+    try:
+        with path.open("rb") as handle:
+            return tomllib.load(handle)
+    except FileNotFoundError:
+        return {}
+    except (OSError, tomllib.TOMLDecodeError) as exc:
+        return {"__error__": f"{path}: {exc}"}
+
+
+def parse_formats(raw: dict) -> tuple[list[Format], list[str]]:
+    """Validate declarations. Pure — reads no file. One bad format must not
+    cost the operator the other nine, so nothing here raises: a malformed
+    declaration is skipped and named."""
+    if "__error__" in raw:
+        return [], [raw["__error__"]]
+
+    formats: list[Format] = []
+    problems: list[str] = []
+
+    for name, body in (raw.get("format") or {}).items():
+        problem = _check_format(name, body)
+        if problem:
+            problems.append(f"format {name!r}: {problem}")
+            continue
+        formats.append(
+            Format(
+                name=name,
+                kind=body["kind"],
+                pattern=str(body.get("pattern", "")),
+                description=str(body.get("description", "")),
+                jq=str(body.get("jq", "")),
+            )
+        )
+
+    return formats, problems
+
+
+def _check_format(name: str, body) -> str | None:
+    """The reason this declaration is unusable, or None."""
+    if not isinstance(body, dict):
+        return "not a table"
+    if not _NAME.match(name):
+        return "name must be lowercase letters, digits and hyphens"
+    if name in KINDS:
+        # Builtin names always win a collision, same rule as commands — a
+        # format named `json` would silently change what every `--from json`
+        # on the machine means.
+        return "a builtin kind already has this name"
+
+    kind = body.get("kind")
+    if kind not in KINDS:
+        return f"unknown kind {kind!r} — kinds: {', '.join(KINDS)}"
+
+    jq = body.get("jq", "")
+    if not isinstance(jq, str):
+        return "jq must be a string holding a jq program"
+
+    pattern = body.get("pattern", "")
+    if kind == "json":
+        if pattern:
+            # Refused rather than ignored: a pattern sitting meaninglessly on
+            # a json format is the "wrong but looks right" failure.
+            return "pattern means nothing on kind 'json'"
+        if not jq:
+            return "a json format with no jq field declares nothing — drop it or transform"
+        return None
+
+    # lines
+    if not isinstance(pattern, str) or not pattern:
+        return "kind 'lines' needs a pattern"
+    try:
+        compiled = re.compile(pattern)
+    except re.error as exc:
+        return f"pattern does not compile: {exc}"
+    if not compiled.groupindex:
+        return "pattern has no named group — fields come from (?P<name>…)"
+    return None
+
+
+def load_formats(home: Path | None = None) -> tuple[list[Format], list[str]]:
+    """Every declared format, and every reason one was skipped. Read at use,
+    never cached: a pinned canvas window re-runs its command on a cadence, so
+    editing the format under a pinned window is the REPL."""
+    return parse_formats(read(home))
+
+
+def resolve(name: str, home: Path | None = None) -> tuple[Format | None, str | None]:
+    """`--from <name>` down to a format: a kind that needs no parameters, or
+    a declared format. Anything else is `(None, reason)` — and the reason
+    lists what would have worked, or says exactly why a declared format was
+    refused, because "no such format" about a format the operator wrote is
+    the least helpful true sentence available."""
+    if name == "json":
+        return Format(name="json", kind="json"), None
+    if name == "lines":
+        return None, (
+            "'lines' needs a pattern — declare a format in formats.toml "
+            "and name it: --from <name>"
+        )
+
+    formats, problems = load_formats(home)
+    for fmt in formats:
+        if fmt.name == name:
+            return fmt, None
+    for problem in problems:
+        if problem.startswith(f"format {name!r}"):
+            return None, problem
+
+    available = ", ".join(["json", *(f.name for f in formats)])
+    return None, f"no format named {name!r} — one of: {available}"
 
 
 # ============================================================================
