@@ -27,6 +27,13 @@ wrapped tool prints something that is not JSON, that is a failed contract rather
 than a payload — this says so and points at `tb run`, which exists to show you
 what a command actually printed.
 
+**`--from` names the parsing contract** — the `json` kind, or a format the
+operator declared in `$TB_HOME/formats.toml`: a per-line pattern for a tool
+with no `--json`, a jq program as the pipeline's middle stage, or both. The
+contract does not move: parsed data or a failed contract, never carried bytes —
+a capture that misses is counted and named, and one that catches nothing is a
+failure, not an empty table. See [[capture]].
+
 **It is the only command that shapes its own table.** A foreign tool's JSON has
 as many fields as its author needed, not as many as a table wants, so this
 attaches a `view` describing which of them to show. tb's own commands do not:
@@ -43,6 +50,7 @@ import time
 
 import rich_click as click
 
+from cli import capture as capture_
 from cli.helpers import child_env
 from cli.output import Result, emit
 from cli.view import shape
@@ -55,18 +63,19 @@ from cli.view import shape
 @click.option("--cols", help="Show exactly these columns, in this order. Dotted paths allowed.")
 @click.option("--drop", help="Hide these columns, keeping the rest of the shaping.")
 @click.option("--no-shape", "no_shape", is_flag=True, help="Every column, in the order found.")
-# One option with enumerable values, never a flag per format. `json` is the
-# only value today; csv or yaml arrive as *values with their own parsing
-# contracts*, one at a time, when something real needs them. And `data` never
-# grows its own `--json` — the root owns that spelling for envelope output,
-# and one flag meaning two things at two levels is a confusion trap.
+# One option whose value is a *name*, never a flag per format. It resolves to
+# a kind tb ships (`json`) or to a format the operator declared in
+# `$TB_HOME/formats.toml` — complexity lives in the named declaration and the
+# command line only says the name. See [[capture]]. And `data` never grows its
+# own `--json` — the root owns that spelling for envelope output, and one flag
+# meaning two things at two levels is a confusion trap.
 @click.option(
     "--from",
     "from_",
-    type=click.Choice(["json"]),
     default="json",
     show_default=True,
-    help="The format the tool prints.",
+    metavar="NAME",
+    help="How to read what the tool prints: a kind (json) or a declared format.",
 )
 @click.option(
     "--refresh",
@@ -106,10 +115,22 @@ def data(
     budget is hidden and named. `--cols` overrides that outright:
 
         tb data --cols number,title,checks.failed -- jam pr list --json
+
+    `--from` names a parsing contract: the `json` kind, or a format declared
+    in formats.toml — a per-line pattern for a tool with no `--json`, a jq
+    program reshaping the parse, or both:
+
+        tb data --from pr-summary -- jam pr list --json
     """
+    # Resolved here so a bad name is a usage error before anything runs —
+    # and resolved again on every run, so a pinned window re-reads the
+    # operator's edit on its next tick. See [[capture]].
+    _, problem = capture_.resolve(from_)
+    if problem:
+        raise click.UsageError(problem)
     if refresh is not None:
-        _reside(argv, timeout, cwd, cols, drop, no_shape, refresh)
-    return _once(argv, timeout, cwd, cols, drop, no_shape)
+        _reside(argv, timeout, cwd, cols, drop, no_shape, from_, refresh)
+    return _once(argv, timeout, cwd, cols, drop, no_shape, from_)
 
 
 def _reside(
@@ -119,6 +140,7 @@ def _reside(
     cols: str | None,
     drop: str | None,
     no_shape: bool,
+    from_: str,
     refresh: int,
 ) -> None:
     """Go resident, or refuse. Same contract as `read`'s: never returns
@@ -133,7 +155,9 @@ def _reside(
         # consumer that wants a cadence is what the canvas API is for.
         raise click.UsageError("--refresh and --json refuse each other")
     source = f"{ctx.info_name} -- {shlex.join(argv)}"
-    resident.reside(source, refresh, lambda: _once(argv, timeout, cwd, cols, drop, no_shape))
+    resident.reside(
+        source, refresh, lambda: _once(argv, timeout, cwd, cols, drop, no_shape, from_)
+    )
     raise click.exceptions.Exit(0)
 
 
@@ -144,9 +168,20 @@ def _once(
     cols: str | None,
     drop: str | None,
     no_shape: bool,
+    from_: str = "json",
 ) -> Result:
     result = Result()
     started = time.monotonic()
+
+    # Re-resolved on every run rather than closed over: the resident loop and
+    # the canvas both re-enter here, and the operator editing formats.toml
+    # under a pinned window is the REPL. A name that resolved at startup and
+    # broke since fails this run loudly and recovers on the next.
+    fmt, problem = capture_.resolve(from_)
+    if problem:
+        result.ok = False
+        result.data = {"error": problem}
+        return result
 
     try:
         proc = subprocess.run(
@@ -182,16 +217,44 @@ def _once(
         result.data = {**meta, "error": _first_line(proc.stderr) or "exited non-zero"}
         return result
 
-    try:
-        parsed = json.loads(proc.stdout)
-    except json.JSONDecodeError:
-        result.ok = False
-        result.data = {
-            **meta,
-            "error": "not JSON — ask the tool for JSON, or use `tb run` to see "
-            "what it printed",
-        }
-        return result
+    if fmt.kind == "json":
+        try:
+            parsed = json.loads(proc.stdout)
+        except json.JSONDecodeError:
+            result.ok = False
+            result.data = {
+                **meta,
+                "error": "not JSON — ask the tool for JSON, or use `tb run` to see "
+                "what it printed",
+            }
+            return result
+    else:
+        # The lines kind. ANSI is stripped before matching for the same
+        # reason `read` strips it: the first time a tool decides it is
+        # talking to a terminal, `\x1b[32m` in the middle of a field is not
+        # what the operator's pattern was written against.
+        from cli.read import strip_ansi
+
+        captured = capture_.capture(strip_ansi(proc.stdout), fmt)
+        if captured.matched_nothing:
+            result.ok = False
+            result.data = {
+                **meta,
+                "error": f"nothing matched {fmt.name} — fix the format, or use "
+                "`tb read` to see what the tool printed",
+            }
+            return result
+        warning = capture_.unmatched_warning(captured, fmt.name)
+        if warning:
+            result.warn(warning)
+        parsed = captured.rows
+
+    if fmt.jq:
+        parsed, error = capture_.transform(parsed, fmt.jq, fmt.name, timeout=timeout)
+        if error:
+            result.ok = False
+            result.data = {**meta, "error": error}
+            return result
 
     # A list of rows becomes the data outright, so a window renders a table
     # rather than a table nested one level down under a key nobody chose.

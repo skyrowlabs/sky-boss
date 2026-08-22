@@ -153,7 +153,7 @@ runs `tb --json data --from … -- …` through the runner unchanged. No canvas 
       validation (known kind, compilable pattern, ≥1 named group, builtin names win), loud
       per-format failures, absent file degrades to nothing declared. `tb tools` lists
       declared formats and their failures.
-- [ ] **`--from <name>` resolution on `data`.** Kinds needing no parameters plus declared
+- [x] **`--from <name>` resolution on `data`.** Kinds needing no parameters plus declared
       formats; unknown names are usage errors listing what would have worked; the envelope
       mapping; the failed-contract error naming both recourses; `--help` gains the runnable
       example — the [[refresh]] help test enforces it.
