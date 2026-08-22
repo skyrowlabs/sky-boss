@@ -35,6 +35,7 @@ import rich_click as click
 from rich.console import Console, Group
 
 from cli import chrome as chrome_
+from cli import highlight as highlight_
 from cli import resident
 from cli.output import THEME, band_text
 from cli.stream import DEFAULT_LINES, ChildStream
@@ -82,8 +83,20 @@ def is_file_form(argv: tuple[str, ...]) -> bool:
     default=None,
     help="Save this invocation as a saved command called NAME, then follow it.",
 )
+@click.option(
+    "--highlight",
+    "highlight",
+    metavar="NAME",
+    default=None,
+    help="Also tint with the patterns you declared under [highlight.NAME] in formats.toml.",
+)
 def follow(
-    argv: tuple[str, ...], cwd: str | None, lines: int, screen: bool, save: str | None
+    argv: tuple[str, ...],
+    cwd: str | None,
+    lines: int,
+    screen: bool,
+    save: str | None,
+    highlight: str | None,
 ) -> None:
     """Follow a command that streams, or a file that grows. An observe,
     resident by nature:
@@ -107,6 +120,12 @@ def follow(
     `--save` keeps the line, then follows it:
 
         tb follow --save cron -- journalctl -f
+
+    Timestamps, tags, numbers, dates, paths and code are tinted by shape.
+    `--highlight` adds the words that matter in *your* logs, declared once
+    under `[highlight.NAME]` in formats.toml:
+
+        tb follow --highlight jam -- jam report watch --follow
     """
     ctx = click.get_current_context()
     if (ctx.find_root().obj or {}).get("as_json"):
@@ -124,14 +143,22 @@ def follow(
 
         saved_note(tools_.save_invocation(save, ctx.info_name))
 
+    # Resolved before anything opens, so a name that is not declared is a
+    # usage error rather than a stream that quietly tints nothing.
+    ruleset = None
+    if highlight:
+        ruleset, problem = highlight_.resolve(highlight)
+        if problem:
+            raise click.UsageError(problem)
+
     if is_file_form(argv):
         # The native cursor, [[file-follow]]: tb can stat a file, so quiet
         # and dead get different words.
         from cli.filefollow import follow_file
 
-        follow_file(argv[0], limit=lines, screen=screen)
+        follow_file(argv[0], limit=lines, screen=screen, ruleset=ruleset)
     else:
-        follow_process(list(argv), cwd=cwd, limit=lines, screen=screen)
+        follow_process(list(argv), cwd=cwd, limit=lines, screen=screen, ruleset=ruleset)
 
 
 # Read by the catalog the way `tb_surface` and `tb_acts` are: a property on
@@ -150,6 +177,7 @@ def follow_process(
     console: Console | None = None,
     screen: bool = False,
     ticks: int | None = None,
+    ruleset=None,
     spawn=ChildStream,
 ) -> None:
     """The process form's whole rendering: ring, chrome bands, dead state.
@@ -188,7 +216,7 @@ def follow_process(
             ring_limit=limit,
         )
         top, bottom = chrome_.status_bands(facts, clock(), out.width)
-        body = resident.stream_body(kept)
+        body = resident.stream_body(kept, ruleset)
         # The tail, always: a stream's interesting end is the newest line,
         # and the ring outruns the terminal on every frame. See [[follow]] r2.
         shown = body if screen else resident.clip(body, resident.room(out), tail=True)

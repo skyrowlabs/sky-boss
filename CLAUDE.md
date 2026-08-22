@@ -86,6 +86,12 @@ commands. If groups come back, group them that way and be slower to add one.
 - **`tb ctx`** and **`tb secrets`** (unified context switching, a secrets manager as root of trust
   for `aws`/`gh`/`stripe`). **External CLIs keep their own authentication.** `tb` is never in the
   credential path. This is what keeps a future MCP surface safe to expose.
+- **Judging a followed line.** Tint is *shape* — a timestamp, a number, a path — and it is
+  computed in `cli/highlight.py` for both surfaces. A severity vocabulary (ERROR/WARN/INFO) is a
+  judgment wearing a regex's clothes and tb does not ship one; the operator declares their own
+  words under `[highlight.<name>]` in `formats.toml` and names it with `--highlight`. Those rules
+  run **after** tb's and claim only unclaimed text, so a declaration can never repaint a
+  timestamp. See [[highlight]].
 - **Parsing a tool's human output into rows** — *narrowed 2026-08-22 by [[capture]]: **declared**
   capture is in; inference stays out.* `tb read` shows it verbatim and says that is what it is
   doing; inferring columns from whitespace is the "silently wrong" failure, and a tool with real
@@ -215,7 +221,7 @@ resolving after a system update, check there first.
 |---|---|---|---|
 | Code, tests, docs | this repo | the project | here |
 | Saved commands (`tools.toml`) | `~/.config/tb/` (`$TB_HOME`) | the operator, and `--save` | never |
-| Capture formats (`formats.toml`) | `~/.config/tb/` (`$TB_HOME`) | the operator | never |
+| Capture formats and highlight rules (`formats.toml`) | `~/.config/tb/` (`$TB_HOME`) | the operator | never |
 | Browser profile for the canvas | `~/.local/state/tb/` (`$TB_STATE`) | the machine | never |
 
 **`$TB_HOME` is the operator content directory, and it is outside the repo with no fallback path
@@ -344,7 +350,8 @@ built surface as pure concept and decided the eight primitives, with dated decis
 visible reversals. Feature specs convert it into buildable rounds; read it before proposing a
 primitive-level change. `docs/features/done/` holds the completed docs — `canvas.md` (the
 surface, five rounds), `table-views.md` (the shaping contract), `follow.md` (the streaming
-substrate), `tools.md` (saved commands, three rounds), `header.md` (the mark), `text-reads.md`,
+substrate), `tools.md` (saved commands, three rounds), `highlight.md` (lexical tint, three rounds),
+`header.md` (the mark), `text-reads.md`,
 `subprocess-env.md`, and the constitution's rounds as they land. `docs/features/` is empty. Every earlier
 spec was deleted with the system it described; the done docs that predate the 2026-08-21
 renames say `wrap`/`every` on purpose — dated, never scrubbed.

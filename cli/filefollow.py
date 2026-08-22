@@ -213,6 +213,7 @@ def follow_file(
     screen: bool = False,
     ticks: int | None = None,
     fs: RealFs | None = None,
+    ruleset=None,
 ) -> None:
     """The terminal rendering: the same residency the process form has, with
     the cursor's stat knowledge in the bands — quiet and dead are different
@@ -244,7 +245,7 @@ def follow_file(
             ring_limit=limit,
         )
         top, bottom = chrome_.status_bands(facts, clock(), out.width)
-        body = resident.stream_body(kept)
+        body = resident.stream_body(kept, ruleset)
         # The tail: the newest lines are the ones a log is followed for.
         shown = body if screen else resident.clip(body, resident.room(out), tail=True)
         return Group(band_text(top), shown, band_text(bottom))
