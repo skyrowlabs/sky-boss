@@ -1,9 +1,11 @@
 ---
-status: draft
+status: active
 created: 2026-08-22
 updated: 2026-08-22
 agent_value: 2
-key_files: []
+key_files:
+  - cli/highlight.py
+  - tests/test_highlight.py
 ---
 
 # Highlight — lexical tint for followed lines
@@ -77,7 +79,7 @@ outside `cli/theme.py` in any language.
 
 ### Round 1 — shape, not vocabulary (2026-08-22)
 
-- [ ] **The rules, pure.** `cli/highlight.py`: `marks(text) -> list[(start, end, role)]` for
+- [x] **The rules, pure.** `cli/highlight.py`: `marks(text) -> list[(start, end, role)]` for
       timestamp, tag and URL; overlaps resolved (first match wins, no nesting). Tests per
       rule, plus the properties: text never altered, a non-matching line yields no marks, a
       pathological line (200 KB, no spaces) returns in bounded time.
