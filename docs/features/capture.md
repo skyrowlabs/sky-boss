@@ -1,9 +1,11 @@
 ---
-status: draft
+status: active
 created: 2026-08-22
 updated: 2026-08-22
 agent_value: 2
-key_files: []
+key_files:
+  - cli/capture.py
+  - tests/test_capture.py
 ---
 
 # Capture — named formats: parse, transform, present
@@ -140,7 +142,7 @@ runs `tb --json data --from … -- …` through the runner unchanged. No canvas 
 
 ### Round 1 — the lines kind, the formats file, and the jq stage (2026-08-22)
 
-- [ ] **The capture, pure.** `cli/capture.py` and `tests/test_capture.py`: matching, group
+- [x] **The capture, pure.** `cli/capture.py` and `tests/test_capture.py`: matching, group
       naming, number shaping, blank-line skip, unmatched counting with sample, the
       nothing-matched verdict. No subprocess, no file I/O in the mechanism tests.
 - [ ] **The transform stage.** The `jq` field on any format: spawn the operator's binary
