@@ -1,12 +1,12 @@
 ---
 status: complete
 created: 2026-08-20
-updated: 2026-08-20
+updated: 2026-08-21
 agent_value: 3
 key_files:
   - cli/helpers.py
   - cli/run.py
-  - cli/wrap.py
+  - cli/data.py
   - cli/canvas/runner.py
   - tests/test_run.py
 ---
@@ -164,3 +164,9 @@ fixed, in either repository, by anyone.
 **What is not fixed.** jam's wrapper still lacks `PYTHONSAFEPATH`, so `jam` still fails when run
 from any directory containing a `cli/` package. That is jam.sense's to change, and `tb wrap`
 without `--cwd` now fails honestly there instead of quietly working.
+
+### 2026-08-21 — the words moved; the history stays (supersession)
+
+`wrap` was renamed `data` and the `every` field renamed `refresh` — hard renames, no aliases;
+see [[refresh]]. This doc predates the rename and its prose says `wrap` because it *was*
+`wrap`; that is history being accurate, and nothing above has been scrubbed.

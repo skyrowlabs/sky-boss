@@ -1,16 +1,16 @@
 ---
 status: complete
 created: 2026-08-20
-updated: 2026-08-20
+updated: 2026-08-21
 agent_value: 3
 key_files:
   - cli/view.py
-  - cli/wrap.py
+  - cli/data.py
   - cli/output.py
   - cli/canvas/static/render.js
   - cli/canvas/static/tb.css
   - tests/test_view.py
-  - tests/test_wrap.py
+  - tests/test_data.py
   - tests/test_output.py
 ---
 
@@ -358,3 +358,9 @@ spacing and the exact gutter with it.
 
 **Still true, and now for a smaller set:** the budget hides `checks` and `execution` on the real
 fourteen-field row. `--cols` is still the recourse and the warning still names what went missing.
+
+### 2026-08-21 — the words moved; the history stays (supersession)
+
+`wrap` was renamed `data` and the `every` field renamed `refresh` — hard renames, no aliases;
+see [[refresh]]. This doc predates the rename and its prose says `wrap` because it *was*
+`wrap`; that is history being accurate, and nothing above has been scrubbed.

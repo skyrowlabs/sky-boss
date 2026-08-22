@@ -1,9 +1,16 @@
 ---
-status: active
+status: complete
 created: 2026-08-21
 updated: 2026-08-21
-agent_value: 2
-key_files: []
+agent_value: 3
+key_files:
+  - cli/data.py
+  - cli/read.py
+  - cli/resident.py
+  - cli/tools.py
+  - tests/test_data.py
+  - tests/test_resident.py
+  - tests/test_help.py
 ---
 
 # Refresh, spelled the same everywhere
@@ -89,7 +96,7 @@ a confusion trap.
       the standard — contract stated (acts/observes, once/resident), example included. Lands in
       this round so [[follow]] and [[file-follow]] are born covered. The palette inherits the same
       strings through the catalog; nothing is written twice.
-- [ ] **Docs sweep.** CLAUDE.md command table and § conventions say `data` and `refresh`;
+- [x] **Docs sweep.** CLAUDE.md command table and § conventions say `data` and `refresh`;
       `docs/design/fundamentals.md` gains nothing (it already says all of this) — verify rather
       than edit. The done docs that predate the rename ([[table-views]], [[text-reads]],
       [[subprocess-env]]) are **dated, never scrubbed**: update their `key_files` paths (frontmatter
@@ -108,3 +115,26 @@ foreign argvs cannot carry the act/observe assertion, and the keyword-inheritanc
 `argv[0]` being a distinct entry point. The `--refresh`/`--json` mutual refusal was found while
 speccing this doc, not in the constitution pass — an endless envelope stream on stdout has no
 consumer and would break the one contract (`--json` purity) every consumer relies on.
+
+### Round 1 — executed (2026-08-21)
+
+What the execution argued back:
+
+- **[[chrome]]'s first two phases were pulled ahead of the `--refresh` phase**, as its own doc
+  ordered — the resident loop rendered through `status_lines` from birth and never grew a status
+  line to migrate off. The interleave (rename → rename → chrome facts → residency) beat the
+  strict doc order and cost nothing.
+- **The field rename needed its own loud check, not just the argv one.** An unrecognised
+  `every` field would have been silently ignored and the tool would load at cadence 0 — the
+  pinned window that never refreshes, "wrong but looks right". `RENAMED` covers argv words;
+  a separate check covers the field.
+- **Bare `--refresh` on a keyword is Click's `flag_value` trick** (`is_flag=False,
+  flag_value=0`), and the option is attached only to tools that observe — a tool that acts
+  does not grow the flag at all, mirroring how `run` itself shows the split by absence.
+- **Five done docs needed the supersession line, not three.** [[toolbox]] and [[canvas]] also
+  predate the rename and say `wrap`/`every` throughout; the spec had named only the three the
+  operator asked about. Same treatment: key_files re-pointed, one dated Notes entry, prose
+  untouched.
+- The resident loop went on the **alternate screen** (watch(1)/htop style) so hours of redraw
+  leave the scrollback intact; inline rendering was considered for small tmux panes and can be
+  argued as its own round if wanted.
