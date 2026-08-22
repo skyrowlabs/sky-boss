@@ -1,10 +1,12 @@
 ---
-status: active
+status: complete
 created: 2026-08-22
 updated: 2026-08-22
 agent_value: 3
 key_files:
   - cli/highlight.py
+  - cli/resident.py
+  - cli/tools.py
   - cli/follow.py
   - cli/filefollow.py
   - cli/canvas/server.py
@@ -232,14 +234,14 @@ operator's own file on the operator's own machine, the same trust level as `tool
 - **No `--highlight` on `data`.** It shapes tables, and a table cell's role comes from its
   value's kind. Streams are where lexical rules belong.
 
-- [ ] **Declared rules load and validate.** `[highlight.<name>]` in `formats.toml`: patterns
+- [x] **Declared rules load and validate.** `[highlight.<name>]` in `formats.toml`: patterns
       compile, roles resolve against the palette, a bad one is skipped and named in `tb tools`
       alongside the format problems it already lists.
-- [ ] **`--highlight NAME` on `follow`**, both forms, plus `highlight = "<name>"` on a saved
+- [x] **`--highlight NAME` on `follow`**, both forms, plus `highlight = "<name>"` on a saved
       command, inherited the way `refresh` is.
-- [ ] **Applied after the built-ins, claiming only unclaimed text**, with a test that proves a
+- [x] **Applied after the built-ins, claiming only unclaimed text**, with a test that proves a
       declared rule cannot repaint a timestamp or a tag.
-- [ ] **The canvas gets them too**, read from the same file server-side — marks arrive as marks
+- [x] **The canvas gets them too**, read from the same file server-side — marks arrive as marks
       and the frontend stays dumb, which is round 1's rule and the reason it is still true.
 
 ## Notes
@@ -294,4 +296,36 @@ no violet, and "looked better in a prototype" is how a second palette starts.
 arriving as the operator's declaration rather than tb's opinion. What is new is only *where*
 the declaration lives: `formats.toml`, beside the capture formats, because that file is already
 "what I have asserted about what my tools print" and `tb tools` already lists what it refused.
+
+### Rounds 2 and 3 — executed (2026-08-22)
+
+What the execution argued back:
+
+- **Writing the rules against a real log, rather than from the patterns, was the whole
+  difference.** Three false positives showed up in the first pass over the live cron.log and
+  none of them would have failed a unit test written from the regex: a spaced unit tinted the
+  numeral *plus the next English word* (`8 issue`, `104 archive`, `50 candidate`); `\b\d` tinted
+  the leading `7` of the git SHA `7d9d878`, which reads as a rendering fault rather than a
+  highlight; and `\b` cannot begin a match at a dot, so `.github/…` and `./scripts/…` rendered
+  with their leading dot bare. The fix for the second is the interesting one — lookarounds on
+  *both* sides, so a number is tinted only when it is a number and not when it is a character of
+  an identifier.
+- **Bold could not be a role, so it became a modifier.** The flat, non-overlapping mark list is
+  what lets the canvas apply marks dumbly, and emphasis nests over everything by nature. Making
+  it compete for the slot would have meant a bold finding losing its code tint or the reverse.
+  A composite role — `"bold tb.path"` — keeps the list flat, is what Rich already reads, and
+  cost the canvas one `split(" ")`. The model bent rather than the feature.
+- **Round 3's ordering rule earned a test the moment it was written.** Operator rules run last
+  and claim only unclaimed text, so a declared `2026` cannot repaint a timestamp and a declared
+  `agent` cannot repaint a tag. The alternative — a declaration winning — makes every built-in
+  conditional on a file tb does not ship, and the first surprising log is unexplainable.
+- **`highlight` on a saved command needed the same refusal `refresh` has.** Declared on a tool
+  that wraps `data`, the field would load cleanly and mean nothing, because tint belongs to a
+  stream. Refused at load by name — the "wrong but looks right" failure this loader exists to
+  catch, arriving through a second door.
+- **The listing absorbed rulesets without a new command**, the way formats did before them: one
+  door for "what did I declare, and what was refused". `tb tools` grew a `highlights` section
+  and their load problems join the same degrade list.
+- Verified end to end against the live cron.log with a real `[highlight.jam]` declared — four
+  rules, all firing, with the built-ins unmoved underneath them.
 

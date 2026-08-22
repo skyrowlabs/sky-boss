@@ -214,7 +214,9 @@ def test_the_cursor_body_tints_through_the_same_rules(monkeypatch):
 
     seen = []
     real = highlight.spans
-    monkeypatch.setattr(highlight, "spans", lambda t: seen.append(t) or real(t))
+    monkeypatch.setattr(
+        highlight, "spans", lambda t, ruleset=None: seen.append(t) or real(t, ruleset)
+    )
 
     fs = FakeFs()
     stamped = "2026-01-01T00:00:00 [cron] ran"

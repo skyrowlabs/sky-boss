@@ -252,9 +252,14 @@ def build(canvas: Canvas | None = None) -> Starlette:
 
         argv = [str(a) for a in (body.get("argv") or [])]
         try:
-            kind, foreign, cwd, lines = resolve_follow(argv)
+            kind, foreign, cwd, lines, highlight = resolve_follow(argv)
         except ValueError as exc:
             return JSONResponse({"error": str(exc)}, status_code=400)
+        ruleset = None
+        if highlight:
+            ruleset, problem = highlight_.resolve(highlight)
+            if problem:
+                return JSONResponse({"error": problem}, status_code=400)
         try:
             if kind == "file":
                 from cli.filefollow import FileCursor
@@ -271,7 +276,7 @@ def build(canvas: Canvas | None = None) -> Starlette:
                 )
         except (FileNotFoundError, OSError) as exc:
             return JSONResponse({"error": str(exc)}, status_code=400)
-        session.followers[window_id] = Follower(child=child, argv=foreign)
+        session.followers[window_id] = Follower(child=child, argv=foreign, ruleset=ruleset)
         return JSONResponse({"following": True})
 
     async def stream(request: Request) -> Response:
@@ -333,22 +338,32 @@ class Follower:
 
     child: object  # ChildStream or FileCursor; one interface, see [[file-follow]]
     argv: list[str]
+    # The operator's declared vocabulary for this window, resolved server-side
+    # when the follow opened. A page may *name* a ruleset; it may never define
+    # one. See [[highlight]] round 3.
+    ruleset: object | None = None
     shipped: int = 0
     exited_at: float | None = None
     dead_announced: bool = False
     last_state: str | None = None
 
 
-def resolve_follow(argv: list[str], root=None) -> tuple[str, list[str], str | None, int]:
+def resolve_follow(
+    argv: list[str], root=None
+) -> tuple[str, list[str], str | None, int, str | None]:
     """A tb-level follow argv down to what it follows.
 
     The client sends what the operator typed or saved — `follow -- journalctl
     -f`, `follow cron.log`, or a keyword like `logs` — and the *server*
     resolves it, because a saved command's expansion lives on the Click tree
     and nothing client-side may keep a command table. Returns
-    `("process", foreign_argv, cwd, lines)` or `("file", [path], cwd, lines)`
-    by the same shape rule the CLI dispatches on; raises ValueError when the
-    argv is not a follow at all.
+    `("process", foreign_argv, cwd, lines, highlight)` or
+    `("file", [path], cwd, lines, highlight)` by the same shape rule the CLI
+    dispatches on; raises ValueError when the argv is not a follow at all.
+
+    `highlight` is the name of an operator ruleset, resolved against their
+    file *here* rather than sent by the client — a page may name a ruleset,
+    it may never define one. See [[highlight]] round 3.
     """
     if root is None:
         from cli import cli as root_group
@@ -376,6 +391,7 @@ def resolve_follow(argv: list[str], root=None) -> tuple[str, list[str], str | No
 
     cwd: str | None = None
     lines = stream_.DEFAULT_LINES
+    highlight: str | None = None
     rest = argv[1:]
     foreign: list[str] = []
     i = 0
@@ -392,6 +408,10 @@ def resolve_follow(argv: list[str], root=None) -> tuple[str, list[str], str | No
             lines = int(rest[i + 1])
             i += 2
             continue
+        if token == "--highlight" and i + 1 < len(rest):
+            highlight = rest[i + 1]
+            i += 2
+            continue
         foreign = rest[i:]
         break
     if not foreign:
@@ -400,8 +420,8 @@ def resolve_follow(argv: list[str], root=None) -> tuple[str, list[str], str | No
     from cli.follow import is_file_form
 
     if is_file_form(tuple(foreign)):
-        return "file", foreign, cwd, lines
-    return "process", foreign, cwd, lines
+        return "file", foreign, cwd, lines, highlight
+    return "process", foreign, cwd, lines, highlight
 
 
 def follower_frames(session: Session, now: float | None = None) -> list[dict]:
@@ -449,21 +469,21 @@ def follower_frames(session: Session, now: float | None = None) -> list[dict]:
             {
                 "type": "stream",
                 "window": window_id,
-                "lines": [_frame_line(line) for line in fresh],
+                "lines": [_frame_line(line, follower.ruleset) for line in fresh],
                 "chrome": facts.to_dict(),
             }
         )
     return frames
 
 
-def _frame_line(line) -> dict:
+def _frame_line(line, ruleset=None) -> dict:
     """One stream line for the wire. Marks ride *beside* the verbatim text,
     never instead of it — offsets into the text, computed here because the
     rules live in Python and the page applies them dumbly. A stderr line is
     the stream's own voice and is never re-tagged. See [[highlight]]."""
     out = {"text": line.text, "stderr": line.stderr}
     if not line.stderr:
-        found = highlight_.marks(line.text)
+        found = highlight_.marks(line.text, ruleset)
         if found:
             out["marks"] = found
     return out

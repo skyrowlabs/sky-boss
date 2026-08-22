@@ -23,6 +23,8 @@ would drift the week they were written.
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
+from pathlib import Path
 
 # (start, end, role) — offsets into the line, role names from cli/theme.py.
 Mark = tuple[int, int, str]
@@ -123,12 +125,19 @@ _RULES: tuple[tuple[re.Pattern, str, bool], ...] = (
 )
 
 
-def marks(text: str) -> list[Mark]:
+def marks(text: str, ruleset: "Ruleset | None" = None) -> list[Mark]:
     """The line's lexical marks: sorted, non-overlapping, first match wins.
 
     Pure, and bounded: every rule is a linear scan and the result is capped at
     `MAX_MARKS`. The text is never altered — a caller holding the marks and
     the line holds everything.
+
+    A `ruleset` is the operator's declared vocabulary ([[highlight]] round 3).
+    **It runs last and claims only text no built-in rule claimed**, so a
+    timestamp stays muted and a tag stays a tag whatever the operator writes.
+    Letting a declaration win would make every built-in rule conditional on a
+    file tb does not ship, and the first surprising log would be
+    unexplainable.
     """
     found: list[Mark] = []
 
@@ -157,6 +166,18 @@ def marks(text: str) -> list[Mark]:
             if any(start < e and s < end for s, e, _ in found):
                 continue  # first match wins, no nesting
             found.append((start, end, role))
+
+    if ruleset is not None:
+        for pattern, role in ruleset.rules:
+            for match in pattern.finditer(text):
+                start, end = match.start(), match.end()
+                if end <= start:
+                    continue  # a zero-width pattern marks nothing
+                if any(start < e and s < end for s, e, _ in found):
+                    continue
+                found.append((start, end, role))
+                if len(found) >= MAX_MARKS:
+                    break
 
     return _emphasise(text, sorted(found))[:MAX_MARKS]
 
@@ -197,13 +218,13 @@ def _emphasise(text: str, coloured: list[Mark]) -> list[Mark]:
     return sorted(out)
 
 
-def spans(text: str) -> list[tuple[str, str | None]]:
+def spans(text: str, ruleset: "Ruleset | None" = None) -> list[tuple[str, str | None]]:
     """The line as (chunk, role) spans — the same shape the chrome bands use,
     so both terminal forms tint through the same assembler and untinted text
     rides through with role None."""
     out: list[tuple[str, str | None]] = []
     cursor = 0
-    for start, end, role in marks(text):
+    for start, end, role in marks(text, ruleset):
         if start > cursor:
             out.append((text[cursor:start], None))
         out.append((text[start:end], role))
@@ -211,3 +232,126 @@ def spans(text: str) -> list[tuple[str, str | None]]:
     if cursor < len(text) or not out:
         out.append((text[cursor:], None))
     return out
+
+
+# ============================================================================
+# Declared rules — the operator's own words. See [[highlight]] round 3.
+# ============================================================================
+#
+# **Shape is tb's; vocabulary is the operator's.** `ESCALATE`, `Done.`,
+# `handing to 'claude'` — the words that matter in one operator's log and mean
+# nothing in anyone else's. tb cannot know them and must not guess, for exactly
+# the reason it does not guess columns ([[capture]]): a word list is a judgment
+# wearing a regex's clothes. So it is declared, in the file that already holds
+# declarations about output, and named on the command that follows the stream.
+
+# Longer than this is not a pattern, it is a program. The cap is a guard
+# against a pasted mistake, not against an adversary — this is the operator's
+# own file on their own machine, at `tools.toml`'s trust level.
+MAX_PATTERN = 200
+
+# What a declared rule may ask for: the palette's role names, minus the `tb.`
+# prefix the operator should not have to type. A role the theme does not
+# define is refused by name — nothing operator-authored gets near a colour.
+def _roles() -> dict[str, str]:
+    from cli.theme import STYLES
+
+    return {name.removeprefix("tb."): name for name in STYLES}
+
+
+@dataclass(frozen=True)
+class Ruleset:
+    """One named set of operator patterns, already compiled and validated."""
+
+    name: str
+    description: str = ""
+    rules: tuple[tuple[re.Pattern, str], ...] = ()
+
+
+def parse_rulesets(raw: dict) -> tuple[list[Ruleset], list[str]]:
+    """Validate `[highlight.<name>]` declarations. Pure — reads no file.
+
+    One bad ruleset must not cost the operator the other nine, and one bad
+    *rule* must not cost the ruleset: both are skipped and named, the way a
+    malformed format and a malformed tool already are.
+    """
+    if "__error__" in raw:
+        return [], [raw["__error__"]]
+
+    roles = _roles()
+    found: list[Ruleset] = []
+    problems: list[str] = []
+
+    for name, body in (raw.get("highlight") or {}).items():
+        if not isinstance(body, dict):
+            problems.append(f"highlight {name!r}: not a table")
+            continue
+        declared = body.get("rules")
+        if not isinstance(declared, list) or not declared:
+            problems.append(f"highlight {name!r}: rules must be a non-empty list")
+            continue
+
+        compiled: list[tuple[re.Pattern, str]] = []
+        for index, rule in enumerate(declared):
+            problem = _check_rule(rule, roles)
+            if problem:
+                problems.append(f"highlight {name!r} rule {index + 1}: {problem}")
+                continue
+            compiled.append((re.compile(rule["pattern"]), roles[rule["role"]]))
+
+        if compiled:
+            found.append(
+                Ruleset(
+                    name=name,
+                    description=str(body.get("description", "")),
+                    rules=tuple(compiled),
+                )
+            )
+
+    return found, problems
+
+
+def _check_rule(rule, roles: dict[str, str]) -> str | None:
+    """The reason this rule is unusable, or None."""
+    if not isinstance(rule, dict):
+        return "not a table"
+    pattern = rule.get("pattern")
+    if not isinstance(pattern, str) or not pattern:
+        return "pattern must be a non-empty string"
+    if len(pattern) > MAX_PATTERN:
+        return f"pattern is longer than {MAX_PATTERN} characters"
+    role = rule.get("role")
+    if role not in roles:
+        # Names the alternatives rather than just refusing: the mistake this
+        # catches is someone writing a colour, and the fix is to say which
+        # words the palette answers to.
+        return f"role must be one of {', '.join(sorted(roles))} — not {role!r}"
+    try:
+        re.compile(pattern)
+    except re.error as exc:
+        return f"pattern does not compile: {exc}"
+    return None
+
+
+def load_rulesets(home: Path | None = None) -> tuple[list[Ruleset], list[str]]:
+    """Every declared ruleset, and every reason one was skipped.
+
+    Read at use rather than cached, like the formats beside them: editing the
+    file under a pinned window is the REPL.
+    """
+    from cli import capture as capture_
+
+    return parse_rulesets(capture_.read(home))
+
+
+def resolve(name: str, home: Path | None = None) -> tuple[Ruleset | None, str | None]:
+    """`--highlight <name>` down to a ruleset, or the reason it is not one."""
+    found, problems = load_rulesets(home)
+    for ruleset in found:
+        if ruleset.name == name:
+            return ruleset, None
+    mine = [p for p in problems if p.startswith(f"highlight {name!r}")]
+    if mine:
+        return None, mine[0]
+    known = ", ".join(sorted(r.name for r in found)) or "none declared"
+    return None, f"no highlight named {name!r} — declared: {known}"

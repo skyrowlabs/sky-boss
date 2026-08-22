@@ -236,8 +236,11 @@ def _turn(
         count += 1
 
 
-def stream_body(lines) -> Text:
+def stream_body(lines, ruleset=None) -> Text:
     """A ring of lines as one renderable — the body both follow forms draw.
+
+    `ruleset` is the operator's declared vocabulary, passed through rather
+    than consulted here — see [[highlight]] round 3.
 
     One assembler on purpose: two renderers holding their own opinions about
     how a stderr line looks would drift the week they were written. stdout
@@ -254,7 +257,7 @@ def stream_body(lines) -> Text:
         if line.stderr:
             body.append(strip_ansi(line.text) + "\n", style="tb.warn")
         else:
-            body.append_text(band_text(highlight_.spans(strip_ansi(line.text))))
+            body.append_text(band_text(highlight_.spans(strip_ansi(line.text), ruleset)))
             body.append("\n")
     return body
 

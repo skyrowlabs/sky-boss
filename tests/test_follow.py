@@ -72,7 +72,7 @@ def test_the_file_form_dispatches_to_the_cursor(monkeypatch):
     which is exactly what resident-by-nature means."""
     calls = {}
 
-    def fake_follow_file(path, *, limit, screen):
+    def fake_follow_file(path, *, limit, screen, ruleset=None):
         calls.update(path=path, limit=limit, screen=screen)
 
     monkeypatch.setattr("cli.filefollow.follow_file", fake_follow_file)
@@ -139,9 +139,9 @@ def test_the_body_tints_stdout_lines_and_never_retags_stderr(monkeypatch):
     seen = []
     real = highlight.spans
 
-    def recording_spans(text):
+    def recording_spans(text, ruleset=None):
         seen.append(text)
-        return real(text)
+        return real(text, ruleset)
 
     monkeypatch.setattr(highlight, "spans", recording_spans)
     stamped = "2026-01-01T00:00:00 [job] https://example.com done"

@@ -211,5 +211,87 @@ def test_marks_are_capped_so_one_line_cannot_flood_a_frame():
     assert "".join(chunk for chunk, _ in spans(line)) == line
 
 
-def _tinted(line):
-    return [(chunk, role) for chunk, role in spans(line) if role]
+def _tinted(line, ruleset=None):
+    return [(chunk, role) for chunk, role in spans(line, ruleset) if role]
+
+
+# ============================================================================
+# Round 3 — the operator's own patterns
+# ============================================================================
+
+
+def _ruleset(*rules):
+    from cli.highlight import parse_rulesets
+
+    sets, problems = parse_rulesets({"highlight": {"jam": {"rules": list(rules)}}})
+    return (sets[0] if sets else None), problems
+
+
+def test_a_declared_rule_tints_a_word_tb_would_never_judge():
+    """Shape is tb's; vocabulary is the operator's. `ESCALATE` means
+    everything in one log and nothing in anyone else's."""
+    rules, problems = _ruleset({"pattern": r"\bESCALATE\b", "role": "warn"})
+    assert problems == []
+    line = "the finding was ESCALATE today"
+    assert [(t, r) for t, r in _tinted(line, rules)] == [("ESCALATE", "tb.warn")]
+
+
+def test_a_declared_rule_cannot_repaint_a_timestamp_or_a_tag():
+    """Operator rules run last and claim only unclaimed text. Letting a
+    declaration win would make every built-in conditional on a file tb does
+    not ship, and the first surprising log would be unexplainable."""
+    rules, _ = _ruleset({"pattern": r"2026", "role": "fail"}, {"pattern": r"agent", "role": "ok"})
+    line = "2026-08-22T05:00:02+00:00 [agent-fix] ok"
+    roles = {text: role for text, role in _tinted(line, rules)}
+    assert roles["2026-08-22T05:00:02+00:00"] == "tb.muted"
+    assert roles["[agent-fix]"] == "tb.accent"
+    assert "tb.fail" not in roles.values() and "tb.ok" not in roles.values()
+
+
+def test_a_role_the_palette_does_not_define_is_refused_by_name():
+    """Nothing operator-authored gets near a colour — the rule the whole
+    theme rests on does not get an exception for a config file."""
+    rules, problems = _ruleset({"pattern": "x", "role": "#ff0000"})
+    assert rules is None
+    assert "role must be one of" in problems[0] and "accent" in problems[0]
+
+
+def test_a_pattern_that_does_not_compile_is_skipped_and_named():
+    rules, problems = _ruleset(
+        {"pattern": "[unterminated", "role": "warn"},
+        {"pattern": "fine", "role": "ok"},
+    )
+    assert "does not compile" in problems[0]
+    assert len(rules.rules) == 1  # one bad rule does not cost the others
+
+
+def test_an_overlong_pattern_is_not_a_pattern():
+    _, problems = _ruleset({"pattern": "a" * 500, "role": "warn"})
+    assert "longer than" in problems[0]
+
+
+def test_a_zero_width_pattern_marks_nothing():
+    """`\\b` matches everywhere and covers nothing; a mark of no width would
+    be a span the renderers have to special-case."""
+    rules, _ = _ruleset({"pattern": r"\b", "role": "warn"})
+    assert marks("some words here", rules) == []
+
+
+def test_resolve_names_what_is_declared_when_the_name_is_wrong(tmp_path):
+    from cli.highlight import resolve
+
+    (tmp_path / "formats.toml").write_text(
+        '[highlight.jam]\nrules = [{ pattern = "x", role = "ok" }]\n'
+    )
+    found, problem = resolve("jam", home=tmp_path)
+    assert found is not None and problem is None
+
+    found, problem = resolve("nope", home=tmp_path)
+    assert found is None and "declared: jam" in problem
+
+
+def test_declared_rules_still_respect_the_cap():
+    rules, _ = _ruleset({"pattern": r"a", "role": "warn"})
+    from cli.highlight import MAX_MARKS
+
+    assert len(marks("a " * 400, rules)) <= MAX_MARKS

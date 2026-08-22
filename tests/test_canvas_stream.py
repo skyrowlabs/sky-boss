@@ -231,20 +231,27 @@ async def test_a_followers_child_dies_with_its_session():
 def test_resolve_follow_resolves_keywords_and_strips_the_fence():
     from cli.canvas.server import resolve_follow
 
-    kind, foreign, cwd, lines = resolve_follow(["follow", "--", "journalctl", "-f"])
+    kind, foreign, cwd, lines, rules = resolve_follow(["follow", "--", "journalctl", "-f"])
     assert kind == "process"
     assert foreign == ["journalctl", "-f"] and cwd is None
 
-    kind, foreign, cwd, lines = resolve_follow(
+    kind, foreign, cwd, lines, rules = resolve_follow(
         ["follow", "--cwd", "/tmp", "--lines", "50", "--", "sh", "-c", "true"]
     )
     assert foreign == ["sh", "-c", "true"] and cwd == "/tmp" and lines == 50
+
+    # The operator's declared vocabulary is *named* by the argv and resolved
+    # against their own file server-side — see [[highlight]] round 3.
+    _, foreign, _, _, rules = resolve_follow(
+        ["follow", "--highlight", "jam", "--", "journalctl", "-f"]
+    )
+    assert foreign == ["journalctl", "-f"] and rules == "jam"
 
 
 def test_resolve_follow_tells_a_file_by_the_same_shape_rule_as_the_cli():
     from cli.canvas.server import resolve_follow
 
-    kind, foreign, cwd, lines = resolve_follow(["follow", "some/path.log"])
+    kind, foreign, cwd, lines, rules = resolve_follow(["follow", "some/path.log"])
     assert kind == "file" and foreign == ["some/path.log"]
 
 
@@ -259,7 +266,7 @@ def test_resolve_follow_descends_to_a_saved_keyword_behind_the_tools_group(tmp_p
     (tmp_path / "tools.toml").write_text('[tool.logs]\nargv = ["follow", "--", "journalctl", "-f"]\n')
     try:
         assert register(cli, home=tmp_path) == []
-        kind, foreign, cwd, lines = resolve_follow(["tools", "logs"])
+        kind, foreign, cwd, lines, rules = resolve_follow(["tools", "logs"])
         assert kind == "process" and foreign == ["journalctl", "-f"]
     finally:
         for name in [

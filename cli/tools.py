@@ -72,6 +72,7 @@ class Tool:
     refresh: int = 0
     acts: bool = False
     resident: bool = False
+    highlight: str = ""
 
 
 def home_file(home: Path | None = None) -> Path:
@@ -136,6 +137,7 @@ def parse(
                 refresh=int(body.get("refresh", 0)),
                 acts=commands[argv[0]],
                 resident=argv[0] in resident,
+                highlight=str(body.get("highlight", "")),
             )
         )
 
@@ -193,6 +195,16 @@ def _check(
         # read may be given a cadence, because re-running a read is a refresh
         # and re-running a write is a scheduler nobody asked for.
         return f"refresh is not allowed on a tool that acts (`{argv[0]}` writes)"
+    highlight = body.get("highlight", "")
+    if highlight:
+        if not isinstance(highlight, str):
+            return "highlight must be the name of a declared ruleset"
+        if argv[0] not in resident:
+            # Declared rules tint a *stream*. On a snapshot read the field
+            # would load fine and mean nothing — the "wrong but looks right"
+            # failure this loader exists to catch. See [[highlight]] round 3.
+            return f"highlight is only for a follow (`{argv[0]}` is not resident)"
+
     if refresh not in INTERVALS:
         # Not pedantry: the surface cycles the interval through this list, and
         # a window starting on a value outside it would jump to 0 on the first
@@ -253,6 +265,12 @@ def make_command(tool: Tool) -> click.Command:
         from cli import cli as root
 
         args = list(tool.argv[1:])
+        if tool.highlight:
+            # Inherited, never re-asked: the tool declared its vocabulary, so
+            # every invocation of it carries the flag the operator would have
+            # typed. Same shape as `refresh`, minus the negotiation — a
+            # ruleset has no "off by default" reading to respect.
+            args = ["--highlight", tool.highlight, *args]
         if refresh is not None:
             # Bare `--refresh` (Click hands over the flag_value, 0) adopts the
             # tool's own field — the canvas default cadence, asked for
@@ -358,10 +376,10 @@ def tools(ctx: click.Context) -> None:
 def _listing() -> Result:
     """The bare `tb tools` rendering — one door for "what did I declare".
 
-    Formats ride in the same listing (see [[capture]]): this is already the
-    one place the operator looks for "what did I declare, and what was
-    refused", and a second listing command would split that. Their load
-    problems land in the same degrade list a tool's do.
+    Formats and highlight rulesets ride in the same listing (see [[capture]],
+    [[highlight]]): this is already the one place the operator looks for "what
+    did I declare, and what was refused", and a second listing command would
+    split that. Their load problems land in the same degrade list a tool's do.
     """
     from cli import capture as capture_
 
@@ -378,16 +396,26 @@ def _listing() -> Result:
         if getattr(command, "tb_saved", False)
     ]
 
+    from cli import highlight as highlight_
+
     formats, format_problems = capture_.load_formats()
+    # Declared highlight rulesets ride the same listing as the formats beside
+    # them in the file: one door for "what did I declare, and what was
+    # refused". See [[highlight]] round 3.
+    rulesets, highlight_problems = highlight_.load_rulesets()
     result.data = {
         "tools": declared,
         "formats": [
             {"name": fmt.name, "kind": fmt.kind, "description": fmt.description}
             for fmt in sorted(formats, key=lambda f: f.name)
         ],
+        "highlights": [
+            {"name": rs.name, "rules": len(rs.rules), "description": rs.description}
+            for rs in sorted(rulesets, key=lambda r: r.name)
+        ],
     }
 
-    for problem in (*PROBLEMS, *format_problems):
+    for problem in (*PROBLEMS, *format_problems, *highlight_problems):
         result.degrade(problem)
 
     return result
