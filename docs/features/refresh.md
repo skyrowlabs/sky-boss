@@ -1,0 +1,110 @@
+---
+status: active
+created: 2026-08-21
+updated: 2026-08-21
+agent_value: 2
+key_files: []
+---
+
+# Refresh, spelled the same everywhere
+
+## Why
+
+The constitution (`docs/design/fundamentals.md`) decided that the terminal is a surface too: the
+refresh rule — re-run a snapshot on a cadence — currently exists only as canvas machinery (the
+`every` field, the window's cadence picker), while a CLI invocation always runs once and exits.
+The operator's framing was exact: "a run without options is one time; we need a flag that doesn't
+exit after one run and re-runs the command." One refresh concept, two renderings, the same shape
+as the theme's two-renderings rule.
+
+The same pass renamed two things that said the wrong word. `wrap` names a mechanism; **`data`**
+names the contract — parsed data or a failed contract, never carried bytes — and the contract is
+what matters. `every` and `--refresh` would be two spellings of one number; **`refresh`** is the
+one word, flag and field. And JSON stops being an invisible assumption: it becomes the default
+value of an explicit `--from`, so the next format is a value, not a redesign.
+
+This doc owns that realignment round. [[table-views]] and [[text-reads]] are its history and stay
+as written — they say `wrap` because it *was* `wrap`.
+
+## Shape
+
+**`--refresh <seconds>` on `read` and `data`.** Without it: run once, print, exit — unchanged.
+With it: the invocation goes resident, `watch(1)`-style — re-run every N seconds, redraw in
+place, Ctrl-C to leave. On a saved keyword, bare `--refresh` (no value) uses the keyword's
+`refresh` field; in the terminal a keyword still runs **once** unless the flag is given — the
+field is the *canvas* default cadence, and residency in a terminal is always asked for
+explicitly.
+
+**`run` never takes the flag.** The absence of `--refresh` in `run --help` is the act/observe
+split made visible; a deploy re-running itself every 60 seconds is the exact failure the split
+exists to prevent. Recorded as considered-and-rejected in the constitution. [[follow]] and
+[[file-follow]] take no flag either — resident by nature.
+
+**`--refresh` and `--json` refuse each other.** A resident redraw is a human rendering; under
+`--json` it would mean an endless stream of envelopes on a pipe that expects one. A machine
+consumer that wants a cadence is what the canvas API is for. Refused with a message that says so.
+
+**`wrap` becomes `data`.** Module, command name, catalog, tests, prose. Hard rename, no alias —
+one operator, one `tools.toml`, and an alias is a second name to test forever. A saved tool still
+saying `wrap` fails to load *loudly by name* — `tb tools` already lists tools that failed to
+load, which is the right surface for the migration message. Implementation note: `cli/data.py`
+defining a command named `data` walks straight into the import-shadowing gotcha CLAUDE.md
+records — import under an alias in `cli/__init__.py`, as `read` already must.
+
+**`every` becomes `refresh`.** Same word as the flag, same hard-rename policy, same loud failure
+through the tools-that-failed-to-load listing.
+
+**`--from <format>` on `data`**, one option with enumerable values — `json` today, the only
+value — defaulting to `json`. Never a flag per format, and `data` never grows its own `--json`:
+the root owns that spelling for envelope output, and one flag meaning two things at two levels is
+a confusion trap.
+
+**Does not do:**
+
+- **No `--refresh` on `run`, ever.** See above; not a future option, a rejected one.
+- **No second format yet.** `--from` exists so csv/yaml can arrive as *values with their own
+  parsing contracts*, one at a time, when something real needs them. Shipping speculative parsers
+  is how "silently wrong" gets back in.
+- **No back-compat aliases** for `wrap` or `every`.
+- **No canvas changes.** The Python-side, connection-keyed refresh clock ([[canvas]]) is
+  untouched; this round gives the *terminal* its rendering of the same rule. The two never share
+  a scheduler — a terminal residency is owned by its process, a canvas cadence by its stream.
+
+## Phases
+
+### Round 1 — the realignment (2026-08-21)
+
+- [ ] **`wrap` → `data`, plus `--from`.** Rename module/command/tests/catalog references; add
+      `--from json`; alias-import in `cli/__init__.py`; update CLAUDE.md's command table and the
+      operator's `tools.toml` (one entry). The failed-to-load path proves the loud migration
+      message.
+- [ ] **`every` → `refresh`** in the [[toolbox]] loader and its validation messages; docs.
+- [ ] **`--refresh` on `read` and `data`.** Resident terminal loop over an injectable clock
+      (tests assert the mechanism, not five real seconds); redraw in place; Ctrl-C; bare-flag
+      uses the keyword default; refused together with `--json`. The running-since clock and
+      countdown render through the [[chrome]] contract rather than growing their own status
+      line.
+- [ ] **Help is the doc.** A tree-walking test fails any command whose `--help` lacks a runnable
+      example, and every existing command (`run`, `read`, `data`, `tools`, `ui`) is brought up to
+      the standard — contract stated (acts/observes, once/resident), example included. Lands in
+      this round so [[follow]] and [[file-follow]] are born covered. The palette inherits the same
+      strings through the catalog; nothing is written twice.
+- [ ] **Docs sweep.** CLAUDE.md command table and § conventions say `data` and `refresh`;
+      `docs/design/fundamentals.md` gains nothing (it already says all of this) — verify rather
+      than edit. The done docs that predate the rename ([[table-views]], [[text-reads]],
+      [[subprocess-env]]) are **dated, never scrubbed**: update their `key_files` paths (frontmatter
+      is navigation, not history), and add one dated supersession line per doc — "`wrap` was
+      renamed `data`, `every` renamed `refresh`, see [[refresh]]; this doc predates the rename" —
+      leaving every argument and Notes entry exactly as written. Their prose says `wrap` because
+      it *was* `wrap`; that is history being accurate.
+
+## Notes
+
+### Round 1 — written as spec, from the constitution (2026-08-21)
+
+The rename question arrived as "cmd for foreign commands, data for wrap". Half survived: `data`
+is the better name because it names the contract; `cmd` was rejected because a generic door for
+foreign argvs cannot carry the act/observe assertion, and the keyword-inheritance rule leans on
+`argv[0]` being a distinct entry point. The `--refresh`/`--json` mutual refusal was found while
+speccing this doc, not in the constitution pass — an endless envelope stream on stdout has no
+consumer and would break the one contract (`--json` purity) every consumer relies on.
