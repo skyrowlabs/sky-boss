@@ -46,6 +46,7 @@ from starlette.staticfiles import StaticFiles
 from dataclasses import dataclass
 
 from cli import chrome as chrome_
+from cli import highlight as highlight_
 from cli import stream as stream_
 from cli.canvas import runner
 from cli.canvas.catalog import catalog
@@ -448,11 +449,24 @@ def follower_frames(session: Session, now: float | None = None) -> list[dict]:
             {
                 "type": "stream",
                 "window": window_id,
-                "lines": [{"text": line.text, "stderr": line.stderr} for line in fresh],
+                "lines": [_frame_line(line) for line in fresh],
                 "chrome": facts.to_dict(),
             }
         )
     return frames
+
+
+def _frame_line(line) -> dict:
+    """One stream line for the wire. Marks ride *beside* the verbatim text,
+    never instead of it — offsets into the text, computed here because the
+    rules live in Python and the page applies them dumbly. A stderr line is
+    the stream's own voice and is never re-tagged. See [[highlight]]."""
+    out = {"text": line.text, "stderr": line.stderr}
+    if not line.stderr:
+        found = highlight_.marks(line.text)
+        if found:
+            out["marks"] = found
+    return out
 
 
 def chrome_for(argv: list[str], run: dict, *, interval: int = 0, now: float | None = None) -> dict:
