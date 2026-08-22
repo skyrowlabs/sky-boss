@@ -6,7 +6,7 @@ agent_value: 2
 key_files: []
 ---
 
-# Capture — named formats for tools with no --json
+# Capture — named formats: parse, transform, present
 
 ## Why
 
@@ -36,6 +36,17 @@ contract, not a redesign.*
 
 ## Shape
 
+**The pipeline is three named stages, and a format may declare the middle one too:**
+
+    bytes ──(kind: parse)──▶ data ──(jq: transform)──▶ data′ ──(view: present)──▶ display
+
+Presentation is already *shape-driven* — the renderers dispatch on what the data is (rows →
+shaped table, mapping → key/value, `ok` rows → status list, `*_bytes` → humanized) — so the
+transform stage needs no formatting vocabulary of its own: **jq's job is to produce the
+shape; tb's job is to render the shape.** Proven against live data before this round was
+drafted: the same `jam pr list --json` rendered as a table under one jq program and as a
+key/value card under another, with zero formatting code chosen by anyone.
+
 **Two levels: kinds are code, formats are declarations.**
 
 - A **kind** is a parsing contract tb ships and tests: `json` today; `lines` (a per-line
@@ -51,11 +62,27 @@ contract, not a redesign.*
       kind = "lines"
       pattern = '(?P<pr>#\d+)\s+(?P<state>\w+)\s+(?P<title>.+)'
 
+      [format.pr-summary]
+      description = "open PRs reduced to the two numbers that matter"
+      kind = "json"
+      jq = '{open: length, behind: [.[] | select(.behind > 0)] | length}'
+
+  A format may declare `jq` whatever its kind — the transform runs on parsed rows exactly as
+  it runs on a JSON document, because after the parse stage everything is data. A `json`
+  format with only a `jq` field is the pure-transform case, and the expected common one.
+
 **`--from` resolves a name**: a kind that needs no parameters (`json`) or a declared format.
 Anything else is a usage error that lists what would have worked. Builtin kinds always win a
 name collision, same rule as commands; a format declaring an unknown kind, a pattern with no
 named group, or a pattern that does not compile **fails loudly by name and does not load** —
 one bad format must not cost the operator the other nine.
+
+**The transform is the operator's own `jq` binary**, spawned through `child_env()` with
+the program on its argv and the parsed data on stdin — tb does not reimplement a JSON
+language, and a Python binding is a wheels gamble on 3.14 that buys nothing over the binary.
+Absent `jq` degrades loudly *at use*, naming the format that wanted it; formats without a
+`jq` field never spawn anything. A jq program that fails is a failed contract with jq's own
+stderr as the reason — the same honesty rule as everything else here.
 
 **`tb tools` reports formats too.** It is already the one place the operator looks for "what
 did I declare, and what was refused" — a second listing command would split that. Declared
@@ -91,9 +118,12 @@ runs `tb --json data --from … -- …` through the runner unchanged. No canvas 
 
 - **No inference, ever.** No format, no table. `--pretty` remains rejected; this doc is the
   built form of the want behind it.
-- **No inline regex on the command line.** Refused by the operator on the first draft:
-  commands stay simple to execute, and a pattern worth typing is a pattern worth naming.
-  If a future one-off case genuinely earns an escape hatch, argue it as its own round.
+- **No inline regex, and no inline `--jq`, on the command line.** Refused by the operator
+  on the first draft for patterns and extended to programs by the same rule: commands stay
+  simple to execute, and a program worth typing is a program worth naming. The authoring
+  loop this seems to cost already exists better elsewhere: a pinned canvas window re-reads
+  `formats.toml` on its cadence, so editing the format under a pinned window *is* the REPL,
+  live. If a future one-off case genuinely earns an escape hatch, argue it as its own round.
 - **No multi-line records.** A record is one line. A declared record separator is a future
   kind, argued when a real tool demands it.
 - **No typed columns beyond number shape.** Dates, durations, enums stay strings.
@@ -108,11 +138,15 @@ runs `tb --json data --from … -- …` through the runner unchanged. No canvas 
 
 ## Phases
 
-### Round 1 — the lines kind and the formats file (2026-08-22)
+### Round 1 — the lines kind, the formats file, and the jq stage (2026-08-22)
 
 - [ ] **The capture, pure.** `cli/capture.py` and `tests/test_capture.py`: matching, group
       naming, number shaping, blank-line skip, unmatched counting with sample, the
       nothing-matched verdict. No subprocess, no file I/O in the mechanism tests.
+- [ ] **The transform stage.** The `jq` field on any format: spawn the operator's binary
+      through `child_env()`, stdin in, parsed JSON out; jq's failure is a failed contract
+      carrying its stderr; absent binary degrades loudly at use naming the format. Tests use
+      the real `jq` where present and prove the degrade path by injected PATH.
 - [ ] **`formats.toml`.** Loader beside the toolbox's, sharing its degrade-gracefully rules:
       validation (known kind, compilable pattern, ≥1 named group, builtin names win), loud
       per-format failures, absent file degrades to nothing declared. `tb tools` lists
@@ -146,3 +180,14 @@ Kept out of scope with reasons: `jc` (a CLI converting ~200 classic tools' outpu
 already makes `tb data -- jc df` work today with zero code, for tools it knows; display kinds
 beyond tables (sparkline, gauge, key-value card) are a `view.kind` seam on [[table-views]],
 parked until a first real non-table display has a driving case.
+
+### Round 1 — reshaped again: jq joins the format (2026-08-22)
+
+The operator revisited jq mid-draft: "if we have that as our main parser, can we layer on
+appropriate formatting depending on what jq is parsing?" The answer that survived scrutiny:
+the formatting layer was *already* shape-driven, so jq needed no display vocabulary — it
+became the pipeline's middle stage, declared on a format beside (or instead of) a parse.
+Named-only was kept, and the argument improved: consistency with the regex ruling was the
+weak reason; the pinned-window-as-REPL loop — formats re-read on every cadence tick — is the
+strong one. `jc` remains noted as the zero-code parse for classic tools; a format can wrap
+its output with a jq reshape the day that is wanted.
