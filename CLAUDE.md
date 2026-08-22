@@ -8,8 +8,17 @@ absent and nothing here depends on it.
 
 ## What this repo is
 
-**tackle-box** is the homebase toolbox for a primary workstation and the machines around it,
-behind one operator CLI: `tb`.
+**toolbox** is the homebase kit for a primary workstation and the machines around it, behind one
+operator CLI: `tb`.
+
+**It was called `tackle-box` until 2026-08-22**; the repo is now `skyrowlabs/toolbox` and the
+checkout is `~/src/toolbox`. Docs under `docs/features/done/` still say tackle-box where
+they were describing something at the time — **dated, never scrubbed**, the same rule that leaves
+`wrap` in the docs written before it became `data`. Two things kept the old name on purpose: the
+design mockups (`docs/design/tackle-box-demo.html`, `Tackle Box Surface.dc.html`), which are
+artifacts with their own names, and nothing else. The saved-commands doc changed slug in the same
+pass — `[[toolbox]]` is now **[[tools]]**, because the word now names the repo and the doc
+documents `tb tools`.
 
 **It is young.** On 2026-08-20 the job layer, the asset register, the check suite and the watch
 system were removed to design that half over from a clean base, and the terminal surface was
@@ -24,7 +33,7 @@ replaced by a browser one the same day. What exists:
 | `tb follow <path>` | Follows a file with a native stat cursor, so quiet and dead are different words |
 | `tb tools` | Lists the operator's saved commands, and any that failed to load |
 | `tb ui` | Opens the canvas — a command palette over tiled and floating windows |
-| `tb tools <name>` | Runs a saved command; `tb -t <name>` is the short spelling. See [[toolbox]] |
+| `tb tools <name>` | Runs a saved command; `tb -t <name>` is the short spelling. See [[tools]] |
 
 **Check before you describe.** This is young and moving, and it just lost most of its surface area.
 When asked about a command or module, confirm it exists rather than inferring it from this
@@ -308,8 +317,9 @@ Shared with sibling CLIs so the family feels like one tool.
 built surface as pure concept and decided the eight primitives, with dated decisions and
 visible reversals. Feature specs convert it into buildable rounds; read it before proposing a
 primitive-level change. `docs/features/done/` holds the completed docs — `canvas.md` (the
-surface, five rounds), `table-views.md` (the shaping contract), `toolbox.md` (saved commands),
-`text-reads.md`, `subprocess-env.md`, and the constitution's rounds as they land. Every earlier
+surface, five rounds), `table-views.md` (the shaping contract), `follow.md` (the streaming
+substrate), `text-reads.md`, `subprocess-env.md`, and the constitution's rounds as they land.
+`tools.md` (saved commands) is open at `docs/features/`. Every earlier
 spec was deleted with the system it described; the done docs that predate the 2026-08-21
 renames say `wrap`/`every` on purpose — dated, never scrubbed.
 

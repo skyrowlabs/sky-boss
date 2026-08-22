@@ -17,7 +17,7 @@ it in both directions** — reopening a completed feature moves its doc back out
 Cross-document links are `[[slug]]`, never relative paths. That is what makes moving free, and it
 is the rule to defend — jam.sense's 141 dead links came from relative paths, not from moving.
 
-No subagents. This runs in a single session — tackle-box has no database and no test suite
+No subagents. This runs in a single session — toolbox has no database and no test suite
 to delegate to, so a multi-agent pipeline would be ceremony.
 
 ## Step 0 — Find the doc that already owns this

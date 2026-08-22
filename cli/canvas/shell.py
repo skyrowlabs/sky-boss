@@ -108,7 +108,7 @@ class Api:
             pass
 
 
-WM_CLASS = "tackle-box"
+WM_CLASS = "toolbox"
 
 
 def _name_the_window() -> None:
@@ -129,7 +129,7 @@ def _name_the_window() -> None:
         from gi.repository import Gdk, GLib
 
         GLib.set_prgname(WM_CLASS)
-        GLib.set_application_name("tackle-box")
+        GLib.set_application_name("toolbox")
         Gdk.set_program_class(WM_CLASS)
     except Exception:
         pass

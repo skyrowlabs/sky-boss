@@ -60,7 +60,7 @@ key/value card under another, with zero formatting code chosen by anyone.
   [[refresh]] ruled for formats generally.
 - A **format** is an operator-declared, named parameterization of a kind, in
   **`$TB_HOME/formats.toml`** — operator content, outside the repo, `$EDITOR`-authored, and
-  tb reads it and never writes it, all inherited from the [[toolbox]] rules:
+  tb reads it and never writes it, all inherited from the [[tools]] rules:
 
       [format.jam-status]
       description = "sometool status — PR, state, title"
@@ -219,7 +219,7 @@ added to the record:
   showing — the first tool that decides it is talking to a terminal would otherwise plant
   `\x1b[32m` in the middle of a named group.
 - **`tb tools`' data grew from a list to `{tools, formats}`** — the shape change round 2 of
-  [[toolbox]] anticipated ("per [[capture]] when it lands"). One door for "what did I
+  [[tools]] anticipated ("per [[capture]] when it lands"). One door for "what did I
   declare"; both problem lists degrade the same envelope.
 - Proven live against `df -P`: rows under one format, a jq-reduced key/value card under
   another, the unmatched warning naming the header lines it skipped. The free rides are

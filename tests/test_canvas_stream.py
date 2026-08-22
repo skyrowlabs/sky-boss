@@ -249,7 +249,7 @@ def test_resolve_follow_tells_a_file_by_the_same_shape_rule_as_the_cli():
 
 
 def test_resolve_follow_descends_to_a_saved_keyword_behind_the_tools_group(tmp_path):
-    """A saved keyword lives at `tools <name>` since [[toolbox]] round 2, and
+    """A saved keyword lives at `tools <name>` since [[tools]] round 2, and
     the server resolves its expansion off the live tree — the client sends the
     catalog argv and keeps no command table."""
     from cli import cli

@@ -26,7 +26,7 @@ the single command that acts.
 
 **Nothing here writes.** Creation is `$EDITOR`. The canvas server is remote code
 execution bound to a port; a route that wrote a file tb will later *execute*
-would convert a transient compromise into a persistent one. See [[toolbox]].
+would convert a transient compromise into a persistent one. See [[tools]].
 """
 
 from __future__ import annotations

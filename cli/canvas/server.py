@@ -175,7 +175,7 @@ def build(canvas: Canvas | None = None) -> Starlette:
         # otherwise. Neutral on purpose: the canvas inherits whatever directory
         # `tb ui` was launched in, and launching it inside any repo with a
         # `cli/` package makes `python -m cli` resolve to that one — which is
-        # how running `jam` from this repo produces tackle-box's own error.
+        # how running `jam` from this repo produces toolbox's own error.
         # A home directory has no such package to shadow anything.
         return JSONResponse(
             {
@@ -357,7 +357,7 @@ def resolve_follow(argv: list[str], root=None) -> tuple[str, list[str], str | No
 
     argv = list(argv)
     # Descend the tree while the words name groups — a saved keyword lives at
-    # `tools <name>` since [[toolbox]] round 2, and the server resolves it off
+    # `tools <name>` since [[tools]] round 2, and the server resolves it off
     # the live tree exactly because nothing client-side keeps a command table.
     command = root.commands.get(argv[0]) if argv else None
     consumed = 1

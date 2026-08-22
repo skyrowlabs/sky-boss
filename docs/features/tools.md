@@ -18,6 +18,10 @@ key_files:
 
 # The toolbox — commands the operator saves
 
+*Slug renamed `toolbox` → `tools` on 2026-08-22, when the repo took the name `toolbox`. Links are
+`[[tools]]`, which is also the command group this documents; the collection itself is still called
+the toolbox throughout, because that is what it is.*
+
 ## Why
 
 The command this repo exists to make easy currently reads:
@@ -437,3 +441,12 @@ the loader is already pure over an injected home: save an invocation, re-registe
 assert the registered tool's expansion is the line that created it. A save that produced a tool
 which merely *looked* right would be invisible until the day it ran — the same class of failure
 as the `every`-field rename in [[refresh]] round 1, which is the precedent for insisting on it.
+
+### 2026-08-22 — the slug moved, the name did not
+
+The repo was renamed tackle-box → toolbox, which put the project and this doc on the same word.
+The doc took the new slug `[[tools]]` rather than the project taking a different one: it documents
+`tb tools`, which is where round 2 put saved commands anyway, so the slug now matches the command
+instead of matching the concept's nickname. Nothing in the prose was scrubbed — "the toolbox" is
+still what the collection is called, here and in `cli/tools.py`, and the 16 links that pointed at
+`[[toolbox]]` were rewritten in one pass. This is the only doc whose slug the rename touched.

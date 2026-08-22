@@ -1,4 +1,4 @@
-# tackle-box
+# toolbox
 
 `tb` — a command palette over a window canvas, and two commands that reach other tools.
 
@@ -12,12 +12,12 @@ rather than mirroring it.
 | Command | Does |
 |---|---|
 | `tb run -- <argv>` | Runs a command and reports what it printed. The only command that acts |
-| `tb wrap -- <argv>` | Reads another CLI's JSON as data, so a window can keep it fresh |
+| `tb data -- <argv>` | Reads another CLI's JSON as data, so a window can keep it fresh |
 | `tb ui` | Opens the canvas |
 
 ```bash
 tb run -- echo hello
-tb --json wrap -- ip -j -br addr
+tb --json data -- ip -j -br addr
 tb ui
 ```
 
@@ -51,13 +51,13 @@ only; to make it stick, add a rule matched on the window class:
 ```ini
 # ~/.config/kwinrulesrc
 [General]
-rules=tackle-box
+rules=toolbox
 
-[tackle-box]
-Description=tackle-box
+[toolbox]
+Description=toolbox
 noborder=true
 noborderrule=2
-wmclass=tackle-box
+wmclass=toolbox
 wmclasscomplete=false
 wmclassmatch=1
 ```
@@ -74,10 +74,10 @@ answered, so a page on another site cannot reach it even blind.
 Requires Python 3.13+ and git.
 
 ```bash
-git clone <this repo> ~/tackle-box
-cd ~/tackle-box
+git clone <this repo> ~/toolbox
+cd ~/toolbox
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
-ln -s ~/tackle-box/tb ~/.local/bin/tb        # anywhere on your PATH
+ln -s ~/toolbox/tb ~/.local/bin/tb        # anywhere on your PATH
 ```
 
 Fish completions, if you use fish:

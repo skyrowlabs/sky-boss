@@ -1,7 +1,7 @@
 ---
 status: complete
 created: 2026-08-20
-updated: 2026-08-21
+updated: 2026-08-22
 agent_value: 3
 key_files:
   - cli/canvas/server.py
@@ -109,7 +109,7 @@ auto-refreshing a write is a scheduler nobody asked for.
   pipes.
 - **The surface never writes a tool.** Round 5 renders the TOOLBOX sidebar and opens what is in it;
   it gains no route that creates or edits one. The server is remote code execution bound to a port,
-  and a write route would turn a transient compromise into a persistent one. See [[toolbox]].
+  and a write route would turn a transient compromise into a persistent one. See [[tools]].
 - **No indeterminate progress bar.** A bar that animates without measuring something is decoration
   that reads as information. Round 5 ships the bar only for the one quantity actually known.
 
@@ -154,7 +154,7 @@ tasks / windows / watchers / attention counters. This round is the remainder.
 
 - [x] **TOOLBOX sidebar.** 184px, header `TOOLBOX`, footer `tb <tool>`. Lists catalog entries where
       `tb_saved`; clicking one opens its window and takes its `every` as the starting interval.
-      The data behind it is [[toolbox]]; the chrome is here. Shipped with [[toolbox]] Round 1, as a
+      The data behind it is [[tools]]; the chrome is here. Shipped with [[tools]] Round 1, as a
       card *below* the top bar rather than a flush panel beside it — the bar is the window's title
       bar and calls `begin_move_drag`, so narrowing it would trade drag area for alignment with the
       mockup. Revisit here if the alignment turns out to matter more than the drag width.
@@ -557,3 +557,12 @@ it, which is the same explicit assertion `wrap` and `read` already ask for.
 `wrap` was renamed `data` and the `every` field renamed `refresh` — hard renames, no aliases;
 see [[refresh]]. This doc predates the rename and its prose says `wrap` because it *was*
 `wrap`; that is history being accurate, and nothing above has been scrubbed.
+
+### 2026-08-22 — the project was renamed; one line here is actionable (supersession)
+
+tackle-box became **toolbox**. This doc predates the rename and says tackle-box throughout, which
+is history being accurate — with one exception a reader could act on and get wrong: the window
+class. **`WM_CLASS` and `--class` are now `toolbox`**, so a KWin rule written from the passage
+above would match nothing. The README carries the durable form and is the copy to paste. Nothing
+else here changed, and nothing above has been scrubbed.
+

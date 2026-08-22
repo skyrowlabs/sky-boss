@@ -48,7 +48,7 @@ function intervalLabel(seconds) {
  * `auto` when both exist.
  */
 /* A saved command's own name — the last word of its catalog path. Derived,
- * never stored: `tools jam-pr-list` is the address since [[toolbox]] round 2,
+ * never stored: `tools jam-pr-list` is the address since [[tools]] round 2,
  * `jam-pr-list` is the name the operator gave it, and the sidebar and the
  * palette show the name. Typing either form finds it. */
 export function shortOf(entry) {
@@ -200,7 +200,7 @@ function useNow() {
  * It is not a second list of commands. These come from the same /api/catalog
  * every other surface reads, filtered on `saved` — a property the *command*
  * carries, so a tool that stops existing stops appearing here with no code
- * involved. See [[toolbox]].
+ * involved. See [[tools]].
  */
 function Toolbox({ commands, open }) {
   const saved = commands.filter((c) => c.saved);
@@ -932,7 +932,7 @@ function App() {
             floating
           </button>
         </div>
-        <button class="quit" title="close tackle-box" onClick=${() => api.quit()}>✕</button>
+        <button class="quit" title="close toolbox" onClick=${() => api.quit()}>✕</button>
       </div>
 
       ${floating &&
