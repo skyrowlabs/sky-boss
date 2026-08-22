@@ -1,5 +1,5 @@
 ---
-status: draft
+status: complete
 created: 2026-08-20
 updated: 2026-08-22
 agent_value: 3
@@ -282,7 +282,7 @@ ignore a warning.
       question, cause to confirm before fixing.
 - [x] **The warning narrows.** `cli/data.py` warns only about rule-hidden columns. A window
       with room stops being told it is missing something.
-- [ ] **Docs.** Rule 7's reversal is already recorded above; Round 1's and Round 2's
+- [x] **Docs.** Rule 7's reversal is already recorded above; Round 1's and Round 2's
       "still imperfect" notes get their dated resolution.
 
 ### Round 2 — a title is not a column (2026-08-20)
@@ -467,3 +467,40 @@ is the honest shape — a warning in an envelope cannot describe a window the op
 dragging — but it does mean the answer to "what am I not seeing" now lives in two places: the
 envelope for rule-hidden, the rendering for width-hidden. Both name names, which is the
 property Round 1 actually cared about.
+
+### Round 3 — shipped (2026-08-22)
+
+The reversal cost less than the round that introduced the thing it reversed. Deleting
+`DEFAULT_BUDGET` and the `budget` parameter was the whole of the Python change; everything else
+was consequence.
+
+**Two phases collapsed into one commit on purpose.** Shipping "shape stops truncating" alone
+leaves a 100-column terminal drawing ten columns whose floors need 116, so the terminal fit
+landed in the same commit. A phase boundary that leaves the repo visibly broken is not a
+boundary worth keeping.
+
+**The warning narrowed for free, which is the tell that the split was already latent.**
+`cli/data.py` has always warned about `hidden` *minus* the keys the operator explicitly
+dropped — so the moment `hidden` stopped carrying budget casualties, the warning started
+naming exactly the rule-hidden ones. No edit to `data.py` at all. The code had the right shape
+and the wrong input.
+
+**The canvas needed no fitting code, and that is the round's best result.** The draft proposed
+mirroring the tail arithmetic in `render.js`; it turned out to be unnecessary, because the two
+substrates genuinely differ — **a browser can scroll sideways and a terminal cannot.** So the
+terminal drops from the tail and names what it dropped, the canvas overflows into the scroll
+`.body` already had, and neither is a compromise. `fit_columns` therefore lives in
+`cli/output.py` as the *terminal's* arithmetic rather than as shared code, and the JS
+duplication Round 2's Notes warned about was not repeated.
+
+**The header truncation was a different bug wearing the same screenshot.** Not the budget: a
+column whose `max` equals its label length asks for exactly as many `ch` as the label renders
+in, and the engine has to land on the nose. Blink does — swept 70 window widths and never
+clipped — and WebKitGTK, which is what the native shell actually runs, does not. Fixed with a
+quarter-character of slack on the `ch` bounds, in `ch` rather than a pixel so it keeps covering
+the gap when `--tb-scale` moves. **Verified only in Chromium**, since this session has no
+handle on the native webview; the operator's own window is the confirming test.
+
+Measured after, at the operator's terminal width of 100: ten columns, `checks` and `execution`
+among them, and the envelope warning down to `head` — the sha, which was always correctly
+gone.
