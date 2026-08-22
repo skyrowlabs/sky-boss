@@ -161,3 +161,132 @@ def test_an_unknown_format_is_a_usage_error_not_a_guess():
     speculative csv parser is how 'silently wrong' gets back in."""
     result, _ = invoke(["--from", "csv", "--", "printf", "a,b"])
     assert result.exit_code == 2
+
+
+def test_the_refusal_lists_what_would_have_worked():
+    result, _ = invoke(["--from", "csv", "--", "printf", "a,b"])
+    assert "json" in result.output
+
+
+# ============================================================================
+# Declared formats, end to end — see [[capture]]
+# ============================================================================
+
+import shutil  # noqa: E402
+import unittest.mock  # noqa: E402
+
+import pytest  # noqa: E402
+
+import cli.capture as capture_mod  # noqa: E402
+
+
+def declared(tmp_path, toml_text, args):
+    (tmp_path / "formats.toml").write_text(toml_text)
+    with unittest.mock.patch.object(capture_mod, "TB_HOME", tmp_path):
+        return invoke(args)
+
+
+LINES = (
+    '[format.jam-status]\nkind = "lines"\n'
+    "pattern = '(?P<pr>#\\d+)\\s+(?P<state>\\w+)\\s+(?P<title>.+)'\n"
+)
+
+
+def test_a_lines_format_turns_prose_into_rows(tmp_path):
+    _, envelope = declared(
+        tmp_path,
+        LINES,
+        ["--from", "jam-status", "--", "printf", "#945 open Fix retry\\n#946 draft Add tags\\n"],
+    )
+    assert envelope["ok"] is True
+    assert envelope["data"] == [
+        {"pr": "#945", "state": "open", "title": "Fix retry"},
+        {"pr": "#946", "state": "draft", "title": "Add tags"},
+    ]
+
+
+def test_rows_flow_into_the_standard_view_shaping(tmp_path):
+    """No capture-specific carve-outs: one shaping contract, not two."""
+    _, envelope = declared(
+        tmp_path, LINES, ["--from", "jam-status", "--", "printf", "#1 open x\\n"]
+    )
+    assert "view" in envelope
+
+
+def test_a_capture_that_misses_is_visible(tmp_path):
+    _, envelope = declared(
+        tmp_path,
+        LINES,
+        ["--from", "jam-status", "--", "printf", "#1 open x\\ntotal: 1\\n"],
+    )
+    assert envelope["ok"] is True
+    assert envelope["data"] == [{"pr": "#1", "state": "open", "title": "x"}]
+    assert any("1 of 2 lines did not match jam-status" in w for w in envelope["warnings"])
+
+
+def test_nothing_matching_is_a_failed_contract_naming_both_recourses(tmp_path):
+    # The probe transforms its output rather than echoing a literal, because
+    # the argv is reported back in `command` — and it should be. What must
+    # not appear is anything the *subprocess* printed.
+    result, envelope = declared(
+        tmp_path,
+        LINES,
+        ["--from", "jam-status", "--", "sh", "-c", "echo prose only | tr a-z A-Z"],
+    )
+    assert result.exit_code == 1
+    assert envelope["ok"] is False
+    error = envelope["data"]["error"]
+    assert "fix the format" in error and "tb read" in error
+    # Unmatched lines do not reach `data` — rows or a failed contract.
+    assert "PROSE ONLY" not in json.dumps(envelope["data"])
+
+
+def test_a_broken_format_used_by_name_fails_the_run_with_its_own_reason(tmp_path):
+    result, envelope = declared(
+        tmp_path,
+        '[format.mine]\nkind = "csv"\n',
+        ["--from", "mine", "--", "printf", "x"],
+    )
+    assert result.exit_code == 2
+    assert "unknown kind" in result.output
+
+
+needs_jq = pytest.mark.skipif(shutil.which("jq") is None, reason="no jq on PATH")
+
+
+@needs_jq
+def test_a_jq_transform_is_the_pipelines_middle_stage(tmp_path):
+    _, envelope = declared(
+        tmp_path,
+        '[format.summary]\nkind = "json"\njq = "{open: length}"\n',
+        ["--from", "summary", "--", "printf", '[{"a": 1}, {"a": 2}]'],
+    )
+    assert envelope["ok"] is True
+    assert envelope["data"] == {"open": 2}
+
+
+@needs_jq
+def test_a_jq_transform_runs_on_captured_rows_exactly_as_on_json(tmp_path):
+    """After the parse stage everything is data — the transform does not
+    care which kind produced it."""
+    _, envelope = declared(
+        tmp_path,
+        LINES.replace(
+            "\\s+(?P<title>.+)'\n", "\\s+(?P<title>.+)'\njq = '[.[] | .state]'\n"
+        ),
+        ["--from", "jam-status", "--", "printf", "#1 open x\\n#2 draft y\\n"],
+    )
+    assert envelope["ok"] is True
+    assert envelope["data"] == ["open", "draft"]
+
+
+@needs_jq
+def test_a_failing_jq_program_fails_the_contract_with_jqs_words(tmp_path):
+    result, envelope = declared(
+        tmp_path,
+        '[format.summary]\nkind = "json"\njq = ".nope | keys"\n',
+        ["--from", "summary", "--", "printf", "[1]"],
+    )
+    assert result.exit_code == 1
+    assert envelope["ok"] is False
+    assert "summary" in envelope["data"]["error"]
