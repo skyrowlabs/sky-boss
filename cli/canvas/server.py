@@ -43,7 +43,10 @@ from starlette.responses import HTMLResponse, JSONResponse, Response, StreamingR
 from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 
+from dataclasses import dataclass
+
 from cli import chrome as chrome_
+from cli import stream as stream_
 from cli.canvas import runner
 from cli.canvas.catalog import catalog
 from cli.canvas.watch import INTERVALS, Session
@@ -222,6 +225,44 @@ def build(canvas: Canvas | None = None) -> Starlette:
         session.set(window_id, argv, interval)
         return JSONResponse({"watching": True, "interval": interval})
 
+    async def post_follow(request: Request) -> Response:
+        """Start, restart, or stop one window's held-open stream.
+
+        Re-POSTing for a window that already has one is the restart
+        affordance: the corpse is killed and a fresh child spawned. The kill
+        can block for the grace period, so it goes off the loop like every
+        other blocking call here.
+        """
+        if not canvas.authorised(request):
+            return _denied()
+        body = await request.json()
+        session = canvas.sessions.get(str(body.get("session") or ""))
+        if session is None:
+            return JSONResponse({"error": "no such session"}, status_code=409)
+        window_id = str(body.get("window") or "")
+        if not window_id:
+            return JSONResponse({"error": "no window"}, status_code=400)
+
+        existing = session.followers.pop(window_id, None)
+        if existing is not None:
+            await asyncio.to_thread(existing.child.kill)
+        if body.get("stop"):
+            return JSONResponse({"following": False})
+
+        argv = [str(a) for a in (body.get("argv") or [])]
+        try:
+            foreign, cwd, lines = resolve_follow(argv)
+        except ValueError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        try:
+            child = await asyncio.to_thread(
+                lambda: stream_.ChildStream(foreign, cwd=cwd, limit=lines)
+            )
+        except (FileNotFoundError, OSError) as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        session.followers[window_id] = Follower(child=child, argv=foreign)
+        return JSONResponse({"following": True})
+
     async def stream(request: Request) -> Response:
         """The session. Newline-delimited JSON for as long as the window lives.
 
@@ -249,6 +290,7 @@ def build(canvas: Canvas | None = None) -> Starlette:
             Route("/api/catalog", get_catalog),
             Route("/api/run", post_run, methods=["POST"]),
             Route("/api/watch", post_watch, methods=["POST"]),
+            Route("/api/follow", post_follow, methods=["POST"]),
             Route("/api/quit", post_quit, methods=["POST"]),
             Route("/api/stream", stream),
             Mount("/static", NoCacheStatic(directory=STATIC), name="static"),
@@ -271,6 +313,104 @@ class NoCacheStatic(StaticFiles):
         response = super().file_response(*args, **kwargs)
         response.headers["cache-control"] = "no-cache"
         return response
+
+
+@dataclass
+class Follower:
+    """One window's held-open stream, and where its frames left off."""
+
+    child: stream_.ChildStream
+    argv: list[str]
+    shipped: int = 0
+    exited_at: float | None = None
+    dead_announced: bool = False
+
+
+def resolve_follow(argv: list[str], root=None) -> tuple[list[str], str | None, int]:
+    """A tb-level follow argv down to the foreign argv it spawns.
+
+    The client sends what the operator typed or saved — `follow -- journalctl
+    -f`, or a keyword like `logs` — and the *server* resolves it, because a
+    saved command's expansion lives on the Click tree and nothing client-side
+    may keep a command table. Raises ValueError with the reason when the argv
+    is not a process follow.
+    """
+    if root is None:
+        from cli import cli as root_group
+
+        root = root_group
+
+    argv = list(argv)
+    command = root.commands.get(argv[0]) if argv else None
+    if command is not None and getattr(command, "tb_saved", False):
+        argv = list(getattr(command, "tb_argv", argv))
+    if not argv or argv[0] != "follow":
+        raise ValueError("not a follow argv")
+
+    cwd: str | None = None
+    lines = stream_.DEFAULT_LINES
+    rest = argv[1:]
+    foreign: list[str] = []
+    i = 0
+    while i < len(rest):
+        token = rest[i]
+        if token == "--":
+            foreign = rest[i + 1 :]
+            break
+        if token == "--cwd" and i + 1 < len(rest):
+            cwd = rest[i + 1]
+            i += 2
+            continue
+        if token == "--lines" and i + 1 < len(rest):
+            lines = int(rest[i + 1])
+            i += 2
+            continue
+        foreign = rest[i:]
+        break
+    if not foreign:
+        raise ValueError("nothing to follow")
+
+    from cli.follow import is_file_form
+
+    if is_file_form(tuple(foreign)):
+        # The cursor window arrives with [[file-follow]]; refusing beats
+        # spawning a path as if it were a command.
+        raise ValueError("the file form is not on the canvas yet — see [[file-follow]]")
+    return foreign, cwd, lines
+
+
+def follower_frames(session: Session, now: float | None = None) -> list[dict]:
+    """Frames for every follower with something new to say. Pure over the
+    followers' state — fresh lines, or a death not yet announced."""
+    frames: list[dict] = []
+    moment = time.time() if now is None else now
+    for window_id, follower in list(session.followers.items()):
+        fresh, follower.shipped = follower.child.fresh(follower.shipped)
+        code = follower.child.exit_code
+        if code is not None and follower.exited_at is None:
+            follower.exited_at = moment
+        newly_dead = code is not None and not follower.dead_announced
+        if not fresh and not newly_dead:
+            continue
+        if newly_dead:
+            follower.dead_announced = True
+        facts = chrome_.stream(
+            " ".join(follower.argv),
+            last_line_at=follower.child.last_line_at,
+            exit_code=code,
+            exited_at=follower.exited_at,
+            ring_shown=len(follower.child.lines()),
+            ring_limit=follower.child.ring.limit,
+        )
+        frames.append(
+            {
+                "type": "stream",
+                "window": window_id,
+                "lines": [{"text": line.text, "stderr": line.stderr} for line in fresh],
+                "chrome": facts.to_dict(),
+            }
+        )
+    return frames
 
 
 def chrome_for(argv: list[str], run: dict, *, interval: int = 0, now: float | None = None) -> dict:
@@ -393,6 +533,11 @@ async def stream_frames(
                 task = asyncio.create_task(fire(watcher))
                 tasks.add(task)
                 task.add_done_callback(tasks.discard)
+            # Followers ride the same tick the watchers do — the frame is
+            # whatever arrived since the last one, and a death is announced
+            # exactly once. Lock operations only; nothing here blocks.
+            for stream_frame in follower_frames(session):
+                await queue.put(stream_frame)
             if watch_files:
                 since_scan += tick
                 if since_scan >= RELOAD_POLL_SECONDS:
@@ -430,4 +575,15 @@ async def stream_frames(
         # immediately, which is what the heartbeat is for.
         for task in tasks:
             task.cancel()
+        # A follower's child dies with the session — the same rule as
+        # watchers, extended to processes. SIGTERM only, fire-and-forget:
+        # this finally runs inside GeneratorExit, where a graceful wait has
+        # nowhere to happen, and a child that ignores SIGTERM is reaped when
+        # the server exits. The terminal form waits properly; see
+        # cli/follow.py.
+        for follower in session.followers.values():
+            try:
+                follower.child.proc.terminate()
+            except OSError:
+                pass
         canvas.sessions.pop(session.id, None)

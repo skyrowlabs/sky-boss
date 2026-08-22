@@ -115,6 +115,114 @@ async def test_a_watchers_frame_wears_resident_chrome_beside_the_envelope():
         await generator.aclose()
 
 
+class FakeChild:
+    """Enough of a ChildStream to drive follower_frames: a ring, a mark, an
+    exit code, and an observable terminate."""
+
+    def __init__(self, lines=(), exit_code=None):
+        from cli.stream import Line, Ring
+
+        self.ring = Ring(limit=10)
+        for text in lines:
+            self.ring.push(Line(text=text, stderr=False, at=50.0))
+        self._exit = exit_code
+        self.proc = type("P", (), {"terminate": lambda self_: None})()
+
+    def fresh(self, since):
+        kept = self.ring.lines()
+        missed = self.ring.total - since
+        out = kept[-missed:] if 0 < missed <= len(kept) else (kept if missed > 0 else [])
+        return out, self.ring.total
+
+    def lines(self):
+        return self.ring.lines()
+
+    @property
+    def last_line_at(self):
+        return self.ring.last_at
+
+    @property
+    def exit_code(self):
+        return self._exit
+
+
+def test_a_follower_frames_its_fresh_lines_with_stream_chrome():
+    from cli.canvas.server import Follower, follower_frames
+
+    session = Session(id="s1")
+    session.followers["w1"] = Follower(child=FakeChild(["one", "two"]), argv=["journalctl", "-f"])
+
+    frames = follower_frames(session, now=100.0)
+    assert len(frames) == 1
+    assert frames[0]["type"] == "stream" and frames[0]["window"] == "w1"
+    assert [l["text"] for l in frames[0]["lines"]] == ["one", "two"]
+    assert frames[0]["chrome"]["shape"] == "stream"
+    assert frames[0]["chrome"]["attention"] == "running"
+    # Nothing new → no frame at all, not an empty one.
+    assert follower_frames(session, now=101.0) == []
+
+
+def test_a_followers_death_is_announced_exactly_once():
+    """Dead is an event to display; a frame per tick forever would make the
+    corpse louder than the living stream ever was."""
+    from cli.canvas.server import Follower, follower_frames
+
+    session = Session(id="s1")
+    session.followers["w1"] = Follower(child=FakeChild(["bye"], exit_code=143), argv=["x"])
+
+    first = follower_frames(session, now=100.0)
+    assert first[0]["chrome"]["attention"] == "dead"
+    assert first[0]["chrome"]["exit_code"] == 143
+    assert follower_frames(session, now=101.0) == []
+
+
+async def test_a_followers_child_dies_with_its_session():
+    """The watcher rule, extended to processes: closing the stream SIGTERMs
+    every follower's child. Nothing survives the last window."""
+    from cli.canvas.server import Follower
+
+    killed = []
+    child = FakeChild(["x"])
+    child.proc = type("P", (), {"terminate": lambda self_: killed.append(True)})()
+
+    canvas = Canvas(token="t")
+    session = _session(canvas)
+    session.followers["w1"] = Follower(child=child, argv=["x"])
+
+    generator = stream_frames(canvas, session, run=fake_run, tick=0.001)
+    try:
+        await frame(generator)  # hello
+    finally:
+        await generator.aclose()
+    assert killed == [True]
+    assert "s1" not in canvas.sessions
+
+
+def test_resolve_follow_resolves_keywords_and_strips_the_fence():
+    from cli.canvas.server import resolve_follow
+
+    foreign, cwd, lines = resolve_follow(["follow", "--", "journalctl", "-f"])
+    assert foreign == ["journalctl", "-f"] and cwd is None
+
+    foreign, cwd, lines = resolve_follow(
+        ["follow", "--cwd", "/tmp", "--lines", "50", "--", "sh", "-c", "true"]
+    )
+    assert foreign == ["sh", "-c", "true"] and cwd == "/tmp" and lines == 50
+
+
+def test_resolve_follow_refuses_what_is_not_a_process_follow():
+    import pytest
+
+    from cli.canvas.server import resolve_follow
+
+    with pytest.raises(ValueError):
+        resolve_follow(["run", "--", "true"])  # not a follow at all
+    with pytest.raises(ValueError):
+        resolve_follow(["follow"])  # nothing to follow
+    with pytest.raises(ValueError):
+        resolve_follow(["follow", "some/path.log"])  # the file form, later
+
+
 def test_chrome_for_tells_an_act_from_an_observe_through_the_catalog():
     """Inherited, never inferred from the path — the same rule the cadence
     control follows. A failed run wears failed, mechanically."""

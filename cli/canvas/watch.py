@@ -63,6 +63,10 @@ class Session:
     id: str
     clock: object = time.monotonic
     watchers: dict[str, Watcher] = field(default_factory=dict)
+    # One window's held-open stream ([[follow]]): a Follower, owned by this
+    # session exactly as watchers are — nothing survives the last window,
+    # and for a follower that means the child process dies with it.
+    followers: dict[str, object] = field(default_factory=dict)
 
     def now(self) -> float:
         return self.clock()

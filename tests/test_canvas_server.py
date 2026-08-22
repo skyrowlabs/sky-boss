@@ -40,6 +40,7 @@ def auth(extra=None):
         ("/api/catalog", "get"),
         ("/api/run", "post"),
         ("/api/watch", "post"),
+        ("/api/follow", "post"),
         ("/api/quit", "post"),
         ("/api/stream", "get"),
     ],
