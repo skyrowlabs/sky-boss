@@ -1,7 +1,7 @@
 ---
-status: complete
+status: draft
 created: 2026-08-20
-updated: 2026-08-21
+updated: 2026-08-22
 agent_value: 3
 key_files:
   - cli/tools.py
@@ -159,6 +159,61 @@ module.** A name in a skip-list is the beginning of the command table this desig
 - [x] Ship a `tools.example.toml` in the repo. Generic — no operator paths in a tracked file, and
       a test asserts the tracked example names no home directory.
 
+
+### Round 2 — the toolbox gets its own door (2026-08-22)
+
+Prompted by the operator reading `tb --help`: `jam-pr-list` renders between `follow` and
+`read`, and the builtin/operator line — the sharpest line in the design — is invisible in the
+one listing where it matters most. The operator's call: **saved commands move behind
+`tb tools`**, with `-t` as the short spelling.
+
+    tb tools jam-pr-list --refresh 30
+    tb -t jam-pr-list --refresh 30
+
+**This reverses a round-1 decision and keeps its reasons.** Round 1 registered tools on the
+root so the palette, `--help` and completion would work for free; nesting keeps all three —
+the catalog already walks groups, and a leaf under `tools` is still an ordinary leaf. What
+nesting *dissolves* is the shadowing defense: `tb tools run` collides with nothing, so
+"a builtin always wins" stops being a validation rule and becomes structure. The name check
+stays only as the shape a command word must have.
+
+- **`tools` becomes a group that still lists when bare.** `tb tools` with no subcommand
+  prints exactly today's listing (declared, refused, and — per [[capture]] when it lands —
+  formats). One door for "what did I save"; no second listing command.
+- **`-t` is an argv spelling of `tools`, rewritten at the root** — not a Click alias and not
+  a flag with behavior: `tb -t …` becomes `tb tools …` before parsing, in one tested place.
+  Options follow the tool name, as they do on every tb command; the prefix form
+  (`tb -t --refresh 30 jam-pr-list`) was considered and rejected — it would teach the group a
+  forwarded option that belongs to the leaf.
+- **The envelope says the dotted path**, `tools.jam-pr-list`. Round 1 ruled "the envelope
+  names the tool, not `data`" because `data` is an implementation detail the operator did not
+  type; `tools.` is now something they *do* type, and the dotted path is the standing
+  convention. The round-1 argument is superseded only that far.
+- **The palette entry is the tool, shown by its own name.** The catalog leaf's name is
+  `tools jam-pr-list`; the sidebar and palette display the tool's short name with the saved
+  badge, and the expansion preview already shows the truth. Typing either form finds it.
+- **The REFRESH column stays, presented as the default it is.** Raised by the operator in the
+  same review: is showing the field beside `--refresh` mixing behaviors? No — the constitution
+  made them one number on purpose: the field is the *default* (the canvas opens at it; bare
+  `--refresh` adopts it), and a keyword in the terminal always runs once unless the flag is
+  given. The listing keeps the column, and `tb tools`' help states that rule in one line. The
+  line to hold is unchanged: the field must never cause residency on its own.
+
+Does not do, this round: no change to tools.toml (declarations are untouched; only the
+address moves), no back-compat top-level registration — a hard move, one operator, and the
+palette teaches the new spelling immediately.
+
+- [ ] **The group.** `tools` becomes `invoke_without_command`; registration targets it;
+      the listing behavior is byte-identical when bare. Shadowing tests retire into
+      structure; name-shape validation stays.
+- [ ] **`-t`.** Root-level argv rewrite with tests: `tb -t x` ≡ `tb tools x`, `tb -t` ≡
+      `tb tools`, and `-t` anywhere else is untouched.
+- [ ] **Surfaces.** Envelope says `tools.<name>` (test updated with the reversal noted);
+      palette/sidebar show the short name; canvas execution unchanged through the runner.
+- [ ] **Docs.** CLAUDE.md command table says `tb tools <name>` / `tb -t <name>`; `tb tools`
+      help carries the refresh-default sentence; [[refresh]] bare-flag prose confirmed
+      unchanged.
+
 ## Notes
 
 ### Round 1 — what shipped, and the claim that did not survive (2026-08-20)
@@ -216,3 +271,11 @@ demonstrably an argv tb will execute on a cadence.
 `wrap` was renamed `data` and the `every` field renamed `refresh` — hard renames, no aliases;
 see [[refresh]]. This doc predates the rename and its prose says `wrap` because it *was*
 `wrap`; that is history being accurate, and nothing above has been scrubbed.
+
+### Round 2 — drafted, awaiting the word (2026-08-22)
+
+Drafted at the operator's direction from the `tb --help` screenshot. The reversal is recorded
+above with round 1's reasoning kept: registration-for-free was the argument, and it survives
+nesting; only the root-level address and the shadowing rule change. The REFRESH-column
+question was resolved as presentation, not model — the field is a default, the flag is a
+request, one number by design.
