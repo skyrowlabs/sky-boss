@@ -45,6 +45,12 @@ replaced by a browser one the same day. What exists:
 | `tb ui` | Opens the canvas — a command palette over tiled and floating windows |
 | `tb tools <name>` | Runs a saved command; `tb -t <name>` is the short spelling. See [[tools]] |
 
+**`--save NAME` on `read`, `data` and `follow`** saves the invocation as a tool and then runs it.
+It is the only thing in tb that writes `tools.toml`, it only ever **appends** one block, and it
+refuses a name that already exists — editing and deleting stay `$EDITOR`'s. No surface writes:
+still no route, still no button. `run` does not take it, because `--save` saves by example and
+the example ran. See [[tools]].
+
 `tb` and `tb --help` open with the mark — `docs/design/cli-header.png` drawn in half-blocks, see
 [[header]]. It refuses to draw on a narrow or non-terminal surface rather than wrapping.
 
@@ -208,7 +214,7 @@ resolving after a system update, check there first.
 | What | Where | Authored by | Versioned |
 |---|---|---|---|
 | Code, tests, docs | this repo | the project | here |
-| Saved commands (`tools.toml`) | `~/.config/tb/` (`$TB_HOME`) | the operator | never |
+| Saved commands (`tools.toml`) | `~/.config/tb/` (`$TB_HOME`) | the operator, and `--save` | never |
 | Capture formats (`formats.toml`) | `~/.config/tb/` (`$TB_HOME`) | the operator | never |
 | Browser profile for the canvas | `~/.local/state/tb/` (`$TB_STATE`) | the machine | never |
 
@@ -338,8 +344,8 @@ built surface as pure concept and decided the eight primitives, with dated decis
 visible reversals. Feature specs convert it into buildable rounds; read it before proposing a
 primitive-level change. `docs/features/done/` holds the completed docs — `canvas.md` (the
 surface, five rounds), `table-views.md` (the shaping contract), `follow.md` (the streaming
-substrate), `text-reads.md`, `subprocess-env.md`, and the constitution's rounds as they land.
-`tools.md` (saved commands) is open at `docs/features/`. Every earlier
+substrate), `tools.md` (saved commands, three rounds), `header.md` (the mark), `text-reads.md`,
+`subprocess-env.md`, and the constitution's rounds as they land. `docs/features/` is empty. Every earlier
 spec was deleted with the system it described; the done docs that predate the 2026-08-21
 renames say `wrap`/`every` on purpose — dated, never scrubbed.
 

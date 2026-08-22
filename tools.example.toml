@@ -1,9 +1,16 @@
 # The toolbox — commands you save.
 #
 # Copy this to $TB_HOME/tools.toml (default ~/.config/tb/tools.toml) and edit
-# it. tb reads this file and never writes it: the canvas server is remote code
-# execution bound to a port, and a route that could write a file tb later runs
-# would turn a transient compromise into a persistent one.
+# it. You can also let tb write an entry for you: append --save=NAME to a
+# read, data or follow that just worked and it appends a block like the ones
+# below, then runs. It only ever appends — nothing above the new block is
+# rewritten, and a name that already exists is refused rather than replaced,
+# so editing and deleting stay yours.
+#
+# No *surface* writes this file. The canvas server is remote code execution
+# bound to a port, and a route that could write a file tb later runs would
+# turn a transient compromise into a persistent one; a flag you type in your
+# own shell is not that.
 #
 # A tool is a NAME plus a TB ARGV. `argv` starts with a tb command — `run` or
 # `data` — never a bare executable. That is not a formality: a tool that could
