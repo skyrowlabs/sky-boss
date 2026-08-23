@@ -1,0 +1,137 @@
+"""The roll-call — many projects, one answer.
+
+**tb federates. It never owns.** Each project stays the authority on its own
+state; this asks all of them and folds the answers together. There is no ledger
+here, no history, no cache — and that is what keeps tb stateless. A central
+store would be a *copy*, and a copy of a schedule that agents rewrite goes stale
+without announcing it. Unreachability is visible; staleness is not.
+
+**A source is an argv or a path.** Most projects have no CLI, and a contract
+that required one would stall on exactly the young projects where visibility is
+most wanted. A project declares where its status comes from and tb does not care
+which kind it is — the reader is `tb data`'s, whole, in both cases.
+
+**tb folds sources, not semantics.** No common status vocabulary, no cross-project
+verdict, no totalling of anyone's `red`. tb does not get to decide what another
+tool's word means — the same refusal [[highlight]] made about severity, one level
+up. One block per project, each under its own name, in its own words.
+
+**One project down is `partial`, never blank.** A roll-call that goes dark when a
+single source fails would fail exactly when something is wrong. See [[roll-call]].
+"""
+
+from __future__ import annotations
+
+import tomllib
+from dataclasses import dataclass, field
+from pathlib import Path
+
+import rich_click as click
+
+from cli.helpers import TB_HOME
+from cli.output import Result, emit
+
+PROJECTS_FILE = "projects.toml"
+
+
+@dataclass
+class Project:
+    """One declared source. Exactly one of `argv` / `path`, never both."""
+
+    name: str
+    argv: list[str] = field(default_factory=list)
+    path: str = ""
+    cwd: str = ""
+    from_: str = "json"
+    rows: str = ""
+    cols: str = ""
+    timeout: int = 60
+    description: str = ""
+
+    @property
+    def source(self) -> str:
+        """What this project is read from, for a warning that has to name it."""
+        import shlex
+
+        return shlex.join(self.argv) if self.argv else self.path
+
+
+def home_file(home: Path | None = None) -> Path:
+    return (home or TB_HOME) / PROJECTS_FILE
+
+
+def read(home: Path | None = None) -> dict:
+    """The raw TOML, or an empty mapping.
+
+    An absent file degrades to nothing declared rather than raising — a fresh
+    clone federates over no projects, and saying so every invocation is noise.
+    The same rule `tools.toml` is read under.
+    """
+    path = home_file(home)
+    try:
+        with path.open("rb") as handle:
+            return tomllib.load(handle)
+    except FileNotFoundError:
+        return {}
+    except (OSError, tomllib.TOMLDecodeError) as exc:
+        return {"__error__": f"{path}: {exc}"}
+
+
+def parse(raw: dict) -> tuple[list[Project], list[str]]:
+    """Validate declarations. Pure — reads no file.
+
+    **One bad entry must not cost the operator the other five.** Nothing here
+    raises: a malformed project is skipped and named, which is the pattern
+    `tb tools` already sets for a tool that would not load.
+    """
+    if "__error__" in raw:
+        return [], [raw["__error__"]]
+
+    projects: list[Project] = []
+    problems: list[str] = []
+
+    for name, body in (raw.get("project") or {}).items():
+        problem = _check(name, body)
+        if problem:
+            problems.append(f"project {name!r}: {problem}")
+            continue
+        projects.append(
+            Project(
+                name=name,
+                argv=[str(part) for part in body.get("argv", [])],
+                path=str(body.get("path", "")),
+                cwd=str(body.get("cwd", "")),
+                from_=str(body.get("from", "json")),
+                rows=str(body.get("rows", "")),
+                cols=str(body.get("cols", "")),
+                timeout=int(body.get("timeout", 60)),
+                description=str(body.get("description", "")),
+            )
+        )
+
+    return projects, problems
+
+
+def _check(name: str, body) -> str | None:
+    if not isinstance(body, dict):
+        return "not a table"
+    has_argv = bool(body.get("argv"))
+    has_path = bool(body.get("path"))
+    # Exactly one, and the refusal is deliberate rather than a precedence rule:
+    # a project declaring both has said two different things about where its
+    # truth lives, and picking one for them would be tb guessing which.
+    if has_argv and has_path:
+        return "declares both argv and path — a source is one or the other"
+    if not has_argv and not has_path:
+        return "declares neither argv nor path"
+    if has_argv:
+        argv = body["argv"]
+        if not isinstance(argv, list) or not all(isinstance(p, str) for p in argv):
+            return "argv must be a list of strings"
+    if "timeout" in body and not isinstance(body["timeout"], int):
+        return "timeout must be a whole number of seconds"
+    return None
+
+
+def load(home: Path | None = None) -> tuple[list[Project], list[str]]:
+    return parse(read(home))
