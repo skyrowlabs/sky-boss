@@ -276,7 +276,7 @@ the output does *not* say, and takes the terminator half of this in its own roun
 - [x] **`is_rows` grows a sibling, not an exception.** `find_rows(data, path=None)` in
       `cli/view.py`: returns the row list and the key it came from, or a reason it could not.
       Pure, tested first — the ambiguous case and the zero-candidate case before the happy one.
-- [ ] **`--rows KEY` on `tb data`**, dotted paths allowed, alongside `--cols` / `--drop` /
+- [x] **`--rows KEY` on `tb data`**, dotted paths allowed, alongside `--cols` / `--drop` /
       `--no-shape`. A named path that does not resolve is an error, not a silent fallback.
 - [ ] **The nested render path learns views.** `_render_mapping` threads `view` through to
       `_render_columns`; the canvas's equivalent path in `render.js` checked for the same gap,
