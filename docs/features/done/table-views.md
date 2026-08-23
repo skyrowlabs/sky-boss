@@ -1,5 +1,5 @@
 ---
-status: active
+status: complete
 created: 2026-08-20
 updated: 2026-08-23
 agent_value: 3
@@ -284,7 +284,7 @@ the output does *not* say, and takes the terminator half of this in its own roun
 - [x] **A discarded flag is never silent.** If `--cols` cannot be applied because nothing shapeable
       was found, say so on stderr and name why. This is the defect's real lesson and it outlives
       the specific fix.
-- [ ] **The header states type and dimensions.** `● data  table · 15 × 27`, from the view; scalar
+- [x] **The header states type and dimensions.** `● data  table · 15 × 27`, from the view; scalar
       and mapping payloads say what they are too. Both renderers.
 - [x] **A fixture with a wrapper.** `tests/test_view.py` gains the shape of `jam report status
       --json` — a metadata key beside a row list — for the same reason round 1's fixture was
@@ -389,6 +389,42 @@ ignore a warning.
 - [x] Verify against the live canvas headless, per [[canvas]] — the frontend still has no runner.
 
 ## Notes
+
+### Round 4 — shipped, and what the implementation argued back (2026-08-23)
+
+Both breaks were real and the canvas's was worse than the doc claimed. The spec said
+`_render_mapping` passes no view; it also turned out that `render.js`'s `Mapping` rendered a
+nested row list with **`JSON.stringify`** — so on the canvas jam's twenty-nine jobs arrived as one
+blob of text in a single cell, not as a crushed table. The terminal at least drew columns. Worth
+recording because the doc was written from reading the Python and inferring the JavaScript, and
+the inference was optimistic in the direction that made the bug sound smaller.
+
+**`15 × 27` did not survive contact.** The spec's header example was a bare pair, and it is
+ambiguous in exactly the place it is trying to remove doubt: matrix convention reads that as rows
+first, terminal convention (`80x24`) reads it as columns first, and a reader cannot tell which
+this is. Written out instead — `table · 29 rows · 15 columns`.
+
+**And it had nowhere to go.** The wrapped payload's table renders with `title=None`, so the
+dimensions were computed and never displayed on precisely the shape this round exists for. They
+went beside the key heading instead, which is where a reader is already looking to find out what
+the block is. The top-level header says `object · 2 keys`, which is true and dull, and that is the
+right division: the interesting size belongs to the rows, not to the wrapper.
+
+**The count is every key the rows carry, not the subset drawn.** The hidden-columns warning
+already reports the difference, and the question the header answers — *did `--from` and `--rows`
+find what I meant* — is about the data that arrived rather than the table drawn from it. Asking
+for three columns out of fifteen should say fifteen.
+
+**Counting in JavaScript is not the `summariseMapping` duplication again.** That one is a knowing
+duplication of a *judgment*. `rows.length` and `columnsOf(rows).length` are arithmetic, which is
+the standard `render.js` is already held to — the same split round 3 made when fitting moved out
+of Python. Shipping the rendered string in the envelope was the alternative and it would have made
+a view a transformation of `data` rather than a description of it.
+
+**Verification without a test runner, again.** Headless Chromium against a harness in a scratch
+directory that imports the real module — deliberately *not* a page under `cli/canvas/static/`,
+since everything there is served and two scratch pages once lived there, one with a live token
+baked in.
 
 ### Round 4 — what a doc audit is allowed to touch (2026-08-23)
 

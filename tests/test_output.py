@@ -663,3 +663,20 @@ def test_a_column_that_did_not_fit_is_reported_in_the_drawing(capsys):
     assert "2 columns did not fit: b, c" in out
     # The envelope's own vocabulary stays out of the drawing's report.
     assert "hidden" not in out
+
+
+def test_the_header_states_what_the_payload_is_and_how_big(capsys):
+    """The row count was always here; the column count was invisible, and it is
+    what says whether `--from` and `--rows` did what the operator meant."""
+    render(Result(command="data", data=[{"a": 1, "b": 2}, {"a": 3, "b": 4}]))
+    out = capsys.readouterr().out
+    assert "2 rows" in out and "2 columns" in out
+
+
+def test_a_wrapped_payload_states_its_size_beside_the_key(capsys):
+    """The nested table has no title of its own, so the size would otherwise
+    have nowhere to appear on exactly the shape round 4 is about."""
+    render(Result(command="data", data={"generated": "x", "jobs": [{"a": 1}]}))
+    out = capsys.readouterr().out
+    assert "jobs" in out
+    assert "1 row · 1 column" in out
