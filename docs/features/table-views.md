@@ -1,7 +1,7 @@
 ---
-status: complete
+status: active
 created: 2026-08-20
-updated: 2026-08-22
+updated: 2026-08-23
 agent_value: 3
 key_files:
   - cli/view.py
@@ -185,8 +185,10 @@ change at all** — `app.js` already treats everything past the command name as 
 **Does not do:**
 
 - **Does not reshape tb's own commands.** Only `wrap` sets a view, because only `wrap` carries
-  data nobody on this side chose. `tb info`'s fields were picked deliberately and auto-dropping one
-  would be a bug wearing a feature's clothes.
+  data nobody on this side chose. tb's own commands picked their fields deliberately and auto-dropping
+  one would be a bug wearing a feature's clothes. *(Corrected 2026-08-23: this line cited `tb info`,
+  a command removed 2026-08-20. Unlike the `wrap`→`data` rename below, a removed command leaves the
+  argument uncheckable rather than merely renamed — see Notes.)*
 - **Does not persist — and does not need to.** No named views, no saved column sets, no state file
   *in this feature*. `wrap --cols …` is typed per window and dies with it, which keeps the canvas's
   "nothing survives the last window" intact.
@@ -212,6 +214,81 @@ change at all** — `app.js` already treats everything past the command name as 
   half-supported.
 
 ## Phases
+
+### Round 4 — a payload is not always a list (2026-08-23)
+
+Found by pointing the tool at a real project rather than a fixture. [[roll-call]] needs this
+command to be readable and today it is not:
+
+```
+tb data --cwd ~/src/jam.sense --cols job,result,last_age,overdue -- jam report status --json
+```
+
+`--cols` is **silently ignored.** Fifteen columns render at two characters each, and nothing says
+why. That is the "looks right and isn't" failure this doc has refused three times, arriving
+through a door nobody was watching.
+
+**Two independent breaks, both from the same wrong assumption.**
+
+1. `shape()` opens with `if not is_rows(data): return None`, and `is_rows` requires a *bare list of
+   dicts*. jam returns `{"generated": "…", "jobs": [ … ]}` — the rows are one level down. So no
+   view is computed, `--cols` is discarded without a word, and `view` never enters the envelope.
+2. Even with a view, it could not arrive. `_render_mapping` in `cli/output.py` dispatches a nested
+   list of dicts to `_render_columns(list(value), title=None, indent=indent)` — **and passes no
+   `view`**. The nested render path predates views and never learned about them.
+
+The assumption was that a foreign tool returns rows. Real tools return rows *plus metadata* —
+a generated-at stamp, a count, a version — because a bare array has nowhere to put them. jam's
+envelope is the normal case, not an exotic one, and the fixture was synthetic in exactly the way
+that hid it.
+
+**Finding the rows without guessing.** `--rows jobs` names the path explicitly, and is the same
+idea as `--cols checks.failed` one level up — dotted paths already reach into nested structures
+here. Unnamed, tb may infer only when the answer is unambiguous: **exactly one value in the
+mapping is a non-empty list of dicts.** Two candidates is not a near-miss to be broken by
+preferring the longer one or the better-named one; it is a question tb cannot answer, and it says
+so and renders as it does today. Matching on the *value* rather than on a blessed key name
+(`items`, `results`, `rows`) is rule 2 and rule 4's idiom unchanged — a name list goes stale the
+first time a tool disagrees with it, and the next tool always disagrees with it.
+
+The unshaped remainder keeps rendering as a mapping above the table, which is already what the
+operator wants: `generated 2026-08-23T20:02:53+00:00` is a useful line, just not a column.
+
+**And the payload says what it is.** One fact, computed from what shaping already knows and drawn
+in the header line that today reads `● data  53 rows`:
+
+```
+● data  table · 15 × 27
+```
+
+The row count is already there; the **column count is invisible**, and the column count is
+precisely what tells the operator whether `--from` and `--rows` did what they meant. It is a fact
+the data itself states, so it belongs in-band here rather than in [[chrome]] — which draws what
+the output does *not* say, and takes the terminator half of this in its own round 3.
+
+**Does not do** gains:
+
+- **Does not guess between two candidate row lists.** Ambiguity is reported, never broken by a
+  tiebreak. A wrong table read as the right one is worse than no table.
+- **Does not flatten the wrapper into the rows.** `generated` does not become a column repeated
+  27 times.
+
+- [x] **`is_rows` grows a sibling, not an exception.** `find_rows(data, path=None)` in
+      `cli/view.py`: returns the row list and the key it came from, or a reason it could not.
+      Pure, tested first — the ambiguous case and the zero-candidate case before the happy one.
+- [ ] **`--rows KEY` on `tb data`**, dotted paths allowed, alongside `--cols` / `--drop` /
+      `--no-shape`. A named path that does not resolve is an error, not a silent fallback.
+- [ ] **The nested render path learns views.** `_render_mapping` threads `view` through to
+      `_render_columns`; the canvas's equivalent path in `render.js` checked for the same gap,
+      since it was written against the same assumption.
+- [ ] **A discarded flag is never silent.** If `--cols` cannot be applied because nothing shapeable
+      was found, say so on stderr and name why. This is the defect's real lesson and it outlives
+      the specific fix.
+- [ ] **The header states type and dimensions.** `● data  table · 15 × 27`, from the view; scalar
+      and mapping payloads say what they are too. Both renderers.
+- [ ] **A fixture with a wrapper.** `tests/test_view.py` gains the shape of `jam report status
+      --json` — a metadata key beside a row list — for the same reason round 1's fixture was
+      synthetic, and covering the case round 1's fixture structurally could not.
 
 ### Round 3 — the budget is a fit, not a count (2026-08-22)
 
@@ -312,6 +389,51 @@ ignore a warning.
 - [x] Verify against the live canvas headless, per [[canvas]] — the frontend still has no runner.
 
 ## Notes
+
+### Round 4 — what a doc audit is allowed to touch (2026-08-23)
+
+Asked before executing: should the docs be corrected first. Audited, and the answer split in a way
+worth writing down, because it will come up every time.
+
+Measured across all sixteen docs: every `key_files` path resolves except `mcp.md`'s two, which name
+files that spec has not built yet — correct for an unbuilt spec, not drift. `CLAUDE.md` was wrong in
+three ways about this directory (claimed it was empty, omitted three completed docs, listed two that
+had moved out) and is fixed. One stale reference: this doc's *Does not do* cited `tb info`, removed
+2026-08-20.
+
+**The rule the audit produced: correct the living sections, never the dated ones.** Why, Shape and
+Does-not-do describe the system *now*, so they can be wrong and should be fixed. Rounds and Notes
+describe a moment, so they cannot be wrong — only accurate about something that has since changed.
+Rewriting those to match today would destroy the one thing this format is for.
+
+Which is why the seventeen `wrap` references above were **left exactly as they are**. They look like
+the biggest drift in the repo and are not drift at all; the 2026-08-21 supersession note already
+says so. `tb info` was different in kind: a rename leaves an argument followable, a removal leaves it
+citing nothing, and a reader cannot tell which they are looking at without checking. Fixed in place
+with the correction marked, rather than silently — the same standard the code is held to.
+
+### Round 4 — the fixture was the bug (2026-08-23)
+
+Round 1's Notes defend the synthetic fixture at length, and the defence is still right: real rows
+carry branch names belonging to this operator and nothing operator-specific goes in a tracked
+file. What the defence got wrong is the claim underneath it — *"the fixture reproduces the shape
+— fourteen fields, a digest, an always-null column, a nested dict, two columns of prose — which is
+the whole of what is under test."*
+
+It reproduced the shape of a **row**. It did not reproduce the shape of a **payload**, because it
+was a bare list, and so was every fixture after it. Three rounds of column rules were tested
+against a structure that a real tool had already stopped returning. `jam pr list --json` happens
+to be a bare array; `jam report status --json` is not, and neither is most JSON that carries a
+timestamp or a count beside its rows.
+
+The correction is narrow and worth stating precisely, because the general version would be wrong:
+**a fixture may be synthetic in its values and must not be synthetic in its envelope.** Values are
+what the operator owns; structure is what the contract is about.
+
+Worth noting how it was found. Not by a test, not by review — by running the command against a
+real project while scoping [[roll-call]], and reading the output. The two breaks are three lines
+apart in files with good coverage, and both are invisible to any test that constructs its own
+input.
 
 ### Round 1 — deferring persistence, and where it landed (2026-08-20)
 

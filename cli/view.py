@@ -22,6 +22,7 @@ clothes. See [[table-views]].
 from __future__ import annotations
 
 import re
+from typing import NamedTuple
 
 # There is no column budget here. There was — a fixed count of eight — and it
 # hid the same two columns whether the window had room for them or not, because
@@ -176,6 +177,62 @@ def is_rows(data) -> bool:
     )
 
 
+class Found(NamedTuple):
+    """The rows in a payload, where they came from, or why they were not found.
+
+    `key` is None when the payload *was* the rows — the distinction the header
+    needs to say `table` rather than naming a key nobody chose.
+    """
+
+    rows: list[dict] | None
+    key: str | None = None
+    reason: str | None = None
+
+
+def find_rows(data, path: str | None = None) -> Found:
+    """The row list inside a payload, without guessing which one it is.
+
+    Round 1 assumed a foreign tool returns rows. Real tools return rows *plus
+    metadata* — a generated-at stamp, a count, a version — because a bare array
+    has nowhere to put them. `jam pr list --json` happens to be a bare array;
+    `jam report status --json` is `{"generated": …, "jobs": [ … ]}`, and every
+    status endpoint is, because status is about a moment.
+
+    **Named beats inferred, and ambiguity is reported rather than broken.** With
+    two candidate lists there is no tiebreak worth having — preferring the
+    longer one, or the better-named one, is exactly how a wrong table comes to
+    be read as the right one. Candidates are matched on their *values* (a
+    non-empty list of dicts), never on a blessed key name like `items` or
+    `results`: a name list goes stale the first time a tool disagrees with it,
+    and the next tool always disagrees with it. Rule 2 and rule 4's idiom,
+    unchanged. See [[table-views]] round 4.
+    """
+    if path:
+        found = resolve(data, path) if isinstance(data, dict) else None
+        if is_rows(found):
+            return Found(found, path)
+        return Found(None, reason=f"--rows {path} did not find a list of rows")
+
+    if is_rows(data):
+        return Found(data)
+
+    if not isinstance(data, dict):
+        return Found(None, reason="not a table")
+
+    candidates = [key for key, value in data.items() if is_rows(value)]
+    if len(candidates) == 1:
+        return Found(data[candidates[0]], candidates[0])
+    if not candidates:
+        return Found(None, reason="no list of rows in this payload")
+    return Found(
+        None,
+        reason=(
+            f"{len(candidates)} candidate row lists "
+            f"({', '.join(candidates)}) — use --rows to choose"
+        ),
+    )
+
+
 def _describe(key: str, rows: list[dict], *, dotted: bool = False) -> dict:
     """One column, measured against every row."""
     values = [resolve(row, key) for row in rows] if dotted else _values(rows, key)
@@ -223,6 +280,7 @@ def shape(
     cols: list[str] | None = None,
     drop: list[str] | None = None,
     enabled: bool = True,
+    rows_path: str | None = None,
 ) -> dict | None:
     """Describe how to present these rows, or None if there is nothing to say.
 
@@ -237,10 +295,11 @@ def shape(
     A column that does not fit is a property of the *drawing*, and each
     renderer reports its own. See [[table-views]] round 3.
     """
-    if not is_rows(data):
+    found = find_rows(data, rows_path)
+    if found.rows is None:
         return None
 
-    rows = data
+    rows = found.rows
 
     # An explicit column list defeats every rule. The operator looked at the
     # table and said what they wanted; a heuristic that argued would be a bug.
@@ -252,7 +311,7 @@ def shape(
         chosen = [_describe(key, rows, dotted="." in key) for key in cols]
         inline = [c for c in chosen if not _is_prose(rows, c["key"])]
         details = [c for c in chosen if _is_prose(rows, c["key"])]
-        return {"columns": inline, "details": details, "hidden": []}
+        return _view(inline, details, [], found.key)
 
     if not enabled:
         return None
@@ -282,4 +341,17 @@ def shape(
     details = [_describe(key, rows) for key in kept if _is_prose(rows, key)]
     columns = [_describe(key, rows) for key in kept if not _is_prose(rows, key)]
 
-    return {"columns": columns, "details": details, "hidden": hidden}
+    return _view(columns, details, hidden, found.key)
+
+
+def _view(columns, details, hidden, key: str | None) -> dict:
+    """The view, plus the key its rows came from when they came from one.
+
+    **Omitted rather than null** when the payload was already a list, so an
+    envelope from a bare array stays byte-identical to one from before this
+    round existed — the same rule `view` itself was added under.
+    """
+    view = {"columns": columns, "details": details, "hidden": hidden}
+    if key:
+        view["rows"] = key
+    return view

@@ -349,11 +349,13 @@ Shared with sibling CLIs so the family feels like one tool.
 built surface as pure concept and decided the eight primitives, with dated decisions and
 visible reversals. Feature specs convert it into buildable rounds; read it before proposing a
 primitive-level change. `docs/features/done/` holds the completed docs — `canvas.md` (the
-surface, five rounds), `table-views.md` (the shaping contract), `follow.md` (the streaming
-substrate), `tools.md` (saved commands, three rounds), `highlight.md` (lexical tint, four rounds),
-`header.md` (the mark), `text-reads.md`,
-`subprocess-env.md`, and the constitution's rounds as they land. `docs/features/` is empty. Every earlier
-spec was deleted with the system it described; the done docs that predate the 2026-08-21
+surface, five rounds), `follow.md` (the streaming substrate), `tools.md` (saved commands, three
+rounds), `highlight.md` (lexical tint, four rounds), `capture.md` (declared structure),
+`refresh.md`, `header.md` (the mark), `text-reads.md`, `subprocess-env.md`, and the constitution's
+rounds as they land. `docs/features/` holds open work — as of 2026-08-23: `table-views.md` (the
+shaping contract, reopened at round 4), `chrome.md` (reopened at round 3), `roll-call.md`,
+`file-follow.md`, `delay.md`, `mcp.md`. Every earlier
+spec was deleted with the system it described; the docs that predate the 2026-08-21
 renames say `wrap`/`every` on purpose — dated, never scrubbed.
 
 One doc per feature at `docs/features/<slug>.md`, from first sentence to done; completed docs move

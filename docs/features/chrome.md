@@ -1,7 +1,7 @@
 ---
-status: complete
+status: draft
 created: 2026-08-21
-updated: 2026-08-22
+updated: 2026-08-23
 agent_value: 3
 key_files:
   - cli/chrome.py
@@ -135,6 +135,72 @@ role named already lives in `cli/theme.py`, and the no-hex scan does not move.
       loop, both follow forms and the run/read exit stamps render through it. The whole-band
       role styling is retired.
 
+### Round 3 — a snapshot wears its chrome too (2026-08-23)
+
+The fact table above has carried a `snapshot, one-time` row since round 1 — *source · shape ·
+ran-at · duration · ok/partial/failed · warnings count* — and `chrome.snapshot()` builds it. But
+only a **resident** window draws bands. A one-shot `tb data` prints `● data  53 rows` and stops.
+So the facts exist, are tested, and are never shown for the most common invocation in the CLI.
+
+Raised by the operator as a sketch for a richer result header, and it turned out to be asking for
+exactly this: a top block of facts and a bottom rule closing the output. That is `status_bands()`,
+drawn once instead of on a tick.
+
+```
+┌ jam report status --json · data ─────────── ran 20:02:53 ┐
+
+  generated   2026-08-23T20:02:53+00:00
+  jobs        table · 15 × 27
+  …
+
+└ ok · 0.4s · 27 rows ─────────────────────────────────────┘
+```
+
+**The bottom rule is the point, and it is not decoration.** Today a truncated result says so
+(`N more rows not shown`) and a complete one says nothing — so silence means both *"that was
+everything"* and *"the output stopped early"*. A terminator makes completion visible, which is the
+only thing that lets truncation mean something. It matters more with [[mcp]] specced: an agent
+reading a result needs a frame boundary it did not have to infer from the absence of one.
+
+**Earned by size, not printed always.** A three-row result between two rules of chrome is ceremony
+outweighing content, and a band on every `tb read` of a two-line command is the thing an operator
+would want a flag to turn off — and this feature refuses flags. The band draws when the result is
+large enough to have a middle, or when the window is resident and already wears one. The threshold
+is a number to measure at a terminal, not to decide here.
+
+**No leading gutter.** The sketch drew a `|` down the left of every line. Rejected: a gutter breaks
+copy-paste of the content, which is a specific cost for a tool whose job is showing what a command
+printed — and `tb read` is verbatim *by contract*, so a gutter would make it not verbatim. Bands
+are top and bottom only, which is what both existing renderings already do.
+
+**What does not move here.** The payload's own type and dimensions — `table · 15 × 27` — are a
+fact the output *states*, so they are in-band and belong to [[table-views]] round 4, not to this
+doc. This feature's Why is doing real work for the first time: chrome is what the surface knows
+that the output does not say. `ran-at` and `duration` are chrome. `27 rows` is chrome quoting a
+count it was handed. The shape of the data is not.
+
+Two facts from the sketch are **rejected for the snapshot form**: `last modified` and `size`. They
+are file properties, and the sketch showed them over a command (`ip -j -br addr`), which has no
+mtime and no size on disk. They are already correctly specified — on the `file cursor` row of the
+table above, where they belong.
+
+**Does not do** gains:
+
+- **No gutter, no side rules, no box.** Top and bottom bands only.
+- **No band on a small result.** Chrome costing more lines than it explains is decoration.
+
+- [ ] **Snapshot bands, pure.** `status_bands()` accepts the snapshot and act shapes; the spans
+      exist already, so this is the layout call and its tests. No new facts.
+- [ ] **The terminal draws them**, above and below the rendered value, at the same width
+      arithmetic the resident bands already use. Behind the size threshold.
+- [ ] **The threshold, measured.** Pick it at a real terminal against real results, and record the
+      number and its reasoning in Notes rather than in a constant's name.
+- [ ] **The canvas draws them** for a non-resident window, which today has a title bar and no
+      footer. Verified headless per [[canvas]], the frontend still having no runner.
+- [ ] **The envelope boundary test extends** to the snapshot form — an envelope produced with
+      snapshot chrome active stays byte-identical. Round 1 holds this line for resident; it must
+      hold here too, or the feature has grown a field it promised not to.
+
 ## Notes
 
 ### Round 1 — written as spec, from spec review (2026-08-21)
@@ -182,3 +248,21 @@ only new tests are about roles. `ROLE[attention]` still exists and still drives 
 and the theme mapping; what retired is only the terminal's whole-band application of it. The
 verdict word wears `ROLE[word]` directly, which quietly guarantees the bottom band and the
 canvas dot can never disagree about what color a verdict is.
+
+### Round 3 — the fact table was ahead of the renderer (2026-08-23)
+
+Worth recording because it is the second time this month a doc turned out to have already
+specified the thing being asked for. The operator sketched a result header — type, dimensions,
+when, size, a terminator — as a new idea. Four of the five facts were already in this doc's round
+1 table, two of them on the wrong row for the example given, and the fifth belonged to
+[[table-views]].
+
+What was actually missing was not a fact. It was that `snapshot` never draws. The round 1 table
+was written by reasoning about all five temporal shapes at once, and the two that had windows on
+the canvas got renderers; the one that only ever appears as CLI output did not, and nothing
+noticed because the tests test the fact set.
+
+The general lesson is the one this repo keeps relearning from a different direction: **a contract
+with a tested producer and no consumer looks exactly like a finished feature.** [[table-views]]
+round 4 is the same shape — three rounds of rules tested against a payload structure no real tool
+returns.
