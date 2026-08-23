@@ -15,4 +15,12 @@
   colour (lost because its stdout is a pipe: 6,044 escapes in a terminal, zero under tb) and a
   slow tool's lines stuck in an 8 KB buffer. [[follow]] refuses a pty as the *default*, on the
   grounds that follow is not tmux; opt-in with stated costs is a different question
--
+- ~~a log analyzer / view setup utility~~ — answered: lnav 0.14.0 headless already emits JSON
+  (`lnav -n -q -c ';SELECT …' -c ':write-json-to -'`), so it is a `tb data --from json --` source
+  and a saved tool, not a new command. Measured 2026-08-23
+- ~~a richer result header (type, dimensions, size, modified, END OF DATA)~~ — split by owner:
+  type and dimensions are in-band, spec'd as [[table-views]] round 4; the band and the terminator
+  are out-of-band, spec'd as [[chrome]] round 3. `size`/`modified` were already on chrome's file
+  cursor row. The leading `|` gutter is rejected — it breaks copy-paste and `tb read` is verbatim
+  by contract
+- ~~a centralized system to manage how six projects' agents work~~ — spec'd as [[roll-call]]

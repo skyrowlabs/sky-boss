@@ -12,6 +12,7 @@ import copy
 import pytest
 
 from cli.view import (
+    find_rows,
     resolve,
     shape,
     summarise_mapping,
@@ -285,3 +286,109 @@ def test_the_header_floor_is_capped(rows):
     """One pathologically long key must not squeeze every other column out."""
     view = shape([{"a_really_quite_long_field_name": 1, "b": 2}])
     assert column(view, "a_really_quite_long_field_name")["min"] == 14
+
+
+# ── Round 4: a payload is not always a list ─────────────────────────────────
+#
+# Round 1's fixture above reproduces the shape of a *row* and was defended at
+# length for it. What it never reproduced is the shape of a *payload*: it is a
+# bare list, and so is every fixture after it. Real tools wrap their rows in a
+# mapping, because a bare array has nowhere to put a generated-at stamp. See
+# [[table-views]] round 4.
+
+
+@pytest.fixture
+def wrapped(rows):
+    """The shape of `jam report status --json` — metadata beside a row list."""
+    return {"generated": "2026-08-23T20:02:53+00:00", "jobs": copy.deepcopy(rows)}
+
+
+# The failure cases first. A wrong table read as the right one is worse than no
+# table, so these are the behaviours that matter and the happy path is the easy
+# one.
+
+
+def test_find_rows_refuses_to_choose_between_two_candidates():
+    data = {"jobs": [{"a": 1}], "errors": [{"b": 2}]}
+    found = find_rows(data)
+    assert found.rows is None
+    assert found.key is None
+    # Both named, so the operator can pick one without going back to the tool.
+    assert "jobs" in found.reason and "errors" in found.reason
+    assert "--rows" in found.reason
+
+
+def test_find_rows_reports_a_mapping_with_no_rows_in_it():
+    found = find_rows({"generated": "…", "count": 27})
+    assert found.rows is None
+    assert found.reason
+
+
+def test_find_rows_ignores_an_empty_list_as_a_candidate():
+    """An empty list is not a row list — it carries no columns to shape. It
+    must also not make an otherwise-unambiguous payload ambiguous."""
+    found = find_rows({"jobs": [{"a": 1}], "errors": []})
+    assert found.key == "jobs"
+
+
+def test_find_rows_ignores_a_list_of_scalars():
+    found = find_rows({"jobs": [{"a": 1}], "labels": ["generated", "wip"]})
+    assert found.key == "jobs"
+
+
+def test_find_rows_finds_the_only_row_list(wrapped):
+    found = find_rows(wrapped)
+    assert found.key == "jobs"
+    assert len(found.rows) == len(wrapped["jobs"])
+    assert found.reason is None
+
+
+def test_find_rows_passes_a_bare_list_through_unchanged(rows):
+    found = find_rows(rows)
+    assert found.rows is rows
+    # No key, because it did not come from one — the distinction the header
+    # needs to say `table` rather than `jobs`.
+    assert found.key is None
+
+
+def test_find_rows_takes_an_explicit_path(wrapped):
+    assert find_rows(wrapped, path="jobs").key == "jobs"
+
+
+def test_find_rows_takes_a_dotted_explicit_path():
+    data = {"report": {"jobs": [{"a": 1}]}}
+    found = find_rows(data, path="report.jobs")
+    assert found.key == "report.jobs"
+    assert found.rows == [{"a": 1}]
+
+
+def test_find_rows_explicit_path_that_misses_is_a_reason_not_a_fallback():
+    """Named and wrong must not quietly become named and ignored — the whole
+    defect this round exists to fix."""
+    data = {"jobs": [{"a": 1}]}
+    found = find_rows(data, path="nope")
+    assert found.rows is None
+    assert "nope" in found.reason
+
+
+def test_find_rows_explicit_path_to_a_non_row_value_is_a_reason():
+    found = find_rows({"generated": "…"}, path="generated")
+    assert found.rows is None
+    assert "generated" in found.reason
+
+
+def test_find_rows_declines_a_scalar():
+    assert find_rows("plain text").rows is None
+    assert find_rows(None).rows is None
+
+
+def test_shape_shapes_a_wrapped_payload(wrapped):
+    """The bug, at the level it was found: `--cols` against jam's real shape."""
+    view = shape(wrapped, cols=["number", "merge_state"])
+    assert view is not None
+    assert [c["key"] for c in view["columns"]] == ["number", "merge_state"]
+
+
+def test_shape_leaves_an_ambiguous_payload_alone():
+    view = shape({"jobs": [{"a": 1}], "errors": [{"b": 2}]}, cols=["a"])
+    assert view is None
