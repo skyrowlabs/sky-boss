@@ -169,7 +169,7 @@ too — a tool's argv carries `--due 15m` like any other flag, so `[[tools]]` ne
 - [x] **A duration is a shared parser.** `15m`, `2h`, `90s` → seconds, in `cli/helpers.py`,
       because [[delay]] needs the identical spelling and two parsers for one syntax is how they
       start disagreeing. Rejects anything else loudly, at parse time, not at first tick.
-- [ ] **`late` in the chrome contract.** `Chrome` gains the declared interval for a cursor and a
+- [x] **`late` in the chrome contract.** `Chrome` gains the declared interval for a cursor and a
       stream, `attention` gains `late`, and the band says which — `quiet 3m of 15m` against
       `late 47m, due 15m`. Pure, over an injected clock, per [[chrome]].
 - [ ] **`--due` on `tb follow`**, both forms, passed to the cursor and the stream alike.
