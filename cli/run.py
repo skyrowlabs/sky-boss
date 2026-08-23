@@ -23,6 +23,7 @@ import rich_click as click
 
 from cli.helpers import child_env
 from cli.output import Result, band, emit
+from cli.read import _width
 
 
 @click.command()
@@ -60,7 +61,9 @@ def _accrued(argv: tuple[str, ...], timeout: int | None, cwd: str | None) -> Res
 
     result = Result()
     try:
-        outcome = stream_.accrue(list(argv), timeout=timeout, cwd=cwd, echo=_echo_line)
+        outcome = stream_.accrue(
+            list(argv), timeout=timeout, cwd=cwd, echo=_echo_line, columns=_width()
+        )
     except FileNotFoundError:
         result.ok = False
         result.data = {"argv": list(argv), "error": f"no such command: {argv[0]}"}
@@ -102,8 +105,9 @@ def _once(argv: tuple[str, ...], timeout: int | None, cwd: str | None) -> Result
             timeout=timeout,
             cwd=cwd,
             check=False,
-            # The operator's environment, not tb's. See [[subprocess-env]].
-            env=child_env(),
+            # The operator's environment, not tb's, plus the width of the
+            # display its output is headed for. See [[subprocess-env]].
+            env=child_env(_width()),
         )
     except FileNotFoundError:
         result.ok = False

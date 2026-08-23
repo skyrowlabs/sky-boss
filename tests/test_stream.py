@@ -184,3 +184,62 @@ def test_the_json_envelope_is_still_built_once_complete_at_exit():
     assert envelope["ok"] is True
     assert envelope["data"]["stdout"] == "hi\n"
     assert list(envelope) == ["command", "ok", "partial", "data", "warnings"]
+
+
+# ============================================================================
+# The display's width, handed to the child — [[subprocess-env]] round 2
+# ============================================================================
+
+
+def test_a_child_is_told_how_wide_the_display_is():
+    """The operator's report: `tb follow -- jam report watch --follow` drew a
+    different picture from `jam report watch --follow` in the same terminal.
+    A tool lays out by asking its stdout how wide the terminal is; under tb
+    that stdout is a pipe, so it falls back to its own default and truncates.
+    Measured against the real thing: with COLUMNS the child's output is
+    byte-identical to its output in a terminal, without it every long line
+    loses its tail."""
+    import time
+
+    from cli.stream import ChildStream
+
+    child = ChildStream(["sh", "-c", "echo width=$COLUMNS"], columns=150)
+    child.wait(timeout=10)
+    assert [line.text for line in child.lines()] == ["width=150"]
+
+
+def test_a_child_is_told_nothing_when_there_is_no_display(monkeypatch):
+    """Piped output has no width worth claiming — the consumer may be a file,
+    and a tool wrapping to a number tb invented is worse than one using its
+    own default.
+
+    Note what is *not* claimed: that the child sees no `COLUMNS` at all. If
+    the operator exports one, it passes through like every other variable —
+    round 1's rule is that tb scrubs what it added to boot and nothing else.
+    What this pins is that tb adds none of its own."""
+    monkeypatch.delenv("COLUMNS", raising=False)
+    from cli.stream import ChildStream
+
+    child = ChildStream(["sh", "-c", "echo width=[$COLUMNS]"])
+    child.wait(timeout=10)
+    assert [line.text for line in child.lines()] == ["width=[]"]
+
+
+def test_the_operators_own_width_still_passes_through(monkeypatch):
+    """The environment is theirs. tb overrides it only when it knows better —
+    which is exactly when it has a display to describe."""
+    monkeypatch.setenv("COLUMNS", "99")
+    from cli.helpers import child_env
+
+    assert child_env()["COLUMNS"] == "99"
+    assert child_env(150)["COLUMNS"] == "150"
+
+
+def test_the_height_is_never_passed(monkeypatch):
+    """A tool that thinks it knows the height may decide to paginate, and a
+    pager inside a stream is a hang."""
+    monkeypatch.delenv("LINES", raising=False)
+    from cli.helpers import child_env
+
+    assert "LINES" not in child_env(150)
+    assert child_env(150)["COLUMNS"] == "150"
