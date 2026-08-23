@@ -281,12 +281,12 @@ the output does *not* say, and takes the terminator half of this in its own roun
 - [x] **The nested render path learns views.** `_render_mapping` threads `view` through to
       `_render_columns`; the canvas's equivalent path in `render.js` checked for the same gap,
       since it was written against the same assumption.
-- [ ] **A discarded flag is never silent.** If `--cols` cannot be applied because nothing shapeable
+- [x] **A discarded flag is never silent.** If `--cols` cannot be applied because nothing shapeable
       was found, say so on stderr and name why. This is the defect's real lesson and it outlives
       the specific fix.
 - [ ] **The header states type and dimensions.** `● data  table · 15 × 27`, from the view; scalar
       and mapping payloads say what they are too. Both renderers.
-- [ ] **A fixture with a wrapper.** `tests/test_view.py` gains the shape of `jam report status
+- [x] **A fixture with a wrapper.** `tests/test_view.py` gains the shape of `jam report status
       --json` — a metadata key beside a row list — for the same reason round 1's fixture was
       synthetic, and covering the case round 1's fixture structurally could not.
 
