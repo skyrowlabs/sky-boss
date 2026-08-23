@@ -125,7 +125,9 @@ def _accrued(
 
     result = Result()
     try:
-        outcome = stream_.accrue(list(argv), timeout=timeout, cwd=cwd, echo=_echo_line)
+        outcome = stream_.accrue(
+            list(argv), timeout=timeout, cwd=cwd, echo=_echo_line, columns=_width()
+        )
     except FileNotFoundError:
         result.ok = False
         result.data = f"no such command: {argv[0]}"
@@ -163,6 +165,16 @@ def _echo_line(line) -> None:
     click.echo(text, err=line.stderr)
 
 
+def _width() -> int | None:
+    """The terminal's width, or None when tb's own output is not a terminal.
+    See [[subprocess-env]] round 2."""
+    import sys
+
+    if not sys.stdout.isatty():
+        return None
+    return output_width()
+
+
 def output_width() -> int:
     import shutil
 
@@ -181,7 +193,7 @@ def _once(argv: tuple[str, ...], timeout: int | None, cwd: str | None) -> Result
             timeout=timeout,
             cwd=cwd,
             check=False,
-            env=child_env(),
+            env=child_env(_width()),
         )
     except FileNotFoundError:
         result.ok = False

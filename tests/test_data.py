@@ -317,3 +317,22 @@ def test_a_wide_table_does_not_warn_merely_for_being_wide():
     assert envelope["view"]["hidden"] == []
     assert envelope["warnings"] == []
     assert len(envelope["view"]["columns"]) == 12
+
+
+def test_data_never_tells_a_tool_how_wide_the_terminal_is(monkeypatch):
+    import subprocess
+    """`data` parses what the tool prints. A width is an instruction to lay
+    out for a display, and a tool that wrapped its JSON to 80 columns would
+    hand back a corrupted document rather than a narrower one. The display
+    paths — run, read, follow — pass it; this one must not.
+    See [[subprocess-env]] round 2."""
+    seen = {}
+    real = subprocess.run
+
+    def spy(*args, **kwargs):
+        seen.update(kwargs.get("env") or {})
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(subprocess, "run", spy)
+    invoke(["--", "printf", '{"a": 1}'])
+    assert "COLUMNS" not in seen

@@ -167,6 +167,16 @@ def follow(
 follow.tb_resident = True
 
 
+def _display_width(console: Console) -> int | None:
+    """The width to tell a child about, or None when there is no display.
+
+    Piped output has no width worth claiming — the consumer may be a file, and
+    a tool that wrapped to a number tb invented would be worse than one that
+    used its own default.
+    """
+    return console.width if console.is_terminal else None
+
+
 def follow_process(
     argv: list[str],
     *,
@@ -195,7 +205,10 @@ def follow_process(
     source = shlex.join(argv)
 
     try:
-        child = spawn(argv, cwd=cwd, limit=limit)
+        # The child lays out for the terminal it will be shown in, not for a
+        # pipe's default. `tb follow -- x` and `x` should draw the same
+        # picture; see [[subprocess-env]] round 2.
+        child = spawn(argv, cwd=cwd, limit=limit, columns=_display_width(out))
     except FileNotFoundError:
         raise click.UsageError(f"no such command: {argv[0]}")
 

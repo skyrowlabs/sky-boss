@@ -53,7 +53,7 @@ INVOCATION: list[str] = []
 BOOTSTRAP = ("PYTHONPATH", "PYTHONSAFEPATH")
 
 
-def child_env() -> dict[str, str]:
+def child_env(columns: int | None = None) -> dict[str, str]:
     """The environment a spawned command should see: the operator's, not tb's.
 
     Without this, `tb run -- python3 -c "import cli"` imports *this* package
@@ -63,8 +63,22 @@ def child_env() -> dict[str, str]:
     It was found by manually testing something else: `tb data -- jam …`
     succeeded from inside this repo when running `jam` directly there fails, and
     the leak was what made it work. See [[subprocess-env]].
+
+    **`columns` tells the child how wide the display is**, and it is the one
+    thing tb *adds* rather than scrubs. A tool laying out columns asks its
+    stdout how wide the terminal is; under tb that stdout is a pipe, so it
+    falls back to a default and the operator gets a different picture from the
+    one the same command draws in the same terminal. Passing the real width
+    makes tb transparent instead of narrowing. Only where the output is shown
+    as text in that terminal — never for `data`, whose bytes are parsed and
+    where a wrapped line would be a corrupted one. `LINES` is deliberately not
+    set: a tool that thinks it knows the height may decide to paginate, and a
+    pager inside a stream is a hang. See [[subprocess-env]] round 2.
     """
-    return {k: v for k, v in os.environ.items() if k not in BOOTSTRAP}
+    env = {k: v for k, v in os.environ.items() if k not in BOOTSTRAP}
+    if columns:
+        env["COLUMNS"] = str(columns)
+    return env
 
 
 def run_command(

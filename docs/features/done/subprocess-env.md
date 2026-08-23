@@ -1,7 +1,7 @@
 ---
 status: complete
 created: 2026-08-20
-updated: 2026-08-21
+updated: 2026-08-22
 agent_value: 3
 key_files:
   - cli/helpers.py
@@ -121,6 +121,60 @@ bootstraps cannot quietly satisfy it.
 - [x] Correct `CLAUDE.local.md`'s account of why `jam` needs `--cwd`, and add the scrub to
       `CLAUDE.md` § Conventions.
 
+### Round 2 — the display's width (2026-08-22)
+
+Reported by the operator: *"`tb follow -- jam report watch --follow` is not showing me the same
+as when I run the command outside of tb."* True, and measurable.
+
+**A tool lays out by asking its stdout how wide the terminal is.** Under tb that stdout is a
+pipe, so the tool falls back to its own default — 120 columns for the tool in question — and
+truncates every longer line, in a 150-column terminal that had the room. tb was silently
+narrowing the thing it exists to show you.
+
+Measured rather than argued. Running the same bounded command both ways and diffing the child's
+own bytes:
+
+```
+direct, in a 150-column terminal :  74 lines, max width 150
+through tb, with COLUMNS passed  :  74 lines, max width 150   ← byte-identical
+through tb, without              :  74 lines, max width 120   ← every long line loses its tail
+```
+
+**So `child_env()` gains the one thing it adds rather than scrubs.** Round 1's rule was *scrub
+what tb added to boot and nothing else*; this is a deliberate, narrow exception, and it earns
+the exception by making tb **transparent**: the child draws for the display it is actually being
+drawn on, which is what it would have done had tb not been in the way.
+
+**Only where the output is displayed as text.** `run`, `read` and `follow` pass the terminal's
+width; **`data` never does.** Its bytes are parsed, a width is an instruction to lay out for a
+display, and a tool that wrapped its JSON to fit would hand back a corrupted document rather
+than a narrower one. The canvas passes nothing either — a browser window's character width is
+not a number the server knows.
+
+**And only when there is a display.** Piped output has no width worth claiming: the consumer may
+be a file, and a tool wrapping to a number tb invented is worse than one using its own default.
+
+**`LINES` is deliberately not set.** A tool that thinks it knows the height may decide to
+paginate, and a pager inside a held-open stream is a hang.
+
+**Does not do:**
+
+- **No pty.** The remaining difference between the two runs is *colour*: a tool that colours its
+  own output does so only when stdout is a terminal, and neither `FORCE_COLOR` nor
+  `CLICOLOR_FORCE` moved the one measured here. Giving the child a pty would restore it and is
+  refused by [[follow]] — "line streams, not a pty" — and tb now paints its own semantic colour
+  through [[highlight]], which would fight it. Recorded as measured, not assumed.
+- **No width for `data`, ever.** See above.
+- **No terminal *type*.** `TERM` is the operator's and is passed through untouched, as every
+  other variable is.
+
+- [x] **`child_env(columns)`**, set only when a width was given.
+- [x] **The display paths pass it** — `follow` from its console, `run` and `read` from theirs,
+      and only when tb's own stdout is a terminal.
+- [x] **Tests**: a child sees the width, a child without a display sees none of tb's, the
+      operator's own `COLUMNS` still passes through, `LINES` is never set, and `data` never
+      passes a width at all.
+
 ## Notes
 
 ### Round 1 — found by testing something else (2026-08-20)
@@ -170,3 +224,32 @@ without `--cwd` now fails honestly there instead of quietly working.
 `wrap` was renamed `data` and the `every` field renamed `refresh` — hard renames, no aliases;
 see [[refresh]]. This doc predates the rename and its prose says `wrap` because it *was*
 `wrap`; that is history being accurate, and nothing above has been scrubbed.
+
+### Round 2 — executed (2026-08-22)
+
+**The bug report was precise and the first measurement was not.** Comparing the two runs by
+maximum line width said "301 versus 150", which looked like tb producing wider output — until
+the 301-character lines turned out to be **tb's own chrome band**, joined across frames by the
+bare carriage returns an in-place redraw uses. The comparison harness was measuring itself.
+Splitting on `\r` as well as `\n`, and excluding tb's chrome, made the real difference visible:
+the child truncating at its own default.
+
+**What settled it was diffing the child's bytes rather than the rendered screen.** Running the
+same bounded command under a pty and under `ChildStream`, with and without the width, gives
+`A == B` exactly — a one-line assertion that the fix makes tb transparent, and one that no
+amount of looking at two screenshots could have produced.
+
+**The colour difference is real, measured, and deliberately left alone.** The tool emits cyan,
+green and yellow when its stdout is a terminal and nothing at all when it is a pipe; neither
+`FORCE_COLOR` nor `CLICOLOR_FORCE` changes that. Only a pty would, which [[follow]] refuses by
+name — and tb now has its own semantic tinting through [[highlight]], so restoring the tool's
+would put two colour schemes on one line. Worth stating plainly rather than leaving as a
+surprise: **under tb, the colours you see are tb's, and the layout is the tool's.**
+
+**One more thing the tests had to be talked out of claiming.** The first version asserted that a
+child sees *no* `COLUMNS` when tb passes none — and it failed, because the process running the
+suite exports one. That is not a bug, it is round 1's rule working: the environment is the
+operator's, and tb scrubs only what it added to boot. The contract is narrower than the first
+assertion and is now written as it actually is — **tb adds no width of its own, and overrides an
+inherited one only when it has a display to describe.**
+
