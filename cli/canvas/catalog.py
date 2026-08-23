@@ -104,6 +104,10 @@ def _leaf(command: click.Command, path: tuple[str, ...]) -> list[dict]:
             # in this module is the beginning of the command table the whole
             # design refuses to keep. The sidebar filters on this.
             "saved": getattr(command, "tb_saved", False),
+            # A builtin that takes nothing from its caller may opt into the
+            # agent surface. Read off the command object, never a list here —
+            # the same rule `tb_surface` and `tb_acts` follow. See [[mcp]].
+            "mcp": getattr(command, "tb_mcp", False),
             # A saved command may declare the cadence it wants to open on.
             # Zero for everything else, which is what a window starts at now.
             "refresh": getattr(command, "tb_refresh", 0),

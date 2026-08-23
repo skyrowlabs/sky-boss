@@ -1,5 +1,5 @@
 ---
-status: draft
+status: active
 created: 2026-08-22
 updated: 2026-08-22
 agent_value: 3
@@ -57,8 +57,17 @@ a read.* That works because the operator typed it. An MCP tool called `data` tak
 argv would let the **agent** make that assertion, about an argv nobody reviewed, and an
 assertion nobody validated is not a safety property. It is a shell with a reassuring name.
 
-So the surface is **saved commands only** — every one an argv the operator wrote down, with
-`acts` inherited from its first word. `tools.toml` becomes the allowlist without anyone
+So the surface is **what takes nothing from its caller** — every saved command, since each is an
+argv the operator wrote down with `acts` inherited from its first word, plus any builtin that reads
+only operator-declared content and accepts no argv.
+
+*Amended during round 1 (2026-08-23): this read "saved commands only". [[roll-call]] did not exist
+when it was written, and it satisfies every reason the rule was given — its sources are declared in
+`projects.toml`, it takes no argv, it does not act and it is not resident — while failing the rule
+as literally spelled. The exclusions below already argued builtins out on two grounds, "`tb tools`
+is a listing" and "the argv-takers are excluded above", and neither covers it: that was a gap, not
+a decision. A builtin opts in with `tb_mcp` on the command object, read off the tree like
+`tb_surface` and `tb_acts`, so no name is written down in a module. See Notes.* `tools.toml` becomes the allowlist without anyone
 inventing an allowlist, which is the same move [[tools]] made for the canvas sidebar.
 
 **And a saved command takes no arguments.** That is a rule [[tools]] round 1 wrote for a
@@ -127,22 +136,22 @@ the intended trade, stated plainly rather than discovered.
 
 ### Round 1 — tools/list and tools/call over stdio (2026-08-22)
 
-- [ ] **The protocol subset, hand-rolled.** `initialize`, `notifications/initialized`,
+- [x] **The protocol subset, hand-rolled.** `initialize`, `notifications/initialized`,
       `tools/list`, `tools/call`, and a proper JSON-RPC error for anything else. No new
       dependency: the official SDK brings pydantic into a project that has deliberately avoided
       it, to save perhaps a hundred lines of JSON-RPC over a pipe. Revisit if the surface ever
       grows resources and prompts.
-- [ ] **The tool list is the catalog, filtered.** Saved, not acting, not resident — read off
+- [x] **The tool list is the catalog, filtered.** Saved, not acting, not resident — read off
       `catalog.walk()`, never a list of names. A test asserts a saved command wrapping `run`
       never appears, and that adding one to `tools.toml` makes it appear with no code change.
-- [ ] **`tools/call` runs it through the existing runner**, `child_env()` and all, and returns
+- [x] **`tools/call` runs it through the existing runner**, `child_env()` and all, and returns
       the envelope as JSON text. Failure is an envelope, not a fault. Results are capped.
-- [ ] **stdout carries protocol and nothing else.** The purity rule tb already tests, applied to
+- [x] **stdout carries protocol and nothing else.** The purity rule tb already tests, applied to
       a new consumer: a warning goes to stderr, a band goes to stderr, and a stray `print` is a
       corrupted session rather than an ugly one.
-- [ ] **`tb mcp` registers as a surface** — `tb_surface = True`, so it stays out of the palette
+- [x] **`tb mcp` registers as a surface** — `tb_surface = True`, so it stays out of the palette
       and out of its own tool list.
-- [ ] **Help is the doc**, including the sentence that says what an agent may and may not reach
+- [x] **Help is the doc**, including the sentence that says what an agent may and may not reach
       and where the boundary is written down.
 
 ## Notes
