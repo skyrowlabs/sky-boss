@@ -1,5 +1,5 @@
 ---
-status: active
+status: complete
 created: 2026-08-21
 updated: 2026-08-23
 agent_value: 3
@@ -195,13 +195,49 @@ table above, where they belong.
       arithmetic the resident bands already use. Behind the size threshold.
 - [x] **The threshold, measured.** Pick it at a real terminal against real results, and record the
       number and its reasoning in Notes rather than in a constant's name.
-- [ ] **The canvas draws them** for a non-resident window, which today has a title bar and no
+- [x] **The canvas draws them** for a non-resident window, which today has a title bar and no
       footer. Verified headless per [[canvas]], the frontend still having no runner.
 - [x] **The envelope boundary test extends** to the snapshot form — an envelope produced with
       snapshot chrome active stays byte-identical. Round 1 holds this line for resident; it must
       hold here too, or the feature has grown a field it promised not to.
 
 ## Notes
+
+### Round 3 — shipped, and the canvas never needed a band (2026-08-23)
+
+The terminal half landed as specced. The canvas half turned out to be a smaller and more
+interesting question than the round assumed.
+
+**A canvas window already has a frame, so the frame *is* the band.** The doc said the canvas
+"draws them for a non-resident window, which today has a title bar and no footer" — wrong on the
+last clause: every window has had a `.foot` since [[canvas]], carrying the verdict, the warning
+count, the attention word and the duration. The terminal needed two rules because it has no frame
+to hang those on; adding rules inside a window that already has a border would have been drawing
+the same idea twice. So the canvas half became *make the footer say what the terminal band now
+says* — which is one fact, the payload's size.
+
+**And that turned up dead code.** `summarise()` reported `${view.rows.length} rows`, but `unwrap`
+only returns `kind: "rows"` for `run`'s wrapped stdout; a plain `tb data` payload comes back as a
+value. So the row count in the footer had never once fired for the command that footer sits above
+most often. Found only by rendering it. That is the third defect this week whose whole lifetime was
+"looks implemented, never ran" — and all three were found by pointing the thing at real data rather
+than by reading it.
+
+**The duration had to come from somewhere that is not the envelope.** Round 1's boundary says
+chrome consumes the envelope and never feeds it, and `Result` has no `ran_at` or `duration_s`. The
+answer was already in the shape of the feature: `emit` wraps every command, so it can time the call
+and build the source from the live context, and both are *render-time* facts. `--json` output stays
+byte-identical, which a test now asserts for the snapshot form as round 1 does for resident.
+
+**The threshold, measured** at 80 columns rather than chosen: a body of 8 lines is plainly outweighed
+by two rules of chrome, 14 plainly earns them, and 12 is where the header stops being readable
+alongside the footer. `_body_lines` estimates from the data rather than the rendering — the question
+is only *does this have a middle*, and an answer that had to render first would mean rendering twice.
+
+**`run` resolved itself.** It stamps its own act band and sets `data = None`, so it scores zero
+lines and never acquires a second pair. Worth a test rather than a comment, since the next command
+that returns no data will land in the same branch.
+
 
 ### Round 1 — written as spec, from spec review (2026-08-21)
 

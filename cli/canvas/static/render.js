@@ -376,11 +376,33 @@ export function Body({ result }) {
   `;
 }
 
+/* What a window's footer says about its payload.
+ *
+ * A canvas window already has a frame, so it never needed the two rules the
+ * terminal grew in [[chrome]] round 3 — the frame is the band. What it did need
+ * is the same *fact*: the row count was here and the column count was not, and
+ * the column count is what says whether the shaping did what was meant. Kept
+ * word-for-word in step with `_dimensions` in cli/output.py. */
 export function summarise(result) {
   if (!result) return "";
   if (result.error) return result.error;
   const view = unwrap(result.envelope || {});
-  if (view.kind === "rows") return `${view.rows.length} rows`;
+  /* Two shapes carry rows: `run`'s wrapped stdout (`kind: "rows"`) and a plain
+   * `data` payload, which unwrap leaves as a value because that is all it is.
+   * The old count only ever fired for the first, so `tb data` — the command
+   * this footer is most often above — never showed one. */
+  const rows =
+    view.kind === "rows"
+      ? view.rows
+      : Array.isArray(view.value) && view.value.every((r) => r && typeof r === "object")
+        ? view.value
+        : null;
+  if (rows && rows.length) {
+    return `table · ${plural(rows.length, "row")} · ${plural(
+      columnsOf(rows).length,
+      "column"
+    )}`;
+  }
   const envelope = result.envelope || {};
   if (envelope.partial) return "partial";
   return envelope.ok === false ? "failed" : "ok";

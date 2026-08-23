@@ -355,8 +355,9 @@ surface, five rounds), `follow.md` (the streaming substrate), `tools.md` (saved 
 rounds), `highlight.md` (lexical tint, four rounds), `capture.md` (declared structure),
 `refresh.md`, `header.md` (the mark), `text-reads.md`, `subprocess-env.md`, `table-views.md` (the
 shaping contract, four rounds), `roll-call.md` (federating over projects), `file-follow.md` (the
-native cursor, two rounds), and the constitution's rounds as they land. `docs/features/` holds open
-work — as of 2026-08-23: `chrome.md` (reopened at round 3), `delay.md`, `mcp.md`. Every earlier
+native cursor, two rounds), `chrome.md` (what a window knows about its output, three rounds), and
+the constitution's rounds as they land. `docs/features/` holds open work — as of 2026-08-23:
+`delay.md` and `mcp.md`. Every earlier
 spec was deleted with the system it described; the docs that predate the 2026-08-21
 renames say `wrap`/`every` on purpose — dated, never scrubbed.
 
