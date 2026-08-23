@@ -1,5 +1,5 @@
 ---
-status: draft
+status: active
 created: 2026-08-23
 updated: 2026-08-23
 agent_value: 3
@@ -133,7 +133,7 @@ the house rule; here it is the whole feature.
 
 ### Round 1 — the roll-call (2026-08-23)
 
-- [ ] **The registry, pure.** `projects.toml` in `$TB_HOME`: parse, validate, and surface a
+- [x] **The registry, pure.** `projects.toml` in `$TB_HOME`: parse, validate, and surface a
       malformed entry by name rather than failing the load — the pattern `tb tools` already sets
       for a tool that would not load. An absent file degrades to nothing declared. Tests against a
       redirected `TB_HOME`, per the suite's existing rule.
