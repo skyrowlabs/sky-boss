@@ -1,5 +1,5 @@
 ---
-status: complete
+status: draft
 created: 2026-08-21
 updated: 2026-08-22
 agent_value: 3
@@ -117,6 +117,65 @@ that through the standard [[tools]] rule. ANSI is stripped, never interpreted, p
 - [x] **Keywords and docs.** `argv[0] == "follow"` with a path loads and inherits observe; the
       palette offers it; CLAUDE.md's command table gains the row.
 
+### Round 2 — late is a word the operator earns (2026-08-22)
+
+From the ideas list: *"watcher for cron jobs."* The trap in that sentence is thinking it needs a
+crontab parser. It does not, and it must not have one.
+
+**A schedule is a declaration; a run is evidence.** `crontab -l` tells you what is *supposed* to
+happen. Whether it happened is a different fact, living in a log. The interesting product is the
+join — and for systemd it already exists: `systemctl list-timers` has done it for you (LAST,
+NEXT, PASSED), so that half is a `formats.toml` entry and **no code at all**:
+
+    tb data --from timers -- systemctl list-timers --output=json
+
+**Cron is the gap precisely because it keeps no ledger.** The only evidence a cron job ran is
+what it printed, which is a file, which this doc already follows. So the cron watcher is not a
+new command. It is one word added to a cursor that already knows almost everything it needs:
+
+    tb follow --due 15m tmp/reporting/cron.log
+
+Today the band says `quiet 3m` — knowledge, from a `stat`, not a guess from silence. That is the
+whole feature of this doc, and it stops one step short of the question actually being asked,
+which is *"is that bad?"* tb cannot know. **The operator can, and `--due` is where they say it.**
+Given an expectation, quiet 3m of 15m is *fine* and quiet 47m is **late**, and the difference is
+arithmetic rather than judgment.
+
+**It is a word on a band, and nothing else.** No alert, no exit code, no notification, no
+re-running anything. A follow is resident and observes; lateness is a fact it displays, and the
+moment it *acts* on that fact tb has become a monitoring system that pages you, which is a
+different product with a different failure mode.
+
+**Both follow forms take it**, because both already carry the clock it needs: the cursor has
+`last_write_at` from its `stat`, the process stream has `last_line_at` from its ring. A
+long-running job that stops printing is the same question as a log that stops growing, and
+answering it in one place and not the other would be an asymmetry with no argument behind it.
+
+**Nothing new travels to the canvas.** `attention` is already in the chrome facts and already
+reaches a window; `late` is a new value in a slot that exists. The saved-command side is free
+too — a tool's argv carries `--due 15m` like any other flag, so `[[tools]]` needs no field.
+
+**Does not do:**
+
+- **No crontab parsing, ever.** tb does not read `crontab -l`, does not compute a next-run time
+  and does not know what a schedule is. The operator asserts an interval; tb subtracts.
+- **No alerting or escalation.** Not an exit code, not a notification, not a webhook. If a late
+  log should page someone, that belongs to something whose job is paging.
+- **No expectation about content.** Lateness is time. "The log ticked but said the wrong thing"
+  is a Rule-branch question and belongs to [[highlight]]'s declared patterns.
+- **No history.** A follow shows what is happening now; "how often was it late last week" is a
+  report, and reports are what the tools tb watches already write.
+
+- [ ] **A duration is a shared parser.** `15m`, `2h`, `90s` → seconds, in `cli/helpers.py`,
+      because [[delay]] needs the identical spelling and two parsers for one syntax is how they
+      start disagreeing. Rejects anything else loudly, at parse time, not at first tick.
+- [ ] **`late` in the chrome contract.** `Chrome` gains the declared interval for a cursor and a
+      stream, `attention` gains `late`, and the band says which — `quiet 3m of 15m` against
+      `late 47m, due 15m`. Pure, over an injected clock, per [[chrome]].
+- [ ] **`--due` on `tb follow`**, both forms, passed to the cursor and the stream alike.
+- [ ] **The canvas wears it** with no new plumbing — proven by a test that the frame's chrome
+      carries `late`, not by adding a field to the wire.
+
 ## Notes
 
 ### Round 1 — written as spec, from the constitution (2026-08-21)
@@ -186,3 +245,20 @@ The mechanical consequence here: `follow_file` takes a `wait` where it took a `s
 loop, the frame clipping and the body assembler are now shared with the process form through
 `cli/resident.py`. The clip keeps the **tail** — a log's interesting end is its newest line, and
 the ring outruns the terminal on every frame.
+
+### Round 2 — drafted, awaiting the word (2026-08-22)
+
+Drafted from the ideas list rather than from a defect, which makes the scoping the whole job. The
+sentence was "watcher for cron jobs" and the first three shapes it suggests are all wrong for
+this project: a crontab parser (tb inferring a schedule), a health checker (tb judging), and a
+notifier (tb acting on its own initiative). Each is refused by a rule that already exists.
+
+What survives is small enough to be almost embarrassing: **one flag, one new word in a slot that
+already exists, and a subtraction.** That is the sign it is the right shape here — the cursor
+already knew how long the file had been quiet and already had somewhere to put a verdict; what
+it lacked was the one number only the operator has.
+
+The systemd half being free is worth stating loudly, because it is the strongest evidence for
+the [[capture]] design: a whole class of "watch my scheduled jobs" is answered by a declared
+format over a command that has already done the join, with no code shipped at all.
+
