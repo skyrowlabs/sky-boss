@@ -16,6 +16,7 @@ import json
 import os
 import textwrap
 import threading
+import time
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -296,12 +297,60 @@ class Result:
 # ============================================================================
 
 
-def render(result: Result, as_json: bool = False) -> None:
-    """Render a result. The only function commands should reach for."""
+# A snapshot wears its bands only once the output has a middle. Two lines of
+# chrome around three lines of content is ceremony outweighing what it frames,
+# and a band on every `tb read` of a two-line command is the thing an operator
+# would want a flag to turn off — and [[chrome]] refuses flags. Measured at a
+# terminal rather than chosen: see the round 3 Notes.
+BAND_MIN_LINES = 12
+
+
+def _body_lines(value, view: dict | None = None) -> int:
+    """Roughly how tall this payload will render.
+
+    Rough on purpose. The question is *does this output have a middle*, and an
+    answer that had to render the body first to find out would mean rendering
+    twice or replaying a buffer — cost with no reader. Counted from the data,
+    which is also what makes it pure and testable.
+    """
+    if value is None:
+        return 0
+    if isinstance(value, str):
+        return len(value.splitlines())
+    if isinstance(value, dict):
+        total = 0
+        for item in value.values():
+            total += _body_lines(item) if isinstance(item, (dict, list)) else 1
+        return total
+    if isinstance(value, (list, tuple)):
+        rows = [r for r in value if isinstance(r, dict)]
+        if not rows:
+            return len(value)
+        details = len((view or {}).get("details") or [])
+        # Header, rule, one line per row, plus a detail line per row when the
+        # shaping layer moved prose out of the row.
+        return 2 + len(rows) * (1 + details)
+    return 1
+
+
+def render(
+    result: Result,
+    as_json: bool = False,
+    ran_at: float | None = None,
+    duration_s: float | None = None,
+    source: str | None = None,
+) -> None:
+    """Render a result. The only function commands should reach for.
+
+    `ran_at` and `duration_s` are **render-time** facts, timed by `emit` around
+    the command call. They are deliberately not envelope fields: chrome is what
+    the surface knows that the output does not say, and `--json` output stays
+    byte-identical to one produced before this existed. See [[chrome]] round 3.
+    """
     if as_json:
         _render_json(result)
     else:
-        _render_human(result)
+        _render_human(result, ran_at=ran_at, duration_s=duration_s, source=source)
         # Prose only for a human: under `--json` the same fact is already in
         # the envelope, and saying it twice would put it on stdout as well.
         saved_note(result.saved)
@@ -349,13 +398,49 @@ def _render_warnings(result: Result) -> None:
         _err().print(f"[yellow]⚠️  {warning}[/yellow]", highlight=False)
 
 
-def _render_human(result: Result) -> None:
+def _render_human(
+    result: Result,
+    ran_at: float | None = None,
+    duration_s: float | None = None,
+    source: str | None = None,
+) -> None:
+    banded = _body_lines(result.data, result.view) >= BAND_MIN_LINES
+    facts = None
+    if banded:
+        import time as _time
+
+        from cli import chrome as chrome_
+
+        facts = chrome_.snapshot(
+            source or result.command or "tb",
+            ok=result.ok,
+            partial=result.partial,
+            warnings=len(result.warnings),
+            ran_at=ran_at,
+            duration_s=duration_s,
+        )
+        moment = _time.time()
+        top, _ = chrome_.status_bands(facts, moment, min(_out().width, 100))
+        band(top)
+
     if not result.ok:
         _err().print(f"[tb.fail]{FAIL_GLYPH} {result.command} failed[/tb.fail]")
     elif result.partial:
         _err().print(f"[tb.warn]{UNKNOWN_GLYPH} {result.command} — partial[/tb.warn]")
 
     _render_value(result.data, title=result.command or None, view=result.view)
+
+    if facts is not None:
+        # The terminator is the point, and it is not decoration. Today a
+        # truncated result says so and a complete one says nothing, so silence
+        # means both "that was everything" and "the output stopped early".
+        # See [[chrome]] round 3.
+        import time as _time
+
+        from cli import chrome as chrome_
+
+        _, bottom = chrome_.status_bands(facts, _time.time(), min(_out().width, 100))
+        band(bottom)
 
 
 def _header(title: str | None, subtitle: str | None = None) -> None:
@@ -857,6 +942,23 @@ def _command_path(ctx: click.Context) -> str:
     return ".".join(parts[1:]) if len(parts) > 1 else ctx.info_name
 
 
+def _source_of(ctx, name: str) -> str:
+    """What this invocation *was*, for the band's left-hand identity.
+
+    Built from the live context rather than carried in the envelope, for the
+    reason the whole feature exists under: chrome is what the surface knows
+    that the output does not say. `tb data -- jam report status --json` is a
+    more useful thing to see above a table than `data`, and neither the machine
+    consumer nor the envelope needs to know it. See [[chrome]] round 3.
+    """
+    argv = (ctx.params or {}).get("argv")
+    if argv:
+        import shlex
+
+        return f"{name} -- {shlex.join(argv)}"
+    return name
+
+
 def emit(func):
     """Wrap a command that returns a :class:`Result`.
 
@@ -872,6 +974,7 @@ def emit(func):
         as_json = bool((root.obj or {}).get("as_json"))
         name = _command_path(ctx)
 
+        started = time.monotonic()
         try:
             result = func(*args, **kwargs)
             if not isinstance(result, Result):
@@ -907,7 +1010,13 @@ def emit(func):
         if active is not None:
             active.envelopes.append(result.to_dict())
 
-        render(result, as_json)
+        render(
+            result,
+            as_json,
+            source=_source_of(ctx, name),
+            ran_at=time.time(),
+            duration_s=round(time.monotonic() - started, 2),
+        )
         ctx.exit(exit_code(result))
 
     return wrapper
