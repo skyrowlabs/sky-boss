@@ -252,3 +252,9 @@ def roll_call(only: str | None) -> Result:
     if views:
         result.view = {"blocks": views}
     return result
+
+
+# Offered to an agent. `roll-call` reads only what the operator declared in
+# `projects.toml` and takes no argv from its caller, which is the property that
+# decides exposure — not "is it saved". See [[mcp]] round 1.
+roll_call.tb_mcp = True
