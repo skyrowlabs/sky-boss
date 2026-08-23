@@ -191,3 +191,64 @@ def _expand(value: str) -> str:
     import os
 
     return os.path.expandvars(os.path.expanduser(value)) if value else ""
+
+
+@click.command(name="roll-call")
+@click.option("--only", metavar="NAMES", help="Ask only these projects, comma-separated.")
+@emit
+def roll_call(only: str | None) -> Result:
+    """Ask every declared project how it is, and fold the answers.
+
+    An observe — a window may pin it and refresh it on a cadence. It runs each
+    project's own status command; it never schedules, generates, or edits one.
+
+        tb roll-call
+        tb roll-call --only jam-sense
+
+    Projects are declared in `$TB_HOME/projects.toml`, each naming an argv or a
+    path. One project failing is `partial`, never blank.
+    """
+    result = Result()
+    projects, problems = load()
+    for problem in problems:
+        result.warn(problem)
+
+    wanted = {n.strip() for n in only.split(",")} if only else None
+    if wanted:
+        missing = wanted - {p.name for p in projects}
+        if missing:
+            raise click.UsageError(f"no such project: {', '.join(sorted(missing))}")
+        projects = [p for p in projects if p.name in wanted]
+
+    if not projects:
+        # Nothing declared is not a failure. It is a fresh clone, and the answer
+        # to "how are my projects" is honestly "you have not named any".
+        result.data = {}
+        if not problems:
+            result.warn(f"no projects declared — see {home_file()}")
+        return result
+
+    blocks: dict = {}
+    views: dict = {}
+    for project in projects:
+        answer = ask(project)
+        if not answer.ok:
+            # Named, never omitted. A roll-call that quietly drops the project
+            # that could not answer is worse than one that says so, because the
+            # silence looks exactly like health.
+            reason = (answer.data or {}).get("error", "did not answer")
+            result.warn(f"{project.name}: {reason}")
+            result.partial = True
+            blocks[project.name] = {"error": reason, "source": project.source}
+            continue
+        blocks[project.name] = answer.data
+        if answer.view:
+            views[project.name] = answer.view
+
+    result.data = blocks
+    # One view per block. Six independent payloads cannot share a column list,
+    # and picking one project's would draw the other five wrong. Omitted when no
+    # project produced one, so an envelope stays unshaped rather than empty.
+    if views:
+        result.view = {"blocks": views}
+    return result

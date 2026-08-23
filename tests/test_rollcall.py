@@ -130,3 +130,131 @@ def test_a_project_that_prints_something_other_than_json_fails_its_contract():
 def test_a_projects_declared_columns_reach_the_view():
     project = Project(name="p", argv=["printf", '[{"a": 1, "b": 2}]'], cols="b")
     assert [c["key"] for c in ask(project).view["columns"]] == ["b"]
+
+
+# ── The fold ────────────────────────────────────────────────────────────────
+#
+# The partial path first. It is the one that matters — a roll-call goes blank
+# exactly when something is wrong, if it goes blank at all — and the one nobody
+# exercises by hand, because by hand every project happens to be up.
+
+
+def invoke(args=()):
+    result = CliRunner().invoke(cli, ["--json", "roll-call", *args])
+    return result, json.loads(result.stdout) if result.stdout.strip() else None
+
+
+@pytest.fixture
+def home(tmp_path, monkeypatch):
+    h = tmp_path / "home"
+    h.mkdir()
+    monkeypatch.setattr("cli.rollcall.TB_HOME", h)
+    return h
+
+
+def test_one_project_down_does_not_blank_the_others(home):
+    write(home, """
+[project.up]
+argv = ["printf", "[{\\"a\\": 1}]"]
+
+[project.down]
+argv = ["false"]
+""")
+    result, envelope = invoke()
+    assert envelope["data"]["up"] == [{"a": 1}]
+    assert "error" in envelope["data"]["down"]
+    assert envelope["partial"] is True
+    assert any("down" in w for w in envelope["warnings"])
+    assert result.exit_code == 3
+
+
+def test_a_project_that_could_not_answer_is_named_never_omitted(home):
+    """Silence looks exactly like health, which is the one thing a roll-call
+    must never let it look like."""
+    write(home, '[project.gone]\nargv = ["no-such-binary-anywhere"]\n')
+    _, envelope = invoke()
+    assert "gone" in envelope["data"]
+    assert envelope["partial"] is True
+
+
+def test_every_project_answering_is_not_partial(home):
+    write(home, '[project.a]\nargv = ["printf", "[{\\"x\\": 1}]"]\n')
+    result, envelope = invoke()
+    assert envelope["partial"] is False
+    assert result.exit_code == 0
+
+
+def test_each_block_carries_its_own_view(home):
+    """Six independent payloads cannot share one column list — picking one
+    project's would draw the other five wrong."""
+    write(home, """
+[project.a]
+argv = ["printf", "[{\\"x\\": 1}]"]
+
+[project.b]
+argv = ["printf", "[{\\"y\\": 2}]"]
+""")
+    _, envelope = invoke()
+    blocks = envelope["view"]["blocks"]
+    assert [c["key"] for c in blocks["a"]["columns"]] == ["x"]
+    assert [c["key"] for c in blocks["b"]["columns"]] == ["y"]
+
+
+def test_nothing_declared_is_not_a_failure(home):
+    _, envelope = invoke()
+    assert envelope["ok"] is True
+    assert envelope["data"] == {}
+    assert any("no projects declared" in w for w in envelope["warnings"])
+
+
+def test_a_malformed_entry_warns_and_the_rest_still_answer(home):
+    write(home, """
+[project.good]
+argv = ["printf", "[{\\"a\\": 1}]"]
+
+[project.broken]
+description = "no source"
+""")
+    _, envelope = invoke()
+    assert envelope["data"]["good"] == [{"a": 1}]
+    assert any("broken" in w for w in envelope["warnings"])
+
+
+def test_only_narrows_the_roll_call(home):
+    write(home, """
+[project.a]
+argv = ["printf", "[{\\"x\\": 1}]"]
+
+[project.b]
+argv = ["printf", "[{\\"y\\": 2}]"]
+""")
+    _, envelope = invoke(["--only", "b"])
+    assert list(envelope["data"]) == ["b"]
+
+
+def test_only_naming_nothing_is_a_usage_error_not_an_empty_roll_call(home):
+    write(home, '[project.a]\nargv = ["printf", "[]"]\n')
+    result, _ = invoke(["--only", "nope"])
+    assert result.exit_code == 2
+
+
+# ── A cadence ───────────────────────────────────────────────────────────────
+
+
+def test_a_roll_call_is_a_read_so_the_canvas_may_pin_it():
+    """Asking six projects how they are runs each project's own status command
+    and changes nothing. If this flips, the canvas stops offering a cadence on
+    the window that most wants one — and starts offering it on a write."""
+    from cli.canvas.catalog import catalog
+
+    entries = {entry["name"]: entry for entry in catalog()}
+    assert entries["roll-call"]["acts"] is False
+
+
+def test_the_roll_call_is_in_the_palette_because_the_tree_is():
+    """Nothing keeps a command table. If roll-call were registered anywhere but
+    the live Click tree it would be offerable and absent, which is worse than
+    not being offered."""
+    from cli.canvas.catalog import catalog
+
+    assert "roll-call" in {entry["name"] for entry in catalog()}
