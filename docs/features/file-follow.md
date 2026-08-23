@@ -1,5 +1,5 @@
 ---
-status: draft
+status: active
 created: 2026-08-21
 updated: 2026-08-22
 agent_value: 3
@@ -166,7 +166,7 @@ too — a tool's argv carries `--due 15m` like any other flag, so `[[tools]]` ne
 - **No history.** A follow shows what is happening now; "how often was it late last week" is a
   report, and reports are what the tools tb watches already write.
 
-- [ ] **A duration is a shared parser.** `15m`, `2h`, `90s` → seconds, in `cli/helpers.py`,
+- [x] **A duration is a shared parser.** `15m`, `2h`, `90s` → seconds, in `cli/helpers.py`,
       because [[delay]] needs the identical spelling and two parsers for one syntax is how they
       start disagreeing. Rejects anything else loudly, at parse time, not at first tick.
 - [ ] **`late` in the chrome contract.** `Chrome` gains the declared interval for a cursor and a
