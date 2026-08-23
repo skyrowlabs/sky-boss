@@ -53,7 +53,7 @@ import rich_click as click
 from cli import capture as capture_
 from cli.helpers import child_env
 from cli.output import Result, emit
-from cli.view import shape
+from cli.view import find_rows, shape
 
 
 @click.command()
@@ -61,6 +61,10 @@ from cli.view import shape
 @click.option("--timeout", type=int, default=60, help="Give up after this many seconds.")
 @click.option("--cwd", type=click.Path(file_okay=False, exists=True), help="Run it here.")
 @click.option("--cols", help="Show exactly these columns, in this order. Dotted paths allowed.")
+# Where the rows are, when the payload wraps them. Named beats inferred: tb
+# infers only when exactly one value is a list of rows, and reports rather than
+# guesses when two are. See [[table-views]] round 4.
+@click.option("--rows", "rows_path", metavar="KEY", help="Where the rows are, if the payload wraps them. Dotted paths allowed.")
 @click.option("--drop", help="Hide these columns, keeping the rest of the shaping.")
 @click.option("--no-shape", "no_shape", is_flag=True, help="Every column, in the order found.")
 # One option whose value is a *name*, never a flag per format. It resolves to
@@ -102,6 +106,7 @@ def data(
     timeout: int | None,
     cwd: str | None,
     cols: str | None,
+    rows_path: str | None,
     drop: str | None,
     no_shape: bool,
     from_: str,
@@ -156,8 +161,8 @@ def data(
 
         saved = tools_.save_invocation(save, click.get_current_context().info_name)
     if refresh is not None:
-        _reside(argv, timeout, cwd, cols, drop, no_shape, from_, refresh, screen)
-    result = _once(argv, timeout, cwd, cols, drop, no_shape, from_)
+        _reside(argv, timeout, cwd, cols, rows_path, drop, no_shape, from_, refresh, screen)
+    result = _once(argv, timeout, cwd, cols, rows_path, drop, no_shape, from_)
     result.saved = saved
     return result
 
@@ -167,6 +172,7 @@ def _reside(
     timeout: int | None,
     cwd: str | None,
     cols: str | None,
+    rows_path: str | None,
     drop: str | None,
     no_shape: bool,
     from_: str,
@@ -188,7 +194,7 @@ def _reside(
     resident.reside(
         source,
         refresh,
-        lambda: _once(argv, timeout, cwd, cols, drop, no_shape, from_),
+        lambda: _once(argv, timeout, cwd, cols, rows_path, drop, no_shape, from_),
         screen=screen,
     )
     raise click.exceptions.Exit(0)
@@ -199,6 +205,7 @@ def _once(
     timeout: int | None,
     cwd: str | None,
     cols: str | None,
+    rows_path: str | None,
     drop: str | None,
     no_shape: bool,
     from_: str = "json",
@@ -295,7 +302,19 @@ def _once(
 
     requested = _split(cols)
     dropped = _split(drop)
-    result.view = shape(parsed, cols=requested, drop=dropped, enabled=not no_shape)
+    found = find_rows(parsed, rows_path)
+
+    # Named and wrong must not quietly become named and ignored. `--rows` is
+    # the operator asserting where the rows are; if they are not there, the
+    # assertion is what is wrong and saying so is the whole point of this
+    # round. An *inferred* miss is not an error — the payload simply is not a
+    # table, which is how tb has always rendered it.
+    if rows_path and found.rows is None:
+        result.ok = False
+        result.data = {**meta, "error": found.reason}
+        return result
+
+    result.view = shape(parsed, cols=requested, drop=dropped, enabled=not no_shape, rows_path=rows_path)
 
     if result.view:
         # Only what the operator did *not* ask to lose. A silently hidden
