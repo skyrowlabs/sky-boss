@@ -137,7 +137,7 @@ the house rule; here it is the whole feature.
       malformed entry by name rather than failing the load — the pattern `tb tools` already sets
       for a tool that would not load. An absent file degrades to nothing declared. Tests against a
       redirected `TB_HOME`, per the suite's existing rule.
-- [ ] **One project, read.** A single source resolved to an envelope, reusing `tb data`'s path
+- [x] **One project, read.** A single source resolved to an envelope, reusing `tb data`'s path
       whole — `--from`, `--cwd`, and the `view` that [[table-views]] round 4 makes work on a
       nested payload. No new parsing, no new subprocess handling; if this needs either, something
       upstream is wrong and should be fixed there.

@@ -135,3 +135,59 @@ def _check(name: str, body) -> str | None:
 
 def load(home: Path | None = None) -> tuple[list[Project], list[str]]:
     return parse(read(home))
+
+
+def ask(project: Project) -> Result:
+    """One project's answer, or the reason it did not give one.
+
+    **The reader is `tb data`'s, whole.** A command source is `_once`; a file
+    source is the same parse path with the bytes read off disk instead of off a
+    pipe. Neither grows its own notion of `--from`, of when a view is attached,
+    or of what a failed read looks like — a second opinion about any of those is
+    how two commands come to disagree about the same payload.
+    """
+    from cli import capture as capture_
+    from cli.data import _once, parse_text
+
+    if project.argv:
+        return _once(
+            tuple(project.argv),
+            project.timeout,
+            _expand(project.cwd) or None,
+            project.cols or None,
+            project.rows or None,
+            None,
+            False,
+            project.from_,
+        )
+
+    result = Result()
+    path = Path(_expand(project.path))
+    fmt, problem = capture_.resolve(project.from_)
+    if problem:
+        result.ok = False
+        result.data = {"error": problem}
+        return result
+    try:
+        text = path.read_text()
+    except OSError as exc:
+        result.ok = False
+        # A project that publishes a file and has not written one yet is the
+        # normal early state, not an exception — it reports like any other
+        # source that could not answer.
+        result.data = {"source": str(path), "error": exc.strerror or str(exc)}
+        return result
+
+    meta = {"source": str(path)}
+    return parse_text(
+        text, meta, fmt, result, project.cols or None, project.rows or None, None, False
+    )
+
+
+def _expand(value: str) -> str:
+    """`~` and `$VAR` in a declared path. The operator wrote this by hand in
+    their own editor; making them spell out a home directory would be the tool
+    being awkward about the one place a path is most natural."""
+    import os
+
+    return os.path.expandvars(os.path.expanduser(value)) if value else ""

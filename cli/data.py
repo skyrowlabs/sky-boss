@@ -257,9 +257,33 @@ def _once(
         result.data = {**meta, "error": _first_line(proc.stderr) or "exited non-zero"}
         return result
 
+    return parse_text(
+        proc.stdout, meta, fmt, result, cols, rows_path, drop, no_shape, timeout
+    )
+
+
+def parse_text(
+    text: str,
+    meta: dict,
+    fmt,
+    result: Result,
+    cols: str | None,
+    rows_path: str | None,
+    drop: str | None,
+    no_shape: bool,
+    timeout: int | None = None,
+) -> Result:
+    """Text through a format, into a shaped envelope.
+
+    Split out of `_once` so a source that is a *file* rather than a command
+    goes through exactly this path — [[roll-call]] reads both kinds and must not
+    grow a second opinion about what `--from` means or when a view is attached.
+    Everything above this point in `_once` is about running a subprocess;
+    everything below is about what came back, whoever produced it.
+    """
     if fmt.kind == "json":
         try:
-            parsed = json.loads(proc.stdout)
+            parsed = json.loads(text)
         except json.JSONDecodeError:
             result.ok = False
             result.data = {
@@ -275,7 +299,7 @@ def _once(
         # what the operator's pattern was written against.
         from cli.read import strip_ansi
 
-        captured = capture_.capture(strip_ansi(proc.stdout), fmt)
+        captured = capture_.capture(strip_ansi(text), fmt)
         if captured.matched_nothing:
             result.ok = False
             result.data = {

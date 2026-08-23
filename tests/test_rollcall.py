@@ -87,3 +87,46 @@ def test_parse_reads_no_file():
     projects, problems = parse({"project": {"a": {"path": "/tmp/a.json"}}})
     assert projects[0].path == "/tmp/a.json"
     assert problems == []
+
+
+# ── One project, read ───────────────────────────────────────────────────────
+
+
+from cli.rollcall import Project, ask  # noqa: E402
+
+
+def test_a_command_source_is_read_by_tb_datas_own_path():
+    project = Project(name="p", argv=["printf", '[{"a": 1}]'])
+    result = ask(project)
+    assert result.ok is True
+    assert result.data == [{"a": 1}]
+
+
+def test_a_file_source_is_read_by_the_same_path(tmp_path):
+    """The contract accepts a file because most projects have no CLI. It must
+    not become a second opinion about what `--from` means."""
+    payload = tmp_path / "status.json"
+    payload.write_text('{"generated": "x", "jobs": [{"job": "a", "result": "ok"}]}')
+    result = ask(Project(name="p", path=str(payload), rows="jobs"))
+    assert result.ok is True
+    assert result.view["rows"] == "jobs"
+    assert result.data["generated"] == "x"
+
+
+def test_a_file_that_is_not_there_yet_reports_rather_than_raises(tmp_path):
+    """A project that publishes a file and has not written one is the normal
+    early state, not an exception."""
+    result = ask(Project(name="p", path=str(tmp_path / "missing.json")))
+    assert result.ok is False
+    assert "No such file" in result.data["error"]
+
+
+def test_a_project_that_prints_something_other_than_json_fails_its_contract():
+    result = ask(Project(name="p", argv=["printf", "hello"]))
+    assert result.ok is False
+    assert "not JSON" in result.data["error"]
+
+
+def test_a_projects_declared_columns_reach_the_view():
+    project = Project(name="p", argv=["printf", '[{"a": 1, "b": 2}]'], cols="b")
+    assert [c["key"] for c in ask(project).view["columns"]] == ["b"]
