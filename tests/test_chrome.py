@@ -275,3 +275,93 @@ def test_an_envelope_is_byte_identical_to_one_from_before_chrome_existed():
     envelope = json.loads(result.stdout)
     assert list(envelope) == ["command", "ok", "partial", "data", "warnings"]
     assert not any("chrome" in key for key in envelope)
+
+
+# ── Round 2: late is a word the operator earns ──────────────────────────────
+#
+# `now` is injected throughout, for the reason the module already exists under:
+# proving a fifteen-minute rule must not cost fifteen minutes of suite.
+
+NOW = 10_000.0
+
+
+def test_no_expectation_means_silence_is_neither_good_nor_bad():
+    """Without `--due`, quiet is a duration and nothing else. tb has no opinion
+    about whether three minutes is a long time."""
+    facts = cursor("cron.log", last_write_at=NOW - 180)
+    assert facts.attention == "quiet"
+    assert facts.due == 0
+
+
+def test_within_the_expectation_is_still_quiet():
+    facts = cursor("cron.log", last_write_at=NOW - 180, due=900, now=NOW)
+    assert facts.attention == "quiet"
+
+
+def test_past_the_expectation_is_late():
+    facts = cursor("cron.log", last_write_at=NOW - 2820, due=900, now=NOW)
+    assert facts.attention == "late"
+
+
+def test_exactly_on_the_expectation_is_not_yet_late():
+    """Strictly greater. A job that runs every fifteen minutes is not late at
+    the fifteen-minute mark; it is due."""
+    facts = cursor("cron.log", last_write_at=NOW - 900, due=900, now=NOW)
+    assert facts.attention == "quiet"
+
+
+def test_a_healthy_watcher_shows_its_own_margin():
+    """`quiet 3m of 15m` — legible before it fails, not only at the moment it
+    does."""
+    facts = cursor("cron.log", last_write_at=NOW - 180, due=900, now=NOW)
+    top, _ = status_lines(facts, NOW, 78)
+    assert "quiet 3m of 15m" in top
+
+
+def test_a_late_band_says_how_long_and_what_was_expected():
+    """Either alone leaves the reader doing the subtraction the flag exists to
+    do for them."""
+    facts = cursor("cron.log", last_write_at=NOW - 2820, due=900, now=NOW)
+    top, _ = status_lines(facts, NOW, 78)
+    assert "late 47m" in top and "due 15m" in top
+
+
+def test_a_stronger_fact_beats_late():
+    """`absent` and `rotated` are things tb *knows*. Late is arithmetic over an
+    assertion, and it must not overwrite knowledge."""
+    for state in ("absent", "rotated"):
+        facts = cursor("x.log", state=state, last_write_at=NOW - 9999, due=60, now=NOW)
+        assert facts.attention == state
+
+
+def test_a_dead_stream_is_dead_rather_than_late():
+    """The exit code is the better answer, and a dead stream being also late
+    adds nothing."""
+    facts = stream("job", last_line_at=NOW - 2820, exit_code=1, due=900, now=NOW)
+    assert facts.attention == "dead"
+
+
+def test_both_follow_forms_take_the_expectation():
+    """A long-running job that stopped printing is the same question as a log
+    that stopped growing."""
+    assert stream("job", last_line_at=NOW - 2820, due=900, now=NOW).attention == "late"
+    assert cursor("f", last_write_at=NOW - 2820, due=900, now=NOW).attention == "late"
+
+
+def test_late_is_warn_rather_than_fail():
+    """A late log is a fact about a clock, not a verdict about a job — tb does
+    not know whether it died or the machine was asleep."""
+    assert ROLE["late"] == "tb.warn"
+
+
+def test_late_reaches_a_window_without_a_new_field():
+    """`attention` already travels; `late` is a new value in a slot that
+    exists. If this needed a wire change the round was designed wrong."""
+    facts = cursor("cron.log", last_write_at=NOW - 2820, due=900, now=NOW)
+    assert facts.to_dict()["attention"] == "late"
+
+
+def test_due_is_omitted_when_there_is_no_expectation():
+    """A shape's chrome does not carry another shape's nulls, and a follow with
+    no `--due` is byte-identical to one from before this round."""
+    assert "due" not in cursor("cron.log", last_write_at=NOW).to_dict()

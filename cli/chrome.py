@@ -29,7 +29,9 @@ from dataclasses import dataclass, replace
 # Every value the attention slot may carry, in this round. All mechanical:
 # an exit code, a stat comparison, an envelope fact. The escalation ladder's
 # tint and badge will key off this field when the Rule branch arrives.
-ATTENTION = ("running", "ok", "partial", "failed", "dead", "quiet", "absent", "rotated")
+ATTENTION = (
+    "running", "ok", "partial", "failed", "dead", "quiet", "absent", "rotated", "late",
+)
 
 # One mapping from attention to a theme role, shared by whoever draws the
 # chrome into a terminal. The canvas maps the same words onto CSS roles; the
@@ -43,6 +45,11 @@ ROLE = {
     "quiet": "tb.muted",
     "absent": "tb.warn",
     "rotated": "tb.warn",
+    # Warn, not fail. A late log is a fact about a clock, not a verdict about a
+    # job — tb does not know whether the job died or the machine was asleep, and
+    # colouring it as a failure would be the judgment [[file-follow]] round 2
+    # refuses to make.
+    "late": "tb.warn",
 }
 
 
@@ -64,6 +71,10 @@ class Chrome:
     # Snapshot and resident.
     ran_at: float | None = None  # when the last run finished
     interval: int = 0
+    # The operator's declared expectation, in seconds. `0` is *no expectation*,
+    # which is not the same as an expectation of nothing: without one, silence
+    # is neither good nor bad and the band says only how long it has been.
+    due: int = 0
     last_run: float | None = None  # when the last run started
     running_since: float | None = None
     # Stream.
@@ -84,7 +95,7 @@ class Chrome:
         for key in (
             "duration_s", "warnings", "ran_at", "interval", "last_run",
             "running_since", "last_line_at", "exit_code", "exited_at",
-            "last_write_at", "size_bytes", "ring_shown", "ring_limit",
+            "last_write_at", "size_bytes", "ring_shown", "ring_limit", "due",
         ):
             value = getattr(self, key)
             if value not in (None, 0):
@@ -171,20 +182,51 @@ def stream(
     exited_at: float | None = None,
     ring_shown: int | None = None,
     ring_limit: int | None = None,
+    due: int = 0,
+    now: float | None = None,
 ) -> Chrome:
     """A process follow. Alive is `running`; any exit is `dead` — visibly,
     carrying the code, because restart is the operator's click and never the
-    surface's initiative."""
+    surface's initiative.
+
+    Takes `--due` for the same reason the cursor does: a long-running job that
+    stopped printing is the same question as a log that stopped growing, and
+    answering it in one form and not the other would be an asymmetry with no
+    argument behind it.
+    """
     return Chrome(
         source=source,
         shape="stream",
-        attention="dead" if exit_code is not None else "running",
+        attention=_late(
+            "dead" if exit_code is not None else "running", last_line_at, due, now
+        ),
+        due=due,
         last_line_at=last_line_at,
         exit_code=exit_code,
         exited_at=exited_at,
         ring_shown=ring_shown,
         ring_limit=ring_limit,
     )
+
+
+def _late(state: str, since: float | None, due: int, now: float | None) -> str:
+    """`late` when the operator's expectation has been exceeded, else `state`.
+
+    **The operator asserts an interval; tb subtracts.** No crontab is read, no
+    next-run is computed, nothing here knows what a schedule is — the whole
+    judgment was made when someone typed `--due 15m`, and this is the
+    arithmetic that follows from it.
+
+    A stronger fact wins. `dead`, `absent` and `rotated` are things tb *knows*,
+    and a dead stream being also late adds nothing — the exit code is the
+    better answer. Only the quiet states can become late. See [[file-follow]]
+    round 2.
+    """
+    if not due or since is None or now is None:
+        return state
+    if state not in ("quiet", "running"):
+        return state
+    return "late" if (now - since) > due else state
 
 
 def cursor(
@@ -195,16 +237,24 @@ def cursor(
     size_bytes: int | None = None,
     ring_shown: int | None = None,
     ring_limit: int | None = None,
+    due: int = 0,
+    now: float | None = None,
 ) -> Chrome:
     """A file follow. `state` comes from the cursor's own stat loop —
     quiet, absent or rotated — because the loop is the thing that compared
-    the inodes. Chrome carries the verdict; it never re-derives it."""
+    the inodes. Chrome carries the verdict; it never re-derives it.
+
+    The one exception is `late`, which is arithmetic rather than a verdict: the
+    loop cannot know it because only the operator declared the expectation, and
+    `now` is injected so proving a fifteen-minute rule costs no wall clock.
+    """
     if state not in ("quiet", "absent", "rotated", "running"):
         raise ValueError(f"not a cursor state: {state!r}")
     return Chrome(
         source=source,
         shape="cursor",
-        attention=state,
+        attention=_late(state, last_write_at, due, now),
+        due=due,
         last_write_at=last_write_at,
         size_bytes=size_bytes,
         ring_shown=ring_shown,
@@ -291,20 +341,38 @@ def _top_spans(chrome: Chrome, now: float) -> tuple[list[Span], list[Span]]:
             if chrome.exited_at is not None:
                 text += f" at {clock(chrome.exited_at)}"
             right = [(text, "tb.fail")]
+        elif chrome.attention == "late":
+            right = _overdue("last line", chrome.last_line_at, chrome, now)
         elif chrome.last_line_at is not None:
             right = [(f"last line {ago(now - chrome.last_line_at)} ago", "tb.label")]
+            if chrome.due:
+                right.append((f" of {ago(chrome.due)}", "tb.label"))
     elif chrome.shape == "cursor":
         if chrome.attention == "absent":
             right = [("waiting for it to exist", "tb.warn")]
         elif chrome.attention == "rotated":
             right = [("rotated", "tb.warn")]
+        elif chrome.attention == "late":
+            right = _overdue("late", chrome.last_write_at, chrome, now)
         elif chrome.last_write_at is not None:
             right = [
                 (f"quiet {ago(now - chrome.last_write_at)}", "tb.label"),
+                # `quiet 3m of 15m` — the expectation beside the elapsed time,
+                # so a healthy watcher shows its own margin rather than only
+                # becoming legible at the moment it fails.
+                (f" of {ago(chrome.due)}" if chrome.due else "", "tb.label"),
                 (f" · last write {clock(chrome.last_write_at)}", "tb.label"),
             ]
 
     return left, right
+
+
+def _overdue(word: str, since: float | None, chrome: Chrome, now: float) -> list[Span]:
+    """`late 47m, due 15m` — how long, and what was expected. Both, because
+    either alone leaves the reader doing the subtraction the flag exists to do
+    for them."""
+    elapsed = ago(now - since) if since is not None else "?"
+    return [(f"{word} {elapsed}", ROLE["late"]), (f", due {ago(chrome.due)}", "tb.label")]
 
 
 def _bottom_spans(chrome: Chrome, now: float) -> tuple[list[Span], list[Span]]:
