@@ -1,7 +1,7 @@
 ---
-status: active
+status: complete
 created: 2026-08-22
-updated: 2026-08-22
+updated: 2026-08-23
 agent_value: 3
 key_files:
   - cli/mcp.py
@@ -155,6 +155,41 @@ the intended trade, stated plainly rather than discovered.
       and where the boundary is written down.
 
 ## Notes
+
+### Round 1 — shipped, and the boundary moved one word (2026-08-23)
+
+The design survived contact. What changed is the *spelling* of the rule, and the spelling turned
+out to matter.
+
+**"Saved commands only" was a category where the argument was a property.** [[roll-call]] landed
+the same day this was built, and it satisfies every reason the rule was given — its sources are
+declared in `projects.toml`, it takes no argv from its caller, it does not act, it is not resident
+— while failing the rule as written. Reading the exclusions back settled it: builtins were argued
+out on two grounds, *"`tb tools` is a listing"* and *"the argv-takers are excluded above"*, and
+neither covers a builtin that takes nothing. That was a gap, not a decision.
+
+So the rule is now **takes nothing from its caller**, which is what the safety argument was always
+about, and a builtin opts in with `tb_mcp` on the command object — read off the tree exactly as
+`tb_surface` and `tb_acts` are, so still no name written down in a module. Worth noticing the
+shape: a boundary stated as a *list of what qualifies* went stale in one day, and the same boundary
+stated as a *property* would not have.
+
+**`capture` turned out to do both jobs this needed.** It keeps the envelope, so `tools/call` is not
+a second trip through `--json` and back — [[refresh]] built that for an unrelated reason. And it
+redirects `sys.stdout`, which over stdio *is the protocol stream*, so a command that printed would
+corrupt the session rather than merely look untidy. `serve` takes its reference to the real stdout
+before any of that, which is what keeps the swap from reaching the transport. Tested with a tool
+that deliberately writes to both streams.
+
+**Three exclusion tests were written before anything worked**, and that ordering was deliberate:
+a surface offering one command too many would work perfectly and be wrong, which is the failure
+this repo keeps finding by pointing things at reality. Here the reality is an agent, so the test
+had to stand in for it.
+
+**The measured result**, against real declarations: an agent calls one tool with no arguments and
+gets 29 jam.sense jobs, a decisions ledger read from a file, and a named failure for a project that
+has published nothing — `ok: true`, `partial: true`, one warning. That is the thing this whole
+sequence was for, and it took no argument at all.
 
 ### Round 1 — drafted, awaiting the word (2026-08-22)
 
