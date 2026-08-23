@@ -4,11 +4,9 @@
 
 - ~~watcher for cron jobs~~ — spec'd as [[file-follow]] round 2 (`tb follow --due 15m <path>`);
   the systemd half needs no code, see the doc
-- piping commands to claude or other agents -- chaining data into an agent or calling a routine
-  and using tb to monitor (how different is this from the tools we have?) — barely different, and
-  the arrow points the wrong way: `tb follow -- claude -p …` already works. The version with
-  value is exposing tb's observes *to* an agent over MCP, which `--json` purity and the
-  `acts` split already make safe
+- ~~piping commands to claude or other agents~~ — answered: chaining needs nothing (`tb follow
+  -- claude -p …` already works, and a pipeline is a shell pipe). The inverse is spec'd as
+  [[mcp]] — the toolbox offered to an agent over stdio
 - ~~future runs (non crontab or systemd), tb run --delay=[seconds] [cmd]~~ — spec'd as [[delay]]
 - build in embedded scrolling for follow command — reopens [[refresh]] round 2's "a resident
   view is a view"; the chrome band is already the scrollbar, the real cost is a follow/parked
