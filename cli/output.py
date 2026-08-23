@@ -27,7 +27,7 @@ from rich.text import Text
 from rich.theme import Theme
 
 from cli.theme import STYLES
-from cli.view import columns_of, resolve, summarise_mapping
+from cli.view import columns_of, resolve, summarise_mapping, view_for
 
 # Rendered in place of a missing value in a table cell.
 EMPTY = "-"
@@ -428,8 +428,12 @@ def _render_mapping(mapping: dict, indent: int = 2, view: dict | None = None) ->
             heading.append("  ")
             heading.append(_dimensions(value), style="tb.muted")
         _out().print(Padding(heading, (0, 0, 0, max(indent - 2, 0))))
+        sub = view_for(view, key)
         if isinstance(value, dict):
-            _render_mapping(value, indent + 2)
+            # A block may itself wrap its rows — a project answering with
+            # `{generated, jobs}` is the shape round 4 was about — so the view
+            # for this block goes down with it.
+            _render_mapping(value, indent + 2, view=sub)
         elif isinstance(value, str):
             # Verbatim, through click rather than a Console: a Console would
             # soft-wrap it to the terminal width, which is the whole bug.
@@ -439,12 +443,7 @@ def _render_mapping(mapping: dict, indent: int = 2, view: dict | None = None) ->
             # found the rows in. Handing it to any other would draw a table
             # with another list's columns, which is the failure this whole
             # round is about. See [[table-views]] round 4.
-            _render_columns(
-                list(value),
-                title=None,
-                indent=indent,
-                view=view if view and view.get("rows") == key else None,
-            )
+            _render_columns(list(value), title=None, indent=indent, view=sub)
         _out().print()
 
 

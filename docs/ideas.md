@@ -24,3 +24,6 @@
   cursor row. The leading `|` gutter is rejected — it breaks copy-paste and `tb read` is verbatim
   by contract
 - ~~a centralized system to manage how six projects' agents work~~ — spec'd as [[roll-call]]
+- `--cols` naming a column that does not exist renders a column of dashes rather than saying so.
+  The same silence [[table-views]] round 4 was opened for, one level along: the flag *was* applied,
+  it just named nothing. Found while verifying [[roll-call]] round 1 against real data

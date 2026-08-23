@@ -233,6 +233,27 @@ def find_rows(data, path: str | None = None) -> Found:
     )
 
 
+def view_for(view: dict | None, key: str) -> dict | None:
+    """The view describing one nested key, or None.
+
+    Two shapes reach here. A single-payload view names the one list it shaped
+    (`rows`). A **fold** — [[roll-call]] asking six projects at once — carries a
+    view per block under `blocks`, because six independent payloads cannot share
+    one column list and picking one project's would draw the other five wrong.
+
+    One lookup in one place, so neither renderer holds an opinion about which
+    view belongs to which key. See [[table-views]].
+    """
+    if not view:
+        return None
+    blocks = view.get("blocks")
+    if blocks and key in blocks:
+        return blocks[key]
+    if view.get("rows") == key:
+        return view
+    return None
+
+
 def _describe(key: str, rows: list[dict], *, dotted: bool = False) -> dict:
     """One column, measured against every row."""
     values = [resolve(row, key) for row in rows] if dotted else _values(rows, key)

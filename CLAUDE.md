@@ -41,6 +41,7 @@ replaced by a browser one the same day. What exists:
 | `tb read -- <argv>` | Shows what a command printed, verbatim. An observe, for tools with no `--json` |
 | `tb follow -- <argv>` | Holds a command's stream open. Resident by nature; any exit is a visible death |
 | `tb follow <path>` | Follows a file with a native stat cursor, so quiet and dead are different words |
+| `tb roll-call` | Asks every declared project how it is and folds the answers. An observe. See [[roll-call]] |
 | `tb tools` | Lists the operator's saved commands, and any that failed to load |
 | `tb ui` | Opens the canvas — a command palette over tiled and floating windows |
 | `tb tools <name>` | Runs a saved command; `tb -t <name>` is the short spelling. See [[tools]] |
@@ -222,6 +223,7 @@ resolving after a system update, check there first.
 | Code, tests, docs | this repo | the project | here |
 | Saved commands (`tools.toml`) | `~/.config/tb/` (`$TB_HOME`) | the operator, and `--save` | never |
 | Capture formats and highlight rules (`formats.toml`) | `~/.config/tb/` (`$TB_HOME`) | the operator | never |
+| Declared projects (`projects.toml`) | `~/.config/tb/` (`$TB_HOME`) | the operator | never |
 | Browser profile for the canvas | `~/.local/state/tb/` (`$TB_STATE`) | the machine | never |
 
 **`$TB_HOME` is the operator content directory, and it is outside the repo with no fallback path
@@ -352,9 +354,9 @@ primitive-level change. `docs/features/done/` holds the completed docs — `canv
 surface, five rounds), `follow.md` (the streaming substrate), `tools.md` (saved commands, three
 rounds), `highlight.md` (lexical tint, four rounds), `capture.md` (declared structure),
 `refresh.md`, `header.md` (the mark), `text-reads.md`, `subprocess-env.md`, `table-views.md` (the
-shaping contract, four rounds), and the constitution's rounds as they land. `docs/features/` holds
-open work — as of 2026-08-23: `chrome.md` (reopened at round 3), `roll-call.md`, `file-follow.md`,
-`delay.md`, `mcp.md`. Every earlier
+shaping contract, four rounds), `roll-call.md` (federating over projects), and the constitution's
+rounds as they land. `docs/features/` holds open work — as of 2026-08-23: `chrome.md` (reopened at
+round 3), `file-follow.md`, `delay.md`, `mcp.md`. Every earlier
 spec was deleted with the system it described; the docs that predate the 2026-08-21
 renames say `wrap`/`every` on purpose — dated, never scrubbed.
 

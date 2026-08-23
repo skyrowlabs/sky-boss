@@ -182,8 +182,10 @@ cli.add_command(read_cmd)
 # One verb, two mechanisms: a path is the file cursor, anything else is the
 # process stream. Resident by nature, so it takes no cadence. See [[follow]].
 from cli.follow import follow as follow_cmd  # noqa: E402
+from cli.rollcall import roll_call as roll_call_cmd  # noqa: E402
 
 cli.add_command(follow_cmd)
+cli.add_command(roll_call_cmd)
 
 # A surface, not a verb. It renders the same envelope every command returns
 # rather than adding one of its own, which is why `tb run` stays the only door

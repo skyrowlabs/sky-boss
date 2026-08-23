@@ -1,9 +1,15 @@
 ---
-status: active
+status: complete
 created: 2026-08-23
 updated: 2026-08-23
 agent_value: 3
-key_files: []
+key_files:
+  - cli/rollcall.py
+  - cli/data.py
+  - cli/view.py
+  - cli/output.py
+  - cli/canvas/static/render.js
+  - tests/test_rollcall.py
 ---
 
 # Roll-call — many projects, one answer
@@ -141,15 +147,52 @@ the house rule; here it is the whole feature.
       whole — `--from`, `--cwd`, and the `view` that [[table-views]] round 4 makes work on a
       nested payload. No new parsing, no new subprocess handling; if this needs either, something
       upstream is wrong and should be fixed there.
-- [ ] **The fold.** N sources read independently; one block per project; a failed source named in
+- [x] **The fold.** N sources read independently; one block per project; a failed source named in
       a warning and the result marked `partial`. Test the partial path first — it is the one that
       matters and the one that is never exercised by hand.
-- [ ] **A cadence.** `acts: false` through the catalog, so the canvas may pin it. Nothing new in
+- [x] **A cadence.** `acts: false` through the catalog, so the canvas may pin it. Nothing new in
       the clock; this is an assertion and a test, not a mechanism.
-- [ ] **Verify against the real thing.** jam.sense plus at least one project with no CLI, so the
+- [x] **Verify against the real thing.** jam.sense plus at least one project with no CLI, so the
       path source is exercised before the contract is claimed to support it.
 
 ## Notes
+
+### Round 1 — shipped, and where the view had to grow (2026-08-23)
+
+The fold needed one thing the doc did not anticipate: **a view per block.** `view` described a
+single payload and named the one list it shaped (`rows`). Six projects cannot share a column list
+— jam.sense's fifteen job fields and breeze.brain's node fields have nothing to do with each other
+— and picking one project's would draw the other five wrong.
+
+So the view gained an optional `blocks` map, and both renderers gained a single lookup
+(`view_for` / `viewFor`) that answers *which view belongs to this key*. Deliberately one function
+rather than a condition at each site: this is the third place a renderer has to decide what a view
+applies to, and the previous two had already drifted apart once. `blocks` is omitted when no
+project produced a view, so an unshaped envelope stays what it was.
+
+That is a change to [[table-views]]' contract made from outside it, which is worth flagging: the
+shaping doc owns the *rules*, this one owns the *fold*, and the boundary between them is `blocks`.
+
+**`parse_text` came out of `_once` at a seam that was already there.** Everything above it is about
+running a subprocess; everything below is about what came back, whoever produced it. A file source
+is that tail with the bytes read off disk — no second opinion about `--from`, about when a view is
+attached, or about what a failed read looks like.
+
+**Round 4 paid for itself immediately.** The very first real roll-call renders jam.sense as
+`{generated, jobs}` — a wrapped payload, which before this morning would have been fifteen crushed
+columns and a silently discarded `--cols`. The fold would have shipped unreadable.
+
+**Verified against real sources**, with `TB_HOME` redirected to a scratch directory rather than
+written into the operator's own — a projects.toml is operator content and tb does not author it
+unasked. jam.sense answered live over its CLI (29 jobs), a second project was read from a JSON
+file on disk with no CLI involved, and a third had published nothing yet. Two failures, both
+named, both blocks present, exit 3. That last part is the whole feature: the healthy project
+rendered in full while two others were down.
+
+**One defect found and deliberately not fixed here.** `--cols` naming a column that does not exist
+renders a column of dashes rather than saying so — the same silence round 4 was opened for, one
+level along. It belongs to [[table-views]] and is in `ideas.md` rather than scope-crept into this
+round.
 
 ### Round 1 — what the measurement changed before a line was written (2026-08-23)
 

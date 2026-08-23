@@ -220,6 +220,23 @@ function Table({ rows, view }) {
   `;
 }
 
+/* `_plural` in cli/output.py. Four words rather than a shipped string, for the
+ * same reason the count itself is arithmetic here. */
+function plural(n, word) {
+  return `${n} ${word}${n === 1 ? "" : "s"}`;
+}
+
+/* The view describing one nested key, or null. A single payload names the one
+ * list it shaped (`rows`); a fold carries a view per block under `blocks`,
+ * because six independent payloads cannot share one column list. Mirrors
+ * `view_for` in cli/view.py — a lookup, not a judgment. */
+function viewFor(view, key) {
+  if (!view) return null;
+  if (view.blocks && view.blocks[key]) return view.blocks[key];
+  if (view.rows === key) return view;
+  return null;
+}
+
 /* A payload that wraps its rows — `{generated: …, jobs: [ … ]}` — renders the
  * wrapper as lines and the rows as a table, which is what the terminal does
  * and what the operator wants: a generated-at stamp is a useful line, just not
@@ -238,18 +255,24 @@ function Table({ rows, view }) {
  * rendered string in the view would make a view a transformation of `data`
  * rather than a description of it. Round 3 split the same way over fitting. */
 function Mapping({ value, view }) {
-  const rowsKey = view && view.rows;
   return html`
     <div class="grid">
       ${Object.entries(value).map(([key, item]) => {
-        if (key === rowsKey && Array.isArray(item)) {
-          const dims = `table · ${item.length} rows · ${columnsOf(item).length} columns`;
+        const sub = viewFor(view, key);
+        if (Array.isArray(item) && item.length && item.every((r) => r && typeof r === "object")) {
+          const dims = `table · ${plural(item.length, "row")} · ${plural(columnsOf(item).length, "column")}`;
           return html`<div class="rec" key=${key}>
             <div class="row">
               <span class="v-label">${key}</span>
               <span class="v-dim">${dims}</span>
             </div>
-            <${Table} rows=${item} view=${view} />
+            <${Table} rows=${item} view=${sub} />
+          </div>`;
+        }
+        if (item && typeof item === "object" && !Array.isArray(item)) {
+          return html`<div class="rec" key=${key}>
+            <div class="row"><span class="v-label">${key}</span></div>
+            <${Mapping} value=${item} view=${sub} />
           </div>`;
         }
         return html`
