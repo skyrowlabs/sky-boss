@@ -72,13 +72,13 @@ def test_the_file_form_dispatches_to_the_cursor(monkeypatch):
     which is exactly what resident-by-nature means."""
     calls = {}
 
-    def fake_follow_file(path, *, limit, screen, ruleset=None):
-        calls.update(path=path, limit=limit, screen=screen)
+    def fake_follow_file(path, *, limit, screen, ruleset=None, due=0):
+        calls.update(path=path, limit=limit, screen=screen, due=due)
 
     monkeypatch.setattr("cli.filefollow.follow_file", fake_follow_file)
     result = CliRunner().invoke(cli, ["follow", "--lines", "50", "x/y.log"])
     assert result.exit_code == 0
-    assert calls == {"path": "x/y.log", "limit": 50, "screen": False}
+    assert calls == {"path": "x/y.log", "limit": 50, "screen": False, "due": 0}
 
 
 # ============================================================================
@@ -367,3 +367,51 @@ def test_a_real_terminal_leaves_on_q_and_kills_the_child():
         stdin.close()
         screen_out.close()
         os.close(primary)
+
+
+# ── Round 2: --due, on both forms ───────────────────────────────────────────
+
+
+def test_due_reaches_the_file_form(monkeypatch):
+    calls = {}
+
+    def fake_follow_file(path, *, limit, screen, ruleset=None, due=0):
+        calls.update(due=due)
+
+    monkeypatch.setattr("cli.filefollow.follow_file", fake_follow_file)
+    result = CliRunner().invoke(cli, ["follow", "--due", "15m", "x/y.log"])
+    assert result.exit_code == 0
+    assert calls["due"] == 900
+
+
+def test_due_reaches_the_process_form(monkeypatch):
+    """Both forms, because a long-running job that stopped printing is the same
+    question as a log that stopped growing."""
+    calls = {}
+
+    def fake_follow_process(argv, **kwargs):
+        calls.update(due=kwargs.get("due"))
+
+    monkeypatch.setattr("cli.follow.follow_process", fake_follow_process)
+    result = CliRunner().invoke(cli, ["follow", "--due", "2h", "--", "journalctl", "-f"])
+    assert result.exit_code == 0
+    assert calls["due"] == 7200
+
+
+def test_a_malformed_due_is_refused_at_the_door(monkeypatch):
+    """Not at the first tick. A watcher an hour in is the worst possible moment
+    to discover its interval never meant anything."""
+    monkeypatch.setattr("cli.filefollow.follow_file", lambda *a, **k: None)
+    result = CliRunner().invoke(cli, ["follow", "--due", "fortnightly", "x/y.log"])
+    assert result.exit_code == 2
+    assert "not a duration" in result.output
+
+
+def test_no_due_is_no_expectation(monkeypatch):
+    calls = {}
+    monkeypatch.setattr(
+        "cli.filefollow.follow_file",
+        lambda path, **kwargs: calls.update(due=kwargs.get("due")),
+    )
+    CliRunner().invoke(cli, ["follow", "x/y.log"])
+    assert calls["due"] == 0

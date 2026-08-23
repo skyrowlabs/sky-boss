@@ -1,10 +1,12 @@
 ---
-status: active
+status: complete
 created: 2026-08-21
-updated: 2026-08-22
+updated: 2026-08-23
 agent_value: 3
 key_files:
   - cli/filefollow.py
+  - cli/chrome.py
+  - cli/helpers.py
   - cli/follow.py
   - cli/resident.py
   - cli/keys.py
@@ -172,11 +174,46 @@ too — a tool's argv carries `--due 15m` like any other flag, so `[[tools]]` ne
 - [x] **`late` in the chrome contract.** `Chrome` gains the declared interval for a cursor and a
       stream, `attention` gains `late`, and the band says which — `quiet 3m of 15m` against
       `late 47m, due 15m`. Pure, over an injected clock, per [[chrome]].
-- [ ] **`--due` on `tb follow`**, both forms, passed to the cursor and the stream alike.
-- [ ] **The canvas wears it** with no new plumbing — proven by a test that the frame's chrome
+- [x] **`--due` on `tb follow`**, both forms, passed to the cursor and the stream alike.
+- [x] **The canvas wears it** with no new plumbing — proven by a test that the frame's chrome
       carries `late`, not by adding a field to the wire.
 
 ## Notes
+
+### Round 2 — shipped, and the tuple that had grown a field per round (2026-08-23)
+
+The feature landed as specced: one word on a band, no alert, no exit code, no crontab. Verified
+against a real cron log 119 minutes stale — `--due 15m` reads `late 1h, due 15m`, `--due 24h` reads
+`quiet 1h of 1d`, and no flag reads `quiet 1h` as it always did.
+
+**`quiet 3m of 15m` was not in the spec and should have been.** The doc described the late band and
+left the healthy one alone, which would have shipped an expectation that is invisible until the
+moment it is violated. A watcher you cannot read while it is working is one you have no reason to
+trust when it finally says something. The margin costs four characters.
+
+**Where lateness is decided moved once during the build.** The obvious reading of round 1's rule —
+*"chrome carries the verdict; it never re-derives it"* — puts it in the stat loop. But the loop
+compares inodes, and lateness compares clocks against a number only the operator knows; `now` is
+already an argument to every band function. So it is computed at construction with an injected
+clock, which keeps it pure and keeps `attention` a plain field that `to_dict` already ships. That
+is what made the canvas half free: no wire change, no new key, a new *value* in a slot that
+existed.
+
+**A stronger fact beats it.** `dead`, `absent` and `rotated` are things tb *knows*; late is
+arithmetic over an assertion. A dead stream that is also late is still best described by its exit
+code, and letting the assertion overwrite the knowledge would be the tail wagging the dog.
+
+**`resolve_follow` became a NamedTuple, unplanned.** It has gained a field per round — `--cwd`,
+then `--lines`, then `--highlight`, now `--due` — and each time the positional tuple churned every
+caller that wanted only one of them. Six test sites changed once here so the seventh flag changes
+none. Worth noticing as a shape: a function whose return has grown four times is telling you
+something.
+
+**And the parser was shared before either doc needed it twice.** [[delay]]'s box for the same
+parser is checked by this round, which is what that doc asked for — *whichever lands first*. The
+cost of preventing `2h` from meaning two hours in one place and two minutes in another was one
+function and nineteen tests.
+
 
 ### Round 1 — written as spec, from the constitution (2026-08-21)
 
