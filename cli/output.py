@@ -363,7 +363,7 @@ def _render_value(value: Any, title: str | None = None, view: dict | None = None
         click.echo(str(value))
     elif isinstance(value, dict):
         _header(title, _plural(len(value), "section") if _is_nested(value) else None)
-        _render_mapping(value)
+        _render_mapping(value, view=view)
     elif isinstance(value, (list, tuple)):
         _render_sequence(list(value), title=title, view=view)
     else:
@@ -374,7 +374,7 @@ def _is_nested(mapping: dict) -> bool:
     return any(isinstance(v, dict) for v in mapping.values())
 
 
-def _render_mapping(mapping: dict, indent: int = 2) -> None:
+def _render_mapping(mapping: dict, indent: int = 2, view: dict | None = None) -> None:
     """Dim labels, values coloured by type, accent section headings, no borders.
 
     A borderless Table rather than hand-assembled lines: a long value — a PATH,
@@ -409,7 +409,16 @@ def _render_mapping(mapping: dict, indent: int = 2) -> None:
             # soft-wrap it to the terminal width, which is the whole bug.
             click.echo(value.rstrip("\n"))
         else:
-            _render_columns(list(value), title=None, indent=indent)
+            # The view belongs to exactly one nested list — the one shaping
+            # found the rows in. Handing it to any other would draw a table
+            # with another list's columns, which is the failure this whole
+            # round is about. See [[table-views]] round 4.
+            _render_columns(
+                list(value),
+                title=None,
+                indent=indent,
+                view=view if view and view.get("rows") == key else None,
+            )
         _out().print()
 
 
