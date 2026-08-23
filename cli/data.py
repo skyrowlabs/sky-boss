@@ -314,7 +314,18 @@ def _once(
         result.data = {**meta, "error": found.reason}
         return result
 
-    result.view = shape(parsed, cols=requested, drop=dropped, enabled=not no_shape, rows_path=rows_path)
+    result.view = shape(
+        parsed, cols=requested, drop=dropped, enabled=not no_shape, rows_path=rows_path
+    )
+
+    # A flag that could not be applied says so. This is the defect this round
+    # was opened for and it outlives the specific fix: `--cols` was discarded
+    # without a word whenever the payload wrapped its rows, so the operator saw
+    # fifteen crushed columns and no reason. Anything that asks for shaping and
+    # gets none is owed the reason shaping declined.
+    if found.rows is None and (requested or dropped):
+        asked = ", ".join(f"--{name}" for name, v in (("cols", cols), ("drop", drop)) if v)
+        result.warn(f"{asked} not applied — {found.reason}")
 
     if result.view:
         # Only what the operator did *not* ask to lose. A silently hidden

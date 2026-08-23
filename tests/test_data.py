@@ -336,3 +336,76 @@ def test_data_never_tells_a_tool_how_wide_the_terminal_is(monkeypatch):
     monkeypatch.setattr(subprocess, "run", spy)
     invoke(["--", "printf", '{"a": 1}'])
     assert "COLUMNS" not in seen
+
+
+# ── Round 4: a payload is not always a list ─────────────────────────────────
+
+
+WRAPPED = '{"generated": "2026-08-23T20:02:53+00:00", "jobs": [{"job": "sentinel", "result": "red"}]}'
+AMBIGUOUS = '{"jobs": [{"a": 1}], "errors": [{"b": 2}]}'
+
+
+def test_a_wrapped_payload_is_shaped_where_a_bare_list_would_be():
+    """The defect, at the level it was found: every status endpoint wraps its
+    rows, because status is about a moment and a bare array cannot say which."""
+    _, envelope = invoke(["--cols", "job,result", "--", "printf", WRAPPED])
+    assert [c["key"] for c in envelope["view"]["columns"]] == ["job", "result"]
+    assert envelope["view"]["rows"] == "jobs"
+
+
+def test_the_wrapper_stays_in_the_data():
+    """A view describes `data`; it never edits it. The generated-at stamp is
+    still there for `jq` and for any MCP consumer."""
+    _, envelope = invoke(["--cols", "job", "--", "printf", WRAPPED])
+    assert envelope["data"]["generated"] == "2026-08-23T20:02:53+00:00"
+
+
+def test_a_bare_list_names_no_rows_key():
+    """Omitted rather than null, so an envelope from a bare array stays
+    byte-identical to one from before this round."""
+    _, envelope = invoke(["--cols", "a", "--", "printf", '[{"a": 1}]'])
+    assert "rows" not in envelope["view"]
+
+
+def test_two_candidate_row_lists_are_reported_not_broken_by_a_tiebreak():
+    _, envelope = invoke(["--cols", "a", "--", "printf", AMBIGUOUS])
+    assert "view" not in envelope
+    assert any("candidate row lists" in w for w in envelope["warnings"])
+
+
+def test_a_shaping_flag_that_could_not_be_applied_is_never_silent():
+    """The defect's real lesson, and it outlives the specific fix: `--cols` was
+    discarded without a word whenever the payload wrapped its rows."""
+    _, envelope = invoke(["--cols", "a", "--", "printf", '{"generated": "x"}'])
+    assert any("--cols not applied" in w for w in envelope["warnings"])
+
+
+def test_no_flag_no_warning():
+    """A payload that is simply not a table is not a complaint — tb has always
+    rendered a mapping as a mapping."""
+    _, envelope = invoke(["--", "printf", '{"generated": "x"}'])
+    assert envelope.get("warnings", []) == []
+
+
+def test_rows_names_where_the_rows_are():
+    _, envelope = invoke(["--rows", "jobs", "--cols", "job", "--", "printf", WRAPPED])
+    assert envelope["view"]["rows"] == "jobs"
+
+
+def test_rows_disambiguates_what_tb_refuses_to_guess():
+    _, envelope = invoke(["--rows", "errors", "--cols", "b", "--", "printf", AMBIGUOUS])
+    assert envelope["view"]["rows"] == "errors"
+
+
+def test_a_named_path_that_misses_fails_rather_than_falling_back():
+    _, envelope = invoke(["--rows", "nope", "--cols", "job", "--", "printf", WRAPPED])
+    assert envelope["ok"] is False
+    assert "nope" in envelope["data"]["error"]
+
+
+def test_a_shaping_warning_does_not_make_the_result_partial():
+    """Same rule hidden columns already follow — a presentation complaint is
+    not a failure to read the tool."""
+    result, envelope = invoke(["--cols", "a", "--", "printf", '{"generated": "x"}'])
+    assert envelope["partial"] is False
+    assert result.exit_code == 0
