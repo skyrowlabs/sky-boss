@@ -220,11 +220,29 @@ function Table({ rows, view }) {
   `;
 }
 
-function Mapping({ value }) {
+/* A payload that wraps its rows — `{generated: …, jobs: [ … ]}` — renders the
+ * wrapper as lines and the rows as a table, which is what the terminal does
+ * and what the operator wants: a generated-at stamp is a useful line, just not
+ * a column.
+ *
+ * The view belongs to exactly one nested list, named by `view.rows`. Handing it
+ * to any other would draw a table with another list's columns. Which list that
+ * is was decided in `cli/view.py`; this only obeys. See [[table-views]] round 4.
+ *
+ * Before this, a nested row list rendered as `JSON.stringify` in a single cell —
+ * twenty-seven jobs as one blob of text. */
+function Mapping({ value, view }) {
+  const rowsKey = view && view.rows;
   return html`
     <div class="grid">
-      ${Object.entries(value).map(
-        ([key, item]) => html`
+      ${Object.entries(value).map(([key, item]) => {
+        if (key === rowsKey && Array.isArray(item)) {
+          return html`<div class="rec" key=${key}>
+            <div class="row"><span class="v-label">${key}</span></div>
+            <${Table} rows=${item} view=${view} />
+          </div>`;
+        }
+        return html`
           <div class="row" key=${key}>
             <span class="v-label">${key}</span>
             <span class=${`wrap ${roleFor(key, item)}`}>
@@ -233,8 +251,8 @@ function Mapping({ value }) {
                 : cellText(item)}
             </span>
           </div>
-        `
-      )}
+        `;
+      })}
     </div>
   `;
 }
@@ -312,7 +330,7 @@ export function Body({ result }) {
       ? html`<${Table} rows=${rows} view=${shape} />`
       : html`<${Raw} text=${rows.map(cellText).join("\n")} />`;
   } else if (view.value && typeof view.value === "object") {
-    body = html`<${Mapping} value=${view.value} />`;
+    body = html`<${Mapping} value=${view.value} view=${shape} />`;
   } else {
     body = html`<${Raw} text=${cellText(view.value)} />`;
   }
