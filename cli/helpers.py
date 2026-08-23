@@ -53,7 +53,7 @@ INVOCATION: list[str] = []
 BOOTSTRAP = ("PYTHONPATH", "PYTHONSAFEPATH")
 
 
-def child_env(columns: int | None = None) -> dict[str, str]:
+def child_env(columns: int | None = None, *, stream: bool = False) -> dict[str, str]:
     """The environment a spawned command should see: the operator's, not tb's.
 
     Without this, `tb run -- python3 -c "import cli"` imports *this* package
@@ -78,6 +78,20 @@ def child_env(columns: int | None = None) -> dict[str, str]:
     env = {k: v for k, v in os.environ.items() if k not in BOOTSTRAP}
     if columns:
         env["COLUMNS"] = str(columns)
+    if stream:
+        # **A pipe makes a child's stdout block-buffered**, so a tool that
+        # prints a line a minute writes into an 8 KB buffer and tb — and the
+        # operator — see nothing until it fills or the process dies. Measured:
+        # a child printing every 0.8s produced its first visible line at
+        # t+5.1s, all six at once, at exit. With this set, t+0.3s.
+        #
+        # It is Python-specific and that is honest rather than ideal: the
+        # general fix is a pty, which [[follow]] refuses by name, and
+        # `stdbuf -oL` does nothing here because Python's text layer is not
+        # libc stdio (measured too). What it does cover is every tool in this
+        # family — tb's siblings are all Python — and it costs a
+        # non-Python child nothing. See [[subprocess-env]] round 3.
+        env["PYTHONUNBUFFERED"] = "1"
     return env
 
 

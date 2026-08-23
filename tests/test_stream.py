@@ -243,3 +243,44 @@ def test_the_height_is_never_passed(monkeypatch):
 
     assert "LINES" not in child_env(150)
     assert child_env(150)["COLUMNS"] == "150"
+
+
+def test_a_held_open_stream_is_not_left_in_the_childs_buffer():
+    """A pipe makes a child's stdout block-buffered, so a tool printing a line
+    a minute writes into an 8 KB buffer and the operator sees nothing until it
+    fills or the process dies — which is the opposite of what `tb follow`
+    exists to do. Measured before the fix: a child printing every 0.8s showed
+    its first line at t+5.1s, all six at once, at exit.
+
+    Asserted against the mechanism rather than a stopwatch: a child that has
+    printed but not exited has its line already."""
+    import textwrap
+    import time
+
+    from cli.stream import ChildStream
+
+    script = textwrap.dedent(
+        """
+        import sys, time
+        print("first")
+        time.sleep(30)
+        """
+    )
+    child = ChildStream(["python3", "-c", script])
+    try:
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline and not child.lines():
+            time.sleep(0.1)
+        assert [line.text for line in child.lines()] == ["first"]
+        assert child.exit_code is None  # still running: this was not a flush at exit
+    finally:
+        child.kill()
+
+
+def test_a_snapshot_read_is_not_unbuffered_for_no_reason():
+    """`stream=True` is the streaming paths' concern. A buffered run collects
+    everything at exit anyway, so there is nothing to un-delay."""
+    from cli.helpers import child_env
+
+    assert "PYTHONUNBUFFERED" not in child_env(150)
+    assert child_env(150, stream=True)["PYTHONUNBUFFERED"] == "1"

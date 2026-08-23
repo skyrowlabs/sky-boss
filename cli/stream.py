@@ -122,7 +122,7 @@ class ChildStream:
             text=True,
             bufsize=1,  # line buffered, so a line arrives when it is printed
             cwd=cwd,
-            env=child_env(columns),
+            env=child_env(columns, stream=True),
         )
         self._threads = [
             threading.Thread(target=pump, args=(self.proc.stdout, False, self._sink, clock), daemon=True),
@@ -250,7 +250,7 @@ def accrue(
         text=True,
         bufsize=1,
         cwd=cwd,
-        env=child_env(columns),
+        env=child_env(columns, stream=True),
     )
     threads = [
         threading.Thread(target=pump, args=(proc.stdout, False, sink, clock), daemon=True),

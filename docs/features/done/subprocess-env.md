@@ -175,6 +175,48 @@ paginate, and a pager inside a held-open stream is a hang.
       operator's own `COLUMNS` still passes through, `LINES` is never set, and `data` never
       passes a width at all.
 
+### Round 3 — a stream stuck in the child's buffer (2026-08-22)
+
+Found while answering *"is this command showing the bottom of the file?"* — it was, but the
+investigation turned up a defect that had nothing to do with the question and everything to do
+with what `tb follow` is for.
+
+**A pipe makes a child's stdout block-buffered.** A tool printing a line a minute writes into an
+8 KB buffer; nothing reaches tb until it fills or the process exits. Measured with a child
+printing every 0.8s:
+
+```
+plain pipe          first line at t+5.1s   — all six at once, at exit
+PYTHONUNBUFFERED=1  first line at t+0.3s
+stdbuf -oL          first line at t+5.1s   — no help: Python's text layer is not libc stdio
+```
+
+For a command that is *expected not to exit*, "you see it when it dies" is the feature inverted.
+The same tool run in a terminal is line-buffered and shows every line as it lands, which is
+exactly the difference the operator kept noticing.
+
+**So a streaming spawn sets `PYTHONUNBUFFERED=1`,** by the same reasoning round 2 used for
+`COLUMNS`: tb is standing between a tool and a terminal, and its job is to be transparent about
+what the terminal would have given it. It is set only on the streaming paths — a buffered run
+collects everything at exit anyway, so there is nothing to un-delay.
+
+**It is Python-specific, and that is stated rather than dressed up.** The general fix is a pty,
+which [[follow]] refuses by name; `stdbuf -oL` was tried and does nothing for a Python child.
+What this covers is every tool in this family — tb's siblings are all Python — and it costs a
+non-Python child nothing. A non-Python tool that block-buffers its own output is still capable
+of arriving late, and the honest answer there is that the tool should flush.
+
+**Does not do:**
+
+- **No pty**, still. See round 2 and [[follow]].
+- **No argv wrapping.** Prefixing `stdbuf -oL` would make tb run something other than what the
+  operator typed, and [[follow]]'s rule is argv only, unchanged. It also does not work for the
+  case at hand.
+
+- [x] **`child_env(columns, stream=True)`** sets it; the streaming spawns pass it.
+- [x] **Tested against the mechanism**, not a stopwatch: a child that has printed and not exited
+      has its line already, which is precisely what was false before.
+
 ## Notes
 
 ### Round 1 — found by testing something else (2026-08-20)
@@ -252,4 +294,19 @@ suite exports one. That is not a bug, it is round 1's rule working: the environm
 operator's, and tb scrubs only what it added to boot. The contract is narrower than the first
 assertion and is now written as it actually is — **tb adds no width of its own, and overrides an
 inherited one only when it has a display to describe.**
+
+### Round 3 — executed (2026-08-22)
+
+**The reported symptom and the found defect were different problems, and separating them was
+the work.** The operator asked whether `tb follow` was showing the bottom of the stream. It was
+— the final frame is identical to the same command's own final frame, line for line — and the
+stale-looking rows came from the followed tool's own replay window. But reproducing that
+question required watching a child emit lines slowly, and *that* is where the buffering showed
+up: not the thing asked about, and a real defect in the one command whose whole purpose is to
+show output as it happens.
+
+**Worth keeping as a habit:** the answer to "is it showing the latest?" was obtained by diffing
+tb's final painted frame against the tool's own, rather than by reasoning about the ring. The
+ring was never the suspect it looked like — `--lines 2000` had already been tried and changed
+nothing, which was the clue that the missing lines were not missing from tb at all.
 
