@@ -1,5 +1,5 @@
 ---
-status: draft
+status: active
 created: 2026-08-21
 updated: 2026-08-23
 agent_value: 3
@@ -189,15 +189,15 @@ table above, where they belong.
 - **No gutter, no side rules, no box.** Top and bottom bands only.
 - **No band on a small result.** Chrome costing more lines than it explains is decoration.
 
-- [ ] **Snapshot bands, pure.** `status_bands()` accepts the snapshot and act shapes; the spans
+- [x] **Snapshot bands, pure.** `status_bands()` accepts the snapshot and act shapes; the spans
       exist already, so this is the layout call and its tests. No new facts.
-- [ ] **The terminal draws them**, above and below the rendered value, at the same width
+- [x] **The terminal draws them**, above and below the rendered value, at the same width
       arithmetic the resident bands already use. Behind the size threshold.
-- [ ] **The threshold, measured.** Pick it at a real terminal against real results, and record the
+- [x] **The threshold, measured.** Pick it at a real terminal against real results, and record the
       number and its reasoning in Notes rather than in a constant's name.
 - [ ] **The canvas draws them** for a non-resident window, which today has a title bar and no
       footer. Verified headless per [[canvas]], the frontend still having no runner.
-- [ ] **The envelope boundary test extends** to the snapshot form — an envelope produced with
+- [x] **The envelope boundary test extends** to the snapshot form — an envelope produced with
       snapshot chrome active stays byte-identical. Round 1 holds this line for resident; it must
       hold here too, or the feature has grown a field it promised not to.
 

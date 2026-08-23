@@ -365,3 +365,76 @@ def test_due_is_omitted_when_there_is_no_expectation():
     """A shape's chrome does not carry another shape's nulls, and a follow with
     no `--due` is byte-identical to one from before this round."""
     assert "due" not in cursor("cron.log", last_write_at=NOW).to_dict()
+
+
+# ── Round 3: a snapshot wears its chrome too ────────────────────────────────
+
+
+def _human(args):
+    """A command's human rendering, bands included. Bands go to stderr — they
+    are status, not payload — so both streams are needed to see one."""
+    result = CliRunner().invoke(cli, args)
+    return result.output + result.stderr
+
+
+def test_a_small_result_wears_no_band():
+    """Two lines of chrome around four lines of content is ceremony outweighing
+    what it frames, and this feature refuses a flag to turn it off."""
+    out = _human(["data", "--", "printf", '[{"a": 1}, {"a": 2}]'])
+    assert "┌" not in out and "└" not in out
+
+
+def test_a_result_with_a_middle_wears_both_bands():
+    rows = ",".join('{"a": %d}' % i for i in range(20))
+    out = _human(["data", "--", "printf", f"[{rows}]"])
+    assert "┌" in out and "└" in out
+
+
+def test_the_terminator_says_the_output_ended():
+    """Today a truncated result says so and a complete one says nothing, so
+    silence means both 'that was everything' and 'it stopped early'."""
+    rows = ",".join('{"a": %d}' % i for i in range(20))
+    out = _human(["data", "--", "printf", f"[{rows}]"])
+    assert "ok" in out.split("└")[-1]
+
+
+def test_a_band_names_what_produced_it():
+    """`data -- printf …` above a table is more useful than `data`, and neither
+    the envelope nor a machine consumer needs to know it."""
+    rows = ",".join('{"a": %d}' % i for i in range(20))
+    out = _human(["data", "--", "printf", f"[{rows}]"])
+    assert "data -- printf" in out
+
+
+def test_a_band_never_reaches_stdout(capsys):
+    """A band is status, not payload — the purity rule that keeps
+    `tb read -- x | grep` seeing exactly the lines the tool printed.
+
+    `capsys` rather than CliRunner: click 8.3 folds stderr into `.output`, so
+    the runner cannot answer a question about which stream a byte went to."""
+    from cli.output import Result, render
+
+    render(Result("data", data=[{"a": i} for i in range(20)]), source="data -- x")
+    captured = capsys.readouterr()
+    assert "┌" not in captured.out and "└" not in captured.out
+    assert "┌" in captured.err and "└" in captured.err
+
+
+def test_bands_do_not_reach_the_envelope():
+    """Round 1 holds this line for the resident form; it has to hold here or
+    the feature has grown a field it promised not to."""
+    rows = ",".join('{"a": %d}' % i for i in range(20))
+    result = CliRunner().invoke(cli, ["--json", "data", "--", "printf", f"[{rows}]"])
+    envelope = json.loads(result.output)
+    assert set(envelope) <= {"command", "ok", "partial", "data", "warnings", "view", "saved"}
+    assert "chrome" not in envelope and "ran_at" not in envelope
+
+
+def test_run_keeps_its_own_single_band(capsys):
+    """`run` stamps an act band itself and carries no data, so it must not also
+    acquire a snapshot pair."""
+    from cli.output import Result, render
+
+    render(Result("run", data=None), source="run -- echo hello")
+    captured = capsys.readouterr()
+    assert "┌" not in captured.err and "└" not in captured.err
