@@ -230,15 +230,25 @@ function Table({ rows, view }) {
  * is was decided in `cli/view.py`; this only obeys. See [[table-views]] round 4.
  *
  * Before this, a nested row list rendered as `JSON.stringify` in a single cell —
- * twenty-seven jobs as one blob of text. */
+ * twenty-seven jobs as one blob of text.
+ *
+ * The size is counted here rather than shipped in the envelope. That is not the
+ * `summariseMapping` duplication over again: counting rows and keys is
+ * *arithmetic*, which is the standard this file is held to, and putting the
+ * rendered string in the view would make a view a transformation of `data`
+ * rather than a description of it. Round 3 split the same way over fitting. */
 function Mapping({ value, view }) {
   const rowsKey = view && view.rows;
   return html`
     <div class="grid">
       ${Object.entries(value).map(([key, item]) => {
         if (key === rowsKey && Array.isArray(item)) {
+          const dims = `table · ${item.length} rows · ${columnsOf(item).length} columns`;
           return html`<div class="rec" key=${key}>
-            <div class="row"><span class="v-label">${key}</span></div>
+            <div class="row">
+              <span class="v-label">${key}</span>
+              <span class="v-dim">${dims}</span>
+            </div>
             <${Table} rows=${item} view=${view} />
           </div>`;
         }

@@ -27,7 +27,7 @@ from rich.text import Text
 from rich.theme import Theme
 
 from cli.theme import STYLES
-from cli.view import resolve, summarise_mapping
+from cli.view import columns_of, resolve, summarise_mapping
 
 # Rendered in place of a missing value in a table cell.
 EMPTY = "-"
@@ -206,6 +206,24 @@ def _plural(count: int, word: str) -> str:
     return f"{count} {word}" if count == 1 else f"{count} {word}s"
 
 
+def _dimensions(rows: list[dict], view: dict | None = None) -> str:
+    """What the payload is, and how big — `table · 27 rows · 15 columns`.
+
+    The row count was always here; the **column count was invisible**, and the
+    column count is precisely what says whether `--from` and `--rows` did what
+    the operator meant. Every key the rows carry, not the subset drawn: the
+    hidden-columns warning already reports the difference, and the question this
+    answers is about the data that arrived rather than the table drawn from it.
+
+    Written out rather than as `15 × 27` — matrix convention reads that as rows
+    first and terminal convention reads it as columns first, so a bare pair is
+    ambiguous in exactly the place this is trying to remove doubt. See
+    [[table-views]] round 4.
+    """
+    count = len(columns_of(rows)) if rows else 0
+    return f"table · {_plural(len(rows), 'row')} · {_plural(count, 'column')}"
+
+
 OK_GLYPH = "\u2713"
 FAIL_GLYPH = "\u2717"
 UNKNOWN_GLYPH = "\u00b7"
@@ -362,7 +380,7 @@ def _render_value(value: Any, title: str | None = None, view: dict | None = None
     elif isinstance(value, (int, float)):
         click.echo(str(value))
     elif isinstance(value, dict):
-        _header(title, _plural(len(value), "section") if _is_nested(value) else None)
+        _header(title, f"object · {_plural(len(value), 'key')}")
         _render_mapping(value, view=view)
     elif isinstance(value, (list, tuple)):
         _render_sequence(list(value), title=title, view=view)
@@ -401,7 +419,15 @@ def _render_mapping(mapping: dict, indent: int = 2, view: dict | None = None) ->
         _out().print(Padding(table, (0, 0, 0, indent)))
 
     for key, value in nested.items():
-        _out().print(Padding(Text(key, style="tb.accent"), (0, 0, 0, max(indent - 2, 0))))
+        # The nested table has no title of its own, so the size would have
+        # nowhere to appear on exactly the payload shape this round is about.
+        # It goes beside the key instead, which is where a reader is already
+        # looking to find out what this block is.
+        heading = Text(key, style="tb.accent")
+        if isinstance(value, list) and all(isinstance(v, dict) for v in value):
+            heading.append("  ")
+            heading.append(_dimensions(value), style="tb.muted")
+        _out().print(Padding(heading, (0, 0, 0, max(indent - 2, 0))))
         if isinstance(value, dict):
             _render_mapping(value, indent + 2)
         elif isinstance(value, str):
@@ -447,7 +473,7 @@ def _render_sequence(items: list, title: str | None = None, view: dict | None = 
     if not items:
         return
     if not all(isinstance(item, dict) for item in items):
-        _header(title, _plural(len(items), "item"))
+        _header(title, f"list · {_plural(len(items), 'item')}")
         for item in items:
             _out().print(Text("  ").append_text(_styled_value(item)))
         return
@@ -536,7 +562,7 @@ def _render_columns(
     which is a column you cannot identify at all. Doing the arithmetic against
     the console width costs six lines and honours the floor.
     """
-    _header(title, _plural(len(rows), "row"))
+    _header(title, _dimensions(rows, view))
 
     if view:
         _render_view(rows, view, indent)
