@@ -3,6 +3,7 @@
 Command modules call these rather than shelling out or building paths directly.
 """
 
+import re
 import os
 import subprocess
 from pathlib import Path
@@ -117,3 +118,31 @@ def run_command(
         check=check,
         env=child_env(),
     )
+
+
+# A duration the operator writes by hand: `90s`, `15m`, `2h`, `3d`. One parser,
+# because two flags in two docs taking `15m` is exactly the shape that ends with
+# `2h` meaning two hours in one place and two minutes in another — see [[delay]]
+# and [[file-follow]] round 2. A bare number is **seconds**, spelled out here so
+# nobody has to guess: `--due 900` and `--due 15m` are the same expectation.
+_DURATION = re.compile(r"\A(\d+)([smhd]?)\Z")
+_UNITS = {"s": 1, "m": 60, "h": 3600, "d": 86400, "": 1}
+
+
+def parse_duration(value: str) -> int:
+    """`15m` → 900. Raises `ValueError` on anything else.
+
+    Loudly, at parse time, rather than at the first tick — a watcher that has
+    been running for an hour is the worst possible moment to discover that its
+    interval never meant anything. Zero is rejected for the same reason: a
+    duration of nothing is a typo in every context that takes one.
+    """
+    match = _DURATION.match((value or "").strip().lower())
+    if not match:
+        raise ValueError(
+            f"not a duration: {value!r} — use 90s, 15m, 2h or 3d (a bare number is seconds)"
+        )
+    amount = int(match.group(1))
+    if amount == 0:
+        raise ValueError("a duration of zero says nothing — leave the flag off instead")
+    return amount * _UNITS[match.group(2)]
