@@ -231,28 +231,28 @@ async def test_a_followers_child_dies_with_its_session():
 def test_resolve_follow_resolves_keywords_and_strips_the_fence():
     from cli.canvas.server import resolve_follow
 
-    kind, foreign, cwd, lines, rules = resolve_follow(["follow", "--", "journalctl", "-f"])
-    assert kind == "process"
-    assert foreign == ["journalctl", "-f"] and cwd is None
+    got = resolve_follow(["follow", "--", "journalctl", "-f"])
+    assert got.kind == "process"
+    assert got.foreign == ["journalctl", "-f"] and got.cwd is None
 
-    kind, foreign, cwd, lines, rules = resolve_follow(
+    got = resolve_follow(
         ["follow", "--cwd", "/tmp", "--lines", "50", "--", "sh", "-c", "true"]
     )
-    assert foreign == ["sh", "-c", "true"] and cwd == "/tmp" and lines == 50
+    assert got.foreign == ["sh", "-c", "true"] and got.cwd == "/tmp" and got.lines == 50
 
     # The operator's declared vocabulary is *named* by the argv and resolved
     # against their own file server-side — see [[highlight]] round 3.
-    _, foreign, _, _, rules = resolve_follow(
+    got = resolve_follow(
         ["follow", "--highlight", "jam", "--", "journalctl", "-f"]
     )
-    assert foreign == ["journalctl", "-f"] and rules == "jam"
+    assert got.foreign == ["journalctl", "-f"] and got.highlight == "jam"
 
 
 def test_resolve_follow_tells_a_file_by_the_same_shape_rule_as_the_cli():
     from cli.canvas.server import resolve_follow
 
-    kind, foreign, cwd, lines, rules = resolve_follow(["follow", "some/path.log"])
-    assert kind == "file" and foreign == ["some/path.log"]
+    got = resolve_follow(["follow", "some/path.log"])
+    assert got.kind == "file" and got.foreign == ["some/path.log"]
 
 
 def test_resolve_follow_descends_to_a_saved_keyword_behind_the_tools_group(tmp_path):
@@ -266,8 +266,8 @@ def test_resolve_follow_descends_to_a_saved_keyword_behind_the_tools_group(tmp_p
     (tmp_path / "tools.toml").write_text('[tool.logs]\nargv = ["follow", "--", "journalctl", "-f"]\n')
     try:
         assert register(cli, home=tmp_path) == []
-        kind, foreign, cwd, lines, rules = resolve_follow(["tools", "logs"])
-        assert kind == "process" and foreign == ["journalctl", "-f"]
+        got = resolve_follow(["tools", "logs"])
+        assert got.kind == "process" and got.foreign == ["journalctl", "-f"]
     finally:
         for name in [
             n for n, c in list(tools_group.commands.items()) if getattr(c, "tb_saved", False)
@@ -492,3 +492,51 @@ async def test_an_unchanged_directory_pushes_nothing(monkeypatch):
         assert (await frame(generator))["type"] == "beat"
     finally:
         await generator.aclose()
+
+
+# ── Round 2: the canvas wears late with no new plumbing ─────────────────────
+
+
+def test_a_late_follower_says_so_in_the_frame_it_already_sends():
+    """`attention` already travels to a window; `late` is a new value in a slot
+    that exists. If this had needed a field on the wire, [[file-follow]] round 2
+    was designed wrong."""
+    from cli.canvas.server import Follower, follower_frames
+
+    session = Session(id="s1")
+    session.followers["w1"] = Follower(
+        child=FakeChild(["one"]), argv=["journalctl", "-f"], due=900
+    )
+    # The fake's last line is at 50.0; 3000 is well past a fifteen-minute rule.
+    frames = follower_frames(session, now=3000.0)
+    assert frames[0]["chrome"]["attention"] == "late"
+    assert frames[0]["chrome"]["due"] == 900
+
+
+def test_a_follower_within_its_expectation_is_not_late():
+    from cli.canvas.server import Follower, follower_frames
+
+    session = Session(id="s1")
+    session.followers["w1"] = Follower(
+        child=FakeChild(["one"]), argv=["journalctl", "-f"], due=900
+    )
+    frames = follower_frames(session, now=100.0)
+    assert frames[0]["chrome"]["attention"] == "running"
+
+
+def test_resolve_follow_carries_due_off_the_argv():
+    """A saved tool's argv carries `--due 15m` like any other flag, so [[tools]]
+    needs no field for this."""
+    from cli.canvas.server import resolve_follow
+
+    assert resolve_follow(["follow", "--due", "15m", "some/path.log"]).due == 900
+    assert resolve_follow(["follow", "some/path.log"]).due == 0
+
+
+def test_a_malformed_due_in_a_saved_argv_degrades_rather_than_killing_the_window():
+    """The CLI refuses it at the door. Here it becomes no expectation, which is
+    the state before anyone declared one — a typo in a saved tool must not stop
+    a pinned window from following its log."""
+    from cli.canvas.server import resolve_follow
+
+    assert resolve_follow(["follow", "--due", "fortnightly", "x.log"]).due == 0

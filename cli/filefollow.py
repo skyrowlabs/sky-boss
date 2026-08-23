@@ -215,6 +215,7 @@ def follow_file(
     ticks: int | None = None,
     fs: RealFs | None = None,
     ruleset=None,
+    due: int = 0,
 ) -> None:
     """The terminal rendering: the same residency the process form has, with
     the cursor's stat knowledge in the bands — quiet and dead are different
@@ -244,6 +245,8 @@ def follow_file(
             size_bytes=cursor.size,
             ring_shown=len(kept),
             ring_limit=limit,
+            due=due,
+            now=clock(),
         )
         top, bottom = chrome_.status_bands(facts, clock(), out.width)
         body = resident.stream_body(kept, ruleset)

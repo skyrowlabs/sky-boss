@@ -32,6 +32,8 @@ import time
 from typing import Callable
 
 import rich_click as click
+
+from cli.helpers import parse_duration
 from rich.console import Console, Group
 
 from cli import chrome as chrome_
@@ -84,6 +86,13 @@ def is_file_form(argv: tuple[str, ...]) -> bool:
     help="Save this invocation as a saved command called NAME, then follow it.",
 )
 @click.option(
+    "--due",
+    "due",
+    metavar="EVERY",
+    default=None,
+    help="You expect a line at least this often: 15m, 2h, 90s. Past it, the band says late.",
+)
+@click.option(
     "--highlight",
     "highlight",
     metavar="NAME",
@@ -96,6 +105,7 @@ def follow(
     lines: int,
     screen: bool,
     save: str | None,
+    due: str | None,
     highlight: str | None,
 ) -> None:
     """Follow a command that streams, or a file that grows. An observe,
@@ -151,14 +161,26 @@ def follow(
         if problem:
             raise click.UsageError(problem)
 
+    seconds = 0
+    if due:
+        # Loudly, here, rather than at the first tick — a watcher an hour in is
+        # the worst moment to learn its interval never meant anything. The same
+        # parser `--delay` uses; see [[file-follow]] round 2.
+        try:
+            seconds = parse_duration(due)
+        except ValueError as exc:
+            raise click.UsageError(str(exc)) from exc
+
     if is_file_form(argv):
         # The native cursor, [[file-follow]]: tb can stat a file, so quiet
         # and dead get different words.
         from cli.filefollow import follow_file
 
-        follow_file(argv[0], limit=lines, screen=screen, ruleset=ruleset)
+        follow_file(argv[0], limit=lines, screen=screen, ruleset=ruleset, due=seconds)
     else:
-        follow_process(list(argv), cwd=cwd, limit=lines, screen=screen, ruleset=ruleset)
+        follow_process(
+            list(argv), cwd=cwd, limit=lines, screen=screen, ruleset=ruleset, due=seconds
+        )
 
 
 # Read by the catalog the way `tb_surface` and `tb_acts` are: a property on
@@ -189,6 +211,7 @@ def follow_process(
     ticks: int | None = None,
     ruleset=None,
     spawn=ChildStream,
+    due: int = 0,
 ) -> None:
     """The process form's whole rendering: ring, chrome bands, dead state.
 
@@ -227,6 +250,8 @@ def follow_process(
             exited_at=exited_at,
             ring_shown=len(kept),
             ring_limit=limit,
+            due=due,
+            now=clock(),
         )
         top, bottom = chrome_.status_bands(facts, clock(), out.width)
         body = resident.stream_body(kept, ruleset)

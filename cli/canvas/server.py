@@ -35,6 +35,9 @@ import secrets
 import threading
 import time
 import uuid
+from typing import NamedTuple
+
+from cli.helpers import parse_duration
 from pathlib import Path
 
 from starlette.applications import Starlette
@@ -252,7 +255,7 @@ def build(canvas: Canvas | None = None) -> Starlette:
 
         argv = [str(a) for a in (body.get("argv") or [])]
         try:
-            kind, foreign, cwd, lines, highlight = resolve_follow(argv)
+            kind, foreign, cwd, lines, highlight, due = resolve_follow(argv)
         except ValueError as exc:
             return JSONResponse({"error": str(exc)}, status_code=400)
         ruleset = None
@@ -276,7 +279,9 @@ def build(canvas: Canvas | None = None) -> Starlette:
                 )
         except (FileNotFoundError, OSError) as exc:
             return JSONResponse({"error": str(exc)}, status_code=400)
-        session.followers[window_id] = Follower(child=child, argv=foreign, ruleset=ruleset)
+        session.followers[window_id] = Follower(
+            child=child, argv=foreign, ruleset=ruleset, due=due
+        )
         return JSONResponse({"following": True})
 
     async def stream(request: Request) -> Response:
@@ -342,10 +347,29 @@ class Follower:
     # when the follow opened. A page may *name* a ruleset; it may never define
     # one. See [[highlight]] round 3.
     ruleset: object | None = None
+    # The operator's declared expectation for this window, in seconds. 0 is no
+    # expectation — see [[file-follow]] round 2.
+    due: int = 0
     shipped: int = 0
     exited_at: float | None = None
     dead_announced: bool = False
     last_state: str | None = None
+
+
+class Follow(NamedTuple):
+    """What a follow argv resolves to.
+
+    A named tuple rather than a bare one because this has gained a field per
+    round — `--cwd`, then `--lines`, then `--highlight`, now `--due` — and each
+    time a positional tuple churned every caller that only wanted one of them.
+    """
+
+    kind: str
+    foreign: list[str]
+    cwd: str | None
+    lines: int
+    highlight: str | None
+    due: int = 0
 
 
 def resolve_follow(
@@ -357,9 +381,7 @@ def resolve_follow(
     -f`, `follow cron.log`, or a keyword like `logs` — and the *server*
     resolves it, because a saved command's expansion lives on the Click tree
     and nothing client-side may keep a command table. Returns
-    `("process", foreign_argv, cwd, lines, highlight)` or
-    `("file", [path], cwd, lines, highlight)` by the same shape rule the CLI
-    dispatches on; raises ValueError when the argv is not a follow at all.
+    a `Follow` by the same shape rule the CLI dispatches on; raises ValueError when the argv is not a follow at all.
 
     `highlight` is the name of an operator ruleset, resolved against their
     file *here* rather than sent by the client — a page may name a ruleset,
@@ -392,6 +414,7 @@ def resolve_follow(
     cwd: str | None = None
     lines = stream_.DEFAULT_LINES
     highlight: str | None = None
+    due = 0
     rest = argv[1:]
     foreign: list[str] = []
     i = 0
@@ -412,6 +435,16 @@ def resolve_follow(
             highlight = rest[i + 1]
             i += 2
             continue
+        if token == "--due" and i + 1 < len(rest):
+            # A malformed duration in a saved argv must not kill the window it
+            # was pinned in. The CLI refuses it at the door; here it degrades to
+            # no expectation, which is the state before anyone declared one.
+            try:
+                due = parse_duration(rest[i + 1])
+            except ValueError:
+                due = 0
+            i += 2
+            continue
         foreign = rest[i:]
         break
     if not foreign:
@@ -419,9 +452,8 @@ def resolve_follow(
 
     from cli.follow import is_file_form
 
-    if is_file_form(tuple(foreign)):
-        return "file", foreign, cwd, lines, highlight
-    return "process", foreign, cwd, lines, highlight
+    kind = "file" if is_file_form(tuple(foreign)) else "process"
+    return Follow(kind, foreign, cwd, lines, highlight, due)
 
 
 def follower_frames(session: Session, now: float | None = None) -> list[dict]:
@@ -455,6 +487,8 @@ def follower_frames(session: Session, now: float | None = None) -> list[dict]:
                 size_bytes=child.size,
                 ring_shown=len(child.lines()),
                 ring_limit=child.ring.limit,
+                due=follower.due,
+                now=moment,
             )
         else:
             facts = chrome_.stream(
@@ -464,6 +498,8 @@ def follower_frames(session: Session, now: float | None = None) -> list[dict]:
                 exited_at=follower.exited_at,
                 ring_shown=len(child.lines()),
                 ring_limit=child.ring.limit,
+                due=follower.due,
+                now=moment,
             )
         frames.append(
             {
