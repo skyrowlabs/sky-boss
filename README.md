@@ -2,144 +2,346 @@
   <img src="docs/design/readme-banner.png" alt="toolbox — by SKYROW.LABS · tb --help" width="799">
 </p>
 
-`tb` — a command palette over a window canvas, and two commands that reach other tools.
+`tb` is one CLI for watching what other tools are doing — on this machine and across the projects
+you keep here.
 
-**This is young.** It had a job layer, an asset register, a check suite and a watch system; all of
-it was removed on 2026-08-20 to design that half over from a clean base. What is left is the part
-worth keeping: an output contract, a palette, and a surface that drives the real command tree
-rather than mirroring it.
+Four ideas, and everything else follows from them:
 
-## What it does
-
-| Command | Does |
-|---|---|
-| `tb run -- <argv>` | Runs a command and reports what it printed. The only command that acts |
-| `tb data -- <argv>` | Reads another CLI's JSON as data, so a window can keep it fresh |
-| `tb ui` | Opens the canvas |
-
-```bash
-tb run -- echo hello
-tb --json data -- ip -j -br addr
-tb ui
-```
-
-`--` separates tb's flags from the command's own.
-
-## The canvas
-
-`tb ui` opens a command palette over a canvas of windows. Every command opens a window; windows
-tile or float, drag, and stack. A window you pin re-runs its command on a cadence — 5s to 5m — and
-that clock lives in the server, keyed to the connection, so **a watcher pauses when you close the
-window and keeps running when you only minimize it.** A browser timer could not promise the second
-half: a hidden page has its timers clamped to about one fire per minute.
-
-Only reads get a cadence. `tb run` executes whatever argv you hand it, so it is never given one —
-re-running a read is a refresh, and re-running a write is a scheduler nobody asked for. Choosing
-`wrap` over `run` is how you assert this argv is a read.
-
-`tb ui --scale` sets how big the surface renders — every size derives from it, and it defaults to
-2. `--size WIDTH,HEIGHT` sets the window geometry; otherwise the profile remembers where you left
-it. `--kiosk` goes full-screen with no frame, for a wall display, and cannot be resized.
-
-The window is a native webview, so it is frameless by request, resizable, and moved by dragging
-the surface's own top bar — none of which a browser can do, since no web API lets a page move its
-own window. `--browser` opens it in Chromium instead and `--no-browser` serves only, which is the
-mode to develop in.
-
-**Your window manager may draw a title bar anyway.** Frameless is a *request* — GTK reports the
-window as undecorated and some window managers decorate it regardless. Stripping the frame while
-keeping the window resizable is the window manager's job, done with a rule matched on the window
-class, which is `toolbox`.
-
-**Writing that rule is yours.** A desktop belongs to whoever runs it, so nothing here edits a
-window-manager config, and the spelling differs per environment. The surface carries its own close
-button, so removing the frame does not strand you.
-
-The server binds loopback on an ephemeral port and dies with the window. It runs commands, so it
-requires a per-launch token in a custom header — which also forces a CORS preflight that is never
-answered, so a page on another site cannot reach it even blind.
+- **`tb run` is the only command that acts.** Everything else reads. That line is load-bearing:
+  a window may re-run a read on a cadence, because re-running a read is a refresh and re-running
+  a write is a scheduler nobody asked for.
+- **Commands return data; they never print.** One envelope — `ok` / `partial` / `data` /
+  `warnings` — rendered by whoever is consuming it. `--json` on any command gives you the
+  envelope itself.
+- **tb never parses human output.** `tb data` takes JSON. `tb read` shows what a command printed,
+  verbatim, and says that is what it is doing. There is no `--pretty` that guesses.
+- **tb is never in the credential path.** External CLIs keep their own authentication.
 
 ## Install
 
-Requires Python 3.13+ and git.
-
 ```bash
-git clone <this repo> ~/toolbox
-cd ~/toolbox
+git clone https://github.com/skyrowlabs/toolbox && cd toolbox
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
-ln -s ~/toolbox/tb ~/.local/bin/tb        # anywhere on your PATH
+ln -s "$PWD/tb" ~/.local/bin/tb          # or run ./tb from the repo
 ```
 
-Fish completions, if you use fish:
+Needs Python 3.11+. Shell completion for fish:
+`_TB_COMPLETE=fish_source tb > ~/.config/fish/completions/tb.fish`
+
+## The commands
+
+| Command | Does |
+|---|---|
+| `tb run -- <argv>` | Runs a command and reports what it printed. **The only command that acts** |
+| `tb read -- <argv>` | Shows what a command printed, verbatim |
+| `tb data -- <argv>` | Reads another CLI's JSON as data, and shapes it into a table |
+| `tb follow -- <argv>` | Holds a command's stream open. Any exit is a visible death |
+| `tb follow <path>` | Follows a file with a native stat cursor |
+| `tb roll-call` | Asks every declared project how it is, and folds the answers |
+| `tb tools` | The commands you saved |
+| `tb ui` | Opens the canvas — a palette over tiled and floating windows |
+| `tb mcp` | Speaks MCP on stdio, offering your saved commands to an agent |
+
+`--` separates tb's flags from the command's own.
+
+## Running something
+
+```console
+$ tb run -- echo hello
+hello
+└ ok · 0.1s · ran 20:03:29 ────────────────────────────────────────────┘
+```
+
+The band is on stderr, so `tb run -- x | grep y` still sees exactly what `x` printed.
+
+```console
+$ tb read -- printf 'alpha\nbeta\n'
+alpha
+beta
+└ ok · 0.1s · ran 20:03:29 ────────────────────────────────────────────┘
+```
+
+## Reading another tool as data
+
+`tb data` parses a tool's JSON and decides how to draw it — which columns are worth showing, which
+are prose that belongs on its own line, which are opaque identifiers nobody scans.
+
+```console
+$ tb data -- printf '[{"host":"web-1","state":"up","region":"iad"},{"host":"web-2","state":"down","region":"sfo"}]'
+● data  table · 2 rows · 3 columns
+
+HOST   STATE  REGION
+────────────────────
+web-1  up     iad
+web-2  down   sfo
+```
+
+`table · 2 rows · 3 columns` is the header saying what arrived. Pick columns yourself with
+`--cols`:
+
+```console
+$ tb data --cols host,state -- printf '[{"host":"web-1","state":"up","region":"iad"},{"host":"web-2","state":"down","region":"sfo"}]'
+● data  table · 2 rows · 3 columns
+
+HOST   STATE
+────────────
+web-1  up
+web-2  down
+```
+
+Real tools wrap their rows in a mapping, because a bare array has nowhere to put a timestamp.
+`--rows` says where they are; without it tb infers only when exactly one value is a list of rows,
+and reports rather than guesses when two are.
+
+```console
+$ tb data --rows hosts --cols host,state -- printf '{"generated":"2026-08-23T20:00:00Z","hosts":[{"host":"web-1","state":"up"},{"host":"web-2","state":"down"}]}'
+● data  object · 2 keys
+
+  generated   2026-08-23T20:00:00Z
+hosts  table · 2 rows · 2 columns
+  HOST   STATE
+  ────────────
+  web-1  up
+  web-2  down
+```
+
+### Nothing is silently wrong
+
+A column you named that no row carries is drawn — "nothing matched" is often the answer — **and
+reported**:
+
+```console
+$ tb data --cols host,nope -- printf '[{"host":"a"}]'
+● data  table · 1 row · 1 column
+
+HOST  NOPE
+──────────
+a     -
+⚠️  no row has this field: nope — drawn empty, in case that is the answer
+```
+
+A tool that fails carries its reason, never its output — a failed tool is one whose output should
+not be believed:
+
+```console
+$ tb data -- sh -c 'echo "boom: no credentials" >&2; exit 3'
+✗ data failed
+● data  object · 4 keys
+
+  command      sh -c 'echo "boom: no credentials" >&2; exit 3'
+  exit_code    3
+  duration_s   0.0
+  error        boom: no credentials
+```
+
+### The envelope
+
+`--json` is a root flag, so it works on every command:
+
+```console
+$ tb --json data -- printf '[{"host":"a"}]'
+{
+  "command": "data",
+  "ok": true,
+  "partial": false,
+  "data": [
+    {
+      "host": "a"
+    }
+  ],
+  "warnings": [],
+  "view": {
+    "columns": [
+      {
+        "key": "host",
+        "label": "HOST",
+        "flex": 1,
+        "min": 4,
+        "max": 4
+      }
+    ],
+    "details": [],
+    "hidden": []
+  }
+}
+```
+
+**`view` describes how to present `data`; it never filters it.** Every field the tool returned is
+still there, so `| jq` keeps what the table chose to hide.
+
+Exit codes: `0` ok, `1` hard failure, `3` partial — not 2, which Click uses for usage errors.
+
+## Following something
+
+Resident by nature. Arrows, PgUp/PgDn and Home scroll back through the ring; `End` returns to
+following; `q`, `Esc` or Ctrl-C leaves.
 
 ```bash
-_TB_COMPLETE=fish_source tb > ~/.config/fish/completions/tb.fish
+tb follow -- journalctl -f                    # a stream; any exit is a visible death
+tb follow /var/log/nginx/access.log           # a file, by stat cursor
+tb follow --due 15m /var/log/cron.log         # past 15m of silence, the band says late
 ```
 
-> **fish users:** a fish *function* resolves ahead of PATH, so a distro-packaged fish config that
-> defines a `tb` alias will shadow this CLI. If `tb` runs something unexpected, check with
-> `functions --query tb`, and erase it in `~/.config/fish/config.fish`:
-> `functions --query tb; and functions --erase tb`.
+The band is the scrollbar:
 
-## The contract
+```
+┌ /var/log/cron.log · follow ────────────── quiet 3m of 15m · last write 15:23 ┐
+└ 246.4 KiB · showing 41–60 of 200 · parked ───────────────────────────────────┘
+```
 
-Every command returns a `Result` envelope and never prints. All rendering goes through
-`cli/output.py`, so the CLI, `--json` and the canvas are three consumers of one thing rather than
-three formatters.
+`--due` is the cron watcher, and it never learned what cron is: a schedule is a declaration, a run
+is evidence, and the evidence is the log. You assert an interval; tb subtracts.
 
-| Exit | Meaning |
+## Running something later
+
+```bash
+tb run --delay 5m -- ./deploy.sh
+```
+
+A countdown you can watch and cancel. `q`, `Esc` or Ctrl-C cancels and nothing ran; so does closing
+the terminal. There is no queue, no state file and no unit written — **a command that must outlive
+the window wants systemd.** Cancelling exits non-zero, so a script can tell the difference.
+
+## Saving a command
+
+`--save NAME` on `read`, `data` or `follow` saves the invocation and then runs it. It only ever
+appends to `~/.config/tb/tools.toml`, and refuses a name that exists — editing and deleting stay
+`$EDITOR`'s.
+
+```bash
+tb data --cols number,title --refresh 30 --save prs -- gh pr list --json number,title
+tb tools prs        # or the short spelling: tb -t prs
+```
+
+`tb tools` lists what you saved, and what failed to load. A fresh clone has saved nothing and says
+so rather than raising:
+
+```console
+$ tb tools
+● tools  object · 3 keys
+
+  tools        -
+  formats      -
+  highlights   -
+```
+
+A saved command inherits `acts` from the first word of its argv, so one wrapping `run` is refused a
+cadence exactly as `tb run` is — the read/write line survives being given a name.
+
+## Many projects at once
+
+Declare what each project publishes in `~/.config/tb/projects.toml` — a command to ask, or a file
+to read:
+
+```toml
+[project.jam-sense]
+argv = ["jam", "report", "status", "--json"]
+cwd  = "~/src/jam.sense"
+rows = "jobs"
+cols = "job,result,last_age"
+
+[project.house-fly]
+path = "~/src/house.fly/tmp/status.json"
+```
+
+```bash
+tb roll-call
+tb roll-call --only jam-sense
+```
+
+**tb federates; it never owns.** No ledger, no history, no cache — each project stays the authority
+on itself, which is what lets tb stay stateless. A copy of a schedule that agents rewrite goes
+stale without announcing it; unreachability is visible, staleness is not.
+
+One project down is `partial`, never blank:
+
+```
+jam-sense
+  jobs  table · 29 rows · 15 columns
+    JOB           RESULT   LAST_AGE
+    ───────────────────────────────
+    sentinel      red      11h ago
+    integration   ok       11h ago
+
+house-fly
+    error    No such file or directory
+    source   ~/src/house.fly/tmp/status.json
+
+⚠️  house-fly: No such file or directory
+```
+
+With nothing declared it says so rather than pretending:
+
+```console
+$ TB_HOME=/tmp/empty-tb tb roll-call
+● roll-call  object · 0 keys
+
+⚠️  no projects declared — see /tmp/empty-tb/projects.toml
+```
+
+## The canvas
+
+```bash
+tb ui
+```
+
+A command palette over tiled and floating windows. Every command opens a window; a pinned window
+re-runs itself on a cadence. **Nothing keeps a command table** — the palette walks the real Click
+tree, so it cannot offer a command that does not exist.
+
+The refresh clock lives in Python, keyed to the connection: a browser timer in a hidden tab is
+clamped to roughly one fire a minute, so a 5s watcher would silently become a 60s one at the exact
+moment you stopped being able to see that it had.
+
+```bash
+tb ui --no-browser --port 8765     # develop against it in a browser
+```
+
+## Offering it to an agent
+
+```bash
+tb mcp
+```
+
+Speaks MCP on stdin/stdout — no port, no token, no daemon. Register it with any MCP client:
+
+```json
+{"mcpServers": {"toolbox": {"type": "stdio", "command": "tb", "args": ["mcp"]}}}
+```
+
+```console
+$ printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' | tb mcp
+```
+
+**An agent reaches the commands you saved, and nothing else.** Every exposed tool has an *empty
+input schema* — there is no string an agent can put anywhere. Excluded by rule, not by list:
+anything that acts, anything resident, and anything taking a free-form argv.
+
+That last one is the whole safety argument. Choosing `data` over `run` is *your* assertion that
+something is a read; an assertion an agent makes about its own argv is not a safety property, it is
+a shell with a reassuring name.
+
+## Configuration
+
+| What | Where |
 |---|---|
-| `0` | ok |
-| `1` | hard failure |
-| `3` | partial — some of the work succeeded |
+| Saved commands | `~/.config/tb/tools.toml` |
+| Capture formats and highlight rules | `~/.config/tb/formats.toml` |
+| Declared projects | `~/.config/tb/projects.toml` |
+| Canvas browser profile | `~/.local/state/tb/` |
 
-Not `2`: Click uses it for usage errors, so a caller branching on exit codes would read a typo as
-a degraded run.
-
-`--json` is a root-group flag. Under it stdout carries the envelope and nothing else; warnings
-still go to stderr, so a pipeline is never broken by a degraded source.
-
-## Where things live
-
-| Where | Holds | Versioned |
-|---|---|---|
-| this repo | code, tests, docs | here |
-| `~/.local/state/tb/` | input history, stall dumps | never |
-
-`$TB_STATE` overrides the second. There is no operator content directory any more — nothing
-declares anything yet.
+`$TB_HOME` and `$TB_STATE` override the first three and the last. An absent file degrades to
+nothing declared rather than raising.
 
 ## Development
 
 ```bash
-.venv/bin/python -m pytest              # fast: no network
-pip install -r requirements-dev.txt
+.venv/bin/python -m pytest              # the whole suite, no network
+.venv/bin/python -m pytest -k readme    # the examples in this file
 ```
 
-### Working on the surface with it open
+Every `$ tb …` example above is executed by `tests/test_readme.py`, so a README that shows a
+command which no longer works fails the build.
 
-| Editing | Picked up |
-|---|---|
-| `cli/canvas/static/*.css` | **live** — swapped in place, windows keep their state |
-| Any other static file | **live** — the page reloads itself, losing open windows |
-| Any Python | **never — restart** |
-
-```bash
-tb ui --no-browser --port 8765          # then open http://127.0.0.1:8765/
-```
-
-Save a file and the page reacts within about half a second — the server fingerprints `static/` on
-the session stream it is already running and pushes a frame. A CSS edit is swapped in place, so
-every window keeps its position, its pin, its chips and its last result while you adjust the
-styling. Anything else is a full reload, which does lose the open windows, because the module
-graph is already evaluated and half-old JavaScript holding live state is worse than starting over.
-
-The frontend has **no automated tests** — there is no JS test runner and adding one means npm — so
-the pure parts (`unwrap`, `suggest`, `roleFor`, `planReload`) are where a mistake will not be
-caught for you.
-
-**Python is not hot-reloadable here and deliberately is not made so.** A reload would leave a live
-session holding watchers registered against the old code, and the result would not be a crash,
-which is the problem — it would be stale behaviour that looks right.
-
-`CLAUDE.md` carries the conventions and the decisions that have already been argued out.
+`docs/design/fundamentals.md` is the constitution; `docs/features/done/` holds one doc per feature,
+each with its rounds and a Notes section that accretes rather than rewrites.
