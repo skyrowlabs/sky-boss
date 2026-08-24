@@ -84,6 +84,14 @@ class Chrome:
     # purpose: those two mean *cadence*, and an act has none — `--delay` moves
     # when a command runs once, it does not make it run again. See [[delay]].
     fires_at: float | None = None
+    # Where a parked follow is looking, 1-based among the lines the ring holds.
+    # None while following, which is what keeps a band that has never been
+    # scrolled identical to one from before [[follow]] round 3.
+    ring_first: int | None = None
+    ring_last: int | None = None
+    # Whether the operator has scrolled away from the tail. Distinct from
+    # having a position: a following view has one too, and says it.
+    parked: bool = False
     last_run: float | None = None  # when the last run started
     running_since: float | None = None
     # Stream.
@@ -105,7 +113,7 @@ class Chrome:
             "duration_s", "warnings", "ran_at", "interval", "last_run",
             "running_since", "last_line_at", "exit_code", "exited_at",
             "last_write_at", "size_bytes", "ring_shown", "ring_limit", "due",
-            "fires_at",
+            "fires_at", "ring_first", "ring_last", "parked",
         ):
             value = getattr(self, key)
             if value not in (None, 0):
@@ -207,6 +215,9 @@ def stream(
     ring_limit: int | None = None,
     due: int = 0,
     now: float | None = None,
+    ring_first: int | None = None,
+    ring_last: int | None = None,
+    parked: bool = False,
 ) -> Chrome:
     """A process follow. Alive is `running`; any exit is `dead` — visibly,
     carrying the code, because restart is the operator's click and never the
@@ -224,6 +235,9 @@ def stream(
             "dead" if exit_code is not None else "running", last_line_at, due, now
         ),
         due=due,
+        ring_first=ring_first,
+        ring_last=ring_last,
+        parked=parked,
         last_line_at=last_line_at,
         exit_code=exit_code,
         exited_at=exited_at,
@@ -262,6 +276,9 @@ def cursor(
     ring_limit: int | None = None,
     due: int = 0,
     now: float | None = None,
+    ring_first: int | None = None,
+    ring_last: int | None = None,
+    parked: bool = False,
 ) -> Chrome:
     """A file follow. `state` comes from the cursor's own stat loop —
     quiet, absent or rotated — because the loop is the thing that compared
@@ -278,6 +295,9 @@ def cursor(
         shape="cursor",
         attention=_late(state, last_write_at, due, now),
         due=due,
+        ring_first=ring_first,
+        ring_last=ring_last,
+        parked=parked,
         last_write_at=last_write_at,
         size_bytes=size_bytes,
         ring_shown=ring_shown,
@@ -434,7 +454,29 @@ def _bottom_spans(chrome: Chrome, now: float) -> tuple[list[Span], list[Span]]:
             lead = " · "
         if chrome.ring_shown is not None and chrome.ring_limit is not None:
             shown = min(chrome.ring_shown, chrome.ring_limit)
-            left.append((f"{lead}showing last {shown}", "tb.label"))
+            if chrome.ring_first is None:
+                left.append((f"{lead}showing last {shown}", "tb.label"))
+            elif chrome.ring_last - chrome.ring_first + 1 >= shown:
+                # Everything held is on screen, which is what "showing last N"
+                # always meant and the one case where it was not lying. Kept
+                # word for word — [[chrome]]'s own sketch uses this phrasing.
+                left.append((f"{lead}showing last {shown}", "tb.label"))
+            else:
+                # A scrollbar, written out: position and extent. [[refresh]]
+                # round 2 rejected scrolling partly because "it owes the
+                # operator a scrollbar", and this is the band paying that debt
+                # in the slot [[chrome]] already built.
+                #
+                # Reported while *following* too, not only while parked. The
+                # old band said "showing last 200" while drawing forty of them
+                # and relied on a separate clip marker to admit it — two places
+                # telling half the truth each. See [[follow]] round 3.
+                left.append(
+                    (f"{lead}showing {chrome.ring_first}\u2013{chrome.ring_last} of {shown}",
+                     "tb.label")
+                )
+            if chrome.parked:
+                left.append((" \u00b7 parked", ROLE["pending"]))
 
     return left, []
 

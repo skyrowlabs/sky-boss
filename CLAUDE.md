@@ -39,7 +39,7 @@ replaced by a browser one the same day. What exists:
 | `tb run -- <argv>` | Runs a command and reports what it printed. **The only command that acts**. `--delay 5m` runs it once, later, behind a countdown you can cancel |
 | `tb data -- <argv>` | Reads another CLI's JSON as data. An observe; `--refresh N` keeps it resident |
 | `tb read -- <argv>` | Shows what a command printed, verbatim. An observe, for tools with no `--json` |
-| `tb follow -- <argv>` | Holds a command's stream open. Resident by nature; any exit is a visible death |
+| `tb follow -- <argv>` | Holds a command's stream open. Resident by nature; any exit is a visible death. Arrows and PgUp scroll back through the ring |
 | `tb follow <path>` | Follows a file with a native stat cursor, so quiet and dead are different words. `--due 15m` makes late a word too |
 | `tb roll-call` | Asks every declared project how it is and folds the answers. An observe. See [[roll-call]] |
 | `tb mcp` | Speaks MCP on stdio, offering the toolbox to an agent. A surface. See [[mcp]] |
@@ -352,7 +352,7 @@ Shared with sibling CLIs so the family feels like one tool.
 built surface as pure concept and decided the eight primitives, with dated decisions and
 visible reversals. Feature specs convert it into buildable rounds; read it before proposing a
 primitive-level change. `docs/features/done/` holds the completed docs — `canvas.md` (the
-surface, five rounds), `follow.md` (the streaming substrate), `tools.md` (saved commands, three
+surface, five rounds), `follow.md` (the streaming substrate, three rounds), `tools.md` (saved commands, three
 rounds), `highlight.md` (lexical tint, four rounds), `capture.md` (declared structure),
 `refresh.md`, `header.md` (the mark), `text-reads.md`, `subprocess-env.md`, `table-views.md` (the
 shaping contract, five rounds), `roll-call.md` (federating over projects), `file-follow.md` (the

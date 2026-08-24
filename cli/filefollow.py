@@ -174,6 +174,16 @@ class FileCursor:
 
     # ---------------------------------------------- the follower's interface
 
+    @property
+    def dropped(self) -> int:
+        """How many lines the ring has already let go.
+
+        Exposed here rather than reached for through `.ring`, because the
+        viewport needs it from both stream kinds and a caller that knew the
+        shape of the ring would have to know it twice. See [[follow]] round 3.
+        """
+        return self.ring.dropped
+
     def lines(self) -> list[Line]:
         return self.ring.lines()
 
@@ -235,9 +245,16 @@ def follow_file(
 
     out = console or Console(theme=THEME, highlight=False)
     cursor = FileCursor(path, limit=limit, fs=fs, clock=clock)
+    view = resident.Viewport()
+
+    def _height() -> int:
+        return resident.room(out) if not screen else max(1, out.height - 2)
 
     def frame() -> Group:
         kept = cursor.lines()
+        shown_lines, first, last = view.window(
+            kept, height=_height(), dropped=cursor.dropped
+        )
         facts = chrome_.cursor(
             path,
             state=cursor.state,
@@ -247,11 +264,28 @@ def follow_file(
             ring_limit=limit,
             due=due,
             now=clock(),
+            ring_first=first,
+            ring_last=last,
+            parked=view.parked,
         )
         top, bottom = chrome_.status_bands(facts, clock(), out.width)
-        body = resident.stream_body(kept, ruleset)
-        # The tail: the newest lines are the ones a log is followed for.
-        shown = body if screen else resident.clip(body, resident.room(out), tail=True)
+        # Sliced before rendering, for the reason the process form is: the
+        # lines drawn are the lines tinted, and the band's numbers describe
+        # what is actually on screen. See [[follow]] round 3.
+        shown = resident.stream_body(shown_lines, ruleset)
         return Group(band_text(top), shown, band_text(bottom))
 
-    resident.hold(frame, tick=cursor.tick, console=out, screen=screen, ticks=ticks, wait=wait)
+    def scroll(key: str) -> bool:
+        return view.move(
+            key, height=_height(), held=len(cursor.lines()), dropped=cursor.dropped
+        )
+
+    resident.hold(
+        frame,
+        tick=cursor.tick,
+        console=out,
+        screen=screen,
+        ticks=ticks,
+        wait=wait,
+        on_key=scroll,
+    )

@@ -24,10 +24,26 @@ import select
 import sys
 from typing import Callable, Iterator
 
-# What closes a resident view. `\x1b` is Esc — bare, which is why the reader
-# drains what follows it (see `_drain`): an arrow key arrives as Esc + `[` + a
-# letter, and treating its first byte as Esc would make arrow keys quit.
+# What closes a resident view. `\x1b` is Esc — **bare**, which is the whole
+# subtlety: an arrow key also arrives as Esc, followed immediately by more
+# bytes. The reader tells them apart by whether anything followed, and returns
+# a *name* for the ones that did. See `_sequence`.
 LEAVE = frozenset({"q", "Q", "\x1b"})
+
+# The named keys a resident view may act on. Round 2 drained these so that Up
+# could not quit; round 3 decodes them instead, because a follow's ring holds
+# lines the terminal never printed and scrolling is the only way back to them.
+# See [[follow]] round 3.
+MOVES = ("up", "down", "pgup", "pgdn", "home", "end")
+
+# Final bytes of the sequences that matter, by their two introducers. `[` is
+# the common form and `O` is application-cursor mode, which some terminals put
+# the arrow keys into — a reader that knew only `[` would work everywhere until
+# it did not.
+_FINAL = {"A": "up", "B": "down", "H": "home", "F": "end"}
+
+# The numeric forms, `Esc [ N ~`. Home and End have both spellings in the wild.
+_TILDE = {"5": "pgup", "6": "pgdn", "1": "home", "7": "home", "4": "end", "8": "end"}
 
 # The tick a resident loop redraws on. Here rather than in the loop because it
 # is now the timeout of a `select`, not the argument of a sleep.
@@ -92,18 +108,59 @@ def _waiter(stream) -> Callable[[float], str | None]:
             return None
         key = stream.read(1)
         if key == "\x1b":
-            _drain(stream)
+            return _sequence(stream)
         return key
 
     return wait
 
 
-def _drain(stream) -> None:
-    """Swallow the rest of an escape sequence.
+def _ready(stream) -> bool:
+    """Is there a byte waiting right now? The one place this asks."""
+    return bool(select.select([stream], [], [], 0)[0])
 
-    An arrow key is Esc `[` `A`. Without this its first byte reads as a bare
-    Esc and pressing Up would close the window — and the two remaining bytes
-    would then land in the shell that gets the terminal back.
+
+def _sequence(stream, ready=_ready) -> str | None:
+    """Esc, and whatever followed it: a movement name, or Esc itself.
+
+    **Nothing followed means the operator pressed Esc**, which leaves. Bytes
+    followed means a key that reports itself as a sequence, and round 2 threw
+    those away so that Up could not quit. Decoding them is the same test with
+    the result kept.
+
+    `ready` is injected for the reason every clock here is: there is no
+    terminal in the suite, and `select` on a fake stream polls the real stdin
+    rather than the fake — which reads as the code being wrong when it is the
+    harness.
+
+    Anything unrecognised is consumed and reported as nothing at all — an
+    unknown sequence must not fall through to the shell that gets the terminal
+    back, and must not be mistaken for a key with a meaning. See [[follow]]
+    round 3.
     """
-    while select.select([stream], [], [], 0)[0]:
+    if not ready(stream):
+        return "\x1b"
+
+    introducer = stream.read(1)
+    if introducer not in ("[", "O"):
+        _drain(stream, ready)
+        return None
+
+    body = ""
+    while ready(stream):
+        char = stream.read(1)
+        body += char
+        # A sequence ends at its final byte: a letter, or `~` for the numeric
+        # forms. Reading further would eat the next keystroke.
+        if char.isalpha() or char == "~":
+            break
+
+    if body.endswith("~"):
+        return _TILDE.get(body[:-1])
+    return _FINAL.get(body)
+
+
+def _drain(stream, ready=_ready) -> None:
+    """Swallow the rest of an unrecognised sequence, so none of it reaches the
+    shell that gets the terminal back."""
+    while ready(stream):
         stream.read(1)

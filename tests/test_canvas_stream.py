@@ -138,6 +138,10 @@ class FakeChild:
         return self.ring.lines()
 
     @property
+    def dropped(self):
+        return self.ring.dropped
+
+    @property
     def last_line_at(self):
         return self.ring.last_at
 

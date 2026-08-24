@@ -301,7 +301,8 @@ def test_the_inline_cursor_frame_keeps_the_newest_lines():
     )
     text = recording.export_text()
     assert "line 39" in text and "line 0\n" not in text
-    assert "more lines not shown" in text
+    # Round 3: the band carries the range instead of a separate marker.
+    assert "showing " in text and " of " in text
 
 
 def test_the_cursors_own_voice_stays_loud_when_stderr_goes_grey():

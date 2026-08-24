@@ -186,6 +186,7 @@ def hold(
     ticks: int | None = None,
     wait: Callable[[float], str | None] | None = None,
     transient: bool = False,
+    on_key: Callable[[str], bool] | None = None,
 ) -> None:
     """Draw a frame every tick until the operator leaves.
 
@@ -213,14 +214,14 @@ def hold(
                 console.print(frame())
 
             with console.screen():
-                _turn(draw, tick, wait_for, ticks)
+                _turn(draw, tick, wait_for, ticks, on_key)
             return
 
         # Live owns the cursor and the in-place repaint, exactly as it does
         # for `reside`; `transient=False` leaves the last frame on screen, so
         # leaving a follow leaves the tail of the log you were watching.
         with Live(console=console, auto_refresh=False, transient=transient) as live:
-            _turn(lambda: live.update(frame(), refresh=True), tick, wait_for, ticks)
+            _turn(lambda: live.update(frame(), refresh=True), tick, wait_for, ticks, on_key)
 
     try:
         if wait is not None:
@@ -238,15 +239,100 @@ def _turn(
     tick: Callable[[], None] | None,
     wait: Callable[[float], str | None],
     ticks: int | None,
+    on_key: Callable[[str], bool] | None = None,
 ) -> None:
     count = 0
     while ticks is None or count < ticks:
         draw()
-        if keys.leaves(wait(keys.TICK)):
+        key = wait(keys.TICK)
+        if keys.leaves(key):
             return
-        if tick is not None:
+        # A key that moved the view redraws on the next pass without advancing
+        # the tick — a scroll that waited a second for its own keypress would
+        # feel broken. The count still advances, so `ticks` bounds the loop
+        # whatever the operator presses. See [[follow]] round 3.
+        moved = bool(key) and on_key is not None and on_key(key)
+        if not moved and tick is not None:
             tick()
         count += 1
+
+
+class Viewport:
+    """Where a parked follow is looking, as arithmetic over a ring.
+
+    **Scrolling parks; nothing else does.** Following is the absence of an
+    anchor, not a flag beside one — so a view that has never been scrolled is
+    byte-identical to one from before this existed, and `End` is a single
+    assignment back to that state.
+
+    The anchor is an **absolute** line number, counted from the first line the
+    stream ever produced, and that is the whole reason eviction is harmless.
+    A ring holding the last 200 of 5,000 lines still knows which 200 they are;
+    an offset counted from the oldest held line would silently slide under the
+    operator every time a line arrived. Clamping an absolute anchor to what is
+    still held makes the view walk to the top and stop there, which is both
+    correct and what it looks like. See [[follow]] round 3.
+    """
+
+    def __init__(self) -> None:
+        self.anchor: int | None = None
+
+    @property
+    def parked(self) -> bool:
+        return self.anchor is not None
+
+    def follow(self) -> None:
+        self.anchor = None
+
+    def move(self, key: str, *, height: int, held: int, dropped: int) -> bool:
+        """Act on a movement key. True if it changed anything.
+
+        `held` is how many lines the ring has; `dropped` how many it has
+        already let go, which together give the absolute number of its oldest.
+        Returns False for a key that could not move — pressing `up` at the top
+        must not park a view that was following, or the band would announce a
+        state the operator did not ask for.
+        """
+        if key not in keys.MOVES:
+            return False
+        if key == "end":
+            was = self.parked
+            self.follow()
+            return was
+
+        oldest, newest_top = dropped, dropped + max(0, held - height)
+        current = self.anchor if self.parked else newest_top
+        step = {"up": -1, "down": 1, "pgup": -height, "pgdn": height}.get(key)
+        target = oldest if key == "home" else current + step
+
+        target = max(oldest, min(target, newest_top))
+        # Scrolling back to the bottom resumes following rather than parking
+        # there, so the view starts moving again on its own — which is what the
+        # operator means by returning to the end.
+        if target >= newest_top:
+            was = self.parked
+            self.follow()
+            return was or current != newest_top
+        if self.anchor == target:
+            return False
+        self.anchor = target
+        return True
+
+    def window(self, lines: list, *, height: int, dropped: int) -> tuple[list, int, int]:
+        """The lines to draw, and their 1-based place among the ones held.
+
+        Numbered against what the ring *holds* rather than against everything
+        it has seen, because that is what the band's `of N` already means and
+        two numbering schemes in one line would be worse than none.
+        """
+        held = len(lines)
+        if not self.parked:
+            shown = lines[-height:] if height < held else lines
+            return shown, held - len(shown) + 1, held
+
+        top = max(0, min(self.anchor - dropped, max(0, held - height)))
+        self.anchor = top + dropped
+        return lines[top : top + height], top + 1, min(top + height, held)
 
 
 def stream_body(lines, ruleset=None) -> Text:

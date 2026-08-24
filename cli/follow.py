@@ -127,6 +127,12 @@ def follow(
     you leave; `--screen` uses the alternate screen instead, which shows the
     whole ring and hands the terminal back as it was.
 
+    **Arrows, PgUp/PgDn and Home scroll back through the ring**, and `End`
+    returns to following. Scrolling *parks* the view — lines keep arriving and
+    the frame holds still — and the band says where you are, `showing 41-60 of
+    200 · parked`. There is no search: a line that left the ring is gone, so
+    grep the file rather than this.
+
     `--save` keeps the line, then follows it:
 
         tb follow --save cron -- journalctl -f
@@ -236,6 +242,7 @@ def follow_process(
         raise click.UsageError(f"no such command: {argv[0]}")
 
     exited_at: float | None = None
+    view = resident.Viewport()
 
     def frame() -> Group:
         nonlocal exited_at
@@ -243,6 +250,10 @@ def follow_process(
         if code is not None and exited_at is None:
             exited_at = clock()
         kept = child.lines()
+        height = resident.room(out) if not screen else max(1, out.height - 2)
+        shown_lines, first, last = view.window(
+            kept, height=height, dropped=child.dropped
+        )
         facts = chrome_.stream(
             source,
             last_line_at=child.last_line_at,
@@ -252,16 +263,30 @@ def follow_process(
             ring_limit=limit,
             due=due,
             now=clock(),
+            ring_first=first,
+            ring_last=last,
+            parked=view.parked,
         )
         top, bottom = chrome_.status_bands(facts, clock(), out.width)
-        body = resident.stream_body(kept, ruleset)
-        # The tail, always: a stream's interesting end is the newest line,
-        # and the ring outruns the terminal on every frame. See [[follow]] r2.
-        shown = body if screen else resident.clip(body, resident.room(out), tail=True)
+        # Sliced before rendering rather than clipped after, so the lines that
+        # are drawn are the lines that were tinted, and the band's numbers
+        # describe exactly what is on screen. Following takes the tail, which
+        # is what round 2's `clip(tail=True)` did and why this replaces it.
+        shown = resident.stream_body(shown_lines, ruleset)
         return Group(band_text(top), shown, band_text(bottom))
 
+    def scroll(key: str) -> bool:
+        return view.move(
+            key,
+            height=resident.room(out) if not screen else max(1, out.height - 2),
+            held=len(child.lines()),
+            dropped=child.dropped,
+        )
+
     try:
-        resident.hold(frame, console=out, screen=screen, ticks=ticks, wait=wait)
+        resident.hold(
+            frame, console=out, screen=screen, ticks=ticks, wait=wait, on_key=scroll
+        )
     finally:
         # Streams die with their window. The terminal's window is the loop,
         # and `q` closing it is the same act Ctrl-C was.
