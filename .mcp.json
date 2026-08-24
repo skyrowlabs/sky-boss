@@ -2,7 +2,7 @@
   "mcpServers": {
     "toolbox": {
       "type": "stdio",
-      "command": "tb",
+      "command": "./tb",
       "args": ["mcp"]
     }
   }
