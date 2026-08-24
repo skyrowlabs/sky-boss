@@ -11,10 +11,16 @@
 - build in embedded scrolling for follow command — reopens [[refresh]] round 2's "a resident
   view is a view"; the chrome band is already the scrollbar, the real cost is a follow/parked
   mode. Canvas already scrolls, so this is terminal-only
-- an opt-in `--pty` for follow: one flag answers both things measured 2026-08-22 — a tool's own
-  colour (lost because its stdout is a pipe: 6,044 escapes in a terminal, zero under tb) and a
-  slow tool's lines stuck in an 8 KB buffer. [[follow]] refuses a pty as the *default*, on the
-  grounds that follow is not tmux; opt-in with stated costs is a different question
+- an opt-in `--pty` for follow — **re-measured 2026-08-23 and the case is now half of what it
+  was.** The buffering half is already fixed: `child_env(stream=True)` sets `PYTHONUNBUFFERED=1`
+  ([[subprocess-env]] round 3), so a Python child streams line by line under tb where a raw pipe
+  holds everything to exit. For a *non*-Python tool `stdbuf -oL` works — measured on a C binary,
+  2.00s-all-at-once becomes 0.4s apart — and it needs no tb feature at all, because
+  `tb follow -- stdbuf -oL <cmd>` is an argv the operator can type and save. What is left is only a
+  tool's **auto** colour (`git log --oneline` emits 0 escapes to a pipe, 80 with colour forced),
+  bought at the cost of control sequences in the ring, resize handling, and the child believing it
+  is interactive — which means pagers and progress bars. Weaker than it looked; shelve unless the
+  colour alone is worth it
 - ~~a log analyzer / view setup utility~~ — answered: lnav 0.14.0 headless already emits JSON
   (`lnav -n -q -c ';SELECT …' -c ':write-json-to -'`), so it is a `tb data --from json --` source
   and a saved tool, not a new command. Measured 2026-08-23
