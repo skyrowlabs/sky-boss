@@ -8,9 +8,9 @@
   -- claude -p …` already works, and a pipeline is a shell pipe). The inverse is spec'd as
   [[mcp]] — the toolbox offered to an agent over stdio
 - ~~future runs (non crontab or systemd), tb run --delay=[seconds] [cmd]~~ — spec'd as [[delay]]
-- build in embedded scrolling for follow command — reopens [[refresh]] round 2's "a resident
-  view is a view"; the chrome band is already the scrollbar, the real cost is a follow/parked
-  mode. Canvas already scrolls, so this is terminal-only
+- ~~build in embedded scrolling for follow~~ — shipped as [[follow]] round 3. The inherited
+  rejection relied on "scrollback and `less` already exist", which is false for a follow: a line
+  pushed out of the visible frame was never printed anywhere
 - an opt-in `--pty` for follow — **re-measured 2026-08-23 and the case is now half of what it
   was.** The buffering half is already fixed: `child_env(stream=True)` sets `PYTHONUNBUFFERED=1`
   ([[subprocess-env]] round 3), so a Python child streams line by line under tb where a raw pipe

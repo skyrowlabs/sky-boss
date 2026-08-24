@@ -137,6 +137,16 @@ class ChildStream:
 
     # ------------------------------------------------------------- observing
 
+    @property
+    def dropped(self) -> int:
+        """How many lines the ring has already let go.
+
+        Exposed here rather than reached for through `.ring`, because the
+        viewport needs it from both stream kinds and a caller that knew the
+        shape of the ring would have to know it twice. See [[follow]] round 3.
+        """
+        return self.ring.dropped
+
     def lines(self) -> list[Line]:
         with self._lock:
             return self.ring.lines()

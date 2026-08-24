@@ -1,7 +1,7 @@
 ---
 status: complete
 created: 2026-08-21
-updated: 2026-08-22
+updated: 2026-08-23
 agent_value: 3
 key_files:
   - cli/stream.py
@@ -93,6 +93,72 @@ leaves (and kills)"). The frame is drawn inline below the prompt by default, kee
 
 ## Phases
 
+### Round 3 — a follow you can look back through (2026-08-23)
+
+From the ideas list: *"build in embedded scrolling for follow."*
+
+**The inherited rejection does not survive being read carefully.** [[refresh]] round 2 rejected
+scrolling with *"a resident read is a view, not a pager, and the moment it grows a scroll position
+it owes the operator a scrollbar and a search"*, and added *"scrollback and `less` already exist."*
+That last sentence is true of a refreshing read drawing inline: each frame is printed, so the
+terminal's history holds what went by.
+
+**It is false of a follow.** The ring holds 200 lines; the frame shows the ones that fit. A line
+pushed out of the visible frame **was never printed** — it lives in tb's memory and nowhere else,
+so there is no scrollback holding it and no file for `less` to open. Under `--screen` the terminal's
+history is untouched by design. The one escape hatch the rejection named does not exist here, which
+is what makes this a reversal rather than a re-litigation.
+
+**The scrollbar debt is real and is already paid.** The chrome band says `showing last 200` today.
+A parked view says `showing 41–60 of 200`, which is a scrollbar written out — position and extent,
+in the band that exists to carry exactly this. [[chrome]] built the slot; this fills it.
+
+**The search debt is real and stays unpaid, deliberately.** The original bundled two obligations and
+only one of them belongs to a scroll position. *Where am I* is owed by scrolling. *Find me a line*
+is owed by a **pager**, and this does not become one: there is no file to open, no `/`, no `n`, no
+match count. A bounded ring is the wrong place to search — the answer for a file is `grep` or lnav
+on the file, and for a stream it is [[highlight]], which already tints the operator's declared words
+as they arrive. Round 3 adds a viewport, not a query.
+
+### Parked, and what happens to the lines that keep coming
+
+Scrolling up **parks** the view: the ring keeps filling, the frame holds still, and the band says
+so. `End` resumes following and jumps to the newest line. This is the only behaviour that makes
+scrolling worth having — a view that snapped back to the tail on every arriving line would be
+unusable on exactly the busy log you scrolled up to read.
+
+**The ring still evicts while you are parked, and the band tells the truth about it.** Holding a
+line on screen forever would mean an unbounded ring, which is the rule [[canvas]] set and this doc
+inherited. So the viewport is anchored to an absolute line number, clamped to the oldest line still
+held; when eviction catches up with you the numbers walk to `showing 1–20 of 200` and stay there.
+Nothing is invented to explain it because the band already reads correctly.
+
+**Does not do:**
+
+- **No search, no `/`, no `n`.** Argued above. It is the difference between a viewport and a pager.
+- **No selection, no copy, no mouse.** The terminal owns those and does them better.
+- **No unbounded ring.** Parking does not make tb keep more than it kept before.
+- **Not the refreshing read**, this round. A follow scrolls a *ring*; `--refresh` re-renders a
+  *snapshot*, where holding a position across a redraw asks a question this round does not have to
+  answer — did the content move under you, and is line 40 still the same line 40. Different
+  mechanism, different doc, and [[refresh]] can have it if it earns it.
+
+- [x] **The key reader decodes instead of draining.** `_drain` swallows an arrow key's bytes today
+      so a bare Esc still means leave; it becomes `_sequence`, returning a name — `up`, `down`,
+      `pgup`, `pgdn`, `home`, `end` — while a truly bare Esc still leaves by the same
+      nothing-followed test that already distinguishes them. Pure, against a fake stream, since
+      there is no terminal in the suite.
+- [x] **A viewport, pure.** Offset arithmetic over a ring in one place: park, move, clamp to the
+      oldest line still held, and resume. Injected everything, no I/O, so the eviction case is a
+      test rather than a wait.
+- [x] **Both follow forms scroll**, process and cursor alike, through the frame each already
+      builds. A view with nothing above it is not parked by pressing `up` at the top.
+- [x] **The band becomes the scrollbar.** `showing 41–60 of 200 · parked` from the chrome facts,
+      in both renderings — the canvas scrolls natively, so it takes the *facts* and keeps its own
+      scrollbar.
+- [x] **Help says how.** The keys, and that `End` resumes following, because [[refresh]]'s own rule
+      is that help is the doc.
+
 ### Round 2 — leaving a stream, and what it leaves behind (2026-08-22)
 
 [[refresh]] round 2 gave the resident *read* `q`, `Esc` and an inline redraw, on the operator's
@@ -138,6 +204,13 @@ inverted. So the round adds a direction to the clip rather than reusing it as-is
   window would cross it.
 - **No scrolling or paging.** Inherited unchanged from [[refresh]] round 2 — a resident view is
   a view. Scrollback and `less` already exist.
+
+  *Reversed in round 3 (2026-08-23), and only half of it was ever true here. The argument was
+  written for a refreshing **read**, where the terminal's own scrollback does hold the frames that
+  scrolled past. A **follow redraws a ring in place**, so a line that leaves the visible frame was
+  never printed to the terminal at all — `less` cannot reach it and neither can scrollback, because
+  it exists only in tb's memory. The rejection was inherited without noticing that the thing it
+  relied on is absent in the form that inherited it. See Round 3.*
 - **No change to dispatch, the ring, the chrome, or the canvas.** This round is how a terminal
   follow is left and where it draws. The canvas's follow windows are unaffected: they close by
   closing, which was never in doubt.
@@ -218,6 +291,44 @@ What the execution argued back:
 - **The session's `finally` sends SIGTERM fire-and-forget** rather than waiting out the grace
   period: it runs inside `GeneratorExit`, where a blocking wait has nowhere to happen. The
   terminal form waits properly; a canvas child that ignores SIGTERM is reaped at server exit.
+
+### Round 3 — shipped, and the band absorbed a marker (2026-08-23)
+
+The reversal held under building. The one thing the spec did not see coming is that scrolling
+**found an existing lie** rather than only adding a capability.
+
+**`showing last 200` was wrong whenever the terminal was smaller than the ring** — which is every
+inline follow, since the ring holds 200 against a terminal's forty. The band said 200 and forty
+were drawn; a separate `N more lines not shown` marker from `clip()` admitted that something was
+missing. Two places each telling half the truth, and neither telling it alone. The viewport made
+the exact answer available, so the band now says `showing 33–40 of 40` while *following* too, and
+the marker is gone. `showing last N` survives for the one case where it was never lying: everything
+held is on screen.
+
+**Slicing moved before rendering.** Round 2 rendered the whole ring and clipped the rendered text.
+That is fine for a tail and wrong for a window — the lines drawn would not be the lines
+[[highlight]] tinted, and the band's numbers would describe a different set than the one on screen.
+Lines are sliced first now, which also means a parked view does no work on the 160 lines it is not
+showing.
+
+**The anchor is absolute and that is the whole eviction story.** An offset counted from the oldest
+*held* line slides under the operator every time a line arrives — you would scroll to the top and
+drift downward while standing still. Counting from the first line the stream ever produced and
+clamping to what is still held makes the view walk to the top and stop, which is correct and also
+what it looks like. Two lines of arithmetic; the alternative would have needed a rule.
+
+**`_drain` became `_sequence`, which is the same test with the answer kept.** Round 2 already had to
+distinguish a bare Esc from an arrow key's first byte, and already did it by asking whether anything
+followed. It threw the sequence away. Decoding it required no new mechanism, and the risk it
+guarded — Up quitting the window — is now covered by a test that presses Up twice.
+
+**`select` on a fake stream polls the real stdin**, which cost a confused minute reading correct
+code as broken. `_sequence` takes its readiness check for the same reason every clock here is
+injected, and the suite's fake now answers from the buffer it is actually reading.
+
+**Both stream kinds grew a `dropped` property** so no caller reaches through `.ring`. The first
+attempt put it on `Ring`, which already had one — worth recording only because the duplicate was
+silent and the error surfaced two layers away as `ChildStream has no attribute dropped`.
 
 ### Round 2 — drafted, awaiting the word (2026-08-22)
 

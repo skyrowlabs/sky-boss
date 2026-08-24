@@ -100,6 +100,10 @@ class FakeChild:
         return self._ring.lines()
 
     @property
+    def dropped(self):
+        return self._ring.dropped
+
+    @property
     def last_line_at(self):
         return self._ring.last_at
 
@@ -279,7 +283,12 @@ def test_the_alternate_screen_is_no_longer_the_default_for_a_stream():
 def test_an_inline_frame_shows_the_newest_lines_not_the_oldest():
     """The clip direction, end to end. The ring holds 200 lines against a
     terminal's forty, so *every* inline follow frame is clipped — a follow
-    that kept the head would pin the oldest lines and never show a new one."""
+    that kept the head would pin the oldest lines and never show a new one.
+
+    Round 3 replaced the clip marker with the band's own range. The old
+    `N more lines not shown` said *that* something was missing beside a band
+    saying `showing last 200` while forty were drawn — two places each telling
+    half the truth. `showing 33–40 of 40` says both at once."""
     from rich.console import Console
 
     child = FakeChild([(f"line {i}", False) for i in range(40)])
@@ -299,7 +308,8 @@ def test_an_inline_frame_shows_the_newest_lines_not_the_oldest():
     )
     text = recording.export_text()
     assert "line 39" in text and "line 0" not in text
-    assert "more lines not shown" in text
+    # Round 3: the band carries the range instead of a separate marker.
+    assert "showing " in text and " of " in text
 
 
 def test_the_screen_flag_reaches_both_forms(monkeypatch):
@@ -415,3 +425,68 @@ def test_no_due_is_no_expectation(monkeypatch):
     )
     CliRunner().invoke(cli, ["follow", "x/y.log"])
     assert calls["due"] == 0
+
+
+# ── Round 3: a follow you can look back through ─────────────────────────────
+
+
+def _scrolling(keys_pressed, ticks=None):
+    """Drive a follow through a scripted keyboard and record what it drew.
+
+    Keys are the *names* `wait` returns, not the bytes a terminal sends —
+    decoding is `cli/keys.py`'s job and is tested there against a fake stream.
+    """
+    from rich.console import Console
+
+    child = FakeChild([])
+    child._ring = Ring(limit=200)
+    for i in range(40):
+        child._ring.push(Line(text=f"line {i}", stderr=False, at=100.0))
+
+    pressed = iter([*keys_pressed, "q"])
+    recording = Console(record=True, width=70, height=12, force_terminal=True)
+    follow_process(
+        ["journalctl", "-f"],
+        clock=lambda: 160.0,
+        wait=lambda s: next(pressed, "q"),
+        console=recording,
+        screen=False,
+        ticks=ticks if ticks is not None else len(keys_pressed) + 2,
+        spawn=lambda *a, **k: child,
+    )
+    return recording.export_text()
+
+
+def test_a_following_follow_shows_the_newest_lines():
+    text = _scrolling([])
+    assert "line 39" in text and "parked" not in text
+
+
+def test_scrolling_up_parks_and_the_band_says_so():
+    text = _scrolling(["pgup"])
+    assert "parked" in text
+
+
+def test_a_parked_follow_shows_older_lines():
+    text = _scrolling(["home"])
+    assert "line 0" in text
+
+
+def test_end_returns_to_the_tail():
+    text = _scrolling(["home", "end"])
+    # The last frame drawn is the following one, so the newest line is back.
+    assert text.rstrip().count("line 39") >= 1
+
+
+def test_the_band_carries_the_position_while_following_too():
+    """The old band said `showing last 200` while drawing forty of them and
+    leaned on a separate clip marker to admit it."""
+    text = _scrolling([])
+    assert "showing " in text and " of " in text
+
+
+def test_a_movement_key_does_not_close_the_window():
+    """Round 2 drained arrow keys precisely so Up could not quit. Round 3
+    decodes them, and the loop must still not treat one as leaving."""
+    text = _scrolling(["up", "up"])
+    assert "line" in text
