@@ -355,7 +355,7 @@ primitive-level change. `docs/features/done/` holds the completed docs — `canv
 surface, five rounds), `follow.md` (the streaming substrate), `tools.md` (saved commands, three
 rounds), `highlight.md` (lexical tint, four rounds), `capture.md` (declared structure),
 `refresh.md`, `header.md` (the mark), `text-reads.md`, `subprocess-env.md`, `table-views.md` (the
-shaping contract, four rounds), `roll-call.md` (federating over projects), `file-follow.md` (the
+shaping contract, five rounds), `roll-call.md` (federating over projects), `file-follow.md` (the
 native cursor, two rounds), `chrome.md` (what a window knows about its output, three rounds), `mcp.md` (the toolbox offered to
 an agent), `delay.md` (once, later), and the constitution's rounds as they land.
 **`docs/features/` is empty** — as of 2026-08-23 every spec written has been executed. Every earlier

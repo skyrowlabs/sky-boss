@@ -1,5 +1,5 @@
 ---
-status: active
+status: complete
 created: 2026-08-20
 updated: 2026-08-23
 agent_value: 3
@@ -448,6 +448,41 @@ ignore a warning.
 - [x] Verify against the live canvas headless, per [[canvas]] — the frontend still has no runner.
 
 ## Notes
+
+### Round 5 — the twin silence, and a suite that was never width-independent (2026-08-23)
+
+Round 4's lesson was *a discarded flag is never silent*. This round is the same sentence with the
+verb changed: **a flag that was obeyed can still leave something unsaid.** `--cols nope` was applied
+exactly as asked, `_describe` resolved it against every row and correctly reported a column whose
+every value is missing, and each layer behaved. The gap was that nothing joined "the operator named
+this by hand" to "no row has ever heard of it".
+
+Worth keeping because it generalises: round 4's defect was a *layer not being reached*, which is
+findable by reading the code. This one is a *fact nobody owned*, which is only findable by using the
+thing. Both were found the same way — pointing it at real data — and neither by review.
+
+**The wording carries the diagnosis.** "No row has this field" and "every value is empty" look like
+the same complaint and want opposite fixes: a typo or a rename versus a tool that genuinely returned
+nothing this time. Rule 1 already distinguished them for the heuristic; this makes the distinction
+visible to the operator, who is the one who can act on it.
+
+**And the canvas nearly kept the bug.** The round was specced with three boxes, none of them the
+frontend, which would have shipped a fix in the terminal and left `render.js` drawing the dash
+column exactly as before. `missing` is a property of the *run* — like `hidden`, unlike width fitting
+— so it belongs in the envelope and is drawn identically in both. One contract, two renderings, or
+it is not a contract.
+
+**The suite was never width-independent.** Measured while hardening [[delay]]'s assertions: tests
+across four files failed at 40, 60 and 200 columns while passing at 80, and nobody had noticed
+because every run had been 80. Most were message-wrapping and now read through a `said` fixture. The
+two here were different and more interesting — they are *about* fitting, which is width arithmetic
+by round 3's design, so borrowing the ambient terminal made them test whichever width the runner
+happened to have. One carried a comment claiming its floors were wide enough "in any console the
+suite runs under", which was true only of the consoles it had been run under.
+
+They now declare `capture(width=80)`, and reading through `capture` meant `_body` had to strip ANSI
+— `capture` keeps escapes on purpose, since the whole point is rendering them again somewhere else.
+The suite is now clean from 40 to 300 columns.
 
 ### Round 4 — shipped, and what the implementation argued back (2026-08-23)
 
