@@ -24,12 +24,9 @@
   cursor row. The leading `|` gutter is rejected — it breaks copy-paste and `tb read` is verbatim
   by contract
 - ~~a centralized system to manage how six projects' agents work~~ — spec'd as [[roll-call]]
-- `--cols` naming a column that does not exist renders a column of dashes rather than saying so.
-  The same silence [[table-views]] round 4 was opened for, one level along: the flag *was* applied,
-  it just named nothing. Found while verifying [[roll-call]] round 1 against real data
-- two table tests inherit the ambient terminal width instead of pinning one, so they fail at 40 and
-  at 200 columns while passing at 80 — `test_a_detail_column_gets_its_own_line_under_the_record`
-  and `test_a_column_that_did_not_fit_is_reported_in_the_drawing`. Fitting is width arithmetic by
-  [[table-views]] round 3's design, so the tests should declare a width rather than borrow one.
-  Found while hardening the message-wrap assertions in [[delay]]
+- ~~`--cols` naming a column that does not exist renders dashes rather than saying so~~ — fixed as
+  [[table-views]] round 5; still drawn, now reported, in both renderers
+- ~~two table tests inherit the ambient terminal width instead of pinning one~~ — fixed as
+  [[table-views]] round 5. The suite is now clean from 40 to 300 columns; it had passed only at 80
+  since it was written
 
