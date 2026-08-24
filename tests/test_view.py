@@ -392,3 +392,52 @@ def test_shape_shapes_a_wrapped_payload(wrapped):
 def test_shape_leaves_an_ambiguous_payload_alone():
     view = shape({"jobs": [{"a": 1}], "errors": [{"b": 2}]}, cols=["a"])
     assert view is None
+
+
+# ── Round 5: a named column that is not there ───────────────────────────────
+
+
+def test_a_named_column_no_row_carries_is_reported(rows):
+    view = shape(rows, cols=["number", "nope"])
+    assert view["missing"] == ["nope"]
+
+
+def test_a_named_column_is_still_drawn_when_missing(rows):
+    """"Nothing matched" is frequently the answer being looked for, so an
+    explicit column is drawn even when empty. Drawn *and* reported."""
+    view = shape(rows, cols=["number", "nope"])
+    assert [c["key"] for c in view["columns"]] == ["number", "nope"]
+
+
+def test_a_field_that_exists_and_is_empty_is_not_missing():
+    """The distinction the warning has to make: a column that is null in every
+    row is data. A column no row has is a typo or a rename."""
+    view = shape([{"a": 1, "b": None}, {"a": 2, "b": None}], cols=["a", "b"])
+    assert "missing" not in view
+
+
+def test_a_field_only_some_rows_carry_is_not_missing():
+    """`columns_of` reads every row, not the first — a row carrying a field the
+    others lack is exactly what a table about what is wrong must not lose."""
+    view = shape([{"a": 1}, {"a": 2, "b": 3}], cols=["b"])
+    assert "missing" not in view
+
+
+def test_a_dotted_path_that_resolves_nowhere_is_missing(rows):
+    assert shape(rows, cols=["checks.nope"])["missing"] == ["checks.nope"]
+
+
+def test_a_dotted_path_that_resolves_is_not_missing(rows):
+    assert "missing" not in shape(rows, cols=["checks.passed"])
+
+
+def test_missing_is_omitted_rather_than_empty(rows):
+    """The rule `rows` and `view` itself were added under: an envelope with
+    nothing to say stays byte-identical to one from before this existed."""
+    assert "missing" not in shape(rows, cols=["number"])
+
+
+def test_the_heuristic_never_reports_missing(rows):
+    """Only a *named* column can be missing. The heuristic reads the keys off
+    the rows, so it cannot name one that is not there."""
+    assert "missing" not in shape(rows)

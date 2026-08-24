@@ -351,6 +351,19 @@ def parse_text(
         asked = ", ".join(f"--{name}" for name, v in (("cols", cols), ("drop", drop)) if v)
         result.warn(f"{asked} not applied — {found.reason}")
 
+    if result.view and result.view.get("missing"):
+        # Named by hand and carried by no row. Worded to say *which* problem it
+        # is: a field nothing has is a typo or a rename, where a field that is
+        # present and empty is a tool that returned nothing this time, and the
+        # two want different fixes. The column is still drawn — "nothing
+        # matched" is often the answer being looked for. See [[table-views]]
+        # round 5.
+        absent = result.view["missing"]
+        result.warn(
+            f"no row has {'this field' if len(absent) == 1 else 'these fields'}: "
+            f"{', '.join(absent)} — drawn empty, in case that is the answer"
+        )
+
     if result.view:
         # Only what the operator did *not* ask to lose. A silently hidden
         # column is the "looks right and isn't" failure — the table reads as

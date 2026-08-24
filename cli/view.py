@@ -233,6 +233,31 @@ def find_rows(data, path: str | None = None) -> Found:
     )
 
 
+def _absent(rows: list[dict], keys: list[str]) -> list[str]:
+    """Named columns that no row carries at all.
+
+    **Not the same question as "empty in every row".** A column that exists and
+    is null everywhere is data — "nothing matched" is frequently the answer
+    being looked for, and rule 1 drops such a column only when the operator did
+    *not* name it. A column that appears in no row's keys is something else: a
+    typo, a renamed field, or a guess at a shape the tool does not have.
+
+    Dotted paths are checked against the resolved value rather than the key
+    set, because `checks.failed` is never a key of the row. That makes a dotted
+    path absent only when it resolves to nothing in every row, which is the
+    closest honest equivalent. See [[table-views]] round 5.
+    """
+    present = set(columns_of(rows))
+    missing = []
+    for key in keys:
+        if "." in key:
+            if all(resolve(row, key) is None for row in rows):
+                missing.append(key)
+        elif key not in present:
+            missing.append(key)
+    return missing
+
+
 def view_for(view: dict | None, key: str) -> dict | None:
     """The view describing one nested key, or None.
 
@@ -332,7 +357,9 @@ def shape(
         chosen = [_describe(key, rows, dotted="." in key) for key in cols]
         inline = [c for c in chosen if not _is_prose(rows, c["key"])]
         details = [c for c in chosen if _is_prose(rows, c["key"])]
-        return _view(inline, details, [], found.key)
+        # Drawn *and* reported. Drawing it answers the question the operator
+        # asked; saying so answers the one they did not know to ask.
+        return _view(inline, details, [], found.key, missing=_absent(rows, cols))
 
     if not enabled:
         return None
@@ -365,7 +392,7 @@ def shape(
     return _view(columns, details, hidden, found.key)
 
 
-def _view(columns, details, hidden, key: str | None) -> dict:
+def _view(columns, details, hidden, key: str | None, missing: list[str] | None = None) -> dict:
     """The view, plus the key its rows came from when they came from one.
 
     **Omitted rather than null** when the payload was already a list, so an
@@ -375,4 +402,6 @@ def _view(columns, details, hidden, key: str | None) -> dict:
     view = {"columns": columns, "details": details, "hidden": hidden}
     if key:
         view["rows"] = key
+    if missing:
+        view["missing"] = missing
     return view

@@ -409,3 +409,31 @@ def test_a_shaping_warning_does_not_make_the_result_partial():
     result, envelope = invoke(["--cols", "a", "--", "printf", '{"generated": "x"}'])
     assert envelope["partial"] is False
     assert result.exit_code == 0
+
+
+def test_a_column_no_row_carries_is_named_in_a_warning():
+    _, envelope = invoke(["--cols", "a,nope", "--", "printf", '[{"a": 1}]'])
+    assert any("no row has this field: nope" in w for w in envelope["warnings"])
+
+
+def test_the_warning_says_the_column_was_still_drawn():
+    """Because it was — and because "nothing matched" is often the answer."""
+    _, envelope = invoke(["--cols", "a,nope", "--", "printf", '[{"a": 1}]'])
+    assert any("drawn empty" in w for w in envelope["warnings"])
+    assert [c["key"] for c in envelope["view"]["columns"]] == ["a", "nope"]
+
+
+def test_several_missing_columns_read_as_plural():
+    _, envelope = invoke(["--cols", "a,x,y", "--", "printf", '[{"a": 1}]'])
+    assert any("these fields: x, y" in w for w in envelope["warnings"])
+
+
+def test_a_present_but_empty_column_is_not_warned_about():
+    _, envelope = invoke(["--cols", "a,b", "--", "printf", '[{"a": 1, "b": null}]'])
+    assert envelope.get("warnings", []) == []
+
+
+def test_a_missing_column_does_not_make_the_result_partial():
+    result, envelope = invoke(["--cols", "nope", "--", "printf", '[{"a": 1}]'])
+    assert envelope["partial"] is False
+    assert result.exit_code == 0
