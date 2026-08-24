@@ -1,5 +1,5 @@
 ---
-status: complete
+status: active
 created: 2026-08-20
 updated: 2026-08-23
 agent_value: 3
@@ -214,6 +214,65 @@ change at all** — `app.js` already treats everything past the command name as 
   half-supported.
 
 ## Phases
+
+### Round 5 — a named column that is not there (2026-08-23)
+
+Round 4 closed one silence and left its twin open, one step along. Found while verifying
+[[roll-call]] against real data, where guessing a payload's field names is exactly what an operator
+does:
+
+```
+tb data --cols a,nope,b -- printf '[{"a":1,"b":2}]'
+
+A  NOPE  B
+──────────
+1  -     2
+```
+
+`NOPE` is drawn, in full, as a column of dashes. Nothing says the field does not exist.
+
+**This is not the same bug as round 4's and the difference matters.** There, the flag was
+*discarded* and the fix was to say so. Here the flag was **applied exactly as asked** — `_describe`
+resolves the key against every row, finds nothing, and correctly reports a column whose every value
+is missing. Each layer is behaving. What is absent is anyone noticing that a column the operator
+named by hand is empty in every row *for the reason that it was never a field*.
+
+**Rule 1 already knows how to tell.** *Drop a column that is empty in every row* — and it is
+deliberately not applied to `--cols`, because *"an explicit column list defeats every rule; the
+operator looked at the table and said what they wanted, and a heuristic that argued would be a
+bug."* That stays right: a named column must be drawn even when empty, since *"nothing matched"* is
+frequently the answer being looked for. What changes is that it must also be **reported**, and the
+two are not in tension — drawing it answers the operator's question, saying so answers the one they
+did not know to ask.
+
+The distinction the warning has to make: a column that exists and is empty in every row is data. A
+column that appears in **no row's keys at all** is a typo, or a field that was renamed, or a guess
+at a shape the tool does not have.
+
+**And the suite borrows a width it should declare.** Two tests in `test_output.py` inherit the
+ambient terminal and so pass at 80 columns and fail at 40 and 200 — measured while hardening
+[[delay]]'s assertions. Fitting *is* width arithmetic by round 3's design, which makes these the
+two tests in the repo that must name the width they are testing rather than accept whichever one
+the terminal happened to have. The suite was width-dependent before this and nothing noticed,
+because every run happened to be 80 columns.
+
+**Does not do** gains:
+
+- **Does not drop a named column that is missing.** It is drawn, because "nothing matched" is often
+  the answer. It is drawn *and reported*.
+
+- [x] **`shape()` reports a named column no row carries.** Pure, in `cli/view.py`, beside the rules
+      it does not become one of — a `missing` list on the view, empty and omitted when there is
+      nothing to say, the same rule `rows` and `view` itself were added under.
+- [x] **`tb data` warns, naming them.** The wording distinguishes "no row has this field" from
+      "every value is empty", because the fixes are different — a typo versus a tool that returned
+      nothing this time.
+- [x] **The two width tests declare their width.** `test_a_detail_column_gets_its_own_line_under_the_record`
+      and `test_a_column_that_did_not_fit_is_reported_in_the_drawing` render against a stated
+      console rather than the ambient one, and the suite passes at 40, 80 and 200.
+- [x] **Both renderers report it.** Added during the round: `missing` is a property of the *run*
+      like `hidden`, so leaving it out of `render.js` would have fixed the defect in the terminal
+      and kept it on the canvas — one contract, two renderings, or it is not a contract.
 
 ### Round 4 — a payload is not always a list (2026-08-23)
 

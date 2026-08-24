@@ -15,6 +15,7 @@ from cli.output import (
     EXIT_OK,
     EXIT_PARTIAL,
     Result,
+    capture,
     _cell,
     emit,
     exit_code,
@@ -102,15 +103,21 @@ def test_json_stdout_is_pure_json(capsys):
 def _body(out: str) -> list[str]:
     """Content lines with the header and blanks dropped.
 
+    ANSI is stripped first. `capture` keeps it on purpose — the whole point is
+    rendering it again somewhere else — so a test reading through it has to
+    take the escapes off before matching text. See [[table-views]] round 5.
+
     Asserts on content rather than column positions — layout is exactly what
     the renderer is free to change.
 
     Header rules are decoration and are dropped too, so an index into this list
     means the same thing whether or not the table was shaped.
     """
+    from cli.read import strip_ansi
+
     return [
         l.rstrip()
-        for l in out.splitlines()
+        for l in strip_ansi(out).splitlines()
         if l.strip() and not l.lstrip().startswith("●") and set(l.strip()) != {"─"}
     ]
 
@@ -533,24 +540,31 @@ def test_a_view_outranks_the_status_list_convention(capsys):
     assert _body(capsys.readouterr().out)[0].split() == ["NAME"]
 
 
-def test_a_detail_column_gets_its_own_line_under_the_record(capsys):
+def test_a_detail_column_gets_its_own_line_under_the_record():
     """A ninety-character title does not fit in a share of the width, and
     Round 1's answer — move it to the end of the row — only changed where it
-    got clipped. It gets a line."""
-    render(
-        Result(
-            "x",
-            data=[{"number": 946, "title": "a title far too long to sit inside a shared column"}],
-            view={
-                "columns": [{"key": "number", "label": "NUMBER", "flex": 1, "min": 6, "max": 6,
-                             "align": "right"}],
-                "details": [{"key": "title", "label": "TITLE", "flex": 1, "min": 5, "max": 60}],
-                "hidden": [],
-            },
-        ),
-        as_json=False,
+    got clipped. It gets a line.
+
+    **Declares its width.** Fitting is arithmetic against a console by round
+    3's design, so a test about fitting that borrows the ambient terminal is
+    testing whichever width the runner happened to have — this one passed at 80
+    and failed at 40 for a year of nobody noticing. See round 5.
+    """
+    result = Result(
+        "x",
+        data=[{"number": 946, "title": "a title far too long to sit inside a shared column"}],
+        view={
+            "columns": [
+                {"key": "number", "label": "NUMBER", "flex": 1, "min": 6, "max": 6,
+                 "align": "right"}
+            ],
+            "details": [{"key": "title", "label": "TITLE", "flex": 1, "min": 5, "max": 60}],
+            "hidden": [],
+        },
     )
-    body = _body(capsys.readouterr().out)
+    with capture(width=80) as captured:
+        render(result, as_json=False)
+    body = _body(captured.text)
     assert body[0].split() == ["NUMBER"]
     assert "946" in body[1]
     # In full, not clipped — that is the entire point of the change.
@@ -649,20 +663,26 @@ def test_the_first_column_is_kept_however_narrow_the_terminal():
     assert [c["key"] for c in kept] == ["c0"] and over == ["c1"]
 
 
-def test_a_column_that_did_not_fit_is_reported_in_the_drawing(capsys):
+def test_a_column_that_did_not_fit_is_reported_in_the_drawing():
     """Not in the envelope: it is a fact about this drawing at this width, and
-    widening the terminal changes it. `hidden` stays the run's business."""
+    widening the terminal changes it. `hidden` stays the run's business.
+
+    **Declares its width**, for the reason the detail test above does — and
+    more sharply, since this one asserts *how many* columns did not fit, which
+    is a different number at 40 columns and at 200. The old version borrowed
+    the terminal and its comment claimed the floors were wide enough "in any
+    console the suite runs under", which was true only of the consoles it had
+    been run under. See round 5.
+    """
     rows = [{"a": 1, "b": 2, "c": 3}]
-    # Floors wide enough that the second cannot fit beside the first in any
-    # console the suite runs under.
     view = {"columns": _cols(50, 50, 50), "details": [], "hidden": []}
     for column, key in zip(view["columns"], ("a", "b", "c")):
         column["key"] = key
-    _render_value(rows, title=None, view=view)
-    out = capsys.readouterr().out
-    assert "2 columns did not fit: b, c" in out
+    with capture(width=80) as captured:
+        _render_value(rows, title=None, view=view)
+    assert "2 columns did not fit: b, c" in captured.text
     # The envelope's own vocabulary stays out of the drawing's report.
-    assert "hidden" not in out
+    assert "hidden" not in captured.text
 
 
 def test_the_header_states_what_the_payload_is_and_how_big(capsys):

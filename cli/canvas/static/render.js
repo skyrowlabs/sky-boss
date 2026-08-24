@@ -170,6 +170,11 @@ function Table({ rows, view }) {
   const shaped = Boolean(view && view.columns);
   const shown = rows.slice(0, MAX_ROWS);
   const hidden = (view && view.hidden) || [];
+  /* Named by hand and carried by no row. A property of the *run*, like
+   * `hidden` and unlike the width fitting below it, so it belongs in the
+   * envelope and is drawn identically in both renderers. Without this the
+   * canvas would keep the very defect round 5 fixed in the terminal. */
+  const missing = (view && view.missing) || [];
   /* Columns you *read* rather than scan. They left the row in the shaping
    * layer, and here they get the full width on their own line beneath it —
    * indented under the second column by a spacer carrying the first column's
@@ -215,6 +220,10 @@ function Table({ rows, view }) {
       ${hidden.length > 0 &&
       html`<div class="row"><span class="truncated">
         ${hidden.length} columns hidden: ${hidden.join(", ")}
+      </span></div>`}
+      ${missing.length > 0 &&
+      html`<div class="row"><span class="truncated">
+        no row has: ${missing.join(", ")}
       </span></div>`}
     </div>
   `;
