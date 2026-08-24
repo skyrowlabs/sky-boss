@@ -27,3 +27,9 @@
 - `--cols` naming a column that does not exist renders a column of dashes rather than saying so.
   The same silence [[table-views]] round 4 was opened for, one level along: the flag *was* applied,
   it just named nothing. Found while verifying [[roll-call]] round 1 against real data
+- two table tests inherit the ambient terminal width instead of pinning one, so they fail at 40 and
+  at 200 columns while passing at 80 — `test_a_detail_column_gets_its_own_line_under_the_record`
+  and `test_a_column_that_did_not_fit_is_reported_in_the_drawing`. Fitting is width arithmetic by
+  [[table-views]] round 3's design, so the tests should declare a width rather than borrow one.
+  Found while hardening the message-wrap assertions in [[delay]]
+

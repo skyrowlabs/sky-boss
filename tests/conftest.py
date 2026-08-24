@@ -38,3 +38,24 @@ def tb_home():
     """The isolated operator home, created empty."""
     _ISOLATED_HOME.mkdir(parents=True, exist_ok=True)
     return _ISOLATED_HOME
+
+
+@pytest.fixture
+def said():
+    """A CliRunner result's text, free of how rich-click drew it.
+
+    An error renders inside a box, wrapped to whatever width rich-click
+    detects, so a phrase can be split by a newline *and* by the box border in
+    the middle of a sentence. Asserting on the raw output is therefore a test
+    about the terminal rather than about the message — seen failing at 40 and
+    200 columns while passing at 80. This strips the drawing and normalises the
+    whitespace, leaving what was actually said.
+    """
+
+    def read(result) -> str:
+        text = result.output
+        for glyph in "│╭╮╰╯─┌┐└┘":
+            text = text.replace(glyph, " ")
+        return " ".join(text.split())
+
+    return read
