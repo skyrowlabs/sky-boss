@@ -419,7 +419,7 @@ def test_the_example_names_no_operator_path():
     without publishing the operator.
 
     Asserted against the *argvs* rather than the file text. The prose is
-    allowed to say `~/.config/tb/tools.toml`, because naming the XDG default is
+    allowed to say `~/.toolbox/tools.toml`, because naming the default is
     documentation and not a path anything runs; what must never be tracked is a
     path some real machine actually has.
     """

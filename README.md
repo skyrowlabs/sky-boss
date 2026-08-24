@@ -205,7 +205,7 @@ the window wants systemd.** Cancelling exits non-zero, so a script can tell the 
 ## Saving a command
 
 `--save NAME` on `read`, `data` or `follow` saves the invocation and then runs it. It only ever
-appends to `~/.config/tb/tools.toml`, and refuses a name that exists — editing and deleting stay
+appends to `~/.toolbox/tools.toml`, and refuses a name that exists — editing and deleting stay
 `$EDITOR`'s.
 
 ```bash
@@ -230,7 +230,7 @@ cadence exactly as `tb run` is — the read/write line survives being given a na
 
 ## Many projects at once
 
-Declare what each project publishes in `~/.config/tb/projects.toml` — a command to ask, or a file
+Declare what each project publishes in `~/.toolbox/projects.toml` — a command to ask, or a file
 to read:
 
 ```toml
@@ -325,9 +325,9 @@ a shell with a reassuring name.
 
 | What | Where |
 |---|---|
-| Saved commands | `~/.config/tb/tools.toml` |
-| Capture formats and highlight rules | `~/.config/tb/formats.toml` |
-| Declared projects | `~/.config/tb/projects.toml` |
+| Saved commands | `~/.toolbox/tools.toml` |
+| Capture formats and highlight rules | `~/.toolbox/formats.toml` |
+| Declared projects | `~/.toolbox/projects.toml` |
 | Canvas browser profile | `~/.local/state/tb/` |
 
 `$TB_HOME` and `$TB_STATE` override the first three and the last. An absent file degrades to

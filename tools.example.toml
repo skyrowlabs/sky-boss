@@ -1,6 +1,6 @@
 # The toolbox — commands you save.
 #
-# Copy this to $TB_HOME/tools.toml (default ~/.config/tb/tools.toml) and edit
+# Copy this to $TB_HOME/tools.toml (default ~/.toolbox/tools.toml) and edit
 # it. You can also let tb write an entry for you: append --save=NAME to a
 # read, data or follow that just worked and it appends a block like the ones
 # below, then runs. It only ever appends — nothing above the new block is

@@ -22,13 +22,19 @@ STATE_DIR = Path(os.environ.get("TB_STATE") or Path.home() / ".local" / "state" 
 # What the *operator* authored, as opposed to what the machine generated.
 # Separate from STATE_DIR on purpose: `rm -rf ~/.local/state/tb` is a reasonable
 # thing to do to reset the surface, and it must not also delete every tool the
-# operator wrote. Config rather than state, so XDG puts it under ~/.config.
+# operator wrote.
+#
+# `~/.toolbox`, not `~/.config/tb` — moved 2026-08-23 at the operator's word.
+# XDG would put config under `~/.config`, and the argument for a visible dotdir
+# is that this one is *edited by hand and often*: tools, formats and projects
+# are content, not settings a program wrote for itself. `$TB_HOME` overrides it
+# either way, which is what the suite uses.
 #
 # Outside the repo, and with no fallback path into it. Operator content used to
 # live in the tree and a machine record carried a tailnet address into every
 # commit, so the tool could not be published without publishing the operator.
 # An absent home degrades to nothing declared rather than raising.
-TB_HOME = Path(os.environ.get("TB_HOME") or Path.home() / ".config" / "tb")
+TB_HOME = Path(os.environ.get("TB_HOME") or Path.home() / ".toolbox")
 
 # The argv this process was invoked with, after the root's `-t` rewrite and
 # before Click consumed any of it. Set once by `Root.main` in cli/__init__.py.

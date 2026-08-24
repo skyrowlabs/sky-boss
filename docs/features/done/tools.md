@@ -67,9 +67,15 @@ argv  = ["wrap", "--cols", "number,title,merge_state,behind,checks.failed",
 every = 30
 ```
 
-`$TB_HOME` defaults to `~/.config/tb/`. **Config, not state** — `$TB_STATE` already exists for the
+`$TB_HOME` defaults to `~/.toolbox/`. **Content, not state** — `$TB_STATE` already exists for the
 browser profile, which is machine-generated and something you would reasonably `rm -rf` to reset
 the canvas. A file you authored must not be in the blast radius of that.
+
+*Amended 2026-08-23: the default moved from `~/.config/tb/` to `~/.toolbox/` at the operator's
+word. The original reasoning was XDG's — config belongs under `~/.config` — and what it missed is
+that these files are **content, edited by hand and often**, not settings a program wrote for
+itself. The distinction this section actually turns on is `$TB_HOME` versus `$TB_STATE`, and that
+is untouched. Round 1's box below still says `~/.config/tb/` because that is what it shipped as.*
 
 And **not in the repo**, which is the rule [[canvas]] and `CLAUDE.md` both paid for already: the
 `--cwd` above is `~/src/jam.sense`, an operator path, exactly the class of thing that

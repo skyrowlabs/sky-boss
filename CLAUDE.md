@@ -222,9 +222,9 @@ resolving after a system update, check there first.
 | What | Where | Authored by | Versioned |
 |---|---|---|---|
 | Code, tests, docs | this repo | the project | here |
-| Saved commands (`tools.toml`) | `~/.config/tb/` (`$TB_HOME`) | the operator, and `--save` | never |
-| Capture formats and highlight rules (`formats.toml`) | `~/.config/tb/` (`$TB_HOME`) | the operator | never |
-| Declared projects (`projects.toml`) | `~/.config/tb/` (`$TB_HOME`) | the operator | never |
+| Saved commands (`tools.toml`) | `~/.toolbox/` (`$TB_HOME`) | the operator, and `--save` | never |
+| Capture formats and highlight rules (`formats.toml`) | `~/.toolbox/` (`$TB_HOME`) | the operator | never |
+| Declared projects (`projects.toml`) | `~/.toolbox/` (`$TB_HOME`) | the operator | never |
 | Browser profile for the canvas | `~/.local/state/tb/` (`$TB_STATE`) | the machine | never |
 
 **`$TB_HOME` is the operator content directory, and it is outside the repo with no fallback path
