@@ -143,12 +143,20 @@ def test_reside_renders_bands_around_the_body_and_leaves_on_interrupt():
 # ============================================================================
 
 
-def test_run_never_takes_refresh():
+def test_run_never_takes_refresh(said):
     """The absence is the act/observe split made visible. Not a future
     option — a rejected one, recorded in the constitution."""
     result = CliRunner().invoke(cli, ["run", "--refresh", "5", "--", "true"])
     assert result.exit_code == 2
-    assert "No such option" in result.output
+    # Named rather than generic since [[delay]]: Click's bare "No such option"
+    # teaches nothing to the person whose next instinct is that `--delay` is
+    # the same thing wearing a coat. The option is hidden and exists only to
+    # refuse well, so it must still not appear in help.
+    # Read through `said`: rich-click wraps into a box, so a phrase can be
+    # broken by a newline *and* by the border. Asserting on raw output is a
+    # test about the terminal rather than about the refusal.
+    assert "scheduler nobody asked for" in said(result)
+    assert "--delay" in said(result)
 
     help_text = CliRunner().invoke(cli, ["run", "--help"]).output
     assert "--refresh" not in help_text
@@ -160,15 +168,15 @@ def test_read_and_data_offer_refresh_in_help():
         assert "--refresh" in help_text
 
 
-def test_refresh_and_json_refuse_each_other():
+def test_refresh_and_json_refuse_each_other(said):
     """An endless stream of envelopes on a pipe that expects one has no
     consumer; a machine that wants a cadence is what the canvas API is for."""
     for command in ("read", "data"):
         result = CliRunner().invoke(cli, ["--json", command, "--refresh", "5", "--", "true"])
         assert result.exit_code == 2
-        assert "refuse each other" in result.output
+        assert "refuse each other" in said(result)
         # And nothing envelope-shaped leaked to stdout on the way out.
-        assert not result.output.strip().startswith("{")
+        assert not said(result).strip().startswith("{")
 
 
 def test_a_refresh_of_zero_is_a_usage_error_on_read_and_data():
@@ -342,18 +350,18 @@ def test_the_alternate_screen_is_no_longer_the_default():
     assert inspect.signature(reside).parameters["screen"].default is False
 
 
-def test_read_and_data_offer_screen_in_help():
+def test_read_and_data_offer_screen_in_help(said):
     for command in ("read", "data"):
-        help_text = CliRunner().invoke(cli, [command, "--help"]).output
+        help_text = said(CliRunner().invoke(cli, [command, "--help"]))
         assert "--screen" in help_text
         assert "alternate screen" in help_text
 
 
-def test_the_refresh_help_says_how_to_leave():
+def test_the_refresh_help_says_how_to_leave(said):
     """Help is the doc ([[refresh]]) — and the one thing the operator needed
     and could not find was the way out."""
     for command in ("read", "data"):
-        help_text = CliRunner().invoke(cli, [command, "--help"]).output
+        help_text = said(CliRunner().invoke(cli, [command, "--help"]))
         assert "q, Esc or Ctrl-C to leave" in help_text
 
 

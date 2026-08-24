@@ -143,3 +143,85 @@ def test_multi_line_output_renders_as_a_block_not_a_folded_cell(capsys):
            as_json=False)
     out = capsys.readouterr().out
     assert "PR     STATE" in out
+
+
+# ── Round 1: once, later ────────────────────────────────────────────────────
+#
+# The clock is injected throughout, for the reason the whole chrome module is:
+# proving a five-minute delay must not cost five minutes of suite.
+
+
+def test_a_pending_write_carries_no_cadence():
+    """`act` says it never carries a countdown and that still holds. What it
+    refuses is a *cadence* — a write happening again unattended forever. This
+    is one write happening once, later, which is why `fires_at` is a different
+    field from `interval`."""
+    from cli import chrome as chrome_
+
+    facts = chrome_.pending("run -- ./deploy.sh", fires_at=1000.0)
+    assert facts.shape == "act"
+    assert facts.attention == "pending"
+    assert facts.interval == 0 and facts.last_run is None
+
+
+def test_the_countdown_says_what_is_left_and_how_to_stop_it():
+    """A countdown you cannot see a way out of is one you watch helplessly."""
+    from cli import chrome as chrome_
+
+    facts = chrome_.pending("run -- ./deploy.sh", fires_at=1298.0)
+    top, bottom = chrome_.status_lines(facts, 1000.0, 78)
+    assert "runs in 4m" in top and "q cancels" in top
+    assert "nothing has run yet" in bottom
+
+
+def test_a_delay_that_reaches_its_moment_fires():
+    from cli.run import _await
+
+    ticks = iter([1000.0, 1000.0, 1003.0, 1003.0, 1003.0])
+    assert _await(("true",), 2, clock=lambda: next(ticks), wait=lambda _: None, **_quiet()) is True
+
+
+def test_leaving_the_countdown_cancels_and_nothing_runs():
+    """Cancellation is not a flag, it is the clock: `hold` returns both when
+    the operator leaves and when its ticks run out, and does not say which."""
+    from cli.run import _await
+
+    assert _await(("true",), 300, clock=lambda: 1000.0, wait=lambda _: "q", **_quiet()) is False
+
+
+def test_cancelling_exits_non_zero():
+    """A script that could not tell the difference would deploy on a
+    keystroke."""
+    import cli.run as run_
+
+    calls = []
+    original = run_._await
+    run_._await = lambda *a, **k: False
+    try:
+        result = CliRunner().invoke(cli, ["run", "--delay", "5m", "--", "echo", "no"])
+        assert result.exit_code == 1
+        assert "no" not in result.output
+    finally:
+        run_._await = original
+    assert calls == []
+
+
+def test_a_malformed_delay_is_refused_before_anything_waits(said):
+    result = CliRunner().invoke(cli, ["run", "--delay", "soon", "--", "true"])
+    assert result.exit_code == 2
+    assert "not a duration" in said(result)
+
+
+def test_delay_and_refresh_refuse_each_other_by_naming_the_reason(said):
+    result = CliRunner().invoke(cli, ["run", "--refresh", "5", "--delay", "5m", "--", "true"])
+    assert result.exit_code == 2
+    assert "scheduler nobody asked for" in said(result)
+
+
+def _quiet():
+    """A console that renders nowhere, so a countdown test prints nothing."""
+    import io
+
+    from rich.console import Console
+
+    return {"console": Console(file=io.StringIO(), width=80), "ticks": 1}

@@ -36,7 +36,7 @@ replaced by a browser one the same day. What exists:
 
 | Command | Does |
 |---|---|
-| `tb run -- <argv>` | Runs a command and reports what it printed. **The only command that acts** |
+| `tb run -- <argv>` | Runs a command and reports what it printed. **The only command that acts**. `--delay 5m` runs it once, later, behind a countdown you can cancel |
 | `tb data -- <argv>` | Reads another CLI's JSON as data. An observe; `--refresh N` keeps it resident |
 | `tb read -- <argv>` | Shows what a command printed, verbatim. An observe, for tools with no `--json` |
 | `tb follow -- <argv>` | Holds a command's stream open. Resident by nature; any exit is a visible death |
@@ -357,8 +357,8 @@ rounds), `highlight.md` (lexical tint, four rounds), `capture.md` (declared stru
 `refresh.md`, `header.md` (the mark), `text-reads.md`, `subprocess-env.md`, `table-views.md` (the
 shaping contract, four rounds), `roll-call.md` (federating over projects), `file-follow.md` (the
 native cursor, two rounds), `chrome.md` (what a window knows about its output, three rounds), `mcp.md` (the toolbox offered to
-an agent), and the constitution's rounds as they land. `docs/features/` holds open work — as of
-2026-08-23: `delay.md`. Every earlier
+an agent), `delay.md` (once, later), and the constitution's rounds as they land.
+**`docs/features/` is empty** — as of 2026-08-23 every spec written has been executed. Every earlier
 spec was deleted with the system it described; the docs that predate the 2026-08-21
 renames say `wrap`/`every` on purpose — dated, never scrubbed.
 

@@ -31,6 +31,7 @@ from dataclasses import dataclass, replace
 # tint and badge will key off this field when the Rule branch arrives.
 ATTENTION = (
     "running", "ok", "partial", "failed", "dead", "quiet", "absent", "rotated", "late",
+    "pending",
 )
 
 # One mapping from attention to a theme role, shared by whoever draws the
@@ -50,6 +51,10 @@ ROLE = {
     # colouring it as a failure would be the judgment [[file-follow]] round 2
     # refuses to make.
     "late": "tb.warn",
+    # Accent, like `running`. A pending write has not gone wrong and has not
+    # gone right; it is the one state where the interesting thing is that you
+    # can still stop it. See [[delay]].
+    "pending": "tb.accent",
 }
 
 
@@ -75,6 +80,10 @@ class Chrome:
     # which is not the same as an expectation of nothing: without one, silence
     # is neither good nor bad and the band says only how long it has been.
     due: int = 0
+    # When a delayed write fires. Distinct from `interval` and `last_run` on
+    # purpose: those two mean *cadence*, and an act has none — `--delay` moves
+    # when a command runs once, it does not make it run again. See [[delay]].
+    fires_at: float | None = None
     last_run: float | None = None  # when the last run started
     running_since: float | None = None
     # Stream.
@@ -96,6 +105,7 @@ class Chrome:
             "duration_s", "warnings", "ran_at", "interval", "last_run",
             "running_since", "last_line_at", "exit_code", "exited_at",
             "last_write_at", "size_bytes", "ring_shown", "ring_limit", "due",
+            "fires_at",
         ):
             value = getattr(self, key)
             if value not in (None, 0):
@@ -144,6 +154,19 @@ def act(
         source, ok=ok, partial=partial, warnings=warnings, ran_at=ran_at, duration_s=duration_s
     )
     return replace(chrome, shape="act")
+
+
+def pending(source: str, *, fires_at: float) -> Chrome:
+    """A write that has not happened yet, and can still be stopped.
+
+    The `act` shape, because that is what it will be — and `act` says it never
+    carries a countdown, *"the absence is the act/observe split made visible"*.
+    That still holds and this is not a reversal of it: what `act` refuses is a
+    **cadence**, a write happening again unattended forever. This is one write
+    happening once, later, in a process you are watching, and `fires_at` is a
+    different field from `interval` for exactly that reason.
+    """
+    return Chrome(source=source, shape="act", attention="pending", fires_at=fires_at)
 
 
 def resident(
@@ -322,12 +345,20 @@ def _top_spans(chrome: Chrome, now: float) -> tuple[list[Span], list[Span]]:
     quiet is the state the band exists to make legible, not to hide.
     """
     left: list[Span] = [(chrome.source, "bold")]
-    if chrome.shape == "resident" and chrome.interval:
+    if chrome.attention == "pending":
+        left.append((" · pending", _FRAME))
+    elif chrome.shape == "resident" and chrome.interval:
         left.append((f" · refresh {chrome.interval}s", _FRAME))
     elif chrome.shape in ("stream", "cursor"):
         left.append((" · follow", _FRAME))
 
     right: list[Span] = []
+    if chrome.attention == "pending":
+        # What is left, and how to stop it. The second half is not decoration:
+        # a countdown you cannot see a way out of is a countdown you watch
+        # helplessly. See [[delay]].
+        remaining = max(0, int((chrome.fires_at or 0) - now))
+        return left, [(f"runs in {ago(remaining)}", ROLE["pending"]), (" · q cancels", "tb.label")]
     if chrome.shape == "resident":
         if chrome.running_since is not None:
             right = [(f"running {ago(now - chrome.running_since)}", "tb.accent")]
@@ -380,6 +411,8 @@ def _bottom_spans(chrome: Chrome, now: float) -> tuple[list[Span], list[Span]]:
     The verdict word wears its verdict's color; clocks and stamps take the
     label role, counts the number role, warnings the warn role."""
     left: list[Span] = []
+    if chrome.attention == "pending":
+        return [("nothing has run yet", "tb.label")], []
     if chrome.shape in ("snapshot", "resident", "act"):
         word = chrome.attention if chrome.running_since is None else "running"
         left.append((word, ROLE.get(word, "tb.label")))

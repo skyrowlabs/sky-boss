@@ -185,6 +185,7 @@ def hold(
     screen: bool = False,
     ticks: int | None = None,
     wait: Callable[[float], str | None] | None = None,
+    transient: bool = False,
 ) -> None:
     """Draw a frame every tick until the operator leaves.
 
@@ -197,6 +198,12 @@ def hold(
     The caller owns what leaving *means*. `hold` returns; a follow's caller
     kills its child in a `finally`, and that difference is the point rather
     than an inconsistency. See [[follow]] round 2.
+
+    `transient` erases the last frame on the way out, and the default is off
+    for the reason above: leaving a follow should leave the tail of the log you
+    were watching. A **countdown** is the opposite — its final frame says
+    "nothing has run yet" and is a lie the instant it returns, with the output
+    of the thing that just ran printing directly beneath it. See [[delay]].
     """
 
     def run(wait_for: Callable[[float], str | None]) -> None:
@@ -212,7 +219,7 @@ def hold(
         # Live owns the cursor and the in-place repaint, exactly as it does
         # for `reside`; `transient=False` leaves the last frame on screen, so
         # leaving a follow leaves the tail of the log you were watching.
-        with Live(console=console, auto_refresh=False, transient=False) as live:
+        with Live(console=console, auto_refresh=False, transient=transient) as live:
             _turn(lambda: live.update(frame(), refresh=True), tick, wait_for, ticks)
 
     try:

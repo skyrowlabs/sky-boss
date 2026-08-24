@@ -44,10 +44,10 @@ def test_more_than_one_word_is_always_the_process_form():
 # ============================================================================
 
 
-def test_follow_refuses_json_because_a_stream_has_no_envelope():
+def test_follow_refuses_json_because_a_stream_has_no_envelope(said):
     result = CliRunner().invoke(cli, ["--json", "follow", "--", "sh", "-c", "true"])
     assert result.exit_code == 2
-    assert "no envelope" in result.output
+    assert "no envelope" in said(result)
 
 
 def test_follow_takes_no_refresh_flag():
@@ -312,10 +312,10 @@ def test_the_screen_flag_reaches_both_forms(monkeypatch):
     assert seen["screen"] is False
 
 
-def test_the_help_says_how_to_leave_and_that_leaving_kills():
+def test_the_help_says_how_to_leave_and_that_leaving_kills(said):
     """Help is the doc ([[refresh]]). Leaving killing the child is the one
     thing a reader would otherwise have to infer, so it is written down."""
-    help_text = CliRunner().invoke(cli, ["follow", "--help"]).output
+    help_text = said(CliRunner().invoke(cli, ["follow", "--help"]))
     assert "q, Esc or Ctrl-C to leave" in help_text
     assert "kills it" in help_text
     assert "--screen" in help_text and "alternate screen" in help_text
