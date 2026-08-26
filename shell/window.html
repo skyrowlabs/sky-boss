@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<!-- No remote anything, and no inline script — the renderer is a sandboxed
+     context whose only door out is preload.js, and a CSP that says so is
+     cheaper to keep than to add back later. -->
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:">
+<title>toolbox</title>
+<link rel="stylesheet" href="window.css">
+</head>
+<body>
+<!-- The bar is the title bar. In shell.py this had to call
+     Gtk.Window.begin_move_drag by hand, because the GTK backend implements no
+     drag regions at all; here the frame is Chromium's own and the platform is
+     asked directly. Whether that drag snaps and tiles the way GTK's does is
+     the first thing to verify on your window manager — see main.js. -->
+<header id="bar">
+  <span id="title">toolbox</span>
+  <button id="close" title="Close">×</button>
+</header>
+<main id="root">starting…</main>
+<script type="module" src="window.js"></script>
+</body>
+</html>
