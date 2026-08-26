@@ -1,0 +1,57 @@
+/* A stub's stylesheet, and nothing more. The real one is
+ * cli/canvas/static/tb.css — 478 lines measured in a single scaled rem, with
+ * the palette injected from cli/theme.py so that nothing outside that module
+ * names a colour. Porting it is a port, not a rewrite: it is the same
+ * Chromium, and the only thing that changes is who injects `__TB_TOKENS__`.
+ * These few rules exist so the pipe can be seen working, and are meant to be
+ * deleted. */
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font: 13px/1.5 ui-monospace, "JetBrains Mono", monospace;
+  background: #0d0f12;
+  color: #c9d1d9;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+#bar {
+  -webkit-app-region: drag;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  background: #14181d;
+  border-bottom: 1px solid #21262d;
+  user-select: none;
+}
+#title { flex: 1; color: #7d8590; font-size: 12px; }
+#close {
+  -webkit-app-region: no-drag;
+  background: none;
+  border: 0;
+  color: #7d8590;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 0 6px;
+}
+#close:hover { color: #f85149; }
+#root { flex: 1; overflow: auto; padding: 10px 12px; }
+button.cmd {
+  -webkit-app-region: no-drag;
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: 0;
+  border-bottom: 1px solid #1b2027;
+  color: #c9d1d9;
+  font: inherit;
+  padding: 6px 4px;
+  cursor: pointer;
+}
+button.cmd:hover { background: #14181d; }
+button.cmd .sum { color: #7d8590; }
+button.cmd .acts { color: #d29922; }
+pre { white-space: pre-wrap; word-break: break-word; margin: 0; }
+.down { color: #f85149; }
