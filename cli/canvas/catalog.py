@@ -20,11 +20,25 @@ import rich_click as click
 
 
 def _summary(command: click.Command) -> str:
-    """Click's one-liner, however the command chose to declare it."""
+    """Click's one-liner, however the command chose to declare it.
+
+    The first *paragraph*, with its newlines collapsed — not the first line.
+    A docstring is hard-wrapped by whoever wrote it, so a line break falls
+    wherever eighty columns happened to land: `sb data`'s first line ends
+    "An observe — a window may". The palette hid that behind an ellipsis; the
+    bench's reference rail does not, and a sentence that stops mid-clause reads
+    as a bug in the help rather than in the splitting. See [[workbench]].
+    """
     if command.short_help:
-        return command.short_help
+        return " ".join(command.short_help.split())
     if command.help:
-        return command.help.strip().split("\n")[0]
+        paragraph = " ".join(command.help.strip().split("\n\n")[0].split())
+        # A paragraph ending in a colon is introducing the example that follows
+        # it, and the example is not here — so the colon is a promise the
+        # summary cannot keep. Drop back to the last whole sentence.
+        while paragraph.endswith(":") and ". " in paragraph:
+            paragraph = paragraph.rsplit(". ", 1)[0] + "."
+        return paragraph
     return ""
 
 
@@ -127,3 +141,25 @@ def catalog(root: click.Group | None = None) -> list[dict]:
 
         root = root_group
     return walk(root)
+
+
+def entry_for(argv: list[str], entries: list[dict] | None = None) -> dict | None:
+    """The catalog entry an sb-level argv names, longest path first.
+
+    Longest first because a saved command lives at `tools <name>` since
+    [[tools]] round 2 and inherits its expansion's verdict — matching on
+    `argv[0]` alone would call every saved tool a read, including one wrapping
+    `run`, which is the one mistake the read/write split exists to prevent.
+    Same rule the palette's `suggest` follows, for the same reason.
+
+    None when nothing in the tree answers to it. That is not a failure: a raw
+    argv is exactly the case, and the caller decides what an unknown one is.
+    """
+    if not argv:
+        return None
+    if entries is None:
+        entries = catalog()
+    for entry in sorted(entries, key=lambda e: -len(e["argv"])):
+        if argv[: len(entry["argv"])] == entry["argv"]:
+            return entry
+    return None

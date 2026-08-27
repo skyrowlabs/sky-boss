@@ -22,7 +22,11 @@ async function post(path, body) {
     headers: HEADERS(),
     body: JSON.stringify(body),
   });
-  if (!response.ok && response.status !== 409) {
+  /* 409 and 400 carry a body worth reading. 409 is a session the page has not
+   * noticed died; 400 is a refusal with its reason in it — the bench shows
+   * that reason, so throwing it away and reporting a status code would lose
+   * the only useful half. */
+  if (!response.ok && response.status !== 409 && response.status !== 400) {
     throw new Error(`${path} → ${response.status}`);
   }
   return response.json();
@@ -36,6 +40,13 @@ export async function catalog() {
 
 export function run(argv, timeout) {
   return post("/api/run", { argv, timeout });
+}
+
+/* The bench's run ([[workbench]]). Not `run` with a flag: the server refuses
+ * an act here, and a route that sometimes refuses `run` and sometimes does not
+ * is a route with two contracts. A refusal comes back as 400 with a reason. */
+export function trial(argv, timeout) {
+  return post("/api/trial", { argv, timeout });
 }
 
 export function watch(session, window, argv, interval) {

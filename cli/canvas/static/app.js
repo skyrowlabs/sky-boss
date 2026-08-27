@@ -21,9 +21,42 @@
 import { html, render, useEffect, useRef, useState } from "./vendor/htm-preact.js";
 import * as api from "./api.js";
 import { Body, summarise } from "./render.js";
+import { BENCH_WINDOW, Bench, RESIDENT, compose } from "./bench.js";
 
 const TILE = "tile";
 const FLOAT = "float";
+
+/* Two screens, because there are two screens. The design pass drew three —
+ * workbench, flight plan, control tower — and the other two need four
+ * primitives that do not exist yet. A nav offering a screen that is not there
+ * is the palette's own failure wearing different clothes: it has already told
+ * you the thing exists. See [[workbench]] and docs/open.md.
+ */
+const CANVAS = "canvas";
+const WORKBENCH = "workbench";
+
+/* What the bench opens on. Decided before the screen existed rather than
+ * after, which is what round 1 asked for.
+ *
+ * **No contract is selected.** The mockup pre-selected `data`, and that is the
+ * one thing the bench must not do: the selector *is* the operator asserting
+ * the bit no parser can infer, and answering it for them on arrival is the
+ * inference with a friendlier face. It also gives the empty state something
+ * true to say instead of a blank pane.
+ *
+ * `cwd` fills in from the server's `home` once the catalog lands — the same
+ * neutral directory a raw palette command runs in, and for the same reason.
+ */
+const EMPTY_DRAFT = {
+  contract: null,
+  cwd: "",
+  argv: "",
+  result: null,
+  chrome: null,
+  lines: [],
+  running: false,
+  error: null,
+};
 
 let nextId = 0;
 const newId = () => `w${++nextId}`;
@@ -594,6 +627,8 @@ function App() {
   const [home, setHome] = useState("");
   const [windows, setWindows] = useState([]);
   const [layout, setLayout] = useState(TILE);
+  const [screen, setScreen] = useState(CANVAS);
+  const [draft, setDraft] = useState(EMPTY_DRAFT);
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState(0);
   const [floating, setFloating] = useState(false);
@@ -609,12 +644,21 @@ function App() {
   const windowsRef = useRef(windows);
   windowsRef.current = windows;
   const sessionRef = useRef(null);
+  /* Same escape hatch as `windowsRef`, and needed for the same reason: the
+   * stream handler is installed once, and a follow trial's frames arrive on it
+   * long after this closure was made. */
+  const draftRef = useRef(draft);
+  draftRef.current = draft;
 
   useEffect(() => {
     api.catalog().then((body) => {
       setCommands(body.commands);
       setIntervals(body.intervals);
       setHome(body.home || "");
+      /* Only into a draft nobody has touched. Overwriting a typed `--cwd`
+       * because the catalog answered late would be the surface arguing with
+       * the operator over a field they had already filled in. */
+      setDraft((d) => (d.cwd ? d : { ...d, cwd: body.home || "" }));
     });
   }, []);
 
@@ -635,8 +679,29 @@ function App() {
              * survives the last window". */
             if (win.stream) api.follow(frame.session, win.id, argvOf(win));
           }
+          /* The bench's own stream died with the old session too. Re-opened
+           * from the draft rather than remembered separately — the draft is
+           * what the trial was made of. */
+          const d = draftRef.current;
+          if (d.contract === RESIDENT && d.lines.length) {
+            const argv = compose(d);
+            if (argv) api.follow(frame.session, BENCH_WINDOW, argv);
+          }
         } else if (frame.type === "reload") {
           applyReload(frame.files);
+        } else if (frame.type === "stream" && frame.window === BENCH_WINDOW) {
+          /* A follow trial. The bench is a pseudo-window on the session, so its
+           * stream arrives exactly like every other one and needs no second
+           * transport — only a second place to land. */
+          setDraft((d) => {
+            const limit = (frame.chrome && frame.chrome.ring_limit) || 200;
+            return {
+              ...d,
+              lines: [...d.lines, ...frame.lines].slice(-limit),
+              chrome: frame.chrome,
+              running: false,
+            };
+          });
         } else if (frame.type === "stream") {
           setWindows((all) =>
             all.map((w) => {
@@ -906,6 +971,92 @@ function App() {
     },
   };
 
+  /* ------------------------------------------------------------ the bench */
+
+  const benchActions = {
+    /* **Swaps the draft rather than clearing it.** The `--cwd` and the argv are
+     * what you have been getting right; the contract is what you are still
+     * deciding, and losing the line every time you change your mind about which
+     * renderer it goes through is the bench being an obstacle.
+     *
+     * The *result* does not carry over, because it belongs to the contract that
+     * produced it: a shaped table left standing under `read` would be claiming a
+     * shape that contract cannot return. */
+    pick: (contract) => {
+      const before = draftRef.current;
+      if (before.contract === RESIDENT && sessionRef.current) {
+        api.unfollow(sessionRef.current, BENCH_WINDOW);
+      }
+      setDraft((d) => ({
+        ...d,
+        contract,
+        result: null,
+        chrome: null,
+        lines: [],
+        running: false,
+        error: null,
+      }));
+    },
+    setCwd: (cwd) => setDraft((d) => ({ ...d, cwd })),
+    setArgv: (argv) => setDraft((d) => ({ ...d, argv })),
+    trial: () => {
+      const current = draftRef.current;
+      const argv = compose(current);
+      if (!argv || current.running) return;
+      setDraft((d) => ({
+        ...d,
+        running: true,
+        error: null,
+        result: null,
+        chrome: null,
+        lines: [],
+      }));
+
+      /* A stream is held open, not run to completion. It goes down the same
+       * `/api/follow` every window's stream does — `/api/trial` refuses a
+       * resident argv rather than sitting on it until the timeout. */
+      if (current.contract === RESIDENT) {
+        if (!sessionRef.current) {
+          setDraft((d) => ({
+            ...d,
+            running: false,
+            error: "stream down — a follow trial needs the session",
+          }));
+          return;
+        }
+        api
+          .follow(sessionRef.current, BENCH_WINDOW, argv)
+          .then((body) => {
+            if (body && body.error) {
+              setDraft((d) => ({ ...d, running: false, error: body.error }));
+            }
+          })
+          .catch((error) =>
+            setDraft((d) => ({ ...d, running: false, error: String(error) }))
+          );
+        return;
+      }
+
+      /* A refusal comes back as a body with an `error` in it, and that body is
+       * handed to the same renderer a result is. `Body` already draws
+       * `result.error`, so the reason the server gave is what the pane shows —
+       * rather than a status code translated into a sentence here. */
+      api
+        .trial(argv)
+        .then((result) =>
+          setDraft((d) => ({
+            ...d,
+            running: false,
+            result,
+            chrome: result.chrome || null,
+          }))
+        )
+        .catch((error) =>
+          setDraft((d) => ({ ...d, running: false, error: String(error) }))
+        );
+    },
+  };
+
   const watchers = windows.filter((w) => w.pinned).length;
   const running = windows.filter((w) => w.running).length;
   const attention = windows.filter(
@@ -917,6 +1068,20 @@ function App() {
       <div class="bar" onMouseDown=${barDrag}>
         <span class="brand">SKY.BOSS</span>
         <span class="host">${location.host}</span>
+        <div class="seg nav">
+          <button
+            class=${screen === CANVAS ? "on" : ""}
+            onClick=${() => setScreen(CANVAS)}
+          >
+            canvas
+          </button>
+          <button
+            class=${screen === WORKBENCH ? "on" : ""}
+            onClick=${() => setScreen(WORKBENCH)}
+          >
+            workbench
+          </button>
+        </div>
         <${BarPalette}
           commands=${commands}
           query=${query}
@@ -931,14 +1096,17 @@ function App() {
         <span class="stat">WINDOWS<b>${windows.length}</b></span>
         <span class=${`stat ${watchers ? "live" : ""}`}>WATCHERS<b>${watchers}</b></span>
         <span class=${`stat ${attention ? "alert" : ""}`}>ATTENTION<b>${attention}</b></span>
-        <div class="seg">
-          <button class=${layout === TILE ? "on" : ""} onClick=${() => setLayout(TILE)}>
-            tiled
-          </button>
-          <button class=${layout === FLOAT ? "on" : ""} onClick=${() => setLayout(FLOAT)}>
-            floating
-          </button>
-        </div>
+        ${screen === CANVAS &&
+        html`
+          <div class="seg">
+            <button class=${layout === TILE ? "on" : ""} onClick=${() => setLayout(TILE)}>
+              tiled
+            </button>
+            <button class=${layout === FLOAT ? "on" : ""} onClick=${() => setLayout(FLOAT)}>
+              floating
+            </button>
+          </div>
+        `}
         <button class="quit" title="close sky.boss" onClick=${() => api.quit()}>✕</button>
       </div>
 
@@ -958,29 +1126,40 @@ function App() {
         />
       `}
 
-      <div class="stage">
-      <${Tools} commands=${commands} open=${open} />
-      <div class=${`canvas ${layout}`} ref=${canvas}>
-        ${windows.length === 0 &&
-        html`<div class="empty">no windows open — run a command to open one</div>`}
-        ${windows.map(
-          (win) => html`<${Window}
-            key=${win.id}
-            win=${win}
-            now=${now}
-            layout=${layout}
-            focused=${focus === win.id}
-            actions=${actions}
-            intervals=${intervals}
-          />`
-        )}
-      </div>
-      </div>
+      ${screen === WORKBENCH
+        ? html`<${Bench} commands=${commands} draft=${draft} actions=${benchActions} />`
+        : html`
+            <div class="stage">
+              <${Tools} commands=${commands} open=${open} />
+              <div class=${`canvas ${layout}`} ref=${canvas}>
+                ${windows.length === 0 &&
+                html`<div class="empty">no windows open — run a command to open one</div>`}
+                ${windows.map(
+                  (win) => html`<${Window}
+                    key=${win.id}
+                    win=${win}
+                    now=${now}
+                    layout=${layout}
+                    focused=${focus === win.id}
+                    actions=${actions}
+                    intervals=${intervals}
+                  />`
+                )}
+              </div>
+            </div>
+          `}
 
       <div class="foot-bar">
-        <span>⏎ open window</span>
-        <span>^K palette</span>
-        <span>⟳ refresh</span>
+        ${screen === WORKBENCH
+          ? html`
+              <span>⏎ trial run</span>
+              <span>the contract is the assertion</span>
+            `
+          : html`
+              <span>⏎ open window</span>
+              <span>^K palette</span>
+              <span>⟳ refresh</span>
+            `}
         <div class="spacer"></div>
         ${down
           ? html`<span class="disconnected">stream down — watchers paused</span>`
