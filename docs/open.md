@@ -102,8 +102,39 @@ budget-limiting function accurately.
 
 ---
 
-## Housekeeping
+## The rename, finished and unfinished
 
-**14. `CLAUDE.md` still describes the project as toolbox.** The repo, the remote and the surface
-are sky.boss; the agent guide is one rename behind, and it is the file every session reads first.
-Not a design question — listed here so it is not lost.
+Current-tense prose was renamed **toolbox → sky.boss** on 2026-08-26 (`CLAUDE.md`, `README.md`,
+`docs/design/README.md`, the feature skill). Three categories were left alone on purpose. Two of
+them are settled and need no decision; one is a real open question.
+
+**Settled, no action:**
+
+- **The common noun.** "The toolbox" — the box of saved commands `tb tools` lists — was never the
+  project's name and stays. [[tools]] ruled on exactly this at the previous rename and recorded
+  why: *nothing in the prose was scrubbed, because that is what it is.*
+- **Dated records.** Completed feature docs and measurement transcripts keep the word. Scrubbing a
+  transcript falsifies a measurement, and the same rule already leaves `wrap`/`every` standing in
+  docs that predate the 2026-08-21 command renames.
+
+**14. The identifier cluster — one decision, not four.** These are coordinated and should move
+together or not at all. **`tb` itself is not in scope** and is not proposed for change.
+
+- `~/.toolbox` — the `$TB_HOME` default. Operator data. Renaming needs a migration path, or every
+  existing `tools.toml`, `formats.toml` and `projects.toml` silently stops being found.
+- The **window class** `toolbox` (`cli/canvas/shell.py`, `--class=` on the browser path) and the
+  app names beside it. `CLAUDE.local.md` records a window-manager rule matched on this string, and
+  `CLAUDE.md` is explicit that nothing here writes that rule — so renaming it means the frameless
+  window regains a title bar until the operator updates the rule by hand. A rename and a desktop
+  edit, in that order, or neither.
+- The **MCP server name** — `.mcp.json`'s key, `serverInfo.name` in `cli/mcp.py`, and the assertion
+  in `tests/test_mcp.py`. Renaming changes the tool names agents see (`mcp__toolbox__*`), so it is
+  a change to a published interface, not to a string.
+- **The mark.** `docs/design/cli-header.png` is a drawing of a toolbox with `TOOLBOX` lettered
+  across it, printed beside the word by `cli/banner.py` and asserted by `tests/test_banner.py`.
+  **Renaming the word without redrawing the mark leaves the CLI greeting you with a picture of the
+  old name.** This is a [[header]] round and a design task, not a substitution — and [[header]]
+  records that the mark is the one thing outside the theme's contrast floor, so a redraw inherits
+  that argument too.
+- `shell/package.json`'s `toolbox-shell`, and the `.toolbox` CSS classes in `tb.css` / `app.js`.
+  Internal; churn with no reader unless the cluster moves anyway.
