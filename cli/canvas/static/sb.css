@@ -5,7 +5,7 @@
  * rgba() literal would be a hex by another name and a test fails on one.
  *
  * **Every size is in rem, and 1rem is four scaled pixels.** The surface is
- * driven from `--tb-scale`, injected by the server from `tb ui --scale`, so the
+ * driven from `--sb-scale`, injected by the server from `sb ui --scale`, so the
  * whole UI grows or shrinks as one thing rather than as forty numbers that
  * drift apart. Divide any design pixel by four to get its rem: 12px is 3rem,
  * 6px is 1.5rem. At scale 1 the surface renders at its original size, and the
@@ -19,14 +19,14 @@
 
 html {
   /* The one number the whole surface is measured in. */
-  font-size: calc(4px * var(--tb-scale, 1));
+  font-size: calc(4px * var(--sb-scale, 1));
 }
 
 :root {
-  --tb-tint: color-mix(in srgb, var(--tb-brand) 14%, transparent);
-  --tb-edge: color-mix(in srgb, var(--tb-brand) 30%, transparent);
-  --tb-hair: color-mix(in srgb, var(--tb-text) 8%, transparent);
-  --tb-sink: color-mix(in srgb, var(--tb-bg) 70%, transparent);
+  --sb-tint: color-mix(in srgb, var(--sb-brand) 14%, transparent);
+  --sb-edge: color-mix(in srgb, var(--sb-brand) 30%, transparent);
+  --sb-hair: color-mix(in srgb, var(--sb-text) 8%, transparent);
+  --sb-sink: color-mix(in srgb, var(--sb-bg) 70%, transparent);
   --mono: ui-monospace, "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
 
   /* Softer, rounder. A window is a card rather than a box. */
@@ -35,14 +35,14 @@ html {
   --r-lg: 3.5rem;
 
   --hair: 0.25rem;
-  --lift: 0 1.5rem 4rem color-mix(in srgb, var(--tb-bg) 80%, transparent);
+  --lift: 0 1.5rem 4rem color-mix(in srgb, var(--sb-bg) 80%, transparent);
 }
 
 html, body { height: 100%; }
 
 body {
-  background: var(--tb-bg);
-  color: var(--tb-text);
+  background: var(--sb-bg);
+  color: var(--sb-text);
   font: 3rem/1.45 var(--mono);
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
@@ -66,8 +66,8 @@ body {
 .bar {
   display: flex; align-items: center; gap: 3.5rem;
   padding: 0 3.5rem; height: 9.5rem; flex: none;
-  border: var(--hair) solid var(--tb-hair); border-radius: var(--r-md);
-  background: var(--tb-surface);
+  border: var(--hair) solid var(--sb-hair); border-radius: var(--r-md);
+  background: var(--sb-surface);
   user-select: none;
 }
 /* No `-webkit-app-region`: WebKitGTK does not implement it, and neither does
@@ -87,49 +87,49 @@ body {
 .bar { cursor: default; }
 .bar .host { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 
-.brand { color: var(--tb-brand); font-weight: 700; letter-spacing: .14em; white-space: nowrap; }
-.host { color: var(--tb-text-2); white-space: nowrap; }
+.brand { color: var(--sb-brand); font-weight: 700; letter-spacing: .14em; white-space: nowrap; }
+.host { color: var(--sb-text-2); white-space: nowrap; }
 .spacer { flex: 1; }
 
 .stat {
-  color: var(--tb-text-3); letter-spacing: .1em; font-size: 2.75rem;
+  color: var(--sb-text-3); letter-spacing: .1em; font-size: 2.75rem;
   white-space: nowrap;
 }
-.stat b { color: var(--tb-text-2); font-weight: 400; margin-left: 1.25rem; }
-.stat.live b { color: var(--tb-brand); }
-.stat.alert b { color: var(--tb-warn); }
+.stat b { color: var(--sb-text-2); font-weight: 400; margin-left: 1.25rem; }
+.stat.live b { color: var(--sb-brand); }
+.stat.alert b { color: var(--sb-warn); }
 
 .seg {
-  display: flex; border: var(--hair) solid var(--tb-hair);
+  display: flex; border: var(--hair) solid var(--sb-hair);
   border-radius: var(--r-sm); overflow: hidden;
 }
 .seg button {
   font: inherit; border: 0; padding: 0.5rem 2.25rem; cursor: pointer;
-  background: transparent; color: var(--tb-text-3); white-space: nowrap;
+  background: transparent; color: var(--sb-text-3); white-space: nowrap;
 }
-.seg button.on { background: var(--tb-brand); color: var(--tb-bg); }
+.seg button.on { background: var(--sb-brand); color: var(--sb-bg); }
 
 /* The window has no frame of its own, so leaving must be inside it. */
 .quit {
   font: inherit; cursor: pointer; background: transparent;
-  border: var(--hair) solid var(--tb-hair); border-radius: var(--r-sm);
-  color: var(--tb-text-3); padding: 0.5rem 2.25rem; line-height: 1;
+  border: var(--hair) solid var(--sb-hair); border-radius: var(--r-sm);
+  color: var(--sb-text-3); padding: 0.5rem 2.25rem; line-height: 1;
 }
-.quit:hover { color: var(--tb-danger); border-color: var(--tb-danger); }
+.quit:hover { color: var(--sb-danger); border-color: var(--sb-danger); }
 
 /* ------------------------------------------------------------------ palette */
 
 .palette {
-  flex: none; background: var(--tb-surface);
-  border: var(--hair) solid var(--tb-hair); border-radius: var(--r-md);
+  flex: none; background: var(--sb-surface);
+  border: var(--hair) solid var(--sb-hair); border-radius: var(--r-md);
   overflow: hidden;
 }
 .palette.overlay {
   position: fixed; inset: 14rem 0 auto 0; margin: 0 auto; max-width: 190rem;
-  border-color: var(--tb-edge); border-radius: var(--r-lg); z-index: 999;
+  border-color: var(--sb-edge); border-radius: var(--r-lg); z-index: 999;
   box-shadow: var(--lift);
 }
-.scrim { position: fixed; inset: 0; z-index: 998; background: var(--tb-sink); }
+.scrim { position: fixed; inset: 0; z-index: 998; background: var(--sb-sink); }
 
 /* The palette in the top bar.
  *
@@ -146,50 +146,50 @@ body {
 }
 .barpal input {
   flex: 1; min-width: 0; background: transparent; border: 0; outline: 0;
-  font: inherit; color: var(--tb-text);
+  font: inherit; color: var(--sb-text);
 }
-.barpal input::placeholder { color: var(--tb-text-3); }
+.barpal input::placeholder { color: var(--sb-text-3); }
 /* Only while the input has focus — a list that is always open is a menu, and
  * this is a prompt. Wide enough to read a description in, whatever the input
  * is bounded to. */
 .barpal .drop {
   position: absolute; top: calc(100% + 1.75rem); left: 0; min-width: 150rem;
-  background: var(--tb-surface); border: var(--hair) solid var(--tb-edge);
+  background: var(--sb-surface); border: var(--hair) solid var(--sb-edge);
   border-radius: var(--r-md); overflow: hidden; z-index: 900;
   box-shadow: var(--lift);
 }
 .barpal .drop .suggestions { border-top: 0; }
 
 .prompt { display: flex; align-items: center; gap: 2.5rem; padding: 2.25rem 3.5rem; }
-.chev { color: var(--tb-brand); }
+.chev { color: var(--sb-brand); }
 .prompt input {
   flex: 1; background: transparent; border: 0; outline: 0;
-  font: inherit; color: var(--tb-text);
+  font: inherit; color: var(--sb-text);
 }
-.prompt input::placeholder { color: var(--tb-text-3); }
-.hint { color: var(--tb-text-3); font-size: 2.75rem; }
+.prompt input::placeholder { color: var(--sb-text-3); }
+.hint { color: var(--sb-text-3); font-size: 2.75rem; }
 
-.suggestions { border-top: var(--hair) solid var(--tb-hair); max-height: 40vh; overflow: auto; }
+.suggestions { border-top: var(--hair) solid var(--sb-hair); max-height: 40vh; overflow: auto; }
 .suggestion {
   display: flex; align-items: baseline; gap: 3rem; padding: 1.25rem 3.5rem; cursor: pointer;
 }
-.suggestion .mark { color: var(--tb-brand); width: 2.5rem; }
-.suggestion .name { color: var(--tb-text-2); min-width: 33rem; }
+.suggestion .mark { color: var(--sb-brand); width: 2.5rem; }
+.suggestion .name { color: var(--sb-text-2); min-width: 33rem; }
 .suggestion .saved-badge {
-  flex: none; color: var(--tb-brand); font-size: 2.75rem;
-  border: var(--hair) solid var(--tb-hair); border-radius: 1rem; padding: 0 1.5rem;
+  flex: none; color: var(--sb-brand); font-size: 2.75rem;
+  border: var(--hair) solid var(--sb-hair); border-radius: 1rem; padding: 0 1.5rem;
 }
 .suggestion .desc {
-  color: var(--tb-text-3); flex: 1; overflow: hidden;
+  color: var(--sb-text-3); flex: 1; overflow: hidden;
   white-space: nowrap; text-overflow: ellipsis;
 }
-.suggestion .meta { color: var(--tb-text-3); font-size: 2.75rem; }
-.suggestion.sel { background: var(--tb-tint); }
-.suggestion.sel .name { color: var(--tb-text); }
+.suggestion .meta { color: var(--sb-text-3); font-size: 2.75rem; }
+.suggestion.sel { background: var(--sb-tint); }
+.suggestion.sel .name { color: var(--sb-text); }
 
 /* ------------------------------------------------------------------- canvas */
 
-/* ------------------------------------------------------------------ toolbox */
+/* -------------------------------------------------------------------- tools */
 
 /* The sidebar sits *below* the top bar rather than beside it, which is where
  * the mockup puts it. The bar is the window's title bar — it is what calls
@@ -202,34 +202,34 @@ body {
  * a 3rem gap. Same selector, same specificity, different element. */
 .stage { display: flex; flex: 1; gap: 3rem; min-height: 0; }
 
-.toolbox {
+.tools {
   flex: none; width: 46rem; display: flex; flex-direction: column;
-  border: var(--hair) solid var(--tb-hair); border-radius: var(--r-md);
-  background: var(--tb-surface); overflow: hidden;
+  border: var(--hair) solid var(--sb-hair); border-radius: var(--r-md);
+  background: var(--sb-surface); overflow: hidden;
 }
-.toolbox-head {
-  flex: none; padding: 2.5rem 3rem; color: var(--tb-brand);
+.tools-head {
+  flex: none; padding: 2.5rem 3rem; color: var(--sb-brand);
   font-weight: 700; letter-spacing: .16em; font-size: 2.75rem;
-  border-bottom: var(--hair) solid var(--tb-hair);
+  border-bottom: var(--hair) solid var(--sb-hair);
 }
-.toolbox-list { flex: 1; overflow: auto; padding: 1.5rem 0; }
-.toolbox-empty { padding: 1.5rem 3rem; color: var(--tb-text-3); line-height: 1.5; }
-.toolbox-foot {
-  flex: none; padding: 2.5rem 3rem; color: var(--tb-text-3);
-  border-top: var(--hair) solid var(--tb-hair);
+.tools-list { flex: 1; overflow: auto; padding: 1.5rem 0; }
+.tools-empty { padding: 1.5rem 3rem; color: var(--sb-text-3); line-height: 1.5; }
+.tools-foot {
+  flex: none; padding: 2.5rem 3rem; color: var(--sb-text-3);
+  border-top: var(--hair) solid var(--sb-hair);
 }
 
 .tool {
   display: flex; align-items: center; gap: 2rem; width: 100%;
   padding: 1.5rem 3rem; background: none; border: none; cursor: pointer;
-  color: var(--tb-text); font: inherit; text-align: left;
+  color: var(--sb-text); font: inherit; text-align: left;
 }
-.tool:hover { background: color-mix(in srgb, var(--tb-brand) 10%, transparent); }
+.tool:hover { background: color-mix(in srgb, var(--sb-brand) 10%, transparent); }
 .tool-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tool-refresh { flex: none; color: var(--tb-brand); }
+.tool-refresh { flex: none; color: var(--sb-brand); }
 /* A tool that writes. It can never carry a cadence, and the marker is there so
  * that is visible before you click rather than after. */
-.tool-acts { flex: none; color: var(--tb-warn); font-weight: 700; }
+.tool-acts { flex: none; color: var(--sb-warn); font-weight: 700; }
 
 .canvas { flex: 1; overflow: auto; position: relative; padding: 2.5rem 0; }
 .canvas.tile {
@@ -244,78 +244,78 @@ body {
 
 .empty {
   position: absolute; inset: 0; display: grid; place-items: center;
-  color: var(--tb-text-3); pointer-events: none;
+  color: var(--sb-text-3); pointer-events: none;
 }
 
 /* ------------------------------------------------------------------ windows */
 
 .win {
   display: flex; flex-direction: column; min-height: 0;
-  background: var(--tb-surface); border: var(--hair) solid var(--tb-hair);
+  background: var(--sb-surface); border: var(--hair) solid var(--sb-hair);
   border-radius: var(--r-lg); overflow: hidden;
 }
 .win.wide { grid-column: 1 / -1; }
-.win.focus { border-color: var(--tb-edge); }
+.win.focus { border-color: var(--sb-edge); }
 .canvas.float .win { box-shadow: var(--lift); }
 
 .title {
   display: flex; align-items: center; gap: 2.25rem; flex: none;
-  padding: 1.5rem 2.25rem; border-bottom: var(--hair) solid var(--tb-hair);
-  background: var(--tb-surface-2); user-select: none;
+  padding: 1.5rem 2.25rem; border-bottom: var(--hair) solid var(--sb-hair);
+  background: var(--sb-surface-2); user-select: none;
   flex-wrap: nowrap; min-width: 0;
 }
 .title > * { flex: none; }
 .canvas.float .title { cursor: move; }
-.dot { width: 1.5rem; height: 1.5rem; border-radius: 50%; background: var(--tb-ok); flex: none; }
-.dot.task { background: var(--tb-warn); }
-.dot.bad { background: var(--tb-danger); }
-.num { color: var(--tb-text-3); }
+.dot { width: 1.5rem; height: 1.5rem; border-radius: 50%; background: var(--sb-ok); flex: none; }
+.dot.task { background: var(--sb-warn); }
+.dot.bad { background: var(--sb-danger); }
+.num { color: var(--sb-text-3); }
 /* The title stays one line. A long argv wrapped to three lines and pushed the
  * controls out of reach, on the window most likely to have a long argv. */
 .cmd {
-  color: var(--tb-text); min-width: 0; flex: 0 1 auto;
+  color: var(--sb-text); min-width: 0; flex: 0 1 auto;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.age { color: var(--tb-text-3); font-size: 2.75rem; white-space: nowrap; }
-.age.live { color: var(--tb-ok); }
-.age.bad { color: var(--tb-danger); }
+.age { color: var(--sb-text-3); font-size: 2.75rem; white-space: nowrap; }
+.age.live { color: var(--sb-ok); }
+.age.bad { color: var(--sb-danger); }
 
 .tag {
-  color: var(--tb-brand); background: var(--tb-tint); border-radius: var(--r-sm);
+  color: var(--sb-brand); background: var(--sb-tint); border-radius: var(--r-sm);
   padding: 0 1.25rem; font-size: 2.75rem; cursor: pointer;
 }
-.addtag { color: var(--tb-text-3); font-size: 2.75rem; cursor: pointer; }
+.addtag { color: var(--sb-text-3); font-size: 2.75rem; cursor: pointer; }
 
-.tbtn {
+.sbtn {
   font: inherit; font-size: 2.75rem; cursor: pointer; border-radius: var(--r-sm);
   padding: 0.25rem 1.75rem; background: transparent;
-  border: var(--hair) solid var(--tb-hair); color: var(--tb-text-3);
+  border: var(--hair) solid var(--sb-hair); color: var(--sb-text-3);
 }
-.tbtn.on { background: var(--tb-tint); border-color: var(--tb-edge); color: var(--tb-brand); }
-.tbtn.plain { border-color: transparent; padding: 0.25rem 1rem; }
-.tbtn.plain:hover { color: var(--tb-text); }
+.sbtn.on { background: var(--sb-tint); border-color: var(--sb-edge); color: var(--sb-brand); }
+.sbtn.plain { border-color: transparent; padding: 0.25rem 1rem; }
+.sbtn.plain:hover { color: var(--sb-text); }
 
 .chips {
   display: flex; align-items: center; gap: 1.5rem; flex-wrap: wrap; flex: none;
-  padding: 1.25rem 2.25rem; border-bottom: var(--hair) solid var(--tb-hair);
+  padding: 1.25rem 2.25rem; border-bottom: var(--hair) solid var(--sb-hair);
 }
-.chips .label { color: var(--tb-text-3); font-size: 2.5rem; letter-spacing: .1em; }
+.chips .label { color: var(--sb-text-3); font-size: 2.5rem; letter-spacing: .1em; }
 /* A raw window's working directory. An input rather than a dialog: the shell
  * has no modal for this either, and a browser prompt() blocks every later
  * event the surface depends on. */
 .chips .cwd {
-  flex: 1; min-width: 0; background: var(--tb-surface-2); color: var(--tb-text-2);
-  border: var(--hair) solid var(--tb-hair); border-radius: var(--r-sm);
+  flex: 1; min-width: 0; background: var(--sb-surface-2); color: var(--sb-text-2);
+  border: var(--hair) solid var(--sb-hair); border-radius: var(--r-sm);
   padding: 0.25rem 1.5rem; font: inherit; outline: 0;
 }
-.chips .cwd:focus { border-color: var(--tb-edge); color: var(--tb-text); }
+.chips .cwd:focus { border-color: var(--sb-edge); color: var(--sb-text); }
 .chip {
   font: inherit; font-size: 2.75rem; cursor: pointer; border-radius: var(--r-sm);
   padding: 0.25rem 1.75rem;
-  background: var(--tb-surface-2); border: var(--hair) solid var(--tb-hair);
-  color: var(--tb-text-2);
+  background: var(--sb-surface-2); border: var(--hair) solid var(--sb-hair);
+  color: var(--sb-text-2);
 }
-.chip.on { background: var(--tb-tint); border-color: var(--tb-edge); color: var(--tb-brand); }
+.chip.on { background: var(--sb-tint); border-color: var(--sb-edge); color: var(--sb-brand); }
 
 .body { flex: 1; overflow: auto; padding: 1.75rem 2.25rem; min-height: 0; }
 
@@ -326,18 +326,18 @@ body {
   vertical-align: top;
 }
 .row.head > span {
-  color: var(--tb-text-3); font-size: 2.5rem; letter-spacing: .1em;
-  position: sticky; top: -1.75rem; background: var(--tb-surface);
+  color: var(--sb-text-3); font-size: 2.5rem; letter-spacing: .1em;
+  position: sticky; top: -1.75rem; background: var(--sb-surface);
 }
 .row .wrap { white-space: normal; width: 100%; }
 
 /* A shaped table is flex rather than table layout, because what the view
  * carries is a *proportional* width and `display: table` has no way to spend
- * one. This is the mockup's own model — `Toolbox Surface.dc.html` sizes
+ * one. This is the mockup's own model — `Sky Boss Surface.dc.html` sizes
  * every cell with `flex` and clips it with an ellipsis — and it is the reason
  * a character count was rejected: a window is draggable, so it has no fixed
  * width for one to mean anything against. The floor arrives as `ch`, which
- * scales with the font and so with --tb-scale like everything else. */
+ * scales with the font and so with --sb-scale like everything else. */
 /* `block`, not the `table` the unshaped grid uses. A table sizes to its
  * content, so the flex rows inside one are measured against the widest row
  * rather than against the window — the columns shrink correctly and the table
@@ -352,8 +352,8 @@ body {
 }
 /* A rule, so the header reads as a header rather than as the first row. */
 .grid.shaped .row.head {
-  position: sticky; top: -1.75rem; background: var(--tb-surface);
-  border-bottom: var(--hair) solid var(--tb-hair); margin-bottom: 0.5rem;
+  position: sticky; top: -1.75rem; background: var(--sb-surface);
+  border-bottom: var(--hair) solid var(--sb-hair); margin-bottom: 0.5rem;
 }
 /* No letter-spacing on a shaped header. The column widths are a contract
  * measured in `ch`, and tracking silently makes a six-character label need
@@ -379,64 +379,64 @@ body {
   text-overflow: clip; padding-top: 0;
 }
 .grid.shaped .row.detail .gut { flex-shrink: 0; }
-.row.sub > span { color: var(--tb-text-3); padding-bottom: 1rem; }
+.row.sub > span { color: var(--sb-text-3); padding-bottom: 1rem; }
 
-.v-num { color: var(--tb-brand); text-align: right; }
-.v-ok { color: var(--tb-ok); }
-.v-bad { color: var(--tb-danger); }
-.v-warn { color: var(--tb-warn); }
-.v-dim { color: var(--tb-text-3); }
-.v-label { color: var(--tb-text-2); }
+.v-num { color: var(--sb-brand); text-align: right; }
+.v-ok { color: var(--sb-ok); }
+.v-bad { color: var(--sb-danger); }
+.v-warn { color: var(--sb-warn); }
+.v-dim { color: var(--sb-text-3); }
+.v-label { color: var(--sb-text-2); }
 
 /* `pre`, not `pre-wrap`. Command output is column-aligned by spaces, and
  * wrapping folds a long row into what reads as two shorter ones with the
- * columns no longer lining up — worst on exactly the output `tb run` shows
+ * columns no longer lining up — worst on exactly the output `sb run` shows
  * most. It scrolls sideways instead, the way the table does. */
 /* A held-open stream's tail. The err tag is the stderr marker [[follow]]
  * specs — one style today, a Rule's tint tomorrow. */
 pre.stream { margin: 0; }
 /* A second channel is not a severity: an ordinary stderr line is grey, and
- * only tb's own announcements — rotation, truncation — wear the warning
+ * only sb's own announcements — rotation, truncation — wear the warning
  * colour. See [[highlight]] round 4. */
-pre.stream .err { color: var(--tb-text-2); }
-pre.stream .voice { color: var(--tb-warn); }
+pre.stream .err { color: var(--sb-text-2); }
+pre.stream .voice { color: var(--sb-warn); }
 /* Lexical tint — role classes fed by marks from [[highlight]]. The path role
    underlines instead of taking a hue of its own: links look like destinations
    without this file growing a colour the palette does not have. */
-pre.stream .mk-muted { color: var(--tb-text-3); }
-pre.stream .mk-accent { color: var(--tb-brand); }
-pre.stream .mk-path { color: var(--tb-text-2); text-decoration: underline; }
+pre.stream .mk-muted { color: var(--sb-text-3); }
+pre.stream .mk-accent { color: var(--sb-brand); }
+pre.stream .mk-path { color: var(--sb-text-2); text-decoration: underline; }
 /* Round 2's value kinds. `mk-num` is the brand token because a number wears
  * the brand in a table cell too — one value vocabulary, two surfaces. `mk-bold`
  * is a weight and composes with any of the above, which is why a mark's role
  * may carry two class names. See [[highlight]]. */
-pre.stream .mk-num { color: var(--tb-brand); }
+pre.stream .mk-num { color: var(--sb-brand); }
 pre.stream .mk-bold { font-weight: 700; }
 .dead-band {
   display: flex; align-items: center; gap: 2.5rem;
-  padding: 1.5rem 2.25rem; color: var(--tb-danger);
-  border-top: var(--hair) solid var(--tb-hair);
+  padding: 1.5rem 2.25rem; color: var(--sb-danger);
+  border-top: var(--hair) solid var(--sb-hair);
 }
 
 pre.raw {
-  white-space: pre; color: var(--tb-text-2); font: inherit;
+  white-space: pre; color: var(--sb-text-2); font: inherit;
   min-width: min-content;
 }
-.truncated { color: var(--tb-warn); padding-top: 1.5rem; }
-.fail { color: var(--tb-danger); }
-.warn { color: var(--tb-warn); }
-.spin { color: var(--tb-text-3); }
+.truncated { color: var(--sb-warn); padding-top: 1.5rem; }
+.fail { color: var(--sb-danger); }
+.warn { color: var(--sb-warn); }
+.spin { color: var(--sb-text-3); }
 
 .foot {
   display: flex; align-items: center; gap: 2.5rem; flex: none;
-  padding: 1rem 2.25rem; border-top: var(--hair) solid var(--tb-hair);
-  color: var(--tb-text-2); font-size: 2.75rem;
+  padding: 1rem 2.25rem; border-top: var(--hair) solid var(--sb-hair);
+  color: var(--sb-text-2); font-size: 2.75rem;
 }
 /* The right half is the quieter one, as the mockup draws it. */
-.foot .hint { color: var(--tb-text-3); }
+.foot .hint { color: var(--sb-text-3); }
 /* A hidden column was named, or a source degraded — the chrome carries the
  * count and the count deserves the warn role, not the muted one. */
-.foot-warn { color: var(--tb-warn); }
+.foot-warn { color: var(--sb-warn); }
 
 /* Time until this watcher fires again. Brand rather than warn: the top bar
  * already counts WATCHERS in brand, and a countdown is not a warning. */
@@ -446,13 +446,13 @@ pre.raw {
 }
 .progress .track {
   position: relative; flex: 1; height: 1.5rem; border-radius: 100px;
-  background: var(--tb-surface-2); overflow: hidden;
+  background: var(--sb-surface-2); overflow: hidden;
 }
 .progress .fill {
   position: absolute; left: 0; top: 0; bottom: 0;
-  background: var(--tb-brand); border-radius: 100px;
+  background: var(--sb-brand); border-radius: 100px;
 }
-.progress .until { flex: none; color: var(--tb-text-3); font-size: 2.75rem; white-space: nowrap; }
+.progress .until { flex: none; color: var(--sb-text-3); font-size: 2.75rem; white-space: nowrap; }
 
 .resize {
   position: absolute; right: 0; bottom: 0; width: 3.5rem; height: 3.5rem;
@@ -464,15 +464,15 @@ pre.raw {
 .foot-bar {
   display: flex; align-items: center; gap: 4rem; flex: none;
   padding: 0 3.5rem; height: 7rem;
-  border: var(--hair) solid var(--tb-hair); border-radius: var(--r-md);
-  background: var(--tb-surface);
-  color: var(--tb-text-3); font-size: 2.75rem; user-select: none;
+  border: var(--hair) solid var(--sb-hair); border-radius: var(--r-md);
+  background: var(--sb-surface);
+  color: var(--sb-text-3); font-size: 2.75rem; user-select: none;
 }
-.foot-bar .disconnected { color: var(--tb-danger); }
+.foot-bar .disconnected { color: var(--sb-danger); }
 
 ::-webkit-scrollbar { width: 2.5rem; height: 2.5rem; }
 ::-webkit-scrollbar-thumb {
-  background: color-mix(in srgb, var(--tb-text) 14%, transparent);
+  background: color-mix(in srgb, var(--sb-text) 14%, transparent);
   border-radius: var(--r-md);
 }
 ::-webkit-scrollbar-track { background: transparent; }

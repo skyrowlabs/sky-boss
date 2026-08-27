@@ -1,7 +1,7 @@
 /* The other shell: one window, the canvas inside it.
  *
  * main.js gives every command an OS window. This one does not — it opens a
- * single window on the page tb already serves, which means the canvas stays
+ * single window on the page sb already serves, which means the canvas stays
  * the canvas: panes are divs, the layout is yours rather than the window
  * manager's, and anything a pane wants to know about another pane is a lookup
  * in one JS heap instead of a message across a process boundary.
@@ -25,14 +25,14 @@ const bridge = require("./bridge.js");
 let ctx = null;
 let win = null;
 
-const FRAMELESS = process.env.TB_FRAME !== "1";
+const FRAMELESS = process.env.SB_FRAME !== "1";
 
 app.whenReady().then(async () => {
-  app.setName("toolbox");
+  app.setName("sky.boss");
   bridge.reapOnSignal(() => ctx);
 
   try {
-    ctx = await bridge.start({ tb: process.env.TB_BIN || "tb" });
+    ctx = await bridge.start({ sb: process.env.SB_BIN || "sb" });
   } catch (error) {
     console.error(`shell: ${error.message}`);
     app.exit(1);
@@ -62,12 +62,12 @@ app.whenReady().then(async () => {
    * exist here, and the handler degrades to a no-op by its own design, so the
    * move is asked for in CSS instead. Injected rather than committed: the
    * frontend belongs to the canvas, not to whichever shell is hosting it, and
-   * a `-webkit-app-region` in tb.css would be a line about Electron sitting in
+   * a `-webkit-app-region` in sb.css would be a line about Electron sitting in
    * a file that three other hosts also read.
    *
    * Whether this drag snaps and tiles the way Gtk.Window.begin_move_drag does
    * is the thing to verify. If it does not, that is the regression, and
-   * TB_FRAME=1 is the way back. */
+   * SB_FRAME=1 is the way back. */
   win.webContents.on("dom-ready", () => {
     win.webContents.insertCSS(`
       .bar { -webkit-app-region: drag; }
@@ -81,9 +81,9 @@ app.whenReady().then(async () => {
     return { action: "deny" };
   });
 
-  // The surface's own close button posts /api/quit, which sets tb's `quitting`
+  // The surface's own close button posts /api/quit, which sets sb's `quitting`
   // latch and takes the server down. Nothing tells this process about that, so
-  // it watches the child instead: tb going away is the session ending, whoever
+  // it watches the child instead: sb going away is the session ending, whoever
   // asked for it.
   ctx.child.once("exit", () => app.exit(0));
 

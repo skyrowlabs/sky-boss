@@ -36,12 +36,12 @@ A ✦ marks one with a decision recorded below.
 ### About the surface
 
 4. **The Window** ✦ — output pinned to a place, alive beyond the scrollback. The arrangement
-   persists in `$TB_STATE` and restores by nature: observes run fresh, follows return dead.
+   persists in `$SB_STATE` and restores by nature: observes run fresh, follows return dead.
 5. **The Cadence** ✦ — refresh keyed to *attention*, not a wall clock: re-runs while the window
    exists (even minimized), stops when it closes. Nothing survives the last window — that is what
    makes it a scheduler and not a daemon, and crossing that line is only ever done on purpose.
 6. **The Layout** ✦ — a named arrangement of windows, openable in one keystroke. Operator
-   content: `layouts.toml` in `$TB_HOME`, exported from the canvas, read and never written by tb.
+   content: `layouts.toml` in `$SB_HOME`, exported from the canvas, read and never written by sb.
 
 ### About liveness
 
@@ -75,7 +75,7 @@ structure has `--json`.
 
 **A Follow is an argv that never exits.** The primitive covers `journalctl -f`,
 `docker logs -f`, and a streaming agent session. *Superseded in part, same day:* this entry
-originally routed files through it too (`tail -F <path>`, "tb never grows a second, file-specific
+originally routed files through it too (`tail -F <path>`, "sb never grows a second, file-specific
 mechanism") — reversed under *rules begin basic* below: files get **watch**, a native tail-like
 loop, because the improvements watch needs are made of file knowledge a spawned tail cannot see.
 Follow remains the mechanism for streaming *commands*.
@@ -104,8 +104,8 @@ primitives):
 Worked against the operator's three temporalities: instant commands, long processes, and watching
 files for change.
 
-**The Keyword is a name plus a tb argv, and it is already the right shape.** `[tool.jam-prs]` in
-`$TB_HOME/tools.toml` wrapping `wrap -- jam pr list --json` makes `tb jam-prs` real — in the CLI,
+**The Keyword is a name plus a sb argv, and it is already the right shape.** `[tool.jam-prs]` in
+`$SB_HOME/tools.toml` wrapping `wrap -- jam pr list --json` makes `sb jam-prs` real — in the CLI,
 completions and palette alike. Ratified as-is from the build: the keyword inherits act/observe
 from `argv[0]` and cannot declare it. Extended by this round: it inherits its *temporal shape*
 the same way — `wrap`/`read` snapshot, `run` snapshot-or-job, `follow` stream — so `follow`
@@ -116,7 +116,7 @@ event — spawn an argv, output accrues, maybe it exits. So:
 
 - **A Job is a stream that ends.** Output from raw-output commands (`run`, `read`, `follow`)
   accrues live into the window as it happens; exit stamps a final status. This kills the
-  ten-minute black box a long `tb run` is today, using the same plumbing the Follow needs anyway.
+  ten-minute black box a long `sb run` is today, using the same plumbing the Follow needs anyway.
 - **Duration is discovered, never declared.** There is no "job" flag: a snapshot that turns out
   to take eight minutes simply is one, and the surface shows it accruing either way. The only
   operator assertions remain act/observe and never-exits (`follow`).
@@ -143,15 +143,15 @@ branches from them later:
 
 **Corrected the same day: watch is a tail-*like* execution, not `tail -F` spawned.** This entry
 first read watch as sugar expanding to `tail -F` under the ratified Follow — "one primitive, two
-spellings, zero special cases." The operator corrected it: watch is tb's own read loop over the
+spellings, zero special cases." The operator corrected it: watch is sb's own read loop over the
 file — open, remember the offset, backfill the last N lines into the ring, poll for growth, emit
 new lines — not a subprocess wearing a different name. The superseded reading stays visible here
 because the reasons to reverse it are the design: owning the loop is what the "improvements" are
-made of. tb can *stat* the file, so the liveness clock distinguishes "file untouched since 19:00"
+made of. sb can *stat* the file, so the liveness clock distinguishes "file untouched since 19:00"
 from "no new lines matching" — a spawned tail can say neither. Truncation and rotation are
 detected by inode and size rather than inherited from tail's flavor. Backfill-then-follow is one
 mechanism instead of a flag. And the later branches — delta, conditional highlighting — bind to
-a loop tb owns rather than to another process's stdout.
+a loop sb owns rather than to another process's stdout.
 
 The Follow proper (an argv that never exits — `journalctl -f`, `docker logs -f`, a streaming
 agent session) stands unchanged for *commands* that stream. What changed is that files are no
@@ -165,7 +165,7 @@ these two — branches, not foundations.
 ### 2026-08-21 — naming: `wrap` becomes `data`; `run` keeps its name
 
 **`wrap` is renamed `data`.** "wrap" named the mechanism; "data" names the contract, and the
-contract is what this document says matters. `tb data -- jam pr list --json` reads as what it
+contract is what this document says matters. `sb data -- jam pr list --json` reads as what it
 promises: parsed data or a failed contract, never carried bytes. Format expansion rides it as
 **one option, not a flag per format** — `--from csv`, `--from yaml`, json the unspoken default —
 so formats stay mutually exclusive by construction, and each new one arrives only as it earns its
@@ -174,7 +174,7 @@ envelope output, and one flag meaning two things at two levels is a confusion tr
 entries above predate the rename and say `wrap`; they are left as written.)
 
 **`run` keeps its name.** A `cmd` rename was considered for the acting entry, and a generic
-`tb cmd <argv>` door for all foreign commands was **considered and rejected**: one neutral entry
+`sb cmd <argv>` door for all foreign commands was **considered and rejected**: one neutral entry
 says nothing about whether re-running is a refresh or a scheduler nobody asked for, restoring the
 assertion would take an `--acts` flag — a far weaker assertion than a command name — and keyword
 inheritance leans on `argv[0]` being a distinct entry point. "run is the one command that acts"
@@ -203,7 +203,7 @@ failure the act/observe split exists to prevent; the absence of the flag on `run
 made visible in `--help`. `follow` and `watch` take none either — they are resident by nature.
 
 **`--from json` is spelled explicitly.** json becomes a named value of `--from` like any peer
-format rather than an invisible assumption; a bare `tb data` still defaults to json (it is the
+format rather than an invisible assumption; a bare `sb data` still defaults to json (it is the
 95% case) but json's status is now "default value of an explicit option," not "the assumption."
 
 The full temporal picture: **`run` = once, ever · `read`/`data` = once, or resident with
@@ -212,17 +212,17 @@ The full temporal picture: **`run` = once, ever · `read`/`data` = once, or resi
 ### 2026-08-21 — closing the open questions: Window, Layout, delta, escalation
 
 **The window's arrangement persists; what returns runs by its nature.** Geometry and the window
-set live in `$TB_STATE`. Opening the canvas is operator initiative — restoring the desk is not
+set live in `$SB_STATE`. Opening the canvas is operator initiative — restoring the desk is not
 the surface acting on its own — so a restored `read`/`data` window runs fresh (exactly what its
 cadence would do anyway), a `watch` reopens its file, a `follow` returns **dead until clicked**
 (a restore is a process launch, and the dead-streams rule already decided that), and a `run`
 window does not return runnable. The per-nature table is the act/observe split answering a
 question it was never asked — which is what a good primitive does.
 
-**Layouts are operator content.** `layouts.toml` in `$TB_HOME` beside `tools.toml`, read and
-never written by tb. Hand-authoring geometry is miserable, so the canvas offers *copy current
+**Layouts are operator content.** `layouts.toml` in `$SB_HOME` beside `tools.toml`, read and
+never written by sb. Hand-authoring geometry is miserable, so the canvas offers *copy current
 arrangement as TOML* and the operator pastes it in — arranging is the canvas's job, owning the
-file is the operator's. Last-session restore is state (`$TB_STATE`); a named layout is content —
+file is the operator's. Last-session restore is state (`$SB_STATE`); a named layout is content —
 the same content/state line the home directories already draw. This also answers the parked
 Follow question: a layout may declare a follow, and it restores dead-until-clicked like any
 other.
@@ -248,7 +248,7 @@ rules — the ladder's real first rung — remain the Rule branch's, undesigned.
 ### 2026-08-21 — one verb: `follow`
 
 **`follow` fronts both resident forms; `watch` is retired as a command name.**
-`tb follow <path>` runs the native file cursor; `tb follow -- <argv>` streams a process. The
+`sb follow <path>` runs the native file cursor; `sb follow -- <argv>` streams a process. The
 evidence was muscle memory: `-f` is literally `--follow` in tail, journalctl, docker and
 kubectl — covering files *and* commands — while Unix's own `watch(1)` means periodic re-run,
 which is this design's `--refresh`. Two names fighting that history misfired in the operator's
@@ -302,6 +302,6 @@ Named but not designed. Parked, not promised.
 - **Cron/systemd manager, or manager-lite** (operator, 2026-08-21). The *lite* reading fits the
   concept as-is: `systemctl list-timers`, `systemctl status`, `crontab -l` are snapshots on a
   cadence, and a unit's journal is a Follow — a "manager-lite" may be nothing but keywords plus a
-  layout. The full *manager* reading (enable/disable/edit units) acts, so it lives behind `tb run`
+  layout. The full *manager* reading (enable/disable/edit units) acts, so it lives behind `sb run`
   like every action, and would need to respect an existing boundary: jam.sense keeps its own
-  scheduler, and tb never manages or edits its cron entries.
+  scheduler, and sb never manages or edits its cron entries.

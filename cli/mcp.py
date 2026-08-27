@@ -1,14 +1,14 @@
-"""The MCP surface — the toolbox, offered to an agent.
+"""The MCP surface — the tools, offered to an agent.
 
-**The direction with value is the agent calling tb**, not tb calling an agent.
-Chaining already works and needs nothing: `tb follow -- claude -p …` is a
-command, and feeding tb into an agent is a shell pipe. What does not exist is an
+**The direction with value is the agent calling sb**, not sb calling an agent.
+Chaining already works and needs nothing: `sb follow -- claude -p …` is a
+command, and feeding sb into an agent is a shell pipe. What does not exist is an
 agent being able to ask *"how are my projects"* without knowing the tool, its
 flags, its working-directory quirk and how to parse what it prints. The operator
 solved all four already, once, in `tools.toml`.
 
 **The surface is what the operator curated, and that is the whole safety
-argument.** The act/observe split rests on one sentence — tb cannot tell a read
+argument.** The act/observe split rests on one sentence — sb cannot tell a read
 from a write by inspecting an argv and does not try, so choosing `data` over
 `run` is the *operator's* assertion. Hand that door to an agent and the
 assertion is being made by the thing it was protecting against. An MCP tool
@@ -21,10 +21,10 @@ surface is not small, it is absent.
 **stdio, not a port.** The canvas server binds one and needs four defences to
 do it safely. A second port would be a second thing to defend, defending the
 same commands. Over stdio the client spawned the process and holds both ends of
-the pipe, so the threat model collapses into "who may spawn `tb mcp`" — which
+the pipe, so the threat model collapses into "who may spawn `sb mcp`" — which
 the operating system already answers.
 
-**stdout is the protocol.** The purity rule that keeps `tb --json … | jq`
+**stdout is the protocol.** The purity rule that keeps `sb --json … | jq`
 parseable is the same rule that keeps a session intact here; a stray `print` is
 a corrupted session rather than an ugly one. See [[mcp]].
 """
@@ -61,21 +61,21 @@ def exposed(root=None) -> list[dict]:
     """The tools an agent may call, read off the live tree.
 
     Three properties decide it, and none of them is a name written down here —
-    the same rule `tb_surface` follows, for the same reason: a list in this
+    the same rule `sb_surface` follows, for the same reason: a list in this
     module is the command table the whole design refuses to keep, and it goes
     stale the day something is renamed.
 
     - **`acts` → excluded.** Acting stays the operator's. An agent that needs
       something done asks them.
     - **`resident` → excluded.** A stream has no single response, which is why
-      `tb follow` already refuses `--json`; a request/response protocol is the
+      `sb follow` already refuses `--json`; a request/response protocol is the
       same shape of problem and gets the same answer.
     - **takes an argv → excluded**, which is every remaining builtin. That is
       the assertion boundary above, and it is why `data` and `read` are not
       callable tools.
 
-    What is left is the toolbox — every entry an argv the operator wrote down —
-    plus any builtin that opts in with `tb_mcp` because it takes nothing from
+    What is left is the tools — every entry an argv the operator wrote down —
+    plus any builtin that opts in with `sb_mcp` because it takes nothing from
     its caller either. See [[mcp]] round 1.
     """
     from cli.canvas.catalog import catalog
@@ -110,7 +110,7 @@ def call(name: str, root=None) -> tuple[str, bool]:
     tools = {tool["name"]: tool for tool in exposed(root)}
     tool = tools.get(name)
     if tool is None:
-        offered = ", ".join(sorted(tools)) or "nothing — the toolbox is empty"
+        offered = ", ".join(sorted(tools)) or "nothing — no tools are saved"
         return json.dumps({"error": f"no such tool: {name}", "available": offered}), True
 
     from cli import cli as root_group
@@ -180,7 +180,7 @@ def handle(message: dict, root=None) -> dict | None:
                 # than agreeing on the thing we both do.
                 "protocolVersion": asked if isinstance(asked, str) else DEFAULT_PROTOCOL,
                 "capabilities": {"tools": {}},
-                "serverInfo": {"name": "toolbox", "version": _version()},
+                "serverInfo": {"name": "sky-boss", "version": _version()},
             },
         )
 
@@ -251,12 +251,12 @@ def _write(sink, payload: dict) -> None:
 
 @click.command(name="mcp")
 def mcp() -> None:
-    """Speak MCP on stdin/stdout, offering the toolbox to an agent.
+    """Speak MCP on stdin/stdout, offering the tools to an agent.
 
     The client spawns this and owns the pipe; there is no port, no token and no
     daemon. Register it with any MCP client as a stdio server:
 
-        {"command": "tb", "args": ["mcp"]}
+        {"command": "sb", "args": ["mcp"]}
 
     **What an agent may reach: the commands you saved, and nothing else.** Every
     exposed tool is an argv you wrote in `tools.toml`, plus any builtin that
@@ -269,7 +269,7 @@ def mcp() -> None:
     `data` over `run` is *your* assertion that something is a read, and an
     assertion an agent makes about its own argv is not a safety property.
 
-    tb is never in the credential path. A saved command runs with your
+    sb is never in the credential path. A saved command runs with your
     environment, so an agent inherits your reach for exactly the commands you
     curated. That is the trade, stated rather than discovered.
 
@@ -278,7 +278,7 @@ def mcp() -> None:
     serve()
 
 
-# This is a surface, like `tb ui`. It stays out of the palette and out of its
+# This is a surface, like `sb ui`. It stays out of the palette and out of its
 # own tool list — set on the command object rather than named in a skip-list,
 # which is the rule that stops a module here growing a command table.
-mcp.tb_surface = True
+mcp.sb_surface = True

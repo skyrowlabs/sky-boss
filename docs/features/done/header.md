@@ -11,20 +11,20 @@ key_files:
   - tests/test_banner.py
 ---
 
-# The mark — a header for `tb`
+# The mark — a header for `sb`
 
 ## Why
 
-`tb --help` opened with a title and a subtitle that any Click app would have printed:
+`sb --help` opened with a title and a subtitle that any Click app would have printed:
 
 ```
-toolbox — the homebase operator CLI.
+sky.boss — the homebase operator CLI.
 Deterministic scripts and agentic automations across a primary workstation and the machines
 around it.
 ```
 
 The operator drew a header instead — `docs/design/cli-header.png`: a pixel toolbox, **TOOLBOX**
-in a blocky face, and a byline reading `by SKYROW.LABS · v0.4.1 · tb --help`. The ask was to
+in a blocky face, and a byline reading `by SKYROW.LABS · v0.4.1 · sb --help`. The ask was to
 make that the header and drop the two lines it replaces.
 
 A terminal cannot show an image. But the source is *pixel art*, which means it does not have to
@@ -51,7 +51,8 @@ changing the mark is changing those strings, not re-running a converter. The PNG
 
 **The mark paints its own background, and that is what licenses its colours.** Every CLI role is
 the smallest darkening of its token that clears 3.5:1 against *both* white and the void
-([[theme]]), because tb prints into a terminal whose background nobody here knows. The mark
+(CLAUDE.md § Conventions), because sb prints into a terminal whose background nobody here
+knows. The mark
 removes that unknown by painting a panel, which puts it in the canvas's position rather than the
 CLI's — so it takes `BRAND`, `TEXT`, `TEXT_3` and `SURFACE_2` at full strength.
 
@@ -66,18 +67,18 @@ at authoring time, so the separators narrow from `   ·   ` to ` · ` first and 
 truncates last, and the line is always exactly the panel's width.
 
 **It refuses to draw rather than degrade badly.** Narrower than the panel, or not a terminal at
-all, and `show()` returns False without printing; help falls back to `toolbox  ·  <version>`. A
+all, and `show()` returns False without printing; help falls back to `sky.boss  ·  <version>`. A
 banner that wraps turns a rectangle into confetti, and a wall of block characters down a pipe is
 worse than no header. `--json` gets no paint either, for the same reason nothing decorative goes
 out when the envelope was asked for.
 
 **Does not do:**
 
-- **No banner on subcommands.** `tb read --help` is a reference page someone may read three times
+- **No banner on subcommands.** `sb read --help` is a reference page someone may read three times
   in a day; a banner over every one is a banner nobody sees. Only the root wears it.
 - **No image rendering.** No sixel, no kitty graphics, no iTerm inline images. They would each be
   a terminal-capability branch, and the mark already exists in a form every terminal can draw.
-- **No colour negotiation.** Rich degrades truecolor to 256 or 16 on its own; tb does not inspect
+- **No colour negotiation.** Rich degrades truecolor to 256 or 16 on its own; sb does not inspect
   `COLORTERM` and pick a palette.
 - **No ASCII fallback of the mark.** The small-surface answer is a *name*, not a worse picture.
 - **Not a splash screen.** It appears where help appears, and nowhere else — never before a
@@ -127,6 +128,42 @@ What the execution argued back:
   next reader of the *source*, printed to every user of the tool. It moved to a comment. Worth
   remembering wherever a docstring is documentation and UI at once, which in Click is everywhere.
 - **A pty and a rasteriser were the only honest check.** The suite proves the mechanism; it
-  cannot see that the toolbox looks like a toolbox. Capturing real `tb --help` through a pty and
+  cannot see that the toolbox looks like a toolbox. Capturing real `sb --help` through a pty and
   painting the ANSI back into a PNG put the render next to the source, which is how the icon's
   proportions were confirmed rather than assumed.
+
+### Round 2 — the tower (2026-08-27)
+
+`tb` became `sb` and the CLI's name became **sky.boss**, which broke the mark in the most literal
+way available: `banner.py` printed the new name beside a drawing of a toolbox with `TOOLBOX`
+lettered across it. [[open]] item 15 held it as a design task rather than a substitution, which was
+right — the fix is a redraw, and a redraw is the one part of a rename that cannot be done with sed.
+
+**The glyph is a control tower** — an overhanging cab with mullioned glass, a shaft with one dark
+face, a flared base, a mast. It is 14x14 where the toolbox was 18x14, and the wordmark grew from
+seven letters to eight, so the two changes cancel: the art is still 63 columns and `WIDTH` did not
+move. Nothing about the panel, the byline fit, or the refusal-to-draw rule needed touching, which
+is the payoff for `ART` having been a hand-editable tuple rather than a decoded image.
+
+The tower is also the metaphor the rest of the design already speaks — `ControlTower.dc.html` and
+`FlightPlan.dc.html` are artboards, and [[open]] item 13 notes the governor as the one *mechanical*
+image in an otherwise clean aviation set. The mark was the other one. It is not any more.
+
+**What actually changed is which file is the source.** Round 1 measured `ART` off the PNG — 11.2px
+per column, 8.86px per row — which made the PNG the original and the tuple a transcription. That is
+exactly the arrangement in which a rename can move one and not the other, and it did. So the
+direction is now inverted: `ART` is the picture, and `docs/design/render-mark.py` renders **both**
+PNGs from it. The measured-grid paragraph above is kept as round 1's record, not as instructions.
+
+- **`SKY.BOSS` needed a glyph the old wordmark did not: a period.** Every letter is 5 wide; a
+  full-width dot would read as a gap with something in it. It is 2 wide, which is the only place
+  the face varies, and it sits on the baseline as a 2x2 block.
+- **Three drafts before it read as a tower.** The first had a cab so deep it read as a robot head,
+  the second as a lamp — both because the glass was a single unbroken band. Mullions fixed it: two
+  dark verticals are what makes a rectangle of light read as a *window*, and at this size they cost
+  two pixels each.
+- **The pty rasteriser from round 1 was the check again, and it caught a regression of its own.**
+  `readme-banner.png` is a screenshot of `sb --help`, so it carried the old prompt, the old mark
+  *and* the old command descriptions. Regenerating it is now one command. The chevron and the
+  half-block are both **drawn rather than typed** — `fc-match monospace` is not guaranteed to carry
+  U+276F, and the first regeneration put tofu in the top-left corner.

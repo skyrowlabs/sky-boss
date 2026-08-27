@@ -11,25 +11,25 @@ key_files:
   - tests/test_run.py
 ---
 
-# The subprocess boundary — what a command tb runs inherits
+# The subprocess boundary — what a command sb runs inherits
 
 ## Why
 
-tb hands every command it spawns its own bootstrap environment. Measured, from an unrelated
+sb hands every command it spawns its own bootstrap environment. Measured, from an unrelated
 directory:
 
 ```
-$ cd /tmp && tb run -- python3 -c "import cli; print(cli.__file__)"
+$ cd /tmp && sb run -- python3 -c "import cli; print(cli.__file__)"
    <repo>/cli/__init__.py
 
 $ cd /tmp && python3 -c "import cli"
    ModuleNotFoundError: No module named 'cli'
 ```
 
-The second line is what should happen. The first is tb putting its own package on a foreign tool's
+The second line is what should happen. The first is sb putting its own package on a foreign tool's
 import path, from anywhere on the machine.
 
-The cause is not a mistake so much as an unexamined inheritance. The `tb` wrapper exports two
+The cause is not a mistake so much as an unexamined inheritance. The `sb` wrapper exports two
 variables so that `python -m cli` resolves against the repo rather than against whatever directory
 you happen to be standing in:
 
@@ -41,10 +41,10 @@ export PYTHONSAFEPATH=1
 Both are load-bearing and neither is wrong — `CLAUDE.md` § CLI setup explains at length why
 `PYTHONSAFEPATH=1` exists, and it has already prevented one silent bug. What nothing decided is
 that a *child* should get them. `subprocess.run` inherits the parent environment by default, so
-every `tb run`, every `tb wrap`, and every watcher refresh runs its command with toolbox on
+every `sb run`, every `sb wrap`, and every watcher refresh runs its command with sky.boss on
 `PYTHONPATH`.
 
-**This was found by manually testing the thing it masks.** `tb wrap -- jam pr list --json`
+**This was found by manually testing the thing it masks.** `sb wrap -- jam pr list --json`
 succeeded from inside this repo without `--cwd`, and it should not have: run directly, `jam` fails
 there. The leak was making it work.
 
@@ -53,24 +53,24 @@ wrapper does not set `PYTHONSAFEPATH`, so `python -m cli` prepends the current d
 `sys.path` and **any directory containing a `cli/` package shadows jam's own**:
 
 ```
-jam from toolbox (has a cli/ package):       exit=1
+jam from sky-boss (has a cli/ package):       exit=1
 jam from /tmp (no cli/ package):             exit=0
-jam from toolbox, PYTHONSAFEPATH=1:          exit=0
+jam from sky-boss, PYTHONSAFEPATH=1:          exit=0
 ```
 
-The error it printed — `missing required Python dependencies` — is toolbox's own message from
-`cli/__init__.py:18`. jam was running tb's CLI. That is jam.sense's bug to fix and this document
+The error it printed — `missing required Python dependencies` — is sky.boss's own message from
+`cli/__init__.py:18`. jam was running sb's CLI. That is jam.sense's bug to fix and this document
 does not propose fixing it here, but it is the reason `--cwd` genuinely is needed for jam, and it
 is **not** the reason `CLAUDE.local.md` currently records. That note says jam resolves `.venv`
 against the cwd; it has not done so for some time — its wrapper uses
 `realpath "${BASH_SOURCE[0]}"` and is cwd-independent.
 
-The two together are the worst case: tb's leak silently repairs jam's shadowing, so the argv that
+The two together are the worst case: sb's leak silently repairs jam's shadowing, so the argv that
 works today is the argv that breaks the moment either bug is fixed.
 
 ## Shape
 
-**A command tb spawns gets the operator's environment, not tb's.**
+**A command sb spawns gets the operator's environment, not sb's.**
 
 One helper in `cli/helpers.py`:
 
@@ -78,23 +78,23 @@ One helper in `cli/helpers.py`:
 BOOTSTRAP = ("PYTHONPATH", "PYTHONSAFEPATH")
 
 def child_env() -> dict[str, str]:
-    """os.environ minus the variables tb's own wrapper set."""
+    """os.environ minus the variables sb's own wrapper set."""
 ```
 
-Used by everything that spawns: `run_command`, `tb run`, `tb wrap`, and the canvas runner.
+Used by everything that spawns: `run_command`, `sb run`, `sb wrap`, and the canvas runner.
 
-**Why those two and nothing else.** They are exactly what `tb` exports and nothing else on the
+**Why those two and nothing else.** They are exactly what `sb` exports and nothing else on the
 machine sets them for this purpose. `PATH` is emphatically *not* on the list — the wrapper prepends
-its venv's `bin` to it, and stripping that would be tb deciding which `python3` a foreign tool
-should find, which is the operator's business and not tb's. Scrubbing is for variables that exist
-only so tb can boot.
+its venv's `bin` to it, and stripping that would be sb deciding which `python3` a foreign tool
+should find, which is the operator's business and not sb's. Scrubbing is for variables that exist
+only so sb can boot.
 
-**The canvas runner scrubs too, even though it spawns `tb` itself.** The wrapper re-establishes
+**The canvas runner scrubs too, even though it spawns `sb` itself.** The wrapper re-establishes
 both variables on the way in, so nothing is lost — and it *appends* to any inherited `PYTHONPATH`,
 so without scrubbing a nested invocation accumulates the repo path twice. Scrubbing makes the
 child's environment identical whether it was reached from a terminal or from a watcher.
 
-**The test is the demonstration, not a mock.** `tb run -- python3 -c "import cli"` must fail from a
+**The test is the demonstration, not a mock.** `sb run -- python3 -c "import cli"` must fail from a
 directory that is not the repo, exactly as a plain shell fails. That asserts the property an
 operator would check by hand rather than the mechanism, so a future change to *how* the wrapper
 bootstraps cannot quietly satisfy it.
@@ -103,7 +103,7 @@ bootstraps cannot quietly satisfy it.
 
 - **Does not sanitise generally.** Not a clean-room environment, not an allowlist, no `env -i`. A
   wrapped tool needs `HOME`, `PATH`, `SSH_AUTH_SOCK`, its own `*_TOKEN`s and everything else the
-  operator's shell would have given it. The two variables removed are the two tb added.
+  operator's shell would have given it. The two variables removed are the two sb added.
 - **Does not touch `PATH`.** See above.
 - **Does not fix jam.** `CLAUDE.local.md` gets its note corrected, because a wrong reason recorded
   is worse than no reason, but jam.sense's wrapper is jam.sense's to change.
@@ -115,20 +115,20 @@ bootstraps cannot quietly satisfy it.
 ### Round 1 — stop leaking the bootstrap (2026-08-20)
 
 - [x] `BOOTSTRAP` and `child_env()` in `cli/helpers.py`.
-- [x] `run_command`, `tb run`, `tb wrap` and `cli/canvas/runner.py` all use it.
-- [x] A test that `tb run -- python3 -c "import cli"` fails from outside the repo, and one that
+- [x] `run_command`, `sb run`, `sb wrap` and `cli/canvas/runner.py` all use it.
+- [x] A test that `sb run -- python3 -c "import cli"` fails from outside the repo, and one that
       `PATH` and ordinary variables survive.
 - [x] Correct `CLAUDE.local.md`'s account of why `jam` needs `--cwd`, and add the scrub to
       `CLAUDE.md` § Conventions.
 
 ### Round 2 — the display's width (2026-08-22)
 
-Reported by the operator: *"`tb follow -- jam report watch --follow` is not showing me the same
-as when I run the command outside of tb."* True, and measurable.
+Reported by the operator: *"`sb follow -- jam report watch --follow` is not showing me the same
+as when I run the command outside of sb."* True, and measurable.
 
-**A tool lays out by asking its stdout how wide the terminal is.** Under tb that stdout is a
+**A tool lays out by asking its stdout how wide the terminal is.** Under sb that stdout is a
 pipe, so the tool falls back to its own default — 120 columns for the tool in question — and
-truncates every longer line, in a 150-column terminal that had the room. tb was silently
+truncates every longer line, in a 150-column terminal that had the room. sb was silently
 narrowing the thing it exists to show you.
 
 Measured rather than argued. Running the same bounded command both ways and diffing the child's
@@ -136,14 +136,14 @@ own bytes:
 
 ```
 direct, in a 150-column terminal :  74 lines, max width 150
-through tb, with COLUMNS passed  :  74 lines, max width 150   ← byte-identical
-through tb, without              :  74 lines, max width 120   ← every long line loses its tail
+through sb, with COLUMNS passed  :  74 lines, max width 150   ← byte-identical
+through sb, without              :  74 lines, max width 120   ← every long line loses its tail
 ```
 
 **So `child_env()` gains the one thing it adds rather than scrubs.** Round 1's rule was *scrub
-what tb added to boot and nothing else*; this is a deliberate, narrow exception, and it earns
-the exception by making tb **transparent**: the child draws for the display it is actually being
-drawn on, which is what it would have done had tb not been in the way.
+what sb added to boot and nothing else*; this is a deliberate, narrow exception, and it earns
+the exception by making sb **transparent**: the child draws for the display it is actually being
+drawn on, which is what it would have done had sb not been in the way.
 
 **Only where the output is displayed as text.** `run`, `read` and `follow` pass the terminal's
 width; **`data` never does.** Its bytes are parsed, a width is an instruction to lay out for a
@@ -152,7 +152,7 @@ than a narrower one. The canvas passes nothing either — a browser window's cha
 not a number the server knows.
 
 **And only when there is a display.** Piped output has no width worth claiming: the consumer may
-be a file, and a tool wrapping to a number tb invented is worse than one using its own default.
+be a file, and a tool wrapping to a number sb invented is worse than one using its own default.
 
 **`LINES` is deliberately not set.** A tool that thinks it knows the height may decide to
 paginate, and a pager inside a held-open stream is a hang.
@@ -162,7 +162,7 @@ paginate, and a pager inside a held-open stream is a hang.
 - **No pty.** The remaining difference between the two runs is *colour*: a tool that colours its
   own output does so only when stdout is a terminal, and neither `FORCE_COLOR` nor
   `CLICOLOR_FORCE` moved the one measured here. Giving the child a pty would restore it and is
-  refused by [[follow]] — "line streams, not a pty" — and tb now paints its own semantic colour
+  refused by [[follow]] — "line streams, not a pty" — and sb now paints its own semantic colour
   through [[highlight]], which would fight it. Recorded as measured, not assumed.
 - **No width for `data`, ever.** See above.
 - **No terminal *type*.** `TERM` is the operator's and is passed through untouched, as every
@@ -170,8 +170,8 @@ paginate, and a pager inside a held-open stream is a hang.
 
 - [x] **`child_env(columns)`**, set only when a width was given.
 - [x] **The display paths pass it** — `follow` from its console, `run` and `read` from theirs,
-      and only when tb's own stdout is a terminal.
-- [x] **Tests**: a child sees the width, a child without a display sees none of tb's, the
+      and only when sb's own stdout is a terminal.
+- [x] **Tests**: a child sees the width, a child without a display sees none of sb's, the
       operator's own `COLUMNS` still passes through, `LINES` is never set, and `data` never
       passes a width at all.
 
@@ -179,10 +179,10 @@ paginate, and a pager inside a held-open stream is a hang.
 
 Found while answering *"is this command showing the bottom of the file?"* — it was, but the
 investigation turned up a defect that had nothing to do with the question and everything to do
-with what `tb follow` is for.
+with what `sb follow` is for.
 
 **A pipe makes a child's stdout block-buffered.** A tool printing a line a minute writes into an
-8 KB buffer; nothing reaches tb until it fills or the process exits. Measured with a child
+8 KB buffer; nothing reaches sb until it fills or the process exits. Measured with a child
 printing every 0.8s:
 
 ```
@@ -196,20 +196,20 @@ The same tool run in a terminal is line-buffered and shows every line as it land
 exactly the difference the operator kept noticing.
 
 **So a streaming spawn sets `PYTHONUNBUFFERED=1`,** by the same reasoning round 2 used for
-`COLUMNS`: tb is standing between a tool and a terminal, and its job is to be transparent about
+`COLUMNS`: sb is standing between a tool and a terminal, and its job is to be transparent about
 what the terminal would have given it. It is set only on the streaming paths — a buffered run
 collects everything at exit anyway, so there is nothing to un-delay.
 
 **It is Python-specific, and that is stated rather than dressed up.** The general fix is a pty,
 which [[follow]] refuses by name; `stdbuf -oL` was tried and does nothing for a Python child.
-What this covers is every tool in this family — tb's siblings are all Python — and it costs a
+What this covers is every tool in this family — sb's siblings are all Python — and it costs a
 non-Python child nothing. A non-Python tool that block-buffers its own output is still capable
 of arriving late, and the honest answer there is that the tool should flush.
 
 **Does not do:**
 
 - **No pty**, still. See round 2 and [[follow]].
-- **No argv wrapping.** Prefixing `stdbuf -oL` would make tb run something other than what the
+- **No argv wrapping.** Prefixing `stdbuf -oL` would make sb run something other than what the
   operator typed, and [[follow]]'s rule is argv only, unchanged. It also does not work for the
   case at hand.
 
@@ -224,25 +224,25 @@ of arriving late, and the honest answer there is that the tool should flush.
 The fix is six lines and was never in doubt. What is worth recording is how it was found, because
 no test would have caught it and no amount of reading would either.
 
-The task was a manual check of `tb wrap -- jam pr list --json` — the feature's own driving case,
+The task was a manual check of `sb wrap -- jam pr list --json` — the feature's own driving case,
 after it had already shipped and passed 191 tests. The first command run was the *failure* case,
 `wrap` with no `--cwd`, expected to fail because running `jam` there fails. It succeeded. Two
 levels down from that surprise were two separate bugs in two different repositories, each of which
 had been hiding the other:
 
-- tb handed every subprocess its own `PYTHONPATH` and `PYTHONSAFEPATH`.
+- sb handed every subprocess its own `PYTHONPATH` and `PYTHONSAFEPATH`.
 - jam's wrapper does not set `PYTHONSAFEPATH`, so any directory holding a `cli/` package shadows
-  jam's own — and tb's leak was supplying the missing variable.
+  jam's own — and sb's leak was supplying the missing variable.
 
-Neither is visible from inside its own repository. tb's suite passes with the leak, because every
+Neither is visible from inside its own repository. sb's suite passes with the leak, because every
 test that spawns anything spawns something that does not care. jam works everywhere its author
 runs it. **They only appear where the two meet**, which is a place only a person standing in one
 repo running the other's binary ever stands.
 
 The scar tissue in `CLAUDE.md` § CLI setup is about exactly this class — a relative `PATH` entry
 re-resolving against a child's cwd, 112 tests failing from a tmp dir, systemd units silently
-written with the wrong `WorkingDirectory`. It records the lesson as a rule about *tb's own*
-bootstrap. What it had not extended is the other direction: tb's bootstrap is also something tb
+written with the wrong `WorkingDirectory`. It records the lesson as a rule about *sb's own*
+bootstrap. What it had not extended is the other direction: sb's bootstrap is also something sb
 *exports*, and a variable that is load-bearing for the parent is contamination for the child.
 
 **The wrong reason was recorded, which is worse than none.** `CLAUDE.local.md` said `jam` needs
@@ -258,7 +258,7 @@ the dangerous one: the argv that worked was the argv that would break the moment
 fixed, in either repository, by anyone.
 
 **What is not fixed.** jam's wrapper still lacks `PYTHONSAFEPATH`, so `jam` still fails when run
-from any directory containing a `cli/` package. That is jam.sense's to change, and `tb wrap`
+from any directory containing a `cli/` package. That is jam.sense's to change, and `sb wrap`
 without `--cwd` now fails honestly there instead of quietly working.
 
 ### 2026-08-21 — the words moved; the history stays (supersession)
@@ -270,35 +270,35 @@ see [[refresh]]. This doc predates the rename and its prose says `wrap` because 
 ### Round 2 — executed (2026-08-22)
 
 **The bug report was precise and the first measurement was not.** Comparing the two runs by
-maximum line width said "301 versus 150", which looked like tb producing wider output — until
-the 301-character lines turned out to be **tb's own chrome band**, joined across frames by the
+maximum line width said "301 versus 150", which looked like sb producing wider output — until
+the 301-character lines turned out to be **sb's own chrome band**, joined across frames by the
 bare carriage returns an in-place redraw uses. The comparison harness was measuring itself.
-Splitting on `\r` as well as `\n`, and excluding tb's chrome, made the real difference visible:
+Splitting on `\r` as well as `\n`, and excluding sb's chrome, made the real difference visible:
 the child truncating at its own default.
 
 **What settled it was diffing the child's bytes rather than the rendered screen.** Running the
 same bounded command under a pty and under `ChildStream`, with and without the width, gives
-`A == B` exactly — a one-line assertion that the fix makes tb transparent, and one that no
+`A == B` exactly — a one-line assertion that the fix makes sb transparent, and one that no
 amount of looking at two screenshots could have produced.
 
 **The colour difference is real, measured, and deliberately left alone.** The tool emits cyan,
 green and yellow when its stdout is a terminal and nothing at all when it is a pipe; neither
 `FORCE_COLOR` nor `CLICOLOR_FORCE` changes that. Only a pty would, which [[follow]] refuses by
-name — and tb now has its own semantic tinting through [[highlight]], so restoring the tool's
+name — and sb now has its own semantic tinting through [[highlight]], so restoring the tool's
 would put two colour schemes on one line. Worth stating plainly rather than leaving as a
-surprise: **under tb, the colours you see are tb's, and the layout is the tool's.**
+surprise: **under sb, the colours you see are sb's, and the layout is the tool's.**
 
 **One more thing the tests had to be talked out of claiming.** The first version asserted that a
-child sees *no* `COLUMNS` when tb passes none — and it failed, because the process running the
+child sees *no* `COLUMNS` when sb passes none — and it failed, because the process running the
 suite exports one. That is not a bug, it is round 1's rule working: the environment is the
-operator's, and tb scrubs only what it added to boot. The contract is narrower than the first
-assertion and is now written as it actually is — **tb adds no width of its own, and overrides an
+operator's, and sb scrubs only what it added to boot. The contract is narrower than the first
+assertion and is now written as it actually is — **sb adds no width of its own, and overrides an
 inherited one only when it has a display to describe.**
 
 ### Round 3 — executed (2026-08-22)
 
 **The reported symptom and the found defect were different problems, and separating them was
-the work.** The operator asked whether `tb follow` was showing the bottom of the stream. It was
+the work.** The operator asked whether `sb follow` was showing the bottom of the stream. It was
 — the final frame is identical to the same command's own final frame, line for line — and the
 stale-looking rows came from the followed tool's own replay window. But reproducing that
 question required watching a child emit lines slowly, and *that* is where the buffering showed
@@ -306,7 +306,7 @@ up: not the thing asked about, and a real defect in the one command whose whole 
 show output as it happens.
 
 **Worth keeping as a habit:** the answer to "is it showing the latest?" was obtained by diffing
-tb's final painted frame against the tool's own, rather than by reasoning about the ring. The
+sb's final painted frame against the tool's own, rather than by reasoning about the ring. The
 ring was never the suspect it looked like — `--lines 2000` had already been tried and changed
-nothing, which was the clue that the missing lines were not missing from tb at all.
+nothing, which was the clue that the missing lines were not missing from sb at all.
 

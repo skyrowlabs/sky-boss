@@ -1,4 +1,4 @@
-"""The canvas's backend: a loopback HTTP server that runs tb commands.
+"""The canvas's backend: a loopback HTTP server that runs sb commands.
 
 **This is remote code execution bound to a port, and it is treated that way.**
 A page on any website you happen to have open can POST to `127.0.0.1` — it
@@ -10,7 +10,7 @@ them is optional:
    reach it at all.
 2. **A custom header is required on every API route.** This is the load-bearing
    one, and it works through the browser rather than around it: a cross-origin
-   request carrying `X-TB-Token` stops being a "simple request", so the browser
+   request carrying `X-SB-Token` stops being a "simple request", so the browser
    must preflight it — and the preflight is answered with a refusal, so the
    real request is never sent. A form POST or an `img` tag cannot set a header
    at all.
@@ -58,7 +58,7 @@ from cli.theme import css_root, css_variables
 
 STATIC = Path(__file__).resolve().parent / "static"
 
-TOKEN_HEADER = "x-tb-token"
+TOKEN_HEADER = "x-sb-token"
 
 # How often the scheduler looks for a due watcher. Finer than the shortest
 # cadence so a 5s watcher is not systematically late, coarse enough that an
@@ -84,7 +84,7 @@ class Canvas:
         # How big the surface renders. One number, injected into the page, that
         # every size in the stylesheet is measured in.
         self.scale = scale
-        # Set when the page asks to quit. `tb ui` watches it, because the
+        # Set when the page asks to quit. `sb ui` watches it, because the
         # window has no frame of its own and so no close button but ours.
         self.quitting = threading.Event()
 
@@ -123,11 +123,11 @@ def build(canvas: Canvas | None = None) -> Starlette:
         """
         html = (STATIC / "index.html").read_text()
         # Palette first. Neither placeholder is a prefix of the other in a way
-        # that matters — `__TB_TOKENS__` has an S where `__TB_TOKEN__` has its
+        # that matters — `__SB_TOKENS__` has an S where `__SB_TOKEN__` has its
         # closing underscores — but ordering them makes that not need checking.
-        html = html.replace("__TB_TOKENS__", css_root())
-        html = html.replace("__TB_SCALE__", str(canvas.scale))
-        return HTMLResponse(html.replace("__TB_TOKEN__", canvas.token))
+        html = html.replace("__SB_TOKENS__", css_root())
+        html = html.replace("__SB_SCALE__", str(canvas.scale))
+        return HTMLResponse(html.replace("__SB_TOKEN__", canvas.token))
 
     async def favicon(request: Request) -> Response:
         """The window's own mark, drawn from the palette.
@@ -141,14 +141,14 @@ def build(canvas: Canvas | None = None) -> Starlette:
         tokens = css_variables()
         svg = (
             '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">'
-            f'<rect width="32" height="32" rx="7" fill="{tokens["tb-surface"]}"/>'
+            f'<rect width="32" height="32" rx="7" fill="{tokens["sb-surface"]}"/>'
             f'<rect x="3.5" y="3.5" width="25" height="25" rx="5.5" fill="none" '
-            f'stroke="{tokens["tb-brand"]}" stroke-opacity=".45"/>'
-            f'<path d="M9 12h14" stroke="{tokens["tb-brand"]}" stroke-width="2.5" '
+            f'stroke="{tokens["sb-brand"]}" stroke-opacity=".45"/>'
+            f'<path d="M9 12h14" stroke="{tokens["sb-brand"]}" stroke-width="2.5" '
             'stroke-linecap="round"/>'
-            f'<path d="M9 18h9" stroke="{tokens["tb-text-2"]}" stroke-width="2.5" '
+            f'<path d="M9 18h9" stroke="{tokens["sb-text-2"]}" stroke-width="2.5" '
             'stroke-linecap="round"/>'
-            f'<path d="M9 23h5" stroke="{tokens["tb-text-3"]}" stroke-width="2.5" '
+            f'<path d="M9 23h5" stroke="{tokens["sb-text-3"]}" stroke-width="2.5" '
             'stroke-linecap="round"/>'
             "</svg>"
         )
@@ -163,7 +163,7 @@ def build(canvas: Canvas | None = None) -> Starlette:
 
         This does not call `window.close()`. That is only reliably permitted on
         a window a script opened, and a kiosk window is not one; setting a latch
-        that `tb ui` is waiting on works the same in every mode and leaves the
+        that `sb ui` is waiting on works the same in every mode and leaves the
         server in charge of its own shutdown.
         """
         if not canvas.authorised(request):
@@ -176,9 +176,9 @@ def build(canvas: Canvas | None = None) -> Starlette:
             return _denied()
         # `home` is where a *raw* command runs unless the operator says
         # otherwise. Neutral on purpose: the canvas inherits whatever directory
-        # `tb ui` was launched in, and launching it inside any repo with a
+        # `sb ui` was launched in, and launching it inside any repo with a
         # `cli/` package makes `python -m cli` resolve to that one — which is
-        # how running `jam` from this repo produces toolbox's own error.
+        # how running `jam` from this repo produces sky.boss's own error.
         # A home directory has no such package to shadow anything.
         return JSONResponse(
             {
@@ -375,7 +375,7 @@ class Follow(NamedTuple):
 def resolve_follow(
     argv: list[str], root=None
 ) -> tuple[str, list[str], str | None, int, str | None]:
-    """A tb-level follow argv down to what it follows.
+    """A sb-level follow argv down to what it follows.
 
     The client sends what the operator typed or saved — `follow -- journalctl
     -f`, `follow cron.log`, or a keyword like `logs` — and the *server*
@@ -406,8 +406,8 @@ def resolve_follow(
     ):
         command = command.commands[argv[consumed]]
         consumed += 1
-    if command is not None and getattr(command, "tb_saved", False):
-        argv = list(getattr(command, "tb_argv", argv))
+    if command is not None and getattr(command, "sb_saved", False):
+        argv = list(getattr(command, "sb_argv", argv))
     if not argv or argv[0] != "follow":
         raise ValueError("not a follow argv")
 

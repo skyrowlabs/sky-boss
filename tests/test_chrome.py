@@ -220,12 +220,12 @@ def test_the_frame_is_furniture_and_the_facts_wear_their_roles():
 
     roles = dict(top + bottom)
     assert roles["jam-prs"] == "bold"
-    assert roles["⟳ next in 12s"] == "tb.accent"
-    assert roles["ok"] == "tb.ok"
-    assert roles[" · 1 warning"] == "tb.warn"
+    assert roles["⟳ next in 12s"] == "sb.accent"
+    assert roles["ok"] == "sb.ok"
+    assert roles[" · 1 warning"] == "sb.warn"
     for text, role in top + bottom:
         if "─" in text or text in ("┌ ", "└ ", "┐", "┘", " ┐", " ┘"):
-            assert role == "tb.muted", (text, role)
+            assert role == "sb.muted", (text, role)
 
 
 def test_quiet_is_legible_not_hidden():
@@ -236,7 +236,7 @@ def test_quiet_is_legible_not_hidden():
     c = cursor("cron.log", state="quiet", last_write_at=NOW - 180, size_bytes=1000)
     top, _ = status_bands(c, NOW, width=72)
     roles = dict(top)
-    assert roles["quiet 3m"] == "tb.label"
+    assert roles["quiet 3m"] == "sb.label"
 
 
 def test_a_death_and_a_rotation_wear_their_alarm_colors():
@@ -244,11 +244,11 @@ def test_a_death_and_a_rotation_wear_their_alarm_colors():
 
     dead = stream("x", exit_code=1, exited_at=NOW)
     top, _ = status_bands(dead, NOW, width=70)
-    assert any(role == "tb.fail" and "dead" in text for text, role in top)
+    assert any(role == "sb.fail" and "dead" in text for text, role in top)
 
     rotated = cursor("x.log", state="rotated")
     top, _ = status_bands(rotated, NOW, width=70)
-    assert ("rotated", "tb.warn") in top
+    assert ("rotated", "sb.warn") in top
 
 
 def test_no_band_animates_to_look_busy():
@@ -286,7 +286,7 @@ NOW = 10_000.0
 
 
 def test_no_expectation_means_silence_is_neither_good_nor_bad():
-    """Without `--due`, quiet is a duration and nothing else. tb has no opinion
+    """Without `--due`, quiet is a duration and nothing else. sb has no opinion
     about whether three minutes is a long time."""
     facts = cursor("cron.log", last_write_at=NOW - 180)
     assert facts.attention == "quiet"
@@ -327,7 +327,7 @@ def test_a_late_band_says_how_long_and_what_was_expected():
 
 
 def test_a_stronger_fact_beats_late():
-    """`absent` and `rotated` are things tb *knows*. Late is arithmetic over an
+    """`absent` and `rotated` are things sb *knows*. Late is arithmetic over an
     assertion, and it must not overwrite knowledge."""
     for state in ("absent", "rotated"):
         facts = cursor("x.log", state=state, last_write_at=NOW - 9999, due=60, now=NOW)
@@ -349,9 +349,9 @@ def test_both_follow_forms_take_the_expectation():
 
 
 def test_late_is_warn_rather_than_fail():
-    """A late log is a fact about a clock, not a verdict about a job — tb does
+    """A late log is a fact about a clock, not a verdict about a job — sb does
     not know whether it died or the machine was asleep."""
-    assert ROLE["late"] == "tb.warn"
+    assert ROLE["late"] == "sb.warn"
 
 
 def test_late_reaches_a_window_without_a_new_field():
@@ -408,7 +408,7 @@ def test_a_band_names_what_produced_it():
 
 def test_a_band_never_reaches_stdout(capsys):
     """A band is status, not payload — the purity rule that keeps
-    `tb read -- x | grep` seeing exactly the lines the tool printed.
+    `sb read -- x | grep` seeing exactly the lines the tool printed.
 
     `capsys` rather than CliRunner: click 8.3 folds stderr into `.output`, so
     the runner cannot answer a question about which stream a byte went to."""

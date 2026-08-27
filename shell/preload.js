@@ -3,7 +3,7 @@
  * This is api.js's shape, deliberately: `catalog`, `run`, `watch`, `unwatch`,
  * `follow`, `unfollow`, `quit`, and a stream you subscribe to. A renderer
  * ported from cli/canvas/static/ swaps `import * as api from "./api.js"` for
- * `const api = window.tb` and should otherwise not notice.
+ * `const api = window.sb` and should otherwise not notice.
  *
  * Two arguments are gone from every signature, and their absence is the point.
  * There is no `session`, and there is no `window` — the main process fills
@@ -18,39 +18,39 @@ const downHandlers = new Set();
 
 let identity = { windowId: null, session: null, argv: null };
 const ready = new Promise((resolve) => {
-  ipcRenderer.on("tb:ready", (_e, sent) => {
+  ipcRenderer.on("sb:ready", (_e, sent) => {
     identity = { ...identity, ...sent };
     resolve(identity);
   });
 });
 
-ipcRenderer.on("tb:frame", (_e, frame) => {
+ipcRenderer.on("sb:frame", (_e, frame) => {
   for (const handler of frameHandlers) handler(frame);
 });
-ipcRenderer.on("tb:down", (_e, info) => {
+ipcRenderer.on("sb:down", (_e, info) => {
   for (const handler of downHandlers) handler(info.error);
 });
 
-contextBridge.exposeInMainWorld("tb", {
+contextBridge.exposeInMainWorld("sb", {
   /* Who this window is. Resolves once the session has said hello — a window
-   * opened before tb answers is a real ordering, not a hypothetical, because
+   * opened before sb answers is a real ordering, not a hypothetical, because
    * the first window is created in the same tick as the stream. */
   ready: () => ready,
   identity: () => identity,
 
-  catalog: () => ipcRenderer.invoke("tb:catalog"),
-  run: (argv, timeout) => ipcRenderer.invoke("tb:run", argv, timeout),
-  watch: (argv, interval) => ipcRenderer.invoke("tb:watch", argv, interval),
-  unwatch: () => ipcRenderer.invoke("tb:unwatch"),
-  follow: (argv) => ipcRenderer.invoke("tb:follow", argv),
-  unfollow: () => ipcRenderer.invoke("tb:unfollow"),
+  catalog: () => ipcRenderer.invoke("sb:catalog"),
+  run: (argv, timeout) => ipcRenderer.invoke("sb:run", argv, timeout),
+  watch: (argv, interval) => ipcRenderer.invoke("sb:watch", argv, interval),
+  unwatch: () => ipcRenderer.invoke("sb:unwatch"),
+  follow: (argv) => ipcRenderer.invoke("sb:follow", argv),
+  unfollow: () => ipcRenderer.invoke("sb:unfollow"),
 
   /* A command opens a window. In the canvas this made a div; here it asks the
    * desktop for a window, and the window manager decides where it goes. */
-  open: (argv) => ipcRenderer.invoke("tb:open", argv),
+  open: (argv) => ipcRenderer.invoke("sb:open", argv),
 
-  close: () => ipcRenderer.invoke("tb:close"),
-  quit: () => ipcRenderer.invoke("tb:quit"),
+  close: () => ipcRenderer.invoke("sb:close"),
+  quit: () => ipcRenderer.invoke("sb:quit"),
 
   /* Frames for this window, plus the ones the session addresses to everybody.
    * Returns its own unsubscribe, as api.js's stream does. */

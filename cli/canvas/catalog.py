@@ -54,22 +54,22 @@ def _options(command: click.Command) -> list[dict]:
 def walk(command: click.Command, path: tuple[str, ...] = ()) -> list[dict]:
     """Every runnable leaf under this command, deepest name first.
 
-    Groups are not themselves entries: `tb` and a future `tb auto` do nothing
+    Groups are not themselves entries: `sb` and a future `sb auto` do nothing
     on their own, and offering them would put a command in the palette that
     opens an empty window.
 
-    A *surface* is not an entry either. `tb ui` is this canvas; offering it
+    A *surface* is not an entry either. `sb ui` is this canvas; offering it
     would let you open a canvas inside the canvas. The flag is set on the
     command object rather than listed here on purpose — a name written down in
     this module is the beginning of the command table the whole design refuses
     to keep, and it would go stale the day the surface is renamed.
     """
-    if getattr(command, "tb_surface", False):
+    if getattr(command, "sb_surface", False):
         return []
     if isinstance(command, click.Group):
         entries: list[dict] = []
-        # A group that runs bare is a leaf as well as a container: `tb tools`
-        # with no subcommand renders the toolbox listing, and a window may
+        # A group that runs bare is a leaf as well as a container: `sb tools`
+        # with no subcommand renders the tools listing, and a window may
         # hold that open. A plain group still is not an entry — opening a
         # window on one would run nothing and show nothing.
         if path and command.invoke_without_command:
@@ -94,34 +94,34 @@ def _leaf(command: click.Command, path: tuple[str, ...]) -> list[dict]:
             # write is a scheduler nobody asked for. The mockup encoded the
             # same rule before any of this existed.
             # A saved command carries the verdict of whatever it expands to,
-            # because the path says nothing: `tb deploy-thing` is one word and
+            # because the path says nothing: `sb deploy-thing` is one word and
             # the `run` it wraps is invisible from here. Getting this wrong
             # would offer a refresh cadence on a write, which is the one thing
             # the read/write split exists to prevent.
-            "acts": getattr(command, "tb_acts", None) or path[:1] == ("run",),
+            "acts": getattr(command, "sb_acts", None) or path[:1] == ("run",),
             # Read off the command object, never a list of names here — the
-            # same rule `tb_surface` follows two lines up. A name written down
+            # same rule `sb_surface` follows two lines up. A name written down
             # in this module is the beginning of the command table the whole
             # design refuses to keep. The sidebar filters on this.
-            "saved": getattr(command, "tb_saved", False),
+            "saved": getattr(command, "sb_saved", False),
             # A builtin that takes nothing from its caller may opt into the
             # agent surface. Read off the command object, never a list here —
-            # the same rule `tb_surface` and `tb_acts` follow. See [[mcp]].
-            "mcp": getattr(command, "tb_mcp", False),
+            # the same rule `sb_surface` and `sb_acts` follow. See [[mcp]].
+            "mcp": getattr(command, "sb_mcp", False),
             # A saved command may declare the cadence it wants to open on.
             # Zero for everything else, which is what a window starts at now.
-            "refresh": getattr(command, "tb_refresh", 0),
+            "refresh": getattr(command, "sb_refresh", 0),
             # Resident by nature: no cadence control at all — a stream is not
             # refreshed, it is open. `follow` sets this; a saved command
             # inherits it from its expansion like everything else.
-            "resident": getattr(command, "tb_resident", False),
+            "resident": getattr(command, "sb_resident", False),
         }
     ]
 
 
 def catalog(root: click.Group | None = None) -> list[dict]:
     """The whole palette. `root` is injectable for the same reason `dispatch`'s
-    was: tb is a two-command tree today and has no shape to test a walk on."""
+    was: sb is a two-command tree today and has no shape to test a walk on."""
     if root is None:
         from cli import cli as root_group
 

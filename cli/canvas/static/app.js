@@ -7,7 +7,7 @@
  *    which reads the live Click tree. A palette offering a command that does
  *    not exist is worse than no palette, because it has already told you it
  *    does.
- * 2. **Only a read may be given a cadence.** An entry with `acts` is `tb run`,
+ * 2. **Only a read may be given a cadence.** An entry with `acts` is `sb run`,
  *    and re-running a write on a timer is a scheduler nobody asked for. The
  *    pin control is simply not offered on one.
  * 3. **No single result may render unbounded.** See render.js. The terminal
@@ -83,13 +83,13 @@ export function suggest(commands, query) {
   return [...byName, ...byText];
 }
 
-/* Anything typed that is not a tb command is offered as one anyway, run
- * through `tb read` so it can be pinned and refreshed.
+/* Anything typed that is not a sb command is offered as one anyway, run
+ * through `sb read` so it can be pinned and refreshed.
  *
  * Appended rather than shown only when nothing else matched: `list` matches
  * `tools` by description, and a raw entry that hid behind a description match
  * would be a palette that sometimes accepts a command and sometimes silently
- * does not. Suppressed only when the first word is exactly a tb command, where
+ * does not. Suppressed only when the first word is exactly a sb command, where
  * the operator is plainly reaching for that command.
  *
  * The expansion goes in `summary`, so what will actually run is visible before
@@ -104,7 +104,7 @@ export function rawEntry(query, home) {
     rawWords: words,
     cwd: home,
     argv: ["read", "--cwd", home, "--", ...words],
-    summary: `tb read -- ${words.join(" ")}`,
+    summary: `sb read -- ${words.join(" ")}`,
     options: [],
     acts: false,
     saved: false,
@@ -195,21 +195,21 @@ function useNow() {
   return Date.now();
 }
 
-/* The toolbox: the operator's saved commands, down the left.
+/* The tools: the operator's saved commands, down the left.
  *
  * It is not a second list of commands. These come from the same /api/catalog
  * every other surface reads, filtered on `saved` — a property the *command*
  * carries, so a tool that stops existing stops appearing here with no code
  * involved. See [[tools]].
  */
-function Toolbox({ commands, open }) {
+function Tools({ commands, open }) {
   const saved = commands.filter((c) => c.saved);
   return html`
-    <div class="toolbox">
-      <div class="toolbox-head">TOOLBOX</div>
-      <div class="toolbox-list">
+    <div class="tools">
+      <div class="tools-head">TOOLS</div>
+      <div class="tools-list">
         ${saved.length === 0 &&
-        html`<div class="toolbox-empty">
+        html`<div class="tools-empty">
           nothing saved yet — declare a tool in tools.toml
         </div>`}
         ${saved.map(
@@ -230,7 +230,7 @@ function Toolbox({ commands, open }) {
       <!-- An expression, not markup: htm does not decode HTML entities, so a
            literal &lt; here renders as the four characters "&lt;" on screen.
            Angle brackets inside a template have to arrive as a string. -->
-      <div class="toolbox-foot">${"tb -t <tool>"}</div>
+      <div class="tools-foot">${"sb -t <tool>"}</div>
     </div>
   `;
 }
@@ -314,7 +314,7 @@ function BarPalette({ commands, query, setQuery, selected, setSelected, open, ho
 
   return html`
     <div class="barpal" onMouseDown=${stopDrag}>
-      <span class="chev">tb ▸</span>
+      <span class="chev">sb ▸</span>
       <input
         ref=${input}
         value=${query}
@@ -350,7 +350,7 @@ function Palette({ commands, query, setQuery, selected, setSelected, open, float
   return html`
     <div class=${`palette ${floating ? "overlay" : ""}`}>
       <div class="prompt">
-        <span class="chev">tb ▸</span>
+        <span class="chev">sb ▸</span>
         <input
           ref=${input}
           value=${query}
@@ -430,12 +430,12 @@ function markedLine(l) {
   let cursor = 0;
   for (const [start, end, role] of l.marks) {
     if (start > cursor) parts.push(l.text.slice(cursor, start));
-    /* A role may be composite — "bold tb.path" — because bold is a weight
+    /* A role may be composite — "bold sb.path" — because bold is a weight
      * rather than a colour and composes instead of competing for the slot.
      * Each word becomes its own class; CSS stacks them for free. */
     const classes = role
       .split(" ")
-      .map((r) => "mk-" + r.replace("tb.", ""))
+      .map((r) => "mk-" + r.replace("sb.", ""))
       .join(" ");
     parts.push(html`<span class=${classes}>${l.text.slice(start, end)}</span>`);
     cursor = end;
@@ -459,7 +459,7 @@ ${win.streamLines.map(markedLine)}</pre
       ${dead &&
       html`<div class="dead-band">
         exited ${win.chrome.exit_code}
-        <button class="tbtn" onClick=${() => actions.refresh(win.id)}>restart</button>
+        <button class="sbtn" onClick=${() => actions.refresh(win.id)}>restart</button>
       </div>`}
     </div>
   `;
@@ -507,16 +507,16 @@ function Window({ win, now, layout, focused, actions, intervals }) {
         ${!win.acts &&
         !win.stream &&
         html`
-          <button class=${`tbtn ${win.pinned ? "on" : ""}`} onClick=${() => actions.pin(win.id)}>
+          <button class=${`sbtn ${win.pinned ? "on" : ""}`} onClick=${() => actions.pin(win.id)}>
             ${win.pinned ? "PINNED" : "PIN"}
           </button>
           ${win.pinned &&
-          html`<button class="tbtn plain" onClick=${() => actions.cycle(win.id, intervals)}>
+          html`<button class="sbtn plain" onClick=${() => actions.cycle(win.id, intervals)}>
             ${intervalLabel(win.interval)}
           </button>`}
         `}
-        <button class="tbtn plain" title="refresh now" onClick=${() => actions.refresh(win.id)}>⟳</button>
-        <button class="tbtn plain" title="close" onClick=${() => actions.close(win.id)}>✕</button>
+        <button class="sbtn plain" title="refresh now" onClick=${() => actions.refresh(win.id)}>⟳</button>
+        <button class="sbtn plain" title="close" onClick=${() => actions.close(win.id)}>✕</button>
       </div>
 
       ${win.raw &&
@@ -722,7 +722,7 @@ function App() {
   function open(entry, typed, initial) {
     /* Anything typed past the command name is argv. `run -- jam pr list --json`
      * has to reach the server whole; splitting it here would be a second
-     * parser, and tb's own is the one that decides what an argv means. */
+     * parser, and sb's own is the one that decides what an argv means. */
     const words = typed.trim().split(/\s+/).filter(Boolean);
     /* A raw entry was built from the query itself, so every word is already in
      * its argv. Slicing by command length here would append them a second
@@ -915,7 +915,7 @@ function App() {
   return html`
     <div class="app">
       <div class="bar" onMouseDown=${barDrag}>
-        <span class="brand">TOOLBOX</span>
+        <span class="brand">SKY.BOSS</span>
         <span class="host">${location.host}</span>
         <${BarPalette}
           commands=${commands}
@@ -939,7 +939,7 @@ function App() {
             floating
           </button>
         </div>
-        <button class="quit" title="close toolbox" onClick=${() => api.quit()}>✕</button>
+        <button class="quit" title="close sky.boss" onClick=${() => api.quit()}>✕</button>
       </div>
 
       ${floating &&
@@ -959,7 +959,7 @@ function App() {
       `}
 
       <div class="stage">
-      <${Toolbox} commands=${commands} open=${open} />
+      <${Tools} commands=${commands} open=${open} />
       <div class=${`canvas ${layout}`} ref=${canvas}>
         ${windows.length === 0 &&
         html`<div class="empty">no windows open — run a command to open one</div>`}

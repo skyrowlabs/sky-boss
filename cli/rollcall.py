@@ -1,18 +1,18 @@
 """The roll-call — many projects, one answer.
 
-**tb federates. It never owns.** Each project stays the authority on its own
+**sb federates. It never owns.** Each project stays the authority on its own
 state; this asks all of them and folds the answers together. There is no ledger
-here, no history, no cache — and that is what keeps tb stateless. A central
+here, no history, no cache — and that is what keeps sb stateless. A central
 store would be a *copy*, and a copy of a schedule that agents rewrite goes stale
 without announcing it. Unreachability is visible; staleness is not.
 
 **A source is an argv or a path.** Most projects have no CLI, and a contract
 that required one would stall on exactly the young projects where visibility is
-most wanted. A project declares where its status comes from and tb does not care
-which kind it is — the reader is `tb data`'s, whole, in both cases.
+most wanted. A project declares where its status comes from and sb does not care
+which kind it is — the reader is `sb data`'s, whole, in both cases.
 
-**tb folds sources, not semantics.** No common status vocabulary, no cross-project
-verdict, no totalling of anyone's `red`. tb does not get to decide what another
+**sb folds sources, not semantics.** No common status vocabulary, no cross-project
+verdict, no totalling of anyone's `red`. sb does not get to decide what another
 tool's word means — the same refusal [[highlight]] made about severity, one level
 up. One block per project, each under its own name, in its own words.
 
@@ -28,7 +28,7 @@ from pathlib import Path
 
 import rich_click as click
 
-from cli.helpers import TB_HOME
+from cli.helpers import SB_HOME
 from cli.output import Result, emit
 
 PROJECTS_FILE = "projects.toml"
@@ -57,7 +57,7 @@ class Project:
 
 
 def home_file(home: Path | None = None) -> Path:
-    return (home or TB_HOME) / PROJECTS_FILE
+    return (home or SB_HOME) / PROJECTS_FILE
 
 
 def read(home: Path | None = None) -> dict:
@@ -82,7 +82,7 @@ def parse(raw: dict) -> tuple[list[Project], list[str]]:
 
     **One bad entry must not cost the operator the other five.** Nothing here
     raises: a malformed project is skipped and named, which is the pattern
-    `tb tools` already sets for a tool that would not load.
+    `sb tools` already sets for a tool that would not load.
     """
     if "__error__" in raw:
         return [], [raw["__error__"]]
@@ -119,7 +119,7 @@ def _check(name: str, body) -> str | None:
     has_path = bool(body.get("path"))
     # Exactly one, and the refusal is deliberate rather than a precedence rule:
     # a project declaring both has said two different things about where its
-    # truth lives, and picking one for them would be tb guessing which.
+    # truth lives, and picking one for them would be sb guessing which.
     if has_argv and has_path:
         return "declares both argv and path — a source is one or the other"
     if not has_argv and not has_path:
@@ -140,7 +140,7 @@ def load(home: Path | None = None) -> tuple[list[Project], list[str]]:
 def ask(project: Project) -> Result:
     """One project's answer, or the reason it did not give one.
 
-    **The reader is `tb data`'s, whole.** A command source is `_once`; a file
+    **The reader is `sb data`'s, whole.** A command source is `_once`; a file
     source is the same parse path with the bytes read off disk instead of off a
     pipe. Neither grows its own notion of `--from`, of when a view is attached,
     or of what a failed read looks like — a second opinion about any of those is
@@ -202,10 +202,10 @@ def roll_call(only: str | None) -> Result:
     An observe — a window may pin it and refresh it on a cadence. It runs each
     project's own status command; it never schedules, generates, or edits one.
 
-        tb roll-call
-        tb roll-call --only jam-sense
+        sb roll-call
+        sb roll-call --only jam-sense
 
-    Projects are declared in `$TB_HOME/projects.toml`, each naming an argv or a
+    Projects are declared in `$SB_HOME/projects.toml`, each naming an argv or a
     path. One project failing is `partial`, never blank.
     """
     result = Result()
@@ -257,4 +257,4 @@ def roll_call(only: str | None) -> Result:
 # Offered to an agent. `roll-call` reads only what the operator declared in
 # `projects.toml` and takes no argv from its caller, which is the property that
 # decides exposure — not "is it saved". See [[mcp]] round 1.
-roll_call.tb_mcp = True
+roll_call.sb_mcp = True

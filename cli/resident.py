@@ -117,7 +117,7 @@ def loop(
     `wait(seconds)` is the tick *and* the key poll — one primitive, so `q`
     lands the moment it is pressed instead of up to a second later. A plain
     sleep returning None is a valid `wait`, which is what the suite injects
-    and what a non-terminal gets. See [[keys]].
+    and what a non-terminal gets. See [[refresh]] round 2.
     """
     count = 0
     while ticks is None or count < ticks:
@@ -168,12 +168,12 @@ def clip(body: Text, limit: int, *, tail: bool = False) -> Text:
         # terminal, so every inline frame is clipped and every line came out
         # yellow. The marker is a span, like the head branch's below.
         out = Text()
-        out.append(marker, style="tb.warn")
+        out.append(marker, style="sb.warn")
         out.append("\n")
         out.append_text(Text("\n").join(list(lines)[-keep:]))
         return out
     out = Text("\n").join(list(lines)[:keep])
-    out.append(f"\n{marker}", style="tb.warn")
+    out.append(f"\n{marker}", style="sb.warn")
     return out
 
 
@@ -344,7 +344,7 @@ def stream_body(lines, ruleset=None) -> Text:
     One assembler on purpose: two renderers holding their own opinions about
     how a stderr line looks would drift the week they were written. stdout
     lines are tinted lexically through [[highlight]]; a stderr line is grey,
-    because a second channel is not a severity; and tb's own announcements —
+    because a second channel is not a severity; and sb's own announcements —
     a rotation, a truncation — keep the warning tint, which is what `voice`
     is for. None of them are re-tagged lexically. The text reaches the
     screen verbatim either way, because marks ride beside it, never instead.
@@ -358,10 +358,10 @@ def stream_body(lines, ruleset=None) -> Text:
             # Grey, not warn. A tool talking on stderr is using its second
             # channel — progress, banners, a summary — and painting all of it
             # yellow is the same judgment-in-a-regex's-clothes this module
-            # refuses elsewhere. tb's *own* voice keeps the warning tint.
+            # refuses elsewhere. sb's *own* voice keeps the warning tint.
             body.append(
                 strip_ansi(line.text) + "\n",
-                style="tb.warn" if getattr(line, "voice", False) else "tb.label",
+                style="sb.warn" if getattr(line, "voice", False) else "sb.label",
             )
         else:
             body.append_text(band_text(highlight_.spans(strip_ansi(line.text), ruleset)))
@@ -391,10 +391,10 @@ def reside(
     output it was protecting. `screen=True` (`--screen`) keeps the old
     behaviour for the long residency the original argument was about.
 
-    `q`, `Esc` and Ctrl-C all leave. See [[keys]] for why the first two exist
-    and why they degrade to nothing without a terminal.
+    `q`, `Esc` and Ctrl-C all leave. See [[refresh]] round 2 for why the first
+    two exist and why they degrade to nothing without a terminal.
 
-    The body is tb's own rendering, captured — `cli/output.py` owns every
+    The body is sb's own rendering, captured — `cli/output.py` owns every
     byte that reaches a terminal, and a surface that renders elsewhere takes
     that claim up rather than routing around it. The bands come from the
     [[chrome]] contract; this module decides nothing about what they say.

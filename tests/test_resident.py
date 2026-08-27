@@ -218,7 +218,7 @@ def undeclare():
     from cli.tools import tools as tools_group
 
     for name in [
-        n for n, c in list(tools_group.commands.items()) if getattr(c, "tb_saved", False)
+        n for n, c in list(tools_group.commands.items()) if getattr(c, "sb_saved", False)
     ]:
         del tools_group.commands[name]
 
@@ -410,7 +410,7 @@ def test_the_head_clip_is_untouched_by_the_direction_landing():
 
 
 def test_clipping_a_stream_does_not_repaint_the_body():
-    """The defect the operator reported as "the default colour for tb follow
+    """The defect the operator reported as "the default colour for sb follow
     is yellow". `Text(marker, style=...)` sets the *base* style of the whole
     object, so everything appended after the dropped-lines marker inherited
     warn — and because a follow's ring always outruns the terminal, every
@@ -422,13 +422,13 @@ def test_clipping_a_stream_does_not_repaint_the_body():
 
     body = Text()
     for i in range(40):
-        body.append("value", style="tb.num")
+        body.append("value", style="sb.num")
         body.append(f" {i}\n")
 
     out = clip(body, 10, tail=True)
     assert out.style == ""  # nothing inherits the marker's warn
-    warn = [s for s in out.spans if str(s.style) == "tb.warn"]
+    warn = [s for s in out.spans if str(s.style) == "sb.warn"]
     assert len(warn) == 1
     assert out.plain[warn[0].start : warn[0].end].startswith("31 more lines")
     # ...and the body's own roles survived the cut.
-    assert any(str(s.style) == "tb.num" for s in out.spans)
+    assert any(str(s.style) == "sb.num" for s in out.spans)

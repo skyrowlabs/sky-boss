@@ -15,24 +15,51 @@ jam.sense's app tokens and every hue was wrong for a week.
 
 ---
 
-## `readme-banner.png`
+## The two PNGs, and `render-mark.py`
 
-The README's banner, derived from `cli-header.png` rather than drawn again — the wordmark exists
-once, and a second hand-made copy of it is the drift this directory is here to prevent.
+**Neither PNG is a source.** `ART` in `cli/banner.py` is the picture; both files here are renders
+of it, produced by `render-mark.py` from the repo root:
 
-Two changes, both made by **moving the mockup's own pixels**, so no font had to be matched:
+```bash
+.venv/bin/python docs/design/render-mark.py
+```
 
-- **The `v0.4.1` segment is gone.** It is the number the mockup was drawn with, not one sky.boss
-  has ever been at — `git describe` currently answers with a bare hash. `cli/banner.py` already
-  refuses to print a version it is not; a README claiming one in the first thing a reader sees
-  would be the same lie in a louder place. What is left, `by SKYROW.LABS · tb --help`, cannot
-  go stale.
-- **The byline is re-centred** under the wordmark's own extent (x 283–746), and the stray
-  `#202428` column down the source's left edge is squared off to the panel colour.
+This direction is new as of 2026-08-27 and it is the point. Round 1 of [[header]] measured `ART`
+*off* `cli-header.png` — 11.2px per column, 8.86px per row — which made the PNG the original and
+the tuple a transcription. That is exactly the arrangement in which one can change and the other
+cannot: the `tb` → `sb` rename moved the word `banner.py` prints without moving the drawing beside
+it, so `sb --help` greeted you with **sky.boss** next to a picture of a toolbox lettered `TOOLBOX`.
+Now they cannot disagree, because there is only one of them.
 
-Saved at **2x with nearest-neighbour** and displayed at `width="799"`, so the pixel art is exact
-on a HiDPI screen and averages back to the source pixels on a 1x one. Nearest-neighbour matters:
-any smooth resample turns 5x7 block letters to mush, which is the same reason `cli/banner.py`
-samples the grid instead of scaling the image.
+### `cli-header.png`
 
-**If `cli-header.png` changes, re-derive this rather than editing it.**
+The mark alone — one square per art pixel, at the palette's own values, plus the byline. Nothing
+here picks a colour; they all come from `cli/theme.py`, which is the rule `tests/test_theme.py`
+enforces inside `cli/` and this directory keeps by hand.
+
+### `readme-banner.png`
+
+Real `sb --help`, captured through a **pty** and painted back. It has to be a pty: the mark refuses
+to draw when it is not talking to a terminal, so a screenshot of it cannot be taken by reading
+stdout. This is the same rasteriser round 1 used to check the icon's proportions, which is still
+the only honest check — the suite proves the mechanism but cannot see whether the tower looks like
+a tower.
+
+Two things are **drawn rather than typed**, both because a font cannot be relied on: the half-block
+`▀` (a font's metrics leave hairlines between rows) and the prompt's `❯` (whatever `fc-match
+monospace` resolves to may not carry U+276F, and the first regeneration put tofu in the corner).
+
+Displayed at `width="799"` against a 960px render, so the block letters stay crisp on a HiDPI
+screen.
+
+### Neither render carries a version
+
+`cli/banner.py` prints the real `git describe`, because a header stating a version it is not is
+worse than one with none. Both renders drop that segment, for two reasons that happen to agree. A
+README is read long after any hash means anything, so `36927d9-dirty` in the first thing a reader
+sees is the same lie in a louder place. And a PNG that embeds `git describe` changes on **every
+commit**, which would make a regenerated design file a permanent diff. What is left,
+`by SKYROW.LABS · sb --help`, cannot go stale — and re-running the script with `ART` unchanged is
+byte-for-byte a no-op, which is the property that makes "if in doubt, re-run it" safe advice.
+
+**If the mark changes, re-run the script. Do not edit either PNG.**

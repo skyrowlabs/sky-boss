@@ -139,7 +139,7 @@ role named already lives in `cli/theme.py`, and the no-hex scan does not move.
 
 The fact table above has carried a `snapshot, one-time` row since round 1 — *source · shape ·
 ran-at · duration · ok/partial/failed · warnings count* — and `chrome.snapshot()` builds it. But
-only a **resident** window draws bands. A one-shot `tb data` prints `● data  53 rows` and stops.
+only a **resident** window draws bands. A one-shot `sb data` prints `● data  53 rows` and stops.
 So the facts exist, are tested, and are never shown for the most common invocation in the CLI.
 
 Raised by the operator as a sketch for a richer result header, and it turned out to be asking for
@@ -163,14 +163,14 @@ only thing that lets truncation mean something. It matters more with [[mcp]] spe
 reading a result needs a frame boundary it did not have to infer from the absence of one.
 
 **Earned by size, not printed always.** A three-row result between two rules of chrome is ceremony
-outweighing content, and a band on every `tb read` of a two-line command is the thing an operator
+outweighing content, and a band on every `sb read` of a two-line command is the thing an operator
 would want a flag to turn off — and this feature refuses flags. The band draws when the result is
 large enough to have a middle, or when the window is resident and already wears one. The threshold
 is a number to measure at a terminal, not to decide here.
 
 **No leading gutter.** The sketch drew a `|` down the left of every line. Rejected: a gutter breaks
 copy-paste of the content, which is a specific cost for a tool whose job is showing what a command
-printed — and `tb read` is verbatim *by contract*, so a gutter would make it not verbatim. Bands
+printed — and `sb read` is verbatim *by contract*, so a gutter would make it not verbatim. Bands
 are top and bottom only, which is what both existing renderings already do.
 
 **What does not move here.** The payload's own type and dimensions — `table · 15 × 27` — are a
@@ -217,7 +217,7 @@ the same idea twice. So the canvas half became *make the footer say what the ter
 says* — which is one fact, the payload's size.
 
 **And that turned up dead code.** `summarise()` reported `${view.rows.length} rows`, but `unwrap`
-only returns `kind: "rows"` for `run`'s wrapped stdout; a plain `tb data` payload comes back as a
+only returns `kind: "rows"` for `run`'s wrapped stdout; a plain `sb data` payload comes back as a
 value. So the row count in the footer had never once fired for the command that footer sits above
 most often. Found only by rendering it. That is the third defect this week whose whole lifetime was
 "looks implemented, never ran" — and all three were found by pointing the thing at real data rather

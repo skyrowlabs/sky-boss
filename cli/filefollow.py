@@ -1,7 +1,7 @@
-"""The native file cursor — `tb follow <path>`. See [[file-follow]].
+"""The native file cursor — `sb follow <path>`. See [[file-follow]].
 
 **Why a native loop and not a spawned `tail -F`:** the improvements a file
-follow needs are made of file knowledge a spawned tail cannot see. tb can
+follow needs are made of file knowledge a spawned tail cannot see. sb can
 *stat* the file, so the liveness clock says "file untouched since 19:00"
 rather than merely "no new lines arrived" — and that difference is the whole
 feature, because the driving log's silences run to ninety minutes *while

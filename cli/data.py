@@ -1,9 +1,9 @@
-"""tb data — read another CLI's structured output as data.
+"""sb data — read another CLI's structured output as data.
 
-**This is not passthrough.** `tb gh pr list` would be strictly worse than
+**This is not passthrough.** `sb gh pr list` would be strictly worse than
 `gh pr list`, and CLAUDE.md rejects that on sight. The carve-out it leaves is
 for a tool that does something the wrapped tool cannot express, and this one
-does exactly that: it turns a foreign CLI's structured output into a tb
+does exactly that: it turns a foreign CLI's structured output into a sb
 envelope, which is what lets a window keep it fresh, sort it, and filter it.
 `jam` cannot hold itself open on a canvas and re-run itself every thirty
 seconds.
@@ -13,22 +13,22 @@ mechanism; `data` names what it promises — parsed data or a failed contract,
 never carried bytes — and the contract is the half that matters. Renamed
 2026-08-21, hard, no alias; see [[refresh]].
 
-**Why it is a separate command from `tb run`.** `run` acts — you named an argv
-and tb will execute whatever it is, so it may never be given a refresh cadence,
+**Why it is a separate command from `sb run`.** `run` acts — you named an argv
+and sb will execute whatever it is, so it may never be given a refresh cadence,
 because re-running a write on a timer is a scheduler nobody asked for. `data` is
 the operator's declaration that the argv is a *read*, which is what makes it
-safe to pin. tb cannot tell the difference by inspection and does not try; the
+safe to pin. sb cannot tell the difference by inspection and does not try; the
 choice of command is the assertion, exactly as the mockup encoded it before any
 of this existed.
 
 **It carries no raw output.** `run` is the one command allowed to put a
 subprocess's bytes into `data`, and this does not become the second. If the
 wrapped tool prints something that is not JSON, that is a failed contract rather
-than a payload — this says so and points at `tb run`, which exists to show you
+than a payload — this says so and points at `sb run`, which exists to show you
 what a command actually printed.
 
 **`--from` names the parsing contract** — the `json` kind, or a format the
-operator declared in `$TB_HOME/formats.toml`: a per-line pattern for a tool
+operator declared in `$SB_HOME/formats.toml`: a per-line pattern for a tool
 with no `--json`, a jq program as the pipeline's middle stage, or both. The
 contract does not move: parsed data or a failed contract, never carried bytes —
 a capture that misses is counted and named, and one that catches nothing is a
@@ -36,7 +36,7 @@ failure, not an empty table. See [[capture]].
 
 **It is the only command that shapes its own table.** A foreign tool's JSON has
 as many fields as its author needed, not as many as a table wants, so this
-attaches a `view` describing which of them to show. tb's own commands do not:
+attaches a `view` describing which of them to show. sb's own commands do not:
 their fields were chosen deliberately and auto-dropping one would be a bug
 wearing a feature's clothes. The view never edits `data`. See cli/view.py.
 """
@@ -61,15 +61,15 @@ from cli.view import find_rows, shape
 @click.option("--timeout", type=int, default=60, help="Give up after this many seconds.")
 @click.option("--cwd", type=click.Path(file_okay=False, exists=True), help="Run it here.")
 @click.option("--cols", help="Show exactly these columns, in this order. Dotted paths allowed.")
-# Where the rows are, when the payload wraps them. Named beats inferred: tb
+# Where the rows are, when the payload wraps them. Named beats inferred: sb
 # infers only when exactly one value is a list of rows, and reports rather than
 # guesses when two are. See [[table-views]] round 4.
 @click.option("--rows", "rows_path", metavar="KEY", help="Where the rows are, if the payload wraps them. Dotted paths allowed.")
 @click.option("--drop", help="Hide these columns, keeping the rest of the shaping.")
 @click.option("--no-shape", "no_shape", is_flag=True, help="Every column, in the order found.")
 # One option whose value is a *name*, never a flag per format. It resolves to
-# a kind tb ships (`json`) or to a format the operator declared in
-# `$TB_HOME/formats.toml` — complexity lives in the named declaration and the
+# a kind sb ships (`json`) or to a format the operator declared in
+# `$SB_HOME/formats.toml` — complexity lives in the named declaration and the
 # command line only says the name. See [[capture]]. And `data` never grows its
 # own `--json` — the root owns that spelling for envelope output, and one flag
 # meaning two things at two levels is a confusion trap.
@@ -118,12 +118,12 @@ def data(
     pin it and refresh it on a cadence, and `--refresh` is the same rule in
     the terminal:
 
-        tb data --refresh 30 -- jam pr list --json
+        sb data --refresh 30 -- jam pr list --json
 
     The tool has to be asked for JSON itself — the flag is not guessed, because
     tools spell it differently and a wrong guess is a confusing failure:
 
-        tb data -- jam pr list --json
+        sb data -- jam pr list --json
 
     Some tools resolve their own environment against the working directory
     rather than their installed location, so `--cwd` is often required even for
@@ -133,18 +133,18 @@ def data(
     identifier are dropped, a nested dict is summarised, and anything that does
     not fit the width is named. `--cols` overrides that outright:
 
-        tb data --cols number,title,checks.failed -- jam pr list --json
+        sb data --cols number,title,checks.failed -- jam pr list --json
 
     `--from` names a parsing contract: the `json` kind, or a format declared
     in formats.toml — a per-line pattern for a tool with no `--json`, a jq
     program reshaping the parse, or both:
 
-        tb data --from pr-summary -- jam pr list --json
+        sb data --from pr-summary -- jam pr list --json
 
     `--save` keeps a line that took three tries to get right, then runs it —
     a `--refresh` in force becomes the saved command's own cadence:
 
-        tb data --cols number,title --save prs -- jam pr list --json
+        sb data --cols number,title --save prs -- jam pr list --json
     """
     # Resolved here so a bad name is a usage error before anything runs —
     # and resolved again on every run, so a pinned window re-reads the
@@ -231,7 +231,7 @@ def _once(
             timeout=timeout,
             cwd=cwd,
             check=False,
-            # The operator's environment, not tb's. See [[subprocess-env]].
+            # The operator's environment, not sb's. See [[subprocess-env]].
             env=child_env(),
         )
     except FileNotFoundError:
@@ -288,7 +288,7 @@ def parse_text(
             result.ok = False
             result.data = {
                 **meta,
-                "error": "not JSON — ask the tool for JSON, or use `tb run` to see "
+                "error": "not JSON — ask the tool for JSON, or use `sb run` to see "
                 "what it printed",
             }
             return result
@@ -305,7 +305,7 @@ def parse_text(
             result.data = {
                 **meta,
                 "error": f"nothing matched {fmt.name} — fix the format, or use "
-                "`tb read` to see what the tool printed",
+                "`sb read` to see what the tool printed",
             }
             return result
         warning = capture_.unmatched_warning(captured, fmt.name)
@@ -332,7 +332,7 @@ def parse_text(
     # the operator asserting where the rows are; if they are not there, the
     # assertion is what is wrong and saying so is the whole point of this
     # round. An *inferred* miss is not an error — the payload simply is not a
-    # table, which is how tb has always rendered it.
+    # table, which is how sb has always rendered it.
     if rows_path and found.rows is None:
         result.ok = False
         result.data = {**meta, "error": found.reason}

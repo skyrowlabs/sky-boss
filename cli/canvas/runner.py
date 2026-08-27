@@ -1,4 +1,4 @@
-"""Run one tb command and return its envelope. Out of process, on purpose.
+"""Run one sb command and return its envelope. Out of process, on purpose.
 
 The feature doc's Phase 1 said to lift `cli/tui/dispatch.py` and run commands
 in-process. That was right for a terminal surface and is wrong for this one,
@@ -14,7 +14,7 @@ A subprocess is killable, so `--timeout` is a real guarantee rather than a
 hope. It also isolates a crash, and it costs one interpreter start per run,
 which against a network round-trip is noise.
 
-**We get the envelope for free.** `tb --json` already prints exactly the
+**We get the envelope for free.** `sb --json` already prints exactly the
 envelope `emit` built, which is the whole reason the output contract exists.
 Nothing here parses human output.
 
@@ -36,7 +36,7 @@ from cli.helpers import PROJECT_ROOT, child_env
 # venv and sets PYTHONSAFEPATH — all things this would otherwise have to
 # reproduce, and one of which has already caused a silent bug once.
 # See CLAUDE.md § CLI setup.
-TB = PROJECT_ROOT / "tb"
+SB = PROJECT_ROOT / "sb"
 
 # A default ceiling so a watcher can never wedge on a command with no opinion
 # about how long it should take.
@@ -45,7 +45,7 @@ DEFAULT_TIMEOUT = 60
 
 @dataclass
 class Run:
-    """One execution: the envelope tb produced, and how the process ended."""
+    """One execution: the envelope sb produced, and how the process ended."""
 
     argv: list[str]
     exit_code: int
@@ -75,16 +75,16 @@ def run(
     argv: list[str],
     *,
     timeout: int | None = DEFAULT_TIMEOUT,
-    tb: Path | None = None,
+    sb: Path | None = None,
 ) -> Run:
-    """Run `tb --json <argv>` and return what came back. Never raises.
+    """Run `sb --json <argv>` and return what came back. Never raises.
 
     Never raising is load-bearing rather than defensive: this is called from a
     watcher on a timer, and an exception escaping would take out a scheduler
     that is also driving five other windows.
     """
     started = time.monotonic()
-    binary = str(tb or TB)
+    binary = str(sb or SB)
 
     try:
         proc = subprocess.run(
@@ -93,7 +93,7 @@ def run(
             text=True,
             timeout=timeout,
             check=False,
-            # Scrubbed even though this spawns `tb` itself: the wrapper sets
+            # Scrubbed even though this spawns `sb` itself: the wrapper sets
             # both variables again on the way in, and it *appends* to any
             # inherited PYTHONPATH, so without this a nested run accumulates
             # the repo path twice. A command's environment is then identical
@@ -112,12 +112,12 @@ def run(
             argv=argv,
             exit_code=-1,
             duration_s=round(time.monotonic() - started, 3),
-            error=f"could not start tb: {exc}",
+            error=f"could not start sb: {exc}",
         )
 
     duration = round(time.monotonic() - started, 3)
 
-    # Click's own exit code for a usage error. tb never uses 2 — which is
+    # Click's own exit code for a usage error. sb never uses 2 — which is
     # exactly why `partial` was given 3 — so seeing it here means the argv was
     # malformed and there is no envelope to find. Say so rather than reporting
     # "no JSON on stdout", which describes the symptom and not the cause.

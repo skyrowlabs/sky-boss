@@ -27,10 +27,10 @@ key_files:
 Two gaps, one substrate.
 
 **The stream gap:** `journalctl -f`, `docker logs -f`, an agent session writing as it thinks —
-commands whose whole point is that they never exit. tb has no way to hold one open. Every
+commands whose whole point is that they never exit. sb has no way to hold one open. Every
 existing command waits for exit before showing anything, and these never do.
 
-**The black-box gap:** `tb run -- <ten-minute build>` shows nothing for ten minutes, then
+**The black-box gap:** `sb run -- <ten-minute build>` shows nothing for ten minutes, then
 everything. The constitution names the fix: *a Job is a stream that ends* — one execution
 mechanism where output accrues as it happens and exit is just an event that stamps a status.
 Duration is **discovered, never declared**: there is no "job" flag, a snapshot that turns out to
@@ -51,7 +51,7 @@ dispatch rule: a leading `--` means the process form (this doc), a bare path mea
 
 ## Shape
 
-`tb follow -- <argv>` (with `--cwd`, like every runner here): spawn through `child_env()`
+`sb follow -- <argv>` (with `--cwd`, like every runner here): spawn through `child_env()`
 ([[subprocess-env]]), read lines as they arrive, emit them into the ring. Exit — any exit — flips
 the window to a plainly visible **dead** state carrying the exit code and time. Restart is the
 operator's click, never the surface's initiative; that is the dead-streams decision from the
@@ -104,7 +104,7 @@ That last sentence is true of a refreshing read drawing inline: each frame is pr
 terminal's history holds what went by.
 
 **It is false of a follow.** The ring holds 200 lines; the frame shows the ones that fit. A line
-pushed out of the visible frame **was never printed** — it lives in tb's memory and nowhere else,
+pushed out of the visible frame **was never printed** — it lives in sb's memory and nowhere else,
 so there is no scrollback holding it and no file for `less` to open. Under `--screen` the terminal's
 history is untouched by design. The one escape hatch the rejection named does not exist here, which
 is what makes this a reversal rather than a re-litigation.
@@ -137,7 +137,7 @@ Nothing is invented to explain it because the band already reads correctly.
 
 - **No search, no `/`, no `n`.** Argued above. It is the difference between a viewport and a pager.
 - **No selection, no copy, no mouse.** The terminal owns those and does them better.
-- **No unbounded ring.** Parking does not make tb keep more than it kept before.
+- **No unbounded ring.** Parking does not make sb keep more than it kept before.
 - **Not the refreshing read**, this round. A follow scrolls a *ring*; `--refresh` re-renders a
   *snapshot*, where holding a position across a redraw asks a question this round does not have to
   answer — did the content move under you, and is line 40 still the same line 40. Different
@@ -162,7 +162,7 @@ Nothing is invented to explain it because the band already reads correctly.
 ### Round 2 — leaving a stream, and what it leaves behind (2026-08-22)
 
 [[refresh]] round 2 gave the resident *read* `q`, `Esc` and an inline redraw, on the operator's
-report that the alternate screen took the terminal and could not be left. **`tb follow` has the
+report that the alternate screen took the terminal and could not be left. **`sb follow` has the
 identical defect and did not get the fix**, deliberately: this doc records "Ctrl-C leaves (and
 kills)" as a decision, and changing a recorded decision belongs in the doc that recorded it.
 The operator asked for this round immediately after. Both follow forms are in scope — the
@@ -176,7 +176,7 @@ not a terminal. Nothing new is designed here; it is applied.
 
 **And leaving still kills.** This is the one place the two commands genuinely differ, and it is
 worth stating rather than inheriting quietly: a resident *read* leaves a finished process
-behind, while `q` on `tb follow -- journalctl -f` **terminates the child**, exactly as Ctrl-C
+behind, while `q` on `sb follow -- journalctl -f` **terminates the child**, exactly as Ctrl-C
 does today. Making the gentler-looking key do the same forceful thing is correct — the stream
 *is* the window, and [[canvas]]'s rule that nothing survives the last window is the same rule —
 but a reader should not have to infer it. `--help` says it.
@@ -209,7 +209,7 @@ inverted. So the round adds a direction to the clip rather than reusing it as-is
   written for a refreshing **read**, where the terminal's own scrollback does hold the frames that
   scrolled past. A **follow redraws a ring in place**, so a line that leaves the visible frame was
   never printed to the terminal at all — `less` cannot reach it and neither can scrollback, because
-  it exists only in tb's memory. The rejection was inherited without noticing that the thing it
+  it exists only in sb's memory. The rejection was inherited without noticing that the thing it
   relied on is absent in the form that inherited it. See Round 3.*
 - **No change to dispatch, the ring, the chrome, or the canvas.** This round is how a terminal
   follow is left and where it draws. The canvas's follow windows are unaffected: they close by
@@ -236,7 +236,7 @@ inverted. So the round adds a direction to the clip rather than reusing it as-is
       or a shared module it and the CLI both use): bounded ring, stderr tagging, cancellation
       that kills the process. Tests: bounded waits only, a hung child is killable, the ring
       bounds memory, no real sleeps — drive with injected pipes.
-- [x] **`tb follow` in the terminal.** Resident, ring + last-line clock, dead state with exit
+- [x] **`sb follow` in the terminal.** Resident, ring + last-line clock, dead state with exit
       code, Ctrl-C leaves (and kills). Registered as an observe; keywords with
       `argv[0] == "follow"` inherit it. Full `--help` stating the contract with a runnable
       example — the [[refresh]] help test enforces it from birth. Clock, dead state and ring
@@ -267,7 +267,7 @@ What the execution argued back:
   executed form is better than the sentence.** In a terminal, `run` and `read` now stream each
   line to the stream it was printed on and stamp a chrome band on **stderr** at exit — the body
   is not re-rendered, because printing a ten-minute build's output twice was the alternative.
-  What actually held, and is tested: stdout stays byte-pure for pipes (`tb read -- x | grep`
+  What actually held, and is tested: stdout stays byte-pure for pipes (`sb read -- x | grep`
   sees exactly the tool's lines), and the `--json` envelope is still built once, complete, at
   exit, byte-identical.
 - **The accrual queue is unbounded and the first cut proved why.** The first implementation fed
@@ -282,10 +282,10 @@ What the execution argued back:
 - **The canvas resolves follow argvs server-side** (`resolve_follow`): a saved keyword's
   expansion lives on the Click tree, and the client keeping enough knowledge to strip
   `follow --` itself would be the start of a command table. Residency travels the same way
-  `acts` does — `tb_resident` on the command object, through the catalog, inherited by
+  `acts` does — `sb_resident` on the command object, through the catalog, inherited by
   keywords — and the loader refuses a `refresh` field on a follow loudly.
 - **Dropped, deliberately: canvas accrual for `run`/`read` windows.** The canvas runs snapshots
-  as `tb --json`, whose envelope is parseable only complete — streaming those windows means a
+  as `sb --json`, whose envelope is parseable only complete — streaming those windows means a
   second invocation mode for the runner and it earned its own round rather than a rushed
   corner of this one. Follow windows stream; snapshot windows still arrive whole.
 - **The session's `finally` sends SIGTERM fire-and-forget** rather than waiting out the grace
@@ -387,7 +387,7 @@ What the execution argued back:
 - **`--screen` had to reach the file form too**, which the phase list implied and the dispatch
   did not: `follow` now passes it to both `follow_file` and `follow_process`, and the round's one
   test-shaped surprise was that the existing dispatch test asserted the *exact* call kwargs.
-- **Verified against a real terminal, not only the suite.** A pty harness ran the actual `tb`
+- **Verified against a real terminal, not only the suite.** A pty harness ran the actual `sb`
   through all three shapes — process inline, process `--screen`, file inline. Inline draws
   `room()` lines with the marker leading, `q` leaves, `--screen` hands the terminal back
   (`?1049l`), and the child is gone. The suite proves the mechanism; this proved the rendering,

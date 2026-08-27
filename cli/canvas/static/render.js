@@ -1,6 +1,6 @@
 /* Turning one envelope into what a window shows.
  *
- * The window renders from `data`, never from tb's rendered bytes. That is the
+ * The window renders from `data`, never from sb's rendered bytes. That is the
  * whole reason the wrapped-CLI contract is `--json`: a chip that re-sorts a
  * column needs rows, and an ANSI table is a picture of rows. Nothing here
  * parses human output.
@@ -143,7 +143,7 @@ function cellOf(row, spec) {
  *
  * In `ch` rather than a pixel because the error scales with the font: the
  * stylesheet is written in scaled units and a hardcoded pixel would stop
- * covering the gap the moment --tb-scale moved. Ten columns cost 2.5ch total.
+ * covering the gap the moment --sb-scale moved. Ten columns cost 2.5ch total.
  */
 const SLACK = 0.25;
 
@@ -310,7 +310,7 @@ function Raw({ text }) {
   `;
 }
 
-/* `tb run` carries the wrapped command's stdout in `data`, which is the one
+/* `sb run` carries the wrapped command's stdout in `data`, which is the one
  * documented exception to output never reaching an envelope — you named the
  * argv and seeing what it printed is the feature.
  *
@@ -358,7 +358,7 @@ export function Body({ result }) {
   const view = unwrap(envelope);
   const warnings = envelope.warnings || [];
 
-  /* A view describes `data`. When the rows came out of `tb run`'s stdout
+  /* A view describes `data`. When the rows came out of `sb run`'s stdout
    * instead, `data` is the run envelope and the view would be describing the
    * wrong object — so it applies only to rows that are the data themselves. */
   const shape = view.wrapped ? null : envelope.view;
@@ -398,7 +398,7 @@ export function summarise(result) {
   const view = unwrap(result.envelope || {});
   /* Two shapes carry rows: `run`'s wrapped stdout (`kind: "rows"`) and a plain
    * `data` payload, which unwrap leaves as a value because that is all it is.
-   * The old count only ever fired for the first, so `tb data` — the command
+   * The old count only ever fired for the first, so `sb data` — the command
    * this footer is most often above — never showed one. */
   const rows =
     view.kind === "rows"

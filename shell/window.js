@@ -16,9 +16,9 @@
 const root = document.getElementById("root");
 const title = document.getElementById("title");
 
-document.getElementById("close").onclick = () => window.tb.close();
+document.getElementById("close").onclick = () => window.sb.close();
 
-window.tb.onDown((error) => {
+window.sb.onDown((error) => {
   root.innerHTML = "";
   const p = document.createElement("p");
   p.className = "down";
@@ -43,8 +43,8 @@ function show(label, payload) {
  * which is the whole reason the canvas cannot offer a command that does not
  * exist. Nothing here writes a name down. */
 async function palette() {
-  title.textContent = "toolbox";
-  const { commands } = await window.tb.catalog();
+  title.textContent = "sky.boss";
+  const { commands } = await window.sb.catalog();
   root.innerHTML = "";
   for (const command of commands) {
     const button = document.createElement("button");
@@ -55,7 +55,7 @@ async function palette() {
       (command.acts ? ` <span class="acts">acts</span>` : "");
     // A command opens a window. In the canvas this appended a div to the same
     // document; here it asks the desktop, and the window manager places it.
-    button.onclick = () => window.tb.open(command.argv);
+    button.onclick = () => window.sb.open(command.argv);
     root.append(button);
   }
 }
@@ -69,12 +69,12 @@ async function command(argv) {
   // Frames addressed to this window arrive here and nowhere else — main.js
   // routes on `frame.window`, and this window's id was never guessable from
   // inside the page because the page was never told anyone else's.
-  window.tb.onFrame((frame) => {
+  window.sb.onFrame((frame) => {
     if (frame.type === "run") show(label, frame.result);
     if (frame.type === "stream") show(label, frame);
   });
 
-  show(label, await window.tb.run(argv));
+  show(label, await window.sb.run(argv));
 
   // Only a read may be given a cadence. The catalog carries `acts` precisely
   // so a surface cannot offer a refresh on a write, and this stub honours it
@@ -82,4 +82,4 @@ async function command(argv) {
   // real window starts.
 }
 
-window.tb.ready().then(({ argv }) => (argv ? command(argv) : palette()));
+window.sb.ready().then(({ argv }) => (argv ? command(argv) : palette()));

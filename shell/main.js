@@ -11,7 +11,7 @@
  * The promise shell.py made, and kept, was that the migration was "the
  * launcher only": the server, the frontend and every test untouched. This one
  * makes the same promise about cli/. Nothing here is imported by Python and
- * nothing in Python knows this exists; `tb ui --no-browser` is the entire
+ * nothing in Python knows this exists; `sb ui --no-browser` is the entire
  * interface, and it is a documented mode that already had to work.
  */
 
@@ -45,18 +45,18 @@ const bridge = require("./bridge.js");
  * avoided here by having exactly one exit.
  *
  * What is still owed: a window whose renderer wedges without dying holds its
- * watcher forever. tb's own heartbeat frame is the material for a liveness
+ * watcher forever. sb's own heartbeat frame is the material for a liveness
  * check; this sketch does not spend it.
  * ---------------------------------------------------------------------------
  */
 const windows = new Map(); // window_id → BrowserWindow
 
-let ctx = null; // the running tb: url, token, child
+let ctx = null; // the running sb: url, token, child
 let session = null; // learned from the `hello` frame
 let endStream = null;
 let quitting = false;
 
-const FRAMELESS = process.env.TB_FRAME !== "1";
+const FRAMELESS = process.env.SB_FRAME !== "1";
 
 function create({ argv = null } = {}) {
   const win = new BrowserWindow({
@@ -76,7 +76,7 @@ function create({ argv = null } = {}) {
       sandbox: true,
       // The clamping the README argues around: a browser timer in a hidden tab
       // is held to roughly one fire a minute. Chromium does the same to an
-      // occluded window unless told not to. tb keeps its refresh clock in
+      // occluded window unless told not to. sb keeps its refresh clock in
       // Python and does not depend on this — but the *label* clock, and the
       // progress bar reading it, are cosmetic bugs today only because that is
       // true. Here they need not be bugs at all.
@@ -89,7 +89,7 @@ function create({ argv = null } = {}) {
 
   win.once("ready-to-show", () => win.show());
   win.webContents.once("did-finish-load", () => {
-    win.webContents.send("tb:ready", { windowId: id, session, argv });
+    win.webContents.send("sb:ready", { windowId: id, session, argv });
   });
 
   // Both deaths, one exit. See the registry note above.
@@ -123,21 +123,21 @@ function dispatch(frame) {
   if (frame.type === "hello") {
     session = frame.session;
     for (const win of windows.values()) {
-      win.webContents.send("tb:ready", { windowId: String(win.id), session });
+      win.webContents.send("sb:ready", { windowId: String(win.id), session });
     }
     return;
   }
   if (frame.window) {
-    windows.get(String(frame.window))?.webContents.send("tb:frame", frame);
+    windows.get(String(frame.window))?.webContents.send("sb:frame", frame);
     return;
   }
-  for (const win of windows.values()) win.webContents.send("tb:frame", frame);
+  for (const win of windows.values()) win.webContents.send("sb:frame", frame);
 }
 
 function down(error) {
   if (quitting) return;
   for (const win of windows.values()) {
-    win.webContents.send("tb:down", { error: error ? String(error) : null });
+    win.webContents.send("sb:down", { error: error ? String(error) : null });
   }
 }
 
@@ -148,26 +148,26 @@ function down(error) {
 function wire() {
   const own = (event) => String(BrowserWindow.fromWebContents(event.sender)?.id);
 
-  ipcMain.handle("tb:catalog", () => bridge.catalog(ctx));
-  ipcMain.handle("tb:run", (_e, argv, timeout) => bridge.run(ctx, argv, timeout));
-  ipcMain.handle("tb:watch", (e, argv, interval) =>
+  ipcMain.handle("sb:catalog", () => bridge.catalog(ctx));
+  ipcMain.handle("sb:run", (_e, argv, timeout) => bridge.run(ctx, argv, timeout));
+  ipcMain.handle("sb:watch", (e, argv, interval) =>
     bridge.watch(ctx, session, own(e), argv, interval)
   );
-  ipcMain.handle("tb:unwatch", (e) => bridge.unwatch(ctx, session, own(e)));
-  ipcMain.handle("tb:follow", (e, argv) => bridge.follow(ctx, session, own(e), argv));
-  ipcMain.handle("tb:unfollow", (e) => bridge.unfollow(ctx, session, own(e)));
+  ipcMain.handle("sb:unwatch", (e) => bridge.unwatch(ctx, session, own(e)));
+  ipcMain.handle("sb:follow", (e, argv) => bridge.follow(ctx, session, own(e), argv));
+  ipcMain.handle("sb:unfollow", (e) => bridge.unfollow(ctx, session, own(e)));
 
   // A command opens a window. This is the line the whole shell is for.
-  ipcMain.handle("tb:open", (_e, argv) => String(create({ argv }).id));
+  ipcMain.handle("sb:open", (_e, argv) => String(create({ argv }).id));
 
   // Window management the page could never do in a browser, and the reason
   // shell.py had to reach for Gtk.Window.begin_move_drag. Here the frame is
   // Chromium's own, so a `-webkit-app-region: drag` bar asks the platform for
   // the same move — VERIFY THIS FIRST on your window manager. If the drag does
   // not snap and tile the way GTK's does, that is the one behaviour this shell
-  // regresses, and `TB_FRAME=1` is the fallback until it is fixed.
-  ipcMain.handle("tb:close", (e) => BrowserWindow.fromWebContents(e.sender)?.close());
-  ipcMain.handle("tb:quit", () => app.quit());
+  // regresses, and `SB_FRAME=1` is the fallback until it is fixed.
+  ipcMain.handle("sb:close", (e) => BrowserWindow.fromWebContents(e.sender)?.close());
+  ipcMain.handle("sb:quit", () => app.quit());
 }
 
 app.whenReady().then(async () => {
@@ -175,11 +175,11 @@ app.whenReady().then(async () => {
   // other Chromium one — for the taskbar, and for a window-manager rule if the
   // operator wants one. shell.py sets the same string for the same reason, and
   // like that one, nothing here writes the rule itself.
-  app.setName("toolbox");
+  app.setName("sky.boss");
   bridge.reapOnSignal(() => ctx);
 
   try {
-    ctx = await bridge.start({ tb: process.env.TB_BIN || "tb" });
+    ctx = await bridge.start({ sb: process.env.SB_BIN || "sb" });
   } catch (error) {
     // Not a blank window with no explanation. The launcher's failure belongs
     // in the terminal the operator launched from.
@@ -197,7 +197,7 @@ app.on("window-all-closed", () => app.quit());
 
 /* The session ends when this process does, which is the lifetime rule the old
  * one had, moved up exactly one level: there, the stream was the session's
- * life; here, the application is. tb is asked to quit rather than killed, so
+ * life; here, the application is. sb is asked to quit rather than killed, so
  * its own teardown runs — every follower is a child process that would
  * otherwise be reparented rather than reaped. */
 app.on("before-quit", async (event) => {

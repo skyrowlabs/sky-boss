@@ -21,8 +21,8 @@ key_files:
 
 The mission (`docs/design/fundamentals.md`) is following work as it happens — especially agentic
 work — and the concrete driver is jam.sense's `tmp/reporting/cron.log`: agent runs write there
-around the clock, and nothing in tb can hold a growing file open. The closest approximation,
-`tb read -- cat …` on a cadence, re-reads the whole file every tick, renders the wrong end of it,
+around the clock, and nothing in sb can hold a growing file open. The closest approximation,
+`sb read -- cat …` on a cadence, re-reads the whole file every tick, renders the wrong end of it,
 and cannot answer the only question that matters mid-run: *is anything happening?*
 
 That question is harder than it looks, because the log's silences are meaningful. A line like
@@ -33,14 +33,14 @@ minutes of nothing *while everything is fine*. A surface that cannot distinguish
 **Why a native loop and not a spawned `tail -F`:** the constitution first routed files through
 the process stream as `tail -F <path>` — one primitive, zero special cases — and reversed it the
 same day, because the improvements a file follow needs are made of file knowledge a spawned tail
-cannot see. tb can *stat* the file, so the liveness clock can say "file untouched since 19:00"
+cannot see. sb can *stat* the file, so the liveness clock can say "file untouched since 19:00"
 rather than merely "no new lines arrived". Rotation and truncation are detected by inode and
 size rather than inherited from tail's flavor. Backfill-then-follow is one mechanism instead of
 a flag. The reversal and its original reasoning are recorded in the constitution; this doc
 builds the reversed form. **The file cursor owns files; the process stream ([[follow]]) owns
 commands.**
 
-**One verb fronts both.** This mechanism surfaces as `tb follow <path>` — not as a `watch`
+**One verb fronts both.** This mechanism surfaces as `sb follow <path>` — not as a `watch`
 command — because `-f` *is* `--follow` in tail, journalctl, docker and kubectl, and a second
 verb fought that muscle memory in the operator's own hands during spec review. [[follow]] owns
 the command registration and the dispatch rule; this doc owns the file mechanism behind the
@@ -48,7 +48,7 @@ path form. `watch` is reserved for the future change-detection rule.
 
 ## Shape
 
-`tb follow <path>` — resident by nature, in both renderings.
+`sb follow <path>` — resident by nature, in both renderings.
 
 **The cursor.** Open, stat, seek: backfill the last N lines into the ring, remember the byte
 offset. Each tick, stat again and compare:
@@ -99,7 +99,7 @@ that through the standard [[tools]] rule. ANSI is stripped, never interpreted, p
 - **Does not follow directories, globs, or multiple files.** One file per window. Directory
   events, when wanted, are `inotifywait -m` under the process form ([[follow]]).
 - **Does not reach over the network.** Local paths only. A remote log is
-  `tb follow -- ssh host tail -F …`, where the ssh process owns the remoteness.
+  `sb follow -- ssh host tail -F …`, where the ssh process owns the remoteness.
 
 ## Phases
 
@@ -109,7 +109,7 @@ that through the standard [[tools]] rule. ANSI is stripped, never interpreted, p
       clock and filesystem: backfill, advance, quiet, rotation, truncation,
       absent-then-appearing. Tests assert the mechanism, never the timing — no sleeps, no
       tmp-file races; the fs is a fake.
-- [x] **`tb follow <path>` in the terminal.** Resident rendering with the status line and ring;
+- [x] **`sb follow <path>` in the terminal.** Resident rendering with the status line and ring;
       `--lines`; Ctrl-C exits cleanly. Absent and rotated states visible. The path form's help
       and example live in `follow`'s `--help` beside the process form — the [[refresh]] help
       test enforces it from birth.
@@ -129,23 +129,23 @@ happen. Whether it happened is a different fact, living in a log. The interestin
 join — and for systemd it already exists: `systemctl list-timers` has done it for you (LAST,
 NEXT, PASSED), so that half is a `formats.toml` entry and **no code at all**:
 
-    tb data --from timers -- systemctl list-timers --output=json
+    sb data --from timers -- systemctl list-timers --output=json
 
 **Cron is the gap precisely because it keeps no ledger.** The only evidence a cron job ran is
 what it printed, which is a file, which this doc already follows. So the cron watcher is not a
 new command. It is one word added to a cursor that already knows almost everything it needs:
 
-    tb follow --due 15m tmp/reporting/cron.log
+    sb follow --due 15m tmp/reporting/cron.log
 
 Today the band says `quiet 3m` — knowledge, from a `stat`, not a guess from silence. That is the
 whole feature of this doc, and it stops one step short of the question actually being asked,
-which is *"is that bad?"* tb cannot know. **The operator can, and `--due` is where they say it.**
+which is *"is that bad?"* sb cannot know. **The operator can, and `--due` is where they say it.**
 Given an expectation, quiet 3m of 15m is *fine* and quiet 47m is **late**, and the difference is
 arithmetic rather than judgment.
 
 **It is a word on a band, and nothing else.** No alert, no exit code, no notification, no
 re-running anything. A follow is resident and observes; lateness is a fact it displays, and the
-moment it *acts* on that fact tb has become a monitoring system that pages you, which is a
+moment it *acts* on that fact sb has become a monitoring system that pages you, which is a
 different product with a different failure mode.
 
 **Both follow forms take it**, because both already carry the clock it needs: the cursor has
@@ -159,14 +159,14 @@ too — a tool's argv carries `--due 15m` like any other flag, so `[[tools]]` ne
 
 **Does not do:**
 
-- **No crontab parsing, ever.** tb does not read `crontab -l`, does not compute a next-run time
-  and does not know what a schedule is. The operator asserts an interval; tb subtracts.
+- **No crontab parsing, ever.** sb does not read `crontab -l`, does not compute a next-run time
+  and does not know what a schedule is. The operator asserts an interval; sb subtracts.
 - **No alerting or escalation.** Not an exit code, not a notification, not a webhook. If a late
   log should page someone, that belongs to something whose job is paging.
 - **No expectation about content.** Lateness is time. "The log ticked but said the wrong thing"
   is a Rule-branch question and belongs to [[highlight]]'s declared patterns.
 - **No history.** A follow shows what is happening now; "how often was it late last week" is a
-  report, and reports are what the tools tb watches already write.
+  report, and reports are what the tools sb watches already write.
 
 - [x] **A duration is a shared parser.** `15m`, `2h`, `90s` → seconds, in `cli/helpers.py`,
       because [[delay]] needs the identical spelling and two parsers for one syntax is how they
@@ -174,7 +174,7 @@ too — a tool's argv carries `--due 15m` like any other flag, so `[[tools]]` ne
 - [x] **`late` in the chrome contract.** `Chrome` gains the declared interval for a cursor and a
       stream, `attention` gains `late`, and the band says which — `quiet 3m of 15m` against
       `late 47m, due 15m`. Pure, over an injected clock, per [[chrome]].
-- [x] **`--due` on `tb follow`**, both forms, passed to the cursor and the stream alike.
+- [x] **`--due` on `sb follow`**, both forms, passed to the cursor and the stream alike.
 - [x] **The canvas wears it** with no new plumbing — proven by a test that the frame's chrome
       carries `late`, not by adding a field to the wire.
 
@@ -199,7 +199,7 @@ clock, which keeps it pure and keeps `attention` a plain field that `to_dict` al
 is what made the canvas half free: no wire change, no new key, a new *value* in a slot that
 existed.
 
-**A stronger fact beats it.** `dead`, `absent` and `rotated` are things tb *knows*; late is
+**A stronger fact beats it.** `dead`, `absent` and `rotated` are things sb *knows*; late is
 arithmetic over an assertion. A dead stream that is also late is still best described by its exit
 code, and letting the assertion overwrite the knowledge would be the tail wagging the dog.
 
@@ -226,7 +226,7 @@ was recorded and reversed inside one day — the reversed reasoning lives in
 without meeting the stat argument first.
 
 **Renamed the same day it was specced.** This doc began life as `watch.md`, the command as
-`tb watch <path>`. The operator's review probe (`tb follow -- jam pr list --refresh 60`)
+`sb watch <path>`. The operator's review probe (`sb follow -- jam pr list --refresh 60`)
 demonstrated the naming fighting Unix muscle memory — `-f` is `--follow` everywhere, for files
 and commands alike — so one verb now fronts both mechanisms and this doc's slug became
 `file-follow`. The mechanism was not touched; only its name on the surface.
@@ -287,8 +287,8 @@ the ring outruns the terminal on every frame.
 
 Drafted from the ideas list rather than from a defect, which makes the scoping the whole job. The
 sentence was "watcher for cron jobs" and the first three shapes it suggests are all wrong for
-this project: a crontab parser (tb inferring a schedule), a health checker (tb judging), and a
-notifier (tb acting on its own initiative). Each is refused by a rule that already exists.
+this project: a crontab parser (sb inferring a schedule), a health checker (sb judging), and a
+notifier (sb acting on its own initiative). Each is refused by a rule that already exists.
 
 What survives is small enough to be almost embarrassing: **one flag, one new word in a slot that
 already exists, and a subtraction.** That is the sign it is the right shape here — the cursor

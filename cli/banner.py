@@ -1,11 +1,13 @@
-"""The mark — `docs/design/cli-header.png`, drawn in half-blocks.
+"""The mark — a control tower and the wordmark, drawn in half-blocks.
 
-**The header is the PNG, not a picture of it.** A terminal cannot show an
-image, but the source *is* pixel art: a 5x7 blocky face for the wordmark and a
-chunky toolbox glyph, both on one grid. Sampled on that grid — one art pixel
-per cell — the letters come back crisp rather than resampled to mush, which is
-what any "scale the image down" approach produces at this size. The grid was
-measured off the PNG (11.2px per column, 8.86px per row) rather than guessed.
+**`ART` is the picture.** A terminal cannot show an image, but this mark never
+needed one to be: it is pixel art either way — a 5x7 blocky face for the
+wordmark beside a glyph, both on one grid. One art pixel per cell keeps the
+letters crisp rather than resampled to mush, which is what any "scale the image
+down" approach produces at this size. The PNG at `docs/design/cli-header.png`
+is *rendered from this tuple*, not the other way round, which is the only
+arrangement in which the two cannot disagree — and they did disagree, for the
+length of the 2026-08-27 rename ([[header]]).
 
 **Half-blocks, so the aspect survives.** A terminal cell is about twice as tall
 as it is wide, so one art pixel per *cell* would render the mark stretched to
@@ -14,11 +16,12 @@ top, background below — which puts 14 art rows into 7 terminal rows at the
 proportions the designer drew.
 
 **The mark paints its own background**, and that is what lets it use the design
-system at full strength instead of the CLI's darkened derivations ([[theme]]).
-The derivations exist because tb renders into a terminal whose background
+system at full strength instead of the CLI's darkened derivations (CLAUDE.md
+§ Conventions).
+The derivations exist because sb renders into a terminal whose background
 nobody here knows; painting one removes the unknown, exactly as the canvas
 does. It is also the only answer available: the mark's own hues fail in
-*opposite* directions — the light handle disappears on white, the dark slate
+*opposite* directions — the lit glass disappears on white, the dark shaft
 disappears on black — so no single floor could admit both.
 
 **It degrades rather than wrapping.** A banner wider than the terminal is worse
@@ -35,24 +38,24 @@ from rich.text import Text
 from cli.theme import CLI_BRAND, CLI_FAINT, LOGO_BG, LOGO_BRAND, LOGO_DARK, LOGO_LIGHT
 
 # One character per art pixel, two rows per rendered line. `B` brand, `D` the
-# dark slate of the toolbox's band and latch, `W` the light handle and clasps,
-# `.` the mark's own background. Edit this and the mark changes — it is the
-# picture, not a cache of one.
+# dark slate of the tower's shaft, `W` the lit glass of the cab and the mast
+# above it, `.` the mark's own background. Edit this and the mark changes — it
+# is the picture, not a cache of one.
 ART: tuple[str, ...] = (
-    "......WWWWWW...................................................",
-    "......W....W...................................................",
-    "......W....W...................................................",
-    "...BBBBBBBBBBBB.......BBBBB.BBBBB.BBBBB.B.....BBBB..BBBBB.B...B",
-    "..BBBBBBBBBBBBBB........B...B...B.B...B.B.....B...B.B...B..B.B.",
-    "DDDBWDDDDDDDDBWDDD......B...B...B.B...B.B.....BBBBB.B...B..BBB.",
-    "DDD.WDDDDDDDD.WDDD......B...B...B.B...B.B.....B...B.B...B...B..",
-    "BBBBBBBBBBBBBBBBBB......B...B...B.B...B.B.....B...B.B...B..BBB.",
-    "BBBBBBBBBBBBBBBBBB......B...B...B.B...B.B.....B...B.B...B..B.B.",
-    "BBBBBBDDDDDDBBBBBB......B...BBBBB.BBBBB.BBBBB.BBBB..BBBBB.B...B",
-    "BBBBBBDDDDDDBBBBBB.............................................",
-    "BBBBBBDDDDDDBBBBBB.............................................",
-    "BBBBBBBBBBBBBBBBBB.............................................",
-    "BBBBBBBBBBBBBBBBBB.............................................",
+    "......WW.......................................................",
+    "......WW.......................................................",
+    "...BBBBBBBB....................................................",
+    ".BBBBBBBBBBBB......BBBBB.B...B.B...B....BBBB..BBBBB.BBBBB.BBBBB",
+    ".BWWDWWWWDWWB......B.....B..B..B...B....B...B.B...B.B.....B....",
+    ".BWWDWWWWDWWB......B.....B.B....B.B.....B...B.B...B.B.....B....",
+    "..BBBBBBBBBB.......BBBBB.BB......B......BBBB..B...B.BBBBB.BBBBB",
+    ".....BBBD..............B.B.B.....B......B...B.B...B.....B.....B",
+    ".....BBBD..............B.B..B....B...BB.B...B.B...B.....B.....B",
+    ".....BBBD..........BBBBB.B...B...B...BB.BBBB..BBBBB.BBBBB.BBBBB",
+    ".....BBBD......................................................",
+    ".....BBBD......................................................",
+    "...BBBBBBBB....................................................",
+    ".BBBBBBBBBBBB..................................................",
 )
 
 # Room either side of the art, inside the painted panel.
@@ -62,8 +65,8 @@ WIDTH = len(ART[0]) + PAD * 2
 
 _INK = {"B": LOGO_BRAND, "D": LOGO_DARK, "W": LOGO_LIGHT, ".": LOGO_BG}
 
-# Where the byline sits: under the wordmark, not under the icon.
-BYLINE_INDENT = 22
+# Where the byline sits: under the wordmark, not under the tower.
+BYLINE_INDENT = 19
 
 
 def rows() -> list[Text]:
@@ -86,7 +89,7 @@ def rows() -> list[Text]:
 
 
 def byline(version: str) -> Text:
-    """`by SKYROW.LABS · <version> · tb --help`, on the panel.
+    """`by SKYROW.LABS · <version> · sb --help`, on the panel.
 
     The version is the real one rather than the number the mockup was drawn
     with — a header stating a version it is not is worse than one with no
@@ -102,12 +105,12 @@ def byline(version: str) -> Text:
     room = WIDTH - PAD - BYLINE_INDENT
 
     for gap in ("   ·   ", " · "):
-        fixed = len("by SKYROW.LABS") + 2 * len(gap) + len("tb --help")
+        fixed = len("by SKYROW.LABS") + 2 * len(gap) + len("sb --help")
         if fixed + len(version) <= room:
             break
     else:  # both gaps too wide even before the version — trim it to fit
         gap = " · "
-        fixed = len("by SKYROW.LABS") + 2 * len(gap) + len("tb --help")
+        fixed = len("by SKYROW.LABS") + 2 * len(gap) + len("sb --help")
     shown = version[: max(0, room - fixed)]
 
     line = Text()
@@ -118,7 +121,7 @@ def byline(version: str) -> Text:
     line.append(gap, style=dim)
     line.append(shown, style=label)
     line.append(gap, style=dim)
-    line.append("tb --help", style=label)
+    line.append("sb --help", style=label)
     line.pad_right(max(0, WIDTH - line.cell_len))
     line.stylize(Style(bgcolor=LOGO_BG))
     return line
@@ -133,7 +136,7 @@ def plain(version: str) -> Text:
     command's output is unreadable.
     """
     line = Text()
-    line.append("toolbox", style=Style(color=CLI_BRAND, bold=True))
+    line.append("sky.boss", style=Style(color=CLI_BRAND, bold=True))
     line.append(f"  ·  {version}", style=Style(color=CLI_FAINT))
     return line
 

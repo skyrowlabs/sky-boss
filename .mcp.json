@@ -1,8 +1,8 @@
 {
   "mcpServers": {
-    "toolbox": {
+    "sky-boss": {
       "type": "stdio",
-      "command": "./tb",
+      "command": "./sb",
       "args": ["mcp"]
     }
   }

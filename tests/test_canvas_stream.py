@@ -181,8 +181,8 @@ def test_a_frame_line_carries_marks_beside_its_verbatim_text():
     lines = follower_frames(session, now=100.0)[0]["lines"]
     assert lines[0]["text"] == stamped
     assert lines[0]["marks"] == [
-        (0, len("2026-01-01T00:00:00"), "tb.muted"),
-        (20, 20 + len("[job]"), "tb.accent"),
+        (0, len("2026-01-01T00:00:00"), "sb.muted"),
+        (20, 20 + len("[job]"), "sb.accent"),
     ]
     assert "marks" not in lines[1]
 
@@ -274,7 +274,7 @@ def test_resolve_follow_descends_to_a_saved_keyword_behind_the_tools_group(tmp_p
         assert got.kind == "process" and got.foreign == ["journalctl", "-f"]
     finally:
         for name in [
-            n for n, c in list(tools_group.commands.items()) if getattr(c, "tb_saved", False)
+            n for n, c in list(tools_group.commands.items()) if getattr(c, "sb_saved", False)
         ]:
             del tools_group.commands[name]
 
@@ -430,11 +430,11 @@ def test_dropping_a_watcher_stops_it():
 def test_an_edited_file_is_noticed(tmp_path):
     from cli.canvas.server import changed, fingerprint
 
-    (tmp_path / "tb.css").write_text("a{}")
+    (tmp_path / "sb.css").write_text("a{}")
     before = fingerprint(tmp_path)
 
-    (tmp_path / "tb.css").write_text("a{color:red}")
-    assert changed(before, fingerprint(tmp_path)) == ["tb.css"]
+    (tmp_path / "sb.css").write_text("a{color:red}")
+    assert changed(before, fingerprint(tmp_path)) == ["sb.css"]
 
 
 def test_a_new_file_and_a_deleted_one_both_count_as_changes(tmp_path):
@@ -464,7 +464,7 @@ async def test_editing_a_file_pushes_a_reload_frame(monkeypatch):
     """The whole point: the page learns about the edit without being asked."""
     from cli.canvas import server as module
 
-    stamps = {"tb.css": 1.0}
+    stamps = {"sb.css": 1.0}
     monkeypatch.setattr(module, "fingerprint", lambda *a, **k: dict(stamps))
 
     canvas = Canvas(token="t")
@@ -473,9 +473,9 @@ async def test_editing_a_file_pushes_a_reload_frame(monkeypatch):
     )
     try:
         await frame(generator)  # hello
-        stamps["tb.css"] = 2.0
+        stamps["sb.css"] = 2.0
         pushed = await frame(generator)
-        assert pushed == {"type": "reload", "files": ["tb.css"]}
+        assert pushed == {"type": "reload", "files": ["sb.css"]}
     finally:
         await generator.aclose()
 
@@ -484,7 +484,7 @@ async def test_an_unchanged_directory_pushes_nothing(monkeypatch):
     """Otherwise the page would reload every half second forever."""
     from cli.canvas import server as module
 
-    monkeypatch.setattr(module, "fingerprint", lambda *a, **k: {"tb.css": 1.0})
+    monkeypatch.setattr(module, "fingerprint", lambda *a, **k: {"sb.css": 1.0})
 
     canvas = Canvas(token="t")
     generator = stream_frames(

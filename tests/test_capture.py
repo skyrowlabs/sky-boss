@@ -303,8 +303,8 @@ def test_a_saved_tool_carrying_a_format_rides_every_rail(tmp_path, monkeypatch):
     """`--from jam-status` sits inside a saved tool's argv like any other
     option; `acts` inherits from `data` as always; the catalog offers it as a
     pinnable read with its declared cadence; and running it end-to-end parses
-    through the format — with zero canvas or toolbox code knowing what a
-    format is. The suite redirects TB_HOME, so nothing here touches the
+    through the format — with zero canvas or tools code knowing what a
+    format is. The suite redirects SB_HOME, so nothing here touches the
     operator's files."""
     import json
     import unittest.mock
@@ -325,7 +325,7 @@ def test_a_saved_tool_carrying_a_format_rides_every_rail(tmp_path, monkeypatch):
         "refresh = 30\n"
     )
     try:
-        with unittest.mock.patch.object(capture_mod, "TB_HOME", tmp_path):
+        with unittest.mock.patch.object(capture_mod, "SB_HOME", tmp_path):
             assert register(cli, home=tmp_path) == []
             entry = {e["name"]: e for e in walk(cli)}["tools statuses"]
             assert entry["acts"] is False and entry["refresh"] == 30
@@ -339,6 +339,6 @@ def test_a_saved_tool_carrying_a_format_rides_every_rail(tmp_path, monkeypatch):
             ]
     finally:
         for name in [
-            n for n, c in list(tools_group.commands.items()) if getattr(c, "tb_saved", False)
+            n for n, c in list(tools_group.commands.items()) if getattr(c, "sb_saved", False)
         ]:
             del tools_group.commands[name]

@@ -1,4 +1,4 @@
-"""The MCP surface — the toolbox, offered to an agent.
+"""The MCP surface — the tools, offered to an agent.
 
 The exclusions come first. They are the whole safety argument, and they are the
 part that would fail silently: a surface that offered one command too many
@@ -28,7 +28,7 @@ def test_nothing_that_acts_is_offered():
 
 
 def test_nothing_resident_is_offered():
-    """A stream has no single response, which is why `tb follow` already
+    """A stream has no single response, which is why `sb follow` already
     refuses `--json`. A request/response protocol is the same problem."""
     assert "follow" not in names()
 
@@ -92,7 +92,7 @@ def test_the_list_comes_off_the_live_tree(tmp_path):
 def test_initialize_answers_with_capabilities():
     reply = handle({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}})
     assert reply["result"]["capabilities"] == {"tools": {}}
-    assert reply["result"]["serverInfo"]["name"] == "toolbox"
+    assert reply["result"]["serverInfo"]["name"] == "sky-boss"
 
 
 def test_initialize_agrees_on_the_clients_version():
@@ -117,7 +117,7 @@ def test_an_unknown_method_is_a_proper_json_rpc_error():
 
 
 def test_tools_list_carries_no_internal_argv():
-    """The argv is how tb runs it, not something the protocol describes."""
+    """The argv is how sb runs it, not something the protocol describes."""
     reply = handle({"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
     for tool in reply["result"]["tools"]:
         assert "argv" not in tool
@@ -183,7 +183,7 @@ def test_a_result_is_bounded(tmp_path, monkeypatch):
     monkeypatch.setattr(mcp_, "MAX_ROWS", 5)
     # Built through json.dumps rather than an f-string: a JSON payload inside a
     # TOML string inside a Python literal is three levels of quoting and the
-    # first attempt got it wrong in a way that read as a tb bug.
+    # first attempt got it wrong in a way that read as a sb bug.
     rows = json.dumps([{"a": i} for i in range(50)])
     argv = json.dumps(["data", "--", "printf", rows])
     (tmp_path / "tools.toml").write_text(f"[tool.big]\nargv = {argv}\n")

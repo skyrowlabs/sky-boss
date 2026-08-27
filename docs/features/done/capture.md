@@ -21,14 +21,14 @@ CLAUDE.md: *inferring columns from whitespace is the "silently wrong" failure* �
 asymmetry that let [[highlight]] through cuts against it: a tint that misfires costs a color,
 a reformat that misfires **alters facts while looking finished**. So the flag is refused and
 the want behind it is built instead, on the doctrine every other decision here already stands
-on: **tb never guesses; the operator asserts.**
+on: **sb never guesses; the operator asserts.**
 
 The first draft put the assertion inline — a raw regex on the command line — and the operator
 refused it on review: **commands must stay simple to execute.** What survived is the same
-two-level shape the toolbox already proved: complexity lives in a named, operator-authored
+two-level shape the tools already proved: complexity lives in a named, operator-authored
 declaration, written once in an editor; the command line only says the name.
 
-    tb data --from jam-status -- sometool status
+    sb data --from jam-status -- sometool status
 
 And then **everything downstream is already built**: the [[table-views]] shaping,
 `--cols`/`--drop`, the column budget, the canvas table, `--refresh` residency, and saving the
@@ -48,19 +48,19 @@ contract, not a redesign.*
 Presentation is already *shape-driven* — the renderers dispatch on what the data is (rows →
 shaped table, mapping → key/value, `ok` rows → status list, `*_bytes` → humanized) — so the
 transform stage needs no formatting vocabulary of its own: **jq's job is to produce the
-shape; tb's job is to render the shape.** Proven against live data before this round was
+shape; sb's job is to render the shape.** Proven against live data before this round was
 drafted: the same `jam pr list --json` rendered as a table under one jq program and as a
 key/value card under another, with zero formatting code chosen by anyone.
 
 **Two levels: kinds are code, formats are declarations.**
 
-- A **kind** is a parsing contract tb ships and tests: `json` today; `lines` (a per-line
+- A **kind** is a parsing contract sb ships and tests: `json` today; `lines` (a per-line
   pattern with named groups) is this round's addition. Later kinds — `csv`, aligned-`table`,
   multi-line records — arrive one at a time when something real needs them, exactly as
   [[refresh]] ruled for formats generally.
 - A **format** is an operator-declared, named parameterization of a kind, in
-  **`$TB_HOME/formats.toml`** — operator content, outside the repo, `$EDITOR`-authored, and
-  tb reads it and never writes it, all inherited from the [[tools]] rules:
+  **`$SB_HOME/formats.toml`** — operator content, outside the repo, `$EDITOR`-authored, and
+  sb reads it and never writes it, all inherited from the [[tools]] rules:
 
       [format.jam-status]
       description = "sometool status — PR, state, title"
@@ -83,16 +83,16 @@ named group, or a pattern that does not compile **fails loudly by name and does 
 one bad format must not cost the operator the other nine.
 
 **The transform is the operator's own `jq` binary**, spawned through `child_env()` with
-the program on its argv and the parsed data on stdin — tb does not reimplement a JSON
+the program on its argv and the parsed data on stdin — sb does not reimplement a JSON
 language, and a Python binding is a wheels gamble on 3.14 that buys nothing over the binary.
 Absent `jq` degrades loudly *at use*, naming the format that wanted it; formats without a
 `jq` field never spawn anything. A jq program that fails is a failed contract with jq's own
 stderr as the reason — the same honesty rule as everything else here.
 
-**`tb tools` reports formats too.** It is already the one place the operator looks for "what
+**`sb tools` reports formats too.** It is already the one place the operator looks for "what
 did I declare, and what was refused" — a second listing command would split that. Declared
 formats appear with their kind and description; load failures land in the same problems list
-the toolbox uses.
+the tools use.
 
 **The deciding half is pure.** `cli/capture.py`: `capture(text, format) -> Captured` — rows,
 the unmatched count, one sample unmatched line. The `lines` kind's rules, each earning its
@@ -109,7 +109,7 @@ place:
   `14 of 60 lines did not match jam-status — first: "…"`. A capture that misses is *visible*,
   which is the whole difference between a declared parser and a guessed one.
 - **Nothing matching is a failed contract, not an empty table.** Same envelope shape as
-  non-JSON today, with an error naming both recourses: fix the format, or `tb read` to see
+  non-JSON today, with an error naming both recourses: fix the format, or `sb read` to see
   what the tool actually printed. An empty table would read as "the tool reports nothing" —
   the exact lie this command exists to never tell.
 - **Rows flow into the standard view shaping** with no capture-specific carve-outs. One
@@ -117,7 +117,7 @@ place:
 
 **Keywords and the canvas ride free, and a test says so.** `--from jam-status` sits inside a
 saved tool's argv like any other option; `acts` inherits from `data` as always; the canvas
-runs `tb --json data --from … -- …` through the runner unchanged. No canvas code moves.
+runs `sb --json data --from … -- …` through the runner unchanged. No canvas code moves.
 
 **Does not do:**
 
@@ -135,8 +135,8 @@ runs `tb --json data --from … -- …` through the runner unchanged. No canvas 
 - **No capture on `read`.** `read` shows verbatim and says so; `data` is the one door for
   parsing contracts. Two doors would blur the assertion each one makes.
 - **Unmatched lines do not reach `data`.** Rows or a failed contract; the warning carries the
-  count and sample; the record of the full text is `tb read`.
-- **tb never writes `formats.toml`.** Creation is `$EDITOR`, the same boundary the toolbox
+  count and sample; the record of the full text is `sb read`.
+- **sb never writes `formats.toml`.** Creation is `$EDITOR`, the same boundary the tools
   drew and for the same reason.
 - **No regex timeout machinery.** A catastrophic pattern is the operator's own foot, on their
   own machine, inside the `--timeout` the subprocess already has. Noted, not defended against.
@@ -152,9 +152,9 @@ runs `tb --json data --from … -- …` through the runner unchanged. No canvas 
       through `child_env()`, stdin in, parsed JSON out; jq's failure is a failed contract
       carrying its stderr; absent binary degrades loudly at use naming the format. Tests use
       the real `jq` where present and prove the degrade path by injected PATH.
-- [x] **`formats.toml`.** Loader beside the toolbox's, sharing its degrade-gracefully rules:
+- [x] **`formats.toml`.** Loader beside the tools', sharing its degrade-gracefully rules:
       validation (known kind, compilable pattern, ≥1 named group, builtin names win), loud
-      per-format failures, absent file degrades to nothing declared. `tb tools` lists
+      per-format failures, absent file degrades to nothing declared. `sb tools` lists
       declared formats and their failures.
 - [x] **`--from <name>` resolution on `data`.** Kinds needing no parameters plus declared
       formats; unknown names are usage errors listing what would have worked; the envelope
@@ -162,7 +162,7 @@ runs `tb --json data --from … -- …` through the runner unchanged. No canvas 
       example — the [[refresh]] help test enforces it.
 - [x] **The free rides, proven.** A saved tool whose argv says `--from <format>` loads and
       lands on the canvas as a refreshing table with zero canvas changes — asserted by test,
-      because "no code needed" is a claim that rots silently. The suite redirects `TB_HOME`,
+      because "no code needed" is a claim that rots silently. The suite redirects `SB_HOME`,
       so declared formats in tests never touch the operator's file.
 - [x] **Docs.** CLAUDE.md: the rejected-list entry for parsing human output gains its dated
       narrowing (*declared* capture in, inference still out); the "Where things live" table
@@ -176,13 +176,13 @@ runs `tb --json data --from … -- …` through the runner unchanged. No canvas 
 Drafted from the operator's `--pretty` question; the inference flag was refused in
 conversation before this doc existed. **Reshaped once before execution, on operator review:**
 the first draft's inline `--from lines:<regex>` violated their stated plan — commands simple
-to execute — and was replaced by named formats in `$TB_HOME/formats.toml`, which is the
-toolbox's own two-level shape applied to parsing: declarations carry the complexity, commands
+to execute — and was replaced by named formats in `$SB_HOME/formats.toml`, which is the
+the tools' own two-level shape applied to parsing: declarations carry the complexity, commands
 carry a name. The inline form moved from the Shape to the Does-not-do, with its door left
 ajar only as a future argued round.
 
 Kept out of scope with reasons: `jc` (a CLI converting ~200 classic tools' output to JSON)
-already makes `tb data -- jc df` work today with zero code, for tools it knows; display kinds
+already makes `sb data -- jc df` work today with zero code, for tools it knows; display kinds
 beyond tables (sparkline, gauge, key-value card) are a `view.kind` seam on [[table-views]],
 parked until a first real non-table display has a driving case.
 
@@ -218,10 +218,10 @@ added to the record:
 - **The lines kind strips ANSI before matching**, exactly as `read` strips it before
   showing — the first tool that decides it is talking to a terminal would otherwise plant
   `\x1b[32m` in the middle of a named group.
-- **`tb tools`' data grew from a list to `{tools, formats}`** — the shape change round 2 of
+- **`sb tools`' data grew from a list to `{tools, formats}`** — the shape change round 2 of
   [[tools]] anticipated ("per [[capture]] when it lands"). One door for "what did I
   declare"; both problem lists degrade the same envelope.
 - Proven live against `df -P`: rows under one format, a jq-reduced key/value card under
   another, the unmatched warning naming the header lines it skipped. The free rides are
   pinned by test — a saved tool carrying `--from` loads, catalogs as a pinnable read with
-  its cadence, and parses end to end with no canvas or toolbox code knowing what a format is.
+  its cadence, and parses end to end with no canvas or tools code knowing what a format is.

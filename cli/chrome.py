@@ -38,23 +38,23 @@ ATTENTION = (
 # chrome into a terminal. The canvas maps the same words onto CSS roles; the
 # words are the contract, the colours stay in cli/theme.py.
 ROLE = {
-    "running": "tb.accent",
-    "ok": "tb.ok",
-    "partial": "tb.warn",
-    "failed": "tb.fail",
-    "dead": "tb.fail",
-    "quiet": "tb.muted",
-    "absent": "tb.warn",
-    "rotated": "tb.warn",
+    "running": "sb.accent",
+    "ok": "sb.ok",
+    "partial": "sb.warn",
+    "failed": "sb.fail",
+    "dead": "sb.fail",
+    "quiet": "sb.muted",
+    "absent": "sb.warn",
+    "rotated": "sb.warn",
     # Warn, not fail. A late log is a fact about a clock, not a verdict about a
-    # job — tb does not know whether the job died or the machine was asleep, and
+    # job — sb does not know whether the job died or the machine was asleep, and
     # colouring it as a failure would be the judgment [[file-follow]] round 2
     # refuses to make.
-    "late": "tb.warn",
+    "late": "sb.warn",
     # Accent, like `running`. A pending write has not gone wrong and has not
     # gone right; it is the one state where the interesting thing is that you
     # can still stop it. See [[delay]].
-    "pending": "tb.accent",
+    "pending": "sb.accent",
 }
 
 
@@ -249,12 +249,12 @@ def stream(
 def _late(state: str, since: float | None, due: int, now: float | None) -> str:
     """`late` when the operator's expectation has been exceeded, else `state`.
 
-    **The operator asserts an interval; tb subtracts.** No crontab is read, no
+    **The operator asserts an interval; sb subtracts.** No crontab is read, no
     next-run is computed, nothing here knows what a schedule is — the whole
     judgment was made when someone typed `--due 15m`, and this is the
     arithmetic that follows from it.
 
-    A stronger fact wins. `dead`, `absent` and `rotated` are things tb *knows*,
+    A stronger fact wins. `dead`, `absent` and `rotated` are things sb *knows*,
     and a dead stream being also late adds nothing — the exit code is the
     better answer. Only the quiet states can become late. See [[file-follow]]
     round 2.
@@ -352,7 +352,7 @@ _MIN_FILL = 3
 # this layer exists to not repeat.
 Span = tuple[str, str | None]
 
-_FRAME = "tb.muted"
+_FRAME = "sb.muted"
 
 
 def _top_spans(chrome: Chrome, now: float) -> tuple[list[Span], list[Span]]:
@@ -378,41 +378,41 @@ def _top_spans(chrome: Chrome, now: float) -> tuple[list[Span], list[Span]]:
         # a countdown you cannot see a way out of is a countdown you watch
         # helplessly. See [[delay]].
         remaining = max(0, int((chrome.fires_at or 0) - now))
-        return left, [(f"runs in {ago(remaining)}", ROLE["pending"]), (" · q cancels", "tb.label")]
+        return left, [(f"runs in {ago(remaining)}", ROLE["pending"]), (" · q cancels", "sb.label")]
     if chrome.shape == "resident":
         if chrome.running_since is not None:
-            right = [(f"running {ago(now - chrome.running_since)}", "tb.accent")]
+            right = [(f"running {ago(now - chrome.running_since)}", "sb.accent")]
         else:
             remaining = countdown(chrome, now)
             if remaining is not None:
-                right = [(f"⟳ next in {remaining}s", "tb.accent")]
+                right = [(f"⟳ next in {remaining}s", "sb.accent")]
     elif chrome.shape == "stream":
         if chrome.attention == "dead":
             text = f"dead · exited {chrome.exit_code}"
             if chrome.exited_at is not None:
                 text += f" at {clock(chrome.exited_at)}"
-            right = [(text, "tb.fail")]
+            right = [(text, "sb.fail")]
         elif chrome.attention == "late":
             right = _overdue("last line", chrome.last_line_at, chrome, now)
         elif chrome.last_line_at is not None:
-            right = [(f"last line {ago(now - chrome.last_line_at)} ago", "tb.label")]
+            right = [(f"last line {ago(now - chrome.last_line_at)} ago", "sb.label")]
             if chrome.due:
-                right.append((f" of {ago(chrome.due)}", "tb.label"))
+                right.append((f" of {ago(chrome.due)}", "sb.label"))
     elif chrome.shape == "cursor":
         if chrome.attention == "absent":
-            right = [("waiting for it to exist", "tb.warn")]
+            right = [("waiting for it to exist", "sb.warn")]
         elif chrome.attention == "rotated":
-            right = [("rotated", "tb.warn")]
+            right = [("rotated", "sb.warn")]
         elif chrome.attention == "late":
             right = _overdue("late", chrome.last_write_at, chrome, now)
         elif chrome.last_write_at is not None:
             right = [
-                (f"quiet {ago(now - chrome.last_write_at)}", "tb.label"),
+                (f"quiet {ago(now - chrome.last_write_at)}", "sb.label"),
                 # `quiet 3m of 15m` — the expectation beside the elapsed time,
                 # so a healthy watcher shows its own margin rather than only
                 # becoming legible at the moment it fails.
-                (f" of {ago(chrome.due)}" if chrome.due else "", "tb.label"),
-                (f" · last write {clock(chrome.last_write_at)}", "tb.label"),
+                (f" of {ago(chrome.due)}" if chrome.due else "", "sb.label"),
+                (f" · last write {clock(chrome.last_write_at)}", "sb.label"),
             ]
 
     return left, right
@@ -423,7 +423,7 @@ def _overdue(word: str, since: float | None, chrome: Chrome, now: float) -> list
     either alone leaves the reader doing the subtraction the flag exists to do
     for them."""
     elapsed = ago(now - since) if since is not None else "?"
-    return [(f"{word} {elapsed}", ROLE["late"]), (f", due {ago(chrome.due)}", "tb.label")]
+    return [(f"{word} {elapsed}", ROLE["late"]), (f", due {ago(chrome.due)}", "sb.label")]
 
 
 def _bottom_spans(chrome: Chrome, now: float) -> tuple[list[Span], list[Span]]:
@@ -432,17 +432,17 @@ def _bottom_spans(chrome: Chrome, now: float) -> tuple[list[Span], list[Span]]:
     label role, counts the number role, warnings the warn role."""
     left: list[Span] = []
     if chrome.attention == "pending":
-        return [("nothing has run yet", "tb.label")], []
+        return [("nothing has run yet", "sb.label")], []
     if chrome.shape in ("snapshot", "resident", "act"):
         word = chrome.attention if chrome.running_since is None else "running"
-        left.append((word, ROLE.get(word, "tb.label")))
+        left.append((word, ROLE.get(word, "sb.label")))
         if chrome.duration_s is not None:
-            left.append((f" · {chrome.duration_s:.1f}s", "tb.num"))
+            left.append((f" · {chrome.duration_s:.1f}s", "sb.num"))
         if chrome.ran_at is not None:
-            left.append((f" · ran {clock(chrome.ran_at)}", "tb.label"))
+            left.append((f" · ran {clock(chrome.ran_at)}", "sb.label"))
         if chrome.warnings:
             plural = "" if chrome.warnings == 1 else "s"
-            left.append((f" · {chrome.warnings} warning{plural}", "tb.warn"))
+            left.append((f" · {chrome.warnings} warning{plural}", "sb.warn"))
     else:
         lead = ""
         if chrome.size_bytes is not None:
@@ -450,17 +450,17 @@ def _bottom_spans(chrome: Chrome, now: float) -> tuple[list[Span], list[Span]]:
             # exactly the drift this module exists to prevent.
             from cli.output import humanize_bytes
 
-            left.append((humanize_bytes(chrome.size_bytes), "tb.num"))
+            left.append((humanize_bytes(chrome.size_bytes), "sb.num"))
             lead = " · "
         if chrome.ring_shown is not None and chrome.ring_limit is not None:
             shown = min(chrome.ring_shown, chrome.ring_limit)
             if chrome.ring_first is None:
-                left.append((f"{lead}showing last {shown}", "tb.label"))
+                left.append((f"{lead}showing last {shown}", "sb.label"))
             elif chrome.ring_last - chrome.ring_first + 1 >= shown:
                 # Everything held is on screen, which is what "showing last N"
                 # always meant and the one case where it was not lying. Kept
                 # word for word — [[chrome]]'s own sketch uses this phrasing.
-                left.append((f"{lead}showing last {shown}", "tb.label"))
+                left.append((f"{lead}showing last {shown}", "sb.label"))
             else:
                 # A scrollbar, written out: position and extent. [[refresh]]
                 # round 2 rejected scrolling partly because "it owes the
@@ -473,7 +473,7 @@ def _bottom_spans(chrome: Chrome, now: float) -> tuple[list[Span], list[Span]]:
                 # telling half the truth each. See [[follow]] round 3.
                 left.append(
                     (f"{lead}showing {chrome.ring_first}\u2013{chrome.ring_last} of {shown}",
-                     "tb.label")
+                     "sb.label")
                 )
             if chrome.parked:
                 left.append((" \u00b7 parked", ROLE["pending"]))

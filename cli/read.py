@@ -1,6 +1,6 @@
-"""tb read — show what a tool printed, and keep showing it.
+"""sb read — show what a tool printed, and keep showing it.
 
-**The gap this fills is not display, it is cadence.** `tb run -- jam pr list`
+**The gap this fills is not display, it is cadence.** `sb run -- jam pr list`
 already carries the bytes. But `run` acts, and only a read may be given a
 refresh cadence, so that window can never be pinned — the only command that
 carried text was the one command that must never be put on a timer.
@@ -8,15 +8,15 @@ carried text was the one command that must never be put on a timer.
 **Why `data` is the text itself** and not an object wrapping it: both renderers
 already do the right thing with a plain string. `cli/output.py` echoes it
 verbatim, and `render.js` falls through to a `<pre>`. Wrapping it in a mapping
-is what makes `tb run`'s output wrap and lose its alignment.
+is what makes `sb run`'s output wrap and lose its alignment.
 
 **It is the second exception to "raw output must not reach `data`", and the
-rule was drawn in the wrong place.** That rule exists because a probe tb chose
+rule was drawn in the wrong place.** That rule exists because a probe sb chose
 to run can print a token. The property that makes an exception safe was never
 run-ness — it is that the *operator named the argv*. `read` names it too.
 
 **Choosing `read` asserts this argv is a read**, exactly as choosing `data`
-over `run` does. tb cannot tell a read from a write by inspecting an argv and
+over `run` does. sb cannot tell a read from a write by inspecting an argv and
 does not try. See docs/features/done/text-reads.md — or rather [[text-reads]].
 """
 
@@ -85,15 +85,15 @@ def read_(
     """Show what a command printed. An observe — a window may pin it and
     refresh it on a cadence, and `--refresh` is the same rule in the terminal:
 
-        tb read --refresh 30 --cwd ~/some/repo -- sometool status
+        sb read --refresh 30 --cwd ~/some/repo -- sometool status
 
     For a tool with no `--json`. It shows the tool's own output verbatim.
     Nothing is parsed — when structure is wanted, ask the tool for JSON and
-    use `tb data`.
+    use `sb data`.
 
     `--save` keeps the line you just got right, then runs it:
 
-        tb read --save status -- sometool status
+        sb read --save status -- sometool status
     """
     ctx = click.get_current_context()
     # Saved *before* the run, so a resident invocation saves at all (it never
@@ -166,7 +166,7 @@ def _echo_line(line) -> None:
 
 
 def _width() -> int | None:
-    """The terminal's width, or None when tb's own output is not a terminal.
+    """The terminal's width, or None when sb's own output is not a terminal.
     See [[subprocess-env]] round 2."""
     import sys
 

@@ -1,7 +1,7 @@
-"""tb data — the read-only door to another CLI.
+"""sb data — the read-only door to another CLI.
 
 The properties worth defending are the two boundaries it draws. It must not
-become a second `tb run` by quietly carrying raw output, and it must not become
+become a second `sb run` by quietly carrying raw output, and it must not become
 passthrough by pretending to understand a tool it did not parse.
 """
 
@@ -31,7 +31,7 @@ def test_a_json_object_is_kept_as_an_object():
 
 
 def test_output_that_is_not_json_is_a_failed_contract_not_a_payload():
-    """`tb run` is the one command allowed to put a subprocess's bytes into an
+    """`sb run` is the one command allowed to put a subprocess's bytes into an
     envelope. This must not become the second, so a tool that printed prose
     gets an error naming the command that *will* show it."""
     # The probe computes its output rather than echoing a literal, because the
@@ -44,7 +44,7 @@ def test_output_that_is_not_json_is_a_failed_contract_not_a_payload():
     result, envelope = invoke(["--", "sh", "-c", "printf abc | tr a-c x-z"])
     assert envelope["ok"] is False
     assert "xyz" not in json.dumps(envelope)
-    assert "tb run" in envelope["data"]["error"]
+    assert "sb run" in envelope["data"]["error"]
     assert result.exit_code == 1
 
 
@@ -182,7 +182,7 @@ import cli.capture as capture_mod  # noqa: E402
 
 def declared(tmp_path, toml_text, args):
     (tmp_path / "formats.toml").write_text(toml_text)
-    with unittest.mock.patch.object(capture_mod, "TB_HOME", tmp_path):
+    with unittest.mock.patch.object(capture_mod, "SB_HOME", tmp_path):
         return invoke(args)
 
 
@@ -236,7 +236,7 @@ def test_nothing_matching_is_a_failed_contract_naming_both_recourses(tmp_path):
     assert result.exit_code == 1
     assert envelope["ok"] is False
     error = envelope["data"]["error"]
-    assert "fix the format" in error and "tb read" in error
+    assert "fix the format" in error and "sb read" in error
     # Unmatched lines do not reach `data` — rows or a failed contract.
     assert "PROSE ONLY" not in json.dumps(envelope["data"])
 
@@ -381,7 +381,7 @@ def test_a_shaping_flag_that_could_not_be_applied_is_never_silent():
 
 
 def test_no_flag_no_warning():
-    """A payload that is simply not a table is not a complaint — tb has always
+    """A payload that is simply not a table is not a complaint — sb has always
     rendered a mapping as a mapping."""
     _, envelope = invoke(["--", "printf", '{"generated": "x"}'])
     assert envelope.get("warnings", []) == []
@@ -392,7 +392,7 @@ def test_rows_names_where_the_rows_are():
     assert envelope["view"]["rows"] == "jobs"
 
 
-def test_rows_disambiguates_what_tb_refuses_to_guess():
+def test_rows_disambiguates_what_sb_refuses_to_guess():
     _, envelope = invoke(["--rows", "errors", "--cols", "b", "--", "printf", AMBIGUOUS])
     assert envelope["view"]["rows"] == "errors"
 
