@@ -1,0 +1,175 @@
+---
+status: draft
+created: 2026-08-26
+updated: 2026-08-26
+agent_value: 3
+key_files:
+  - cli/canvas/server.py
+  - cli/canvas/static/app.js
+  - cli/canvas/static/render.js
+  - cli/view.py
+  - cli/chrome.py
+  - cli/tools.py
+  - docs/design/Workbench.dc.html
+---
+
+# Workbench — where a command gets made
+
+## Why
+
+The palette is a one-line composer: type a command, it runs, a window opens. That is the right
+shape for invoking something you already trust and the wrong shape for **authoring** something you
+do not. Every knob that makes an invocation correct — which contract, which columns, which
+cadence, which working directory — is currently either typed blind or discovered by running `tb`
+in a second terminal and pasting the result back into the first.
+
+`--cols` is the clearest case. `jam pr list --json` returns fourteen columns; the useful table is
+four of them. Today you learn which four by running the command, reading the shaped table, reading
+the warning that names what was hidden, and typing a comma-separated list from memory. The
+envelope already knows every column and says so — `view.columns`, `view.details`, `view.hidden` —
+and no surface has ever shown that set to anyone. **It is a flag you get wrong by typing and right
+by looking, and there is nowhere to look.**
+
+The second diagnostic came from the design pass. On a canvas whose every pane is a stream of
+timestamped lines, three of the four output contracts have nowhere to appear: the shaped table,
+the verbatim block, the file cursor with its stat row. They are built, tested, and invisible. The
+workbench is the one screen where all four are visible at once, **because it is the only screen
+where you choose between them** — and the choosing is the thing tb says no parser can do for you.
+
+The console the mockup started from was two screens wearing one. It carried a job rail and a live
+tail (watching, which the tower already does better) bolted to a composer (authoring, which
+nothing else does at all). Splitting them is what makes room for any of the above. See
+`docs/design/Workbench.dc.html`.
+
+## Shape
+
+**The contract selector is the spine, and it is the first thing on the screen.** Four entry
+points, with `run` set apart under *acts* and the other three under *observes*. It is not a
+convenience: it is the operator asserting the one bit no parser can infer, and the assertion gates
+everything below it. Changing it changes the result renderer, the view controls, whether a cadence
+may be offered, and whether a trial run is possible at all.
+
+**An observe is drafted by running it; an act is not.** *Trial run* executes the argv in a
+subprocess exactly as the canvas already does and draws the envelope in the renderer it will
+really use — the shaped table, the verbatim block, the ring, the file cursor — wrapped in the
+[[chrome]] band for that temporal shape, top and bottom. Nothing is re-implemented: this is the
+existing execution path pointed at a page that has room for the result.
+
+For `run` there is no trial. tb will not execute a write to show you what it would print, so the
+bench offers what it *can* check without running — the argv parses, the executable resolves, the
+`--cwd` exists — and a single button that runs it for real, labelled as such. The asymmetry is not
+a limitation to apologise for; it is the act/observe split appearing a third time, after `--help`
+and after the missing `--refresh` flag.
+
+**The view controls are per contract, and the column checklist is built from the run.** For `data`,
+every key the trial returned is a chip — selected ones in order, unselected ones dim — assembled
+from `view.columns + view.details + view.hidden`, which the envelope already carries. Clicking a
+chip rebuilds three things together: the table, the warning naming what is hidden, and the argv
+the bench is about to save. `--from` and `--rows` sit beside it. For `read` there are no view
+controls, because a view describes rows and that contract returns none; for `follow`, `--due` and
+`--highlight`; for `run`, the panel says why there is nothing to shape.
+
+**The job strip is the last step and it reads left to right**: the `--save` name, the cadence, and
+the argv the bench will run. Cadence offers only `0 · 5 · 30 · 60 · 300` — the values [[tools]]
+actually accepts — and it is **absent** on `follow` (resident by nature) and on `run` (a cadence on
+a write is a scheduler nobody asked for). Absent, not disabled: a greyed control invites an
+argument the design already had.
+
+**`--save` stays the only writer of `tools.toml`.** The bench composes
+`tb data --cwd … --cols … --refresh 30 --save prs -- jam pr list --json`, shows it, and runs it as
+a subprocess. The surface still has no writer of its own, no route that touches the file, and the
+append-only, refuse-a-duplicate behaviour is unchanged because it is the same code path. On `run`
+there is no save at all — `--save` saves by example and the example ran — so the bench renders the
+`[tool.name]` block to paste instead.
+
+**The reference rail follows the contract**, drawn from the live Click tree like the palette, so
+the help that serves `--help` in a terminal serves the bench with no second copy to drift. It
+carries the contract's own *acts* or *observes* badge, because a rail that lists `run` beside
+`data` with no visual difference loses the bit the whole design turns on.
+
+**Does not do:**
+
+- **No second writer of `tools.toml`.** Stated above; a test should hold the line the way
+  [[canvas]]'s no-CORS test does.
+- **No editing or deleting a saved tool.** `--save` appends and refuses a name that exists.
+  Editing and deleting stay `$EDITOR`'s, unchanged by a surface existing.
+- **No dry run, ever.** There is no `--what-if` for an act and inventing one would mean tb
+  modelling what a foreign command does.
+- **No inferring the contract from the argv.** The selector is the assertion. A bench that guessed
+  `data` from a trailing `--json` would be the act/observe split undone by a heuristic.
+- **No job identity, claims, budget or clock source.** Those are the plan's and the tower's, they
+  need four primitives that do not exist, and none of them is required for the bench to be worth
+  opening. See `docs/open.md`.
+- **No history.** A saved tool has no run log yet. When it does, that is its own doc.
+- **Does not replace the palette's one-line path.** Typing a foreign argv and getting
+  `read -- <argv>` stays exactly as it is; the bench is where a line that took three tries goes to
+  get made.
+
+## Phases
+
+### Round 1 — the bench and the trial run (2026-08-26)
+
+- [ ] **The page.** A workbench route on the canvas: contract selector, `--cwd` picker, argv
+      field, trial run. Selecting a contract swaps the draft rather than clearing it.
+- [ ] **The result, in the renderer it will really use.** Route the existing subprocess execution
+      at the bench and draw the envelope through `render.js` unchanged — table, verbatim, ring,
+      file cursor — with the [[chrome]] band top and bottom for that shape. `MAX_ROWS` and
+      `MAX_CHARS` apply here exactly as everywhere else.
+- [ ] **The reference rail**, from `/api/catalog`, carrying the contract's acts/observes badge.
+- [ ] **The empty state.** A fresh install has no tools and no draft. Decide what the bench opens
+      on before the screen exists, not after.
+- [ ] Tests: the bench route refuses an unauthenticated request like every other; a trial run of
+      an `acts` contract is refused server-side and not merely hidden in the UI.
+
+### Round 2 — the view controls (2026-08-26)
+
+- [ ] **The column checklist**, assembled from `view.columns + view.details + view.hidden`. No new
+      envelope field; if one turns out to be needed, that is a [[table-views]] round, not this one.
+- [ ] Clicking a chip rebuilds the table, the hidden-column warning and the composed argv together.
+- [ ] `--from` and `--rows` beside it; `--due` and `--highlight` for `follow`, with the declared
+      highlight rules applied to the drawn result so you can see which words claimed what.
+- [ ] Tests, in `cli/view.py` where pytest reaches them: the offered set is exactly what the
+      envelope carried, and a chip for a column no row has is never offered.
+
+### Round 3 — the act asymmetry and save (2026-08-26)
+
+- [ ] **`run`'s refusal**, drawn: the checks that are possible without running, and one button
+      that runs it for real.
+- [ ] **Save.** Compose the argv, show it, run it as a subprocess. The append-only and
+      refuse-a-duplicate behaviour comes from `--save` unchanged.
+- [ ] **The `[tool.name]` block** for `run`, rendered to copy.
+- [ ] Tests: no route writes `tools.toml`; the composed argv round-trips — saving it and reading
+      the tool back yields the same invocation.
+
+## Notes
+
+**2026-08-26 — the console was two screens wearing one.**
+
+The design pass began with a console tab holding a composer, a job rail, a queue strip and a live
+output pane, plus a three-way layout switcher (console / wall / floating). Reviewing it against
+the tower found that the rail and the tail were the tower's job already, and that *wall* was
+simply the tower's `split`. What the console uniquely held was the composer — and the composer had
+nowhere to put the things that make authoring hard, because a canvas of log panes has no place to
+draw a table.
+
+So the console was removed and the workbench replaces it, and the three screens now read as three
+verbs: **build → schedule → watch**.
+
+Two things died with the console and are deliberately *not* resurrected here, because they belong
+to the tower if they belong anywhere: the **queue strip** (the only widget that showed one run's
+shape at a glance) and the **floating canvas** (the draggable-window metaphor [[canvas]] was built
+around). Both are recorded in `docs/open.md` rather than quietly dropped — the floating canvas in
+particular is a reversal of [[canvas]]'s central claim and deserves an argument, not an omission.
+
+**Why this is buildable now, when the plan and tower are not.** Nearly every part of the bench
+maps onto shipped code: the four entry points exist, `--cwd` exists, the catalog walks the live
+tree, [[chrome]] is one contract drawn twice, [[table-views]] already returns the full column set
+in the envelope, [[highlight]] tints, [[follow]] and [[file-follow]] stream, and `--save` writes.
+What the bench adds is a *place to look* — not new mechanism. The plan and the tower are the
+opposite: they need job identity, a claim, a budget and a clock source, none of which exist, and
+the last of those crosses the scheduler/daemon line [[fundamentals]] says is only ever crossed on
+purpose.
+
+**The trial run is expected to change the CLI, and that is the point.** Building a surface that
+runs the real commands and draws the real envelope is the cheapest way to find the flags that
+should exist and the facts that should ship. A mockup can only draw what someone imagined.

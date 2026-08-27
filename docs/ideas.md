@@ -2,6 +2,9 @@
 
 *Note: This is a list of potential ideas to add. Remove them if once spec'd or shelved*
 
+*This file answers **should we build it**. Questions about something already being
+built — decided, but not decided how — live in `docs/open.md`.*
+
 - ~~watcher for cron jobs~~ — spec'd as [[file-follow]] round 2 (`tb follow --due 15m <path>`);
   the systemd half needs no code, see the doc
 - ~~piping commands to claude or other agents~~ — answered: chaining needs nothing (`tb follow

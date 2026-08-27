@@ -358,9 +358,15 @@ rounds), `highlight.md` (lexical tint, four rounds), `capture.md` (declared stru
 shaping contract, five rounds), `roll-call.md` (federating over projects), `file-follow.md` (the
 native cursor, two rounds), `chrome.md` (what a window knows about its output, three rounds), `mcp.md` (the toolbox offered to
 an agent), `delay.md` (once, later), and the constitution's rounds as they land.
-**`docs/features/` is empty** — as of 2026-08-23 every spec written has been executed. Every earlier
-spec was deleted with the system it described; the docs that predate the 2026-08-21
-renames say `wrap`/`every` on purpose — dated, never scrubbed.
+**`docs/features/` holds one draft** — `workbench.md`, the authoring surface, opened 2026-08-26.
+Everything else written before it has been executed. Every earlier spec was deleted with the
+system it described; the docs that predate the 2026-08-21 renames say `wrap`/`every` on purpose —
+dated, never scrubbed.
+
+**`docs/open.md` is the running list of what is decided-to-build but not decided-how**, kept
+apart from `docs/ideas.md` (*should we build it*) and fundamentals' Decisions (*settled, with the
+reasoning*). An item leaves it by being taken over somewhere else, and the line records where it
+went rather than being deleted.
 
 One doc per feature at `docs/features/<slug>.md`, from first sentence to done; completed docs move
 to `docs/features/done/`. `.claude/skills/feature/SKILL.md` drives it. The rules that earned their
