@@ -20,7 +20,7 @@ Four ideas, and everything else follows from them:
 ## Install
 
 ```bash
-git clone https://github.com/skyrowlabs/toolbox && cd toolbox
+git clone https://github.com/skyrowlabs/sky-boss && cd sky-boss
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 ln -s "$PWD/tb" ~/.local/bin/tb          # or run ./tb from the repo
 ```

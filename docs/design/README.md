@@ -22,7 +22,7 @@ once, and a second hand-made copy of it is the drift this directory is here to p
 
 Two changes, both made by **moving the mockup's own pixels**, so no font had to be matched:
 
-- **The `v0.4.1` segment is gone.** It is the number the mockup was drawn with, not one toolbox
+- **The `v0.4.1` segment is gone.** It is the number the mockup was drawn with, not one sky.boss
   has ever been at — `git describe` currently answers with a bare hash. `cli/banner.py` already
   refuses to print a version it is not; a README claiming one in the first thing a reader sees
   would be the same lie in a louder place. What is left, `by SKYROW.LABS · tb --help`, cannot

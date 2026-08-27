@@ -8,12 +8,21 @@ absent and nothing here depends on it.
 
 ## What this repo is
 
-**toolbox** is the homebase kit for a primary workstation and the machines around it, behind one
+**sky.boss** is the homebase kit for a primary workstation and the machines around it, behind one
 operator CLI: `tb`.
 
-**It was called `tackle-box` until 2026-08-22.** The name is gone from the working tree — code,
-docs, mockups and their filenames — because it would otherwise read as a second project. Git
-history keeps it, deliberately: rewriting history to chase a rename is a cost with no reader.
+**It was `tackle-box` until 2026-08-22 and `toolbox` until 2026-08-26.** Both are gone from
+current-tense prose, because an old project name reads as a second project. Git history keeps
+them: rewriting history to chase a rename is a cost with no reader.
+
+**The second rename is deliberately incomplete, and the parts left behind are listed in
+`docs/open.md`.** Three kinds of `toolbox` survive on purpose. *The common noun* — "the
+toolbox", the box of saved commands `tb tools` lists — is not the project's name and stays;
+[[tools]] settled that at the last rename. *Dated records* — a measurement transcript, a
+completed feature doc — are not scrubbed, the same rule that leaves `wrap`/`every` standing in
+docs older than that rename. And *identifiers* — `~/.toolbox`, the `toolbox` window class, the
+MCP server name, the mark's own lettering — are a coordinated change with consequences outside
+this repo, not a substitution. **`tb` is not changing.**
 
 **This is a machine-neutral repo, as of the 2026-08-22 pass.** Nothing tracked here names a host,
 a distro, a desktop environment, or a window-manager rule — the mechanisms are documented, the
