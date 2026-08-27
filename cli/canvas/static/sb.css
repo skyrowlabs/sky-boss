@@ -476,3 +476,160 @@ pre.raw {
   border-radius: var(--r-md);
 }
 ::-webkit-scrollbar-track { background: transparent; }
+
+/* ----------------------------------------------------------------- workbench */
+
+/* The bench sits where the stage does, so it inherits the same cushion and the
+ * same bounded height. Two columns: the draft on the left and the reference on
+ * the right, which is the mockup's arrangement — the reference is read while
+ * typing, so it belongs beside the field rather than above it. */
+.bench { display: flex; flex: 1; gap: 3rem; min-height: 0; }
+.bench-main { flex: 1; display: flex; flex-direction: column; gap: 3rem; min-width: 0; }
+
+.panel {
+  border: var(--hair) solid var(--sb-hair); border-radius: var(--r-md);
+  background: var(--sb-surface); min-height: 0;
+}
+.panel-head {
+  padding: 2.5rem 3rem; color: var(--sb-brand);
+  font-weight: 700; letter-spacing: .16em; font-size: 2.75rem;
+  border-bottom: var(--hair) solid var(--sb-hair);
+}
+
+/* -------------------------------------------------------------- the selector */
+
+.bench-contract {
+  flex: none; display: flex; align-items: center; gap: 3.5rem;
+  padding: 0 3.5rem 0 0; overflow: hidden;
+}
+/* The selector never gives way; the note does. Without this the note wrapped
+ * to one word per line at 1100px and grew the panel downwards — found in the
+ * Electron shell, whose default window is narrower than a browser's. */
+.bench-contract > *:not(.bench-note) { flex: none; }
+.bench-contract .panel-head { border-bottom: 0; border-right: var(--hair) solid var(--sb-hair); }
+.bench-groups { display: flex; align-items: center; gap: 4rem; }
+.bench-group { display: flex; align-items: center; gap: 1.5rem; }
+/* The split is drawn, not merely ordered. A rail listing `run` beside `data`
+ * with no visual difference loses the bit the whole design turns on. */
+.bench-nature {
+  color: var(--sb-ok); font-size: 2.5rem; letter-spacing: .12em;
+  text-transform: uppercase;
+}
+.bench-nature.acts { color: var(--sb-danger); }
+.bench-pick {
+  font: inherit; cursor: pointer; background: transparent;
+  border: var(--hair) solid var(--sb-hair); border-radius: var(--r-sm);
+  color: var(--sb-text-3); padding: 0.75rem 3rem;
+}
+.bench-pick:hover { color: var(--sb-text-2); }
+.bench-pick.on { background: var(--sb-tint); border-color: var(--sb-edge); color: var(--sb-brand); }
+.bench-pick.acts.on {
+  background: color-mix(in srgb, var(--sb-danger) 12%, transparent);
+  border-color: color-mix(in srgb, var(--sb-danger) 40%, transparent);
+  color: var(--sb-danger);
+}
+.bench-note {
+  color: var(--sb-text-3); font-size: 2.75rem; margin-left: auto;
+  flex: 0 1 auto; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* ----------------------------------------------------------------- the draft */
+
+.bench-open { flex: none; padding: 4rem; color: var(--sb-text-2); }
+.bench-open b { color: var(--sb-text); }
+.bench-open p { margin-top: 2rem; max-width: 190rem; }
+.bench-open .dim, .dim { color: var(--sb-text-3); }
+
+.bench-draft { flex: none; padding: 3rem 3.5rem; display: flex; flex-direction: column; gap: 2rem; }
+.draft-row { display: flex; align-items: center; gap: 2.5rem; }
+.draft-label {
+  flex: none; width: 14rem; color: var(--sb-text-3);
+  font-size: 2.75rem; letter-spacing: .08em;
+}
+.draft-row input {
+  flex: 1; min-width: 0; font: inherit; color: var(--sb-text);
+  background: transparent; outline: 0;
+  border: var(--hair) solid var(--sb-hair); border-radius: var(--r-sm);
+  padding: 1rem 2rem;
+}
+.draft-row input:focus { border-color: var(--sb-edge); }
+.draft-row input::placeholder { color: var(--sb-text-3); }
+.draft-trial {
+  flex: none; font: inherit; cursor: pointer; padding: 1rem 3.5rem;
+  border-radius: var(--r-sm);
+  border: var(--hair) solid var(--sb-edge);
+  background: var(--sb-tint); color: var(--sb-brand);
+}
+.draft-trial:disabled {
+  cursor: default; background: transparent;
+  border-color: var(--sb-hair); color: var(--sb-text-3);
+}
+/* What will run, shown before it runs. The whitespace split this composes from
+ * is a real limitation, and a visible line is what keeps it from being a
+ * silent one. */
+.draft-line {
+  color: var(--sb-text-2); font-size: 2.75rem;
+  padding: 1.5rem 2rem; border-radius: var(--r-sm);
+  background: color-mix(in srgb, var(--sb-bg) 55%, transparent);
+  overflow-x: auto; white-space: nowrap;
+}
+.draft-sb { color: var(--sb-brand); }
+
+/* ---------------------------------------------------------------- the result */
+
+.bench-result { flex: 1; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+/* The pane scrolls, not the screen. A result is bounded by `MAX_ROWS` and
+ * `MAX_CHARS` and still routinely taller than the window. */
+.bench-result .body { flex: 1; min-height: 0; overflow: auto; }
+.bench-result .raw.stream { height: 100%; overflow: auto; }
+
+/* The [[chrome]] band, top and bottom. A canvas window never needed one — its
+ * frame is the band — and the bench is a full-width pane with no such frame,
+ * which is the case the terminal grew the bands for in the first place. */
+.band {
+  flex: none; display: flex; align-items: center; gap: 2.5rem;
+  padding: 2rem 3rem; color: var(--sb-text-3); font-size: 2.75rem;
+}
+.band.top { border-bottom: var(--hair) solid var(--sb-hair); }
+.band.foot { border-top: var(--hair) solid var(--sb-hair); }
+.band-src { color: var(--sb-text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.band-att { color: var(--sb-ok); }
+.band-att.bad { color: var(--sb-danger); }
+.band-warn { color: var(--sb-warn); }
+.band-hint { color: var(--sb-text-3); white-space: nowrap; }
+
+/* Reading text takes TEXT_2. TEXT_3 is *structure* — it is what BORDER is —
+ * and using it for a paragraph is the token-role error [[fundamentals]] ruled
+ * on, 2026-08-27, not a contrast preference. */
+.bench-blank { color: var(--sb-text-2); padding: 3rem 1rem; max-width: 180rem; line-height: 1.6; }
+.bench-blank b { color: var(--sb-text); }
+
+/* ------------------------------------------------------------- the reference */
+
+.bench-ref {
+  flex: none; width: 108rem; display: flex; flex-direction: column; overflow: hidden;
+}
+.ref-list { flex: 1; overflow: auto; padding: 2rem 0; }
+.ref-foot {
+  flex: none; padding: 2.5rem 3rem; color: var(--sb-text-3); font-size: 2.75rem;
+  border-top: var(--hair) solid var(--sb-hair);
+}
+.ref-entry { padding: 1.5rem 3rem 3rem; }
+.ref-head { display: flex; align-items: baseline; gap: 2rem; }
+.ref-name { color: var(--sb-text); }
+.ref-nature {
+  flex: none; font-size: 2.5rem; letter-spacing: .12em; padding: 0 1.5rem;
+  border-radius: 1rem; color: var(--sb-ok);
+  border: var(--hair) solid color-mix(in srgb, var(--sb-ok) 30%, transparent);
+}
+.ref-nature.acts {
+  color: var(--sb-danger);
+  border-color: color-mix(in srgb, var(--sb-danger) 30%, transparent);
+}
+.ref-blurb { color: var(--sb-text-2); margin-top: 1.5rem; line-height: 1.55; }
+.ref-flags { margin-top: 2.5rem; display: flex; flex-direction: column; gap: 1.5rem; }
+.ref-flag { display: flex; gap: 2rem; align-items: baseline; }
+.ref-flag-name { flex: none; width: 22rem; color: var(--sb-brand); font-size: 2.75rem; }
+/* Also reading text, and the longest run of it on the screen. */
+.ref-flag-desc { flex: 1; color: var(--sb-text-2); font-size: 2.75rem; line-height: 1.5; }

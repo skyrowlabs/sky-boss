@@ -12,12 +12,18 @@ npm start                   # main.js — one OS window per command
 `sb` must be on PATH, or set `SB_BIN`.
 
 **`canvas-main.js` is the one to look at.** ~100 lines, no preload and no IPC:
-it opens a single window on `ctx.url` and gets today's `index.html`, `app.js`,
-`render.js` and `sb.css` unchanged, token and all. Panes stay divs, the layout
-stays the canvas's, and a pane reading another pane stays a lookup in one JS
-heap. It is a like-for-like replacement for `cli/canvas/shell.py`, which makes
-it the only honest way to compare the two: same product, same frontend,
-different host.
+it opens a single window on `ctx.url` and gets **whatever page sb is serving
+today**, unchanged, token and all. Panes stay divs, the layout stays the
+canvas's, and a pane reading another pane stays a lookup in one JS heap. It is
+a like-for-like replacement for `cli/canvas/shell.py`, which makes it the only
+honest way to compare the two: same product, same frontend, different host.
+
+Deliberately not a list of files. It used to name `index.html`, `app.js`,
+`render.js` and `sb.css`, and the workbench added a fifth on 2026-08-27 without
+this file noticing — which is the point being made: **the shell gains a screen
+by the server growing one.** [[workbench]] round 1 needed no change here at
+all, and the frontend fix it did find — a panel that wrapped at 1100px — was
+found *because* Electron's default window is narrower than a browser's.
 
 **`main.js` is the road not taken**, kept because it is cheap to keep. Every
 command becomes an OS window the window manager tiles and snaps. It works —

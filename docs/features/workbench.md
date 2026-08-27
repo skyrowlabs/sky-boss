@@ -1,10 +1,12 @@
 ---
 status: draft
 created: 2026-08-26
-updated: 2026-08-26
+updated: 2026-08-27
 agent_value: 3
 key_files:
   - cli/canvas/server.py
+  - cli/canvas/static/bench.js
+  - cli/canvas/catalog.py
   - cli/canvas/static/app.js
   - cli/canvas/static/render.js
   - cli/view.py
@@ -107,18 +109,18 @@ carries the contract's own *acts* or *observes* badge, because a rail that lists
 
 ## Phases
 
-### Round 1 — the bench and the trial run (2026-08-26)
+### Round 1 — the bench and the trial run (2026-08-26, done 2026-08-27)
 
-- [ ] **The page.** A workbench route on the canvas: contract selector, `--cwd` picker, argv
+- [x] **The page.** A workbench route on the canvas: contract selector, `--cwd` picker, argv
       field, trial run. Selecting a contract swaps the draft rather than clearing it.
-- [ ] **The result, in the renderer it will really use.** Route the existing subprocess execution
+- [x] **The result, in the renderer it will really use.** Route the existing subprocess execution
       at the bench and draw the envelope through `render.js` unchanged — table, verbatim, ring,
       file cursor — with the [[chrome]] band top and bottom for that shape. `MAX_ROWS` and
       `MAX_CHARS` apply here exactly as everywhere else.
-- [ ] **The reference rail**, from `/api/catalog`, carrying the contract's acts/observes badge.
-- [ ] **The empty state.** A fresh install has no tools and no draft. Decide what the bench opens
+- [x] **The reference rail**, from `/api/catalog`, carrying the contract's acts/observes badge.
+- [x] **The empty state.** A fresh install has no tools and no draft. Decide what the bench opens
       on before the screen exists, not after.
-- [ ] Tests: the bench route refuses an unauthenticated request like every other; a trial run of
+- [x] Tests: the bench route refuses an unauthenticated request like every other; a trial run of
       an `acts` contract is refused server-side and not merely hidden in the UI.
 
 ### Round 2 — the view controls (2026-08-26)
@@ -201,3 +203,53 @@ What the ratification *did* surface is two consequences of `--save` writing **be
 both now round-3 items. The save is a fresh invocation rather than a confirmation of what the
 trial run drew, and a wrong argv reaches disk ahead of the output that proves it wrong — under a
 name that then cannot be reused. Neither changes the decision; both change the drawing.
+
+**2026-08-27 — round 1, and the four things it decided by building.**
+
+**The empty state opens on nothing selected**, which is a departure from the mockup and the one
+round-1 decision worth arguing. The mockup pre-selects `data`. But the Why above says the selector
+*is* the operator asserting the bit no parser can infer — and answering it for them on arrival is
+that inference with a friendlier face. It also gives the empty pane something true to say instead
+of a blank: the reference rail lists all four contracts with their badges, which is exactly the
+choice being asked for. The cost is one click, which is the correct price for an assertion.
+
+**A second route, not a flag.** `/api/trial` is `/api/run` with one rule added — an act is refused
+— and that rule is why it is a route rather than `run` with `trial: true`. The palette must keep
+being able to open a `sb run` window, so one route that sometimes refuses `run` and sometimes does
+not would be a route with two contracts. The refusal is server-side because a surface that merely
+declines to draw a button has not refused anything: the check has to be where the request arrives.
+`follow` is refused there too, for a different reason — `runner.run` would sit on a held-open
+stream until the timeout and then report a hang as a result.
+
+**A follow trial is a pseudo-window on the session.** It goes down `/api/follow` with the window id
+`bench`, so its frames arrive on the existing stream and it dies with the session exactly as a
+window's would. Nothing new was built to hold it open. This is the same reasoning as the trial run
+itself: the bench adds a place to look, not a mechanism.
+
+**`--` is inserted, and inserting it chooses nothing.** The bench prefixes the operator's typed
+argv with `--` unless they typed one. That is safe even for `follow`, whose file-versus-command
+dispatch reads what comes *after* the separator — `sb follow -- build.log` is still the file form.
+What the bench does *not* do is decide the form itself, which would be the second parser sb refuses
+to have. The composed line is drawn above the result before it runs, so the one real limitation —
+the argv is split on whitespace, so a foreign argument containing a space cannot be typed yet — is
+visible rather than silent. That is the first flag the trial run has already asked for.
+
+**What building it changed elsewhere**, which is the Notes entry above predicting itself:
+
+- `_summary` in the catalog took the first *line* of a docstring, and a docstring is hard-wrapped
+  by whoever wrote it — `sb data`'s ended "An observe — a window may". The palette hid it behind an
+  ellipsis and nobody noticed. The rail draws it in full. It now takes the first paragraph with its
+  newlines collapsed, and drops a trailing clause ending in a colon, because that colon is
+  introducing an example the summary does not carry.
+- `entry_for` replaced `{e["name"]: e["acts"]}.get(argv[0])`, which called every saved tool a read
+  — including one wrapping `run`, the exact mistake the read/write split exists to prevent. Longest
+  path first, the same rule the palette's `suggest` follows.
+- The reference rail's flag descriptions and the empty state's prose moved off `TEXT_3`. Reading
+  text takes `TEXT_2`; `TEXT_3` is structure and is what `BORDER` is. That is the ruling from
+  [[fundamentals]] § *the label tier* landing on its first real screen rather than being restated.
+
+**Deferred to a later round, deliberately.** The saved-commands rail on the left, which the mockup
+draws on the bench: clicking a tool there should load it *into the draft*, and the expansion of a
+saved command is not something the page has — the server resolves it, as `resolve_follow` does.
+That is a real dependency and not a layout question, so it waits rather than being drawn as a
+sidebar that opens canvas windows from the wrong screen.

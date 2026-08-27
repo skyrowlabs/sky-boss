@@ -107,3 +107,41 @@ def test_a_command_added_to_the_tree_appears_with_no_change_here():
         assert entry["summary"] == "not written down anywhere"
     finally:
         del cli.commands["invented"]
+
+
+def test_a_summary_is_a_paragraph_not_a_line():
+    """A docstring is hard-wrapped by whoever wrote it, so its first *line*
+    ends wherever eighty columns landed.
+
+    The palette hid that behind an ellipsis and nobody noticed for months; the
+    bench's reference rail draws it in full, where a sentence stopping
+    mid-clause reads as a bug in the help rather than in the splitting.
+    """
+
+    @click.command(name="wrapped")
+    def wrapped():
+        """Read another CLI's output as data. An observe — a window
+        may pin it and refresh it.
+
+        A second paragraph, which is not the summary.
+        """
+
+    entry = walk(wrapped, ("wrapped",))[0]
+    assert entry["summary"] == (
+        "Read another CLI's output as data. An observe — a window may pin it and "
+        "refresh it."
+    )
+
+
+def test_a_summary_never_ends_on_a_colon_it_cannot_keep():
+    """A paragraph ending in a colon is introducing an example that is not in
+    the summary, so the colon is a promise with nothing behind it."""
+
+    @click.command(name="colon")
+    def colon():
+        """Follow a file that grows. An observe, resident by nature:
+
+        sb follow build.log
+        """
+
+    assert walk(colon, ("colon",))[0]["summary"] == "Follow a file that grows."

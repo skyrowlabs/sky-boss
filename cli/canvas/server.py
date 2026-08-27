@@ -52,7 +52,7 @@ from cli import chrome as chrome_
 from cli import highlight as highlight_
 from cli import stream as stream_
 from cli.canvas import runner
-from cli.canvas.catalog import catalog
+from cli.canvas.catalog import catalog, entry_for
 from cli.canvas.watch import INTERVALS, Session
 from cli.theme import css_root, css_variables
 
@@ -204,6 +204,55 @@ def build(canvas: Canvas | None = None) -> Starlette:
         payload["chrome"] = chrome_for(argv, payload)
         return JSONResponse(payload)
 
+    async def post_trial(request: Request) -> Response:
+        """The bench's run: `/api/run` with one rule added, and the rule is the
+        whole reason it is a second route.
+
+        **An act has no trial run.** sb will not execute a write to show you
+        what it would print, so the bench offers what it can check without
+        running and one button that runs it for real. That refusal lives here
+        rather than in a button the surface declines to draw, because a UI that
+        merely does not offer something has not refused it — the check has to
+        be where the request arrives.
+
+        A separate route rather than a flag on `/api/run` because the refusal
+        belongs to the *bench* and not to running: the palette must keep being
+        able to open a `sb run` window, and one route that sometimes refuses
+        `run` and sometimes does not is a route with two contracts.
+
+        A resident argv is refused too, and for a different reason: a stream is
+        not run to completion, so `runner.run` would sit on it until the
+        timeout and report a hang as a result. A follow trial is held open by
+        `/api/follow` like every other stream on this surface.
+
+        See [[workbench]] round 1.
+        """
+        if not canvas.authorised(request):
+            return _denied()
+        body = await request.json()
+        argv = [str(a) for a in (body.get("argv") or [])]
+        if not argv:
+            return JSONResponse({"error": "no argv"}, status_code=400)
+        entry = entry_for(argv)
+        if _acts(argv, entry):
+            return JSONResponse(
+                {
+                    "error": "an act has no trial run — sb will not run a write "
+                    "to show you what it would print"
+                },
+                status_code=400,
+            )
+        if entry is not None and entry["resident"]:
+            return JSONResponse(
+                {"error": "a stream is held open, not run to completion — follow it instead"},
+                status_code=400,
+            )
+        timeout = body.get("timeout") or runner.DEFAULT_TIMEOUT
+        result = await asyncio.to_thread(runner.run, argv, timeout=int(timeout))
+        payload = result.to_dict()
+        payload["chrome"] = chrome_for(argv, payload)
+        return JSONResponse(payload)
+
     async def post_watch(request: Request) -> Response:
         """Register, re-point, or stop one window's watcher."""
         if not canvas.authorised(request):
@@ -310,6 +359,7 @@ def build(canvas: Canvas | None = None) -> Starlette:
             Route("/favicon.svg", favicon),
             Route("/api/catalog", get_catalog),
             Route("/api/run", post_run, methods=["POST"]),
+            Route("/api/trial", post_trial, methods=["POST"]),
             Route("/api/watch", post_watch, methods=["POST"]),
             Route("/api/follow", post_follow, methods=["POST"]),
             Route("/api/quit", post_quit, methods=["POST"]),
@@ -527,6 +577,18 @@ def _frame_line(line, ruleset=None) -> dict:
     return out
 
 
+def _acts(argv: list[str], entry: dict | None = None) -> bool:
+    """Whether this sb-level argv writes. Read off the catalog, never guessed.
+
+    `entry` is passed when the caller already looked it up, so one request does
+    not walk the tree twice. An argv nothing in the tree answers to is a raw
+    one, and the only thing that could make it an act is being spelled `run`.
+    """
+    if entry is None:
+        entry = entry_for(argv)
+    return entry["acts"] if entry is not None else argv[:1] == ["run"]
+
+
 def chrome_for(argv: list[str], run: dict, *, interval: int = 0, now: float | None = None) -> dict:
     """The [[chrome]] facts for one canvas run, assembled where the surface
     knows them — the deciding half in Python, exactly as the view's is.
@@ -556,8 +618,7 @@ def chrome_for(argv: list[str], run: dict, *, interval: int = 0, now: float | No
     else:
         # Inherited, never inferred from the path: a saved tool's `acts` came
         # from its expansion, and the catalog is the one place that knows it.
-        acts = {e["name"]: e["acts"] for e in catalog()}.get(argv[0], argv[0] == "run")
-        build = chrome_.act if acts else chrome_.snapshot
+        build = chrome_.act if _acts(argv) else chrome_.snapshot
         facts = build(
             source, ok=ok, partial=partial, warnings=warnings,
             ran_at=ran_at, duration_s=duration,

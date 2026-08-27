@@ -65,7 +65,7 @@ replaced by a browser one the same day. What exists:
 | `sb roll-call` | Asks every declared project how it is and folds the answers. An observe. See [[roll-call]] |
 | `sb mcp` | Speaks MCP on stdio, offering the tools to an agent. A surface. See [[mcp]] |
 | `sb tools` | Lists the operator's saved commands, and any that failed to load |
-| `sb ui` | Opens the canvas — a command palette over tiled and floating windows |
+| `sb ui` | Opens the surface: **the canvas**, a command palette over tiled and floating windows, and **the workbench**, where a command gets authored. See [[workbench]] |
 | `sb tools <name>` | Runs a saved command; `sb -t <name>` is the short spelling. See [[tools]] |
 
 **`--save NAME` on `read`, `data` and `follow`** saves the invocation as a tool and then runs it.
@@ -136,6 +136,25 @@ the left. It is a consumer of the output contract,
 not a second CLI. It replaced `sb tui` on 2026-08-20 — the terminal could not do overlapping
 draggable windows, which is the central metaphor. `docs/features/done/canvas.md` records the whole
 design, and `docs/design/sky-boss-demo.html` is the mockup it was built from.
+
+**It has a second screen as of 2026-08-27: the workbench**, where a command gets *authored* rather
+than invoked. The palette is a one-line composer, which is right for something you already trust
+and wrong for something you do not; the bench is where the contract is asserted, the argv is
+drafted, and a **trial run** draws the real envelope through the real renderer. See [[workbench]].
+Two rules there are the canvas's own, arriving on a new screen:
+
+- **The contract is asserted, never inferred**, and nothing is selected when the bench opens. A
+  bench that read a trailing `--json` and chose `data` would be the act/observe split undone by a
+  heuristic. `/api/trial` is `/api/run` with one rule added — **an act has no trial run** — and it
+  is a second route rather than a flag because the palette must keep opening `sb run` windows. The
+  refusal is server-side: a surface that declines to draw a button has not refused anything.
+- **A follow trial is a pseudo-window on the session**, held open by `/api/follow` under the window
+  id `bench`, so it dies with the session exactly as a window's stream does. No second transport.
+
+**There is deliberately no nav entry for the plan or the tower.** They are drawn in
+`docs/design/` and need four primitives that do not exist. A nav offering a screen that is not
+there is the palette's own failure wearing different clothes — it has already told you the thing
+exists. See `docs/open.md`.
 
 The rules that are not negotiable:
 
@@ -403,7 +422,8 @@ rounds), `highlight.md` (lexical tint, four rounds), `capture.md` (declared stru
 shaping contract, five rounds), `roll-call.md` (federating over projects), `file-follow.md` (the
 native cursor, two rounds), `chrome.md` (what a window knows about its output, three rounds), `mcp.md` (the tools offered to
 an agent), `delay.md` (once, later), and the constitution's rounds as they land.
-**`docs/features/` holds one draft** — `workbench.md`, the authoring surface, opened 2026-08-26.
+**`docs/features/` holds one draft** — `workbench.md`, the authoring surface, opened 2026-08-26,
+round 1 landed 2026-08-27 with rounds 2 and 3 open.
 Everything else written before it has been executed. Every earlier spec was deleted with the
 system it described; the docs that predate the 2026-08-21 renames say `wrap`/`every` on purpose —
 dated, never scrubbed.

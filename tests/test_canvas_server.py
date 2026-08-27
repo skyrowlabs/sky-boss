@@ -39,6 +39,7 @@ def auth(extra=None):
     [
         ("/api/catalog", "get"),
         ("/api/run", "post"),
+        ("/api/trial", "post"),
         ("/api/watch", "post"),
         ("/api/follow", "post"),
         ("/api/quit", "post"),
@@ -177,6 +178,7 @@ def test_the_static_directory_ships_only_what_the_page_needs():
         "sb.css",
         "app.js",
         "api.js",
+        "bench.js",
         "render.js",
         "vendor/preact.mjs",
         "vendor/hooks.mjs",
@@ -246,3 +248,65 @@ def test_the_page_carries_the_scale():
     body = TestClient(build(canvas)).get("/").text
     assert "__SB_SCALE__" not in body
     assert "--sb-scale: 3.0" in body
+
+
+# ---------------------------------------------------------------- the bench
+
+def test_a_trial_run_of_an_act_is_refused_by_the_server(client):
+    """Not merely a button the bench declines to draw.
+
+    A surface that only *does not offer* something has not refused it — the
+    check has to be where the request arrives, because the request can be made
+    without the surface. This is the act/observe split standing up to a POST.
+    See [[workbench]] round 1.
+    """
+    response = client.post(
+        "/api/trial", headers=auth(), json={"argv": ["run", "--", "true"]}
+    )
+    assert response.status_code == 400
+    assert "act" in response.json()["error"]
+
+
+def test_a_trial_run_of_a_stream_is_refused_and_says_where_to_go(client):
+    """`runner.run` would sit on a follow until the timeout and then report a
+    hang as a result. A stream is held open by /api/follow like every other one
+    on this surface."""
+    response = client.post(
+        "/api/trial", headers=auth(), json={"argv": ["follow", "--", "tail", "-f", "x"]}
+    )
+    assert response.status_code == 400
+    assert "held open" in response.json()["error"]
+
+
+def test_a_trial_run_of_an_observe_returns_the_envelope(client):
+    """The pleasant path, once. Everything else about the bench is a refusal."""
+    response = client.post(
+        "/api/trial", headers=auth(), json={"argv": ["read", "--", "echo", "hello"]}
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["ok"] is True
+    assert body["envelope"]["data"].strip() == "hello"
+    # The chrome rides beside the envelope, never inside it — same boundary
+    # `/api/run` keeps, and tests/test_chrome.py holds the line.
+    assert "chrome" not in body["envelope"]
+    assert body["chrome"]["shape"] == "snapshot"
+
+
+def test_a_saved_command_is_judged_by_what_it_expands_to():
+    """`entry_for` matches the longest path, so a tool at `tools <name>` is
+    found rather than the bare `tools` group above it.
+
+    Matching on argv[0] alone would call every saved tool a read — including
+    one wrapping `run`, which is the exact mistake the read/write split exists
+    to prevent.
+    """
+    from cli.canvas.catalog import entry_for
+
+    entries = [
+        {"name": "tools", "argv": ["tools"], "acts": False, "resident": False},
+        {"name": "tools deploy", "argv": ["tools", "deploy"], "acts": True, "resident": False},
+    ]
+    assert entry_for(["tools", "deploy"], entries)["acts"] is True
+    assert entry_for(["tools"], entries)["acts"] is False
+    assert entry_for(["nothing", "here"], entries) is None

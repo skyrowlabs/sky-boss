@@ -39,7 +39,7 @@ Needs Python 3.11+. Shell completion for fish:
 | `sb follow <path>` | Follows a file with a native stat cursor |
 | `sb roll-call` | Asks every declared project how it is, and folds the answers |
 | `sb tools` | The commands you saved |
-| `sb ui` | Opens the canvas — a palette over tiled and floating windows |
+| `sb ui` | Opens the surface — a canvas of windows, and a workbench for authoring a command |
 | `sb mcp` | Speaks MCP on stdio, offering your saved commands to an agent |
 
 `--` separates sb's flags from the command's own.
@@ -279,19 +279,30 @@ $ SB_HOME=/tmp/empty-sb sb roll-call
 ⚠️  no projects declared — see /tmp/empty-sb/projects.toml
 ```
 
-## The canvas
+## The surface
 
 ```bash
 sb ui
 ```
 
-A command palette over tiled and floating windows. Every command opens a window; a pinned window
-re-runs itself on a cadence. **Nothing keeps a command table** — the palette walks the real Click
-tree, so it cannot offer a command that does not exist.
+Two screens. **The canvas** is a command palette over tiled and floating windows: every command
+opens a window, and a pinned window re-runs itself on a cadence. **Nothing keeps a command table**
+— the palette walks the real Click tree, so it cannot offer a command that does not exist.
 
 The refresh clock lives in Python, keyed to the connection: a browser timer in a hidden tab is
 clamped to roughly one fire a minute, so a 5s watcher would silently become a 60s one at the exact
 moment you stopped being able to see that it had.
+
+**The workbench** is where a command gets made rather than invoked. Assert the contract — `run`
+acts, `data`, `read` and `follow` observe — type the argv, and *trial run* it: the result is drawn
+through the same renderer a window uses, so what you are looking at is the thing rather than a
+picture of it. `--cols` is the flag this exists for. It is one you get wrong by typing and right
+by looking, and until now there was nowhere to look.
+
+Nothing is selected when the bench opens, because the contract is the one bit no parser can infer
+and choosing it for you would be that inference with a friendlier face. An **act has no trial
+run** — sb will not execute a write to show you what it would print — and the server refuses one
+rather than the page merely not offering it.
 
 ```bash
 sb ui --no-browser --port 8765     # develop against it in a browser
