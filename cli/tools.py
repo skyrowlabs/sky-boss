@@ -1,33 +1,33 @@
-"""The toolbox — commands the operator saved.
+"""The tools — commands the operator saved.
 
-A tool is a **name plus a tb argv**. `tb jam-pr-list` expands to
-`tb data --cwd … -- jam pr list --json` and runs it. That is the whole model,
+A tool is a **name plus a sb argv**. `sb jam-pr-list` expands to
+`sb data --cwd … -- jam pr list --json` and runs it. That is the whole model,
 and everything below is the consequences of keeping it that small.
 
-**Tools are registered into the Click tree, not held in a list.** tb's hardest
+**Tools are registered into the Click tree, not held in a list.** sb's hardest
 invariant is that nothing keeps a command table — the palette walks the live
-tree, so it cannot offer a command that does not exist. A toolbox that was a
+tree, so it cannot offer a command that does not exist. A tools list that was a
 second list of commands would break that on day one. Registering them instead
-means `tb tools <name>`, `tb --help`, the palette, and shell completion all
+means `sb tools <name>`, `sb --help`, the palette, and shell completion all
 work with no code anywhere else.
 
 **Saved commands live behind the `tools` group** (round 2 — they were on the
 root until 2026-08-22). The builtin/operator line is the sharpest line in the
 design, and on the root it was invisible in the one listing that matters most.
-Nesting also retired the shadowing rule into structure: `tb tools run`
+Nesting also retired the shadowing rule into structure: `sb tools run`
 collides with nothing, so "a builtin always wins" stopped being validation.
 `-t` is an argv spelling of `tools`, rewritten at the root — see cli/__init__.
 
-**The argv is a tb argv, never a shell argv.** A tool cannot name an arbitrary
-executable, because a tool that could would be a second `tb run` — one that
+**The argv is a sb argv, never a shell argv.** A tool cannot name an arbitrary
+executable, because a tool that could would be a second `sb run` — one that
 skips the read/write distinction the design rests on. Everything a tool wants is
-reachable through `run` or `data`, and going through them is what keeps `tb run`
+reachable through `run` or `data`, and going through them is what keeps `sb run`
 the single command that acts.
 
-**No *surface* writes this file, and tb only ever appends to it.** Round 3
+**No *surface* writes this file, and sb only ever appends to it.** Round 3
 narrowed "nothing here writes" rather than reversing it: the argument under
 that sentence was about the canvas server — remote code execution bound to a
-port, where a *route* that wrote a file tb later runs would turn a transient
+port, where a *route* that wrote a file sb later runs would turn a transient
 compromise into a persistent one. None of that describes `--save`, typed by
 the operator in their own shell at the same trust level as `$EDITOR`. So
 there is still no route and still no button; there is `save()`, which
@@ -47,7 +47,7 @@ import rich_click as click
 
 from cli.canvas.catalog import walk
 from cli.canvas.watch import INTERVALS
-from cli.helpers import INVOCATION, TB_HOME
+from cli.helpers import INVOCATION, SB_HOME
 from cli.output import Result, emit
 
 TOOLS_FILE = "tools.toml"
@@ -76,7 +76,7 @@ class Tool:
 
 
 def home_file(home: Path | None = None) -> Path:
-    return (home or TB_HOME) / TOOLS_FILE
+    return (home or SB_HOME) / TOOLS_FILE
 
 
 def read(home: Path | None = None) -> dict:
@@ -95,7 +95,7 @@ def read(home: Path | None = None) -> dict:
     except (OSError, tomllib.TOMLDecodeError) as exc:
         # A file that exists and cannot be parsed *is* worth reporting — the
         # operator wrote it and is expecting it to work. Reported as a problem
-        # rather than raised, because one broken file must not stop tb running.
+        # rather than raised, because one broken file must not stop sb running.
         return {"__error__": f"{path}: {exc}"}
 
 
@@ -106,7 +106,7 @@ def parse(
 ) -> tuple[list[Tool], list[str]]:
     """Validate declarations against the live tree. Pure — reads no file.
 
-    `commands` maps a runnable tb command to whether it acts. There is no
+    `commands` maps a runnable sb command to whether it acts. There is no
     shadowing check any more: round 2 moved saved commands behind the `tools`
     group, where `[tool.run]` collides with nothing — the rule became
     structure. Only the *shape* of a name is still validated.
@@ -164,16 +164,16 @@ def _check(
         return "argv must be a non-empty list of strings"
     if argv[0] in RENAMED:
         # The migration message. A hard rename with no alias means a saved tool
-        # still saying the old word must fail *loudly by name* — and `tb tools`
+        # still saying the old word must fail *loudly by name* — and `sb tools`
         # listing what failed to load is exactly where the operator whose tool
         # vanished will look. See [[refresh]].
         return f"{argv[0]!r} was renamed {RENAMED[argv[0]]!r} — edit the tool's argv"
     if argv[0] not in commands:
         # Names the alternative rather than just refusing: the mistake this
         # catches is someone writing a shell command, and the fix is to say
-        # which tb command would have run it.
+        # which sb command would have run it.
         return (
-            f"argv must start with a tb command, not {argv[0]!r} — "
+            f"argv must start with a sb command, not {argv[0]!r} — "
             "put it behind `run` or `data`"
         )
 
@@ -236,13 +236,13 @@ def load(
 
 # Why a module global. Loading happens at import, before any Click context
 # exists, so a problem found there has nowhere to be reported yet. Nothing
-# prints at import — `tb tools` surfaces these, which is where someone whose
+# prints at import — `sb tools` surfaces these, which is where someone whose
 # tool did not appear will look.
 PROBLEMS: list[str] = []
 
 
 def _expansion(tool: Tool) -> str:
-    return "tb " + shlex.join(tool.argv)
+    return "sb " + shlex.join(tool.argv)
 
 
 def make_command(tool: Tool) -> click.Command:
@@ -254,7 +254,7 @@ def make_command(tool: Tool) -> click.Command:
     `data` was an implementation detail the operator did not type; `tools.` is
     something they *do* type, and the dotted path is the standing convention.
 
-    It takes no arguments, so `tb jam-pr-list 945` is a usage error rather than
+    It takes no arguments, so `sb jam-pr-list 945` is a usage error rather than
     something appended to the argv. A tool that took arguments would be a shell
     function, and this is not a shell.
     """
@@ -291,7 +291,7 @@ def make_command(tool: Tool) -> click.Command:
     # A property on the command, inherited from the expansion like `acts` —
     # the catalog reads it to withhold the cadence control from stream
     # windows, saved or typed alike.
-    command.tb_resident = tool.resident
+    command.sb_resident = tool.resident
 
     if not tool.acts and not tool.resident:
         # Only a snapshot observe may take a cadence; on a tool that acts —
@@ -313,14 +313,14 @@ def make_command(tool: Tool) -> click.Command:
         else f"A saved command. Runs:\n\n    {_expansion(tool)}"
     )
     # A property on the command, so the catalog reads it the way it reads
-    # `tb_surface` rather than by consulting a list of names.
-    command.tb_saved = True
-    command.tb_refresh = tool.refresh
-    command.tb_argv = tuple(tool.argv)
+    # `sb_surface` rather than by consulting a list of names.
+    command.sb_saved = True
+    command.sb_refresh = tool.refresh
+    command.sb_argv = tuple(tool.argv)
     # Inherited, never declared. The catalog reads this rather than the command
-    # path, because the path of `tb deploy-thing` says nothing about the `run`
+    # path, because the path of `sb deploy-thing` says nothing about the `run`
     # hiding inside it.
-    command.tb_acts = tool.acts
+    command.sb_acts = tool.acts
     return command
 
 
@@ -329,12 +329,12 @@ def register(root: click.Group, home: Path | None = None) -> list[str]:
 
     Registration targets the group rather than the root (round 2): the
     builtin/operator line is the sharpest line in the design, and nesting is
-    what makes it visible in `tb --help`. It is also what retired the
-    shadowing rule into structure — a saved `run` lives at `tb tools run` and
+    what makes it visible in `sb --help`. It is also what retired the
+    shadowing rule into structure — a saved `run` lives at `sb tools run` and
     collides with nothing.
 
     `commands` and `resident` are still read off the *root's* walk, because a
-    tool's argv starts with a root-level tb command and inherits its verdicts.
+    tool's argv starts with a root-level sb command and inherits its verdicts.
     """
     entries = walk(root)
     commands = {entry["name"]: entry["acts"] for entry in entries}
@@ -348,11 +348,11 @@ def register(root: click.Group, home: Path | None = None) -> list[str]:
 @click.group(invoke_without_command=True)
 @click.pass_context
 def tools(ctx: click.Context) -> None:
-    """The toolbox — the operator's saved commands, behind their own door.
+    """The tools — the operator's saved commands, behind their own door.
 
     Bare, it lists what is declared. An observe — it runs nothing:
 
-        tb tools
+        sb tools
 
     It reports what is declared and, importantly, what was declared and
     refused — a tool that fails to load is otherwise invisible, and the
@@ -361,8 +361,8 @@ def tools(ctx: click.Context) -> None:
 
     A saved command runs behind this group, spelled long or short:
 
-        tb tools jam-pr-list --refresh 30
-        tb -t jam-pr-list --refresh 30
+        sb tools jam-pr-list --refresh 30
+        sb -t jam-pr-list --refresh 30
 
     A tool's `refresh` field is a default, never a cadence in force — the
     canvas opens the tool's window at it and a bare `--refresh` adopts it, but
@@ -374,7 +374,7 @@ def tools(ctx: click.Context) -> None:
 
 @emit
 def _listing() -> Result:
-    """The bare `tb tools` rendering — one door for "what did I declare".
+    """The bare `sb tools` rendering — one door for "what did I declare".
 
     Formats and highlight rulesets ride in the same listing (see [[capture]],
     [[highlight]]): this is already the one place the operator looks for "what
@@ -388,12 +388,12 @@ def _listing() -> Result:
         {
             "name": name,
             "description": command.short_help or "",
-            "runs": " ".join(("tb", *_argv_of(command))),
-            "acts": getattr(command, "tb_acts", False),
-            "refresh": getattr(command, "tb_refresh", 0),
+            "runs": " ".join(("sb", *_argv_of(command))),
+            "acts": getattr(command, "sb_acts", False),
+            "refresh": getattr(command, "sb_refresh", 0),
         }
         for name, command in sorted(tools.commands.items())
-        if getattr(command, "tb_saved", False)
+        if getattr(command, "sb_saved", False)
     ]
 
     from cli import highlight as highlight_
@@ -422,14 +422,14 @@ def _listing() -> Result:
 
 
 def _argv_of(command: click.Command) -> tuple[str, ...]:
-    return getattr(command, "tb_argv", ())
+    return getattr(command, "sb_argv", ())
 
 
 # ============================================================================
 # Saving — the one write, and it only ever appends
 # ============================================================================
 #
-# See [[tools]] round 3. The rule this lives under: **tb never touches a line
+# See [[tools]] round 3. The rule this lives under: **sb never touches a line
 # the operator wrote.** Round-tripping the file would mean a TOML *writer*
 # (the stdlib only reads) deciding how a hand-written file should look —
 # comments dropped, argv lists reflowed, keys reordered. Appending one block
@@ -438,7 +438,7 @@ def _argv_of(command: click.Command) -> tuple[str, ...]:
 
 
 def saved_argv(invocation: list[str], command: str) -> list[str]:
-    """The tb argv to save, taken from the line that is running.
+    """The sb argv to save, taken from the line that is running.
 
     **What you typed, minus the flag that asked.** Not rebuilt from parsed
     options: a tool whose expansion does not match the line that created it is
@@ -448,19 +448,19 @@ def saved_argv(invocation: list[str], command: str) -> list[str]:
     Three things the scan has to get right:
 
     - It starts at the **command word**, so root flags (`--json`) are dropped —
-      a tool's argv begins with a tb command by contract.
+      a tool's argv begins with a sb command by contract.
     - It stops looking at `--`. Everything after that belongs to the wrapped
       tool, and a `--save` in *there* is the foreign command's own flag. Click
       never parsed it as ours, so neither does this.
     - `--refresh` is **lifted out of the argv into the tool's field**, because
-      a cadence baked into a saved argv would make `tb tools <name>` go
+      a cadence baked into a saved argv would make `sb tools <name>` go
       resident on its own. Residency is never ambient ([[refresh]]): the field
       is the canvas's starting cadence and a terminal keyword still runs once.
     """
     try:
         start = invocation.index(command)
     except ValueError:  # pragma: no cover — Click found it, so it is there
-        raise click.UsageError(f"cannot tell what to save from: tb {' '.join(invocation)}")
+        raise click.UsageError(f"cannot tell what to save from: sb {' '.join(invocation)}")
 
     out: list[str] = []
     skip = False
@@ -548,14 +548,14 @@ def save(
 
     existing = read(home)
     if "__error__" in existing:
-        # Appending to a file tb cannot parse would bury the operator's real
+        # Appending to a file sb cannot parse would bury the operator's real
         # problem under a second one.
         raise click.UsageError(f"{existing['__error__']} — fix the file before saving into it")
     declared = (existing.get("tool") or {}).get(name)
     if declared is not None:
         runs = " ".join(str(part) for part in (declared.get("argv") or []))
         raise click.UsageError(
-            f"{name!r} is already a tool — it runs `tb {runs}`. Edit the file to change it."
+            f"{name!r} is already a tool — it runs `sb {runs}`. Edit the file to change it."
         )
 
     if refresh and refresh not in INTERVALS:
@@ -593,6 +593,6 @@ def save_invocation(name: str, command: str, invocation: list[str] | None = None
     return {
         "name": name,
         "file": str(path),
-        "runs": "tb " + shlex.join(argv),
+        "runs": "sb " + shlex.join(argv),
         **({"refresh": refresh} if refresh else {}),
     }

@@ -68,7 +68,7 @@ def test_a_pipe_gets_no_block_characters():
 
 
 def test_the_fallback_is_a_name_not_a_smaller_mark():
-    assert banner.plain("v0.4.1").plain == "toolbox  ·  v0.4.1"
+    assert banner.plain("v0.4.1").plain == "sky.boss  ·  v0.4.1"
 
 
 # ============================================================================
@@ -102,7 +102,7 @@ def test_the_mark_is_not_a_style_role():
 
 
 def test_only_the_root_wears_the_mark(monkeypatch):
-    """`tb read --help` is a reference page you may read three times a day; a
+    """`sb read --help` is a reference page you may read three times a day; a
     banner over every one of them is a banner nobody sees."""
     drawn = []
     monkeypatch.setattr(banner, "show", lambda console, version: drawn.append(version) or True)

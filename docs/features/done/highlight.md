@@ -11,7 +11,7 @@ key_files:
   - cli/filefollow.py
   - cli/canvas/server.py
   - cli/canvas/static/app.js
-  - cli/canvas/static/tb.css
+  - cli/canvas/static/sb.css
   - tests/test_highlight.py
 ---
 
@@ -62,9 +62,9 @@ The round-1 rules, all shape, no vocabulary:
 
 Round 2 adds the rest of the shapes an agent's log actually contains — see Phases. The rule
 that governs *which role* each gets is new and is the point of that round: **the value
-vocabulary is shared with `tb data`.** A number is `tb.num` whether it sits in a table cell or
-a log line; a path is `tb.path` in both. `cli/output.py` already decides that for table cells
-(`_cell`: numbers `tb.num`, `/`-leading strings `tb.path`), and a stream that invented its own
+vocabulary is shared with `sb data`.** A number is `sb.num` whether it sits in a table cell or
+a log line; a path is `sb.path` in both. `cli/output.py` already decides that for table cells
+(`_cell`: numbers `sb.num`, `/`-leading strings `sb.path`), and a stream that invented its own
 palette would mean the same value looked like two different things depending on which surface
 you were reading. One vocabulary, two surfaces — the same argument the theme itself makes.
 
@@ -114,31 +114,31 @@ outside `cli/theme.py` in any language.
 Round 1 shipped three rules against a wall of text and the operator read the result on a real
 stream: *"I would like common formats to stand out — dates, numbers and text should have
 distinctions; keywords, icons and graphics should be emphasized."* The reference point given
-was `tb data`: **make a followed line look the way a table cell already looks.**
+was `sb data`: **make a followed line look the way a table cell already looks.**
 
-That reference is the round's governing rule, not a mood. `tb data` already assigns roles to
-value *kinds* — `tb.num` for numbers, `tb.path` for path-like strings. A stream inventing its
+That reference is the round's governing rule, not a mood. `sb data` already assigns roles to
+value *kinds* — `sb.num` for numbers, `sb.path` for path-like strings. A stream inventing its
 own palette would make the same value look like two different things on two surfaces. So round
 2 adds shapes, and every shape takes **the role its kind already has in a table**.
 
 Measured against the live cron.log rather than imagined. What is on those lines, in the order
 the eye needs them:
 
-- **`#925`** — the issue under work, and the single most scanned token in the file → `tb.num`.
+- **`#925`** — the issue under work, and the single most scanned token in the file → `sb.num`.
   It is a number; it gets the number's role.
-- **Numbers, with an attached `%` or short unit** (`8%`, `90m`, `10.2`, `20000`) → `tb.num`.
-- **Dates and clock times mid-line** (`2026-08-26`, `19:00`) → `tb.num`. Note the asymmetry
+- **Numbers, with an attached `%` or short unit** (`8%`, `90m`, `10.2`, `20000`) → `sb.num`.
+- **Dates and clock times mid-line** (`2026-08-26`, `19:00`) → `sb.num`. Note the asymmetry
   with the *leading* timestamp, which stays muted: the leading stamp is the most repeated and
   least informative thing on the line, while a date inside the prose is a fact someone wrote
   down. Same shape, opposite jobs.
-- **Inline code spans** (`` `MAX_COMMITS = 50` ``, `` `agent_commit_review.py:75` ``) → `tb.path`.
-- **Path-like tokens with an optional `:line`** (`docs/AGENTIC_AUTOMATION.md:3251`) → `tb.path`.
+- **Inline code spans** (`` `MAX_COMMITS = 50` ``, `` `agent_commit_review.py:75` ``) → `sb.path`.
+- **Path-like tokens with an optional `:line`** (`docs/AGENTIC_AUTOMATION.md:3251`) → `sb.path`.
 - **Markdown bold** (`**Zero scope violations**`) → **bold, no colour**. The agent prose in
   these logs is written in markdown and leans on bold for its findings; honouring it costs no
   hue at all, which is the cheapest legibility win available.
 - **A markdown heading** at line start → bold, same argument.
 
-**Code spans take `tb.path` rather than a hue of their own, and that is a deliberate refusal.**
+**Code spans take `sb.path` rather than a hue of their own, and that is a deliberate refusal.**
 A violet for code was prototyped and looked good, and the design system has no violet. Inventing
 one would put a colour outside `colors_and_type.css` into the CLI, which is the exact drift
 `cli/theme.py` exists to prevent. A code span and a path are the same *kind* of thing — a
@@ -158,10 +158,10 @@ since the first unbounded render froze one.
 
 - **Still no severity vocabulary.** No ERROR/WARN/INFO word list, no "this line looks bad".
   That is judgment, it belongs to the operator, and it is round 3 — arriving as *their*
-  declaration rather than tb's opinion. The boundary round 1 drew is unmoved.
+  declaration rather than sb's opinion. The boundary round 1 drew is unmoved.
 - **No emoji or box-drawing handling.** Terminals already colour emoji and the canvas already
   shows them; "emphasize the icons" is answered by not dimming them, which nothing does. A rule
-  that restyled them would be tb overriding the font.
+  that restyled them would be sb overriding the font.
 - **No change to `data`, envelopes, `--json`, or accrual output.** Tint is rendering.
 
 - [x] **The rules.** `cli/highlight.py` gains ref, number, date, time, code, path, bold and
@@ -183,14 +183,14 @@ The half round 2 cannot do, named in round 1's *"Does not do"* as this doc's fut
 asked for in the same breath as round 2: *"if we can only do so much by default we might
 consider a formatting tool or layer to user-defined tools."*
 
-**Shape is tb's; vocabulary is the operator's.** `ESCALATE`, `Done.`, `handing to 'claude'`,
+**Shape is sb's; vocabulary is the operator's.** `ESCALATE`, `Done.`, `handing to 'claude'`,
 `skip` — these are the words that matter in one operator's log and mean nothing in anyone
-else's. tb cannot know them and must not guess, for exactly the reason it does not guess
+else's. sb cannot know them and must not guess, for exactly the reason it does not guess
 columns ([[capture]]): a word list is a judgment wearing a regex's clothes.
 
 **So it is declared, in the file that already holds declarations about output.**
-`$TB_HOME/formats.toml` gains `[highlight.<name>]` beside `[format.<name>]` — one operator file
-for "things I have asserted about what my tools print", and one listing (`tb tools`) that
+`$SB_HOME/formats.toml` gains `[highlight.<name>]` beside `[format.<name>]` — one operator file
+for "things I have asserted about what my tools print", and one listing (`sb tools`) that
 already shows what loaded and what was refused.
 
 ```toml
@@ -205,17 +205,17 @@ rules = [
 
 Named on the command, or inherited from a saved command:
 
-    tb follow --highlight jam -- jam report watch --follow
+    sb follow --highlight jam -- jam report watch --follow
 
-**Roles are names from the palette, never colours.** `role = "warn"` resolves to `tb.warn`; a
+**Roles are names from the palette, never colours.** `role = "warn"` resolves to `sb.warn`; a
 role the theme does not define is refused at load, by name. Nothing operator-authored may put a
 hex anywhere near this — the rule the whole theme rests on does not get an exception for a
 config file.
 
-**Operator rules run after tb's and never displace them.** A declared pattern claims only text
+**Operator rules run after sb's and never displace them.** A declared pattern claims only text
 no built-in rule already claimed, so a timestamp stays muted and a tag stays a tag whatever the
 operator writes. The alternative — letting a declaration win — makes every built-in rule
-conditional on a file tb does not ship, and the first surprising log would be unexplainable.
+conditional on a file sb does not ship, and the first surprising log would be unexplainable.
 
 **A regex from a file is the one real hazard, and it is bounded rather than trusted.** Patterns
 are compiled at load and a bad one is refused by name; a pattern is length-capped; matching is
@@ -235,7 +235,7 @@ operator's own file on the operator's own machine, the same trust level as `tool
   value's kind. Streams are where lexical rules belong.
 
 - [x] **Declared rules load and validate.** `[highlight.<name>]` in `formats.toml`: patterns
-      compile, roles resolve against the palette, a bad one is skipped and named in `tb tools`
+      compile, roles resolve against the palette, a bad one is skipped and named in `sb tools`
       alongside the format problems it already lists.
 - [x] **`--highlight NAME` on `follow`**, both forms, plus `highlight = "<name>"` on a saved
       command, inherited the way `refresh` is.
@@ -246,12 +246,12 @@ operator's own file on the operator's own machine, the same trust level as `tool
 
 ### Round 4 — the yellow, the glyphs, and the colour words (2026-08-22)
 
-Reported against the live stream: *"the default colour for tb follow is yellow, can you make it
+Reported against the live stream: *"the default colour for sb follow is yellow, can you make it
 a grayish colour. There are checks that should naturally be green, Xs red, escalated yellow, red
 is red — when words say a colour we should display that colour."*
 
 **The yellow was a defect, not a default**, and it was introduced by [[follow]] round 2. The
-tail-clip built its frame as `Text(marker, style="tb.warn")`, which sets the *base* style of the
+tail-clip built its frame as `Text(marker, style="sb.warn")`, which sets the *base* style of the
 whole Text object rather than styling the marker — so every line appended after it inherited
 warn. And because a follow's ring always outruns the terminal, **every inline frame is clipped**,
 so every line came out yellow. The round-2 test asserted the clip's text and never its styles,
@@ -261,8 +261,8 @@ a test on the styles.
 **Three rules, and all three are still shape rather than judgment** — worth arguing, because
 they look like the vocabulary rules this doc refuses:
 
-- **A check is green, a cross is red, a warning sign is warn.** Not tb deciding a line went
-  well: `tb data` already renders a true boolean as a green `✓` and a false one as a red `✗`
+- **A check is green, a cross is red, a warning sign is warn.** Not sb deciding a line went
+  well: `sb data` already renders a true boolean as a green `✓` and a false one as a red `✗`
   (`_cell` in `cli/output.py`). One value vocabulary, two surfaces — the same rule round 2 ran
   on. `⚠️` is two codepoints (the sign plus U+FE0F) and both are claimed, or the glyph tints
   half.
@@ -272,10 +272,10 @@ they look like the vocabulary rules this doc refuses:
   which is precisely what separates it from "the text says ERROR, so it is bad". Standalone
   words only, so `greenery` and `Greenland` are neither.
 
-**An ordinary stderr line is now grey, and tb's own voice keeps the warning tint.** Painting all
+**An ordinary stderr line is now grey, and sb's own voice keeps the warning tint.** Painting all
 of stderr yellow was the same judgment-in-a-regex's-clothes this module refuses everywhere else:
 a tool talking on its second channel is reporting progress or printing a banner as often as it
-is failing. The cursor's rotation and truncation announcements *are* tb speaking and must stay
+is failing. The cursor's rotation and truncation announcements *are* sb speaking and must stay
 loud, so they gain `voice` on the `Line` rather than borrowing a tag whose meaning changed
 underneath them.
 
@@ -288,7 +288,7 @@ means something in one grid and nothing anywhere else — so it is declared, not
   still carries a timestamp, a job name and durations that have their own roles, and a line-wide
   wash would erase all of them to say one thing.
 - **No process-state glyphs.** `▶ ▣ ⤼ ⤴` are jam's own vocabulary for started, held, skipped and
-  escalated — a shape rule for them would be tb guessing another tool's semantics from a
+  escalated — a shape rule for them would be sb guessing another tool's semantics from a
   codepoint. They belong in a declared ruleset, which is where they went.
 
 - [x] **The clip regression.** The marker is a span, not a base style; a test asserts the body's
@@ -296,7 +296,7 @@ means something in one grid and nothing anywhere else — so it is declared, not
 - [x] **Glyph and colour-word rules**, positioned so a glyph inside a code span stays code.
 - [x] **stderr grey, `voice` warn**, on both surfaces — `Line.voice`, the terminal body, the
       frame line, and a `.voice` class beside `.err`.
-- [x] **The operator's own vocabulary declared**, proving round 3 carries the half tb refuses to
+- [x] **The operator's own vocabulary declared**, proving round 3 carries the half sb refuses to
       guess.
 
 ## Notes
@@ -323,8 +323,8 @@ Four commits, no reversals. What the build added:
   `render.js`; marks are applied there. The deciding half stayed in Python either way,
   which was the point.
 - **The path role costs the canvas no new hue.** `mk-path` is text-2 underlined — links
-  look like destinations without `tb.css` growing a colour the palette does not have. The
-  terminal keeps its existing `tb.path` steel blue.
+  look like destinations without `sb.css` growing a colour the palette does not have. The
+  terminal keeps its existing `sb.path` steel blue.
 - **A frame line with nothing to tint carries no `marks` key at all** — quiet frames stay
   byte-identical to before this round, the same omitted-not-null rule the envelope's `view`
   follows.
@@ -333,7 +333,7 @@ Four commits, no reversals. What the build added:
 
 ### Rounds 2 and 3 — drafted, awaiting the word (2026-08-22)
 
-Asked for against a real stream — `tb follow -- jam report watch --follow` — with `tb data`
+Asked for against a real stream — `sb follow -- jam report watch --follow` — with `sb data`
 named as the reference. That reference did more work than a mood would have: it turned "make it
 prettier" into a rule with a test behind it, **the value vocabulary is shared**, and it settled
 every role question by asking what a table cell already does with that kind of value.
@@ -348,9 +348,9 @@ no violet, and "looked better in a prototype" is how a second palette starts.
 
 **The split between the two rounds is the split the doc has always had.** Round 1 wrote it as
 *shape, not vocabulary*; round 2 is the rest of the shapes and round 3 is the vocabulary,
-arriving as the operator's declaration rather than tb's opinion. What is new is only *where*
+arriving as the operator's declaration rather than sb's opinion. What is new is only *where*
 the declaration lives: `formats.toml`, beside the capture formats, because that file is already
-"what I have asserted about what my tools print" and `tb tools` already lists what it refused.
+"what I have asserted about what my tools print" and `sb tools` already lists what it refused.
 
 ### Rounds 2 and 3 — executed (2026-08-22)
 
@@ -368,18 +368,18 @@ What the execution argued back:
 - **Bold could not be a role, so it became a modifier.** The flat, non-overlapping mark list is
   what lets the canvas apply marks dumbly, and emphasis nests over everything by nature. Making
   it compete for the slot would have meant a bold finding losing its code tint or the reverse.
-  A composite role — `"bold tb.path"` — keeps the list flat, is what Rich already reads, and
+  A composite role — `"bold sb.path"` — keeps the list flat, is what Rich already reads, and
   cost the canvas one `split(" ")`. The model bent rather than the feature.
 - **Round 3's ordering rule earned a test the moment it was written.** Operator rules run last
   and claim only unclaimed text, so a declared `2026` cannot repaint a timestamp and a declared
   `agent` cannot repaint a tag. The alternative — a declaration winning — makes every built-in
-  conditional on a file tb does not ship, and the first surprising log is unexplainable.
+  conditional on a file sb does not ship, and the first surprising log is unexplainable.
 - **`highlight` on a saved command needed the same refusal `refresh` has.** Declared on a tool
   that wraps `data`, the field would load cleanly and mean nothing, because tint belongs to a
   stream. Refused at load by name — the "wrong but looks right" failure this loader exists to
   catch, arriving through a second door.
 - **The listing absorbed rulesets without a new command**, the way formats did before them: one
-  door for "what did I declare, and what was refused". `tb tools` grew a `highlights` section
+  door for "what did I declare, and what was refused". `sb tools` grew a `highlights` section
   and their load problems join the same degrade list.
 - Verified end to end against the live cron.log with a real `[highlight.jam]` declared — four
   rules, all firing, with the built-ins unmoved underneath them.

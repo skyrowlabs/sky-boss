@@ -1,8 +1,8 @@
-"""tb follow — hold a stream open. One verb, two mechanisms. See [[follow]].
+"""sb follow — hold a stream open. One verb, two mechanisms. See [[follow]].
 
 **The dispatch rule is argument shape, and there is no third shape.** A
 single argument that names a file — or that could only be a file — is the
-file form, whose mechanism is the native cursor ([[file-follow]]): tb can
+file form, whose mechanism is the native cursor ([[file-follow]]): sb can
 *stat* a file, so quiet and dead get different words. Everything else is the
 process form (this module): spawn it, read lines as they arrive, and treat
 exit as an event to display rather than a result to wait for. The name is
@@ -48,7 +48,7 @@ def is_file_form(argv: tuple[str, ...]) -> bool:
 
     A path is anything with a separator in it, anything that exists as a
     file, or a bare word that no executable answers to — the last case is
-    what makes `tb follow new.log` legal before the log's first write, which
+    what makes `sb follow new.log` legal before the log's first write, which
     [[file-follow]] requires. The ambiguity left is a bare word that is both
     an executable and a file in the cwd; the executable wins, and the
     operator writes `./name` to mean the file, exactly as a shell would.
@@ -111,9 +111,9 @@ def follow(
     """Follow a command that streams, or a file that grows. An observe,
     resident by nature:
 
-        tb follow -- journalctl -f
+        sb follow -- journalctl -f
 
-        tb follow tmp/reporting/cron.log
+        sb follow tmp/reporting/cron.log
 
     One argument that names a path is the file form; anything else is a
     command. Any exit — zero included — shows as a plainly visible dead
@@ -135,13 +135,13 @@ def follow(
 
     `--save` keeps the line, then follows it:
 
-        tb follow --save cron -- journalctl -f
+        sb follow --save cron -- journalctl -f
 
     Timestamps, tags, numbers, dates, paths and code are tinted by shape.
     `--highlight` adds the words that matter in *your* logs, declared once
     under `[highlight.NAME]` in formats.toml:
 
-        tb follow --highlight jam -- jam report watch --follow
+        sb follow --highlight jam -- jam report watch --follow
     """
     ctx = click.get_current_context()
     if (ctx.find_root().obj or {}).get("as_json"):
@@ -178,7 +178,7 @@ def follow(
             raise click.UsageError(str(exc)) from exc
 
     if is_file_form(argv):
-        # The native cursor, [[file-follow]]: tb can stat a file, so quiet
+        # The native cursor, [[file-follow]]: sb can stat a file, so quiet
         # and dead get different words.
         from cli.filefollow import follow_file
 
@@ -189,17 +189,17 @@ def follow(
         )
 
 
-# Read by the catalog the way `tb_surface` and `tb_acts` are: a property on
+# Read by the catalog the way `sb_surface` and `sb_acts` are: a property on
 # the command object, never a name in a list. Resident means no cadence —
 # a follow re-running on a timer is a contradiction, not a feature.
-follow.tb_resident = True
+follow.sb_resident = True
 
 
 def _display_width(console: Console) -> int | None:
     """The width to tell a child about, or None when there is no display.
 
     Piped output has no width worth claiming — the consumer may be a file, and
-    a tool that wrapped to a number tb invented would be worse than one that
+    a tool that wrapped to a number sb invented would be worse than one that
     used its own default.
     """
     return console.width if console.is_terminal else None
@@ -235,7 +235,7 @@ def follow_process(
 
     try:
         # The child lays out for the terminal it will be shown in, not for a
-        # pipe's default. `tb follow -- x` and `x` should draw the same
+        # pipe's default. `sb follow -- x` and `x` should draw the same
         # picture; see [[subprocess-env]] round 2.
         child = spawn(argv, cwd=cwd, limit=limit, columns=_display_width(out))
     except FileNotFoundError:

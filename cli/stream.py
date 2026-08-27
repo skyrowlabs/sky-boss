@@ -51,7 +51,7 @@ class Line:
     text: str
     stderr: bool
     at: float
-    # tb's own announcement — a rotation, a truncation — pushed into the
+    # sb's own announcement — a rotation, a truncation — pushed into the
     # stream because an event worth seeing belongs where the eyes are. It
     # rode the `stderr` tag until [[highlight]] round 4 made stderr grey;
     # the cursor's voice has to stay loud, so it gets a channel of its own
@@ -230,7 +230,7 @@ def accrue(
 ) -> Outcome:
     """Run an argv, handing each line to `echo` as it arrives.
 
-    This is the black-box gap closing: `tb run -- <ten-minute build>` shows
+    This is the black-box gap closing: `sb run -- <ten-minute build>` shows
     its output while it runs, and exit is an event that stamps a status
     rather than the moment output first exists. The full text is still
     accumulated (capped) because `run` and `read` carry it in their
@@ -240,7 +240,7 @@ def accrue(
     exist — the caller already has an envelope shape for that.
 
     The pending queue is unbounded on purpose: every line must reach `echo`
-    exactly once, because a pipe reading tb's stdout is owed the tool's
+    exactly once, because a pipe reading sb's stdout is owed the tool's
     whole output. Memory is bounded the same way it always was — the
     buffered path held the full text too — and the *envelope's* copy is
     capped at MAX_KEEP_CHARS with the cut declared.

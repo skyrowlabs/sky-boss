@@ -25,7 +25,7 @@ def role_of(text, snippet):
 
 
 def test_a_leading_iso_timestamp_is_muted():
-    assert role_of(LINE, "2026-08-22T14:03:11") == "tb.muted"
+    assert role_of(LINE, "2026-08-22T14:03:11") == "sb.muted"
 
 
 def test_a_timestamp_not_at_line_start_is_not_the_muted_one():
@@ -36,20 +36,20 @@ def test_a_timestamp_not_at_line_start_is_not_the_muted_one():
     wrote down. Same shape, opposite jobs — so what must stay true is only
     that a mid-line stamp is never muted."""
     roles = {role for _, _, role in marks("at 2026-08-22T14:03:11 it happened")}
-    assert "tb.muted" not in roles
-    assert roles == {"tb.num"}
+    assert "sb.muted" not in roles
+    assert roles == {"sb.num"}
 
 
 def test_space_separated_and_zoned_stamps_count():
-    assert role_of("2026-08-22 14:03:11+02:00 x", "2026-08-22 14:03:11+02:00") == "tb.muted"
+    assert role_of("2026-08-22 14:03:11+02:00 x", "2026-08-22 14:03:11+02:00") == "sb.muted"
 
 
 def test_a_tag_after_the_timestamp_wears_the_accent():
-    assert role_of(LINE, "[jam-pr-report]") == "tb.accent"
+    assert role_of(LINE, "[jam-pr-report]") == "sb.accent"
 
 
 def test_a_tag_at_line_start_counts_too():
-    assert role_of("[cron] job started", "[cron]") == "tb.accent"
+    assert role_of("[cron] job started", "[cron]") == "sb.accent"
 
 
 def test_a_bracket_mid_prose_is_prose():
@@ -60,11 +60,11 @@ def test_a_bracket_mid_prose_is_prose():
 
 def test_a_url_wears_the_path_role_without_its_trailing_punctuation():
     got = marks("see https://example.com/x. next")
-    assert got == [(4, len("see https://example.com/x"), "tb.path")]
+    assert got == [(4, len("see https://example.com/x"), "sb.path")]
 
 
 def test_the_url_inside_line_prose_is_found():
-    assert role_of(LINE, "https://api.github.com/repos") == "tb.path"
+    assert role_of(LINE, "https://api.github.com/repos") == "sb.path"
 
 
 def test_a_line_matching_nothing_yields_no_marks():
@@ -116,10 +116,10 @@ def test_no_severity_vocabulary_anywhere():
 
 def test_a_number_wears_the_role_a_table_cell_gives_it():
     """The governing rule of the round: the value vocabulary is shared with
-    `tb data`, whose `_cell` gives a number `tb.num`. A number that looked
+    `sb data`, whose `_cell` gives a number `sb.num`. A number that looked
     like a number in a table and like prose in a stream would be two palettes
     wearing one name."""
-    assert role_of("queued 8 issues", "8") == "tb.num"
+    assert role_of("queued 8 issues", "8") == "sb.num"
 
 
 def test_an_attached_unit_or_percent_comes_with_the_number():
@@ -128,7 +128,7 @@ def test_an_attached_unit_or_percent_comes_with_the_number():
         ("checks 8% of the bucket", "8%"),
         ("10.2 of 28 days", "10.2"),
     ):
-        assert role_of(line, token) == "tb.num", token
+        assert role_of(line, token) == "sb.num", token
 
 
 def test_a_spaced_word_after_a_number_is_prose_not_a_unit():
@@ -136,7 +136,7 @@ def test_a_spaced_word_after_a_number_is_prose_not_a_unit():
     `8 issue`, `104 archive` and `50 candidate` — the numeral plus whatever
     English word followed it. Invisible in a unit test written from the
     pattern, unmissable in a rendered log."""
-    assert role_of("8 issue(s) queued", "8") == "tb.num"
+    assert role_of("8 issue(s) queued", "8") == "sb.num"
     assert [text for text, role in _tinted("104 archive tag applications")] == ["104"]
 
 
@@ -147,19 +147,19 @@ def test_a_digit_inside_an_identifier_is_not_a_number():
 
 
 def test_an_issue_reference_is_a_number():
-    assert role_of("#925 model-health's stage wraps", "#925") == "tb.num"
+    assert role_of("#925 model-health's stage wraps", "#925") == "sb.num"
 
 
 def test_a_mid_line_date_and_clock_time_are_values():
-    assert role_of("the first decay wave on 2026-08-26 will", "2026-08-26") == "tb.num"
-    assert role_of("AGENT-FIX 19:00 — budget", "19:00") == "tb.num"
+    assert role_of("the first decay wave on 2026-08-26 will", "2026-08-26") == "sb.num"
+    assert role_of("AGENT-FIX 19:00 — budget", "19:00") == "sb.num"
 
 
 def test_inline_code_takes_the_path_role_rather_than_a_hue_of_its_own():
     """A code span and a path are the same kind of thing — a literal, an
     identifier — and the design system has no third colour to spend. A violet
     was prototyped, looked good, and is exactly how a second palette starts."""
-    assert role_of("caps at `MAX_COMMITS = 50` and breaks", "`MAX_COMMITS = 50`") == "tb.path"
+    assert role_of("caps at `MAX_COMMITS = 50` and breaks", "`MAX_COMMITS = 50`") == "sb.path"
 
 
 def test_a_number_inside_a_code_span_is_claimed_once_by_the_outer_shape():
@@ -175,7 +175,7 @@ def test_paths_keep_their_leading_dot_and_their_line_number():
         ("see docs/AGENTIC_AUTOMATION.md:3251 now", "docs/AGENTIC_AUTOMATION.md:3251"),
         ("wrote /home/x/y/z.json today", "/home/x/y/z.json"),
     ):
-        assert role_of(line, token) == "tb.path", token
+        assert role_of(line, token) == "sb.path", token
 
 
 def test_bold_is_a_weight_that_composes_with_a_colour():
@@ -183,7 +183,7 @@ def test_bold_is_a_weight_that_composes_with_a_colour():
     emphasised range keeps its role and gains `bold`."""
     line = "**the `report.py:75` cap**"
     roles = {text: role for text, role in _tinted(line)}
-    assert roles["`report.py:75`"] == "bold tb.path"
+    assert roles["`report.py:75`"] == "bold sb.path"
     assert all(role.startswith("bold") for role in roles.values())
 
 
@@ -227,25 +227,25 @@ def _ruleset(*rules):
     return (sets[0] if sets else None), problems
 
 
-def test_a_declared_rule_tints_a_word_tb_would_never_judge():
-    """Shape is tb's; vocabulary is the operator's. `ESCALATE` means
+def test_a_declared_rule_tints_a_word_sb_would_never_judge():
+    """Shape is sb's; vocabulary is the operator's. `ESCALATE` means
     everything in one log and nothing in anyone else's."""
     rules, problems = _ruleset({"pattern": r"\bESCALATE\b", "role": "warn"})
     assert problems == []
     line = "the finding was ESCALATE today"
-    assert [(t, r) for t, r in _tinted(line, rules)] == [("ESCALATE", "tb.warn")]
+    assert [(t, r) for t, r in _tinted(line, rules)] == [("ESCALATE", "sb.warn")]
 
 
 def test_a_declared_rule_cannot_repaint_a_timestamp_or_a_tag():
     """Operator rules run last and claim only unclaimed text. Letting a
-    declaration win would make every built-in conditional on a file tb does
+    declaration win would make every built-in conditional on a file sb does
     not ship, and the first surprising log would be unexplainable."""
     rules, _ = _ruleset({"pattern": r"2026", "role": "fail"}, {"pattern": r"agent", "role": "ok"})
     line = "2026-08-22T05:00:02+00:00 [agent-fix] ok"
     roles = {text: role for text, role in _tinted(line, rules)}
-    assert roles["2026-08-22T05:00:02+00:00"] == "tb.muted"
-    assert roles["[agent-fix]"] == "tb.accent"
-    assert "tb.fail" not in roles.values() and "tb.ok" not in roles.values()
+    assert roles["2026-08-22T05:00:02+00:00"] == "sb.muted"
+    assert roles["[agent-fix]"] == "sb.accent"
+    assert "sb.fail" not in roles.values() and "sb.ok" not in roles.values()
 
 
 def test_a_role_the_palette_does_not_define_is_refused_by_name():
@@ -303,23 +303,23 @@ def test_declared_rules_still_respect_the_cap():
 
 
 def test_a_check_is_green_and_a_cross_is_red():
-    """Not tb judging a line: `tb data` already renders a true boolean as a
+    """Not sb judging a line: `sb data` already renders a true boolean as a
     green ✓ and a false one as a red ✗. One value vocabulary, two surfaces."""
     for glyph in ("✓", "✔", "✅"):
-        assert role_of(f"{glyph} ok · 0s", glyph) == "tb.ok", glyph
+        assert role_of(f"{glyph} ok · 0s", glyph) == "sb.ok", glyph
     for glyph in ("✗", "✖", "❌"):
-        assert role_of(f"{glyph} failed", glyph) == "tb.fail", glyph
+        assert role_of(f"{glyph} failed", glyph) == "sb.fail", glyph
 
 
 def test_a_warning_sign_is_warn_even_with_its_variation_selector():
     """`⚠️` is two codepoints — the sign plus U+FE0F. Matching only the first
     would tint half a glyph and leave the selector bare."""
-    assert role_of("⚠️  19 diff(s) truncated", "⚠️") == "tb.warn"
+    assert role_of("⚠️  19 diff(s) truncated", "⚠️") == "sb.warn"
 
 
 def test_a_coloured_circle_shows_its_own_colour():
-    assert role_of("status 🔴 down", "🔴") == "tb.fail"
-    assert role_of("status 🟢 up", "🟢") == "tb.ok"
+    assert role_of("status 🔴 down", "🔴") == "sb.fail"
+    assert role_of("status 🟢 up", "🟢") == "sb.ok"
 
 
 def test_a_word_that_names_a_colour_is_shown_in_it():
@@ -328,9 +328,9 @@ def test_a_word_that_names_a_colour_is_shown_in_it():
     is exactly what separates this from "the text says ERROR, so it is bad"."""
     line = "the light was red, then green, then yellow"
     assert [(t, r) for t, r in _tinted(line)] == [
-        ("red", "tb.fail"),
-        ("green", "tb.ok"),
-        ("yellow", "tb.warn"),
+        ("red", "sb.fail"),
+        ("green", "sb.ok"),
+        ("yellow", "sb.warn"),
     ]
 
 

@@ -13,7 +13,7 @@
 
 const HEADERS = () => ({
   "content-type": "application/json",
-  "x-tb-token": window.TB_TOKEN,
+  "x-sb-token": window.SB_TOKEN,
 });
 
 async function post(path, body) {
@@ -46,7 +46,7 @@ export function unwatch(session, window) {
   return post("/api/watch", { session, window, stop: true });
 }
 
-/* A held-open stream ([[follow]]). The argv is tb-level — `follow -- …` or a
+/* A held-open stream ([[follow]]). The argv is sb-level — `follow -- …` or a
  * saved keyword — and the server resolves it, because expansions live on the
  * Click tree and nothing client-side keeps a command table. Re-POSTing for a
  * window that already follows is the restart affordance. */
@@ -81,7 +81,7 @@ export function stream(onFrame, onDown) {
   (async () => {
     try {
       const response = await fetch("/api/stream", {
-        headers: { "x-tb-token": window.TB_TOKEN },
+        headers: { "x-sb-token": window.SB_TOKEN },
         signal: controller.signal,
       });
       if (!response.ok) throw new Error(`stream → ${response.status}`);

@@ -136,7 +136,7 @@ def test_accrue_raises_on_a_command_that_does_not_exist():
 
 
 def test_a_human_read_streams_the_lines_pure_on_stdout():
-    """`tb read -- x | grep` sees exactly what the tool printed — the chrome
+    """`sb read -- x | grep` sees exactly what the tool printed — the chrome
     stamp is status and goes to stderr, same purity rule as warnings."""
     from click.testing import CliRunner
 
@@ -192,9 +192,9 @@ def test_the_json_envelope_is_still_built_once_complete_at_exit():
 
 
 def test_a_child_is_told_how_wide_the_display_is():
-    """The operator's report: `tb follow -- jam report watch --follow` drew a
+    """The operator's report: `sb follow -- jam report watch --follow` drew a
     different picture from `jam report watch --follow` in the same terminal.
-    A tool lays out by asking its stdout how wide the terminal is; under tb
+    A tool lays out by asking its stdout how wide the terminal is; under sb
     that stdout is a pipe, so it falls back to its own default and truncates.
     Measured against the real thing: with COLUMNS the child's output is
     byte-identical to its output in a terminal, without it every long line
@@ -210,13 +210,13 @@ def test_a_child_is_told_how_wide_the_display_is():
 
 def test_a_child_is_told_nothing_when_there_is_no_display(monkeypatch):
     """Piped output has no width worth claiming — the consumer may be a file,
-    and a tool wrapping to a number tb invented is worse than one using its
+    and a tool wrapping to a number sb invented is worse than one using its
     own default.
 
     Note what is *not* claimed: that the child sees no `COLUMNS` at all. If
     the operator exports one, it passes through like every other variable —
-    round 1's rule is that tb scrubs what it added to boot and nothing else.
-    What this pins is that tb adds none of its own."""
+    round 1's rule is that sb scrubs what it added to boot and nothing else.
+    What this pins is that sb adds none of its own."""
     monkeypatch.delenv("COLUMNS", raising=False)
     from cli.stream import ChildStream
 
@@ -226,7 +226,7 @@ def test_a_child_is_told_nothing_when_there_is_no_display(monkeypatch):
 
 
 def test_the_operators_own_width_still_passes_through(monkeypatch):
-    """The environment is theirs. tb overrides it only when it knows better —
+    """The environment is theirs. sb overrides it only when it knows better —
     which is exactly when it has a display to describe."""
     monkeypatch.setenv("COLUMNS", "99")
     from cli.helpers import child_env
@@ -248,7 +248,7 @@ def test_the_height_is_never_passed(monkeypatch):
 def test_a_held_open_stream_is_not_left_in_the_childs_buffer():
     """A pipe makes a child's stdout block-buffered, so a tool printing a line
     a minute writes into an 8 KB buffer and the operator sees nothing until it
-    fills or the process dies — which is the opposite of what `tb follow`
+    fills or the process dies — which is the opposite of what `sb follow`
     exists to do. Measured before the fix: a child printing every 0.8s showed
     its first line at t+5.1s, all six at once, at exit.
 

@@ -1,4 +1,4 @@
-"""tb run — the one command that acts.
+"""sb run — the one command that acts.
 
 It runs an argv and reports what happened. The declarative job layer that used
 to sit behind it — lanes, the ledger, logs, job definitions — was removed on
@@ -83,7 +83,7 @@ def test_stderr_on_an_otherwise_clean_run_is_a_warning_not_a_failure():
 
 
 def test_the_argv_is_never_run_through_a_shell():
-    """`shell=True` would make `tb run -- echo '$HOME'` expand. Nothing here
+    """`shell=True` would make `sb run -- echo '$HOME'` expand. Nothing here
     builds a command string, so there is nothing for a shell to reinterpret."""
     res = _run("--", "echo", "$HOME")
     assert _envelope(res)["data"]["stdout"].strip() == "$HOME"
@@ -91,7 +91,7 @@ def test_the_argv_is_never_run_through_a_shell():
 
 def test_run_requires_something_to_run():
     res = CliRunner().invoke(cli, ["run"])
-    assert res.exit_code == 2, "a usage error, which is Click's 2 and never tb's"
+    assert res.exit_code == 2, "a usage error, which is Click's 2 and never sb's"
 
 
 # ============================================================================
@@ -100,8 +100,8 @@ def test_run_requires_something_to_run():
 
 
 def test_a_spawned_command_does_not_inherit_tbs_import_path(tmp_path):
-    """tb's wrapper puts this repo on PYTHONPATH so `python -m cli` resolves.
-    A command tb runs is not tb and must not get it — otherwise a wrapped
+    """sb's wrapper puts this repo on PYTHONPATH so `python -m cli` resolves.
+    A command sb runs is not sb and must not get it — otherwise a wrapped
     Python tool imports *this* package from anywhere on the machine.
 
     Asserted as the property an operator would check by hand rather than by
@@ -120,17 +120,17 @@ def test_a_spawned_command_does_not_inherit_tbs_import_path(tmp_path):
 
 def test_the_scrub_is_two_variables_and_not_a_clean_room(monkeypatch):
     """A wrapped tool needs HOME, PATH, SSH_AUTH_SOCK and whatever tokens the
-    operator's shell would have given it. Only what tb added to boot is taken."""
+    operator's shell would have given it. Only what sb added to boot is taken."""
     monkeypatch.setenv("PYTHONPATH", "/somewhere")
     monkeypatch.setenv("PYTHONSAFEPATH", "1")
-    monkeypatch.setenv("TB_A_REAL_VARIABLE", "kept")
+    monkeypatch.setenv("SB_A_REAL_VARIABLE", "kept")
 
     env = child_env()
     assert "PYTHONPATH" not in env
     assert "PYTHONSAFEPATH" not in env
-    assert env["TB_A_REAL_VARIABLE"] == "kept"
+    assert env["SB_A_REAL_VARIABLE"] == "kept"
     # PATH is the operator's: the wrapper prepends its venv's bin, and stripping
-    # that would be tb choosing which python3 a foreign tool finds.
+    # that would be sb choosing which python3 a foreign tool finds.
     assert env["PATH"] == os.environ["PATH"]
 
 

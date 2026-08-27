@@ -1,4 +1,4 @@
-/* Everything the shell knows how to say to tb.
+/* Everything the shell knows how to say to sb.
  *
  * The mirror of cli/canvas/static/api.js, one process up. That file opens by
  * promising the transport sits behind a seam so that "swapping the browser for
@@ -8,11 +8,11 @@
  * changes its import and nothing else.
  *
  * What moved is who holds the secret. The token and the port now live in the
- * main process; the renderer never sees either, and reaches tb only through
+ * main process; the renderer never sees either, and reaches sb only through
  * preload.js. That is the whole security gain of the shell: with N windows the
  * old arrangement would have had to write the token into N pages.
  *
- * tb is spawned exactly as `--no-browser` documents, so nothing under cli/
+ * sb is spawned exactly as `--no-browser` documents, so nothing under cli/
  * changes to run this. `shell.py` made the same promise about pywebview and
  * kept it; there is no reason this shell should be allowed to be greedier.
  */
@@ -20,7 +20,7 @@
 const { spawn } = require("node:child_process");
 const net = require("node:net");
 
-const TOKEN_HEADER = "x-tb-token";
+const TOKEN_HEADER = "x-sb-token";
 
 /* A port the kernel just told us was free. The same race `_free_port` in
  * cli/canvas/__init__.py runs, and lost for the same reasons — which is to say
@@ -37,14 +37,14 @@ function freePort() {
   });
 }
 
-/* The token, read out of the page tb serves.
+/* The token, read out of the page sb serves.
  *
  * `/` is not an API route and takes no header — server.py:117 says so, and
  * rests the token's secrecy on the same-origin policy instead. That is what
- * lets this shell start against an unmodified tb: it fetches the page the way
+ * lets this shell start against an unmodified sb: it fetches the page the way
  * a window would, and keeps the token instead of rendering it.
  *
- * The handshake worth building later is tb printing `{"url":…,"token":…}` on
+ * The handshake worth building later is sb printing `{"url":…,"token":…}` on
  * stdout once the bind is up. Not because scraping is fragile — the page is
  * ours — but because it would let this stop being HTTP at all. Note what is
  * *not* on the table either way: `--token X` on the command line, or the token
@@ -60,35 +60,35 @@ async function handshake(url, deadlineMs = 10_000) {
     try {
       const response = await fetch(url);
       const html = await response.text();
-      const found = html.match(/window\.TB_TOKEN = "([^"]+)"/);
+      const found = html.match(/window\.SB_TOKEN = "([^"]+)"/);
       if (found) return found[1];
       throw new Error("served a page with no token in it");
     } catch (error) {
-      if (Date.now() > until) throw new Error(`tb never came up: ${error.message}`);
+      if (Date.now() > until) throw new Error(`sb never came up: ${error.message}`);
       await new Promise((r) => setTimeout(r, 50));
     }
   }
 }
 
-/* Start tb and wait until it can be talked to. Resolves to the context every
+/* Start sb and wait until it can be talked to. Resolves to the context every
  * other function here takes. */
-async function start({ tb = "tb", scale = null } = {}) {
+async function start({ sb = "sb", scale = null } = {}) {
   const port = await freePort();
   const url = `http://127.0.0.1:${port}/`;
 
   const argv = ["ui", "--no-browser", "--port", String(port)];
   if (scale) argv.push("--scale", String(scale));
 
-  const child = spawn(tb, argv, { stdio: ["ignore", "pipe", "pipe"] });
+  const child = spawn(sb, argv, { stdio: ["ignore", "pipe", "pipe"] });
 
-  // tb's own diagnostics, kept rather than dropped. A shell that swallows the
+  // sb's own diagnostics, kept rather than dropped. A shell that swallows the
   // stderr of the process it depends on turns every server-side failure into
   // an unexplained blank window.
-  child.stderr.on("data", (b) => process.stderr.write(`[tb] ${b}`));
-  child.stdout.on("data", (b) => process.stdout.write(`[tb] ${b}`));
+  child.stderr.on("data", (b) => process.stderr.write(`[sb] ${b}`));
+  child.stdout.on("data", (b) => process.stdout.write(`[sb] ${b}`));
 
   const died = new Promise((_, reject) =>
-    child.once("exit", (code) => reject(new Error(`tb exited ${code} before it bound`)))
+    child.once("exit", (code) => reject(new Error(`sb exited ${code} before it bound`)))
   );
 
   const token = await Promise.race([handshake(url), died]);
@@ -172,10 +172,10 @@ function stream(ctx, onFrame, onDown) {
   return () => controller.abort();
 }
 
-/* Reap tb when this process dies by signal.
+/* Reap sb when this process dies by signal.
  *
  * Electron's `before-quit` is Electron's own lifecycle and a signal does not
- * enter it: the main process goes, the child is reparented to init, and tb
+ * enter it: the main process goes, the child is reparented to init, and sb
  * keeps running with its port bound. Found the ordinary way — by stopping the
  * shell from the terminal that started it, which is how a shell under
  * development is stopped nearly every time.

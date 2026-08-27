@@ -10,11 +10,11 @@ __pycache__/
 # Scratch
 tmp/
 
-# Run state lives in ~/.local/state/tb/, not here (see CLAUDE.md § CLI setup).
+# Run state lives in ~/.local/state/sb/, not here (see CLAUDE.md § CLI setup).
 # This is a backstop for strays only.
 logs/
 
-# Operator content lives in $TB_HOME (~/.config/tb), never here.
+# Operator content lives in $SB_HOME (~/.sky-boss), never here.
 # Backstop against a stray recommit.
 inventory/
 jobs/

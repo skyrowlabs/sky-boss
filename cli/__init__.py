@@ -1,8 +1,8 @@
-"""toolbox CLI — the homebase operator tool for a primary workstation.
+"""sky.boss CLI — the homebase operator tool for a primary workstation.
 
 This package implements the CLI as a collection of command group modules.
 
-Usage: tb [command] [options]
+Usage: sb [command] [options]
 """
 
 import subprocess
@@ -66,10 +66,10 @@ def expand_t(args: list[str]) -> list[str]:
     """`-t` as an argv spelling of `tools`, rewritten before parsing.
 
     Not a Click alias and not a flag with behavior: the rewrite happens in
-    argv, once, here — so `tb -t jam-pr-list --refresh 30` *is*
-    `tb tools jam-pr-list --refresh 30` and every downstream consumer sees
-    the long form. Options follow the tool name, as on every tb command; the
-    prefix form (`tb -t --refresh 30 x`) was rejected — it would teach the
+    argv, once, here — so `sb -t jam-pr-list --refresh 30` *is*
+    `sb tools jam-pr-list --refresh 30` and every downstream consumer sees
+    the long form. Options follow the tool name, as on every sb command; the
+    prefix form (`sb -t --refresh 30 x`) was rejected — it would teach the
     group a forwarded option that belongs to the leaf, and it falls out as an
     ordinary usage error.
 
@@ -95,7 +95,7 @@ class Root(click.RichGroup):
 
     The mark is drawn here rather than written into the help text because it
     is *painted* — per-cell colour, a background of its own — and a help string
-    is one styled block. Only the root has it: `tb read --help` is a reference
+    is one styled block. Only the root has it: `sb read --help` is a reference
     page you may be reading for the third time today, and a banner over every
     one of them is a banner nobody sees. See [[header]].
     """
@@ -116,7 +116,7 @@ class Root(click.RichGroup):
         from cli import banner
 
         # `--json` says a machine is reading, and a machine reading help is
-        # already in trouble — but painting a logo into its pipe is tb making
+        # already in trouble — but painting a logo into its pipe is sb making
         # it worse. The same reflex as everywhere else: nothing decorative
         # goes out when the envelope was asked for.
         if not (ctx.find_root().obj or {}).get("as_json"):
@@ -144,7 +144,7 @@ def get_version() -> str:
 
 @click.group(cls=Root)
 @rich_config(help_config=HELP_CONFIG)
-@click.version_option(version=get_version(), prog_name="toolbox")
+@click.version_option(version=get_version(), prog_name="sky.boss")
 @click.option("--json", "as_json", is_flag=True, help="Emit machine-readable JSON on stdout.")
 @click.pass_context
 def cli(ctx: click.Context, as_json: bool) -> None:
@@ -190,7 +190,7 @@ cli.add_command(roll_call_cmd)
 cli.add_command(mcp_cmd)
 
 # A surface, not a verb. It renders the same envelope every command returns
-# rather than adding one of its own, which is why `tb run` stays the only door
+# rather than adding one of its own, which is why `sb run` stays the only door
 # that acts even with the canvas in front of it.
 cli.add_command(ui_cmd)
 
@@ -202,10 +202,10 @@ cli.add_command(tools_cmd)
 
 # The operator's own commands, registered onto the tree *after* every builtin,
 # so a builtin always wins a name collision. This is the whole of what makes
-# the toolbox work: the palette, `--help` and shell completion all walk the
+# the tools work: the palette, `--help` and shell completion all walk the
 # real tree, so none of them needed a line of code for tools to appear in them.
 #
 # Problems are collected rather than printed. Nothing has a Click context yet,
-# and stdout must stay clean for `--json`; `tb tools` reports them.
+# and stdout must stay clean for `--json`; `sb tools` reports them.
 PROBLEMS.extend(register(cli))
 

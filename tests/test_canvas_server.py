@@ -96,7 +96,7 @@ def test_no_route_hands_out_a_cors_allow_header(client):
 def test_the_page_carries_the_token_and_the_placeholder_is_gone(canvas, client):
     body = client.get("/").text
     assert canvas.token in body
-    assert "__TB_TOKEN__" not in body
+    assert "__SB_TOKEN__" not in body
 
 
 def test_the_page_carries_the_palette(canvas, client):
@@ -107,8 +107,8 @@ def test_the_page_carries_the_palette(canvas, client):
     from cli.theme import BRAND
 
     body = client.get("/").text
-    assert "__TB_TOKENS__" not in body
-    assert f"--tb-brand:{BRAND}" in body
+    assert "__SB_TOKENS__" not in body
+    assert f"--sb-brand:{BRAND}" in body
 
 
 def test_the_page_itself_needs_no_token(client):
@@ -174,7 +174,7 @@ def test_the_static_directory_ships_only_what_the_page_needs():
 
     expected = {
         "index.html",
-        "tb.css",
+        "sb.css",
         "app.js",
         "api.js",
         "render.js",
@@ -244,5 +244,5 @@ def test_the_page_carries_the_scale():
     the size that was asked for."""
     canvas = Canvas(token="test-token", scale=3.0)
     body = TestClient(build(canvas)).get("/").text
-    assert "__TB_SCALE__" not in body
-    assert "--tb-scale: 3.0" in body
+    assert "__SB_SCALE__" not in body
+    assert "--sb-scale: 3.0" in body

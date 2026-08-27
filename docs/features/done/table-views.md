@@ -8,7 +8,7 @@ key_files:
   - cli/data.py
   - cli/output.py
   - cli/canvas/static/render.js
-  - cli/canvas/static/tb.css
+  - cli/canvas/static/sb.css
   - tests/test_view.py
   - tests/test_data.py
   - tests/test_output.py
@@ -18,11 +18,11 @@ key_files:
 
 ## Why
 
-`tb wrap` already works. The whole path the operator asked for — hold another CLI's output open on
+`sb wrap` already works. The whole path the operator asked for — hold another CLI's output open on
 the canvas and re-run it on a cadence — exists today and needs no new plumbing:
 
 ```
-tb wrap --cwd ~/src/jam.sense -- jam pr list --json
+sb wrap --cwd ~/src/jam.sense -- jam pr list --json
 ```
 
 parses, lands in the envelope as a list of rows, gets `acts: false` from the catalog so the window
@@ -38,7 +38,7 @@ NU…   TI…   IS…   ME…   HE…   HE…   B…   BE…   L…   MA…   M�
 
 Fourteen columns crushed to three characters each, headers truncated past recognition, and a
 nested dict rendered as a Python repr. Every renderer we have takes **every key of every row, in
-first-seen order, at equal weight.** That rule is correct for tb's own commands, whose fields were
+first-seen order, at equal weight.** That rule is correct for sb's own commands, whose fields were
 chosen by the person who wrote the command. It is wrong the moment the data is *foreign*, because
 nobody chose those fields for a table — they are a tool's complete internal record of a pull
 request, and shaping them was always going to be somebody's job.
@@ -67,7 +67,7 @@ is nested. That is not specific to `jam` — it is what a rich tool's JSON looks
 
 ## Shape
 
-**A view is not the data.** The heuristic never edits `data`. `tb wrap --json | jq` keeps every
+**A view is not the data.** The heuristic never edits `data`. `sb wrap --json | jq` keeps every
 field including `head` and `marker_payload`, and so does any future MCP consumer — dropping a
 column from `data` to make a table prettier would be trading a machine contract for a human one.
 
@@ -145,7 +145,7 @@ Ordered, each applied to the whole row set rather than to one row:
    Rich folds by default, and a folded 78-char title makes a one-row table twelve rows tall.
 
    `flex` rather than `clip` because **a character count is not portable across the two
-   renderers.** `Toolbox Surface.dc.html` settles this: every cell there is
+   renderers.** `Sky Boss Surface.dc.html` settles this: every cell there is
    `nowrap; overflow:hidden; text-overflow:ellipsis` inside a `flex:{{ c.flex }}` span, so the
    canvas gets clipping free from CSS at whatever width the window happens to be — and a window is
    draggable, so it has no fixed width to compute a character count against. Rich maps the same
@@ -184,9 +184,9 @@ change at all** — `app.js` already treats everything past the command name as 
 
 **Does not do:**
 
-- **Does not reshape tb's own commands.** Only `wrap` sets a view, because only `wrap` carries
-  data nobody on this side chose. tb's own commands picked their fields deliberately and auto-dropping
-  one would be a bug wearing a feature's clothes. *(Corrected 2026-08-23: this line cited `tb info`,
+- **Does not reshape sb's own commands.** Only `wrap` sets a view, because only `wrap` carries
+  data nobody on this side chose. sb's own commands picked their fields deliberately and auto-dropping
+  one would be a bug wearing a feature's clothes. *(Corrected 2026-08-23: this line cited `sb info`,
   a command removed 2026-08-20. Unlike the `wrap`→`data` rename below, a removed command leaves the
   argument uncheckable rather than merely renamed — see Notes.)*
 - **Does not persist — and does not need to.** No named views, no saved column sets, no state file
@@ -194,7 +194,7 @@ change at all** — `app.js` already treats everything past the command name as 
   "nothing survives the last window" intact.
 
   Persistence arrives from the other direction instead. [[tools]] gives the operator a
-  `tools.toml`, and because a tool is simply a **tb argv**, a saved column set is already
+  `tools.toml`, and because a tool is simply a **sb argv**, a saved column set is already
   expressible without this feature growing a store of its own:
 
   ```toml
@@ -209,7 +209,7 @@ change at all** — `app.js` already treats everything past the command name as 
 - **Does not touch `data`.** Stated twice on purpose.
 - **Does not guess a tool's JSON flag**, and does not learn `--cwd` for a tool that needs one.
   `jam` requires `--cwd ~/src/jam.sense` because its wrapper resolves `.venv` against the
-  working directory; that is jam.sense's bug to fix and tb should not grow a workaround for it.
+  working directory; that is jam.sense's bug to fix and sb should not grow a workaround for it.
 - **Does not do ANSI.** Unchanged from [[canvas]]: a tool without JSON is out of scope rather than
   half-supported.
 
@@ -222,7 +222,7 @@ Round 4 closed one silence and left its twin open, one step along. Found while v
 does:
 
 ```
-tb data --cols a,nope,b -- printf '[{"a":1,"b":2}]'
+sb data --cols a,nope,b -- printf '[{"a":1,"b":2}]'
 
 A  NOPE  B
 ──────────
@@ -264,7 +264,7 @@ because every run happened to be 80 columns.
 - [x] **`shape()` reports a named column no row carries.** Pure, in `cli/view.py`, beside the rules
       it does not become one of — a `missing` list on the view, empty and omitted when there is
       nothing to say, the same rule `rows` and `view` itself were added under.
-- [x] **`tb data` warns, naming them.** The wording distinguishes "no row has this field" from
+- [x] **`sb data` warns, naming them.** The wording distinguishes "no row has this field" from
       "every value is empty", because the fixes are different — a typo versus a tool that returned
       nothing this time.
 - [x] **The two width tests declare their width.** `test_a_detail_column_gets_its_own_line_under_the_record`
@@ -280,7 +280,7 @@ Found by pointing the tool at a real project rather than a fixture. [[roll-call]
 command to be readable and today it is not:
 
 ```
-tb data --cwd ~/src/jam.sense --cols job,result,last_age,overdue -- jam report status --json
+sb data --cwd ~/src/jam.sense --cols job,result,last_age,overdue -- jam report status --json
 ```
 
 `--cols` is **silently ignored.** Fifteen columns render at two characters each, and nothing says
@@ -303,9 +303,9 @@ that hid it.
 
 **Finding the rows without guessing.** `--rows jobs` names the path explicitly, and is the same
 idea as `--cols checks.failed` one level up — dotted paths already reach into nested structures
-here. Unnamed, tb may infer only when the answer is unambiguous: **exactly one value in the
+here. Unnamed, sb may infer only when the answer is unambiguous: **exactly one value in the
 mapping is a non-empty list of dicts.** Two candidates is not a near-miss to be broken by
-preferring the longer one or the better-named one; it is a question tb cannot answer, and it says
+preferring the longer one or the better-named one; it is a question sb cannot answer, and it says
 so and renders as it does today. Matching on the *value* rather than on a blessed key name
 (`items`, `results`, `rows`) is rule 2 and rule 4's idiom unchanged — a name list goes stale the
 first time a tool disagrees with it, and the next tool always disagrees with it.
@@ -335,7 +335,7 @@ the output does *not* say, and takes the terminator half of this in its own roun
 - [x] **`is_rows` grows a sibling, not an exception.** `find_rows(data, path=None)` in
       `cli/view.py`: returns the row list and the key it came from, or a reason it could not.
       Pure, tested first — the ambiguous case and the zero-candidate case before the happy one.
-- [x] **`--rows KEY` on `tb data`**, dotted paths allowed, alongside `--cols` / `--drop` /
+- [x] **`--rows KEY` on `sb data`**, dotted paths allowed, alongside `--cols` / `--drop` /
       `--no-shape`. A named path that does not resolve is an error, not a silent fallback.
 - [x] **The nested render path learns views.** `_render_mapping` threads `view` through to
       `_render_columns`; the canvas's equivalent path in `render.js` checked for the same gap,
@@ -528,7 +528,7 @@ worth writing down, because it will come up every time.
 Measured across all sixteen docs: every `key_files` path resolves except `mcp.md`'s two, which name
 files that spec has not built yet — correct for an unbuilt spec, not drift. `CLAUDE.md` was wrong in
 three ways about this directory (claimed it was empty, omitted three completed docs, listed two that
-had moved out) and is fixed. One stale reference: this doc's *Does not do* cited `tb info`, removed
+had moved out) and is fixed. One stale reference: this doc's *Does not do* cited `sb info`, removed
 2026-08-20.
 
 **The rule the audit produced: correct the living sections, never the dated ones.** Why, Shape and
@@ -538,7 +538,7 @@ Rewriting those to match today would destroy the one thing this format is for.
 
 Which is why the seventeen `wrap` references above were **left exactly as they are**. They look like
 the biggest drift in the repo and are not drift at all; the 2026-08-21 supersession note already
-says so. `tb info` was different in kind: a rename leaves an argument followable, a removal leaves it
+says so. `sb info` was different in kind: a rename leaves an argument followable, a removal leaves it
 citing nothing, and a reader cannot tell which they are looking at without checking. Fixed in place
 with the correction marked, rather than silently — the same standard the code is held to.
 
@@ -574,7 +574,7 @@ the tail wagging the dog."
 
 That reasoning held and the conclusion still did not survive the afternoon, because [[tools]]
 turned up needing the same directory for its own reasons and got there first. The useful part is
-*why the reversal cost nothing*: a tool is a tb argv, and `--cols` is a flag on a tb command, so
+*why the reversal cost nothing*: a tool is a sb argv, and `--cols` is a flag on a sb command, so
 the moment tools existed, saved column sets existed too — with no view store, no second config
 format, and no edit to this feature at all. **A flag composes with a mechanism that saves argvs; a
 bespoke persistence layer would not have.** Worth remembering the next time something here is
@@ -592,7 +592,7 @@ then hides it. The table you are left with identifies its rows by number alone.
 The fix is that the *first* prose column is the row's label and keeps its place;
 only the second and later ones move. `_label_of` in `cli/output.py` has treated
 the first string field as the label since long before this, so the corrected
-rule is one tb already believed.
+rule is one sb already believed.
 
 **Rich's `ratio` and `min_width` are mutually exclusive, undocumentedly so.**
 The first implementation handed `flex` straight to Rich as a column `ratio` and
@@ -750,7 +750,7 @@ column whose `max` equals its label length asks for exactly as many `ch` as the 
 in, and the engine has to land on the nose. Blink does — swept 70 window widths and never
 clipped — and WebKitGTK, which is what the native shell actually runs, does not. Fixed with a
 quarter-character of slack on the `ch` bounds, in `ch` rather than a pixel so it keeps covering
-the gap when `--tb-scale` moves. **Verified only in Chromium**, since this session has no
+the gap when `--sb-scale` moves. **Verified only in Chromium**, since this session has no
 handle on the native webview; the operator's own window is the confirming test.
 
 Measured after, at the operator's terminal width of 100: ten columns, `checks` and `execution`

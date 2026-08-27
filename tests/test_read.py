@@ -1,7 +1,7 @@
-"""tb read — showing what a tool printed, on a cadence.
+"""sb read — showing what a tool printed, on a cadence.
 
 The property that justifies the command is the one in `test_read_is_a_read`:
-`tb run` already carried text and could never be pinned, so the gap was never
+`sb run` already carried text and could never be pinned, so the gap was never
 display.
 """
 
@@ -19,7 +19,7 @@ def invoke(args):
 
 
 def test_read_is_a_read_so_a_window_may_pin_it():
-    """The whole reason it exists. `tb run` carries text too and acts, so its
+    """The whole reason it exists. `sb run` carries text too and acts, so its
     window can never be given a cadence."""
     from cli.canvas.catalog import catalog
 

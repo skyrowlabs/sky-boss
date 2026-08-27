@@ -12,7 +12,7 @@ key_files:
   - cli/canvas/static/app.js
   - cli/canvas/static/render.js
   - cli/canvas/static/api.js
-  - cli/canvas/static/tb.css
+  - cli/canvas/static/sb.css
   - cli/data.py
   - cli/theme.py
 ---
@@ -21,33 +21,33 @@ key_files:
 
 ## Why
 
-`tb tui` proved the output contract works with a second consumer, and then ran into the ceiling of
+`sb tui` proved the output contract works with a second consumer, and then ran into the ceiling of
 its medium. The design the operator actually wants is a **command palette that opens results as
 windows** — tiled or floating, draggable, pinned, each re-running its command on a cadence. A
 terminal cannot do that well. Free-form overlapping windows are the central metaphor here, and
 every hour spent making Textual do them is an hour spent fighting the framework rather than
 building the thing.
 
-The mockup at `docs/design/toolbox-demo.html` is the target, and it is clickable rather than
+The mockup at `docs/design/sky-boss-demo.html` is the target, and it is clickable rather than
 drawn, so the interactions are already settled: `Ctrl-K` for the palette, chips that re-run a
 command with different flags, a per-window refresh interval, tags, and a status bar counting
 tasks, windows, watchers and things wanting attention.
 
-The demand this puts on tb is small, which is the point. **Commands already return a `Result` and
+The demand this puts on sb is small, which is the point. **Commands already return a `Result` and
 never print.** The TUI was the second consumer of that envelope; the canvas is the third, and the
 command layer does not change to accommodate it. What changes is the shell around it.
 
 ## Shape
 
-A loopback HTTP server in Python, a static frontend, and `tb ui` to start both and open a window.
+A loopback HTTP server in Python, a static frontend, and `sb ui` to start both and open a window.
 
-**Backend** — Starlette on `127.0.0.1`, an ephemeral port, started by `tb ui` and dying with it.
+**Backend** — Starlette on `127.0.0.1`, an ephemeral port, started by `sb ui` and dying with it.
 
 - `GET /catalog` — the palette's suggestions, **derived from the live Click tree**, never a table.
   This is the TUI's hardest-won invariant and it carries over unchanged: a catalog written down
   twice is a catalog that drifts, and a palette that offers a command that does not exist is worse
   than no palette.
-- `POST /run` — run argv in a **subprocess** (`tb --json …`) and return the envelope. Not
+- `POST /run` — run argv in a **subprocess** (`sb --json …`) and return the envelope. Not
   in-process; see the Notes entry for why that reversed.
 - `GET /watch` — an SSE stream per open window. **The refresh clock lives here, not in the
   browser.**
@@ -66,12 +66,12 @@ The mockup's layout logic is already DOM math and transfers directly.
 half-second poll and pushes a `reload` frame when a file changes. A stylesheet edit is swapped in
 place; anything else is a full reload. There is no watcher library and no second channel.
 
-**Shell** — `tb ui` launches Chromium with `--app=`, which gives a window with no tab strip, no
+**Shell** — `sb ui` launches Chromium with `--app=`, which gives a window with no tab strip, no
 address bar and no bookmarks bar, and its own taskbar entry. This is a launch flag rather than an architecture: swapping to pywebview later
 touches the launcher and nothing else. The system libraries for that (`webkit2gtk-4.1`,
 `python-gobject`) are already installed system-wide here, though not visible from the venv.
 
-**The wrapped-CLI contract is `--json`,** and `tb wrap` is the door it comes through. Chips
+**The wrapped-CLI contract is `--json`,** and `sb wrap` is the door it comes through. Chips
 re-filter client-side, which means the frontend holds rows rather than a picture of rows.
 `jam pr list --json` already exists, which is why it is the demo.
 
@@ -79,14 +79,14 @@ re-filter client-side, which means the frontend holds rows rather than a picture
 be given a cadence, and it is why `wrap` had to exist — with `run` as the only command, nothing on
 the canvas was pinnable and the whole watcher half was unreachable. `wrap` carries no raw output:
 a tool that printed something other than JSON has failed its contract, and the envelope says so
-rather than becoming a second `tb run`.
+rather than becoming a second `sb run`.
 
 **Security.** A loopback port that executes argv is remote code execution bound to a port — any
 page in any browser can POST to `127.0.0.1`. A capability token minted per launch and a strict
 `Origin` check are in Phase 1, not bolted on later.
 
 **Only reads get watchers.** The mockup already encodes this: every catalog entry carries
-`watcher: true` except `run cam-health`, which is `task: true`. That is `tb run` is the single
+`watcher: true` except `run cam-health`, which is `task: true`. That is `sb run` is the single
 command that acts, surviving into the new surface — auto-refreshing a read is a refresh,
 auto-refreshing a write is a scheduler nobody asked for.
 
@@ -95,7 +95,7 @@ auto-refreshing a write is a scheduler nobody asked for.
 - **No daemon.** Nothing survives the last window closing. Deliberate, and the reason there is no
   scheduler, no state file, and no notion of a watcher that ran while you were away.
 - **No remote, no multi-user.** Loopback only, one operator, one machine.
-- **No credential handling.** Wrapped CLIs keep their own authentication; tb is never in the
+- **No credential handling.** Wrapped CLIs keep their own authentication; sb is never in the
   credential path. Unchanged from `CLAUDE.md`.
 - **No ANSI-to-HTML fallback.** Rendering an ANSI table gives a picture of a table — no sorting, no
   chips, no resizing — and shipping it early would let it become the path everything takes. That
@@ -107,7 +107,7 @@ auto-refreshing a write is a scheduler nobody asked for.
   named in the Notes: the frontend has no automated tests.
 - **Not a terminal emulator and not a shell.** Argv only. No stdin, no interactive commands, no
   pipes.
-- **The surface never writes a tool.** Round 5 renders the TOOLBOX sidebar and opens what is in it;
+- **The surface never writes a tool.** Round 5 renders the TOOLS sidebar and opens what is in it;
   it gains no route that creates or edits one. The server is remote code execution bound to a port,
   and a write route would turn a transient compromise into a persistent one. See [[tools]].
 - **No indeterminate progress bar.** A bar that animates without measuring something is decoration
@@ -115,10 +115,10 @@ auto-refreshing a write is a scheduler nobody asked for.
 
 ## Phases
 
-### Round 7 — the palette accepts a command that is not tb's (2026-08-21)
+### Round 7 — the palette accepts a command that is not sb's (2026-08-21)
 
-- [x] Anything typed whose first word is not a tb command is offered as a **raw command**, expanding
-      to `tb read -- <argv>`. The expansion is the suggestion's description, so what will run is
+- [x] Anything typed whose first word is not a sb command is offered as a **raw command**, expanding
+      to `sb read -- <argv>`. The expansion is the suggestion's description, so what will run is
       visible before Enter rather than discovered after.
 - [x] Appended rather than shown only when nothing else matched. `list` matches `tools` by
       description, and a raw entry that hid behind a description match would be a palette that
@@ -141,9 +141,9 @@ auto-refreshing a write is a scheduler nobody asked for.
 - [x] The prompt stops the bar's window drag on mousedown, or clicking into it would move the
       window instead of placing a cursor.
 
-### Round 5 — the wireframe's chrome, and the toolbox sidebar (2026-08-20)
+### Round 5 — the wireframe's chrome, and the tools sidebar (2026-08-20)
 
-`docs/design/Toolbox Surface.dc.html` is a second mockup and a different kind of one: the
+`docs/design/Sky Boss Surface.dc.html` is a second mockup and a different kind of one: the
 original demo is static HTML, this is **data-bound** — `sc-for`, `sc-if` and `{{ }}` over the same
 window model the canvas already has. That makes it readable as a specification rather than a
 picture, and reading it against the build shows most of it is already here.
@@ -152,8 +152,8 @@ Already built, confirmed against `app.js` — `win.num`, `win.tags` with `＋tag
 interval controls, `⟳`, `✕`, palette fixed vs floating, tiled vs floating, the clock, and the
 tasks / windows / watchers / attention counters. This round is the remainder.
 
-- [x] **TOOLBOX sidebar.** 184px, header `TOOLBOX`, footer `tb <tool>`. Lists catalog entries where
-      `tb_saved`; clicking one opens its window and takes its `every` as the starting interval.
+- [x] **TOOLS sidebar.** 184px, header `TOOLS`, footer `sb <tool>`. Lists catalog entries where
+      `sb_saved`; clicking one opens its window and takes its `every` as the starting interval.
       The data behind it is [[tools]]; the chrome is here. Shipped with [[tools]] Round 1, as a
       card *below* the top bar rather than a flush panel beside it — the bar is the window's title
       bar and calls `begin_move_drag`, so narrowing it would trade drag area for alignment with the
@@ -185,7 +185,7 @@ tasks / windows / watchers / attention counters. This round is the remainder.
 
 ### Round 3 — the window itself (2026-08-20)
 
-- [x] One scale factor drives every size on the surface; `tb ui --scale`, default 2.
+- [x] One scale factor drives every size on the surface; `sb ui --scale`, default 2.
 - [x] Rounder corners, softer edges, and hairlines that scale with everything else.
 - [x] A favicon generated from the palette, so the window is not a generic globe.
 - [x] A close button in the surface, and `POST /api/quit` behind the same guards.
@@ -207,7 +207,7 @@ tasks / windows / watchers / attention counters. This round is the remainder.
       from `[0, 5, 30, 60, 300]`. Injectable clock, the way `cli/tui/watchdog.py` did it, so a
       cadence test costs milliseconds rather than five real seconds. Tests: a closed stream stops
       its watcher; an open one keeps firing.
-- [x] **Phase 3 — the shell.** `tb ui` starts the server and opens the `--app` window. Vendored
+- [x] **Phase 3 — the shell.** `sb ui` starts the server and opens the `--app` window. Vendored
       Preact/htm, the palette wired to `/catalog`, one window rendering one `Result`. **Delete
       `cli/tui/` and the textual dependency in this phase**, not before — the canvas has to be
       able to dispatch and show a result before the thing it replaces goes.
@@ -261,14 +261,14 @@ What it did not survive is that a watcher fires *unattended*. A thread cannot be
 `jam pr list` hanging on a `git fetch` would strand its thread forever, and six windows on a bad
 network would accumulate stuck threads until the server died. That is the 300-second thread-join
 bug rebuilt on new ground. A subprocess makes `--timeout` a guarantee rather than a hope, and
-`tb --json` already prints the envelope, so nothing parses human output. Introspection stayed
+`sb --json` already prints the envelope, so nothing parses human output. Introspection stayed
 in-process because reading the tree runs nothing: **reads in, execution out.**
 
-**`tb wrap` was added, which the doc did not call for.** Phase 4 asked for the `jam pr list` demo
+**`sb wrap` was added, which the doc did not call for.** Phase 4 asked for the `jam pr list` demo
 with pin and cadence, and it could not be built: `run` is the only command, `run` acts, and an
 acting command may not be given a cadence. So nothing was pinnable and Phase 2's entire mechanism
 was unreachable from the UI. The mockup had already drawn this line — `wrap docker ps` carries
-`watcher: true`, `run cam-health` carries `task: true` — and tb had no equivalent. `wrap` is not
+`watcher: true`, `run cam-health` carries `task: true` — and sb had no equivalent. `wrap` is not
 the passthrough `CLAUDE.md` rejects: it does something the wrapped tool cannot express, which is
 to hold itself open on a canvas and re-run itself, and it returns parsed data rather than bytes.
 
@@ -306,13 +306,13 @@ the frontend grows.
 **Deleted `TUI_STYLES`/`TUI_THEME`,** whose only consumer was the surface being replaced. The
 concept survives as `cli/theme.css_variables`: the canvas paints `BG` itself, so it takes the
 tokens undarkened, exactly as the TUI did, but it renders from the envelope's data rather than
-from tb's bytes so it needs CSS custom properties rather than a Rich theme. The hex scan now
+from sb's bytes so it needs CSS custom properties rather than a Rich theme. The hex scan now
 follows the surface rather than the language — `.css` and `.js` too, vendored code exempt — plus a
 check for `rgba()` literals, which is the form the drift would actually take here given the mockup
 is built out of them.
 
 **`cli/output.capture` now has no consumer.** It was the mechanism the TUI rendered through, and
-the canvas does not render tb's bytes at all. It is kept, tested and documented, but nothing in
+the canvas does not render sb's bytes at all. It is kept, tested and documented, but nothing in
 the shipped surface calls it. It is a candidate for deletion the next time this area is opened.
 
 
@@ -356,8 +356,8 @@ and stays.
 
 ### Round 3 — the window itself (2026-08-20)
 
-**Every size on the surface is now one number.** `--tb-scale` is injected into the page from
-`tb ui --scale`, and the stylesheet is written entirely in `rem` where `1rem` is four scaled
+**Every size on the surface is now one number.** `--sb-scale` is injected into the page from
+`sb ui --scale`, and the stylesheet is written entirely in `rem` where `1rem` is four scaled
 pixels — so a design pixel divided by four is its rem. The alternative was forty numbers that
 drift apart the first time anyone adjusts one of them.
 
@@ -375,7 +375,7 @@ present, gone as far as the eye is concerned.
 the frame by going full-screen, which is a different thing — it cannot be sized or moved, and was
 briefly the default until that was tried and was obviously wrong. It remains available for a wall
 display. Stripping the title bar while keeping the window sizable is the *window manager's* job:
-a rule matched on the window class, which is why `--class=toolbox` is set here. A rule is a change
+a rule matched on the window class, which is why `--class=sb` is set here. A rule is a change
 to someone's own desktop and is theirs to make, so nothing here writes one.
 
 **The close button exists because the frame may not.** It sets a latch the launcher waits on,
@@ -390,9 +390,9 @@ develop in — pressing the button set it and nothing happened. It is watched in
 **Two bugs the screenshots caught that the tests could not.** The top bar's controls were shrinking
 under flex's default, so `floating` rendered as `floatin` with the close button sitting on top of
 it — invisible at 1x, obvious at 2x, and a class of fault no unit test here would have found. And
-the theme suite failed on `--tb-scale`, correctly: it is injected by the server rather than owned
+the theme suite failed on `--sb-scale`, correctly: it is injected by the server rather than owned
 by the palette. The fix was to make the test state the real rule — **a token used with a fallback
-is exempt, a bare one is not** — because `var(--tb-scale, 2)` carries a default precisely so a
+is exempt, a bare one is not** — because `var(--sb-scale, 2)` carries a default precisely so a
 failed substitution renders at normal size instead of collapsing the surface to zero.
 
 
@@ -458,7 +458,7 @@ run says the process survived.
 
 ### Round 5 — reading the second mockup against the build (2026-08-20)
 
-`Toolbox Surface.dc.html` is data-bound rather than drawn — `sc-for`, `sc-if`
+`Sky Boss Surface.dc.html` is data-bound rather than drawn — `sc-for`, `sc-if`
 and `{{ }}` over the same window model this already has — which makes it
 readable as a specification. Read against `app.js`, most of it turned out to be
 built: `win.num`, tags, pin and interval, `⟳`, `✕`, palette fixed and floating,
@@ -520,19 +520,19 @@ What the entry got wrong was the scope it drew from it. "Cannot be sorted" is a 
 uses daily prints an aligned table with a legend under it that is better than anything rebuilt from
 its own JSON, and refusing to display it was refusing the operator their own tool's design.
 
-The real gap was never display in any case: `tb run` already carried the bytes. It was that `run`
+The real gap was never display in any case: `sb run` already carried the bytes. It was that `run`
 acts, so the only command that carried text was the one command that must never be put on a timer.
 
 ### Round 7 — a palette that accepts what you actually typed (2026-08-21)
 
-The request read as "stop making me call tb". What it turned out to mean is narrower and better:
-*stop making me type tb's prefix*. tb still executes — through `tb read`, which is what gives the
+The request read as "stop making me call sb". What it turned out to mean is narrower and better:
+*stop making me type sb's prefix*. sb still executes — through `sb read`, which is what gives the
 window an envelope, a killable subprocess and a cadence. Only the typing changed.
 
 **The interesting problem was the working directory, not the parsing.** A raw command has no place
-to put `--cwd`, and the canvas inherits whatever directory `tb ui` was launched in — so a canvas
-started inside this repo runs `jam pr list` with toolbox's `cli/` package shadowing jam's own
-and hands back toolbox's error message. Defaulting to `$HOME` fixes it for a reason worth
+to put `--cwd`, and the canvas inherits whatever directory `sb ui` was launched in — so a canvas
+started inside this repo runs `jam pr list` with sky.boss's `cli/` package shadowing jam's own
+and hands back sky.boss's error message. Defaulting to `$HOME` fixes it for a reason worth
 writing down: a home directory has no `cli/` package to shadow anything. It is neutral rather than
 merely conventional, and the same property makes it right for the next tool with the same bug.
 
@@ -545,7 +545,7 @@ keeps having to design against.
 and it is wrong in a way that only shows up on particular input: `list` matches `tools` by its
 description, so a conditional raw entry would vanish for some queries and appear for others with no
 rule the operator could hold in their head. It is appended whenever the first word is not exactly a
-tb command, which is a rule you can state in one sentence.
+sb command, which is a rule you can state in one sentence.
 
 **And it expands to `read`, never `run`.** The whole point is a window that refreshes, and only a
 read may be given a cadence. A raw command that wants to write is typed with `run --` in front of
@@ -563,7 +563,7 @@ The project was renamed, and the old name was scrubbed from this doc rather than
 That is a deliberate exception to *dated, never scrubbed*, which governs superseded **arguments** —
 a decision left visible beside its reversal is the most useful thing in one of these files. A
 project's own name is not an argument, and two names for one thing in one repo reads as two
-projects. **`WM_CLASS` and `--class` are now `toolbox`.**
+projects. **`WM_CLASS` and `--class` are now `sb`.**
 
 The same pass removed the host, distro and desktop-environment names this doc carried. The
 engineering survives unchanged — frameless is a request a window manager may refuse, and the

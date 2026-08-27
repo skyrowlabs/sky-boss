@@ -1,61 +1,61 @@
 <p align="center">
-  <img src="docs/design/readme-banner.png" alt="toolbox — by SKYROW.LABS · tb --help" width="799">
+  <img src="docs/design/readme-banner.png" alt="sky.boss — by SKYROW.LABS · sb --help" width="799">
 </p>
 
-`tb` is one CLI for watching what other tools are doing — on this machine and across the projects
+`sb` is one CLI for watching what other tools are doing — on this machine and across the projects
 you keep here.
 
 Four ideas, and everything else follows from them:
 
-- **`tb run` is the only command that acts.** Everything else reads. That line is load-bearing:
+- **`sb run` is the only command that acts.** Everything else reads. That line is load-bearing:
   a window may re-run a read on a cadence, because re-running a read is a refresh and re-running
   a write is a scheduler nobody asked for.
 - **Commands return data; they never print.** One envelope — `ok` / `partial` / `data` /
   `warnings` — rendered by whoever is consuming it. `--json` on any command gives you the
   envelope itself.
-- **tb never parses human output.** `tb data` takes JSON. `tb read` shows what a command printed,
+- **sb never parses human output.** `sb data` takes JSON. `sb read` shows what a command printed,
   verbatim, and says that is what it is doing. There is no `--pretty` that guesses.
-- **tb is never in the credential path.** External CLIs keep their own authentication.
+- **sb is never in the credential path.** External CLIs keep their own authentication.
 
 ## Install
 
 ```bash
 git clone https://github.com/skyrowlabs/sky-boss && cd sky-boss
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
-ln -s "$PWD/tb" ~/.local/bin/tb          # or run ./tb from the repo
+ln -s "$PWD/sb" ~/.local/bin/sb          # or run ./sb from the repo
 ```
 
 Needs Python 3.11+. Shell completion for fish:
-`_TB_COMPLETE=fish_source tb > ~/.config/fish/completions/tb.fish`
+`_SB_COMPLETE=fish_source sb > ~/.config/fish/completions/sb.fish`
 
 ## The commands
 
 | Command | Does |
 |---|---|
-| `tb run -- <argv>` | Runs a command and reports what it printed. **The only command that acts** |
-| `tb read -- <argv>` | Shows what a command printed, verbatim |
-| `tb data -- <argv>` | Reads another CLI's JSON as data, and shapes it into a table |
-| `tb follow -- <argv>` | Holds a command's stream open. Any exit is a visible death |
-| `tb follow <path>` | Follows a file with a native stat cursor |
-| `tb roll-call` | Asks every declared project how it is, and folds the answers |
-| `tb tools` | The commands you saved |
-| `tb ui` | Opens the canvas — a palette over tiled and floating windows |
-| `tb mcp` | Speaks MCP on stdio, offering your saved commands to an agent |
+| `sb run -- <argv>` | Runs a command and reports what it printed. **The only command that acts** |
+| `sb read -- <argv>` | Shows what a command printed, verbatim |
+| `sb data -- <argv>` | Reads another CLI's JSON as data, and shapes it into a table |
+| `sb follow -- <argv>` | Holds a command's stream open. Any exit is a visible death |
+| `sb follow <path>` | Follows a file with a native stat cursor |
+| `sb roll-call` | Asks every declared project how it is, and folds the answers |
+| `sb tools` | The commands you saved |
+| `sb ui` | Opens the canvas — a palette over tiled and floating windows |
+| `sb mcp` | Speaks MCP on stdio, offering your saved commands to an agent |
 
-`--` separates tb's flags from the command's own.
+`--` separates sb's flags from the command's own.
 
 ## Running something
 
 ```console
-$ tb run -- echo hello
+$ sb run -- echo hello
 hello
 └ ok · 0.1s · ran 20:03:29 ────────────────────────────────────────────┘
 ```
 
-The band is on stderr, so `tb run -- x | grep y` still sees exactly what `x` printed.
+The band is on stderr, so `sb run -- x | grep y` still sees exactly what `x` printed.
 
 ```console
-$ tb read -- printf 'alpha\nbeta\n'
+$ sb read -- printf 'alpha\nbeta\n'
 alpha
 beta
 └ ok · 0.1s · ran 20:03:29 ────────────────────────────────────────────┘
@@ -63,11 +63,11 @@ beta
 
 ## Reading another tool as data
 
-`tb data` parses a tool's JSON and decides how to draw it — which columns are worth showing, which
+`sb data` parses a tool's JSON and decides how to draw it — which columns are worth showing, which
 are prose that belongs on its own line, which are opaque identifiers nobody scans.
 
 ```console
-$ tb data -- printf '[{"host":"web-1","state":"up","region":"iad"},{"host":"web-2","state":"down","region":"sfo"}]'
+$ sb data -- printf '[{"host":"web-1","state":"up","region":"iad"},{"host":"web-2","state":"down","region":"sfo"}]'
 ● data  table · 2 rows · 3 columns
 
 HOST   STATE  REGION
@@ -80,7 +80,7 @@ web-2  down   sfo
 `--cols`:
 
 ```console
-$ tb data --cols host,state -- printf '[{"host":"web-1","state":"up","region":"iad"},{"host":"web-2","state":"down","region":"sfo"}]'
+$ sb data --cols host,state -- printf '[{"host":"web-1","state":"up","region":"iad"},{"host":"web-2","state":"down","region":"sfo"}]'
 ● data  table · 2 rows · 3 columns
 
 HOST   STATE
@@ -90,11 +90,11 @@ web-2  down
 ```
 
 Real tools wrap their rows in a mapping, because a bare array has nowhere to put a timestamp.
-`--rows` says where they are; without it tb infers only when exactly one value is a list of rows,
+`--rows` says where they are; without it sb infers only when exactly one value is a list of rows,
 and reports rather than guesses when two are.
 
 ```console
-$ tb data --rows hosts --cols host,state -- printf '{"generated":"2026-08-23T20:00:00Z","hosts":[{"host":"web-1","state":"up"},{"host":"web-2","state":"down"}]}'
+$ sb data --rows hosts --cols host,state -- printf '{"generated":"2026-08-23T20:00:00Z","hosts":[{"host":"web-1","state":"up"},{"host":"web-2","state":"down"}]}'
 ● data  object · 2 keys
 
   generated   2026-08-23T20:00:00Z
@@ -111,7 +111,7 @@ A column you named that no row carries is drawn — "nothing matched" is often t
 reported**:
 
 ```console
-$ tb data --cols host,nope -- printf '[{"host":"a"}]'
+$ sb data --cols host,nope -- printf '[{"host":"a"}]'
 ● data  table · 1 row · 1 column
 
 HOST  NOPE
@@ -124,7 +124,7 @@ A tool that fails carries its reason, never its output — a failed tool is one 
 not be believed:
 
 ```console
-$ tb data -- sh -c 'echo "boom: no credentials" >&2; exit 3'
+$ sb data -- sh -c 'echo "boom: no credentials" >&2; exit 3'
 ✗ data failed
 ● data  object · 4 keys
 
@@ -139,7 +139,7 @@ $ tb data -- sh -c 'echo "boom: no credentials" >&2; exit 3'
 `--json` is a root flag, so it works on every command:
 
 ```console
-$ tb --json data -- printf '[{"host":"a"}]'
+$ sb --json data -- printf '[{"host":"a"}]'
 {
   "command": "data",
   "ok": true,
@@ -177,9 +177,9 @@ Resident by nature. Arrows, PgUp/PgDn and Home scroll back through the ring; `En
 following; `q`, `Esc` or Ctrl-C leaves.
 
 ```bash
-tb follow -- journalctl -f                    # a stream; any exit is a visible death
-tb follow /var/log/nginx/access.log           # a file, by stat cursor
-tb follow --due 15m /var/log/cron.log         # past 15m of silence, the band says late
+sb follow -- journalctl -f                    # a stream; any exit is a visible death
+sb follow /var/log/nginx/access.log           # a file, by stat cursor
+sb follow --due 15m /var/log/cron.log         # past 15m of silence, the band says late
 ```
 
 The band is the scrollbar:
@@ -190,12 +190,12 @@ The band is the scrollbar:
 ```
 
 `--due` is the cron watcher, and it never learned what cron is: a schedule is a declaration, a run
-is evidence, and the evidence is the log. You assert an interval; tb subtracts.
+is evidence, and the evidence is the log. You assert an interval; sb subtracts.
 
 ## Running something later
 
 ```bash
-tb run --delay 5m -- ./deploy.sh
+sb run --delay 5m -- ./deploy.sh
 ```
 
 A countdown you can watch and cancel. `q`, `Esc` or Ctrl-C cancels and nothing ran; so does closing
@@ -205,19 +205,19 @@ the window wants systemd.** Cancelling exits non-zero, so a script can tell the 
 ## Saving a command
 
 `--save NAME` on `read`, `data` or `follow` saves the invocation and then runs it. It only ever
-appends to `~/.toolbox/tools.toml`, and refuses a name that exists — editing and deleting stay
+appends to `~/.sky-boss/tools.toml`, and refuses a name that exists — editing and deleting stay
 `$EDITOR`'s.
 
 ```bash
-tb data --cols number,title --refresh 30 --save prs -- gh pr list --json number,title
-tb tools prs        # or the short spelling: tb -t prs
+sb data --cols number,title --refresh 30 --save prs -- gh pr list --json number,title
+sb tools prs        # or the short spelling: sb -t prs
 ```
 
-`tb tools` lists what you saved, and what failed to load. A fresh clone has saved nothing and says
+`sb tools` lists what you saved, and what failed to load. A fresh clone has saved nothing and says
 so rather than raising:
 
 ```console
-$ tb tools
+$ sb tools
 ● tools  object · 3 keys
 
   tools        -
@@ -226,11 +226,11 @@ $ tb tools
 ```
 
 A saved command inherits `acts` from the first word of its argv, so one wrapping `run` is refused a
-cadence exactly as `tb run` is — the read/write line survives being given a name.
+cadence exactly as `sb run` is — the read/write line survives being given a name.
 
 ## Many projects at once
 
-Declare what each project publishes in `~/.toolbox/projects.toml` — a command to ask, or a file
+Declare what each project publishes in `~/.sky-boss/projects.toml` — a command to ask, or a file
 to read:
 
 ```toml
@@ -245,12 +245,12 @@ path = "~/src/house.fly/tmp/status.json"
 ```
 
 ```bash
-tb roll-call
-tb roll-call --only jam-sense
+sb roll-call
+sb roll-call --only jam-sense
 ```
 
-**tb federates; it never owns.** No ledger, no history, no cache — each project stays the authority
-on itself, which is what lets tb stay stateless. A copy of a schedule that agents rewrite goes
+**sb federates; it never owns.** No ledger, no history, no cache — each project stays the authority
+on itself, which is what lets sb stay stateless. A copy of a schedule that agents rewrite goes
 stale without announcing it; unreachability is visible, staleness is not.
 
 One project down is `partial`, never blank:
@@ -273,16 +273,16 @@ house-fly
 With nothing declared it says so rather than pretending:
 
 ```console
-$ TB_HOME=/tmp/empty-tb tb roll-call
+$ SB_HOME=/tmp/empty-sb sb roll-call
 ● roll-call  object · 0 keys
 
-⚠️  no projects declared — see /tmp/empty-tb/projects.toml
+⚠️  no projects declared — see /tmp/empty-sb/projects.toml
 ```
 
 ## The canvas
 
 ```bash
-tb ui
+sb ui
 ```
 
 A command palette over tiled and floating windows. Every command opens a window; a pinned window
@@ -294,23 +294,23 @@ clamped to roughly one fire a minute, so a 5s watcher would silently become a 60
 moment you stopped being able to see that it had.
 
 ```bash
-tb ui --no-browser --port 8765     # develop against it in a browser
+sb ui --no-browser --port 8765     # develop against it in a browser
 ```
 
 ## Offering it to an agent
 
 ```bash
-tb mcp
+sb mcp
 ```
 
 Speaks MCP on stdin/stdout — no port, no token, no daemon. Register it with any MCP client:
 
 ```json
-{"mcpServers": {"toolbox": {"type": "stdio", "command": "tb", "args": ["mcp"]}}}
+{"mcpServers": {"sky-boss": {"type": "stdio", "command": "sb", "args": ["mcp"]}}}
 ```
 
 ```console
-$ printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' | tb mcp
+$ printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' | sb mcp
 ```
 
 **An agent reaches the commands you saved, and nothing else.** Every exposed tool has an *empty
@@ -325,12 +325,12 @@ a shell with a reassuring name.
 
 | What | Where |
 |---|---|
-| Saved commands | `~/.toolbox/tools.toml` |
-| Capture formats and highlight rules | `~/.toolbox/formats.toml` |
-| Declared projects | `~/.toolbox/projects.toml` |
-| Canvas browser profile | `~/.local/state/tb/` |
+| Saved commands | `~/.sky-boss/tools.toml` |
+| Capture formats and highlight rules | `~/.sky-boss/formats.toml` |
+| Declared projects | `~/.sky-boss/projects.toml` |
+| Canvas browser profile | `~/.local/state/sb/` |
 
-`$TB_HOME` and `$TB_STATE` override the first three and the last. An absent file degrades to
+`$SB_HOME` and `$SB_STATE` override the first three and the last. An absent file degrades to
 nothing declared rather than raising.
 
 ## Development
@@ -340,8 +340,15 @@ nothing declared rather than raising.
 .venv/bin/python -m pytest -k readme    # the examples in this file
 ```
 
-Every `$ tb …` example above is executed by `tests/test_readme.py`, so a README that shows a
+Every `$ sb …` example above is executed by `tests/test_readme.py`, so a README that shows a
 command which no longer works fails the build.
 
 `docs/design/fundamentals.md` is the constitution; `docs/features/done/` holds one doc per feature,
 each with its rounds and a Notes section that accretes rather than rewrites.
+
+CI runs that same suite on every push and pull request — `.github/workflows/ci.yml`. It builds a
+`.venv` because the README examples above go through the real `sb` wrapper, which looks for one.
+
+## License
+
+[MIT](LICENSE) © SKYROW LABS LLC

@@ -14,7 +14,7 @@ key_files:
 
 ## Why
 
-`tb wrap` requires the wrapped tool to speak JSON, and most tools do not. The one this repo uses
+`sb wrap` requires the wrapped tool to speak JSON, and most tools do not. The one this repo uses
 every day speaks both — but its human output is the better of the two to look at:
 
 ```
@@ -30,17 +30,17 @@ That is a considered piece of design — an aligned table, a detail line per rec
 explaining the two columns nobody remembers. Reproducing it from `--json` would mean reimplementing
 someone else's judgement about their own domain, and getting it slightly wrong.
 
-**tb can already show it, and cannot watch it.** `tb run -- jam pr list` carries the bytes today.
+**sb can already show it, and cannot watch it.** `sb run -- jam pr list` carries the bytes today.
 But `run` *acts*, and only a read may be given a refresh cadence, so that window can never be
 pinned. The gap is not display. It is that **the only command that carries text is the one command
 that must never be put on a timer.**
 
 ## Shape
 
-`tb read -- <argv>`: like `tb run`, except it is declared a read.
+`sb read -- <argv>`: like `sb run`, except it is declared a read.
 
 ```
-tb read --cwd ~/src/jam.sense -- jam pr list
+sb read --cwd ~/src/jam.sense -- jam pr list
 ```
 
 `data` is **the text itself** — a plain string, not an object wrapping one. That is the whole
@@ -49,20 +49,20 @@ echoes it verbatim, and `render.js` falls through to `<pre class="raw">`. A wind
 what the tool printed, and re-shows it every thirty seconds.
 
 **It is the second exception to "raw output must not reach `data`", and the rule it is an exception
-to was drawn in the wrong place.** The rule exists because *a probe can print a token* — output tb
-went and fetched on its own initiative must not reach stdout or a future MCP surface. `tb run` was
+to was drawn in the wrong place.** The rule exists because *a probe can print a token* — output sb
+went and fetched on its own initiative must not reach stdout or a future MCP surface. `sb run` was
 carved out as "the one exception", but the distinguishing property was never *run-ness*: it is that
 the operator **named the argv**. `read` names it too. `CLAUDE.md` is corrected to say so rather
 than growing a list of blessed commands.
 
 **Choosing `read` is the operator's assertion that this argv is a read**, exactly as choosing
-`wrap` over `run` already is. tb cannot tell a read from a write by inspecting an argv and does not
-try — see `CLAUDE.md` § Scope. `tb read -- rm -rf /` is possible in the same way `tb wrap -- rm -rf /`
+`wrap` over `run` already is. sb cannot tell a read from a write by inspecting an argv and does not
+try — see `CLAUDE.md` § Scope. `sb read -- rm -rf /` is possible in the same way `sb wrap -- rm -rf /`
 already is, and is refused for the same reason: it isn't.
 
 **ANSI is stripped, never interpreted.** [[canvas]] rejected an ANSI-to-HTML fallback on the
 grounds that rendering an ANSI table gives you a *picture* of a table — no sorting, no chips, no
-resizing. That argument is untouched and this does not contradict it: `tb read` gives you a picture
+resizing. That argument is untouched and this does not contradict it: `sb read` gives you a picture
 and says so. What it does not do is leave `\e[32m` in the middle of a cell, which is what carrying
 the bytes untouched would mean the first time a tool decides it is talking to a terminal.
 
@@ -91,7 +91,7 @@ a `RichLog`. `read` truncates and says how much it dropped.
 - [x] Truncation with a warning naming how much was dropped.
 - [x] `tests/test_read.py`: it is a read, it carries what the tool printed, it strips ANSI, it
       bounds a large result, and a failing tool still shows its output.
-- [x] Fix `tb run`'s human rendering: stdout is currently folded into a key/value row, which wraps
+- [x] Fix `sb run`'s human rendering: stdout is currently folded into a key/value row, which wraps
       it and destroys the alignment. A block of text should render as a block.
 - [x] Correct `CLAUDE.md`'s raw-output rule to be about *who named the argv* rather than a list of
       commands, and update [[canvas]]'s "no ANSI fallback" entry to point here.
@@ -103,8 +103,8 @@ a `RichLog`. `read` truncates and says how much it dropped.
 The request arrived as "render any format as it comes", which reads like the ANSI fallback
 [[canvas]] rejected. Checking before describing changed the shape of the work twice.
 
-**`tb run -- jam pr list` already carried the text.** The bytes were there, in `data.stdout`, and
-the canvas already rendered them in a `<pre>`. So "tb cannot show this" was simply false. What is
+**`sb run -- jam pr list` already carried the text.** The bytes were there, in `data.stdout`, and
+the canvas already rendered them in a `<pre>`. So "sb cannot show this" was simply false. What is
 true is that `run` **acts**, and only a read may be given a cadence — so the one command that
 carried text was the one command that must never be put on a timer. The feature is four lines of
 subprocess and a different `acts`.
@@ -117,14 +117,14 @@ next tool will not be so well behaved, but it was a precaution rather than the w
 handle a plain string correctly — `_render_value` echoes it, `render.js` falls through to `<pre>`.
 Every design that wrapped the text in an object would have needed a new branch in both.
 
-**The rule about raw output was drawn around the wrong property.** `CLAUDE.md` said `tb run` is
+**The rule about raw output was drawn around the wrong property.** `CLAUDE.md` said `sb run` is
 "the one exception" to output never reaching `data`. But run-ness was never what made it safe: the
-rule exists because *a probe can print a token*, and what distinguishes a probe is that tb chose to
+rule exists because *a probe can print a token*, and what distinguishes a probe is that sb chose to
 run it. `read` runs an argv the operator typed, exactly as `run` does. Restated as **who named the
 argv**, the rule stops needing a list of blessed commands and will not need amending for the next
 one.
 
-**A bug found on the way past.** `tb run`'s stdout was rendered as a value inside a key/value row,
+**A bug found on the way past.** `sb run`'s stdout was rendered as a value inside a key/value row,
 so Rich folded it at the column edge and destroyed the alignment that was the reason to look at it.
 Multi-line text is a block now. That had been wrong since `run` was written and nobody had looked at
 a wide table through it.

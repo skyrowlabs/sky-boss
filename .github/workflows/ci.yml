@@ -1,0 +1,64 @@
+# The whole suite, on every push and every pull request.
+#
+# There is no cost gating here and that is deliberate. Gating exists to keep an
+# expensive suite off the pre-merge path; this one is 676 tests in under five
+# seconds with no network, so deciding whether to run it would cost more than
+# running it. If that stops being true, the thing to add is a gate job — not a
+# `paths-ignore`, which makes a required check that never reports and blocks a
+# PR forever.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# A public repo means pushes to a PR arrive from people who are not watching
+# the Actions tab. Superseded runs are cancelled rather than left to finish.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+# Least privilege by default. A fork PR gets a read-only token anyway; saying so
+# means a workflow that later wants more has to ask for it in the diff.
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: pytest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      # A real `.venv`, not a bare `pip install`, and this is load-bearing.
+      # `tests/test_readme.py` runs the README's examples through the actual
+      # `sb` wrapper with `PATH` pinned to `<repo>:/usr/bin:/bin` — so it finds
+      # `./sb`, which prefers `.venv/bin/python` and otherwise falls back to
+      # `/usr/bin/python3`, where nothing this workflow installed would be.
+      # Without the venv those examples fail on a runner and pass everywhere
+      # else, which is the worst shape a CI failure can have.
+      - name: Create the venv the wrapper expects
+        run: python -m venv .venv
+
+      - name: Install
+        run: |
+          .venv/bin/python -m pip install --upgrade pip
+          .venv/bin/pip install -r requirements.txt -r requirements-dev.txt
+
+      # `pywebview` installs here but its GTK bindings (`gi`) are system-owned
+      # and absent on a runner. That is fine and checked: `cli/canvas/shell.py`
+      # imports both lazily, inside the functions that open a window, so no
+      # test imports either. If a test ever does, this job is where it surfaces.
+      - name: Suite
+        run: .venv/bin/python -m pytest -q

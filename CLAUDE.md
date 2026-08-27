@@ -9,24 +9,35 @@ absent and nothing here depends on it.
 ## What this repo is
 
 **sky.boss** is the homebase kit for a primary workstation and the machines around it, behind one
-operator CLI: `tb`.
+operator CLI: `sb`.
 
-**It was `tackle-box` until 2026-08-22 and `toolbox` until 2026-08-26.** Both are gone from
-current-tense prose, because an old project name reads as a second project. Git history keeps
-them: rewriting history to chase a rename is a cost with no reader.
+**It was `tackle-box` until 2026-08-22, `toolbox` until 2026-08-26, and the CLI was `tb` until
+2026-08-27.** All three are gone from current-tense prose, because an old project name reads as a
+second project. Git history keeps them: rewriting history to chase a rename is a cost with no
+reader.
 
-**The second rename is deliberately incomplete, and the parts left behind are listed in
-`docs/open.md`.** Three kinds of `toolbox` survive on purpose. *The common noun* — "the
-toolbox", the box of saved commands `tb tools` lists — is not the project's name and stays;
-[[tools]] settled that at the last rename. *Dated records* — a measurement transcript, a
-completed feature doc — are not scrubbed, the same rule that leaves `wrap`/`every` standing in
-docs older than that rename. And *identifiers* — `~/.toolbox`, the `toolbox` window class, the
-MCP server name, the mark's own lettering — are a coordinated change with consequences outside
-this repo, not a substitution. **`tb` is not changing.**
+**The 2026-08-27 pass finished what the previous two left open**, and it reversed two decisions
+that were written down here as settled. `tb` → `sb` was explicitly out of scope and is now done.
+The common noun was explicitly staying and is now gone: [[tools]] had ruled that "the toolbox" —
+the box of saved commands — was not the project's name and could keep the word, but the CLI rename
+took the word with it, so the container simply lost its nickname rather than gaining a new one.
+It is **the tools**, which is what `sb tools` already called them. The identifier cluster that
+[[open]] item 14 held as *one decision, not four* moved as one: `$SB_HOME` defaulting to
+`~/.sky-boss`, the MCP server name `sky-boss`, the window class `sb`, and the internal CSS and
+package names.
+
+**One thing still says the old name, on purpose.** *A name recorded as history* — "it was
+`toolbox` until 2026-08-26" — is a fact about the past, and scrubbing it would make the sentence
+false; that is why the rename notes in [[tools]] and [[header]] read the way they do. The **mark**
+was the other one and is not any more: it was a drawing of a toolbox lettered `TOOLBOX`, printed
+beside the word by `cli/banner.py`, and it was redrawn the same day as a **control tower**
+([[header]] round 2). `ART` in `cli/banner.py` is the picture; `docs/design/render-mark.py` renders
+both PNGs from it, so the drawing and the word cannot drift apart again — which they had, for
+exactly as long as it took to notice.
 
 **This is a machine-neutral repo, as of the 2026-08-22 pass.** Nothing tracked here names a host,
 a distro, a desktop environment, or a window-manager rule — the mechanisms are documented, the
-machine that hit them is not. That is not squeamishness: it is the same rule as `$TB_HOME`.
+machine that hit them is not. That is not squeamishness: it is the same rule as `$SB_HOME`.
 Operator content used to live in this repo and carried a tailnet address into every commit, so
 the tool could not be published without publishing the operator. Machine-specific context belongs
 in `CLAUDE.local.md`, which is gitignored. **A host name in a tracked file is a bug to fix, not
@@ -45,24 +56,24 @@ replaced by a browser one the same day. What exists:
 
 | Command | Does |
 |---|---|
-| `tb run -- <argv>` | Runs a command and reports what it printed. **The only command that acts**. `--delay 5m` runs it once, later, behind a countdown you can cancel |
-| `tb data -- <argv>` | Reads another CLI's JSON as data. An observe; `--refresh N` keeps it resident |
-| `tb read -- <argv>` | Shows what a command printed, verbatim. An observe, for tools with no `--json` |
-| `tb follow -- <argv>` | Holds a command's stream open. Resident by nature; any exit is a visible death. Arrows and PgUp scroll back through the ring |
-| `tb follow <path>` | Follows a file with a native stat cursor, so quiet and dead are different words. `--due 15m` makes late a word too |
-| `tb roll-call` | Asks every declared project how it is and folds the answers. An observe. See [[roll-call]] |
-| `tb mcp` | Speaks MCP on stdio, offering the toolbox to an agent. A surface. See [[mcp]] |
-| `tb tools` | Lists the operator's saved commands, and any that failed to load |
-| `tb ui` | Opens the canvas — a command palette over tiled and floating windows |
-| `tb tools <name>` | Runs a saved command; `tb -t <name>` is the short spelling. See [[tools]] |
+| `sb run -- <argv>` | Runs a command and reports what it printed. **The only command that acts**. `--delay 5m` runs it once, later, behind a countdown you can cancel |
+| `sb data -- <argv>` | Reads another CLI's JSON as data. An observe; `--refresh N` keeps it resident |
+| `sb read -- <argv>` | Shows what a command printed, verbatim. An observe, for tools with no `--json` |
+| `sb follow -- <argv>` | Holds a command's stream open. Resident by nature; any exit is a visible death. Arrows and PgUp scroll back through the ring |
+| `sb follow <path>` | Follows a file with a native stat cursor, so quiet and dead are different words. `--due 15m` makes late a word too |
+| `sb roll-call` | Asks every declared project how it is and folds the answers. An observe. See [[roll-call]] |
+| `sb mcp` | Speaks MCP on stdio, offering the tools to an agent. A surface. See [[mcp]] |
+| `sb tools` | Lists the operator's saved commands, and any that failed to load |
+| `sb ui` | Opens the canvas — a command palette over tiled and floating windows |
+| `sb tools <name>` | Runs a saved command; `sb -t <name>` is the short spelling. See [[tools]] |
 
 **`--save NAME` on `read`, `data` and `follow`** saves the invocation as a tool and then runs it.
-It is the only thing in tb that writes `tools.toml`, it only ever **appends** one block, and it
+It is the only thing in sb that writes `tools.toml`, it only ever **appends** one block, and it
 refuses a name that already exists — editing and deleting stay `$EDITOR`'s. No surface writes:
 still no route, still no button. `run` does not take it, because `--save` saves by example and
 the example ran. See [[tools]].
 
-`tb` and `tb --help` open with the mark — `docs/design/cli-header.png` drawn in half-blocks, see
+`sb` and `sb --help` open with the mark — `docs/design/cli-header.png` drawn in half-blocks, see
 [[header]]. It refuses to draw on a narrow or non-terminal surface rather than wrapping.
 
 **Check before you describe.** This is young and moving, and it just lost most of its surface area.
@@ -72,20 +83,20 @@ document, and correct the document when it has fallen behind.
 ## Scope
 
 There is no taxonomy to defend yet. The one property worth preserving from the version that was
-removed is this: **`tb run` is the single command that acts.** Everything else reads. When a group
+removed is this: **`sb run` is the single command that acts.** Everything else reads. When a group
 of commands returns, that is the line to keep — a command that wants to both read and write is two
 commands.
 
 That line is now load-bearing rather than aesthetic. The canvas reads it — `acts` in the catalog —
 to decide whether a window may be given a refresh cadence, because **re-running a read is a
-refresh and re-running a write is a scheduler nobody asked for.** tb cannot tell a read from a
+refresh and re-running a write is a scheduler nobody asked for.** sb cannot tell a read from a
 write by inspecting an argv and does not try: choosing `data` over `run` is the operator's
 assertion that this one is a read.
 
 A saved command **inherits** that assertion rather than restating it — `acts` comes from the first
 word of its argv and a declared one is ignored, so `[tool.deploy]` wrapping `run` is refused a
-cadence exactly as `tb run` is. This is also why a tool's argv must start with a tb command: a tool
-that could name a bare executable would be a second `tb run` that skips the split entirely.
+cadence exactly as `sb run` is. This is also why a tool's argv must start with a sb command: a tool
+that could name a bare executable would be a second `sb run` that skips the split entirely.
 
 The removed design grouped commands by *mood* — imperative, temporal, descriptive, evaluative —
 rather than by domain, on the reasoning that the domain axis grows without bound while the mood
@@ -94,48 +105,48 @@ commands. If groups come back, group them that way and be slower to add one.
 
 **Considered and deliberately rejected** — do not re-propose without being asked:
 
-- **`tb ctx`** and **`tb secrets`** (unified context switching, a secrets manager as root of trust
-  for `aws`/`gh`/`stripe`). **External CLIs keep their own authentication.** `tb` is never in the
+- **`sb ctx`** and **`sb secrets`** (unified context switching, a secrets manager as root of trust
+  for `aws`/`gh`/`stripe`). **External CLIs keep their own authentication.** `sb` is never in the
   credential path. This is what keeps a future MCP surface safe to expose.
 - **Judging a followed line.** Tint is *shape* — a timestamp, a number, a path — and it is
   computed in `cli/highlight.py` for both surfaces. A severity vocabulary (ERROR/WARN/INFO) is a
-  judgment wearing a regex's clothes and tb does not ship one; the operator declares their own
+  judgment wearing a regex's clothes and sb does not ship one; the operator declares their own
   words under `[highlight.<name>]` in `formats.toml` and names it with `--highlight`. Those rules
-  run **after** tb's and claim only unclaimed text, so a declaration can never repaint a
+  run **after** sb's and claim only unclaimed text, so a declaration can never repaint a
   timestamp. See [[highlight]].
 - **Parsing a tool's human output into rows** — *narrowed 2026-08-22 by [[capture]]: **declared**
-  capture is in; inference stays out.* `tb read` shows it verbatim and says that is what it is
+  capture is in; inference stays out.* `sb read` shows it verbatim and says that is what it is
   doing; inferring columns from whitespace is the "silently wrong" failure, and a tool with real
   structure has `--json`. What [[capture]] added is the operator asserting the structure by name —
-  a format in `$TB_HOME/formats.toml` with a pattern and optionally a jq transform, named on
-  `tb data --from <name>`. No format, no table; a `--pretty` flag that guesses remains rejected.
-- **Wrapping an external CLI for passthrough.** `tb gh pr list` is strictly worse than
-  `gh pr list`. Reach for an external tool only where `tb` does something that tool cannot express.
-  `tb data` is the carve-out and it earns it: holding a foreign CLI's output open on a canvas and
+  a format in `$SB_HOME/formats.toml` with a pattern and optionally a jq transform, named on
+  `sb data --from <name>`. No format, no table; a `--pretty` flag that guesses remains rejected.
+- **Wrapping an external CLI for passthrough.** `sb gh pr list` is strictly worse than
+  `gh pr list`. Reach for an external tool only where `sb` does something that tool cannot express.
+  `sb data` is the carve-out and it earns it: holding a foreign CLI's output open on a canvas and
   re-running it on a cadence is not something that CLI can do for itself. It returns *parsed data*
   — a tool that printed something other than JSON has failed its contract, and the envelope says
   so rather than carrying the bytes.
 
 ## The interactive surface
 
-`tb ui` opens **the canvas**: a command palette over a window canvas, where every command opens a
+`sb ui` opens **the canvas**: a command palette over a window canvas, where every command opens a
 window and a pinned window re-runs itself on a cadence, with the operator's saved commands down
 the left. It is a consumer of the output contract,
-not a second CLI. It replaced `tb tui` on 2026-08-20 — the terminal could not do overlapping
+not a second CLI. It replaced `sb tui` on 2026-08-20 — the terminal could not do overlapping
 draggable windows, which is the central metaphor. `docs/features/done/canvas.md` records the whole
-design, and `docs/design/toolbox-demo.html` is the mockup it was built from.
+design, and `docs/design/sky-boss-demo.html` is the mockup it was built from.
 
 The rules that are not negotiable:
 
 - **Nothing keeps a command table.** The palette comes from `/api/catalog`, which walks the real
   Click tree, so it cannot drift from the CLI. A palette offering a command that does not exist is
   worse than no palette, because it has already told you it does. A *surface* excludes itself by
-  setting `tb_surface` on its own command object rather than by being named in a skip-list here.
+  setting `sb_surface` on its own command object rather than by being named in a skip-list here.
 
-  **A raw command is not a drift.** Anything typed whose first word is not a tb command is offered
-  as `tb read -- <argv>`, synthesised from the query rather than from any list, with the expansion
+  **A raw command is not a drift.** Anything typed whose first word is not a sb command is offered
+  as `sb read -- <argv>`, synthesised from the query rather than from any list, with the expansion
   shown before it runs. It defaults to `$HOME` — neutral, because the canvas inherits whatever
-  directory `tb ui` started in, and any repo with a `cli/` package shadows a tool's own.
+  directory `sb ui` started in, and any repo with a `cli/` package shadows a tool's own.
 - **Only a read may be given a cadence.** See § Scope.
 - **The refresh clock lives in Python, keyed to the connection.** A watcher runs while its stream
   is open, so it pauses when the window closes and keeps running when the window is merely
@@ -145,7 +156,7 @@ The rules that are not negotiable:
   scheduler and not a daemon.
 - **Reads in, execution out.** Introspection runs in-process because walking the tree runs
   nothing. Commands run in a *subprocess*, because a thread cannot be cancelled and a watcher
-  fires unattended — one hung `git fetch` would strand a thread forever. `tb --json` already
+  fires unattended — one hung `git fetch` would strand a thread forever. `sb --json` already
   prints the envelope, so nothing parses human output.
 - **No single result may render unbounded.** The terminal surface froze for exactly this, and a
   120k-line result kills a browser tab as dead as it killed a `RichLog`. The substrate changed;
@@ -158,7 +169,7 @@ The rules that are not negotiable:
 - **Everything in `cli/canvas/static/` is served.** Anything left there is published; a test
   declares the inventory. Two scratch pages lived there during the build, one with a live token
   baked in.
-- **One number drives every size.** `--tb-scale` is injected from `tb ui --scale` and the
+- **One number drives every size.** `--sb-scale` is injected from `sb ui --scale` and the
   stylesheet is written in `rem` where `1rem` is four scaled pixels. Do not add a `px`. CSS `zoom`
   was rejected because it breaks dragging — `clientX` is unzoomed and `left` is zoomed — and
   `--force-device-scale-factor` because it *overrides* display scaling rather than multiplying it.
@@ -169,7 +180,7 @@ The rules that are not negotiable:
 - **`frameless=True` is a request, and a window manager may refuse it.** GTK reports
   `DECORATED = False` and the window manager can still draw a title bar — measured, not assumed.
   Removing it is a window-manager rule matched on `WM_CLASS`, which is why the shell sets one
-  (`toolbox`) — and **nothing here writes that rule.** A desktop belongs to whoever runs it, the
+  (`sb`) — and **nothing here writes that rule.** A desktop belongs to whoever runs it, the
   spelling differs per environment, and a tool that edited one would be reaching outside itself.
 - **Drag is not `pywebview-drag-region`.** That is a Cocoa and Windows feature; the GTK backend has
   no drag regions at all, only `easy_drag`, which makes the whole page a handle and would mean
@@ -195,16 +206,16 @@ The rules that are not negotiable:
 
 ## CLI setup
 
-**`tb` is installed on PATH.** Symlink `~/.local/bin/tb` → this repo's `tb` (that directory is
-already first on PATH), because `tb` is a homebase tool you run from anywhere.
+**`sb` is installed on PATH.** Symlink `~/.local/bin/sb` → this repo's `sb` (that directory is
+already first on PATH), because `sb` is a homebase tool you run from anywhere.
 
 **`PYTHONSAFEPATH=1` in the wrapper is load-bearing.** `python -m` prepends the current directory
-to `sys.path` *ahead of* `PYTHONPATH`, so running `tb` from inside any directory containing a
+to `sys.path` *ahead of* `PYTHONPATH`, so running `sb` from inside any directory containing a
 `cli/` package imports that one. This has already bitten once: generating systemd units from
 inside an older checkout wrote every unit with the old `WorkingDirectory`, successfully and
 silently.
 
-**The consequence is a hard rule: `tb` never assumes cwd is the project root.** Every path derives
+**The consequence is a hard rule: `sb` never assumes cwd is the project root.** Every path derives
 from `PROJECT_ROOT` in `cli/helpers.py`, and the wrapper resolves its own symlink with `realpath`
 before setting `PYTHONPATH` — otherwise `python -m cli` resolves the package relative to
 `~/.local/bin`. This is a whole class of bug: relative `PATH` entries re-resolving against each
@@ -212,43 +223,51 @@ child's cwd, 112 tests failing from a tmp dir. Read the wrapper's comments befor
 
 **A sibling CLI on PATH is not necessarily runnable from anywhere.** A wrapper that resolves its
 `.venv` against the *cwd* rather than the resolved symlink fails outside its own repo. So
-**anything tb runs from another repo needs an explicit working directory**, not just PATH.
+**anything sb runs from another repo needs an explicit working directory**, not just PATH.
 
 - **Dependencies:** `.venv` + `requirements.txt`. No `pyproject.toml`, pyright, or pre-commit
   until something needs them. Python here is 3.14.7 — new enough that a dependency may lack wheels.
 - **`--json` is a root-group flag** stored in the Click context, so the output decorator handles
   every command with no per-command boilerplate.
-- **Shell completion:** for fish, `_TB_COMPLETE=fish_source tb > ~/.config/fish/completions/tb.fish`.
+- **Shell completion:** for fish, `_SB_COMPLETE=fish_source sb > ~/.config/fish/completions/sb.fish`.
 
-**If your login shell is fish**, note that a fish *function* resolves ahead of PATH. A
-distro-packaged fish config that defines a `tb` alias will therefore shadow this CLI, and because
-that file is package-owned it comes back on update. The fix is an override in
-`~/.config/fish/config.fish`: `functions --query tb; and functions --erase tb`. If `tb` ever stops
-resolving after a system update, check there first.
+**If your login shell is fish**, note that a fish *function* resolves ahead of PATH, so a
+distro-packaged fish config that happens to define a function of the same name shadows this CLI —
+and because that file is package-owned it comes back on update. This is not hypothetical: it is
+what the old name `tb` collided with, and the 2026-08-27 rename dissolved that particular collision
+rather than solving it. The mechanism is unchanged and `sb` is a two-letter name too. The fix, if
+it ever happens again, is an override in `~/.config/fish/config.fish`:
+`functions --query sb; and functions --erase sb`. If `sb` stops resolving after a system update,
+check there first.
 
 ### Where things live
 
 | What | Where | Authored by | Versioned |
 |---|---|---|---|
 | Code, tests, docs | this repo | the project | here |
-| Saved commands (`tools.toml`) | `~/.toolbox/` (`$TB_HOME`) | the operator, and `--save` | never |
-| Capture formats and highlight rules (`formats.toml`) | `~/.toolbox/` (`$TB_HOME`) | the operator | never |
-| Declared projects (`projects.toml`) | `~/.toolbox/` (`$TB_HOME`) | the operator | never |
-| Browser profile for the canvas | `~/.local/state/tb/` (`$TB_STATE`) | the machine | never |
+| Saved commands (`tools.toml`) | `~/.sky-boss/` (`$SB_HOME`) | the operator, and `--save` | never |
+| Capture formats and highlight rules (`formats.toml`) | `~/.sky-boss/` (`$SB_HOME`) | the operator | never |
+| Declared projects (`projects.toml`) | `~/.sky-boss/` (`$SB_HOME`) | the operator | never |
+| Browser profile for the canvas | `~/.local/state/sb/` (`$SB_STATE`) | the machine | never |
 
-**`$TB_HOME` is the operator content directory, and it is outside the repo with no fallback path
-into it.** The rule it exists under: operator content used to live in this repo, justified by *the
+**`$SB_HOME` is the operator content directory, and it is outside the repo with no fallback path
+into it.** *It does have one fallback path* **outside** *the repo*: the 2026-08-27 rename moved the
+default from `~/.toolbox` to `~/.sky-boss`, and `_default_home()` in `cli/helpers.py` still returns
+the old path while it is the only one that exists. That bridge is there because an absent home
+degrades to *nothing declared* rather than raising — a silent move would have made every saved
+tool, format and project vanish with no error to read. It stops applying the moment `~/.sky-boss`
+exists, and there is deliberately no merge of the two. The rule it exists under: operator content used to live in this repo, justified by *the
 git diff is the maintenance log*, and a machine record carried a tailnet address into every commit,
 so the tool could not be published without publishing the operator. An absent home degrades to
 nothing declared rather than raising — a fresh clone has no tools and saying so every invocation
-would be noise. It is separate from `$TB_STATE` because `rm -rf ~/.local/state/tb` is a reasonable
+would be noise. It is separate from `$SB_STATE` because `rm -rf ~/.local/state/sb` is a reasonable
 way to reset the surface and must not also delete every tool the operator wrote.
 
-**The suite redirects `TB_HOME` as well as `TB_STATE`**, and that one matters more: a tool is an
-argv tb will *run*, so a suite reading the real home would register the operator's commands into
+**The suite redirects `SB_HOME` as well as `SB_STATE`**, and that one matters more: a tool is an
+argv sb will *run*, so a suite reading the real home would register the operator's commands into
 the tree under test.
 
-**The suite never touches the real state directory** — `tests/conftest.py` redirects `TB_STATE`
+**The suite never touches the real state directory** — `tests/conftest.py` redirects `SB_STATE`
 before anything imports `cli`. **Nothing operator-specific in tracked files.**
 
 ### Testing
@@ -261,7 +280,7 @@ before anything imports `cli`. **Nothing operator-specific in tracked files.**
 `pytest.ini` sets `pythonpath = .` so `cli` imports without installation, and `asyncio_mode = auto`
 because the canvas's session loop is async. Dev dependencies are in `requirements-dev.txt`.
 
-**To work on the surface**, run `tb ui --no-browser --port 8765` and point a browser at it.
+**To work on the surface**, run `sb ui --no-browser --port 8765` and point a browser at it.
 **Live reload is on and rides the session stream** — the server fingerprints `static/` on its
 existing tick and pushes a `reload` frame. A CSS edit is swapped in place and every window keeps
 its state; anything else is a full reload and loses them, because the module graph is already
@@ -272,6 +291,22 @@ a change to Python needs a restart, and that one is not made hot-reloadable on p
 exit-code mapping (including why partial is 3 and not 2), stdout purity under `--json`, that every
 API route refuses an unauthenticated request, that a watcher dies with its window, and that `data`
 never carries a failed tool's output.
+
+**`[[slug]]` references are checked** — `tests/test_docs.py`. Slugs exist so a doc can move between
+`docs/features/` and `done/` without breaking a link, which they do; what they cannot survive is
+naming a doc nobody wrote. The check found two dead on its first run (`keys` and `theme`, cited
+from `cli/resident.py`, `cli/banner.py` and a test), both dead long enough that nothing recorded
+when they broke. A slug that resolves to nothing is worse than a broken path, because it *looks*
+like it survived the move that broke it. The allowlist is two entries and each is tested to still
+need to be there.
+
+**CI runs the whole suite on push and PR** — `.github/workflows/ci.yml`, no cost gating, because
+this suite is under five seconds with no network and deciding whether to run it would cost more.
+It builds a real `.venv` rather than a bare `pip install`: `tests/test_readme.py` runs the
+README's examples through the
+actual `sb` wrapper with `PATH` pinned, so the wrapper must find `.venv/bin/python` or those tests
+fail only on a runner. Verified against a clean tree with no GTK and no system site-packages —
+`pywebview` installs, `gi` does not, and nothing imports either until a window opens.
 
 **Bound every wait.** Three tests hung rather than failed while the canvas was being built. A
 `TestClient` cannot open an endless stream at all — it collects the whole body first — so the
@@ -286,11 +321,11 @@ suite.
 
 **Raw command output must not reach `data`** for anything the CLI runs **on its own initiative** —
 a probe can print a token, and `data` reaches stdout and any future MCP surface. The property that
-makes an exception safe is not which command it is, it is **who named the argv**: `tb run` and
-`tb read` both run an argv the operator typed, and seeing its output is the feature. Any command
+makes an exception safe is not which command it is, it is **who named the argv**: `sb run` and
+`sb read` both run an argv the operator typed, and seeing its output is the feature. Any command
 that shells out on its own initiative still keeps that output out of `data`.
 
-**`tb data` is deliberately not an exception even so** — it carries parsed data only, and a tool
+**`sb data` is deliberately not an exception even so** — it carries parsed data only, and a tool
 that printed something else has failed its contract. See [[text-reads]].
 
 **Gotcha:** never `from cli.<mod> import <same_name>` in `cli/__init__.py` — it rebinds the package
@@ -302,18 +337,18 @@ Shared with sibling CLIs so the family feels like one tool.
 
 - **Python 3 + Click.** Available here: Python 3.14.7, click 8.3.3. Fail fast with a readable
   install message on a missing dependency.
-- **Layout:** `tb` bash wrapper → `cli/__main__.py` thin entry → `cli/` package. The wrapper does
+- **Layout:** `sb` bash wrapper → `cli/__main__.py` thin entry → `cli/` package. The wrapper does
   path work only (resolve symlinks, prefer `.venv`, set `PYTHONPATH`, `exec python -m cli "$@"`).
 - **Shared plumbing in `cli/helpers.py`** — `PROJECT_ROOT`, `STATE_DIR`, `run_command`. Command
   modules call these rather than building paths directly.
 - **Ops commands act on real machines** via SSH, systemd, or the filesystem — never through an API
   client. Keep any HTTP behind a dedicated adapter module.
-- **A command tb spawns gets the operator's environment, not tb's.** Everything that shells out
+- **A command sb spawns gets the operator's environment, not sb's.** Everything that shells out
   goes through `child_env()` in `cli/helpers.py`, which drops `PYTHONPATH` and `PYTHONSAFEPATH` —
   the two the wrapper exports so `python -m cli` resolves. Without it a wrapped Python tool imports
   *this* `cli` package from anywhere on the machine. `PATH` is deliberately kept: stripping the
-  venv the wrapper prepends would be tb choosing which `python3` a foreign tool finds. Not a
-  clean room — scrub what tb added to boot and nothing else. See [[subprocess-env]].
+  venv the wrapper prepends would be sb choosing which `python3` a foreign tool finds. Not a
+  clean room — scrub what sb added to boot and nothing else. See [[subprocess-env]].
 - **One palette, in `cli/theme.py`** — Skyrow Labs' **design system**, copied verbatim from its own
   `colors_and_type.css`, vendored at `docs/design/` so the copy is checkable. The system is
   dark-only by declaration.
@@ -344,7 +379,7 @@ Shared with sibling CLIs so the family feels like one tool.
   is a second consumer of that envelope — a command that prints prose has to be written twice.
 
   **A `view` describes how to present `data`; it never filters it.** Only `data` sets one, because
-  only `data` carries fields nobody here chose — tb's own commands picked theirs deliberately and
+  only `data` carries fields nobody here chose — sb's own commands picked theirs deliberately and
   auto-dropping one would be a bug wearing a feature's clothes. The key is *omitted* rather than
   null when absent, so an unshaped envelope stays byte-identical to one from before views existed.
   The rules live in `cli/view.py` and not in `render.js`, because the frontend has no test runner:
@@ -363,9 +398,9 @@ visible reversals. Feature specs convert it into buildable rounds; read it befor
 primitive-level change. `docs/features/done/` holds the completed docs — `canvas.md` (the
 surface, five rounds), `follow.md` (the streaming substrate, three rounds), `tools.md` (saved commands, three
 rounds), `highlight.md` (lexical tint, four rounds), `capture.md` (declared structure),
-`refresh.md`, `header.md` (the mark), `text-reads.md`, `subprocess-env.md`, `table-views.md` (the
+`refresh.md`, `header.md` (the mark, two rounds), `text-reads.md`, `subprocess-env.md`, `table-views.md` (the
 shaping contract, five rounds), `roll-call.md` (federating over projects), `file-follow.md` (the
-native cursor, two rounds), `chrome.md` (what a window knows about its output, three rounds), `mcp.md` (the toolbox offered to
+native cursor, two rounds), `chrome.md` (what a window knows about its output, three rounds), `mcp.md` (the tools offered to
 an agent), `delay.md` (once, later), and the constitution's rounds as they land.
 **`docs/features/` holds one draft** — `workbench.md`, the authoring surface, opened 2026-08-26.
 Everything else written before it has been executed. Every earlier spec was deleted with the

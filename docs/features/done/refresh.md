@@ -57,7 +57,7 @@ consumer that wants a cadence is what the canvas API is for. Refused with a mess
 
 **`wrap` becomes `data`.** Module, command name, catalog, tests, prose. Hard rename, no alias —
 one operator, one `tools.toml`, and an alias is a second name to test forever. A saved tool still
-saying `wrap` fails to load *loudly by name* — `tb tools` already lists tools that failed to
+saying `wrap` fails to load *loudly by name* — `sb tools` already lists tools that failed to
 load, which is the right surface for the migration message. Implementation note: `cli/data.py`
 defining a command named `data` walks straight into the import-shadowing gotcha CLAUDE.md
 records — import under an alias in `cli/__init__.py`, as `read` already must.
@@ -85,7 +85,7 @@ a confusion trap.
 
 ### Round 2 — leaving, and staying in place (2026-08-22)
 
-Two reports from the operator running `tb data --from json -- jam pr list --json --refresh`
+Two reports from the operator running `sb data --from json -- jam pr list --json --refresh`
 in a real terminal: *"it took over the whole terminal screen — we need a flag to exit out,
 like q or esc"*, and *"is there a way to have it render below the command line but not take
 over the screen? Like it does when it's just printing once."*
@@ -207,7 +207,7 @@ What the execution argued back:
 ### 2026-08-22 — the seam was used ([[capture]])
 
 `--from` gained its first values beyond `json`, exactly as designed: a *name* resolving to a
-kind or to an operator-declared format in `$TB_HOME/formats.toml` — the next format arrived as
+kind or to an operator-declared format in `$SB_HOME/formats.toml` — the next format arrived as
 a value with its own parsing contract, not a redesign. The Choice list became name resolution
 in the process; the refusal still lists what would have worked.
 
@@ -227,7 +227,7 @@ is only which one is the default.
 
 **Deliberately left out of scope:** scrolling and paging. A resident read is a view. The moment
 it takes a scroll position it owes the operator a scrollbar, a search, and a decision about
-what happens to the position when the next refresh lands — which is a pager, and `tb read |
+what happens to the position when the next refresh lands — which is a pager, and `sb read |
 less` is already a pager.
 
 ### Round 2 — shipped (2026-08-22)

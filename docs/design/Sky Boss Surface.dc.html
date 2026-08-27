@@ -26,10 +26,10 @@ input::placeholder{color:#344050}
 
 <div style="flex:none;width:184px;min-height:100vh;background:#0b1016;border-right:1px solid rgba(255,255,255,.055);display:flex;flex-direction:column">
   <div style="display:flex;align-items:center;height:44px;padding:0 16px;border-bottom:1px solid rgba(255,255,255,.055)">
-    <span style="font:700 11px 'JetBrains Mono',monospace;letter-spacing:.16em;color:#38bdf8">TOOLBOX</span>
+    <span style="font:700 11px 'JetBrains Mono',monospace;letter-spacing:.16em;color:#38bdf8">TOOLS</span>
   </div>
   <div style="flex:1"></div>
-  <div style="padding:12px 16px;border-top:1px solid rgba(255,255,255,.055);font:400 10.5px 'JetBrains Mono',monospace;color:#344050">tb &lt;tool&gt;</div>
+  <div style="padding:12px 16px;border-top:1px solid rgba(255,255,255,.055);font:400 10.5px 'JetBrains Mono',monospace;color:#344050">sb &lt;tool&gt;</div>
 </div>
 
 <div style="flex:1;min-width:0;min-height:100vh;display:flex;flex-direction:column">
@@ -52,7 +52,7 @@ input::placeholder{color:#344050}
   <sc-if value="{{ paletteFixed }}" hint-placeholder-val="{{ true }}">
   <div style="flex:none;padding:16px 18px 0">
     <div style="display:flex;align-items:center;gap:12px;height:46px;padding:0 14px;background:#0b1016;border:1px solid rgba(56,189,248,.3);border-radius:10px;box-shadow:0 0 24px rgba(56,189,248,.12)">
-      <span style="font:700 12.5px 'JetBrains Mono',monospace;color:#38bdf8">tb ▸</span>
+      <span style="font:700 12.5px 'JetBrains Mono',monospace;color:#38bdf8">sb ▸</span>
       <input value="{{ query }}" onChange="{{ onQuery }}" onKeyDown="{{ onKey }}" placeholder="type a command — net hosts, tail, wrap docker ps, run cam-health" style="flex:1;min-width:0;background:transparent;border:none;outline:none;font:400 14.5px 'JetBrains Mono',monospace;color:#e8edf4;padding:0" />
       <span onClick="{{ setPaletteFloating }}" style="padding:3px 9px;border-radius:100px;border:1px solid rgba(255,255,255,.09);font:400 10.5px 'JetBrains Mono',monospace;color:#7a8fa8;cursor:pointer;white-space:nowrap">palette: fixed</span>
       <span style="font:400 10.5px 'JetBrains Mono',monospace;color:#7a8fa8;white-space:nowrap">⏎ open window</span>
@@ -62,7 +62,7 @@ input::placeholder{color:#344050}
       <sc-for list="{{ suggestions }}" as="s" hint-placeholder-count="4">
       <div onClick="{{ s.onPick }}" style="display:grid;grid-template-columns:16px 190px 1fr auto;gap:0 14px;align-items:baseline;padding:6px 10px;border-radius:7px;cursor:pointer;background:{{ s.bg }}">
         <span style="color:{{ s.markColor }}">{{ s.mark }}</span>
-        <span style="color:{{ s.nameColor }};font-weight:500"><span style="color:#344050">tb </span>{{ s.cmd }}</span>
+        <span style="color:{{ s.nameColor }};font-weight:500"><span style="color:#344050">sb </span>{{ s.cmd }}</span>
         <span style="color:#7a8fa8">{{ s.desc }}</span>
         <span style="color:#7a8fa8;font-size:11px">{{ s.meta }}</span>
       </div>
@@ -80,7 +80,7 @@ input::placeholder{color:#344050}
         <div style="display:flex;align-items:center;gap:10px;padding:9px 13px;border-bottom:1px solid rgba(255,255,255,.055);white-space:nowrap">
           <span style="flex:none;width:6px;height:6px;border-radius:50%;background:{{ w.dot }}"></span>
           <span style="font:400 10px 'JetBrains Mono',monospace;color:#344050">#{{ w.num }}</span>
-          <span style="font:500 12.5px 'JetBrains Mono',monospace;color:#e8edf4;overflow:hidden;text-overflow:ellipsis"><span style="color:#344050">tb </span>{{ w.cmd }}</span>
+          <span style="font:500 12.5px 'JetBrains Mono',monospace;color:#e8edf4;overflow:hidden;text-overflow:ellipsis"><span style="color:#344050">sb </span>{{ w.cmd }}</span>
           <span style="font:400 11px 'JetBrains Mono',monospace;color:{{ w.metaColor }};overflow:hidden;text-overflow:ellipsis">{{ w.meta }}</span>
           <div style="flex:1"></div>
           <sc-for list="{{ w.tags }}" as="t" hint-placeholder-count="1">
@@ -139,7 +139,7 @@ input::placeholder{color:#344050}
         <div onMouseDown="{{ w.onDrag }}" style="display:flex;align-items:center;gap:10px;padding:9px 13px;border-bottom:1px solid rgba(255,255,255,.055);white-space:nowrap;cursor:move">
           <span style="flex:none;width:6px;height:6px;border-radius:50%;background:{{ w.dot }}"></span>
           <span style="font:400 10px 'JetBrains Mono',monospace;color:#344050">#{{ w.num }}</span>
-          <span style="font:500 12.5px 'JetBrains Mono',monospace;color:#e8edf4;overflow:hidden;text-overflow:ellipsis"><span style="color:#344050">tb </span>{{ w.cmd }}</span>
+          <span style="font:500 12.5px 'JetBrains Mono',monospace;color:#e8edf4;overflow:hidden;text-overflow:ellipsis"><span style="color:#344050">sb </span>{{ w.cmd }}</span>
           <span style="font:400 11px 'JetBrains Mono',monospace;color:{{ w.metaColor }};overflow:hidden;text-overflow:ellipsis">{{ w.meta }}</span>
           <div style="flex:1"></div>
           <sc-for list="{{ w.tags }}" as="t" hint-placeholder-count="1">
@@ -207,7 +207,7 @@ input::placeholder{color:#344050}
   <div style="position:fixed;left:0;top:0;right:0;bottom:0;z-index:80;background:rgba(5,9,14,.62);display:flex;align-items:flex-start;justify-content:center;padding-top:14vh">
     <div style="width:720px;max-width:92vw;background:rgba(11,16,22,.98);border:1px solid rgba(56,189,248,.3);border-radius:14px;box-shadow:0 28px 72px rgba(5,9,14,.8),0 0 24px rgba(56,189,248,.12);overflow:hidden">
       <div style="display:flex;align-items:center;gap:12px;padding:0 16px;height:52px;border-bottom:1px solid rgba(255,255,255,.055)">
-        <span style="font:700 12.5px 'JetBrains Mono',monospace;color:#38bdf8">tb ▸</span>
+        <span style="font:700 12.5px 'JetBrains Mono',monospace;color:#38bdf8">sb ▸</span>
         <input value="{{ query }}" onChange="{{ onQuery }}" onKeyDown="{{ onKey }}" placeholder="type a command" style="flex:1;min-width:0;background:transparent;border:none;outline:none;font:400 15px 'JetBrains Mono',monospace;color:#e8edf4;padding:0" />
         <span onClick="{{ setPaletteFixed }}" style="padding:3px 9px;border-radius:100px;border:1px solid rgba(255,255,255,.09);font:400 10.5px 'JetBrains Mono',monospace;color:#7a8fa8;cursor:pointer;white-space:nowrap">palette: floating</span>
         <span onClick="{{ closeOverlay }}" style="font:400 12px 'JetBrains Mono',monospace;color:#7a8fa8;cursor:pointer">esc</span>
@@ -216,7 +216,7 @@ input::placeholder{color:#344050}
         <sc-for list="{{ suggestions }}" as="s" hint-placeholder-count="4">
         <div onClick="{{ s.onPick }}" style="display:grid;grid-template-columns:16px 190px 1fr auto;gap:0 14px;align-items:baseline;padding:7px 10px;border-radius:7px;cursor:pointer;background:{{ s.bg }}">
           <span style="color:{{ s.markColor }}">{{ s.mark }}</span>
-          <span style="color:{{ s.nameColor }};font-weight:500"><span style="color:#344050">tb </span>{{ s.cmd }}</span>
+          <span style="color:{{ s.nameColor }};font-weight:500"><span style="color:#344050">sb </span>{{ s.cmd }}</span>
           <span style="color:#7a8fa8">{{ s.desc }}</span>
           <span style="color:#7a8fa8;font-size:11px">{{ s.meta }}</span>
         </div>

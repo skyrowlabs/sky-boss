@@ -34,7 +34,7 @@ with `last_run`, `result`, `overdue`, `next_run`, `scheduled_in_cron`, `kuma_con
 runs today, against the real project, with no new code in this repo:
 
 ```
-tb data --cwd ~/src/jam.sense -- jam report status --json
+sb data --cwd ~/src/jam.sense -- jam report status --json
 ```
 
 That is not a step toward the command centre. For one project it **is** the command centre. What
@@ -46,7 +46,7 @@ project, and the mistake available here is to rebuild it centrally.
 
 ## Shape
 
-**tb federates. It never owns.** Each project keeps its own state; tb reads what projects already
+**sb federates. It never owns.** Each project keeps its own state; sb reads what projects already
 publish and folds the answers together.
 
 That is not deference for its own sake — jam.sense's version is *better than a central one would
@@ -58,17 +58,17 @@ which is what makes *"never scheduled"* distinguishable from *"healthy and quiet
 remote heartbeat monitor structurally cannot see, because a job that never once pinged looks
 exactly like a job that is fine.
 
-A central ledger in tb would reproduce that badly, from further away, for six projects with
+A central ledger in sb would reproduce that badly, from further away, for six projects with
 different notions of what a run is.
 
-**This is what keeps tb stateless.** [[canvas]] rules that nothing survives the last window —
+**This is what keeps sb stateless.** [[canvas]] rules that nothing survives the last window —
 that is what makes the refresh clock a scheduler and not a daemon. Federation does not bend that
-rule; it explains why the rule was affordable. **tb is stateless because the projects are
+rule; it explains why the rule was affordable. **sb is stateless because the projects are
 stateful.** The roll-call is a read, computed fresh, gone when the window closes.
 
-It is also the boundary that already exists, one level up. tb never manages, generates, or edits
+It is also the boundary that already exists, one level up. sb never manages, generates, or edits
 another project's cron — that was written for one sibling and it generalises without amendment:
-**tb observes, never owns.**
+**sb observes, never owns.**
 
 ### A source is an argv or a path
 
@@ -76,12 +76,12 @@ Measured 2026-08-23 across the sibling repos: **four have a root executable**, s
 
 A contract requiring every project to grow a CLI would stall on the six, and the six are exactly
 the young projects where the operator most wants visibility. So a project declares a *source*, and
-tb does not care which kind it is — it already has both readers, `tb data -- <argv>` for a command
+sb does not care which kind it is — it already has both readers, `sb data -- <argv>` for a command
 and a path for a file. A project with no CLI writes a JSON file on whatever cadence it likes; a
 project with a CLI is asked a question live.
 
 ```toml
-# $TB_HOME/projects.toml — beside tools.toml, authored by the operator
+# $SB_HOME/projects.toml — beside tools.toml, authored by the operator
 [project.jam-sense]
 argv = ["jam", "report", "status", "--json"]
 cwd  = "~/src/jam.sense"
@@ -92,22 +92,22 @@ path = "~/src/house.fly/tmp/status.json"
 
 Same directory, same rules, same absent-degrades-to-nothing behaviour as [[tools]].
 
-### tb folds sources, not semantics
+### sb folds sources, not semantics
 
-The tempting move is a common schema — every project reports `{id, status, when}` and tb totals
+The tempting move is a common schema — every project reports `{id, status, when}` and sb totals
 the reds. **Rejected**, and on precedent rather than taste: [[highlight]] refused a severity
 vocabulary because ERROR/WARN/INFO is *a judgment wearing a regex's clothes*, and a cross-project
-health verdict is the same judgment one layer up. tb would be deciding that jam.sense's `red` and
+health verdict is the same judgment one layer up. sb would be deciding that jam.sense's `red` and
 breeze.brain's `degraded` mean the same thing, on no evidence, and be wrong the first time a
 project meant something specific by its own word.
 
 So round 1 folds **sources**: one block per project, each rendering its own rows under its own
 name, with the projects that failed to answer named rather than omitted. That is genuinely useful
-— six blocks in one window is the thing that does not exist today — and it commits tb to nothing
+— six blocks in one window is the thing that does not exist today — and it commits sb to nothing
 it would have to walk back.
 
 A cross-project verdict stays available to the operator *by declaration*, the way highlight rules
-already are: their words, their mapping, named on the command. Not tb's vocabulary.
+already are: their words, their mapping, named on the command. Not sb's vocabulary.
 
 ### One project down is `partial`, never blank
 
@@ -122,14 +122,14 @@ the house rule; here it is the whole feature.
 - **Does not schedule, generate, or edit any project's cron.** Not for jam.sense, not for any
   future participant. The agents that own a project own its grid.
 - **Does not keep a ledger, a database, or any history.** No `runs.jsonl` of its own, no rollup
-  cache, no trend. tb reads what already exists. If a project's history is thin, that is that
+  cache, no trend. sb reads what already exists. If a project's history is thin, that is that
   project's round to write.
-- **Does not define a status vocabulary.** No ok/warn/red of tb's own — see above.
+- **Does not define a status vocabulary.** No ok/warn/red of sb's own — see above.
 - **Does not act.** A roll-call is a read: `acts: false`, so a window may pin it and give it a
-  cadence. Restarting a failed job is `tb run` and stays the operator's finger on the trigger.
+  cadence. Restarting a failed job is `sb run` and stays the operator's finger on the trigger.
   This is [[canvas]]'s read/write line doing exactly the work it was kept for.
 - **Does not require a CLI per project**, and does not run an arbitrary executable — a source is
-  a tb-readable argv or a path, on the same footing as any other saved command.
+  a sb-readable argv or a path, on the same footing as any other saved command.
 - **Does not become a daemon**, poll in the background, or outlive its window.
 - **Does not reach a machine.** Local sources only in round 1. Remote is a real question and it is
   not this round's; the moment it is, it is SSH to a host that publishes the same contract, not a
@@ -139,11 +139,11 @@ the house rule; here it is the whole feature.
 
 ### Round 1 — the roll-call (2026-08-23)
 
-- [x] **The registry, pure.** `projects.toml` in `$TB_HOME`: parse, validate, and surface a
-      malformed entry by name rather than failing the load — the pattern `tb tools` already sets
+- [x] **The registry, pure.** `projects.toml` in `$SB_HOME`: parse, validate, and surface a
+      malformed entry by name rather than failing the load — the pattern `sb tools` already sets
       for a tool that would not load. An absent file degrades to nothing declared. Tests against a
-      redirected `TB_HOME`, per the suite's existing rule.
-- [x] **One project, read.** A single source resolved to an envelope, reusing `tb data`'s path
+      redirected `SB_HOME`, per the suite's existing rule.
+- [x] **One project, read.** A single source resolved to an envelope, reusing `sb data`'s path
       whole — `--from`, `--cwd`, and the `view` that [[table-views]] round 4 makes work on a
       nested payload. No new parsing, no new subprocess handling; if this needs either, something
       upstream is wrong and should be fixed there.
@@ -182,8 +182,8 @@ attached, or about what a failed read looks like.
 `{generated, jobs}` — a wrapped payload, which before this morning would have been fifteen crushed
 columns and a silently discarded `--cols`. The fold would have shipped unreadable.
 
-**Verified against real sources**, with `TB_HOME` redirected to a scratch directory rather than
-written into the operator's own — a projects.toml is operator content and tb does not author it
+**Verified against real sources**, with `SB_HOME` redirected to a scratch directory rather than
+written into the operator's own — a projects.toml is operator content and sb does not author it
 unasked. jam.sense answered live over its CLI (29 jobs), a second project was read from a JSON
 file on disk with no CLI involved, and a third had published nothing yet. Two failures, both
 named, both blocks present, exit 3. That last part is the whole feature: the healthy project
@@ -197,28 +197,28 @@ round.
 ### Round 1 — what the measurement changed before a line was written (2026-08-23)
 
 This doc was proposed as a foundation-building exercise — utility commands first, command centre
-later. Running the pieces against the real project inverted it. `tb data --cwd ~/src/jam.sense --
+later. Running the pieces against the real project inverted it. `sb data --cwd ~/src/jam.sense --
 jam report status --json` already returns all 27 jobs with their verdicts. The foundation was not
 missing; the fold was, and the fold is one round.
 
 Two things were rejected on evidence gathered the same afternoon:
 
 **A central ledger.** Proposed in conversation as the answer to "does anything survive the last
-window" — a daemon, or a state file tb owns. Reading `run_ledger.py` killed it: jam.sense's is
+window" — a daemon, or a state file sb owns. Reading `run_ledger.py` killed it: jam.sense's is
 append-only for a concurrency reason a central one would have to rediscover, joins against the
 live crontab for a reason a remote monitor structurally cannot, and is tuned to a retention window
-its own author measured (695 rows over 16.6 days → 2,600 for 60). tb would have built a worse one
-and made itself a daemon to do it. **The projects are stateful, so tb does not have to be.**
+its own author measured (695 rows over 16.6 days → 2,600 for 60). sb would have built a worse one
+and made itself a daemon to do it. **The projects are stateful, so sb does not have to be.**
 
 **A common status schema.** Killed by [[highlight]]'s precedent, which is the more useful half:
-the argument against a severity vocabulary was never about severity. It is that tb does not get to
+the argument against a severity vocabulary was never about severity. It is that sb does not get to
 decide what another tool's word means. Folding sources rather than semantics costs the round its
 flashiest feature — one number for "how many things are red across everything" — and buys the
 contract the ability to be wrong about nothing.
 
 The registry-vs-tools question resolved the way [[table-views]]'s persistence question did:
 `projects.toml` sits beside `tools.toml` in the same directory under the same rules, rather than
-inventing a store. Worth noticing that this is now the third feature to want `$TB_HOME` and the
+inventing a store. Worth noticing that this is now the third feature to want `$SB_HOME` and the
 first to want a *second file* in it — if a fourth arrives, the shape of that directory becomes its
 own question rather than a series of additions.
 

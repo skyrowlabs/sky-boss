@@ -3,20 +3,20 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>toolbox</title>
+<title>sky.boss</title>
 <!-- The palette, injected from cli/theme.py. Nothing outside that module names
      a colour, so the stylesheet names roles and the server hands it values. -->
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-<!-- One number the whole stylesheet is measured in; `tb ui --scale` sets it. -->
-<style>__TB_TOKENS__ :root { --tb-scale: __TB_SCALE__; }</style>
-<link rel="stylesheet" href="/static/tb.css">
+<!-- One number the whole stylesheet is measured in; `sb ui --scale` sets it. -->
+<style>__SB_TOKENS__ :root { --sb-scale: __SB_SCALE__; }</style>
+<link rel="stylesheet" href="/static/sb.css">
 </head>
 <body>
 <div id="root"></div>
 <!-- The token is written into the page rather than passed in the URL. A hostile
      site cannot read it back: a cross-origin read of this HTML is exactly what
      the same-origin policy forbids. See cli/canvas/server.py. -->
-<script>window.TB_TOKEN = "__TB_TOKEN__";</script>
+<script>window.SB_TOKEN = "__SB_TOKEN__";</script>
 <script type="module" src="/static/app.js"></script>
 </body>
 </html>

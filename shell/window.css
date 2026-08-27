@@ -1,8 +1,8 @@
 /* A stub's stylesheet, and nothing more. The real one is
- * cli/canvas/static/tb.css — 478 lines measured in a single scaled rem, with
+ * cli/canvas/static/sb.css — 478 lines measured in a single scaled rem, with
  * the palette injected from cli/theme.py so that nothing outside that module
  * names a colour. Porting it is a port, not a rewrite: it is the same
- * Chromium, and the only thing that changes is who injects `__TB_TOKENS__`.
+ * Chromium, and the only thing that changes is who injects `__SB_TOKENS__`.
  * These few rules exist so the pipe can be seen working, and are meant to be
  * deleted. */
 * { box-sizing: border-box; }

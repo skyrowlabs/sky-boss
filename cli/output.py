@@ -1,7 +1,7 @@
-"""Output contract for the tb CLI.
+"""Output contract for the sb CLI.
 
 Command functions return a :class:`Result`; this module owns every byte that
-reaches the terminal. Three consumers read command output — a human, ``tb
+reaches the terminal. Three consumers read command output — a human, ``sb
 brief`` merging across domains, and the MCP server — so a command that formats
 its own prose has to be written three times.
 
@@ -44,7 +44,7 @@ MAX_TABLE_ROWS = 2000
 #
 # There was a second Theme here, the same roles undarkened, for a surface that
 # rendered captured Rich output on a background it painted itself. The canvas
-# does not: it renders from the envelope's data rather than from tb's bytes, so
+# does not: it renders from the envelope's data rather than from sb's bytes, so
 # the full-strength rendering of the palette reaches it as CSS custom
 # properties instead. See cli/theme.css_variables.
 THEME = Theme(STYLES)
@@ -89,7 +89,7 @@ class Capture:
     Keeping the envelopes is what stops `--json` being a second trip. `emit`
     already holds the `Result` at the moment it renders it, and used to throw
     the structure away; a consumer that wanted the data had to run the command
-    again, which for `tb run` means running the *job* again.
+    again, which for `sb run` means running the *job* again.
 
     They collect on the capture rather than in a module global so a background
     refreshing on another thread cannot leave its envelope where the
@@ -107,10 +107,10 @@ class Capture:
 
 @contextlib.contextmanager
 def capture(width: int = 100, redirect: bool = True, theme: Theme | None = None):
-    """Redirect every byte tb would print into a buffer.
+    """Redirect every byte sb would print into a buffer.
 
     This module claims to own every byte that reaches the terminal. A surface
-    that renders tb output somewhere other than a terminal — `tb tui` today —
+    that renders sb output somewhere other than a terminal — `sb tui` today —
     has to be able to take that claim up rather than route around it, which is
     why capture lives here and not in the consumer.
 
@@ -135,7 +135,7 @@ def capture(width: int = 100, redirect: bool = True, theme: Theme | None = None)
 
     `COLUMNS` is set for the same reason the redirect exists. rich-click's own
     console is built where nothing here can reach it, so swapping the globals
-    sizes every byte tb writes and none of the bytes `--help` writes — help
+    sizes every byte sb writes and none of the bytes `--help` writes — help
     came out at Rich's 80-column default whatever width was asked for. Setting
     `rich_click.WIDTH` does not take; the environment variable is the one lever
     that reaches a console constructed somewhere else. Harmless for the rest,
@@ -184,7 +184,7 @@ def capture(width: int = 100, redirect: bool = True, theme: Theme | None = None)
             os.environ["COLUMNS"] = saved_columns
 
 # Exit codes. `partial` gets its own code so a caller can branch on degradation
-# without parsing anything — which is what makes tb commands composable inside
+# without parsing anything — which is what makes sb commands composable inside
 # job definitions.
 #
 # NOT 2: Click exits 2 on usage errors ("No such option"), and a caller
@@ -299,7 +299,7 @@ class Result:
 
 # A snapshot wears its bands only once the output has a middle. Two lines of
 # chrome around three lines of content is ceremony outweighing what it frames,
-# and a band on every `tb read` of a two-line command is the thing an operator
+# and a band on every `sb read` of a two-line command is the thing an operator
 # would want a flag to turn off — and [[chrome]] refuses flags. Measured at a
 # terminal rather than chosen: see the round 3 Notes.
 BAND_MIN_LINES = 12
@@ -361,7 +361,7 @@ def saved_note(saved: dict | None) -> None:
     """Say what `--save` wrote, on stderr. See [[tools]] round 3.
 
     stderr for the reason every band uses it: this is status, not payload, and
-    `tb read --save=x -- thing | grep` must still see exactly the lines the
+    `sb read --save=x -- thing | grep` must still see exactly the lines the
     tool printed.
 
     It names the **expansion**, not just the file. The file tells you a write
@@ -371,13 +371,13 @@ def saved_note(saved: dict | None) -> None:
     if not saved:
         return
     spans = [
-        ("saved ", "tb.label"),
-        (saved["name"], "tb.accent"),
-        (" → ", "tb.muted"),
-        (saved["runs"], "tb.path"),
+        ("saved ", "sb.label"),
+        (saved["name"], "sb.accent"),
+        (" → ", "sb.muted"),
+        (saved["runs"], "sb.path"),
     ]
     if saved.get("refresh"):
-        spans.append((f"  refresh {saved['refresh']}s", "tb.muted"))
+        spans.append((f"  refresh {saved['refresh']}s", "sb.muted"))
     band(spans)
 
 
@@ -390,7 +390,7 @@ def _render_json(result: Result) -> None:
 def _render_warnings(result: Result) -> None:
     """Warnings always go to stderr, in both modes.
 
-    This is what keeps stdout parseable: `tb --json ... | jq` gets clean JSON
+    This is what keeps stdout parseable: `sb --json ... | jq` gets clean JSON
     while the warnings still reach the terminal. They also remain in the JSON
     envelope, so a machine consumer sees them structurally.
     """
@@ -412,7 +412,7 @@ def _render_human(
         from cli import chrome as chrome_
 
         facts = chrome_.snapshot(
-            source or result.command or "tb",
+            source or result.command or "sb",
             ok=result.ok,
             partial=result.partial,
             warnings=len(result.warnings),
@@ -424,9 +424,9 @@ def _render_human(
         band(top)
 
     if not result.ok:
-        _err().print(f"[tb.fail]{FAIL_GLYPH} {result.command} failed[/tb.fail]")
+        _err().print(f"[sb.fail]{FAIL_GLYPH} {result.command} failed[/sb.fail]")
     elif result.partial:
-        _err().print(f"[tb.warn]{UNKNOWN_GLYPH} {result.command} — partial[/tb.warn]")
+        _err().print(f"[sb.warn]{UNKNOWN_GLYPH} {result.command} — partial[/sb.warn]")
 
     _render_value(result.data, title=result.command or None, view=result.view)
 
@@ -446,10 +446,10 @@ def _render_human(
 def _header(title: str | None, subtitle: str | None = None) -> None:
     if not title:
         return
-    line = Text.assemble(("● ", "tb.accent"), (title, "bold"))
+    line = Text.assemble(("● ", "sb.accent"), (title, "bold"))
     if subtitle:
         line.append("  ")
-        line.append(subtitle, style="tb.muted")
+        line.append(subtitle, style="sb.muted")
     _out().print(line)
     _out().print()
 
@@ -497,7 +497,7 @@ def _render_mapping(mapping: dict, indent: int = 2, view: dict | None = None) ->
             pad_edge=False,
             padding=(0, 3, 0, 0),
         )
-        table.add_column(style="tb.label", no_wrap=True)
+        table.add_column(style="sb.label", no_wrap=True)
         table.add_column(overflow="fold")
         for key, value in flat.items():
             table.add_row(str(key), _styled_value(value, key))
@@ -508,10 +508,10 @@ def _render_mapping(mapping: dict, indent: int = 2, view: dict | None = None) ->
         # nowhere to appear on exactly the payload shape this round is about.
         # It goes beside the key instead, which is where a reader is already
         # looking to find out what this block is.
-        heading = Text(key, style="tb.accent")
+        heading = Text(key, style="sb.accent")
         if isinstance(value, list) and all(isinstance(v, dict) for v in value):
             heading.append("  ")
-            heading.append(_dimensions(value), style="tb.muted")
+            heading.append(_dimensions(value), style="sb.muted")
         _out().print(Padding(heading, (0, 0, 0, max(indent - 2, 0))))
         sub = view_for(view, key)
         if isinstance(value, dict):
@@ -538,7 +538,7 @@ def _is_block(value: Any) -> bool:
     A dict, or a list of dicts — `gpus`, `disks`, `filesystems`. Without this a
     list of dicts renders as `str(dict)` inside a key/value row.
 
-    And multi-line text. `tb run` carries a command's stdout, and folding an
+    And multi-line text. `sb run` carries a command's stdout, and folding an
     aligned table into a key/value cell wraps every row at the column edge and
     destroys the alignment that was the reason to look at it.
     """
@@ -587,13 +587,13 @@ def _render_status_list(rows: list[dict], title: str | None) -> None:
     for row, label in zip(rows, labels):
         state = row.get("ok")
         if state is True:
-            glyph, style = OK_GLYPH, "tb.ok"
+            glyph, style = OK_GLYPH, "sb.ok"
             passed += 1
         elif state is False:
-            glyph, style = FAIL_GLYPH, "tb.fail"
+            glyph, style = FAIL_GLYPH, "sb.fail"
             failed += 1
         else:
-            glyph, style = UNKNOWN_GLYPH, "tb.muted"
+            glyph, style = UNKNOWN_GLYPH, "sb.muted"
             unknown += 1
 
         line = Text("  ")
@@ -601,20 +601,20 @@ def _render_status_list(rows: list[dict], title: str | None) -> None:
         line.append(label.ljust(width), style="bold" if state is False else "")
         detail = row.get("detail")
         line.append("   ")
-        line.append(str(detail) if detail else "", style="tb.muted")
+        line.append(str(detail) if detail else "", style="sb.muted")
         _out().print(line)
 
     _out().print()
     summary = Text("  ")
-    summary.append(f"{passed} passed", style="tb.muted")
+    summary.append(f"{passed} passed", style="sb.muted")
     if failed:
         summary.append("   ")
-        summary.append(f"{failed} failed", style="tb.fail")
+        summary.append(f"{failed} failed", style="sb.fail")
     if unknown:
         # Counted explicitly: rows with no verdict must not vanish from the
         # tally, or the footer quietly under-reports what it looked at.
         summary.append("   ")
-        summary.append(f"{unknown} unknown", style="tb.muted")
+        summary.append(f"{unknown} unknown", style="sb.muted")
     _out().print(summary)
 
 
@@ -633,7 +633,7 @@ def _render_columns(
 
     Without a view this is what it always was: every key of every row, in
     first-seen order, at equal width. That is right for data whose fields a
-    person chose, and it is what tb's own commands still get.
+    person chose, and it is what sb's own commands still get.
 
     With one, the columns and their relative widths were decided in cli/view.py
     and this only draws them — `no_wrap` with ellipsis overflow is what stops a
@@ -658,7 +658,7 @@ def _render_columns(
             if key not in columns:
                 columns.append(key)
 
-    table = Table(box=None, show_header=True, header_style="tb.label", pad_edge=False, padding=(0, 3, 0, 0))
+    table = Table(box=None, show_header=True, header_style="sb.label", pad_edge=False, padding=(0, 3, 0, 0))
     for col in columns:
         table.add_column(str(col).upper(), justify="right" if _numeric_column(rows, col) else "left")
     for row in rows:
@@ -758,9 +758,9 @@ def _render_view(rows: list[dict], view: dict, indent: int = 0) -> None:
         if i:
             header.append(pad)
         last = i == len(columns) - 1
-        header.append(_fit(column["label"], width, column.get("align"), last), style="tb.label")
+        header.append(_fit(column["label"], width, column.get("align"), last), style="sb.label")
     emit(header)
-    emit(Text("─" * total, style="tb.muted"))
+    emit(Text("─" * total, style="sb.muted"))
 
     for index, row in enumerate(rows[:MAX_TABLE_ROWS]):
         line = Text()
@@ -778,7 +778,7 @@ def _render_view(rows: list[dict], view: dict, indent: int = 0) -> None:
             if not text or text == EMPTY:
                 continue
             for chunk in textwrap.wrap(text, body_width) or [""]:
-                emit(Text(" " * hang + chunk, style="tb.muted"))
+                emit(Text(" " * hang + chunk, style="sb.muted"))
 
         # Only when there is something hanging off the record. Without details
         # the blank lines would be spacing a plain table apart for no reason.
@@ -786,7 +786,7 @@ def _render_view(rows: list[dict], view: dict, indent: int = 0) -> None:
             emit(Text(""))
 
     if len(rows) > MAX_TABLE_ROWS:
-        emit(Text(f"{len(rows) - MAX_TABLE_ROWS} more rows not shown", style="tb.warn"))
+        emit(Text(f"{len(rows) - MAX_TABLE_ROWS} more rows not shown", style="sb.warn"))
 
     # Named, never silent — the half of the old budget rule that survives. It
     # belongs here rather than in the envelope's warnings because it is a fact
@@ -797,7 +797,7 @@ def _render_view(rows: list[dict], view: dict, indent: int = 0) -> None:
             Text(
                 f"{count} column{'' if count == 1 else 's'} did not fit: "
                 f"{', '.join(overflowed)} — widen, or use --cols",
-                style="tb.warn",
+                style="sb.warn",
             )
         )
 
@@ -842,7 +842,7 @@ def _view_cell(row: dict, column: dict) -> Text:
     """
     value = resolve(row, column["key"])
     if column.get("summarise") and isinstance(value, dict):
-        return Text(summarise_mapping(value), style="tb.muted")
+        return Text(summarise_mapping(value), style="sb.muted")
     return _styled_value(value, column["key"])
 
 
@@ -862,27 +862,27 @@ def _styled_value(value: Any, key: str | None = None) -> Text:
     as rich markup and either vanish or raise.
     """
     if value is None:
-        return Text(EMPTY, style="tb.muted")
+        return Text(EMPTY, style="sb.muted")
     if isinstance(value, bool):
         return (
-            Text(f"{OK_GLYPH} yes", style="tb.ok")
+            Text(f"{OK_GLYPH} yes", style="sb.ok")
             if value
-            else Text(f"{FAIL_GLYPH} no", style="tb.fail")
+            else Text(f"{FAIL_GLYPH} no", style="sb.fail")
         )
     if isinstance(value, (list, tuple)):
         if not value:
-            return Text(EMPTY, style="tb.muted")
-        return Text(", ".join(_cell(v) for v in value), style="tb.muted")
+            return Text(EMPTY, style="sb.muted")
+        return Text(", ".join(_cell(v) for v in value), style="sb.muted")
     if isinstance(value, (int, float)):
         # Convention, like `ok`: a field named `*_bytes` carries a raw byte count
         # in the envelope and is humanized only here. Machines get the number,
         # humans get the unit.
         if key and str(key).endswith("_bytes"):
-            return Text(humanize_bytes(int(value)), style="tb.num")
-        return Text(str(value), style="tb.num")
+            return Text(humanize_bytes(int(value)), style="sb.num")
+        return Text(str(value), style="sb.num")
     text = str(value)
     if text.startswith("/"):
-        return Text(text, style="tb.path")
+        return Text(text, style="sb.path")
     return Text(text)
 
 
@@ -915,7 +915,7 @@ def band_text(spans) -> Text:
 def band(spans) -> None:
     """One chrome band line, on stderr through whichever console owns it.
 
-    stderr, deliberately: a band is status, not payload. `tb read -- x | grep`
+    stderr, deliberately: a band is status, not payload. `sb read -- x | grep`
     must see exactly the lines the tool printed, the same purity rule that
     keeps warnings off stdout. See [[chrome]].
     """
@@ -932,7 +932,7 @@ def exit_code(result: Result) -> int:
 
 
 def _command_path(ctx: click.Context) -> str:
-    """Click's "tb fleet status" as the dotted "fleet.status".
+    """Click's "sb fleet status" as the dotted "fleet.status".
 
     This is the canonical command name: it goes in the envelope and becomes the
     MCP tool name, so deriving it from the actual command path means the two can
@@ -947,7 +947,7 @@ def _source_of(ctx, name: str) -> str:
 
     Built from the live context rather than carried in the envelope, for the
     reason the whole feature exists under: chrome is what the surface knows
-    that the output does not say. `tb data -- jam report status --json` is a
+    that the output does not say. `sb data -- jam report status --json` is a
     more useful thing to see above a table than `data`, and neither the machine
     consumer nor the envelope needs to know it. See [[chrome]] round 3.
     """
@@ -987,10 +987,10 @@ def emit(func):
             # own handling; swallowing it here would break both.
             raise
         except Exception as exc:
-            # TB_DEBUG=1 re-raises so you get the real traceback. Without an
+            # SB_DEBUG=1 re-raises so you get the real traceback. Without an
             # escape hatch, turning every exception into a tidy envelope makes
             # the CLI undebuggable.
-            if os.environ.get("TB_DEBUG"):
+            if os.environ.get("SB_DEBUG"):
                 raise
             result = Result(
                 command=name,

@@ -1,7 +1,7 @@
 """The roll-call — many projects, one answer.
 
-Every test here runs against a redirected `TB_HOME` (conftest sets it before
-anything imports `cli`). That matters more than usual: a project is a source tb
+Every test here runs against a redirected `SB_HOME` (conftest sets it before
+anything imports `cli`). That matters more than usual: a project is a source sb
 will *run*, so a suite reading the real home would be shelling out to whatever
 the operator happens to have declared.
 """
@@ -41,7 +41,7 @@ description = "declares no source at all"
 
 def test_declaring_both_a_command_and_a_file_is_refused(tmp_path):
     """Two different claims about where this project's truth lives. Picking one
-    would be tb guessing which the operator meant."""
+    would be sb guessing which the operator meant."""
     write(tmp_path, """
 [project.both]
 argv = ["echo"]
@@ -95,7 +95,7 @@ def test_parse_reads_no_file():
 from cli.rollcall import Project, ask  # noqa: E402
 
 
-def test_a_command_source_is_read_by_tb_datas_own_path():
+def test_a_command_source_is_read_by_sb_datas_own_path():
     project = Project(name="p", argv=["printf", '[{"a": 1}]'])
     result = ask(project)
     assert result.ok is True
@@ -148,7 +148,7 @@ def invoke(args=()):
 def home(tmp_path, monkeypatch):
     h = tmp_path / "home"
     h.mkdir()
-    monkeypatch.setattr("cli.rollcall.TB_HOME", h)
+    monkeypatch.setattr("cli.rollcall.SB_HOME", h)
     return h
 
 

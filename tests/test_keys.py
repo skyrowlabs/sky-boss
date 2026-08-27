@@ -1,4 +1,4 @@
-"""Leaving a resident view. See [[refresh]] round 2 and [[keys]].
+"""Leaving a resident view. See [[refresh]] round 2 and [[follow]] round 2.
 
 The properties worth defending: `q` and `Esc` end the loop, an arrow key does
 not, a non-terminal degrades to a plain sleep rather than failing, and the

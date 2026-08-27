@@ -2,7 +2,7 @@
 
 The failure this prevents already happened next door: jam.sense's brand assets
 used #38bcf7 while the app used --primary, because the hex had been written out
-in two places. tb had three copies of its palette — the Rich theme, the --help
+in two places. sb had three copies of its palette — the Rich theme, the --help
 config, and the TUI's stylesheet — agreeing only because they were typed the
 same afternoon.
 """
@@ -50,7 +50,7 @@ def test_no_stylesheet_smuggles_a_colour_past_the_hex_scan():
     above would not see it. The mockup is built out of exactly these, so this is
     the form the drift would actually take here.
 
-    `color-mix(in srgb, var(--tb-brand) 12%, transparent)` is the way to say the
+    `color-mix(in srgb, var(--sb-brand) 12%, transparent)` is the way to say the
     same thing in terms of a role, which is why the stylesheet uses it.
     """
     literals = re.compile(r"\b(rgba?|hsla?)\s*\(\s*[\d.]+[\s,]", re.IGNORECASE)
@@ -69,23 +69,23 @@ def test_every_token_the_stylesheet_uses_is_defined():
     nothing, so a typo here is a colourless surface rather than an error.
 
     **A token used with a fallback is exempt, and that is the real rule.**
-    `var(--tb-scale, 2)` names something the *server* injects from
-    `tb ui --scale` rather than something the palette owns, and it carries a
+    `var(--sb-scale, 2)` names something the *server* injects from
+    `sb ui --scale` rather than something the palette owns, and it carries a
     default precisely so a failed substitution renders at the normal size
-    instead of collapsing. A bare `var(--tb-brand)` has no such safety net,
+    instead of collapsing. A bare `var(--sb-brand)` has no such safety net,
     which is why only bare uses have to be accounted for.
     """
     import re as _re
 
     from cli.theme import css_variables
 
-    stylesheet = (PROJECT_ROOT / "cli/canvas/static/tb.css").read_text()
-    bare = set(_re.findall(r"var\(\s*--(tb-[a-z0-9-]+)\s*\)", stylesheet))
-    assert bare, "found no --tb-* tokens at all — did the stylesheet move?"
+    stylesheet = (PROJECT_ROOT / "cli/canvas/static/sb.css").read_text()
+    bare = set(_re.findall(r"var\(\s*--(sb-[a-z0-9-]+)\s*\)", stylesheet))
+    assert bare, "found no --sb-* tokens at all — did the stylesheet move?"
 
     # The stylesheet builds a few of its own from the injected roles — a tint is
     # a role plus an alpha, not a new colour — so those count as defined too.
-    derived = set(_re.findall(r"^\s*--(tb-[a-z0-9-]+)\s*:", stylesheet, _re.MULTILINE))
+    derived = set(_re.findall(r"^\s*--(sb-[a-z0-9-]+)\s*:", stylesheet, _re.MULTILINE))
     defined = set(css_variables()) | derived
 
     assert bare <= defined, f"undefined tokens: {sorted(bare - defined)}"
@@ -96,23 +96,23 @@ def test_the_scale_token_keeps_its_fallback():
     failed injection would render the whole canvas at zero."""
     import re as _re
 
-    stylesheet = (PROJECT_ROOT / "cli/canvas/static/tb.css").read_text()
-    uses = _re.findall(r"var\(\s*--tb-scale\s*(,[^)]*)?\)", stylesheet)
+    stylesheet = (PROJECT_ROOT / "cli/canvas/static/sb.css").read_text()
+    uses = _re.findall(r"var\(\s*--sb-scale\s*(,[^)]*)?\)", stylesheet)
     assert uses, "the stylesheet no longer scales"
-    assert all(use.strip() for use in uses), "a bare var(--tb-scale) has no safety net"
+    assert all(use.strip() for use in uses), "a bare var(--sb-scale) has no safety net"
 
 
 def test_the_stylesheet_defines_no_token_the_palette_already_owns():
     """A role redefined in the stylesheet is a second source for it, and the two
     would drift. Deriving a *new* name from an injected one is fine; that is
-    what `--tb-tint` is. Shadowing `--tb-brand` is not."""
+    what `--sb-tint` is. Shadowing `--sb-brand` is not."""
     import re as _re
 
     from cli.theme import css_variables
 
-    stylesheet = (PROJECT_ROOT / "cli/canvas/static/tb.css").read_text()
+    stylesheet = (PROJECT_ROOT / "cli/canvas/static/sb.css").read_text()
     defined_here = set(
-        _re.findall(r"^\s*--(tb-[a-z0-9-]+)\s*:", stylesheet, _re.MULTILINE)
+        _re.findall(r"^\s*--(sb-[a-z0-9-]+)\s*:", stylesheet, _re.MULTILINE)
     )
     clashes = defined_here & set(css_variables())
     assert not clashes, f"the stylesheet redefines palette roles: {sorted(clashes)}"
@@ -163,19 +163,19 @@ def test_the_two_renderings_cover_the_same_hues():
     """One system, two renderings — and the check that they are the same system.
 
     The vocabularies differ on purpose: the CLI's roles name what a value *is*
-    (`tb.ok`, `tb.path`), while the canvas's tokens name what the design system
-    calls it (`--tb-ok`, `--tb-brand`). What has to hold across them is that
+    (`sb.ok`, `sb.path`), while the canvas's tokens name what the design system
+    calls it (`--sb-ok`, `--sb-brand`). What has to hold across them is that
     every hue the CLI darkens ships to the canvas undarkened, so the two are the
     same palette seen under different lighting rather than two palettes.
     """
     tokens = css_variables()
     for name, raw in (
-        ("tb-brand", BRAND),
-        ("tb-ok", OK),
-        ("tb-warn", WARN),
-        ("tb-danger", DANGER),
-        ("tb-text-2", TEXT_2),
-        ("tb-text-3", TEXT_3),
+        ("sb-brand", BRAND),
+        ("sb-ok", OK),
+        ("sb-warn", WARN),
+        ("sb-danger", DANGER),
+        ("sb-text-2", TEXT_2),
+        ("sb-text-3", TEXT_3),
     ):
         assert tokens[name] == raw, f"{name} is not the design system's value"
 
@@ -184,7 +184,7 @@ def test_every_cli_role_survives_an_unknown_terminal_background():
     """The reason the CLI does not simply use the design system's tokens.
 
     Skyrow's system is dark-only by declaration and its colours are unreadable
-    on white — brand measures 2.14 there, ok 1.74, warn 1.44. tb renders into
+    on white — brand measures 2.14 there, ok 1.74, warn 1.44. sb renders into
     whoever's terminal, so each CLI role is the smallest darkening of its token
     that clears this floor against *both* backgrounds. If someone ever
     "corrects" one of these back to the raw token, this fails.
@@ -203,8 +203,8 @@ def test_the_canvas_shows_the_brand_at_full_strength():
     """The canvas paints BG itself, so it is the one surface that needs no
     concession. Darkening there would dim the brand against a background that
     never required it."""
-    assert css_variables()["tb-brand"] == BRAND
-    assert THEME.styles["tb.accent"].color.get_truecolor().hex.lower() != BRAND
+    assert css_variables()["sb-brand"] == BRAND
+    assert THEME.styles["sb.accent"].color.get_truecolor().hex.lower() != BRAND
 
 
 def test_the_tokens_still_match_the_design_system():

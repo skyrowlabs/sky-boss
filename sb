@@ -1,7 +1,7 @@
 #!/bin/bash
-# toolbox CLI wrapper
+# sky.boss CLI wrapper
 #
-# Usage: tb [command] [options]
+# Usage: sb [command] [options]
 #
 # Thin wrapper: it does path work only. All behavior lives in cli/.
 
@@ -9,16 +9,16 @@ set -e
 
 # Resolve this script's REAL location before anything else.
 #
-# Unlike `jam` and `bbrain`, `tb` is invoked through a symlink on PATH
-# (~/.local/bin/tb), so BASH_SOURCE points at the symlink, not the repo. And
+# Unlike `jam` and `bbrain`, `sb` is invoked through a symlink on PATH
+# (~/.local/bin/sb), so BASH_SOURCE points at the symlink, not the repo. And
 # `python -m cli` resolves the package from sys.path rather than from the
-# script's location — so without realpath + PYTHONPATH below, running `tb` from
+# script's location — so without realpath + PYTHONPATH below, running `sb` from
 # any directory but the repo root fails to find the cli package at all.
 SCRIPT_DIR="$( cd "$( dirname "$(realpath "${BASH_SOURCE[0]}")" )" && pwd )"
 export PYTHONPATH="$SCRIPT_DIR${PYTHONPATH:+:$PYTHONPATH}"
 
 # ...and stop the *cwd* winning anyway. `python -m` prepends the current
-# directory to sys.path ahead of PYTHONPATH, so running `tb` from inside any
+# directory to sys.path ahead of PYTHONPATH, so running `sb` from inside any
 # directory that happens to contain a `cli/` package imports that one instead
 # of this repo's. That is not hypothetical: installing this repo's systemd
 # units from inside an older checkout generated every unit with the old
@@ -29,8 +29,8 @@ export PYTHONSAFEPATH=1
 VENV_PYTHON="$SCRIPT_DIR/.venv/bin/python"
 
 if [ -x "$VENV_PYTHON" ]; then
-    # Put the chosen interpreter's bin dir on PATH so anything tb spawns gets
-    # the same interpreter tb itself runs on.
+    # Put the chosen interpreter's bin dir on PATH so anything sb spawns gets
+    # the same interpreter sb itself runs on.
     VENV_BIN="${VENV_PYTHON%/*}"
     case ":$PATH:" in
         *":$VENV_BIN:"*) ;;

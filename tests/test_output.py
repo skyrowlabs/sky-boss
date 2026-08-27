@@ -251,9 +251,9 @@ def test_non_result_return_is_caught(app):
     assert "expected Result" in envelope["data"]["error"]
 
 
-def test_tb_debug_reraises(app, monkeypatch):
+def test_sb_debug_reraises(app, monkeypatch):
     """Without an escape hatch, tidy error envelopes make the CLI undebuggable."""
-    monkeypatch.setenv("TB_DEBUG", "1")
+    monkeypatch.setenv("SB_DEBUG", "1")
     res = CliRunner().invoke(app, ["fleet", "boom"])
     assert isinstance(res.exception, RuntimeError)
 
@@ -304,7 +304,7 @@ def test_help_honours_the_captured_width():
     for width in (46, 60, 120):
         with capture(width=width) as captured:
             try:
-                cli.main(args=["--help"], prog_name="tb", standalone_mode=False, obj={})
+                cli.main(args=["--help"], prog_name="sb", standalone_mode=False, obj={})
             except click.exceptions.Exit:
                 pass
         text = re.sub(r"\x1b\[[0-9;]*m", "", captured.text)
@@ -362,7 +362,7 @@ def test_concurrent_captures_do_not_post_into_each_other():
     def worker(index, command):
         with capture(width=100, redirect=False) as captured:
             try:
-                command.main(args=[], prog_name="tb", standalone_mode=False, obj={})
+                command.main(args=[], prog_name="sb", standalone_mode=False, obj={})
             except click.exceptions.Exit:
                 pass
         results[index] = captured.text
@@ -495,7 +495,7 @@ def test_a_view_summarises_a_nested_dict_into_one_cell(capsys):
 
 
 def test_no_view_renders_exactly_as_it_always_did(capsys):
-    """tb's own commands must be untouched by any of this — their fields were
+    """sb's own commands must be untouched by any of this — their fields were
     chosen by whoever wrote the command."""
     render(Result("x", data=[{"a": 1, "b": 2}]), as_json=False)
     assert _body(capsys.readouterr().out)[0].split() == ["A", "B"]

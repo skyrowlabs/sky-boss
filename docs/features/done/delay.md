@@ -16,7 +16,7 @@ key_files:
 
 ## Why
 
-From the ideas list: *"future runs (non crontab or systemd), `tb run --delay=[seconds] [cmd]`."*
+From the ideas list: *"future runs (non crontab or systemd), `sb run --delay=[seconds] [cmd]`."*
 
 Taken literally the flag is already two things you have. If it survives your terminal it is a
 worse `systemd-run --on-active=300`. If it does not, it is `sleep 300 && cmd`. Neither is worth
@@ -28,16 +28,16 @@ the terminal without saying so; `systemd-run` survives but is invisible unless y
 is the ordinary case: *I want this to run in five minutes, I want to watch it happen, and I want
 to change my mind.*
 
-That is a thing tb is unusually well placed to draw, because it already draws it. The chrome
+That is a thing sb is unusually well placed to draw, because it already draws it. The chrome
 contract computes a countdown for every refreshing window (`chrome.countdown()`); the resident
 loop already redraws once a second and already leaves on `q`. A delayed run is those two parts
 pointed at a command that has not started yet.
 
 ## Shape
 
-    tb run --delay 5m -- ./deploy.sh
+    sb run --delay 5m -- ./deploy.sh
 
-A resident countdown, then the run, then exactly what `tb run` prints today, then exit.
+A resident countdown, then the run, then exactly what `sb run` prints today, then exit.
 
 **Once-later is still once.** This looks like it violates the sharpest rule in the project and
 does not, so it is stated here rather than discovered in review. [[refresh]] rules that **`run`
@@ -69,7 +69,7 @@ have a round.
 **Does not do:**
 
 - **No survival, no detach, no `nohup`, no unit generation.** A command that must outlive the
-  surface belongs to systemd, and tb will not generate the unit for you — the same line
+  surface belongs to systemd, and sb will not generate the unit for you — the same line
   [[follow]] draws for streams.
 - **No repeat.** `--delay` is not `--refresh` and there is no `--every`. Once, later, once.
 - **No absolute times.** `--delay 5m`, not `--at 19:00`. Absolute is a real want and a separate

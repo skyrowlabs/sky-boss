@@ -1,13 +1,13 @@
-"""tb ui — the canvas.
+"""sb ui — the canvas.
 
 A command palette over a window canvas: every command opens a window, windows
 tile or float, and a pinned window re-runs itself on a cadence. It replaces
-`tb tui`, which proved the output contract works with a second consumer and
+`sb tui`, which proved the output contract works with a second consumer and
 then ran into the ceiling of its medium — overlapping draggable windows are the
 central metaphor here, and a terminal cannot do them.
 
 **A surface, not a verb.** It renders the same envelope every command returns
-rather than adding one of its own, which is why `tb run` stays the only door
+rather than adding one of its own, which is why `sb run` stays the only door
 that acts even with the canvas in front of it.
 
 The window is a native webview (`cli/canvas/shell.py`), which is what makes it
@@ -88,7 +88,7 @@ def _launch_browser(binary: str, url: str, *, kiosk: bool, size: str | None) -> 
         "--no-default-browser-check",
         # So the window manager files it under its own name rather than
         # grouping it with every other Chromium window.
-        "--class=toolbox",
+        "--class=sb",
     ]
     if kiosk:
         argv.append("--kiosk")
@@ -128,10 +128,10 @@ def ui(
     """Open the canvas — a command palette over tiled and floating windows.
 
     A surface, not a verb: it renders the same envelope every command returns
-    and adds none of its own, which is why `tb run` stays the only door that
+    and adds none of its own, which is why `sb run` stays the only door that
     acts even with the canvas in front of it. Development mode:
 
-        tb ui --no-browser --port 8765
+        sb ui --no-browser --port 8765
     """
     import uvicorn
 
@@ -239,7 +239,7 @@ def ui(
         with contextlib.suppress(KeyboardInterrupt):
             shell.open_window(
                 url,
-                title="toolbox",
+                title="sky.boss",
                 width=width,
                 height=height,
                 on_closed=stop,
@@ -259,4 +259,4 @@ def ui(
 
 # A surface, not an entry in its own palette. Read by `cli/canvas/catalog.py`,
 # which asks the command rather than keeping a list of names to skip.
-ui.tb_surface = True
+ui.sb_surface = True

@@ -43,7 +43,7 @@ input::placeholder{color:#344050}
           </sc-for>
         </sc-for>
       </div>
-      <div style="flex:none;padding:9px 14px;border-top:1px solid rgba(255,255,255,.055);font-size:11px;color:#344050">the box is a file — tb only ever appends</div>
+      <div style="flex:none;padding:9px 14px;border-top:1px solid rgba(255,255,255,.055);font-size:11px;color:#344050">the box is a file — sb only ever appends</div>
     </div>
 
     <div style="flex:1;display:flex;flex-direction:column;min-width:0;min-height:0">
@@ -109,14 +109,14 @@ input::placeholder{color:#344050}
 <pre style="margin:0;white-space:pre-wrap;color:#7a8fa8;font:inherit;font-size:12.5px;line-height:1.65"><span style="display:block"><span style="color:#344050">20:41</span> resolving 214 modules</span><span style="display:block"><span style="color:#344050">20:43</span> compiled 214 files · <span style="color:#4ade80">0 errors</span></span><span style="display:block"><span style="color:#344050">20:44</span> suite: 112 passed, 0 failed</span><span style="display:block"><span style="color:#344050">20:47</span> packaging → dist/</span></pre>
             <div style="display:flex;align-items:center;gap:10px;margin-top:12px"><span style="flex:1;height:1px;background:rgba(255,255,255,.055)"></span><span style="font-size:10.5px;letter-spacing:.1em;color:#e6dc0e">QUIET 3m — THE FILE IS THERE, IT HAS NOT GROWN</span><span style="flex:1;height:1px;background:rgba(255,255,255,.055)"></span></div>
           </div>
-          <div style="flex:none;padding:9px 20px;font-size:11px;color:#344050;line-height:1.55;border-top:1px solid rgba(255,255,255,.055)">a bare path takes the native cursor — tb stats the file, so <b style="color:#7a8fa8;font-weight:400">quiet</b> and <b style="color:#7a8fa8;font-weight:400">dead</b> are different words. <b style="color:#7a8fa8;font-weight:400">--</b> instead would stream a command.</div>
+          <div style="flex:none;padding:9px 20px;font-size:11px;color:#344050;line-height:1.55;border-top:1px solid rgba(255,255,255,.055)">a bare path takes the native cursor — sb stats the file, so <b style="color:#7a8fa8;font-weight:400">quiet</b> and <b style="color:#7a8fa8;font-weight:400">dead</b> are different words. <b style="color:#7a8fa8;font-weight:400">--</b> instead would stream a command.</div>
         </sc-if>
 
         <sc-if value="{{ isRun }}" hint-placeholder-val="{{ false }}">
           <div style="flex:1;min-height:0;display:flex;align-items:center;justify-content:center;padding:20px">
             <div style="width:560px;border:1px solid color-mix(in srgb,#f4665b 30%,transparent);background:color-mix(in srgb,#f4665b 5%,transparent);border-radius:9px;padding:18px 20px">
               <div style="font:700 14px/1.2 'Space Grotesk',Inter,sans-serif;letter-spacing:-.02em;color:#f4665b">an act has no trial run</div>
-              <div style="margin-top:8px;font-size:11.5px;color:#7a8fa8;line-height:1.6">Every other contract on this bench is drafted by running it and looking. This one cannot be: tb will not run a write to show you what it would print. What the bench can still check, it has:</div>
+              <div style="margin-top:8px;font-size:11.5px;color:#7a8fa8;line-height:1.6">Every other contract on this bench is drafted by running it and looking. This one cannot be: sb will not run a write to show you what it would print. What the bench can still check, it has:</div>
               <div style="margin-top:12px;display:flex;flex-direction:column;gap:6px;font-size:11.5px">
                 <div style="display:flex;gap:9px"><span style="color:#4ade80">✓</span><span style="flex:1;color:#7a8fa8">argv parses — 5 words, no unbalanced quote</span></div>
                 <div style="display:flex;gap:9px"><span style="color:#4ade80">✓</span><span style="flex:1;color:#7a8fa8">gh resolves on PATH</span></div>
@@ -250,7 +250,7 @@ input::placeholder{color:#344050}
   STEPS = [0, 5, 30, 60, 300];
   BENCH = {
     data: {
-      name: 'tb data', nature: 'OBSERVES', label: 'prs', cwd: '~/src/jam.sense', argv: 'jam pr list --json',
+      name: 'sb data', nature: 'OBSERVES', label: 'prs', cwd: '~/src/jam.sense', argv: 'jam pr list --json',
       blurb: 'Read another CLI’s structured output as data. A tool that printed something else has failed its contract, and the envelope says so rather than carrying the bytes.',
       sig: '[--cwd <dir>] [--cols <list>] [--from <name>] [--refresh <n>] [--save <name>] -- <argv>',
       top: 'jam pr list --json · data · refresh 30s', right: '⟳ next in 12s', rightColor: '#38bdf8',
@@ -265,7 +265,7 @@ input::placeholder{color:#344050}
       ]
     },
     read: {
-      name: 'tb read', nature: 'OBSERVES', label: 'graph', cwd: '~/src/sky-boss', argv: 'git log --graph --oneline -12',
+      name: 'sb read', nature: 'OBSERVES', label: 'graph', cwd: '~/src/sky-boss', argv: 'git log --graph --oneline -12',
       blurb: 'Show what a command printed, verbatim. For tools with no --json, and for authored output whose layout is knowledge rather than decoration.',
       sig: '[--cwd <dir>] [--refresh <n>] [--save <name>] -- <argv>',
       top: 'git log --graph --oneline -12 · read', right: 'snapshot', rightColor: '#344050',
@@ -278,7 +278,7 @@ input::placeholder{color:#344050}
       ]
     },
     follow: {
-      name: 'tb follow', nature: 'OBSERVES', label: 'build', cwd: '~/src/sky-boss', argv: 'build.log',
+      name: 'sb follow', nature: 'OBSERVES', label: 'build', cwd: '~/src/sky-boss', argv: 'build.log',
       blurb: 'Hold content open. A bare path takes the native file cursor — stat-aware, rotation-proof, backfilled. A -- takes a command that never exits. Dispatch is by argument shape and nothing else.',
       sig: '[--due <every>] [--lines <n>] [--highlight <name>] [--save <name>] <path> | -- <argv>',
       top: 'build.log · follow · due 15m', right: 'quiet 3m · last write 20:47', rightColor: '#e6dc0e',
@@ -286,14 +286,14 @@ input::placeholder{color:#344050}
       flags: [
         { flag: '--due', desc: 'you expect a line at least this often: 15m, 2h, 90s. Past it, the band says late — which is how silence becomes a fact instead of an absence' },
         { flag: '--lines', desc: 'how many lines the window keeps. The file stays the scrollback of record' },
-        { flag: '--highlight', desc: 'also tint with the patterns you declared under [highlight.NAME] in formats.toml. They run after tb’s and claim only unclaimed text' },
+        { flag: '--highlight', desc: 'also tint with the patterns you declared under [highlight.NAME] in formats.toml. They run after sb’s and claim only unclaimed text' },
         { flag: '--cwd', desc: 'run it here' },
         { flag: '--save', desc: 'save this invocation as a saved command, then follow it' }
       ]
     },
     run: {
-      name: 'tb run', nature: 'ACTS', label: 'ci-check', cwd: '~/src/jam.sense', argv: 'gh workflow run develop-ci-check.yml',
-      blurb: 'Run a command and report what it printed. The only command in tb that acts — which is why nothing here may give it a cadence.',
+      name: 'sb run', nature: 'ACTS', label: 'ci-check', cwd: '~/src/jam.sense', argv: 'gh workflow run develop-ci-check.yml',
+      blurb: 'Run a command and report what it printed. The only command in sb that acts — which is why nothing here may give it a cadence.',
       sig: '[--cwd <dir>] [--delay <when>] [--timeout <n>] -- <argv>',
       top: 'gh workflow run develop-ci-check.yml · run · acts', right: 'not run', rightColor: '#f4665b',
       foot: 'no trial — an act has no preview', footColor: '#f4665b', footRight: 'the exit code is the whole verdict',
@@ -350,11 +350,11 @@ input::placeholder{color:#344050}
       saveNote = 'run does not take --save — --save saves by example, and the example ran. Paste the block yourself; editing and deleting stay $EDITOR’s.';
       saveLabel = 'copy';
     } else if (e === 'follow') {
-      saveLine = 'tb follow --due 15m --lines 200 --save build -- build.log';
+      saveLine = 'sb follow --due 15m --lines 200 --save build -- build.log';
       saveNote = '--save is the only writer of tools.toml and it only ever appends. The bench types the line; it is not a second writer.';
       saveLabel = 'save';
     } else {
-      saveLine = 'tb ' + e + ' --cwd ' + B.cwd + ' ' + colsFlag + refreshFlag + '--save ' + B.label + ' -- ' + B.argv;
+      saveLine = 'sb ' + e + ' --cwd ' + B.cwd + ' ' + colsFlag + refreshFlag + '--save ' + B.label + ' -- ' + B.argv;
       saveNote = '--save is the only writer of tools.toml and it only ever appends. The bench types the line; it is not a second writer.';
       saveLabel = 'save';
     }

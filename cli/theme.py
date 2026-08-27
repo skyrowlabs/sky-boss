@@ -76,7 +76,7 @@ BORDER = TEXT_3
 # `docs/design/cli-header.png` drawn in half-blocks — see cli/banner.py. These
 # are the design system's own values, undarkened, and that is deliberate: the
 # mark **paints its own background**, so it is in the same position the canvas
-# is in rather than the CLI's. The derivations below exist because tb prints
+# is in rather than the CLI's. The derivations below exist because sb prints
 # into a terminal whose background nobody here knows; a painted panel removes
 # the unknown.
 #
@@ -122,14 +122,14 @@ CLI_PATH = "#698bab"  # a steel blue at the same floor   3.57 / 5.59
 # this module names a colour.
 
 STYLES: dict[str, str] = {
-    "tb.accent": f"bold {CLI_BRAND}",
-    "tb.label": CLI_LABEL,
-    "tb.muted": CLI_FAINT,
-    "tb.ok": CLI_OK,
-    "tb.fail": CLI_DANGER,
-    "tb.warn": CLI_WARN,
-    "tb.num": CLI_BRAND,
-    "tb.path": CLI_PATH,
+    "sb.accent": f"bold {CLI_BRAND}",
+    "sb.label": CLI_LABEL,
+    "sb.muted": CLI_FAINT,
+    "sb.ok": CLI_OK,
+    "sb.fail": CLI_DANGER,
+    "sb.warn": CLI_WARN,
+    "sb.num": CLI_BRAND,
+    "sb.path": CLI_PATH,
 }
 
 
@@ -153,17 +153,17 @@ def css_variables() -> dict[str, str]:
     would be the start of the second palette this file exists to prevent.
     """
     return {
-        "tb-bg": BG,
-        "tb-surface": SURFACE,
-        "tb-surface-2": SURFACE_2,
-        "tb-text": TEXT,
-        "tb-text-2": TEXT_2,
-        "tb-text-3": TEXT_3,
-        "tb-brand": BRAND,
-        "tb-ok": OK,
-        "tb-warn": WARN,
-        "tb-danger": DANGER,
-        "tb-border": BORDER,
+        "sb-bg": BG,
+        "sb-surface": SURFACE,
+        "sb-surface-2": SURFACE_2,
+        "sb-text": TEXT,
+        "sb-text-2": TEXT_2,
+        "sb-text-3": TEXT_3,
+        "sb-brand": BRAND,
+        "sb-ok": OK,
+        "sb-warn": WARN,
+        "sb-danger": DANGER,
+        "sb-border": BORDER,
     }
 
 

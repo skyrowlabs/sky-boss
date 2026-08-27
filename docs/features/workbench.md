@@ -20,7 +20,7 @@ key_files:
 The palette is a one-line composer: type a command, it runs, a window opens. That is the right
 shape for invoking something you already trust and the wrong shape for **authoring** something you
 do not. Every knob that makes an invocation correct — which contract, which columns, which
-cadence, which working directory — is currently either typed blind or discovered by running `tb`
+cadence, which working directory — is currently either typed blind or discovered by running `sb`
 in a second terminal and pasting the result back into the first.
 
 `--cols` is the clearest case. `jam pr list --json` returns fourteen columns; the useful table is
@@ -34,7 +34,7 @@ The second diagnostic came from the design pass. On a canvas whose every pane is
 timestamped lines, three of the four output contracts have nowhere to appear: the shaped table,
 the verbatim block, the file cursor with its stat row. They are built, tested, and invisible. The
 workbench is the one screen where all four are visible at once, **because it is the only screen
-where you choose between them** — and the choosing is the thing tb says no parser can do for you.
+where you choose between them** — and the choosing is the thing sb says no parser can do for you.
 
 The console the mockup started from was two screens wearing one. It carried a job rail and a live
 tail (watching, which the tower already does better) bolted to a composer (authoring, which
@@ -55,7 +55,7 @@ really use — the shaped table, the verbatim block, the ring, the file cursor �
 [[chrome]] band for that temporal shape, top and bottom. Nothing is re-implemented: this is the
 existing execution path pointed at a page that has room for the result.
 
-For `run` there is no trial. tb will not execute a write to show you what it would print, so the
+For `run` there is no trial. sb will not execute a write to show you what it would print, so the
 bench offers what it *can* check without running — the argv parses, the executable resolves, the
 `--cwd` exists — and a single button that runs it for real, labelled as such. The asymmetry is not
 a limitation to apologise for; it is the act/observe split appearing a third time, after `--help`
@@ -76,7 +76,7 @@ a write is a scheduler nobody asked for). Absent, not disabled: a greyed control
 argument the design already had.
 
 **`--save` stays the only writer of `tools.toml`.** The bench composes
-`tb data --cwd … --cols … --refresh 30 --save prs -- jam pr list --json`, shows it, and runs it as
+`sb data --cwd … --cols … --refresh 30 --save prs -- jam pr list --json`, shows it, and runs it as
 a subprocess. The surface still has no writer of its own, no route that touches the file, and the
 append-only, refuse-a-duplicate behaviour is unchanged because it is the same code path. On `run`
 there is no save at all — `--save` saves by example and the example ran — so the bench renders the
@@ -93,7 +93,7 @@ carries the contract's own *acts* or *observes* badge, because a rail that lists
   [[canvas]]'s no-CORS test does.
 - **No editing or deleting a saved tool.** `--save` appends and refuses a name that exists.
   Editing and deleting stay `$EDITOR`'s, unchanged by a surface existing.
-- **No dry run, ever.** There is no `--what-if` for an act and inventing one would mean tb
+- **No dry run, ever.** There is no `--what-if` for an act and inventing one would mean sb
   modelling what a foreign command does.
 - **No inferring the contract from the argv.** The selector is the assertion. A bench that guessed
   `data` from a trailing `--json` would be the act/observe split undone by a heuristic.

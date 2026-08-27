@@ -50,9 +50,9 @@ _TRAILING = ".,;:!?'\")]}"
 #
 # The rest of the shapes an agent's log actually contains, each taking the
 # role its *kind* already has in a table cell (`cli/output.py`'s `_cell`:
-# numbers `tb.num`, path-like strings `tb.path`). One value vocabulary across
-# both surfaces — a number that looked like a number in `tb data` and like
-# prose in `tb follow` would be two palettes wearing one name. See [[highlight]].
+# numbers `sb.num`, path-like strings `sb.path`). One value vocabulary across
+# both surfaces — a number that looked like a number in `sb data` and like
+# prose in `sb follow` would be two palettes wearing one name. See [[highlight]].
 
 # Inline code. Takes the *path* role rather than a hue of its own: a code span
 # and a path are the same kind of thing — a literal, an identifier — and the
@@ -102,8 +102,8 @@ _NUMBER = re.compile(r"(?<![\w-])\d[\d,_]*(?:\.\d+)?(?:%|[a-zA-Z]{1,3})?(?![\w-]
 # module has held since round 1 — but the reasoning is worth stating because
 # they look like the vocabulary rules that are refused.
 #
-# A check mark is not tb deciding a line went well; it is tb reading a symbol
-# whose meaning is not in dispute, and `tb data` already renders a true
+# A check mark is not sb deciding a line went well; it is sb reading a symbol
+# whose meaning is not in dispute, and `sb data` already renders a true
 # boolean as a green `✓` and a false one as a red `✗` (`_cell` in
 # cli/output.py). One value vocabulary, two surfaces — a check is green in a
 # table cell, so it is green in a log line.
@@ -120,14 +120,14 @@ _INFO_GLYPH = re.compile(r"\U0001F535|\U0001F7E6")
 # A word that names a colour, in that colour. Standalone only — `\b` on both
 # sides, so `reported` is not `red`.
 _COLOUR_WORDS = {
-    "red": "tb.fail",
-    "green": "tb.ok",
-    "yellow": "tb.warn",
-    "amber": "tb.warn",
-    "orange": "tb.warn",
-    "blue": "tb.accent",
-    "grey": "tb.muted",
-    "gray": "tb.muted",
+    "red": "sb.fail",
+    "green": "sb.ok",
+    "yellow": "sb.warn",
+    "amber": "sb.warn",
+    "orange": "sb.warn",
+    "blue": "sb.accent",
+    "grey": "sb.muted",
+    "gray": "sb.muted",
 }
 _COLOUR_WORD = re.compile(
     r"\b(?:" + "|".join(sorted(_COLOUR_WORDS)) + r")\b", re.IGNORECASE
@@ -136,7 +136,7 @@ _COLOUR_WORD = re.compile(
 # Markdown emphasis, which the agent prose in these logs leans on for its
 # findings. **Bold is a weight, not a colour**, so it composes with whatever
 # colour a mark already carries instead of competing for the same slot — the
-# role becomes `bold tb.path`, which Rich reads directly and the canvas splits
+# role becomes `bold sb.path`, which Rich reads directly and the canvas splits
 # into two classes. The `**` markers stay on screen: marks tint characters and
 # never alter them, and a renderer that hid them would be editing the log.
 _BOLD = re.compile(r"\*\*(?=\S)[^\n]{1,300}?\*\*")
@@ -153,18 +153,18 @@ MAX_MARKS = 64
 # match wins and nothing nests, so a number inside a code span or a `:75`
 # inside a path is claimed once, by the outer shape.
 _RULES: tuple[tuple[re.Pattern, str, bool], ...] = (
-    (_CODE, "tb.path", False),
-    (_URL, "tb.path", True),
-    (_OK_GLYPH, "tb.ok", False),
-    (_OK_EMOJI, "tb.ok", False),
-    (_FAIL_GLYPH, "tb.fail", False),
-    (_WARN_GLYPH, "tb.warn", False),
-    (_INFO_GLYPH, "tb.accent", False),
-    (_PATH, "tb.path", True),
-    (_DATE, "tb.num", False),
-    (_TIME, "tb.num", False),
-    (_REF, "tb.num", False),
-    (_NUMBER, "tb.num", True),
+    (_CODE, "sb.path", False),
+    (_URL, "sb.path", True),
+    (_OK_GLYPH, "sb.ok", False),
+    (_OK_EMOJI, "sb.ok", False),
+    (_FAIL_GLYPH, "sb.fail", False),
+    (_WARN_GLYPH, "sb.warn", False),
+    (_INFO_GLYPH, "sb.accent", False),
+    (_PATH, "sb.path", True),
+    (_DATE, "sb.num", False),
+    (_TIME, "sb.num", False),
+    (_REF, "sb.num", False),
+    (_NUMBER, "sb.num", True),
 )
 
 
@@ -179,14 +179,14 @@ def marks(text: str, ruleset: "Ruleset | None" = None) -> list[Mark]:
     **It runs last and claims only text no built-in rule claimed**, so a
     timestamp stays muted and a tag stays a tag whatever the operator writes.
     Letting a declaration win would make every built-in rule conditional on a
-    file tb does not ship, and the first surprising log would be
+    file sb does not ship, and the first surprising log would be
     unexplainable.
     """
     found: list[Mark] = []
 
     stamp = _TIMESTAMP.match(text)
     if stamp:
-        found.append((0, stamp.end(), "tb.muted"))
+        found.append((0, stamp.end(), "sb.muted"))
 
     # The tag rule is positional: immediately after the timestamp (spaces
     # allowed) or at line start — a bracket mid-prose is prose.
@@ -195,7 +195,7 @@ def marks(text: str, ruleset: "Ruleset | None" = None) -> list[Mark]:
         at += 1
     tag = _TAG.match(text, at)
     if tag:
-        found.append((tag.start(), tag.end(), "tb.accent"))
+        found.append((tag.start(), tag.end(), "sb.accent"))
 
     for pattern, role, trim in _RULES:
         for match in pattern.finditer(text):
@@ -239,7 +239,7 @@ def _emphasise(text: str, coloured: list[Mark]) -> list[Mark]:
     Bold is the one attribute here that is not a colour, so it does not
     compete for the slot: a mark inside an emphasised range keeps its role and
     gains `bold`, and the stretches with no colour of their own become bold on
-    their own. Rich reads `"bold tb.path"` directly; the canvas splits it into
+    their own. Rich reads `"bold sb.path"` directly; the canvas splits it into
     two classes. Nothing overlaps and the list stays flat, which is what lets
     the frontend keep applying marks dumbly.
     """
@@ -289,9 +289,9 @@ def spans(text: str, ruleset: "Ruleset | None" = None) -> list[tuple[str, str | 
 # Declared rules — the operator's own words. See [[highlight]] round 3.
 # ============================================================================
 #
-# **Shape is tb's; vocabulary is the operator's.** `ESCALATE`, `Done.`,
+# **Shape is sb's; vocabulary is the operator's.** `ESCALATE`, `Done.`,
 # `handing to 'claude'` — the words that matter in one operator's log and mean
-# nothing in anyone else's. tb cannot know them and must not guess, for exactly
+# nothing in anyone else's. sb cannot know them and must not guess, for exactly
 # the reason it does not guess columns ([[capture]]): a word list is a judgment
 # wearing a regex's clothes. So it is declared, in the file that already holds
 # declarations about output, and named on the command that follows the stream.
@@ -301,13 +301,13 @@ def spans(text: str, ruleset: "Ruleset | None" = None) -> list[tuple[str, str | 
 # own file on their own machine, at `tools.toml`'s trust level.
 MAX_PATTERN = 200
 
-# What a declared rule may ask for: the palette's role names, minus the `tb.`
+# What a declared rule may ask for: the palette's role names, minus the `sb.`
 # prefix the operator should not have to type. A role the theme does not
 # define is refused by name — nothing operator-authored gets near a colour.
 def _roles() -> dict[str, str]:
     from cli.theme import STYLES
 
-    return {name.removeprefix("tb."): name for name in STYLES}
+    return {name.removeprefix("sb."): name for name in STYLES}
 
 
 @dataclass(frozen=True)

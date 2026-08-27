@@ -1,4 +1,4 @@
-"""tb follow — one verb, two mechanisms, dispatch by shape. See [[follow]].
+"""sb follow — one verb, two mechanisms, dispatch by shape. See [[follow]].
 
 The properties worth defending: the dispatch rule has no third shape, a
 stream refuses --json because it has no envelope to promise, any exit is a
@@ -25,7 +25,7 @@ def test_anything_with_a_separator_is_the_file_form():
 
 
 def test_a_bare_word_no_executable_answers_to_is_a_file():
-    """`tb follow new.log` before the log's first write is legitimate —
+    """`sb follow new.log` before the log's first write is legitimate —
     absent-then-appearing is a state the cursor owns."""
     assert is_file_form(("definitely-not-a-command-xyz.log",))
 
@@ -183,10 +183,10 @@ def test_a_keyword_wrapping_a_file_follow_loads_and_inherits_observe(tmp_path):
         assert problems == []
         entry = {e["name"]: e for e in walk(cli)}["tools cron"]
         assert entry["acts"] is False and entry["resident"] is True
-        assert tools_group.commands["cron"].tb_argv[1].startswith("/")
+        assert tools_group.commands["cron"].sb_argv[1].startswith("/")
     finally:
         for name in [
-            n for n, c in list(tools_group.commands.items()) if getattr(c, "tb_saved", False)
+            n for n, c in list(tools_group.commands.items()) if getattr(c, "sb_saved", False)
         ]:
             del tools_group.commands[name]
 
@@ -216,7 +216,7 @@ def test_a_keyword_wrapping_follow_inherits_residency_and_refuses_a_cadence(tmp_
         assert entry["acts"] is False
     finally:
         for name in [
-            n for n, c in list(tools_group.commands.items()) if getattr(c, "tb_saved", False)
+            n for n, c in list(tools_group.commands.items()) if getattr(c, "sb_saved", False)
         ]:
             del tools_group.commands[name]
 

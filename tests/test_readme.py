@@ -3,9 +3,9 @@
 A README that shows a command which no longer works is worse than one with no
 examples, because it has already told you the command exists — the same
 argument [[canvas]] makes about a palette that cannot drift. Every ```console
-block whose lines start with `$ tb ` is run here.
+block whose lines start with `$ sb ` is run here.
 
-Blocks fenced as ```bash are *illustration*: resident views, `tb ui`, anything
+Blocks fenced as ```bash are *illustration*: resident views, `sb ui`, anything
 needing a network or a real terminal. They are deliberately not run, and the
 fence is the marker rather than a list of exceptions in this file.
 """
@@ -19,7 +19,7 @@ import pytest
 
 README = Path(__file__).resolve().parents[1] / "README.md"
 
-# `$ tb …` inside a ```console fence. The prompt is what makes a line a command
+# `$ sb …` inside a ```console fence. The prompt is what makes a line a command
 # rather than the output beneath it.
 _CONSOLE = re.compile(r"```console\n(.*?)```", re.S)
 
@@ -43,14 +43,14 @@ def test_the_readme_has_examples():
 def test_a_readme_example_runs(command, tmp_path):
     """Run it the way a reader would, from a clone, through the wrapper.
 
-    `TB_HOME` is redirected like everywhere else in this suite: an example must
+    `SB_HOME` is redirected like everywhere else in this suite: an example must
     not depend on what the operator happens to have saved, and must not run
-    their commands. The one example that names its own `TB_HOME` keeps it.
+    their commands. The one example that names its own `SB_HOME` keeps it.
     """
     root = README.parent
     # Through a shell, always. The examples contain pipes, shell quoting and an
-    # inline `TB_HOME=` prefix, and reconstructing those into an argv would mean
-    # testing something adjacent to what the README shows. `tb` resolves off
+    # inline `SB_HOME=` prefix, and reconstructing those into an argv would mean
+    # testing something adjacent to what the README shows. `sb` resolves off
     # PATH the way a reader's would, pointed at this clone.
     proc = subprocess.run(
         command,
@@ -62,7 +62,7 @@ def test_a_readme_example_runs(command, tmp_path):
         env={
             "PATH": f"{root}:/usr/bin:/bin",
             "HOME": str(tmp_path),
-            "TB_HOME": str(tmp_path / "home"),
+            "SB_HOME": str(tmp_path / "home"),
             "COLUMNS": "76",
         },
     )

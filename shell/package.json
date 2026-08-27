@@ -1,8 +1,8 @@
 {
-  "name": "toolbox-shell",
+  "name": "sky-boss-shell",
   "private": true,
   "version": "0.0.1",
-  "description": "The window. An Electron host for the canvas tb already serves — and, in main.js, the OS-window model it was measured against.",
+  "description": "The window. An Electron host for the canvas sb already serves — and, in main.js, the OS-window model it was measured against.",
   "main": "main.js",
   "scripts": {
     "start": "electron .",

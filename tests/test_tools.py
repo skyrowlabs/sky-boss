@@ -1,7 +1,7 @@
-"""The toolbox — commands the operator saved.
+"""The tools — commands the operator saved.
 
 The properties worth defending are the three that keep operator content from
-becoming a way around tb's own rules: a tool expands to a tb command and not a
+becoming a way around sb's own rules: a tool expands to a sb command and not a
 shell command, it inherits `acts` rather than declaring it, and it may only
 carry a cadence if it reads. The fourth — a builtin always wins — retired into
 structure in round 2: saved commands live behind the `tools` group, where
@@ -45,20 +45,20 @@ def test_a_declared_tool_becomes_a_tool():
     assert tools[0].description == "open PRs"
 
 
-# ------------------------------------------------------- rule 1: a tb argv
+# ------------------------------------------------------- rule 1: a sb argv
 
 
 def test_a_tool_cannot_name_a_bare_executable():
-    """A tool that could name any executable would be a second `tb run` — one
+    """A tool that could name any executable would be a second `sb run` — one
     that skips the read/write distinction the whole design rests on."""
     tools, problems = one({"tool": {"x": {"argv": ["docker", "ps"]}}})
     assert tools == []
-    assert "must start with a tb command" in problems[0]
+    assert "must start with a sb command" in problems[0]
 
 
 def test_the_refusal_names_the_way_to_do_it():
     """The mistake this catches is someone writing a shell command. Refusing
-    without saying which tb command would have run it wastes the trip."""
+    without saying which sb command would have run it wastes the trip."""
     _, problems = one({"tool": {"x": {"argv": ["docker", "ps"]}}})
     assert "data" in problems[0] and "run" in problems[0]
 
@@ -71,9 +71,9 @@ def test_argv_must_be_a_non_empty_list_of_strings(argv):
 
 def test_a_tool_still_saying_wrap_fails_loudly_by_name():
     """The migration path for a hard rename with no alias. A saved tool whose
-    argv starts with the old word must not fall into the generic not-a-tb-command
+    argv starts with the old word must not fall into the generic not-a-sb-command
     refusal — the operator wrote `wrap` when `wrap` was right, and the message
-    owes them the new name. `tb tools` lists it; see [[refresh]]."""
+    owes them the new name. `sb tools` lists it; see [[refresh]]."""
     tools, problems = one({"tool": {"prs": {"argv": ["wrap", "--", "x", "--json"]}}})
     assert tools == []
     assert "renamed" in problems[0] and "'data'" in problems[0]
@@ -103,8 +103,8 @@ def test_a_declared_acts_field_is_ignored_rather_than_believed():
 @pytest.mark.parametrize("name", ["run", "data", "ui"])
 def test_a_builtin_name_on_a_tool_is_no_longer_a_collision(name):
     """Round 2's reversal, on the record: a saved `run` lives at
-    `tb tools run` and collides with nothing, so the validation rule became
-    structure. The registration half below proves `tb run` still resolves to
+    `sb tools run` and collides with nothing, so the validation rule became
+    structure. The registration half below proves `sb run` still resolves to
     the builtin."""
     tools, problems = one({"tool": {name: {"argv": ["data", "--", "x"]}}})
     assert problems == []
@@ -161,7 +161,7 @@ def test_a_tool_still_saying_every_fails_loudly_by_name():
 
 def test_one_bad_tool_does_not_cost_the_operator_the_good_ones():
     """The failure this prevents is a typo in the ninth entry silently emptying
-    the toolbox."""
+    the tools."""
     tools, problems = one(
         {
             "tool": {
@@ -182,7 +182,7 @@ def test_an_absent_home_declares_nothing_and_says_nothing(tmp_path):
 
 def test_a_file_that_cannot_be_parsed_is_reported_rather_than_raised(tmp_path):
     """It exists, so the operator expects it to work — but one broken file must
-    not stop tb running at all."""
+    not stop sb running at all."""
     tmp_path.mkdir(parents=True, exist_ok=True)
     (tmp_path / "tools.toml").write_text("this is not = = toml")
     tools, problems = load(COMMANDS, home=tmp_path)
@@ -226,14 +226,14 @@ def saved(tmp_path):
     yield declare
 
     for name in [
-        n for n, c in list(tools_group.commands.items()) if getattr(c, "tb_saved", False)
+        n for n, c in list(tools_group.commands.items()) if getattr(c, "sb_saved", False)
     ]:
         del tools_group.commands[name]
 
 
 def test_a_tool_is_an_ordinary_command_behind_the_tools_group(saved):
     """Round 2's address: behind the group, never on the root — the
-    builtin/operator line shows in `tb --help` because the tree carries it."""
+    builtin/operator line shows in `sb --help` because the tree carries it."""
     saved('[tool.prs]\nargv = ["data", "--", "printf", "[]"]\n')
     assert "prs" in tools_group.commands
     assert "prs" not in cli.commands
@@ -253,7 +253,7 @@ def test_the_palette_finds_a_tool_without_the_catalog_knowing_about_tools(saved)
 
 def test_a_tool_wrapping_run_is_marked_as_acting_in_the_catalog(saved):
     """The safety property. `acts` is otherwise derived from the command path,
-    and the path of `tb tools deploy-thing` says nothing about the `run` inside
+    and the path of `sb tools deploy-thing` says nothing about the `run` inside
     it — so the canvas would offer a refresh cadence on a write, which is the
     one thing the read/write split exists to prevent."""
     saved('[tool.deploy]\nargv = ["run", "--", "true"]\n')
@@ -267,8 +267,8 @@ def test_a_tool_wrapping_data_stays_pinnable(saved):
 
 
 def test_a_saved_run_no_longer_collides_with_the_builtin(saved):
-    """The round-2 reversal, proven structurally: `tb run` still resolves to
-    the one door that writes, and the saved `run` lives at `tb tools run`."""
+    """The round-2 reversal, proven structurally: `sb run` still resolves to
+    the one door that writes, and the saved `run` lives at `sb tools run`."""
     before = cli.commands["run"]
     problems = saved('[tool.run]\nargv = ["data", "--", "printf", "[]"]\n')
     assert problems == []
@@ -277,7 +277,7 @@ def test_a_saved_run_no_longer_collides_with_the_builtin(saved):
 
 
 def test_the_bare_group_still_lists(saved):
-    """`tb tools` with no subcommand is the listing it always was — one door
+    """`sb tools` with no subcommand is the listing it always was — one door
     for "what did I declare", not a group that demands a subcommand. Formats
     ride in the same envelope since [[capture]] landed."""
     from click.testing import CliRunner
@@ -305,7 +305,7 @@ def test_the_listing_reports_formats_beside_tools(saved, tmp_path):
     saved('[tool.prs]\nargv = ["data", "--", "printf", "[]"]\n')
     import unittest.mock
 
-    with unittest.mock.patch.object(capture_mod, "TB_HOME", tmp_path):
+    with unittest.mock.patch.object(capture_mod, "SB_HOME", tmp_path):
         result = CliRunner().invoke(cli, ["--json", "tools"])
     envelope = json.loads(result.stdout)
     assert envelope["data"]["formats"] == [
@@ -362,7 +362,7 @@ def test_dash_t_stands_where_a_command_word_could():
 
 def test_a_dash_t_belonging_to_someone_else_is_never_touched():
     """The rewrite stops at the first command word or `--` — past that point
-    every token is somebody's argv, not tb's."""
+    every token is somebody's argv, not sb's."""
     assert expand_t(["read", "--", "ls", "-t"]) == ["read", "--", "ls", "-t"]
     assert expand_t(["run", "-t"]) == ["run", "-t"]
     assert expand_t(["tools", "-t"]) == ["tools", "-t"]
@@ -391,7 +391,7 @@ def test_bare_dash_t_is_the_listing(saved):
 
 
 def test_the_prefix_form_is_a_usage_error(saved):
-    """`tb -t --refresh 30 prs` was considered and rejected: it would teach
+    """`sb -t --refresh 30 prs` was considered and rejected: it would teach
     the group a forwarded option that belongs to the leaf. It falls out as an
     ordinary usage error rather than needing a rule of its own."""
     from click.testing import CliRunner
@@ -419,7 +419,7 @@ def test_the_example_names_no_operator_path():
     without publishing the operator.
 
     Asserted against the *argvs* rather than the file text. The prose is
-    allowed to say `~/.toolbox/tools.toml`, because naming the default is
+    allowed to say `~/.sky-boss/tools.toml`, because naming the default is
     documentation and not a path anything runs; what must never be tracked is a
     path some real machine actually has.
     """
@@ -434,7 +434,7 @@ def test_the_example_names_no_operator_path():
             assert not part.startswith(str(pathlib.Path.home())), (tool.name, part)
 
 
-def test_the_example_is_a_toolbox_that_would_actually_load():
+def test_the_example_is_a_tools_file_that_would_actually_load():
     """An example that does not parse teaches the wrong thing twice: once when
     it is copied, and again when the operator concludes the format is broken."""
     with EXAMPLE.open("rb") as handle:
@@ -482,7 +482,7 @@ def test_a_save_flag_after_the_separator_belongs_to_the_wrapped_tool():
 
 
 def test_a_cadence_is_lifted_out_of_the_argv_into_the_field():
-    """A `--refresh` baked into a saved argv would make `tb tools <name>` go
+    """A `--refresh` baked into a saved argv would make `sb tools <name>` go
     resident on its own, and residency is never ambient — see [[refresh]]."""
     from cli.tools import cadence_of, saved_argv
 
@@ -539,7 +539,7 @@ def test_a_name_already_declared_is_refused_and_told_what_it_runs(tmp_path):
     with pytest.raises(click.UsageError) as caught:
         save("prs", ["read", "--", "ls"], home=tmp_path)
     assert "already a tool" in str(caught.value)
-    assert "tb data -- jam pr list" in str(caught.value)
+    assert "sb data -- jam pr list" in str(caught.value)
 
 
 def test_a_cadence_the_surface_cannot_cycle_to_is_refused_at_save_time(tmp_path):
@@ -567,7 +567,7 @@ def test_a_name_that_could_not_be_a_command_is_refused(tmp_path):
 
 
 def test_an_unparseable_file_is_not_appended_to(tmp_path):
-    """Appending to a file tb cannot read would bury the real problem."""
+    """Appending to a file sb cannot read would bury the real problem."""
     import rich_click as click
     import pytest
 
@@ -619,7 +619,7 @@ def test_the_three_observes_offer_save_with_an_example():
         help_text = " ".join(CliRunner().invoke(cli, [command, "--help"]).output.split())
         assert "--save" in help_text, command
         # Help is the doc ([[refresh]]): the flag carries a line you can paste.
-        assert f"tb {command}" in help_text and "--save" in help_text, command
+        assert f"sb {command}" in help_text and "--save" in help_text, command
 
 
 def test_a_saved_read_round_trips_through_the_real_loader(tmp_path, monkeypatch):
@@ -631,9 +631,9 @@ def test_a_saved_read_round_trips_through_the_real_loader(tmp_path, monkeypatch)
     from cli import cli
     from cli.tools import register, tools as tools_group
 
-    monkeypatch.setenv("TB_HOME", str(tmp_path))
-    monkeypatch.setattr("cli.helpers.TB_HOME", tmp_path)
-    monkeypatch.setattr("cli.tools.TB_HOME", tmp_path)
+    monkeypatch.setenv("SB_HOME", str(tmp_path))
+    monkeypatch.setattr("cli.helpers.SB_HOME", tmp_path)
+    monkeypatch.setattr("cli.tools.SB_HOME", tmp_path)
 
     typed = ["read", "--cwd", str(tmp_path), "--save", "greet", "--", "printf", "hi"]
     result = CliRunner().invoke(cli, typed)
@@ -643,10 +643,10 @@ def test_a_saved_read_round_trips_through_the_real_loader(tmp_path, monkeypatch)
         problems = register(cli, home=tmp_path)
         assert problems == []
         saved = tools_group.commands["greet"]
-        assert list(saved.tb_argv) == [t for t in typed if t not in ("--save", "greet")]
+        assert list(saved.sb_argv) == [t for t in typed if t not in ("--save", "greet")]
     finally:
         for name in [
-            n for n, c in list(tools_group.commands.items()) if getattr(c, "tb_saved", False)
+            n for n, c in list(tools_group.commands.items()) if getattr(c, "sb_saved", False)
         ]:
             del tools_group.commands[name]
 
@@ -658,11 +658,11 @@ def test_the_envelope_carries_where_it_went_and_what_it_runs(tmp_path, monkeypat
 
     from cli import cli
 
-    monkeypatch.setattr("cli.tools.TB_HOME", tmp_path)
+    monkeypatch.setattr("cli.tools.SB_HOME", tmp_path)
     result = CliRunner().invoke(cli, ["--json", "read", "--save", "greet", "--", "printf", "hi"])
     envelope = json.loads(result.stdout)
     assert envelope["saved"]["name"] == "greet"
-    assert envelope["saved"]["runs"] == "tb read -- printf hi"
+    assert envelope["saved"]["runs"] == "sb read -- printf hi"
     assert envelope["saved"]["file"] == str(tmp_path / "tools.toml")
 
 
@@ -675,7 +675,7 @@ def test_an_envelope_that_saved_nothing_is_byte_identical_to_before(tmp_path, mo
 
     from cli import cli
 
-    monkeypatch.setattr("cli.tools.TB_HOME", tmp_path)
+    monkeypatch.setattr("cli.tools.SB_HOME", tmp_path)
     envelope = json.loads(CliRunner().invoke(cli, ["--json", "read", "--", "printf", "hi"]).stdout)
     assert "saved" not in envelope
 
@@ -685,7 +685,7 @@ def test_a_failing_command_still_saves_because_an_argv_is_not_a_result(tmp_path,
 
     from cli import cli
 
-    monkeypatch.setattr("cli.tools.TB_HOME", tmp_path)
+    monkeypatch.setattr("cli.tools.SB_HOME", tmp_path)
     result = CliRunner().invoke(cli, ["read", "--save", "nope", "--", "false"])
     assert result.exit_code == 1
     assert "[tool.nope]" in (tmp_path / "tools.toml").read_text()
@@ -699,7 +699,7 @@ def test_a_resident_read_saves_before_it_goes_resident(tmp_path, monkeypatch):
 
     from cli import cli
 
-    monkeypatch.setattr("cli.tools.TB_HOME", tmp_path)
+    monkeypatch.setattr("cli.tools.SB_HOME", tmp_path)
     monkeypatch.setattr("cli.resident.reside", lambda source, interval, run_once, **kw: None)
     result = CliRunner().invoke(
         cli, ["read", "--refresh", "30", "--save", "prs", "--", "printf", "hi"]
@@ -718,7 +718,7 @@ def test_a_follow_saves_without_opening_a_stream(tmp_path, monkeypatch):
 
     from cli import cli
 
-    monkeypatch.setattr("cli.tools.TB_HOME", tmp_path)
+    monkeypatch.setattr("cli.tools.SB_HOME", tmp_path)
     monkeypatch.setattr("cli.filefollow.follow_file", lambda path, **kw: None)
     result = CliRunner().invoke(cli, ["follow", "--save", "cron", "x/y.log"])
     assert result.exit_code == 0

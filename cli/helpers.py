@@ -1,4 +1,4 @@
-"""Shared plumbing for the tb CLI.
+"""Shared plumbing for the sb CLI.
 
 Command modules call these rather than shelling out or building paths directly.
 """
@@ -8,8 +8,8 @@ import os
 import subprocess
 from pathlib import Path
 
-# tb is installed via a symlink on PATH, so the current working directory is
-# never a reliable anchor — you run `tb` from wherever you happen to be. Every
+# sb is installed via a symlink on PATH, so the current working directory is
+# never a reliable anchor — you run `sb` from wherever you happen to be. Every
 # path in this CLI derives from here. See CLAUDE.md § CLI setup.
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
@@ -17,24 +17,49 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 # directory inside the repo is exactly what `git clean -xdf` destroys, and this
 # holds things worth keeping across one — the surface's input history, and a
 # stall dump if it ever freezes. XDG state also survives a reclone or a move.
-STATE_DIR = Path(os.environ.get("TB_STATE") or Path.home() / ".local" / "state" / "tb")
+STATE_DIR = Path(os.environ.get("SB_STATE") or Path.home() / ".local" / "state" / "sb")
 
 # What the *operator* authored, as opposed to what the machine generated.
-# Separate from STATE_DIR on purpose: `rm -rf ~/.local/state/tb` is a reasonable
+# Separate from STATE_DIR on purpose: `rm -rf ~/.local/state/sb` is a reasonable
 # thing to do to reset the surface, and it must not also delete every tool the
 # operator wrote.
 #
-# `~/.toolbox`, not `~/.config/tb` — moved 2026-08-23 at the operator's word.
-# XDG would put config under `~/.config`, and the argument for a visible dotdir
-# is that this one is *edited by hand and often*: tools, formats and projects
-# are content, not settings a program wrote for itself. `$TB_HOME` overrides it
-# either way, which is what the suite uses.
+# A visible dotdir, not `~/.config/sb` — settled 2026-08-23 at the operator's
+# word. XDG would put config under `~/.config`, and the argument for a visible
+# dotdir is that this one is *edited by hand and often*: tools, formats and
+# projects are content, not settings a program wrote for itself. `$SB_HOME`
+# overrides it either way, which is what the suite uses.
 #
 # Outside the repo, and with no fallback path into it. Operator content used to
 # live in the tree and a machine record carried a tailnet address into every
 # commit, so the tool could not be published without publishing the operator.
 # An absent home degrades to nothing declared rather than raising.
-TB_HOME = Path(os.environ.get("TB_HOME") or Path.home() / ".toolbox")
+
+
+def _default_home() -> Path:
+    """`~/.sky-boss`, or the pre-rename `~/.toolbox` while that is the only one.
+
+    The 2026-08-27 rename moved this directory, and it holds the only files in
+    the system the operator wrote by hand. Moving it silently is the worst
+    available failure: an absent home degrades to *nothing declared* rather than
+    raising, so every saved tool, format and project would simply stop existing
+    with no error to read.
+
+    So the old path keeps working while it is the one that is there. The moment
+    `~/.sky-boss` exists the fallback stops applying — it is a bridge for an
+    operator who has not moved yet, not a second supported location, and there
+    is deliberately no merge: two homes at once would make *which* tools.toml
+    you are editing a coin toss.
+    """
+    home = Path.home() / ".sky-boss"
+    if not home.exists():
+        legacy = Path.home() / ".toolbox"
+        if legacy.exists():
+            return legacy
+    return home
+
+
+SB_HOME = Path(os.environ.get("SB_HOME") or _default_home())
 
 # The argv this process was invoked with, after the root's `-t` rewrite and
 # before Click consumed any of it. Set once by `Root.main` in cli/__init__.py.
@@ -49,34 +74,34 @@ TB_HOME = Path(os.environ.get("TB_HOME") or Path.home() / ".toolbox")
 INVOCATION: list[str] = []
 
 
-# What tb's own wrapper exports so that `python -m cli` resolves against this
+# What sb's own wrapper exports so that `python -m cli` resolves against this
 # repo rather than against whatever directory you are standing in. Both are
-# load-bearing for tb — see CLAUDE.md § CLI setup — and neither is any business
-# of a command tb spawns.
+# load-bearing for sb — see CLAUDE.md § CLI setup — and neither is any business
+# of a command sb spawns.
 #
 # `PATH` is deliberately absent. The wrapper prepends its venv's bin to it, and
-# stripping that would be tb deciding which `python3` a foreign tool finds,
-# which is the operator's business. Scrub what tb added to boot, nothing else.
+# stripping that would be sb deciding which `python3` a foreign tool finds,
+# which is the operator's business. Scrub what sb added to boot, nothing else.
 BOOTSTRAP = ("PYTHONPATH", "PYTHONSAFEPATH")
 
 
 def child_env(columns: int | None = None, *, stream: bool = False) -> dict[str, str]:
-    """The environment a spawned command should see: the operator's, not tb's.
+    """The environment a spawned command should see: the operator's, not sb's.
 
-    Without this, `tb run -- python3 -c "import cli"` imports *this* package
+    Without this, `sb run -- python3 -c "import cli"` imports *this* package
     from anywhere on the machine, because `subprocess` inherits the parent
-    environment and tb's wrapper put the repo on `PYTHONPATH`.
+    environment and sb's wrapper put the repo on `PYTHONPATH`.
 
-    It was found by manually testing something else: `tb data -- jam …`
+    It was found by manually testing something else: `sb data -- jam …`
     succeeded from inside this repo when running `jam` directly there fails, and
     the leak was what made it work. See [[subprocess-env]].
 
     **`columns` tells the child how wide the display is**, and it is the one
-    thing tb *adds* rather than scrubs. A tool laying out columns asks its
-    stdout how wide the terminal is; under tb that stdout is a pipe, so it
+    thing sb *adds* rather than scrubs. A tool laying out columns asks its
+    stdout how wide the terminal is; under sb that stdout is a pipe, so it
     falls back to a default and the operator gets a different picture from the
     one the same command draws in the same terminal. Passing the real width
-    makes tb transparent instead of narrowing. Only where the output is shown
+    makes sb transparent instead of narrowing. Only where the output is shown
     as text in that terminal — never for `data`, whose bytes are parsed and
     where a wrapped line would be a corrupted one. `LINES` is deliberately not
     set: a tool that thinks it knows the height may decide to paginate, and a
@@ -87,7 +112,7 @@ def child_env(columns: int | None = None, *, stream: bool = False) -> dict[str, 
         env["COLUMNS"] = str(columns)
     if stream:
         # **A pipe makes a child's stdout block-buffered**, so a tool that
-        # prints a line a minute writes into an 8 KB buffer and tb — and the
+        # prints a line a minute writes into an 8 KB buffer and sb — and the
         # operator — see nothing until it fills or the process dies. Measured:
         # a child printing every 0.8s produced its first visible line at
         # t+5.1s, all six at once, at exit. With this set, t+0.3s.
@@ -96,7 +121,7 @@ def child_env(columns: int | None = None, *, stream: bool = False) -> dict[str, 
         # general fix is a pty, which [[follow]] refuses by name, and
         # `stdbuf -oL` does nothing here because Python's text layer is not
         # libc stdio (measured too). What it does cover is every tool in this
-        # family — tb's siblings are all Python — and it costs a
+        # family — sb's siblings are all Python — and it costs a
         # non-Python child nothing. See [[subprocess-env]] round 3.
         env["PYTHONUNBUFFERED"] = "1"
     return env

@@ -1,20 +1,20 @@
-# The toolbox — commands you save.
+# The tools — commands you save.
 #
-# Copy this to $TB_HOME/tools.toml (default ~/.toolbox/tools.toml) and edit
-# it. You can also let tb write an entry for you: append --save=NAME to a
+# Copy this to $SB_HOME/tools.toml (default ~/.sky-boss/tools.toml) and edit
+# it. You can also let sb write an entry for you: append --save=NAME to a
 # read, data or follow that just worked and it appends a block like the ones
 # below, then runs. It only ever appends — nothing above the new block is
 # rewritten, and a name that already exists is refused rather than replaced,
 # so editing and deleting stay yours.
 #
 # No *surface* writes this file. The canvas server is remote code execution
-# bound to a port, and a route that could write a file tb later runs would
+# bound to a port, and a route that could write a file sb later runs would
 # turn a transient compromise into a persistent one; a flag you type in your
 # own shell is not that.
 #
-# A tool is a NAME plus a TB ARGV. `argv` starts with a tb command — `run` or
+# A tool is a NAME plus a SB ARGV. `argv` starts with a sb command — `run` or
 # `data` — never a bare executable. That is not a formality: a tool that could
-# name any executable would be a second `tb run`, one that skips the read/write
+# name any executable would be a second `sb run`, one that skips the read/write
 # split everything else depends on.
 #
 #   data  reads another CLI's JSON. May be pinned and refreshed.
@@ -25,9 +25,9 @@
 # already asserted read-or-write by choosing `data` over `run`.
 #
 # A leading ~ in an argv is expanded, so your own paths work.
-# A tool takes no arguments: `tb prs 945` is an error, not an append.
-# A tool can never shadow a tb command; that declaration is skipped and named.
-# `tb tools` lists what loaded, and what was refused and why.
+# A tool takes no arguments: `sb prs 945` is an error, not an append.
+# A tool can never shadow a sb command; that declaration is skipped and named.
+# `sb tools` lists what loaded, and what was refused and why.
 
 [tool.prs]
 description = "Open pull requests"
