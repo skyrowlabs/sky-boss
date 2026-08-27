@@ -21,8 +21,9 @@ that were written down here as settled. `tb` → `sb` was explicitly out of scop
 The common noun was explicitly staying and is now gone: [[tools]] had ruled that "the toolbox" —
 the box of saved commands — was not the project's name and could keep the word, but the CLI rename
 took the word with it, so the container simply lost its nickname rather than gaining a new one.
-It is **the tools**, which is what `sb tools` already called them. The identifier cluster that
-[[open]] item 14 held as *one decision, not four* moved as one: `$SB_HOME` defaulting to
+It is **the tools**, which is what `sb tools` already called them. The identifier cluster —
+*one decision, not four*, as [[open]] held it until the item was closed and removed — moved as
+one: `$SB_HOME` defaulting to
 `~/.sky-boss`, the MCP server name `sky-boss`, the window class `sb`, and the internal CSS and
 package names.
 

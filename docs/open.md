@@ -37,10 +37,11 @@ the same job with structure. **This is a reversal of a stated primitive and need
 an omission.** The case for keeping it is heterogeneous observes: a table beside a follow beside a
 file cursor, which the structured views cannot express.
 
-**4. The secondary label tier's contrast.** 10.5px `#344050` on `#0b1016` measures roughly 2.5:1.
-The CLI holds a measured 3.5:1 floor and the canvas is exempt because it paints its own
-background — but that exemption was written for **the mark**, not for an entire tier of labels
-(`QUEUE · 8`, `LAYOUT`, on-deck times). Either widen the exemption on purpose or lift the tier.
+**4. The secondary label tier's contrast.** *Closed 2026-08-27 → [[fundamentals]] § the label
+tier: a border token is not a text token.* Ruled not a contrast question at all: `TEXT_3` is
+defined as *"structure, not reading text"* and is what `BORDER` is, so the mockup used a border
+token as a text token. Reading text takes `TEXT_2`; the exemption is not widened. The measurement
+in this item was also wrong — 1.81:1, not 2.5:1.
 
 **5. History.** The mockup carries a `history` affordance with nothing behind it. Once a saved
 command has run more than once, *how did this go the last seven nights* is the obvious question,
@@ -86,10 +87,11 @@ been mixed on purpose ([[workbench]] Notes), but the underlying question is unto
 sky.boss **observe** those entries, or does the boundary move? Defensible either way; currently
 unstated, which is the one thing it should not be.
 
-**12. `--save` invoked from a surface.** [[workbench]] round 3 proposes the bench composes the
-argv and runs `--save` as a subprocess, so `--save` stays the only writer and the surface gains no
-route that touches `tools.toml`. That reading looks sound and should be ratified explicitly,
-because "no surface writes" is the kind of rule that erodes by reasonable-looking steps.
+**12. `--save` invoked from a surface.** *Closed 2026-08-27 → [[workbench]] Notes, ratified as
+proposed.* Stronger than the item assumed: the bench adds no execution path ([[canvas]] already
+runs subprocesses) and `--save` already composes with a cadence, so the bench composes a one-liner
+the CLI supports rather than teaching it anything. Held by a test — no route writes `tools.toml`.
+Two consequences of `--save` writing *before* it runs became round-3 items there.
 
 ## The Governor
 
@@ -102,96 +104,28 @@ budget-limiting function accurately.
 
 ---
 
-## The rename, finished and unfinished
-
-Current-tense prose was renamed **toolbox → sky.boss** on 2026-08-26 (`CLAUDE.md`, `README.md`,
-`docs/design/README.md`, the feature skill). Three categories were left alone. **On 2026-08-27 the
-operator moved all three**, and the record below is kept rather than deleted because two of them
-were written down here as *settled, no action* and it is worth being able to see that they were
-reversed and on whose word.
-
-**What was settled, and is no longer:**
-
-- **The common noun.** "The toolbox" — the box of saved commands `sb tools` lists — was never the
-  project's name and was to stay. [[tools]] had ruled on exactly this at the previous rename and
-  recorded why: *nothing in the prose was scrubbed, because that is what it is.* **Reversed.** The
-  `tb` → `sb` rename took the word with it, so the container lost its nickname instead of gaining
-  a new one: it is **the tools**, which is what the command was already called. The argument that
-  fell is that the collection needs a noun of its own at all.
-- **Dated records.** Completed feature docs and measurement transcripts were to keep the word.
-  **Reversed** — `docs/features/done/` was scrubbed too. One consequence to know about:
-  [[subprocess-env]]'s measurement transcript now reads `jam from sky-boss`, which is the directory
-  it would be run from *today* but not the one it was captured from. The measurement is unchanged
-  and its conclusion does not depend on the directory's name.
-
-**14. The identifier cluster — one decision, not four.** *Closed 2026-08-27: moved as one, plus
-`tb` → `sb`, which this item had explicitly held out of scope.*
-
-- `$SB_HOME` now defaults to `~/.sky-boss`. The migration path this item asked for is
-  `_default_home()` in `cli/helpers.py`: the old `~/.toolbox` still wins while it is the only one
-  that exists, and the bridge stops applying the moment the new path does. No merge — two homes at
-  once would make *which* `tools.toml` you are editing a coin toss.
-- The **window class** is `sb`. As warned, this is a rename *and* a desktop edit: the frameless
-  canvas regains a title bar until the window-manager rule matching the old string is updated by
-  hand, and nothing here writes that rule.
-- The **MCP server name** is `sky-boss`, in `.mcp.json`, `serverInfo.name` and the test. Agents now
-  see `mcp__sky-boss__*`; anything wired to the old tool names is broken until it is repointed.
-  This was the published-interface break the item flagged, taken knowingly.
-- `shell/package.json` is `sky-boss-shell`, and the sidebar's CSS is `.tools` / `.tools-head` /
-  `.tools-list` / `.tools-empty` / `.tools-foot`, which now pairs with the `.tool` row classes that
-  were always there.
-
-**15. The mark.** *Opened and closed 2026-08-27.* Split out of item 14 as the one part of the
-cluster a substitution could not move: `docs/design/cli-header.png` was a drawing of a toolbox with
-`TOOLBOX` lettered across it, printed beside the word by `cli/banner.py` — which had started
-printing **sky.boss**. So `sb --help` greeted you with the new name next to a picture of the old
-one.
-
-Redrawn the same day as a **control tower**, which is the metaphor the artboards already speak.
-[[header]] round 2 has the design; the two things worth knowing here are that the glyph fits the
-same 63-column art so nothing about the panel moved, and that the source direction inverted —
-`ART` in `banner.py` is now the picture and `docs/design/render-mark.py` renders both PNGs from it.
-Round 1 had measured the tuple *off* the PNG, which is precisely the arrangement that let a rename
-change one and not the other.
-
----
-
 ## Going public, and stopping being one person
 
 Opened 2026-08-27, when the repo's audience changed from *the operator* to *whoever clones it*.
 Several decisions in `CLAUDE.md` were made against a one-contributor repo and were correct for it;
 they are not automatically correct for a public one, and this is where that gets argued rather
-than drifted into.
+than drifted into. What was *done* that day — MIT, CI, the slug-resolution test, the history
+scrub — is recorded in `CLAUDE.md` and `CLAUDE.local.md` § Publication status; only the two
+questions below are still open.
 
-Three things were taken from **skeletor** (`~/src/skeletor`, the sibling scaffold generator) the
-same day, and they are settled rather than open:
+**14. Lint for the JavaScript.** *Closed 2026-08-27 → `eslint.config.js` and `package.json` at
+the repo root, gated by the `lint` job in `.github/workflows/ci.yml`.* Adopted because [[workbench]]
+is the "something needs them" the item was waiting for — `app.js` is ~1000 lines and the bench adds
+a screen, and a ratchet retrofitted afterwards baselines the bugs you just wrote. Clean on arrival:
+9 files, 0 errors, 0 warnings, so `--max-warnings=0` starts at zero and may only go down.
 
-- **`LICENSE`.** Verbatim MIT, `SKYROW LABS LLC`, byte-identical to skeletor's body so GitHub
-  resolves it as MIT rather than "Other" — skeletor learned that the hard way and the lesson is
-  free. This closes the last item in `CLAUDE.local.md` § Publication status. No `NOTICE`: that file
-  exists in skeletor to unencumber *scaffolded output*, and nothing here scaffolds.
-- **CI** — `.github/workflows/ci.yml`, the whole suite on push and PR. Skeletor's is 202 lines of
-  draft-PR cost gating solving a problem this repo does not have: the suite is 676 tests in under
-  five seconds with no network, so deciding whether to run it costs more than running it.
-- **A slug-resolution test** — `tests/test_docs.py`, the sky.boss-shaped version of skeletor's
-  `check_source_doc_refs.py`. It found two dead references on its first run.
+Three constraints held. **No Prettier**, and none on `cli/canvas/static/` ever — the `htm` comment
+hazard is a formatter's bug with authority behind it. **Config lives at the root, never in
+`cli/canvas/static/`**, which is served wholesale and has a declared inventory a stray config would
+break. **Vendored code is exempt**, the same rule the hex scan uses. The Electron files are not
+split by process: `preload.js` bridges both by design, so a strict split would flag correct code.
 
-**16. Lint for the JavaScript.** The canvas is three hand-written `.js` files and the Electron
-shell is five more, and `CLAUDE.md` concedes *"the frontend has no automated tests"*. Skeletor's
-`template/node/` overlay is correctness-only ESLint — `eqeqeq`, `no-var`, `prefer-const`,
-`no-unused-vars` — with Prettier owning formatting and a whole-tree warning ratchet.
-
-Against it, and the reason this is open rather than done: `CLAUDE.md` says *"No `pyproject.toml`,
-pyright, or pre-commit until something needs them"*, and the same bar applies here. A growing
-Electron app is a plausible "something"; a linter that arrives before the thing it lints is not.
-
-**Whatever is decided, do not point Prettier at `cli/canvas/static/`.** `CLAUDE.md` records that
-`htm` has no notion of a comment and that whitespace in tag position silently mangles an element's
-children — *one comment in a `<div>` opening tag removed an `<input>` from the DOM entirely, and
-only rendering the page found it*. A formatter reflowing `html\`…\`` templates is that same hazard
-with a tool's authority behind it. ESLint reads; Prettier rewrites. They are not one decision.
-
-**17. Which of skeletor's governance the second contributor actually needs.** Deliberately not
+**15. Which of skeletor's governance the second contributor actually needs.** Deliberately not
 answered on the day, because the honest answer depends on whether a second contributor arrives.
 The ones whose *justification changes* the moment one does — each was declined on 2026-08-27 on
 single-contributor grounds, and that ground is going away:

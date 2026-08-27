@@ -137,6 +137,14 @@ carries the contract's own *acts* or *observes* badge, because a rail that lists
       that runs it for real.
 - [ ] **Save.** Compose the argv, show it, run it as a subprocess. The append-only and
       refuse-a-duplicate behaviour comes from `--save` unchanged.
+- [ ] **The name field is the last control, and it is checked before it is used.** `--save`
+      writes *before* it runs (`cli/data.py`), so a mis-composed argv is on disk before its own
+      output shows it was wrong — and the name cannot be reused, because a duplicate is refused
+      and editing stays `$EDITOR`'s. The bench asks `/api/catalog` whether the name is taken and
+      says so *before* offering the button, rather than surfacing a refusal after the write.
+- [ ] **Save is drawn as a second run, because it is one.** Trial run and save are two separate
+      invocations of the same argv; the save does not confirm the trial run's output, it repeats
+      the work. A UI that implies otherwise is claiming a guarantee `--save` does not make.
 - [ ] **The `[tool.name]` block** for `run`, rendered to copy.
 - [ ] Tests: no route writes `tools.toml`; the composed argv round-trips — saving it and reading
       the tool back yields the same invocation.
@@ -173,3 +181,23 @@ purpose.
 **The trial run is expected to change the CLI, and that is the point.** Building a surface that
 runs the real commands and draws the real envelope is the cheapest way to find the flags that
 should exist and the facts that should ship. A mockup can only draw what someone imagined.
+
+**2026-08-27 — `--save` from a surface, ratified.** `docs/open.md` held this open on the grounds
+that *"no surface writes" is the kind of rule that erodes by reasonable-looking steps* and wanted
+the round-3 proposal ratified rather than assumed. Ratified as proposed, and the argument is
+stronger than the doc had it: this is not a new mechanism and it is not even a new *shape*.
+
+The canvas already runs commands as subprocesses — [[canvas]]'s *reads in, execution out* — so the
+bench adds no execution path. And `--save` was already built to compose with a cadence: `cli/data.py`
+documents *"a `--refresh` in force becomes the saved command's own cadence"*, which is exactly what
+the job strip reads left to right. The bench composes a one-liner the CLI already supports; it does
+not teach the CLI anything.
+
+So append-only, refuse-a-duplicate, and *you are saving an argv, not a result* all come free,
+because it is the same code path rather than a second one that agrees for now. Held by a test
+shaped like [[canvas]]'s no-CORS assertion: **no route writes `tools.toml`.**
+
+What the ratification *did* surface is two consequences of `--save` writing **before** it runs,
+both now round-3 items. The save is a fresh invocation rather than a confirmation of what the
+trial run drew, and a wrong argv reaches disk ahead of the output that proves it wrong — under a
+name that then cannot be reused. Neither changes the decision; both change the drawing.

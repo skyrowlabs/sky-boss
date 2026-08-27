@@ -1,0 +1,16 @@
+{
+  "name": "sky-boss",
+  "private": true,
+  "type": "module",
+  "description": "Lint config for the canvas and the Electron shell. The project is Python; this exists only so the JavaScript is checked.",
+  "scripts": {
+    "//lint:check": "The --max-warnings number is a RATCHET. It may only go down. Never raise it to make a commit pass — fix the warning, or suppress it inline with a written reason.",
+    "lint:check": "eslint . --max-warnings=0",
+    "lint:fix": "eslint . --fix"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.0.0",
+    "eslint": "^9.0.0",
+    "globals": "^15.0.0"
+  }
+}
