@@ -1,0 +1,8 @@
+{
+  "artboards": [
+    { "file": "Workbench.dc.html", "x": 0, "y": 0, "w": 1470, "h": 800, "title": "Workbench" },
+    { "file": "FlightPlan.dc.html", "x": 1570, "y": 0, "w": 1470, "h": 800, "title": "Flight Plan" },
+    { "file": "ControlTower.dc.html", "x": 3140, "y": 0, "w": 1470, "h": 800, "title": "Control Tower" }
+  ],
+  "launch": { "view": "canvas" }
+}
