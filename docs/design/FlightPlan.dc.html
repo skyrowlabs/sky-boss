@@ -1,0 +1,262 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<link rel="stylesheet" href="_ds/skyrow-labs-design-system-89d3f2cc-ca17-4f1d-a88b-7893b1e9b0b9/colors_and_type.css">
+<script src="_ds/skyrow-labs-design-system-89d3f2cc-ca17-4f1d-a88b-7893b1e9b0b9/_ds_bundle.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&amp;family=Inter:wght@300;400;500;600;700&amp;family=Space+Grotesk:wght@500;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#05090e;font-family:Inter,system-ui,sans-serif}
+a{color:#38bdf8}a:hover{color:#7dd3fc}
+input::placeholder{color:#344050}
+</style></helmet>
+<div style="flex:none;width:1470px;height:800px;background:#05090e;color:#e8edf4;font:13px/1.45 'JetBrains Mono',ui-monospace,Menlo,monospace;display:flex;flex-direction:column;box-sizing:border-box;overflow:hidden;border-radius:10px;border:1px solid rgba(255,255,255,.09)">
+
+  <div style="flex:none;height:40px;display:flex;align-items:center;gap:16px;padding:0 14px;background:#0b1016;border-bottom:1px solid rgba(255,255,255,.055)">
+    <div style="display:flex;gap:8px;flex:none"><span style="width:11px;height:11px;border-radius:50%;background:#f4665b"></span><span style="width:11px;height:11px;border-radius:50%;background:#e6dc0e"></span><span style="width:11px;height:11px;border-radius:50%;background:#4ade80"></span></div>
+    <span style="font:700 13px/1 'Space Grotesk',Inter,sans-serif;letter-spacing:-.02em;flex:none">sky<span style="color:#38bdf8">.boss</span></span>
+    <div style="display:flex;gap:1px;flex:none;background:rgba(255,255,255,.055);border-radius:6px;padding:1px"><span style="font-size:11.5px;padding:4px 11px;border-radius:5px;color:#7a8fa8">Workbench</span><span style="font-size:11.5px;padding:4px 11px;border-radius:5px;background:#111820;color:#e8edf4">Flight Plan</span><span style="font-size:11.5px;padding:4px 11px;border-radius:5px;color:#7a8fa8">Control Tower</span></div>
+    <div style="flex:1"></div>
+    <span style="font-size:11px;color:#344050;flex:none">3 plans · 29 jobs · 18 systemd timers · 11 sky.boss clock</span>
+    <div style="width:1px;height:16px;background:rgba(255,255,255,.09);flex:none"></div>
+    <span style="font-size:11px;color:#344050;flex:none">⌘K</span>
+  </div>
+
+  <div style="flex:1;display:flex;min-height:0">
+
+    <div style="flex:none;width:270px;display:flex;flex-direction:column;background:#0b1016;border-right:1px solid rgba(255,255,255,.055);min-height:0">
+      <div style="flex:none;display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid rgba(255,255,255,.055)">
+        <span style="flex:1;font-size:10.5px;letter-spacing:.14em;color:#344050">PLANS</span>
+        <span style="font-size:11px;color:#38bdf8;cursor:pointer">+ new plan</span>
+      </div>
+      <div style="flex:none;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.055)">
+        <div style="display:flex;align-items:center;gap:9px;padding:7px 14px;background:color-mix(in srgb,#38bdf8 12%,transparent);border-left:2px solid #38bdf8;cursor:pointer"><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Nightly</span><span style="font-size:11px;color:#344050">18</span></div>
+        <div style="display:flex;gap:12px;padding:2px 14px 8px 16px;font-size:11px;color:#344050">
+          <span style="cursor:pointer;color:#7a8fa8">rename</span>
+          <span style="cursor:pointer;color:#7a8fa8">duplicate</span>
+          <span style="cursor:pointer;color:#7a8fa8">export</span>
+          <span style="cursor:pointer;color:#f4665b">delete</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:9px;padding:7px 14px;cursor:pointer"><span style="flex:1;color:#7a8fa8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Release cadence</span><span style="font-size:11px;color:#344050">5</span></div>
+        <div style="display:flex;align-items:center;gap:9px;padding:7px 14px;cursor:pointer"><span style="flex:1;color:#7a8fa8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Weekday daytime</span><span style="font-size:11px;color:#344050">6</span></div>
+      </div>
+      <div style="flex:none;display:flex;align-items:center;gap:8px;padding:11px 14px 7px">
+        <span style="flex:1;font-size:10.5px;letter-spacing:.14em;color:#344050">JOBS IN NIGHTLY</span>
+        <span style="font-size:11px;color:#38bdf8;cursor:pointer">+ add</span>
+      </div>
+      <div style="flex:1;overflow:auto;min-height:0;padding-bottom:6px">
+        <div style="padding:4px 14px;font-size:10.5px;letter-spacing:.12em;color:#e6dc0e">needs the working tree</div>
+        <div style="display:flex;align-items:center;gap:9px;padding:6px 14px;background:color-mix(in srgb,#38bdf8 12%,transparent);border-left:2px solid #38bdf8;cursor:pointer"><span style="color:#e6dc0e;font-size:10px;flex:none">▸</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">agent-fix</span><span style="font-size:11px;color:#e6dc0e">19:00</span></div>
+        <div style="display:flex;align-items:center;gap:9px;padding:6px 14px;cursor:pointer"><span style="color:#e6dc0e;font-size:10px;flex:none">▸</span><span style="flex:1;color:#7a8fa8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">implement-ready</span><span style="font-size:11px;color:#7a8fa8">02:00</span></div>
+        <div style="display:flex;align-items:center;gap:9px;padding:6px 14px;cursor:pointer"><span style="color:#f4665b;font-size:10px;flex:none">▸</span><span style="flex:1;color:#7a8fa8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">sentinel</span><span style="font-size:11px;color:#f4665b">05:15</span></div>
+        <div style="display:flex;align-items:center;gap:9px;padding:6px 14px;cursor:pointer"><span style="color:#f4665b;font-size:10px;flex:none">▸</span><span style="flex:1;color:#7a8fa8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">integration</span><span style="font-size:11px;color:#f4665b">05:25</span></div>
+        <div style="display:flex;align-items:center;gap:9px;padding:6px 14px;cursor:pointer"><span style="color:#e6dc0e;font-size:10px;flex:none">▸</span><span style="flex:1;color:#7a8fa8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">agent-task</span><span style="font-size:11px;color:#7a8fa8">07:45</span></div>
+
+        <div style="padding:10px 14px 4px;font-size:10.5px;letter-spacing:.12em;color:#7a8fa8">release</div>
+        <div style="display:flex;align-items:center;gap:9px;padding:6px 14px;cursor:pointer"><span style="flex:1;color:#7a8fa8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">release ×4 remaining</span><span style="font-size:11px;color:#344050">4h</span></div>
+
+        <div style="padding:10px 14px 4px;font-size:10.5px;letter-spacing:.12em;color:#4ade80">health &amp; reporting</div>
+        <div style="display:flex;align-items:center;gap:9px;padding:6px 14px;cursor:pointer"><span style="flex:1;color:#7a8fa8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">ci-health</span><span style="font-size:11px;color:#7a8fa8">00:00</span></div>
+        <div style="display:flex;align-items:center;gap:9px;padding:6px 14px;cursor:pointer"><span style="flex:1;color:#7a8fa8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">model-health</span><span style="font-size:11px;color:#7a8fa8">01:00</span></div>
+        <div style="display:flex;align-items:center;gap:9px;padding:6px 14px;cursor:pointer"><span style="flex:1;color:#7a8fa8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">docs-guard</span><span style="font-size:11px;color:#7a8fa8">06:10</span></div>
+        <div style="display:flex;align-items:center;gap:9px;padding:6px 14px;cursor:pointer"><span style="flex:1;color:#7a8fa8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">overnight</span><span style="font-size:11px;color:#7a8fa8">06:25</span></div>
+        <div style="display:flex;align-items:center;gap:9px;padding:6px 14px;cursor:pointer"><span style="flex:1;color:#7a8fa8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">agent-log</span><span style="font-size:11px;color:#7a8fa8">06:55</span></div>
+        <div style="display:flex;align-items:center;gap:9px;padding:6px 14px;cursor:pointer"><span style="flex:1;color:#7a8fa8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">night-review</span><span style="font-size:11px;color:#7a8fa8">07:05</span></div>
+        <div style="display:flex;align-items:center;gap:9px;padding:6px 14px;cursor:pointer"><span style="flex:1;color:#7a8fa8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">docs-digest</span><span style="font-size:11px;color:#7a8fa8">07:30</span></div>
+      </div>
+      <div style="flex:none;padding:9px 14px;border-top:1px solid rgba(255,255,255,.055);font-size:11px;color:#344050">a plan is a set of jobs the tower can load</div>
+    </div>
+
+    <div style="flex:1;display:flex;flex-direction:column;min-width:0;min-height:0">
+
+      <div style="flex:none;display:flex;align-items:center;gap:14px;padding:11px 20px;border-bottom:1px solid rgba(255,255,255,.055)">
+        <h1 style="margin:0;font:700 17px/1.1 'Space Grotesk',Inter,sans-serif;letter-spacing:-.025em">Nightly</h1>
+        <span style="font-size:11.5px;color:#344050">Wed 2026-08-26 18:50 · 18 jobs · loaded in the tower</span>
+        <div style="flex:1"></div>
+        <span style="display:flex;align-items:center;gap:5px;font-size:11px;color:#7a8fa8"><span style="width:14px;height:9px;border-radius:2px;border:1px dashed #7a8fa8"></span>on deck</span>
+        <span style="display:flex;align-items:center;gap:5px;font-size:11px;color:#7a8fa8"><span style="width:14px;height:9px;border-radius:2px;background:color-mix(in srgb,#e6dc0e 45%,transparent)"></span>in flight</span>
+        <span style="display:flex;align-items:center;gap:5px;font-size:11px;color:#7a8fa8"><span style="width:14px;height:9px;border-radius:2px;background:color-mix(in srgb,#4ade80 32%,transparent)"></span>completed</span>
+        <span style="display:flex;align-items:center;gap:5px;font-size:11px;color:#7a8fa8"><span style="color:#e6dc0e">▸</span>needs the tree</span>
+      </div>
+
+      <div style="flex:1;overflow:auto;min-height:0;padding:14px 16px 0">
+        <div style="position:relative;width:816px">
+
+          <div style="height:18px;margin-left:96px;position:relative">
+            <span style="position:absolute;left:0;top:0;font-size:10.5px;color:#344050">18</span>
+            <span style="position:absolute;left:80px;top:0;font-size:10.5px;color:#344050">20</span>
+            <span style="position:absolute;left:160px;top:0;font-size:10.5px;color:#344050">22</span>
+            <span style="position:absolute;left:240px;top:0;font-size:10.5px;color:#7a8fa8">Thu 00</span>
+            <span style="position:absolute;left:320px;top:0;font-size:10.5px;color:#344050">02</span>
+            <span style="position:absolute;left:400px;top:0;font-size:10.5px;color:#344050">04</span>
+            <span style="position:absolute;left:480px;top:0;font-size:10.5px;color:#344050">06</span>
+            <span style="position:absolute;left:560px;top:0;font-size:10.5px;color:#344050">08</span>
+            <span style="position:absolute;left:640px;top:0;font-size:10.5px;color:#344050">10</span>
+            <span style="position:absolute;left:706px;top:0;font-size:10.5px;color:#344050">12</span>
+          </div>
+
+          <div style="position:absolute;left:96px;top:18px;bottom:0;width:720px;pointer-events:none">
+            <span style="position:absolute;left:0;top:0;bottom:0;width:1px;background:rgba(255,255,255,.05)"></span>
+            <span style="position:absolute;left:80px;top:0;bottom:0;width:1px;background:rgba(255,255,255,.05)"></span>
+            <span style="position:absolute;left:160px;top:0;bottom:0;width:1px;background:rgba(255,255,255,.05)"></span>
+            <span style="position:absolute;left:240px;top:0;bottom:0;width:1px;background:rgba(255,255,255,.1)"></span>
+            <span style="position:absolute;left:320px;top:0;bottom:0;width:1px;background:rgba(255,255,255,.05)"></span>
+            <span style="position:absolute;left:400px;top:0;bottom:0;width:1px;background:rgba(255,255,255,.05)"></span>
+            <span style="position:absolute;left:480px;top:0;bottom:0;width:1px;background:rgba(255,255,255,.05)"></span>
+            <span style="position:absolute;left:560px;top:0;bottom:0;width:1px;background:rgba(255,255,255,.05)"></span>
+            <span style="position:absolute;left:640px;top:0;bottom:0;width:1px;background:rgba(255,255,255,.05)"></span>
+            <span style="position:absolute;left:719px;top:0;bottom:0;width:1px;background:rgba(255,255,255,.05)"></span>
+            <span style="position:absolute;left:113px;top:0;bottom:0;width:1px;background:#38bdf8"></span>
+            <span style="position:absolute;left:113px;top:-16px;transform:translateX(-50%);font-size:9.5px;letter-spacing:.14em;color:#38bdf8;background:#05090e;padding:0 5px">NOW</span>
+          </div>
+
+          <div style="position:relative;height:58px;border-top:1px solid rgba(255,255,255,.055)">
+            <span style="position:absolute;left:0;top:9px;font-size:11.5px;color:#38bdf8">agent</span>
+            <span style="position:absolute;left:0;top:26px;font-size:10px;color:#344050">▸ tree</span>
+            <div style="position:absolute;left:96px;right:0;top:0;bottom:0">
+              <div style="position:absolute;left:33px;top:8px;width:6px;height:22px;box-sizing:border-box;border-radius:3px;background:color-mix(in srgb,#4ade80 30%,transparent)"></div>
+              <div style="position:absolute;left:40px;top:8px;width:73px;height:22px;border-radius:4px 0 0 4px;background:color-mix(in srgb,#e6dc0e 45%,transparent)"></div>
+              <div style="position:absolute;left:113px;top:8px;width:127px;height:22px;box-sizing:border-box;border-radius:0 4px 4px 0;background:repeating-linear-gradient(115deg,color-mix(in srgb,#e6dc0e 26%,transparent) 0 5px,transparent 5px 10px);border:1px solid color-mix(in srgb,#e6dc0e 32%,transparent);border-left:0"></div>
+              <span style="position:absolute;left:46px;top:11px;font-size:10.5px;color:#05090e;white-space:nowrap">agent-fix</span>
+              <span style="position:absolute;right:406px;top:12px;font-size:10.5px;color:#e6dc0e;white-space:nowrap">budget to 24:00</span>
+              <div style="position:absolute;left:320px;top:8px;width:127px;height:22px;box-sizing:border-box;border-radius:4px;border:1px dashed rgba(255,255,255,.22);background:color-mix(in srgb,#38bdf8 8%,transparent)"></div>
+              <span style="position:absolute;left:326px;top:11px;font-size:10.5px;color:#7a8fa8;white-space:nowrap">implement-ready</span>
+              <div style="position:absolute;left:550px;top:8px;width:40px;height:22px;box-sizing:border-box;border-radius:4px;border:1px dashed rgba(255,255,255,.22)"></div>
+              <span style="position:absolute;left:596px;top:12px;font-size:10.5px;color:#7a8fa8;white-space:nowrap">agent-task</span>
+            </div>
+          </div>
+
+          <div style="position:relative;height:58px;border-top:1px solid rgba(255,255,255,.055)">
+            <span style="position:absolute;left:0;top:9px;font-size:11.5px;color:#f4665b">gate</span>
+            <span style="position:absolute;left:0;top:26px;font-size:10px;color:#344050">▸ tree</span>
+            <div style="position:absolute;left:96px;right:0;top:0;bottom:0">
+              <div style="position:absolute;left:450px;top:8px;width:24px;height:22px;box-sizing:border-box;border-radius:4px;border:1px dashed color-mix(in srgb,#f4665b 55%,transparent);background:color-mix(in srgb,#f4665b 8%,transparent)"></div>
+              <span style="position:absolute;right:224px;top:12px;font-size:10.5px;color:#f4665b;white-space:nowrap">sentinel 05:15</span>
+              <div style="position:absolute;left:457px;top:33px;width:24px;height:19px;box-sizing:border-box;border-radius:4px;border:1px dashed color-mix(in srgb,#f4665b 55%,transparent);background:color-mix(in srgb,#f4665b 8%,transparent)"></div>
+              <span style="position:absolute;left:487px;top:36px;font-size:10.5px;color:#f4665b;white-space:nowrap">integration 05:25</span>
+            </div>
+          </div>
+
+          <div style="position:relative;height:58px;border-top:1px solid rgba(255,255,255,.055)">
+            <span style="position:absolute;left:0;top:9px;font-size:11.5px;color:#7a8fa8">release</span>
+            <div style="position:absolute;left:96px;right:0;top:0;bottom:0">
+              <div style="position:absolute;left:53px;top:8px;width:8px;height:22px;box-sizing:border-box;border-radius:3px;border:1px solid rgba(255,255,255,.14)"></div>
+              <span style="position:absolute;left:66px;top:12px;font-size:10.5px;color:#344050;white-space:nowrap">skipped</span>
+              <div style="position:absolute;left:213px;top:8px;width:8px;height:22px;box-sizing:border-box;border-radius:3px;border:1px dashed rgba(255,255,255,.22)"></div>
+              <div style="position:absolute;left:373px;top:8px;width:8px;height:22px;box-sizing:border-box;border-radius:3px;border:1px dashed rgba(255,255,255,.22)"></div>
+              <div style="position:absolute;left:533px;top:8px;width:8px;height:22px;box-sizing:border-box;border-radius:3px;border:1px dashed rgba(255,255,255,.22)"></div>
+              <div style="position:absolute;left:693px;top:8px;width:8px;height:22px;box-sizing:border-box;border-radius:3px;border:1px dashed rgba(255,255,255,.22)"></div>
+              <span style="position:absolute;left:226px;top:12px;font-size:10.5px;color:#344050;white-space:nowrap">23:20 · 03:20 · 07:20 · 11:20 — every 4h</span>
+            </div>
+          </div>
+
+          <div style="position:relative;height:58px;border-top:1px solid rgba(255,255,255,.055);border-bottom:1px solid rgba(255,255,255,.055)">
+            <span style="position:absolute;left:0;top:9px;font-size:11.5px;color:#4ade80">health</span>
+            <div style="position:absolute;left:96px;right:0;top:0;bottom:0">
+              <div style="position:absolute;left:240px;top:8px;width:8px;height:22px;box-sizing:border-box;border-radius:3px;border:1px dashed rgba(255,255,255,.22)"></div>
+              <span style="position:absolute;left:253px;top:12px;font-size:10.5px;color:#344050;white-space:nowrap">ci-health</span>
+              <div style="position:absolute;left:280px;top:8px;width:8px;height:22px;box-sizing:border-box;border-radius:3px;border:1px dashed rgba(255,255,255,.22)"></div>
+              <span style="position:absolute;left:310px;top:12px;font-size:10.5px;color:#344050;white-space:nowrap">model-health</span>
+              <div style="position:absolute;left:487px;top:8px;width:53px;height:22px;box-sizing:border-box;border-radius:4px;border:1px dashed rgba(255,255,255,.22)"></div>
+              <span style="position:absolute;left:546px;top:12px;font-size:10.5px;color:#7a8fa8;white-space:nowrap">6 reports · 06:10 → 07:30</span>
+            </div>
+          </div>
+
+          <div style="position:absolute;left:546px;top:76px;width:40px;height:58px;border-left:1px solid color-mix(in srgb,#f4665b 40%,transparent);border-right:1px solid color-mix(in srgb,#f4665b 40%,transparent);background:color-mix(in srgb,#f4665b 5%,transparent);pointer-events:none"></div>
+        </div>
+
+        <div style="width:816px;box-sizing:border-box;margin-top:14px;border:1px solid rgba(255,255,255,.09);border-radius:8px;padding:12px 14px">
+          <div style="display:flex;align-items:baseline;gap:10px"><span style="font-size:10.5px;letter-spacing:.1em;color:#344050">DEPENDENCY CHAIN · working tree handoff</span><div style="flex:1"></div><span style="font-size:11px;color:#38bdf8;cursor:pointer">+ link a job</span></div>
+          <div style="display:flex;align-items:center;gap:9px;margin-top:11px;flex-wrap:wrap">
+            <span style="font-size:11.5px;color:#e8edf4;border:1px solid color-mix(in srgb,#e6dc0e 32%,transparent);background:color-mix(in srgb,#e6dc0e 8%,transparent);border-radius:5px;padding:3px 10px">agent-fix</span>
+            <span style="font-size:11px;color:#344050">releases tree →</span>
+            <span style="font-size:11.5px;color:#e8edf4;border:1px solid color-mix(in srgb,#38bdf8 32%,transparent);background:color-mix(in srgb,#38bdf8 8%,transparent);border-radius:5px;padding:3px 10px">implement-ready</span>
+            <span style="font-size:11px;color:#344050">hands over 05:15 →</span>
+            <span style="font-size:11.5px;color:#f4665b;border:1px solid color-mix(in srgb,#f4665b 28%,transparent);border-radius:5px;padding:3px 10px">sentinel</span>
+            <span style="font-size:11px;color:#344050">then →</span>
+            <span style="font-size:11.5px;color:#f4665b;border:1px solid color-mix(in srgb,#f4665b 28%,transparent);border-radius:5px;padding:3px 10px">integration</span>
+          </div>
+          <div style="margin-top:10px;font-size:11px;color:#344050;line-height:1.55">implement-ready is capped at 190m across 3 plans with a 60m/plan ceiling, so 05:15 is the earliest handoff, not a promise. If it overruns, sentinel and integration slip together rather than starting on a tree they do not own.</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="flex:none;width:330px;border-left:1px solid rgba(255,255,255,.09);background:#0b1016;display:flex;flex-direction:column;min-height:0">
+      <div style="flex:none;padding:10px 14px;border-bottom:1px solid rgba(255,255,255,.055);display:flex;align-items:center;gap:8px">
+        <span style="flex:1;font-size:10.5px;letter-spacing:.14em;color:#344050">JOB</span>
+        <span style="font-size:10.5px;letter-spacing:.1em;color:#e6dc0e;border:1px solid color-mix(in srgb,#e6dc0e 30%,transparent);background:color-mix(in srgb,#e6dc0e 10%,transparent);border-radius:4px;padding:1px 7px">IN FLIGHT</span>
+      </div>
+      <div style="flex:1;overflow:auto;min-height:0;padding:14px;display:flex;flex-direction:column;gap:16px">
+
+        <div>
+          <div style="font:700 15px/1.2 'Space Grotesk',Inter,sans-serif;letter-spacing:-.02em">agent-fix</div>
+          <div style="margin-top:5px;font-size:11.5px;color:#344050">jam-sense · in plan Nightly · departed 19:00</div>
+          <div style="margin-top:7px;font-size:11.5px;color:#7a8fa8;background:#111820;border:1px solid rgba(255,255,255,.09);border-radius:7px;padding:7px 9px;line-height:1.5">tb follow --label agent-fix -- skyboss agent-fix --queue oldest-first</div>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div style="font-size:10px;letter-spacing:.08em;color:#344050">CADENCE</div>
+          <div style="display:flex;gap:6px">
+            <div style="flex:1;background:#111820;border:1px solid color-mix(in srgb,#38bdf8 45%,transparent);box-shadow:0 0 0 3px color-mix(in srgb,#38bdf8 9%,transparent);border-radius:7px;padding:7px 10px;font-size:12px">0 19 * * *</div>
+            <div style="flex:none;display:flex;align-items:center;padding:0 10px;background:#111820;border:1px solid rgba(255,255,255,.09);border-radius:7px;font-size:11px;color:#7a8fa8;cursor:pointer">daily ▾</div>
+          </div>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div style="font-size:10px;letter-spacing:.08em;color:#344050">LIMITS</div>
+          <div style="display:flex;flex-direction:column;gap:1px;background:rgba(255,255,255,.055);border-radius:7px;padding:1px">
+            <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:#111820;border-radius:7px 7px 0 0"><span style="flex:1;font-size:12px;color:#7a8fa8">budget</span><span style="font-size:12px">300m</span></div>
+            <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:#111820"><span style="flex:1;font-size:12px;color:#7a8fa8">timeout per issue</span><span style="font-size:12px">90m</span></div>
+            <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:#111820;border-radius:0 0 7px 7px"><span style="flex:1;font-size:12px;color:#7a8fa8">MAX_PER_RUN</span><span style="font-size:12px">12</span></div>
+          </div>
+          <div style="font-size:11px;color:#344050;line-height:1.5">190m spent · 110m left · 5 of 8 cleared</div>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div style="font-size:10px;letter-spacing:.08em;color:#344050">PREFLIGHT</div>
+          <div style="display:flex;flex-direction:column;gap:6px;font-size:11.5px">
+            <div style="display:flex;gap:9px"><span style="color:#4ade80">✓</span><span style="flex:1;color:#7a8fa8">develop CI green</span></div>
+            <div style="display:flex;gap:9px"><span style="color:#4ade80">✓</span><span style="flex:1;color:#7a8fa8">no ready plan stranded on a local branch</span></div>
+            <div style="display:flex;gap:9px"><span style="color:#4ade80">✓</span><span style="flex:1;color:#7a8fa8">stack answering</span></div>
+          </div>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div style="font-size:10px;letter-spacing:.08em;color:#344050">CLAIMS</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            <span style="font-size:11px;color:#e6dc0e;border:1px solid color-mix(in srgb,#e6dc0e 30%,transparent);border-radius:100px;padding:2px 9px">▸ working tree</span>
+            <span style="font-size:11px;color:#7a8fa8;border:1px solid rgba(255,255,255,.12);border-radius:100px;padding:2px 9px">gh api</span>
+            <span style="font-size:11px;color:#344050;border:1px dashed rgba(255,255,255,.12);border-radius:100px;padding:2px 9px;cursor:pointer">+ claim</span>
+          </div>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div style="font-size:10px;letter-spacing:.08em;color:#344050">CLOCK SOURCE</div>
+          <div style="display:flex;flex-direction:column;gap:1px;background:rgba(255,255,255,.055);border-radius:7px;padding:1px">
+            <div style="display:flex;align-items:baseline;gap:9px;padding:8px 10px;border-radius:6px;cursor:pointer"><span style="color:#344050;font-size:11px">○</span><div style="flex:1"><div style="font-size:12px;color:#7a8fa8">sky.boss clock</div><div style="font-size:10.5px;color:#344050;margin-top:2px">runs only while this window is open</div></div></div>
+            <div style="display:flex;align-items:baseline;gap:9px;padding:8px 10px;border-radius:6px;cursor:pointer"><span style="color:#344050;font-size:11px">○</span><div style="flex:1"><div style="font-size:12px;color:#7a8fa8">crontab</div><div style="font-size:10.5px;color:#344050;margin-top:2px">written to the user crontab, read back on every roll-call</div></div></div>
+            <div style="display:flex;align-items:baseline;gap:9px;padding:8px 10px;border-radius:6px;background:#111820;cursor:pointer"><span style="color:#38bdf8;font-size:11px">●</span><div style="flex:1"><div style="font-size:12px">systemd timer</div><div style="font-size:10.5px;color:#344050;margin-top:2px">skyboss-agent-fix.timer · survives logout · handoffs become After=</div></div></div>
+          </div>
+        </div>
+      </div>
+      <div style="flex:none;padding:10px 14px;border-top:1px solid rgba(255,255,255,.055);display:flex;gap:7px">
+        <button style="flex:1;font:inherit;font-size:12px;padding:6px 0;border-radius:6px;background:color-mix(in srgb,#38bdf8 14%,transparent);border:1px solid color-mix(in srgb,#38bdf8 32%,transparent);color:#38bdf8;cursor:pointer">save job</button>
+        <button style="flex:none;font:inherit;font-size:12px;padding:6px 12px;border-radius:6px;background:transparent;border:1px solid rgba(255,255,255,.12);color:#7a8fa8;cursor:pointer">remove</button>
+      </div>
+    </div>
+  </div>
+
+  <div style="flex:none;display:flex;align-items:center;gap:20px;padding:0 16px;height:30px;background:#0b1016;border-top:1px solid rgba(255,255,255,.055);color:#344050;font-size:11px">
+    <span>Nightly · 18 jobs · 1 handoff chain</span><div style="flex:1"></div><span style="color:#f4665b">working tree contested 05:15–05:25</span><span>timers read 20:44</span>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1470,&quot;height&quot;:800}}">class Component extends DCLogic {}</script>
+</body>
+</html>

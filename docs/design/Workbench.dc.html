@@ -1,0 +1,431 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<link rel="stylesheet" href="_ds/skyrow-labs-design-system-89d3f2cc-ca17-4f1d-a88b-7893b1e9b0b9/colors_and_type.css">
+<script src="_ds/skyrow-labs-design-system-89d3f2cc-ca17-4f1d-a88b-7893b1e9b0b9/_ds_bundle.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&amp;family=Inter:wght@300;400;500;600;700&amp;family=Space+Grotesk:wght@500;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#05090e;font-family:Inter,system-ui,sans-serif}
+a{color:#38bdf8}a:hover{color:#7dd3fc}
+input::placeholder{color:#344050}
+</style></helmet>
+<div style="flex:none;width:1470px;height:800px;background:#05090e;color:#e8edf4;font:13px/1.5 'JetBrains Mono',ui-monospace,Menlo,monospace;display:flex;flex-direction:column;box-sizing:border-box;overflow:hidden;border-radius:10px;border:1px solid rgba(255,255,255,.09)">
+
+  <div style="flex:none;height:40px;display:flex;align-items:center;gap:14px;padding:0 14px;background:#0b1016;border-bottom:1px solid rgba(255,255,255,.055)">
+    <div style="display:flex;gap:8px;flex:none"><span style="width:11px;height:11px;border-radius:50%;background:#f4665b"></span><span style="width:11px;height:11px;border-radius:50%;background:#e6dc0e"></span><span style="width:11px;height:11px;border-radius:50%;background:#4ade80"></span></div>
+    <span style="font:700 13px/1 'Space Grotesk',Inter,sans-serif;letter-spacing:-.02em;flex:none">sky<span style="color:#38bdf8">.boss</span></span>
+    <div style="display:flex;gap:1px;flex:none;background:rgba(255,255,255,.055);border-radius:6px;padding:1px"><span style="font-size:11.5px;padding:4px 11px;border-radius:5px;background:#111820;color:#e8edf4">Workbench</span><span style="font-size:11.5px;padding:4px 11px;border-radius:5px;color:#7a8fa8">Flight Plan</span><span style="font-size:11.5px;padding:4px 11px;border-radius:5px;color:#7a8fa8">Control Tower</span></div>
+    <div style="flex:1"></div>
+    <span style="font-size:11px;color:#344050;flex:none">draft · not saved · 8 tools in the box</span>
+    <div style="width:1px;height:16px;background:rgba(255,255,255,.09);flex:none"></div>
+    <span style="font-size:11px;color:#344050;flex:none">⌘K</span>
+  </div>
+
+  <div style="flex:1;display:flex;min-height:0">
+
+    <div style="flex:none;width:238px;display:flex;flex-direction:column;background:#0b1016;border-right:1px solid rgba(255,255,255,.055);min-height:0">
+      <div style="flex:none;display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid rgba(255,255,255,.055)">
+        <span style="flex:1;font-size:10.5px;letter-spacing:.14em;color:#344050">SAVED COMMANDS</span>
+        <span style="font-size:11px;color:#38bdf8;cursor:pointer">+ draft</span>
+      </div>
+      <div style="flex:1;overflow:auto;min-height:0;padding:6px 0">
+        <sc-for list="{{ toolGroups }}" as="g" hint-placeholder-count="4">
+          <div style="padding:8px 14px 4px;font-size:10.5px;letter-spacing:.12em;display:flex;gap:8px;align-items:baseline"><span style="color:{{ g.color }}">{{ g.name }}</span><span style="flex:1;height:1px;background:rgba(255,255,255,.055)"></span><span style="color:#344050">{{ g.count }}</span></div>
+          <sc-for list="{{ g.tools }}" as="t" hint-placeholder-count="2">
+            <div style="display:flex;align-items:center;gap:9px;padding:6px 14px;cursor:pointer;background:{{ t.bg }};border-left:2px solid {{ t.mark }}"><span style="flex:1;color:{{ t.fg }};overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ t.name }}</span><span style="font-size:10.5px;color:{{ t.tailColor }}">{{ t.tail }}</span></div>
+          </sc-for>
+        </sc-for>
+      </div>
+      <div style="flex:none;padding:9px 14px;border-top:1px solid rgba(255,255,255,.055);font-size:11px;color:#344050">the box is a file — tb only ever appends</div>
+    </div>
+
+    <div style="flex:1;display:flex;flex-direction:column;min-width:0;min-height:0">
+
+      <div style="flex:none;padding:12px 20px 12px;border-bottom:1px solid rgba(255,255,255,.055)">
+        <div style="display:flex;align-items:center;gap:11px">
+          <span style="font-size:10.5px;letter-spacing:.12em;color:#344050;flex:none">CONTRACT</span>
+          <span style="font-size:10px;letter-spacing:.1em;color:#344050;flex:none">observes</span>
+          <div style="display:flex;gap:1px;flex:none;background:rgba(255,255,255,.055);border-radius:6px;padding:1px">
+            <sc-for list="{{ observes }}" as="e" hint-placeholder-count="3">
+              <span onClick="{{ e.pick }}" style="font-size:11.5px;padding:4px 13px;border-radius:5px;cursor:pointer;background:{{ e.bg }};color:{{ e.fg }}">{{ e.name }}</span>
+            </sc-for>
+          </div>
+          <span style="font-size:10px;letter-spacing:.1em;color:#344050;flex:none">acts</span>
+          <div style="display:flex;gap:1px;flex:none;background:rgba(255,255,255,.055);border-radius:6px;padding:1px">
+            <span onClick="{{ pickRun }}" style="font-size:11.5px;padding:4px 13px;border-radius:5px;cursor:pointer;background:{{ runBg }};color:{{ runFg }}">run</span>
+          </div>
+          <div style="flex:1"></div>
+          <span style="font-size:11px;color:#344050">the one bit no parser can tell you</span>
+        </div>
+        <div style="display:flex;gap:7px;align-items:center;margin-top:11px">
+          <div style="flex:none;display:flex;align-items:center;gap:8px;background:#111820;border:1px solid rgba(255,255,255,.09);border-radius:7px;padding:6px 10px;font-size:12px;color:#7a8fa8">--cwd <span style="color:#e8edf4">{{ cwd }}</span> ▾</div>
+          <input value="{{ argv }}" onChange="{{ onArgv }}" spellcheck="false" placeholder="the argv, verbatim…" style="flex:1;min-width:0;background:#111820;border:1px solid color-mix(in srgb,#38bdf8 45%,transparent);box-shadow:0 0 0 3px color-mix(in srgb,#38bdf8 9%,transparent);border-radius:7px;padding:7px 10px;font:inherit;font-size:12px;color:#e8edf4;outline:none" />
+          <button onClick="{{ trial }}" style="flex:none;font:inherit;font-size:11.5px;padding:6px 13px;border-radius:7px;background:{{ trialBg }};border:1px solid {{ trialBd }};color:{{ trialFg }};cursor:pointer">{{ trialLabel }}</button>
+        </div>
+      </div>
+
+      <div style="flex:none;display:flex;align-items:center;gap:10px;padding:7px 20px;background:#0b1016;border-bottom:1px solid rgba(255,255,255,.055);font-size:11px">
+        <span style="color:#7a8fa8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ chromeTop }}</span>
+        <span style="flex:1;height:1px;background:rgba(255,255,255,.055)"></span>
+        <span style="color:{{ chromeRightColor }};flex:none">{{ chromeRight }}</span>
+      </div>
+
+      <div style="flex:1;min-height:0;display:flex;flex-direction:column;background:#05090e">
+
+        <sc-if value="{{ isData }}" hint-placeholder-val="{{ true }}">
+          <div style="flex:1;overflow:auto;min-height:0">
+            <div style="display:flex;gap:14px;padding:8px 20px 6px;border-bottom:1px solid rgba(255,255,255,.055);position:sticky;top:0;background:#05090e">
+              <sc-for list="{{ colHeads }}" as="c" hint-placeholder-count="4">
+                <span style="flex:{{ c.w }};min-width:0;font-size:10.5px;letter-spacing:.08em;color:#344050;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ c.k }}</span>
+              </sc-for>
+            </div>
+            <sc-for list="{{ tableRows }}" as="r" hint-placeholder-count="5">
+              <div style="display:flex;gap:14px;padding:6px 20px">
+                <sc-for list="{{ r.cells }}" as="c" hint-placeholder-count="4">
+                  <span style="flex:{{ c.w }};min-width:0;font-size:12px;color:{{ c.color }};overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ c.v }}</span>
+                </sc-for>
+              </div>
+            </sc-for>
+            <div style="margin:10px 20px 0;font-size:11px;color:#e6dc0e;display:flex;gap:8px;align-items:baseline"><span>⚠</span><span style="flex:1;line-height:1.5">{{ hiddenNote }}</span></div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ isRead }}" hint-placeholder-val="{{ false }}">
+          <div style="flex:1;overflow:auto;min-height:0;padding:10px 20px">
+<pre style="margin:0;white-space:pre-wrap;color:#7a8fa8;font:inherit;font-size:12.5px;line-height:1.65"><span style="display:block"><span style="color:#e6dc0e">*</span> <span style="color:#38bdf8">3a129c1</span> <span style="color:#344050">20:48</span> reset the tree to develop</span><span style="display:block"><span style="color:#e6dc0e">*</span> <span style="color:#38bdf8">6322084</span> <span style="color:#344050">19:23</span> fix: the precondition probe retries three times</span><span style="display:block"><span style="color:#e6dc0e">*</span>   <span style="color:#38bdf8">a07e86b</span> <span style="color:#344050">18:02</span> Merge branch 'fix/roll-call-fold'</span><span style="display:block"><span style="color:#344050">|\</span></span><span style="display:block"><span style="color:#344050">| *</span> <span style="color:#38bdf8">c41d8f2</span> <span style="color:#344050">17:44</span> roll-call folds a project that never answered</span><span style="display:block"><span style="color:#344050">|/</span></span><span style="display:block"><span style="color:#e6dc0e">*</span> <span style="color:#38bdf8">63220841</span> <span style="color:#344050">16:10</span> chore: bump the check window to 12h</span></pre>
+          </div>
+          <div style="flex:none;padding:9px 20px;font-size:11px;color:#344050;line-height:1.55;border-top:1px solid rgba(255,255,255,.055)">verbatim, by contract. A graph is the case that proves the rule — there are no columns in here to find, and inferring some is the silently-wrong failure. Tint is shape, never judgment.</div>
+        </sc-if>
+
+        <sc-if value="{{ isFollow }}" hint-placeholder-val="{{ false }}">
+          <div style="flex:1;overflow:auto;min-height:0;padding:10px 20px">
+<pre style="margin:0;white-space:pre-wrap;color:#7a8fa8;font:inherit;font-size:12.5px;line-height:1.65"><span style="display:block"><span style="color:#344050">20:41</span> resolving 214 modules</span><span style="display:block"><span style="color:#344050">20:43</span> compiled 214 files · <span style="color:#4ade80">0 errors</span></span><span style="display:block"><span style="color:#344050">20:44</span> suite: 112 passed, 0 failed</span><span style="display:block"><span style="color:#344050">20:47</span> packaging → dist/</span></pre>
+            <div style="display:flex;align-items:center;gap:10px;margin-top:12px"><span style="flex:1;height:1px;background:rgba(255,255,255,.055)"></span><span style="font-size:10.5px;letter-spacing:.1em;color:#e6dc0e">QUIET 3m — THE FILE IS THERE, IT HAS NOT GROWN</span><span style="flex:1;height:1px;background:rgba(255,255,255,.055)"></span></div>
+          </div>
+          <div style="flex:none;padding:9px 20px;font-size:11px;color:#344050;line-height:1.55;border-top:1px solid rgba(255,255,255,.055)">a bare path takes the native cursor — tb stats the file, so <b style="color:#7a8fa8;font-weight:400">quiet</b> and <b style="color:#7a8fa8;font-weight:400">dead</b> are different words. <b style="color:#7a8fa8;font-weight:400">--</b> instead would stream a command.</div>
+        </sc-if>
+
+        <sc-if value="{{ isRun }}" hint-placeholder-val="{{ false }}">
+          <div style="flex:1;min-height:0;display:flex;align-items:center;justify-content:center;padding:20px">
+            <div style="width:560px;border:1px solid color-mix(in srgb,#f4665b 30%,transparent);background:color-mix(in srgb,#f4665b 5%,transparent);border-radius:9px;padding:18px 20px">
+              <div style="font:700 14px/1.2 'Space Grotesk',Inter,sans-serif;letter-spacing:-.02em;color:#f4665b">an act has no trial run</div>
+              <div style="margin-top:8px;font-size:11.5px;color:#7a8fa8;line-height:1.6">Every other contract on this bench is drafted by running it and looking. This one cannot be: tb will not run a write to show you what it would print. What the bench can still check, it has:</div>
+              <div style="margin-top:12px;display:flex;flex-direction:column;gap:6px;font-size:11.5px">
+                <div style="display:flex;gap:9px"><span style="color:#4ade80">✓</span><span style="flex:1;color:#7a8fa8">argv parses — 5 words, no unbalanced quote</span></div>
+                <div style="display:flex;gap:9px"><span style="color:#4ade80">✓</span><span style="flex:1;color:#7a8fa8">gh resolves on PATH</span></div>
+                <div style="display:flex;gap:9px"><span style="color:#4ade80">✓</span><span style="flex:1;color:#7a8fa8">--cwd exists and is a directory</span></div>
+                <div style="display:flex;gap:9px"><span style="color:#e6dc0e">▸</span><span style="flex:1;color:#7a8fa8">claims the working tree — one other job claims it too</span></div>
+              </div>
+              <div style="margin-top:14px;display:flex;gap:8px;align-items:center">
+                <button style="font:inherit;font-size:11.5px;padding:6px 13px;border-radius:7px;background:color-mix(in srgb,#f4665b 14%,transparent);border:1px solid color-mix(in srgb,#f4665b 34%,transparent);color:#f4665b;cursor:pointer">run it for real</button>
+                <span style="font-size:11px;color:#344050">it will do the thing. There is no dry run to fall back to.</span>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+
+        <div style="flex:none;display:flex;align-items:center;gap:10px;padding:7px 20px;background:#0b1016;border-top:1px solid rgba(255,255,255,.055);font-size:11px">
+          <span style="color:{{ chromeFootColor }};flex:none">{{ chromeFoot }}</span>
+          <span style="flex:1;height:1px;background:rgba(255,255,255,.055)"></span>
+          <span style="color:#344050;flex:none">{{ chromeFootRight }}</span>
+        </div>
+      </div>
+
+      <div style="flex:none;border-top:1px solid rgba(255,255,255,.055);background:#0b1016;padding:11px 20px 12px">
+        <div style="display:flex;align-items:baseline;gap:10px">
+          <span style="font-size:10.5px;letter-spacing:.12em;color:#344050;flex:none">{{ viewHeading }}</span>
+          <span style="font-size:11px;color:#344050">{{ viewNote }}</span>
+        </div>
+
+        <sc-if value="{{ isData }}" hint-placeholder-val="{{ true }}">
+          <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:9px">
+            <sc-for list="{{ colChips }}" as="c" hint-placeholder-count="14">
+              <span onClick="{{ c.pick }}" style="font-size:11px;border-radius:5px;padding:2px 8px;cursor:pointer;border:1px solid {{ c.bd }};background:{{ c.bg }};color:{{ c.fg }}">{{ c.k }}</span>
+            </sc-for>
+          </div>
+          <div style="display:flex;gap:16px;align-items:center;margin-top:10px;font-size:11.5px">
+            <span style="color:#344050;white-space:nowrap;flex:none">--rows <span style="color:#7a8fa8">payload was the rows ▾</span></span>
+            <span style="color:#344050;white-space:nowrap;flex:none">--from <span style="color:#7a8fa8">json ▾</span></span>
+            <span style="color:#344050;white-space:nowrap;flex:none">delta key <span style="color:#7a8fa8">number ▾</span></span>
+            <span style="flex:1"></span>
+            <span style="color:#344050;text-align:right">the checklist is what the run returned, not what you remember</span>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ isRead }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;gap:16px;align-items:center;margin-top:9px;font-size:11.5px">
+            <span style="color:#344050;white-space:nowrap;flex:none">shape tint <span style="color:#4ade80">always on</span></span>
+            <span style="color:#344050;white-space:nowrap;flex:none">--highlight <span style="color:#7a8fa8">not on read ▾</span></span>
+            <span style="flex:1"></span>
+            <span style="color:#344050">read has no view — a view describes rows, and this contract has none</span>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ isFollow }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;gap:16px;align-items:center;margin-top:9px;font-size:11.5px">
+            <span style="color:#344050;white-space:nowrap;flex:none">--due <span style="color:#e8edf4">15m</span></span>
+            <span style="color:#344050;white-space:nowrap;flex:none">--lines <span style="color:#e8edf4">200</span></span>
+            <span style="color:#344050;white-space:nowrap;flex:none">--highlight <span style="color:#7a8fa8">none ▾</span></span>
+            <span style="flex:1"></span>
+            <span style="color:#344050">--due is what makes <b style="color:#7a8fa8;font-weight:400">late</b> a word this window can say</span>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ isRun }}" hint-placeholder-val="{{ false }}">
+          <div style="margin-top:9px;font-size:11.5px;color:#344050;line-height:1.55">nothing to shape. An act returns an exit code, not rows — and the exit code is the whole verdict.</div>
+        </sc-if>
+      </div>
+
+      <div style="flex:none;border-top:1px solid rgba(255,255,255,.09);background:#0b1016;padding:11px 20px 13px">
+        <div style="display:flex;align-items:center;gap:14px">
+          <span style="font-size:10.5px;letter-spacing:.12em;color:#344050;flex:none">AS A JOB</span>
+          <div style="flex:none;display:flex;align-items:center;gap:7px"><span style="font-size:11px;color:#344050">--save</span><div style="background:#111820;border:1px solid rgba(255,255,255,.09);border-radius:6px;padding:4px 9px;font-size:12px;color:#e8edf4">{{ label }}</div></div>
+          <div style="flex:none;display:flex;align-items:center;gap:7px"><span style="font-size:11px;color:#344050">cadence</span><span onClick="{{ cycleRefresh }}" style="border-radius:6px;padding:4px 9px;font-size:12px;cursor:{{ cadenceCursor }};background:{{ cadenceBg }};border:1px solid {{ cadenceBd }};color:{{ cadenceFg }}">{{ cadenceLabel }}</span></div>
+          <div style="flex:none;display:flex;align-items:center;gap:7px"><span style="font-size:11px;color:#344050">clock</span><div style="display:flex;gap:1px;background:rgba(255,255,255,.055);border-radius:6px;padding:1px"><sc-for list="{{ clocks }}" as="k" hint-placeholder-count="3"><span onClick="{{ k.pick }}" style="font-size:11px;padding:3px 9px;border-radius:5px;cursor:pointer;background:{{ k.bg }};color:{{ k.fg }}">{{ k.name }}</span></sc-for></div></div>
+          <div style="flex:none;display:flex;align-items:center;gap:6px"><span style="font-size:11px;color:#344050">claims</span><span style="font-size:11px;color:#e6dc0e;border:1px solid color-mix(in srgb,#e6dc0e 30%,transparent);border-radius:100px;padding:2px 9px">▸ working tree</span><span style="font-size:11px;color:#344050;border:1px dashed rgba(255,255,255,.12);border-radius:100px;padding:2px 9px;cursor:pointer">+</span></div>
+          <div style="flex:1"></div>
+        </div>
+        <div style="margin-top:8px;font-size:11px;color:#344050;line-height:1.5">{{ clockNote }}</div>
+        <div style="display:flex;gap:9px;align-items:center;margin-top:8px">
+          <span style="color:#38bdf8;font-size:12px;flex:none">→</span>
+          <div style="flex:1;min-width:0;background:#111820;border:1px solid rgba(255,255,255,.09);border-radius:7px;padding:7px 10px;font-size:11.5px;color:#7a8fa8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ saveLine }}</div>
+          <button style="flex:none;font:inherit;font-size:11.5px;padding:6px 13px;border-radius:7px;background:{{ saveBg }};border:1px solid {{ saveBd }};color:{{ saveFg }};cursor:pointer">{{ saveLabel }}</button>
+        </div>
+        <div style="margin-top:8px;font-size:11px;color:#344050;line-height:1.5">{{ saveNote }}</div>
+      </div>
+
+    </div>
+
+    <div style="flex:none;width:340px;display:flex;flex-direction:column;background:#0b1016;border-left:1px solid color-mix(in srgb,#38bdf8 22%,transparent);min-height:0">
+      <div style="flex:none;display:flex;align-items:center;gap:9px;padding:9px 14px;border-bottom:1px solid rgba(255,255,255,.055)">
+        <span style="font-size:10.5px;letter-spacing:.12em;color:#38bdf8;flex:none">REFERENCE</span>
+        <div style="flex:1"></div>
+        <span style="font-size:10.5px;letter-spacing:.1em;color:{{ bNatureColor }};border:1px solid {{ bNatureBd }};border-radius:4px;padding:1px 7px">{{ bNature }}</span>
+      </div>
+      <div style="flex:1;overflow:auto;min-height:0;padding:14px;display:flex;flex-direction:column;gap:15px">
+        <div>
+          <div style="font:700 15px/1.2 'Space Grotesk',Inter,sans-serif;letter-spacing:-.02em;color:#e8edf4">{{ bName }}</div>
+          <div style="margin-top:6px;font-size:11.5px;color:#7a8fa8;line-height:1.55">{{ bBlurb }}</div>
+          <div style="margin-top:8px;background:#111820;border:1px solid rgba(255,255,255,.09);border-radius:7px;padding:7px 9px;font-size:11.5px;color:#7a8fa8;line-height:1.5">{{ bName }} {{ bSig }}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div style="font-size:10px;letter-spacing:.08em;color:#344050">FLAGS</div>
+          <sc-for list="{{ bFlags }}" as="f" hint-placeholder-count="6">
+            <div style="border:1px solid rgba(255,255,255,.09);border-radius:7px;padding:8px 10px;cursor:pointer" style-hover="border-color:color-mix(in srgb,#38bdf8 40%,transparent);background:color-mix(in srgb,#38bdf8 7%,transparent)">
+              <div style="font-size:12px;color:#38bdf8">{{ f.flag }}</div>
+              <div style="margin-top:4px;font-size:11.5px;color:#7a8fa8;line-height:1.55">{{ f.desc }}</div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+      <div style="flex:none;padding:9px 14px;border-top:1px solid rgba(255,255,255,.055);font-size:11px;color:#344050">one help string, two surfaces</div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1470,&quot;height&quot;:800}}">class Component extends DCLogic {
+  state = { entry: 'data',
+            cols: ['number', 'title', 'checks.failed', 'next'], refreshIdx: 2, clock: 'skyboss' };
+
+  COLS = [
+    { k: 'number', w: '1' }, { k: 'title', w: '6.4' }, { k: 'state', w: '1.2' }, { k: 'draft', w: '1' },
+    { k: 'author', w: '1.4' }, { k: 'branch', w: '2.6' }, { k: 'base', w: '1.2' },
+    { k: 'checks.failed', w: '1.9' }, { k: 'checks.passed', w: '1.9' }, { k: 'next', w: '2' },
+    { k: 'reviews', w: '1.2' }, { k: 'updated', w: '1.4' }, { k: 'additions', w: '1.4' }, { k: 'url', w: '2.4' }
+  ];
+  PRROWS = [
+    { number: '1112', title: 'a pool slot parked on a published PR branch is falsely stranded', state: 'open', draft: 'no', author: 'claude', branch: 'fix/pool-slot-stranded', base: 'develop', 'checks.failed': '0', 'checks.passed': '6', next: 'merge', reviews: '1', updated: '20:06', additions: '+42', url: '/pull/1112' },
+    { number: '1113', title: 'annotation .json sidecar leaks on every recording and account delete', state: 'open', draft: 'no', author: 'claude', branch: 'fix/sidecar-leak', base: 'develop', 'checks.failed': '1', 'checks.passed': '5', next: 'fix CI Gate', reviews: '0', updated: '20:48', additions: '+118', url: '/pull/1113' },
+    { number: '1109', title: 'three collaboration notification types render generic copy', state: 'draft', draft: 'yes', author: 'claude', branch: 'fix/notification-copy', base: 'develop', 'checks.failed': '0', 'checks.passed': '6', next: 'un-draft', reviews: '0', updated: '19:23', additions: '+27', url: '/pull/1109' },
+    { number: '1110', title: 'the precondition probe has no retry', state: 'open', draft: 'no', author: 'claude', branch: 'fix/probe-retry', base: 'develop', 'checks.failed': '1', 'checks.passed': '5', next: 'fix CI Gate', reviews: '2', updated: '19:43', additions: '+64', url: '/pull/1110' },
+    { number: '1105', title: 'roll-call folds a project that never answered', state: 'merged', draft: 'no', author: 'operator', branch: 'fix/roll-call-fold', base: 'develop', 'checks.failed': '0', 'checks.passed': '6', next: '—', reviews: '1', updated: '17:44', additions: '+9', url: '/pull/1105' }
+  ];
+  STEPS = [0, 5, 30, 60, 300];
+  BENCH = {
+    data: {
+      name: 'tb data', nature: 'OBSERVES', label: 'prs', cwd: '~/src/jam.sense', argv: 'jam pr list --json',
+      blurb: 'Read another CLI’s structured output as data. A tool that printed something else has failed its contract, and the envelope says so rather than carrying the bytes.',
+      sig: '[--cwd <dir>] [--cols <list>] [--from <name>] [--refresh <n>] [--save <name>] -- <argv>',
+      top: 'jam pr list --json · data · refresh 30s', right: '⟳ next in 12s', rightColor: '#38bdf8',
+      foot: 'ok · 1.4s · ran 20:41:07', footColor: '#4ade80', footRight: 'shaped from 14 columns',
+      flags: [
+        { flag: '--cwd', desc: 'run it here. Often required even for a command already on PATH — many tools resolve their environment against the working directory rather than their installed location' },
+        { flag: '--cols', desc: 'show exactly these columns, in this order. Dotted paths allowed. Overrides the automatic shaping outright' },
+        { flag: '--rows', desc: 'where the rows are, if the payload wraps them' },
+        { flag: '--from', desc: 'how to read what the tool prints: the json kind, or a format you declared in formats.toml' },
+        { flag: '--refresh', desc: 'stay resident and re-run every N seconds. A --refresh in force becomes the saved command’s own cadence' },
+        { flag: '--save', desc: 'keep a line that took three tries to get right, then run it. Appends only — a name that already exists is refused' }
+      ]
+    },
+    read: {
+      name: 'tb read', nature: 'OBSERVES', label: 'graph', cwd: '~/src/sky-boss', argv: 'git log --graph --oneline -12',
+      blurb: 'Show what a command printed, verbatim. For tools with no --json, and for authored output whose layout is knowledge rather than decoration.',
+      sig: '[--cwd <dir>] [--refresh <n>] [--save <name>] -- <argv>',
+      top: 'git log --graph --oneline -12 · read', right: 'snapshot', rightColor: '#344050',
+      foot: 'ok · 0.2s · ran 20:43:19', footColor: '#4ade80', footRight: '7 lines · verbatim',
+      flags: [
+        { flag: '--cwd', desc: 'run it here' },
+        { flag: '--refresh', desc: 'stay resident and re-run every N seconds, watch(1)-style' },
+        { flag: '--save', desc: 'save this invocation as a saved command, then run it' },
+        { flag: '--timeout', desc: 'give up after this many seconds' }
+      ]
+    },
+    follow: {
+      name: 'tb follow', nature: 'OBSERVES', label: 'build', cwd: '~/src/sky-boss', argv: 'build.log',
+      blurb: 'Hold content open. A bare path takes the native file cursor — stat-aware, rotation-proof, backfilled. A -- takes a command that never exits. Dispatch is by argument shape and nothing else.',
+      sig: '[--due <every>] [--lines <n>] [--highlight <name>] [--save <name>] <path> | -- <argv>',
+      top: 'build.log · follow · due 15m', right: 'quiet 3m · last write 20:47', rightColor: '#e6dc0e',
+      foot: '198 KB · showing last 200', footColor: '#7a8fa8', footRight: 'alive — the file is there, it has not grown',
+      flags: [
+        { flag: '--due', desc: 'you expect a line at least this often: 15m, 2h, 90s. Past it, the band says late — which is how silence becomes a fact instead of an absence' },
+        { flag: '--lines', desc: 'how many lines the window keeps. The file stays the scrollback of record' },
+        { flag: '--highlight', desc: 'also tint with the patterns you declared under [highlight.NAME] in formats.toml. They run after tb’s and claim only unclaimed text' },
+        { flag: '--cwd', desc: 'run it here' },
+        { flag: '--save', desc: 'save this invocation as a saved command, then follow it' }
+      ]
+    },
+    run: {
+      name: 'tb run', nature: 'ACTS', label: 'ci-check', cwd: '~/src/jam.sense', argv: 'gh workflow run develop-ci-check.yml',
+      blurb: 'Run a command and report what it printed. The only command in tb that acts — which is why nothing here may give it a cadence.',
+      sig: '[--cwd <dir>] [--delay <when>] [--timeout <n>] -- <argv>',
+      top: 'gh workflow run develop-ci-check.yml · run · acts', right: 'not run', rightColor: '#f4665b',
+      foot: 'no trial — an act has no preview', footColor: '#f4665b', footRight: 'the exit code is the whole verdict',
+      flags: [
+        { flag: '--delay', desc: 'run it once, later, behind a countdown you can cancel. 5m, 2h, 09:00' },
+        { flag: '--cwd', desc: 'run it here' },
+        { flag: '--timeout', desc: 'give up after this many seconds' }
+      ]
+    }
+  };
+  TOOLS = [
+    { name: 'data', color: '#38bdf8', tools: [
+      { name: 'prs', tail: '30s' }, { name: 'timers', tail: '60s' }, { name: 'runs', tail: '5s' } ] },
+    { name: 'read', color: '#7a8fa8', tools: [
+      { name: 'changelog', tail: '—' }, { name: 'graph', tail: '30s' } ] },
+    { name: 'follow', color: '#4ade80', tools: [
+      { name: 'build', tail: 'quiet 3m' }, { name: 'api', tail: 'live' } ] },
+    { name: 'run', color: '#f4665b', tools: [
+      { name: 'ci-check', tail: 'acts' } ] }
+  ];
+  pickEntry = (e) => this.setState({ entry: e });
+  toggleCol = (k) => {
+    const has = this.state.cols.indexOf(k) >= 0;
+    const next = has ? this.state.cols.filter((c) => c !== k)
+                     : this.COLS.map((c) => c.k).filter((c) => c === k || this.state.cols.indexOf(c) >= 0);
+    this.setState({ cols: next });
+  };
+  cycleRefresh = () => {
+    if (this.state.entry !== 'data' && this.state.entry !== 'read') return;
+    this.setState({ refreshIdx: (this.state.refreshIdx + 1) % this.STEPS.length });
+  };
+  cellColor = (k, v) => {
+    if (k === 'number') return '#38bdf8';
+    if (k === 'title') return '#e8edf4';
+    if (k === 'next') return '#e6dc0e';
+    if (k === 'checks.failed') return v === '0' ? '#4ade80' : '#f4665b';
+    return '#7a8fa8';
+  };
+  benchVals() {
+    const e = this.state.entry;
+    const B = this.BENCH[e];
+    const chosen = this.COLS.filter((c) => this.state.cols.indexOf(c.k) >= 0);
+    const heads = chosen.length ? chosen : [{ k: 'no columns chosen', w: '1' }];
+    const secs = this.STEPS[this.refreshOf ? 0 : this.state.refreshIdx];
+    const cadence = secs === 0 ? 'off' : (secs >= 60 ? (secs / 60) + 'm' : secs + 's');
+    const observing = e === 'data' || e === 'read';
+    const hidden = this.COLS.filter((c) => this.state.cols.indexOf(c.k) < 0).map((c) => c.k);
+    const colsFlag = chosen.length && chosen.length < this.COLS.length
+      ? '--cols ' + chosen.map((c) => c.k).join(',') + ' ' : '';
+    const refreshFlag = observing && secs > 0 ? '--refresh ' + secs + ' ' : '';
+    let saveLine, saveNote, saveLabel;
+    if (e === 'run') {
+      saveLine = '[tool.ci-check]  argv = ["run", "--", "gh", "workflow", "run", "develop-ci-check.yml"]';
+      saveNote = 'run does not take --save — --save saves by example, and the example ran. Paste the block yourself; editing and deleting stay $EDITOR’s.';
+      saveLabel = 'copy';
+    } else if (e === 'follow') {
+      saveLine = 'tb follow --due 15m --lines 200 --save build -- build.log';
+      saveNote = '--save is the only writer of tools.toml and it only ever appends. The bench types the line; it is not a second writer.';
+      saveLabel = 'save';
+    } else {
+      saveLine = 'tb ' + e + ' --cwd ' + B.cwd + ' ' + colsFlag + refreshFlag + '--save ' + B.label + ' -- ' + B.argv;
+      saveNote = '--save is the only writer of tools.toml and it only ever appends. The bench types the line; it is not a second writer.';
+      saveLabel = 'save';
+    }
+    return {
+      isData: e === 'data', isRead: e === 'read', isFollow: e === 'follow', isRun: e === 'run',
+      observes: ['read', 'data', 'follow'].map((n) => ({
+        name: n, pick: () => this.pickEntry(n),
+        bg: e === n ? '#111820' : 'transparent', fg: e === n ? '#38bdf8' : '#7a8fa8' })),
+      pickRun: () => this.pickEntry('run'),
+      runBg: e === 'run' ? '#111820' : 'transparent', runFg: e === 'run' ? '#f4665b' : '#7a8fa8',
+      cwd: B.cwd, argv: B.argv, onArgv: () => {},
+      trial: () => {}, trialLabel: e === 'run' ? 'no trial run' : 'trial run',
+      trialBg: e === 'run' ? 'transparent' : 'color-mix(in srgb,#38bdf8 14%,transparent)',
+      trialBd: e === 'run' ? 'rgba(255,255,255,.12)' : 'color-mix(in srgb,#38bdf8 32%,transparent)',
+      trialFg: e === 'run' ? '#344050' : '#38bdf8',
+      chromeTop: B.top, chromeRight: B.right, chromeRightColor: B.rightColor,
+      chromeFoot: B.foot, chromeFootColor: B.footColor, chromeFootRight: B.footRight,
+      colHeads: heads,
+      tableRows: this.PRROWS.map((r) => ({
+        cells: heads.map((c) => ({ w: c.w, v: r[c.k] === undefined ? '' : r[c.k], color: this.cellColor(c.k, r[c.k]) })) })),
+      colChips: this.COLS.map((c) => {
+        const on = this.state.cols.indexOf(c.k) >= 0;
+        return { k: c.k, pick: () => this.toggleCol(c.k),
+          bd: on ? 'color-mix(in srgb,#38bdf8 40%,transparent)' : 'rgba(255,255,255,.09)',
+          bg: on ? 'color-mix(in srgb,#38bdf8 12%,transparent)' : 'transparent',
+          fg: on ? '#38bdf8' : '#344050' };
+      }),
+      hiddenNote: hidden.length
+        ? hidden.length + ' column(s) hidden by --cols: ' + hidden.join(', ')
+        : 'every column shown — fourteen wide, and the terminal is not. This is the number --cols exists for.',
+      viewHeading: e === 'run' ? 'NO VIEW' : 'VIEW',
+      viewNote: e === 'run' ? 'a view describes how to present rows; this contract returns none'
+                            : 'describes how to present the data — it never filters it',
+      label: B.label,
+      cadenceLabel: e === 'follow' ? 'resident' : (e === 'run' ? 'not offered' : cadence),
+      cadenceCursor: observing ? 'pointer' : 'default',
+      cadenceBg: e === 'run' ? 'color-mix(in srgb,#f4665b 8%,transparent)' : '#111820',
+      cadenceBd: e === 'run' ? 'color-mix(in srgb,#f4665b 30%,transparent)'
+                             : (observing ? 'color-mix(in srgb,#38bdf8 45%,transparent)' : 'rgba(255,255,255,.09)'),
+      cadenceFg: e === 'run' ? '#f4665b' : (observing ? '#e8edf4' : '#4ade80'),
+      clocks: [{ id: 'skyboss', name: 'sky.boss' }, { id: 'crontab', name: 'crontab' }, { id: 'systemd', name: 'systemd' }].map((k) => ({
+        name: k.name, pick: () => this.setState({ clock: k.id }),
+        bg: this.state.clock === k.id ? '#111820' : 'transparent',
+        fg: this.state.clock === k.id ? '#38bdf8' : '#7a8fa8' })),
+      clockNote: e === 'run'
+        ? 'a cadence on a write is a scheduler nobody asked for — so the field is absent, not disabled'
+        : 'the sky.boss clock dies with the last window. The other two are you saying otherwise, on purpose',
+      saveLine: saveLine, saveNote: saveNote, saveLabel: saveLabel,
+      saveBg: e === 'run' ? 'transparent' : 'color-mix(in srgb,#4ade80 12%,transparent)',
+      saveBd: e === 'run' ? 'rgba(255,255,255,.12)' : 'color-mix(in srgb,#4ade80 30%,transparent)',
+      saveFg: e === 'run' ? '#7a8fa8' : '#4ade80',
+      bName: B.name, bBlurb: B.blurb, bSig: B.sig, bFlags: B.flags,
+      bNature: B.nature,
+      bNatureColor: B.nature === 'ACTS' ? '#f4665b' : '#4ade80',
+      bNatureBd: B.nature === 'ACTS' ? 'color-mix(in srgb,#f4665b 30%,transparent)' : 'color-mix(in srgb,#4ade80 30%,transparent)',
+      toolGroups: this.TOOLS.map((g) => ({
+        name: g.name, color: g.color, count: g.tools.length,
+        tools: g.tools.map((t) => {
+          const active = t.name === B.label;
+          return { name: t.name, tail: t.tail,
+            fg: active ? '#e8edf4' : '#7a8fa8',
+            bg: active ? 'color-mix(in srgb,#38bdf8 12%,transparent)' : 'transparent',
+            mark: active ? '#38bdf8' : 'transparent',
+            tailColor: t.tail === 'quiet 3m' ? '#e6dc0e' : (t.tail === 'live' ? '#4ade80' : (t.tail === 'acts' ? '#f4665b' : '#344050')) };
+        }) }))
+    };
+  }
+
+  renderVals() {
+    return this.benchVals();
+  }
+}</script>
+</body>
+</html>
