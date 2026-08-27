@@ -21,5 +21,8 @@ jobs/
 watches/
 
 # Operator context for this machine — never committed.
-# The published half is CLAUDE.md; see docs/features/operator-home.md.
+# The published half is CLAUDE.md.
 CLAUDE.local.md
+
+# Node — lint tooling only; the project is Python.
+node_modules/

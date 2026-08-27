@@ -62,3 +62,21 @@ jobs:
       # test imports either. If a test ever does, this job is where it surfaces.
       - name: Suite
         run: .venv/bin/python -m pytest -q
+
+  lint:
+    name: eslint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+
+      # `--max-warnings=0` is a ratchet, and it starts at zero because the tree
+      # was clean the day lint arrived. It may only go down. Raising it to make
+      # a commit pass is the one edit this job exists to prevent.
+      - run: npm run lint:check

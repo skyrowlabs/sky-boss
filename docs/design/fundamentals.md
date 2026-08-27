@@ -287,6 +287,33 @@ so the help that serves `--help` in the terminal serves the palette on the canva
 copy to drift. **Enforced, not aspired to:** a test walks the tree and fails any command whose
 help lacks a runnable example, so a future command cannot ship undocumented.
 
+### 2026-08-27 — the label tier: a border token is not a text token
+
+`docs/open.md` carried this as a contrast question — 10.5px `#344050` on `#0b1016`, against the
+CLI's measured 3.5:1 floor — and asked whether to *widen the canvas exemption* to cover a whole
+tier of labels or lift the tier. **Both halves of the question were wrong, and the measurement
+was too.** It is 1.81:1, not the "roughly 2.5:1" the item recorded.
+
+**It is not a contrast dispute. It is a token used outside its role.** `cli/theme.py` defines
+`TEXT_3` as *"very dim — structure, not reading text"*, and `BORDER = TEXT_3`. The mockup used
+the **border** token as a **text** token. Nothing about the floor, the exemption, or the palette
+needs to change to fix that.
+
+**Ruled:** anything meant to be *read* takes `TEXT_2` (`#7a8fa8`, 5.75:1 on the canvas surface —
+clear of the CLI floor and of WCAG AA's 4.5:1 for normal text). `TEXT_3` keeps what it is for:
+borders, rules, dividers, and the dashed slots that mean *absent*. `QUEUE · 8`, `LAYOUT` and the
+on-deck times are reading text and move.
+
+**The exemption is not widened, and the reason matters more than the ruling.** Its stated basis is
+that painting a background removes *the unknown terminal background* — which licenses using the
+palette at **full strength**. It never licensed using a token outside its role, and stretching it
+to cover a label tier would leave the floor meaning nothing. [[header]] records the mark as the
+one thing outside the floor and asserts that with a test precisely so the carve-out cannot spread
+by reasonable-looking steps. This is one of those steps, declined.
+
+The canvas takes its tokens as CSS custom properties from `css_variables`, so this is a question of
+*which* property a rule names — not a new colour, and not a second palette.
+
 ## Open questions
 
 One held deliberately; the concept is otherwise closed and further detail belongs in feature

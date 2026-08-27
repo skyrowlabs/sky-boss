@@ -136,8 +136,9 @@ What the execution argued back:
 
 `tb` became `sb` and the CLI's name became **sky.boss**, which broke the mark in the most literal
 way available: `banner.py` printed the new name beside a drawing of a toolbox with `TOOLBOX`
-lettered across it. [[open]] item 15 held it as a design task rather than a substitution, which was
-right — the fix is a redraw, and a redraw is the one part of a rename that cannot be done with sed.
+lettered across it. [[open]] held it as a design task rather than a substitution — right, and the
+reason: the fix is a redraw, and a redraw is the one part of a rename that cannot be done with sed.
+That item is closed and gone from [[open]] now; this round is where it went.
 
 **The glyph is a control tower** — an overhanging cab with mullioned glass, a shaft with one dark
 face, a flared base, a mast. It is 14x14 where the toolbox was 18x14, and the wordmark grew from
