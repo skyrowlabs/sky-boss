@@ -1,7 +1,7 @@
 ---
-status: complete
+status: active
 created: 2026-08-21
-updated: 2026-08-23
+updated: 2026-08-28
 agent_value: 3
 key_files:
   - cli/stream.py
@@ -12,6 +12,7 @@ key_files:
   - cli/run.py
   - cli/read.py
   - cli/canvas/server.py
+  - cli/canvas/runner.py
   - cli/canvas/static/app.js
   - tests/test_stream.py
   - tests/test_follow.py
@@ -40,6 +41,11 @@ The only operator assertion that remains is the one flag can't fake: choosing `f
 the process is *expected* not to exit, so the surface treats exit as an event to display rather
 than a result to wait for.
 
+**The black-box gap was closed in the terminal and left open on the canvas** — round 1 deferred
+that half by name. Round 4 closes it, and the deferral turned out to have grown a second, worse
+symptom in the meantime: a canvas run is not merely silent while it works, it is *killed at sixty
+seconds* by a ceiling that exists for a different reason. See Round 4.
+
 This substrate is what the file cursor ([[file-follow]]) deliberately does not cover: **the
 cursor owns files, the stream owns commands.** A file yields to `stat`; a process's only signal
 is its output, so the liveness clock here reads "last line arrived", nothing deeper.
@@ -57,8 +63,10 @@ the window to a plainly visible **dead** state carrying the exit code and time. 
 operator's click, never the surface's initiative; that is the dead-streams decision from the
 constitution, unchanged.
 
-**Live accrual for `run` and `read`.** Both ride the same line-streaming runner: output shows
-while the process runs, exit stamps the status. The `Result` envelope is untouched — under
+**Live accrual for `run` and `read`, on both surfaces.** Both ride the same line-streaming
+runner: output shows while the process runs, exit stamps the status. *(Round 1 shipped this in
+the terminal only and said so; the sentence read as though it covered the canvas, and round 4 is
+what makes it true. See Notes.)* The `Result` envelope is untouched — under
 `--json` the envelope is still emitted once, complete, at exit. Streaming is a *surface*
 behavior; the contract stays byte-identical, and the stdout-purity tests keep proving it.
 `data` stays report-at-exit — JSON parses only when complete — and shows a running-since clock
@@ -92,6 +100,108 @@ leaves (and kills)"). The frame is drawn inline below the prompt by default, kee
   that must outlive the surface belongs to systemd.
 
 ## Phases
+
+### Round 4 — the canvas accrues too (2026-08-28)
+
+The round round 1 named. *"Dropped, deliberately: canvas accrual for `run`/`read` windows … it
+earned its own round rather than a rushed corner of this one."* This is that round, opened when
+the operator went to watch a real two-hour agentic job — `sb run -- jam report agent-task
+--budget 120` — on the canvas and found there was nothing to watch.
+
+**The deferral grew a second symptom while it sat.** A canvas run window is not just silent for
+two hours; it dies after sixty. `/api/run` is `subprocess.run` in a thread against
+`runner.DEFAULT_TIMEOUT = 60`, and the page never passes a timeout (`api.run(argv)`, one
+argument). Worse, `--timeout` *inside* the argv is honoured by `sb` and then overridden by the
+ceiling around it — so the operator can write a bound, watch it be ignored, and read a hang where
+a job was.
+
+**The ceiling is not wrong, it is in the wrong place.** Its comment says what it is for: *"so a
+watcher can never wedge on a command with no opinion about how long it should take."* That is the
+refresh clock's problem — an unattended re-run, firing while nobody looks. An accruing window is
+the opposite case by construction: it is being watched, it dies with its window ([[canvas]]'s rule,
+already enforced for follows), and its output is arriving the whole time. So the ceiling stays on
+the watcher path and on `/api/trial`, and an accruing window has no default bound; `--timeout` in
+the argv is the operator's, honoured.
+
+### What separates an accruing window from a resident one
+
+The frontend currently spells these as one thing — `stream: Boolean(entry.resident)` — and round 4
+is where that stops being adequate, because a run accrues and is emphatically not resident. They
+are two different questions:
+
+| | Accruing | Resident |
+|---|---|---|
+| What it says | lines arrive **while it runs** | it is **not expected to exit** |
+| Who decides | the transport | the operator, by choosing `follow` |
+| Exit means | a verdict — the act is stamped | a death, drawn plainly |
+| Ends with | `chrome.act` / `chrome.snapshot` | `chrome.stream`, `dead` |
+
+Every follow is accruing. Not every accruing window is a follow, and the one that is not is the
+one this round adds. **Exit is where they genuinely differ**, which is why this cannot be "let
+`/api/follow` take a `run` argv": that route's whole rendering treats exit 0 as a death, and for
+an act exit 0 is the answer.
+
+**Only an unpinned window accrues.** A pinned one is a watcher, its argv is a read by definition,
+and the watcher path already delivers a complete envelope on a cadence — which is also where the
+ceiling belongs. So the split is exactly the existing one, drawn once more: a cadence gets the
+snapshot path, a single invocation gets the stream.
+
+**The envelope construction moves to one place, deliberately.** `_accrued` in `cli/run.py` already
+turns an `Outcome` into a `Result` — ok from the exit code, the `wrote to stderr` warning, the
+timed-out shape — and the canvas must not re-decide any of that beside it. Round 2's caution about
+a shared helper being *"correct for its first caller and silently wrong for its second"* is the
+argument for sharing **on purpose** rather than against sharing, exactly as `clip`'s direction was.
+
+**And a streamed body is not in the envelope.** The terminal already sets `result.data = None`
+because the lines reached the terminal on the streams they arrived on; the canvas does the same
+because they reached the window. That is what keeps this round cheap — nothing is delivered twice,
+and `--json` from a pipe is untouched, still one complete envelope built at exit.
+
+**Does not do:**
+
+- **No detach, and nothing outlives the session.** A two-hour job in a canvas window still dies
+  when the window closes. That is the scheduler-not-daemon line and round 4 does not go near it;
+  job identity that outlives a window is [[open]] item 6, and folding it in here would turn
+  sky.boss into a daemon inside a feature about drawing output. `--help` already says a command
+  that must outlive its window wants systemd, and it stays true.
+- **No cadence on an act.** The ⟳ on an accruing run window means *again* — the operator's click,
+  never the surface's initiative, the same word round 1 used for restarting a dead follow. `run`
+  still refuses `--refresh`, the pin control is still hidden for an act, and nothing here weakens
+  the § Scope split.
+- **No `data` accrual, ever.** Unchanged and not re-litigated: a JSON document parses only when
+  complete, and the running-since clock is the honest rendering of an in-flight data read.
+- **No `--delay` on the canvas.** A pending act is a countdown, not a stream — nothing is arriving
+  during it. [[delay]] owns that state and `chrome.pending` already draws it; a canvas rendering is
+  that doc's round if it wants one.
+- **No structure inferred from an accruing run's output.** The lines are verbatim, tinted by shape
+  and by the operator's declared words ([[highlight]]) and nothing else. [[capture]]'s rule is
+  unchanged: declared structure in, inference out.
+- **No auto-restart on exit**, for either kind.
+
+- [x] **`resolve_run`, beside `resolve_follow`.** An `sb`-level argv down to the foreign one it
+      would run: `run`/`read`, `--cwd`, `--timeout`, and a saved tool's expansion off the Click
+      tree. Server-side for the reason round 1 gave — a client that could strip `run --` itself is
+      the start of a command table. Raises on an argv that is not one, like its sibling. Pure,
+      tested against the tree.
+- [ ] **One `Outcome` → `Result`.** Extract `_accrued`'s tail in `cli/run.py` into a function both
+      surfaces call, so ok, the stderr warning and the timed-out envelope are decided once. The
+      terminal path must come out byte-identical; the existing `--json` purity tests are the proof.
+- [ ] **An act that is running.** `chrome.act` gains `running_since` the way `chrome.resident`
+      already has it — attention `running` while the subprocess lives, the verdict at exit. Still
+      no `interval` and still no countdown on the act shape: the absence is the split made visible,
+      and that sentence stays in the docstring.
+- [ ] **`/api/run` accrues an unpinned window.** A `Follower` over the resolved foreign argv,
+      frames on the session stream that already exists, the act band at exit. No second transport,
+      no `text/event-stream` — the preflight rule is why. A pinned window keeps the snapshot path.
+- [ ] **The ceiling moves to where it is for.** `DEFAULT_TIMEOUT` stays on the watcher and on
+      `/api/trial`; an accruing window has no default bound and honours `--timeout` from the argv.
+      A test asserts a run window is not killed at sixty seconds.
+- [ ] **The frontend splits accruing from resident.** `win.stream` stops meaning `entry.resident`;
+      a window knows which it is, and an accruing run ends with an act band rather than a dead one.
+      Closing still SIGTERMs the child either way.
+- [ ] **Verified by rendering.** There is no JS runner, so the check is the one this repo already
+      uses: headless Chromium against a live server, a run window watched from first line to act
+      band, and the DOM read back. Bounded waits only.
 
 ### Round 3 — a follow you can look back through (2026-08-23)
 
@@ -393,3 +503,51 @@ What the execution argued back:
   (`?1049l`), and the child is gone. The suite proves the mechanism; this proved the rendering,
   which is the half `screen=False` and an injected wait never see.
 
+
+### Round 4 — drafted, from a real job that had nothing to watch (2026-08-28)
+
+Provenance as clean as round 2's: the operator went to run `jam report agent-task --limit 2
+--budget 120` on the canvas to exercise the surface, and the answer had to be *don't — it will be
+killed at sixty seconds and show you nothing until then*. The workaround offered instead was to
+launch it from a terminal and watch `cron.log` in a follow window, which works and is a fair
+description of the hole.
+
+**Round 1's deferral was right and its sentence was not.** The decision — that canvas accrual
+"earned its own round" — held up completely; a rushed corner of round 1 would have had to invent
+`resolve_run`, split the ceiling and re-decide the envelope in one sitting. What did not hold up is
+Shape's line **"Live accrual for `run` and `read`. Both ride the same line-streaming runner"**,
+which reads as a property of the feature and was only ever true of the terminal. The phase box
+carried the qualifier and the Shape section did not, so the doc's summary and its checklist
+disagreed for seven days. Amended in place, with this note as the record. **A deferral belongs in
+Shape as well as in Phases** — Shape is what a reader checks, and a caveat that lives only in a
+checked box is a caveat nobody reads.
+
+**The 60s ceiling is the round's actual finding, and it is not a missing feature.** It is a correct
+bound applied one layer too high. `DEFAULT_TIMEOUT` was written for the watcher — *"so a watcher can
+never wedge on a command with no opinion about how long it should take"* — and `/api/run` serves
+both the watcher and the operator's single click, so the watcher's bound silently became everyone's.
+The compounding part is that `sb run --timeout` is honoured *inside* the subprocess and then
+overridden by the ceiling outside it, which is the "wrong but looks right" failure this project keeps
+naming: the operator writes a bound, sees it accepted, and gets a different one.
+
+**`stream: Boolean(entry.resident)` is the same conflation in the frontend**, and it has been
+harmless only because every streaming window so far *was* a follow. Writing the table in this round
+was what made it legible: accruing is a property of the transport, resident is the operator's
+assertion, and they happen to have coincided. The distinction that matters is exit — a follow's
+exit 0 is a death and an act's exit 0 is the answer — which is also the reason this round cannot
+be spelled as "let `/api/follow` accept a `run` argv", which was the first shape considered and is
+the cheap wrong one.
+
+**What this round deliberately does not fix**, recorded because it is the obvious next question and
+answering it here would be the mistake: a two-hour job still dies with the session. [[open]] item 6
+(job identity that outlives a window) owns that, and [[open]] item 10 owns whether the
+scheduler/daemon line moves at all. Round 4 makes the two hours *visible*; it does not make them
+survivable, and `--help`'s "a command that must outlive this window wants systemd" is still the
+honest answer.
+
+**One item this round supplies evidence for rather than closing.** [[open]] item 8 asks whether the
+budget should move to `run`; the job that opened this round carries `--budget 120` belonging to
+*jam*, not to sky.boss, which is the mockup's own resolution — sky.boss follows a foreign supervisor
+that owns the budget — arriving as a real case rather than an argument. And [[open]] item 1, the
+failure screen, is marked *blocked on evidence*; an accruing two-hour agent run is the first thing
+here likely to produce some.

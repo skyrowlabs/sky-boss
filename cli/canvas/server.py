@@ -527,6 +527,110 @@ class Follow(NamedTuple):
     due: int = 0
 
 
+class Job(NamedTuple):
+    """What an *accruing* argv resolves to — `run` or `read`, the foreign
+    command underneath it, and the bound the operator declared.
+
+    Sibling of `Follow`, and the difference between them is the whole of
+    [[follow]] round 4: both hold a child open and ship its lines, but a follow
+    is *not expected to exit* while a job is, so exit is a death for one and a
+    verdict for the other.
+    """
+
+    command: str  # run | read
+    foreign: list[str]
+    cwd: str | None
+    timeout: int | None
+    acts: bool
+
+
+def _expand_saved(argv: list[str], root) -> list[str]:
+    """A saved command's argv, or the argv unchanged.
+
+    Descend the tree while the words name groups — a saved keyword lives at
+    `tools <name>` since [[tools]] round 2 — and the server resolves it off the
+    live tree exactly because nothing client-side may keep a command table.
+
+    Shared by both resolvers rather than written twice: round 4 needed the
+    identical descent for `run`, and a second copy is how the two would
+    silently disagree the next time the tree grows a level.
+    """
+    argv = list(argv)
+    command = root.commands.get(argv[0]) if argv else None
+    consumed = 1
+    while (
+        command is not None
+        and hasattr(command, "commands")
+        and consumed < len(argv)
+        and argv[consumed] in command.commands
+    ):
+        command = command.commands[argv[consumed]]
+        consumed += 1
+    if command is not None and getattr(command, "sb_saved", False):
+        return list(getattr(command, "sb_argv", argv))
+    return argv
+
+
+def resolve_run(argv: list[str], root=None) -> Job:
+    """A sb-level `run`/`read` argv down to the foreign command it would run.
+
+    **It refuses whatever it does not fully understand**, and that is the
+    design rather than an omission. An accruing window spawns the foreign argv
+    directly, so any sb-level flag this does not account for would be *silently
+    dropped* — `--save` would not save, `--from` would not shape. Raising sends
+    the caller back to `runner.run`, which honours every flag by construction
+    because it runs the real `sb`. A flag is therefore opted **in** to accrual,
+    never out of it.
+
+    Raises ValueError when the argv is not one of these, or carries a flag this
+    cannot account for.
+    """
+    if root is None:
+        from cli import cli as root_group
+
+        root = root_group
+
+    argv = _expand_saved(list(argv), root)
+    if not argv or argv[0] not in ("run", "read"):
+        raise ValueError("not a run or read argv")
+    command = argv[0]
+
+    # Each command's own default, so an accruing window runs under the bound
+    # `sb` would have used. `run` declares none — which is the point of round
+    # 4: a two-hour act is bounded by the operator, not by the surface.
+    timeout: int | None = None if command == "run" else 60
+    cwd: str | None = None
+    rest = argv[1:]
+    foreign: list[str] = []
+    i = 0
+    while i < len(rest):
+        token = rest[i]
+        if token == "--":
+            foreign = rest[i + 1 :]
+            break
+        if token == "--cwd" and i + 1 < len(rest):
+            cwd = rest[i + 1]
+            i += 2
+            continue
+        if token == "--timeout" and i + 1 < len(rest):
+            try:
+                timeout = int(rest[i + 1])
+            except ValueError as exc:
+                raise ValueError(f"unreadable --timeout: {rest[i + 1]!r}") from exc
+            i += 2
+            continue
+        if token.startswith("-"):
+            raise ValueError(f"{token} is not accountable here — run it whole")
+        foreign = rest[i:]
+        break
+    if not foreign:
+        raise ValueError("nothing to run")
+
+    # `acts` off the first word, which is exactly the rule a saved tool
+    # inherits by — the expansion decides, and a declared `acts` is ignored.
+    return Job(command, foreign, cwd, timeout, command == "run")
+
+
 def resolve_follow(
     argv: list[str], root=None
 ) -> tuple[str, list[str], str | None, int, str | None]:
@@ -547,22 +651,7 @@ def resolve_follow(
 
         root = root_group
 
-    argv = list(argv)
-    # Descend the tree while the words name groups — a saved keyword lives at
-    # `tools <name>` since [[tools]] round 2, and the server resolves it off
-    # the live tree exactly because nothing client-side keeps a command table.
-    command = root.commands.get(argv[0]) if argv else None
-    consumed = 1
-    while (
-        command is not None
-        and hasattr(command, "commands")
-        and consumed < len(argv)
-        and argv[consumed] in command.commands
-    ):
-        command = command.commands[argv[consumed]]
-        consumed += 1
-    if command is not None and getattr(command, "sb_saved", False):
-        argv = list(getattr(command, "sb_argv", argv))
+    argv = _expand_saved(list(argv), root)
     if not argv or argv[0] != "follow":
         raise ValueError("not a follow argv")
 

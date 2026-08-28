@@ -544,3 +544,75 @@ def test_a_malformed_due_in_a_saved_argv_degrades_rather_than_killing_the_window
     from cli.canvas.server import resolve_follow
 
     assert resolve_follow(["follow", "--due", "fortnightly", "x.log"]).due == 0
+
+
+# ---------------------------------------------------------------------------
+# Round 4 — resolving an accruing argv
+# ---------------------------------------------------------------------------
+
+
+def test_resolve_run_strips_the_fence_and_keeps_each_command_s_own_bound():
+    from cli.canvas.server import resolve_run
+
+    got = resolve_run(["run", "--cwd", "/tmp", "--", "jam", "report", "x", "--budget", "120"])
+    assert got.command == "run" and got.acts is True
+    assert got.foreign == ["jam", "report", "x", "--budget", "120"] and got.cwd == "/tmp"
+    # No default bound on an act. The whole point of round 4: a two-hour job is
+    # bounded by the operator, not by the surface's watcher ceiling.
+    assert got.timeout is None
+
+    got = resolve_run(["read", "--", "ls", "-la"])
+    assert got.command == "read" and got.acts is False and got.timeout == 60
+
+    got = resolve_run(["run", "--timeout", "8100", "--", "sleep", "1"])
+    assert got.timeout == 8100
+
+    # No fence needed when the first word is not a flag.
+    assert resolve_run(["run", "ls", "-la"]).foreign == ["ls", "-la"]
+
+
+def test_resolve_run_refuses_a_flag_it_cannot_account_for():
+    """A flag is opted *into* accrual, never out of it.
+
+    An accruing window spawns the foreign argv directly, so a flag this does
+    not read would be silently dropped — `--save` would not save. Refusing
+    sends the caller back to `runner.run`, which honours it by running the real
+    `sb`.
+    """
+    import pytest
+
+    from cli.canvas.server import resolve_run
+
+    with pytest.raises(ValueError):
+        resolve_run(["read", "--save", "status", "--", "ls"])
+    with pytest.raises(ValueError):
+        resolve_run(["run", "--delay", "5m", "--", "./deploy.sh"])
+    with pytest.raises(ValueError):
+        resolve_run(["data", "--", "jam", "pr", "list", "--json"])
+    with pytest.raises(ValueError):
+        resolve_run(["follow", "--", "journalctl", "-f"])
+    with pytest.raises(ValueError):
+        resolve_run(["run"])
+
+
+def test_resolve_run_descends_to_a_saved_keyword_like_its_sibling(tmp_path):
+    """The same descent `resolve_follow` uses, shared rather than copied — and
+    `acts` comes off the expansion's first word, which is the rule a saved tool
+    inherits by."""
+    from cli import cli
+    from cli.canvas.server import resolve_run
+    from cli.tools import register, tools as tools_group
+
+    (tmp_path / "tools.toml").write_text(
+        '[tool.drain]\nargv = ["run", "--cwd", "/tmp", "--", "jam", "report", "agent-task"]\n'
+    )
+    try:
+        assert register(cli, home=tmp_path) == []
+        got = resolve_run(["tools", "drain"])
+        assert got.command == "run" and got.acts is True
+        assert got.foreign == ["jam", "report", "agent-task"] and got.cwd == "/tmp"
+    finally:
+        for name in [
+            n for n, c in list(tools_group.commands.items()) if getattr(c, "sb_saved", False)
+        ]:
+            del tools_group.commands[name]
