@@ -68,11 +68,11 @@ replaced by a browser one the same day. What exists:
 | `sb ui` | Opens the surface: **the canvas**, a command palette over tiled and floating windows, and **the workbench**, where a command gets authored. See [[workbench]] |
 | `sb tools <name>` | Runs a saved command; `sb -t <name>` is the short spelling. See [[tools]] |
 
-**`--save NAME` on `read`, `data` and `follow`** saves the invocation as a tool and then runs it.
-It is the only thing in sb that writes `tools.toml`, it only ever **appends** one block, and it
-refuses a name that already exists — editing and deleting stay `$EDITOR`'s. No surface writes:
-still no route, still no button. `run` does not take it, because `--save` saves by example and
-the example ran. See [[tools]].
+**`--save NAME` on `read`, `data` and `follow`** saves the invocation as a tool and then runs it. It
+is the only thing in sky.boss that writes `tools.toml`, it only ever **appends** one block, and it
+refuses a name that already exists — editing and deleting stay `$EDITOR`'s. No surface writes: still
+no route, still no button. `run` does not take it, because `--save` saves by example and the example
+ran. See [[tools]].
 
 `sb` and `sb --help` open with the mark — `docs/design/cli-header.png` drawn in half-blocks, see
 [[header]]. It refuses to draw on a narrow or non-terminal surface rather than wrapping.
@@ -90,14 +90,14 @@ commands.
 
 That line is now load-bearing rather than aesthetic. The canvas reads it — `acts` in the catalog —
 to decide whether a window may be given a refresh cadence, because **re-running a read is a
-refresh and re-running a write is a scheduler nobody asked for.** sb cannot tell a read from a
+refresh and re-running a write is a scheduler nobody asked for.** sky.boss cannot tell a read from a
 write by inspecting an argv and does not try: choosing `data` over `run` is the operator's
 assertion that this one is a read.
 
 A saved command **inherits** that assertion rather than restating it — `acts` comes from the first
 word of its argv and a declared one is ignored, so `[tool.deploy]` wrapping `run` is refused a
-cadence exactly as `sb run` is. This is also why a tool's argv must start with a sb command: a tool
-that could name a bare executable would be a second `sb run` that skips the split entirely.
+cadence exactly as `sb run` is. This is also why a tool's argv must start with a sky.boss command: a
+tool that could name a bare executable would be a second `sb run` that skips the split entirely.
 
 The removed design grouped commands by *mood* — imperative, temporal, descriptive, evaluative —
 rather than by domain, on the reasoning that the domain axis grows without bound while the mood
@@ -111,9 +111,9 @@ commands. If groups come back, group them that way and be slower to add one.
   credential path. This is what keeps a future MCP surface safe to expose.
 - **Judging a followed line.** Tint is *shape* — a timestamp, a number, a path — and it is
   computed in `cli/highlight.py` for both surfaces. A severity vocabulary (ERROR/WARN/INFO) is a
-  judgment wearing a regex's clothes and sb does not ship one; the operator declares their own
+  judgment wearing a regex's clothes and sky.boss does not ship one; the operator declares their own
   words under `[highlight.<name>]` in `formats.toml` and names it with `--highlight`. Those rules
-  run **after** sb's and claim only unclaimed text, so a declaration can never repaint a
+  run **after** sky.boss's and claim only unclaimed text, so a declaration can never repaint a
   timestamp. See [[highlight]].
 - **Parsing a tool's human output into rows** — *narrowed 2026-08-22 by [[capture]]: **declared**
   capture is in; inference stays out.* `sb read` shows it verbatim and says that is what it is
@@ -170,52 +170,52 @@ The rules that are not negotiable:
   worse than no palette, because it has already told you it does. A *surface* excludes itself by
   setting `sb_surface` on its own command object rather than by being named in a skip-list here.
 
-  **A raw command is not a drift.** Anything typed whose first word is not a sb command is offered
-  as `sb read -- <argv>`, synthesised from the query rather than from any list, with the expansion
-  shown before it runs. It defaults to `$HOME` — neutral, because the canvas inherits whatever
-  directory `sb ui` started in, and any repo with a `cli/` package shadows a tool's own.
+  **A raw command is not a drift.** Anything typed whose first word is not a sky.boss command is
+  offered as `sb read -- <argv>`, synthesised from the query rather than from any list, with the
+  expansion shown before it runs. It defaults to `$HOME` — neutral, because the canvas inherits
+  whatever directory `sb ui` started in, and any repo with a `cli/` package shadows a tool's own.
 - **Only a read may be given a cadence.** See § Scope.
-- **The refresh clock lives in Python, keyed to the connection.** A watcher runs while its stream
-  is open, so it pauses when the window closes and keeps running when the window is merely
-  minimized. It cannot be a browser timer: a hidden page has its timers clamped to roughly one
-  fire per minute, so a 5s watcher would silently become a 60s one at the exact moment you stopped
-  being able to see that it had. Nothing survives the last window, which is what makes this a
-  scheduler and not a daemon.
-- **Reads in, execution out.** Introspection runs in-process because walking the tree runs
-  nothing. Commands run in a *subprocess*, because a thread cannot be cancelled and a watcher
-  fires unattended — one hung `git fetch` would strand a thread forever. `sb --json` already
-  prints the envelope, so nothing parses human output.
+- **The refresh clock lives in Python, keyed to the connection.** A watcher runs while its stream is
+  open, so it pauses when the window closes and keeps running when the window is merely minimized.
+  It cannot be a browser timer: a hidden page has its timers clamped to roughly one fire per minute,
+  so a 5s watcher would silently become a 60s one at the exact moment you stopped being able to see
+  that it had. Nothing survives the last window, which is what makes this a scheduler and not a
+  daemon.
+- **Reads in, execution out.** Introspection runs in-process because walking the tree runs nothing.
+  Commands run in a *subprocess*, because a thread cannot be cancelled and a watcher fires
+  unattended — one hung `git fetch` would strand a thread forever. `sb --json` already prints the
+  envelope, so nothing parses human output.
 - **No single result may render unbounded.** The terminal surface froze for exactly this, and a
-  120k-line result kills a browser tab as dead as it killed a `RichLog`. The substrate changed;
-  the rule did not. See `MAX_ROWS` and `MAX_CHARS` in `cli/canvas/static/render.js`.
+  120k-line result kills a browser tab as dead as it killed a `RichLog`. The substrate changed; the
+  rule did not. See `MAX_ROWS` and `MAX_CHARS` in `cli/canvas/static/render.js`.
 - **The server is remote code execution bound to a port, and is treated that way.** Four things,
   none optional: loopback bind, a required custom header (which forces a preflight that is never
   answered — this is the one that actually stops a hostile page), a per-launch token, and an
-  `Origin` check. **There is no CORS allow-origin header anywhere and adding one would undo most
-  of that.** A test asserts its absence.
+  `Origin` check. **There is no CORS allow-origin header anywhere and adding one would undo most of
+  that.** A test asserts its absence.
 - **Everything in `cli/canvas/static/` is served.** Anything left there is published; a test
   declares the inventory. Two scratch pages lived there during the build, one with a live token
   baked in.
-- **One number drives every size.** `--sb-scale` is injected from `sb ui --scale` and the
-  stylesheet is written in `rem` where `1rem` is four scaled pixels. Do not add a `px`. CSS `zoom`
-  was rejected because it breaks dragging — `clientX` is unzoomed and `left` is zoomed — and
+- **One number drives every size.** `--sb-scale` is injected from `sb ui --scale` and the stylesheet
+  is written in `rem` where `1rem` is four scaled pixels. Do not add a `px`. CSS `zoom` was rejected
+  because it breaks dragging — `clientX` is unzoomed and `left` is zoomed — and
   `--force-device-scale-factor` because it *overrides* display scaling rather than multiplying it.
-- **The shell is a native webview** (`cli/canvas/shell.py`), because three things the operator
-  asked for are impossible in a browser: a frameless window that is still resizable, a page that
-  moves its own window, and no port exposed to any other tab. `--browser` and `--no-browser` keep
-  the old paths, and `--no-browser` is still the mode to develop in.
-- **`frameless=True` is a request, and a window manager may refuse it.** GTK reports
-  `DECORATED = False` and the window manager can still draw a title bar — measured, not assumed.
-  Removing it is a window-manager rule matched on `WM_CLASS`, which is why the shell sets one
-  (`sb`) — and **nothing here writes that rule.** A desktop belongs to whoever runs it, the
-  spelling differs per environment, and a tool that edited one would be reaching outside itself.
+- **The shell is a native webview** (`cli/canvas/shell.py`), because three things the operator asked
+  for are impossible in a browser: a frameless window that is still resizable, a page that moves its
+  own window, and no port exposed to any other tab. `--browser` and `--no-browser` keep the old
+  paths, and `--no-browser` is still the mode to develop in.
+- **`frameless=True` is a request, and a window manager may refuse it.** GTK reports `DECORATED =
+  False` and the window manager can still draw a title bar — measured, not assumed. Removing it is a
+  window-manager rule matched on `WM_CLASS`, which is why the shell sets one (`sb`) — and **nothing
+  here writes that rule.** A desktop belongs to whoever runs it, the spelling differs per
+  environment, and a tool that edited one would be reaching outside itself.
 - **Drag is not `pywebview-drag-region`.** That is a Cocoa and Windows feature; the GTK backend has
   no drag regions at all, only `easy_drag`, which makes the whole page a handle and would mean
   dragging a window inside the canvas also drags the canvas. The bar calls
   `Gtk.Window.begin_move_drag` instead, so the window manager owns the drag and it snaps and tiles
   like every other window.
-- **The surface carries its own close button**, guarded like every other route, because the frame
-  it would otherwise rely on may not be there.
+- **The surface carries its own close button**, guarded like every other route, because the frame it
+  would otherwise rely on may not be there.
 - **A progress bar shows time to the next refresh, and nothing else.** A running subprocess has no
   percentage, and a bar that animates to look busy is decoration that reads as information. A
   watcher has one because `interval` and `last_run` are known. It reads the *label* clock, which a
@@ -226,8 +226,8 @@ The rules that are not negotiable:
   It does not throw and the element still renders — the children just quietly vanish. Put comments
   above the `html\`` block or inside a `${…}` expression. One in a `<div>` opening tag removed an
   `<input>` from the DOM entirely, and only rendering the page found it.
-- **The frontend has no automated tests.** There is no JS test runner and adding one means npm.
-  The pure parts — `unwrap`, `suggest`, `roleFor` — are what a runner would be for. Verified by
+- **The frontend has no automated tests.** There is no JS test runner and adding one means npm. The
+  pure parts — `unwrap`, `suggest`, `roleFor` — are what a runner would be for. Verified by
   rendering headless Chromium against the live server and reading the DOM back, which is not the
   same thing and caught two real bugs.
 
@@ -250,7 +250,7 @@ child's cwd, 112 tests failing from a tmp dir. Read the wrapper's comments befor
 
 **A sibling CLI on PATH is not necessarily runnable from anywhere.** A wrapper that resolves its
 `.venv` against the *cwd* rather than the resolved symlink fails outside its own repo. So
-**anything sb runs from another repo needs an explicit working directory**, not just PATH.
+**anything sky.boss runs from another repo needs an explicit working directory**, not just PATH.
 
 - **Dependencies:** `.venv` + `requirements.txt`. No `pyproject.toml`, pyright, or pre-commit
   until something needs them. Python here is 3.14.7 — new enough that a dependency may lack wheels.
@@ -291,8 +291,8 @@ would be noise. It is separate from `$SB_STATE` because `rm -rf ~/.local/state/s
 way to reset the surface and must not also delete every tool the operator wrote.
 
 **The suite redirects `SB_HOME` as well as `SB_STATE`**, and that one matters more: a tool is an
-argv sb will *run*, so a suite reading the real home would register the operator's commands into
-the tree under test.
+argv sky.boss will *run*, so a suite reading the real home would register the operator's commands
+into the tree under test.
 
 **The suite never touches the real state directory** — `tests/conftest.py` redirects `SB_STATE`
 before anything imports `cli`. **Nothing operator-specific in tracked files.**
@@ -318,6 +318,14 @@ a change to Python needs a restart, and that one is not made hot-reloadable on p
 exit-code mapping (including why partial is 3 and not 2), stdout purity under `--json`, that every
 API route refuses an unauthenticated request, that a watcher dies with its window, and that `data`
 never carries a failed tool's output.
+
+**The naming rule is checked, not remembered** — `tests/test_naming.py` masks every fenced block,
+indented block, inline span and HTML tag, then fails on whatever still spells the command in prose.
+The mask preserves length, so a failure names a real line — and so the sweep that closed the
+original 368 could edit at exactly the offsets it reports rather than running a find-and-replace of
+its own, which is the thing that caused this. `.html` is out, for the reason it is out of
+`tests/test_theme.py`: `docs/design/*.dc.html` are renders, and hand-editing one is how a render
+stops matching its source.
 
 **`[[slug]]` references are checked** — `tests/test_docs.py`. Slugs exist so a doc can move between
 `docs/features/` and `done/` without breaking a link, which they do; what they cannot survive is
@@ -362,6 +370,18 @@ attribute from the module to the Command and shadows the module. Import under an
 
 Shared with sibling CLIs so the family feels like one tool.
 
+- **The wordmark in prose, the command in code spans.** The project is **sky.boss**; `sb` is what
+  you type. Outside code the wordmark is the only spelling, and `sb` appears only inside backticks,
+  naming the literal thing being typed. This is the house rule from
+  `skyrow-workspace/strategy/naming.md`, and this repo was the one place breaking it: on 2026-08-28
+  a sweep replaced **368** bare commands standing in for the project — 195 in Markdown, 173 in
+  docstrings and comments — against **one** such use in jam-sense's and breeze-brain's `CLAUDE.md`
+  put together. It was not a style drift but a rename artefact. The project was `tackle-box`, then
+  `toolbox`, then this; the CLI was `tb` until 2026-08-27. Each of those passes replaced a name
+  with a name, and prose that had meant the *project* came out meaning the *command*. The
+  fingerprint was `a sb command`, fifteen times — nobody writing that fresh writes `a sb`.
+  `tests/test_naming.py` is what makes the next rename harmless, and identifiers (`$SB_HOME`,
+  `SB_STATE`, the window class) are outside it by construction.
 - **Python 3 + Click.** Available here: Python 3.14.7, click 8.3.3. Fail fast with a readable
   install message on a missing dependency.
 - **Layout:** `sb` bash wrapper → `cli/__main__.py` thin entry → `cli/` package. The wrapper does
@@ -370,12 +390,13 @@ Shared with sibling CLIs so the family feels like one tool.
   modules call these rather than building paths directly.
 - **Ops commands act on real machines** via SSH, systemd, or the filesystem — never through an API
   client. Keep any HTTP behind a dedicated adapter module.
-- **A command sb spawns gets the operator's environment, not sb's.** Everything that shells out
-  goes through `child_env()` in `cli/helpers.py`, which drops `PYTHONPATH` and `PYTHONSAFEPATH` —
-  the two the wrapper exports so `python -m cli` resolves. Without it a wrapped Python tool imports
-  *this* `cli` package from anywhere on the machine. `PATH` is deliberately kept: stripping the
-  venv the wrapper prepends would be sb choosing which `python3` a foreign tool finds. Not a
-  clean room — scrub what sb added to boot and nothing else. See [[subprocess-env]].
+- **A command sky.boss spawns gets the operator's environment, not sky.boss's.** Everything that
+  shells out goes through `child_env()` in `cli/helpers.py`, which drops `PYTHONPATH` and
+  `PYTHONSAFEPATH` — the two the wrapper exports so `python -m cli` resolves. Without it a wrapped
+  Python tool imports *this* `cli` package from anywhere on the machine. `PATH` is deliberately
+  kept: stripping the venv the wrapper prepends would be sky.boss choosing which `python3` a foreign
+  tool finds. Not a clean room — scrub what sky.boss added to boot and nothing else. See
+  [[subprocess-env]].
 - **One palette, in `cli/theme.py`** — Skyrow Labs' **design system**, copied verbatim from its own
   `colors_and_type.css`, vendored at `docs/design/` so the copy is checkable. The system is
   dark-only by declaration.
@@ -406,17 +427,17 @@ Shared with sibling CLIs so the family feels like one tool.
   is a second consumer of that envelope — a command that prints prose has to be written twice.
 
   **A `view` describes how to present `data`; it never filters it.** Only `data` sets one, because
-  only `data` carries fields nobody here chose — sb's own commands picked theirs deliberately and
-  auto-dropping one would be a bug wearing a feature's clothes. The key is *omitted* rather than
+  only `data` carries fields nobody here chose — sky.boss's own commands picked theirs deliberately
+  and auto-dropping one would be a bug wearing a feature's clothes. The key is *omitted* rather than
   null when absent, so an unshaped envelope stays byte-identical to one from before views existed.
   The rules live in `cli/view.py` and not in `render.js`, because the frontend has no test runner:
   that puts the deciding half where pytest reaches it and leaves both renderers drawing what they
-  are told. **The warnings a shaping is owed live there too** as of 2026-08-27 — *which columns
-  went quiet* is the same kind of decision, and it stopped being inline in `cli/data.py` the moment
-  the bench became a second caller. See [[table-views]].
+  are told. **The warnings a shaping is owed live there too** as of 2026-08-27 — *which columns went
+  quiet* is the same kind of decision, and it stopped being inline in `cli/data.py` the moment the
+  bench became a second caller. See [[table-views]].
 - **Degrade gracefully.** An unreachable host or absent config warns in yellow on **stderr** and
-  continues. Keep stdout clean so `--json` stays parseable, and never collapse "reports clear"
-  into "cannot see".
+  continues. Keep stdout clean so `--json` stays parseable, and never collapse "reports clear" into
+  "cannot see".
 - **`.env` is gitignored and never committed.** Ship a `.env.example`.
 
 ## Feature workflow

@@ -27,7 +27,7 @@ key_files:
 Two gaps, one substrate.
 
 **The stream gap:** `journalctl -f`, `docker logs -f`, an agent session writing as it thinks —
-commands whose whole point is that they never exit. sb has no way to hold one open. Every
+commands whose whole point is that they never exit. sky.boss has no way to hold one open. Every
 existing command waits for exit before showing anything, and these never do.
 
 **The black-box gap:** `sb run -- <ten-minute build>` shows nothing for ten minutes, then
@@ -104,10 +104,10 @@ That last sentence is true of a refreshing read drawing inline: each frame is pr
 terminal's history holds what went by.
 
 **It is false of a follow.** The ring holds 200 lines; the frame shows the ones that fit. A line
-pushed out of the visible frame **was never printed** — it lives in sb's memory and nowhere else,
-so there is no scrollback holding it and no file for `less` to open. Under `--screen` the terminal's
-history is untouched by design. The one escape hatch the rejection named does not exist here, which
-is what makes this a reversal rather than a re-litigation.
+pushed out of the visible frame **was never printed** — it lives in sky.boss's memory and nowhere
+else, so there is no scrollback holding it and no file for `less` to open. Under `--screen` the
+terminal's history is untouched by design. The one escape hatch the rejection named does not exist
+here, which is what makes this a reversal rather than a re-litigation.
 
 **The scrollbar debt is real and is already paid.** The chrome band says `showing last 200` today.
 A parked view says `showing 41–60 of 200`, which is a scrollbar written out — position and extent,
@@ -137,7 +137,7 @@ Nothing is invented to explain it because the band already reads correctly.
 
 - **No search, no `/`, no `n`.** Argued above. It is the difference between a viewport and a pager.
 - **No selection, no copy, no mouse.** The terminal owns those and does them better.
-- **No unbounded ring.** Parking does not make sb keep more than it kept before.
+- **No unbounded ring.** Parking does not make sky.boss keep more than it kept before.
 - **Not the refreshing read**, this round. A follow scrolls a *ring*; `--refresh` re-renders a
   *snapshot*, where holding a position across a redraw asks a question this round does not have to
   answer — did the content move under you, and is line 40 still the same line 40. Different
@@ -209,8 +209,8 @@ inverted. So the round adds a direction to the clip rather than reusing it as-is
   written for a refreshing **read**, where the terminal's own scrollback does hold the frames that
   scrolled past. A **follow redraws a ring in place**, so a line that leaves the visible frame was
   never printed to the terminal at all — `less` cannot reach it and neither can scrollback, because
-  it exists only in sb's memory. The rejection was inherited without noticing that the thing it
-  relied on is absent in the form that inherited it. See Round 3.*
+  it exists only in sky.boss's memory. The rejection was inherited without noticing that the thing
+  it relied on is absent in the form that inherited it. See Round 3.*
 - **No change to dispatch, the ring, the chrome, or the canvas.** This round is how a terminal
   follow is left and where it draws. The canvas's follow windows are unaffected: they close by
   closing, which was never in doubt.

@@ -3,7 +3,7 @@
 
 Implementation lives in the sibling modules of this package. The ``sb`` wrapper
 is the only caller; it puts the repo root on PYTHONPATH so ``-m cli`` resolves
-no matter which directory sb was invoked from.
+no matter which directory sky.boss was invoked from.
 """
 
 from cli import cli

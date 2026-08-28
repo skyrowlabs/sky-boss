@@ -102,7 +102,7 @@ _NUMBER = re.compile(r"(?<![\w-])\d[\d,_]*(?:\.\d+)?(?:%|[a-zA-Z]{1,3})?(?![\w-]
 # module has held since round 1 — but the reasoning is worth stating because
 # they look like the vocabulary rules that are refused.
 #
-# A check mark is not sb deciding a line went well; it is sb reading a symbol
+# A check mark is not sky.boss deciding a line went well; it is sky.boss reading a symbol
 # whose meaning is not in dispute, and `sb data` already renders a true
 # boolean as a green `✓` and a false one as a red `✗` (`_cell` in
 # cli/output.py). One value vocabulary, two surfaces — a check is green in a
@@ -179,7 +179,7 @@ def marks(text: str, ruleset: "Ruleset | None" = None) -> list[Mark]:
     **It runs last and claims only text no built-in rule claimed**, so a
     timestamp stays muted and a tag stays a tag whatever the operator writes.
     Letting a declaration win would make every built-in rule conditional on a
-    file sb does not ship, and the first surprising log would be
+    file sky.boss does not ship, and the first surprising log would be
     unexplainable.
     """
     found: list[Mark] = []
@@ -289,9 +289,9 @@ def spans(text: str, ruleset: "Ruleset | None" = None) -> list[tuple[str, str | 
 # Declared rules — the operator's own words. See [[highlight]] round 3.
 # ============================================================================
 #
-# **Shape is sb's; vocabulary is the operator's.** `ESCALATE`, `Done.`,
+# **Shape is sky.boss's; vocabulary is the operator's.** `ESCALATE`, `Done.`,
 # `handing to 'claude'` — the words that matter in one operator's log and mean
-# nothing in anyone else's. sb cannot know them and must not guess, for exactly
+# nothing in anyone else's. sky.boss cannot know them and must not guess, for exactly
 # the reason it does not guess columns ([[capture]]): a word list is a judgment
 # wearing a regex's clothes. So it is declared, in the file that already holds
 # declarations about output, and named on the command that follows the stream.

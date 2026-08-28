@@ -1,4 +1,4 @@
-"""sb run — the only door that writes.
+"""`sb run` — the only door that writes.
 
 Runs an argv and reports what happened. That is the whole of it for now: the
 declarative job layer, its lanes and its ledger were removed on 2026-08-20 to
@@ -68,7 +68,7 @@ def run(
 
     `q`, `Esc` or Ctrl-C cancels and nothing runs; so does closing the
     terminal. There is no queue, no state file and no unit written — **a
-    command that must outlive this window wants systemd**, and sb will not
+    command that must outlive this window wants systemd**, and sky.boss will not
     generate the unit for you. Cancelling exits non-zero, so a script can tell
     the difference between "you changed your mind" and "it ran and succeeded".
     """
@@ -200,7 +200,7 @@ def _once(argv: tuple[str, ...], timeout: int | None, cwd: str | None) -> Result
             timeout=timeout,
             cwd=cwd,
             check=False,
-            # The operator's environment, not sb's, plus the width of the
+            # The operator's environment, not sky.boss's, plus the width of the
             # display its output is headed for. See [[subprocess-env]].
             env=child_env(_width()),
         )

@@ -1,4 +1,4 @@
-"""sb read — show what a tool printed, and keep showing it.
+"""`sb read` — show what a tool printed, and keep showing it.
 
 **The gap this fills is not display, it is cadence.** `sb run -- jam pr list`
 already carries the bytes. But `run` acts, and only a read may be given a
@@ -11,12 +11,12 @@ verbatim, and `render.js` falls through to a `<pre>`. Wrapping it in a mapping
 is what makes `sb run`'s output wrap and lose its alignment.
 
 **It is the second exception to "raw output must not reach `data`", and the
-rule was drawn in the wrong place.** That rule exists because a probe sb chose
+rule was drawn in the wrong place.** That rule exists because a probe sky.boss chose
 to run can print a token. The property that makes an exception safe was never
 run-ness — it is that the *operator named the argv*. `read` names it too.
 
 **Choosing `read` asserts this argv is a read**, exactly as choosing `data`
-over `run` does. sb cannot tell a read from a write by inspecting an argv and
+over `run` does. sky.boss cannot tell a read from a write by inspecting an argv and
 does not try. See docs/features/done/text-reads.md — or rather [[text-reads]].
 """
 
@@ -169,7 +169,7 @@ def _echo_line(line) -> None:
 
 
 def _width() -> int | None:
-    """The terminal's width, or None when sb's own output is not a terminal.
+    """The terminal's width, or None when sky.boss's own output is not a terminal.
     See [[subprocess-env]] round 2."""
     import sys
 

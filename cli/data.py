@@ -1,9 +1,9 @@
-"""sb data — read another CLI's structured output as data.
+"""`sb data` — read another CLI's structured output as data.
 
 **This is not passthrough.** `sb gh pr list` would be strictly worse than
 `gh pr list`, and CLAUDE.md rejects that on sight. The carve-out it leaves is
 for a tool that does something the wrapped tool cannot express, and this one
-does exactly that: it turns a foreign CLI's structured output into a sb
+does exactly that: it turns a foreign CLI's structured output into a sky.boss
 envelope, which is what lets a window keep it fresh, sort it, and filter it.
 `jam` cannot hold itself open on a canvas and re-run itself every thirty
 seconds.
@@ -14,10 +14,10 @@ never carried bytes — and the contract is the half that matters. Renamed
 2026-08-21, hard, no alias; see [[refresh]].
 
 **Why it is a separate command from `sb run`.** `run` acts — you named an argv
-and sb will execute whatever it is, so it may never be given a refresh cadence,
+and sky.boss will execute whatever it is, so it may never be given a refresh cadence,
 because re-running a write on a timer is a scheduler nobody asked for. `data` is
 the operator's declaration that the argv is a *read*, which is what makes it
-safe to pin. sb cannot tell the difference by inspection and does not try; the
+safe to pin. sky.boss cannot tell the difference by inspection and does not try; the
 choice of command is the assertion, exactly as the mockup encoded it before any
 of this existed.
 
@@ -36,7 +36,7 @@ failure, not an empty table. See [[capture]].
 
 **It is the only command that shapes its own table.** A foreign tool's JSON has
 as many fields as its author needed, not as many as a table wants, so this
-attaches a `view` describing which of them to show. sb's own commands do not:
+attaches a `view` describing which of them to show. sky.boss's own commands do not:
 their fields were chosen deliberately and auto-dropping one would be a bug
 wearing a feature's clothes. The view never edits `data`. See cli/view.py.
 """
@@ -61,14 +61,14 @@ from cli.view import find_rows, shape, warnings_for
 @click.option("--timeout", type=int, default=60, help="Give up after this many seconds.")
 @click.option("--cwd", type=click.Path(file_okay=False, exists=True), help="Run it here.")
 @click.option("--cols", help="Show exactly these columns, in this order. Dotted paths allowed.")
-# Where the rows are, when the payload wraps them. Named beats inferred: sb
+# Where the rows are, when the payload wraps them. Named beats inferred: sky.boss
 # infers only when exactly one value is a list of rows, and reports rather than
 # guesses when two are. See [[table-views]] round 4.
 @click.option("--rows", "rows_path", metavar="KEY", help="Where the rows are, if the payload wraps them. Dotted paths allowed.")
 @click.option("--drop", help="Hide these columns, keeping the rest of the shaping.")
 @click.option("--no-shape", "no_shape", is_flag=True, help="Every column, in the order found.")
 # One option whose value is a *name*, never a flag per format. It resolves to
-# a kind sb ships (`json`) or to a format the operator declared in
+# a kind sky.boss ships (`json`) or to a format the operator declared in
 # `$SB_HOME/formats.toml` — complexity lives in the named declaration and the
 # command line only says the name. See [[capture]]. And `data` never grows its
 # own `--json` — the root owns that spelling for envelope output, and one flag
@@ -235,7 +235,7 @@ def _once(
             timeout=timeout,
             cwd=cwd,
             check=False,
-            # The operator's environment, not sb's. See [[subprocess-env]].
+            # The operator's environment, not sky.boss's. See [[subprocess-env]].
             env=child_env(),
         )
     except FileNotFoundError:
@@ -336,7 +336,7 @@ def parse_text(
     # the operator asserting where the rows are; if they are not there, the
     # assertion is what is wrong and saying so is the whole point of this
     # round. An *inferred* miss is not an error — the payload simply is not a
-    # table, which is how sb has always rendered it.
+    # table, which is how sky.boss has always rendered it.
     if rows_path and found.rows is None:
         result.ok = False
         result.data = {**meta, "error": found.reason}

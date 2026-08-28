@@ -1,4 +1,4 @@
-"""Shared plumbing for the sb CLI.
+"""Shared plumbing for the sky.boss CLI.
 
 Command modules call these rather than shelling out or building paths directly.
 """
@@ -8,7 +8,7 @@ import os
 import subprocess
 from pathlib import Path
 
-# sb is installed via a symlink on PATH, so the current working directory is
+# sky.boss is installed via a symlink on PATH, so the current working directory is
 # never a reliable anchor — you run `sb` from wherever you happen to be. Every
 # path in this CLI derives from here. See CLAUDE.md § CLI setup.
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -74,34 +74,34 @@ SB_HOME = Path(os.environ.get("SB_HOME") or _default_home())
 INVOCATION: list[str] = []
 
 
-# What sb's own wrapper exports so that `python -m cli` resolves against this
+# What sky.boss's own wrapper exports so that `python -m cli` resolves against this
 # repo rather than against whatever directory you are standing in. Both are
-# load-bearing for sb — see CLAUDE.md § CLI setup — and neither is any business
-# of a command sb spawns.
+# load-bearing for sky.boss — see CLAUDE.md § CLI setup — and neither is any business
+# of a command sky.boss spawns.
 #
 # `PATH` is deliberately absent. The wrapper prepends its venv's bin to it, and
-# stripping that would be sb deciding which `python3` a foreign tool finds,
-# which is the operator's business. Scrub what sb added to boot, nothing else.
+# stripping that would be sky.boss deciding which `python3` a foreign tool finds,
+# which is the operator's business. Scrub what sky.boss added to boot, nothing else.
 BOOTSTRAP = ("PYTHONPATH", "PYTHONSAFEPATH")
 
 
 def child_env(columns: int | None = None, *, stream: bool = False) -> dict[str, str]:
-    """The environment a spawned command should see: the operator's, not sb's.
+    """The environment a spawned command should see: the operator's, not sky.boss's.
 
     Without this, `sb run -- python3 -c "import cli"` imports *this* package
     from anywhere on the machine, because `subprocess` inherits the parent
-    environment and sb's wrapper put the repo on `PYTHONPATH`.
+    environment and sky.boss's wrapper put the repo on `PYTHONPATH`.
 
     It was found by manually testing something else: `sb data -- jam …`
     succeeded from inside this repo when running `jam` directly there fails, and
     the leak was what made it work. See [[subprocess-env]].
 
     **`columns` tells the child how wide the display is**, and it is the one
-    thing sb *adds* rather than scrubs. A tool laying out columns asks its
-    stdout how wide the terminal is; under sb that stdout is a pipe, so it
+    thing sky.boss *adds* rather than scrubs. A tool laying out columns asks its
+    stdout how wide the terminal is; under sky.boss that stdout is a pipe, so it
     falls back to a default and the operator gets a different picture from the
     one the same command draws in the same terminal. Passing the real width
-    makes sb transparent instead of narrowing. Only where the output is shown
+    makes sky.boss transparent instead of narrowing. Only where the output is shown
     as text in that terminal — never for `data`, whose bytes are parsed and
     where a wrapped line would be a corrupted one. `LINES` is deliberately not
     set: a tool that thinks it knows the height may decide to paginate, and a
@@ -112,7 +112,7 @@ def child_env(columns: int | None = None, *, stream: bool = False) -> dict[str, 
         env["COLUMNS"] = str(columns)
     if stream:
         # **A pipe makes a child's stdout block-buffered**, so a tool that
-        # prints a line a minute writes into an 8 KB buffer and sb — and the
+        # prints a line a minute writes into an 8 KB buffer and sky.boss — and the
         # operator — see nothing until it fills or the process dies. Measured:
         # a child printing every 0.8s produced its first visible line at
         # t+5.1s, all six at once, at exit. With this set, t+0.3s.
@@ -121,7 +121,7 @@ def child_env(columns: int | None = None, *, stream: bool = False) -> dict[str, 
         # general fix is a pty, which [[follow]] refuses by name, and
         # `stdbuf -oL` does nothing here because Python's text layer is not
         # libc stdio (measured too). What it does cover is every tool in this
-        # family — sb's siblings are all Python — and it costs a
+        # family — sky.boss's siblings are all Python — and it costs a
         # non-Python child nothing. See [[subprocess-env]] round 3.
         env["PYTHONUNBUFFERED"] = "1"
     return env

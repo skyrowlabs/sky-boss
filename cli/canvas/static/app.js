@@ -158,13 +158,13 @@ export function suggest(commands, query) {
   return [...byName, ...byText];
 }
 
-/* Anything typed that is not a sb command is offered as one anyway, run
+/* Anything typed that is not a sky.boss command is offered as one anyway, run
  * through `sb read` so it can be pinned and refreshed.
  *
  * Appended rather than shown only when nothing else matched: `list` matches
  * `tools` by description, and a raw entry that hid behind a description match
  * would be a palette that sometimes accepts a command and sometimes silently
- * does not. Suppressed only when the first word is exactly a sb command, where
+ * does not. Suppressed only when the first word is exactly a sky.boss command, where
  * the operator is plainly reaching for that command.
  *
  * The expansion goes in `summary`, so what will actually run is visible before
@@ -801,7 +801,7 @@ function App() {
   function open(entry, typed, initial) {
     /* Anything typed past the command name is argv. `run -- jam pr list --json`
      * has to reach the server whole; splitting it here would be a second
-     * parser, and sb's own is the one that decides what an argv means. */
+     * parser, and sky.boss's own is the one that decides what an argv means. */
     const words = typed.trim().split(/\s+/).filter(Boolean);
     /* A raw entry was built from the query itself, so every word is already in
      * its argv. Slicing by command length here would append them a second
@@ -1129,7 +1129,7 @@ function App() {
      * a route called trial that writes would be lying about itself.
      *
      * No route writes `tools.toml`. The subprocess does, through the one
-     * writer sb has, so append-only and refuse-a-duplicate come free. */
+     * writer sky.boss has, so append-only and refuse-a-duplicate come free. */
     save: () => {
       const d = draftRef.current;
       if (!d.save || d.nameProblem || d.saving) return;

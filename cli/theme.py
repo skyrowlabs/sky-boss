@@ -76,7 +76,7 @@ BORDER = TEXT_3
 # `docs/design/cli-header.png` drawn in half-blocks — see cli/banner.py. These
 # are the design system's own values, undarkened, and that is deliberate: the
 # mark **paints its own background**, so it is in the same position the canvas
-# is in rather than the CLI's. The derivations below exist because sb prints
+# is in rather than the CLI's. The derivations below exist because sky.boss prints
 # into a terminal whose background nobody here knows; a painted panel removes
 # the unknown.
 #

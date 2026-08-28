@@ -2,7 +2,7 @@
 
 The failure this prevents already happened next door: jam.sense's brand assets
 used #38bcf7 while the app used --primary, because the hex had been written out
-in two places. sb had three copies of its palette — the Rich theme, the --help
+in two places. sky.boss had three copies of its palette — the Rich theme, the --help
 config, and the TUI's stylesheet — agreeing only because they were typed the
 same afternoon.
 """
@@ -184,7 +184,7 @@ def test_every_cli_role_survives_an_unknown_terminal_background():
     """The reason the CLI does not simply use the design system's tokens.
 
     Skyrow's system is dark-only by declaration and its colours are unreadable
-    on white — brand measures 2.14 there, ok 1.74, warn 1.44. sb renders into
+    on white — brand measures 2.14 there, ok 1.74, warn 1.44. sky.boss renders into
     whoever's terminal, so each CLI role is the smallest darkening of its token
     that clears this floor against *both* backgrounds. If someone ever
     "corrects" one of these back to the raw token, this fails.

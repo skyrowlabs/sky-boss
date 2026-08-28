@@ -33,7 +33,7 @@ ipcRenderer.on("sb:down", (_e, info) => {
 
 contextBridge.exposeInMainWorld("sb", {
   /* Who this window is. Resolves once the session has said hello — a window
-   * opened before sb answers is a real ordering, not a hypothetical, because
+   * opened before sky.boss answers is a real ordering, not a hypothetical, because
    * the first window is created in the same tick as the stream. */
   ready: () => ready,
   identity: () => identity,

@@ -14,7 +14,7 @@ from cli.canvas.catalog import catalog, walk
 def _tree():
     """A tree with the shape the real one does not have.
 
-    sb is two leaf commands, one of which is the surface itself, so there is no
+    sky.boss is two leaf commands, one of which is the surface itself, so there is no
     group here to walk and no nesting to flatten. `catalog` takes an injectable
     root for exactly this reason.
     """
@@ -141,7 +141,7 @@ def test_a_summary_never_ends_on_a_colon_it_cannot_keep():
     def colon():
         """Follow a file that grows. An observe, resident by nature:
 
-        sb follow build.log
+        `sb follow` build.log
         """
 
     assert walk(colon, ("colon",))[0]["summary"] == "Follow a file that grows."

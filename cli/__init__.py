@@ -2,7 +2,7 @@
 
 This package implements the CLI as a collection of command group modules.
 
-Usage: sb [command] [options]
+Usage: sky.boss [command] [options]
 """
 
 import subprocess
@@ -68,7 +68,7 @@ def expand_t(args: list[str]) -> list[str]:
     Not a Click alias and not a flag with behavior: the rewrite happens in
     argv, once, here — so `sb -t jam-pr-list --refresh 30` *is*
     `sb tools jam-pr-list --refresh 30` and every downstream consumer sees
-    the long form. Options follow the tool name, as on every sb command; the
+    the long form. Options follow the tool name, as on every sky.boss command; the
     prefix form (`sb -t --refresh 30 x`) was rejected — it would teach the
     group a forwarded option that belongs to the leaf, and it falls out as an
     ordinary usage error.
@@ -116,7 +116,7 @@ class Root(click.RichGroup):
         from cli import banner
 
         # `--json` says a machine is reading, and a machine reading help is
-        # already in trouble — but painting a logo into its pipe is sb making
+        # already in trouble — but painting a logo into its pipe is sky.boss making
         # it worse. The same reflex as everywhere else: nothing decorative
         # goes out when the envelope was asked for.
         if not (ctx.find_root().obj or {}).get("as_json"):

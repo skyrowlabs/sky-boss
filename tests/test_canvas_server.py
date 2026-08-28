@@ -360,7 +360,7 @@ def test_an_act_gets_checks_instead_of_a_trial(client):
     """"We cannot run it" is not the same as "we can tell you nothing".
 
     Three questions have answers that cost nothing, and the third is asked of
-    sb's own parser rather than of a copy of its rules.
+    sky.boss's own parser rather than of a copy of its rules.
     """
     body = client.post(
         "/api/preflight",
@@ -376,7 +376,7 @@ def test_a_bad_cwd_fails_the_directory_check_and_the_parse(client):
     """Not a duplicate — a cause and its consequence, in that order. The parse
     catches it because `--cwd` is a `click.Path(exists=True)`, which is the
     whole reason the argv goes through Click rather than through a second
-    opinion about what sb accepts."""
+    opinion about what sky.boss accepts."""
     body = client.post(
         "/api/preflight",
         headers=auth(),
@@ -438,7 +438,7 @@ def test_no_route_writes_the_tools_file(client, tmp_path, monkeypatch):
 
     Every route the bench touches, exercised with a `--save` in the argv, and
     the file must still not exist. `--save` writes — from a *subprocess*, which
-    is the one writer sb has — and nothing in this process does.
+    is the one writer sky.boss has — and nothing in this process does.
     """
     home = tmp_path / "home"
     monkeypatch.setattr("cli.helpers.SB_HOME", home)

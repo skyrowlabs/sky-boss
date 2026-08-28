@@ -1,8 +1,8 @@
-"""sb follow — hold a stream open. One verb, two mechanisms. See [[follow]].
+"""`sb follow` — hold a stream open. One verb, two mechanisms. See [[follow]].
 
 **The dispatch rule is argument shape, and there is no third shape.** A
 single argument that names a file — or that could only be a file — is the
-file form, whose mechanism is the native cursor ([[file-follow]]): sb can
+file form, whose mechanism is the native cursor ([[file-follow]]): sky.boss can
 *stat* a file, so quiet and dead get different words. Everything else is the
 process form (this module): spawn it, read lines as they arrive, and treat
 exit as an event to display rather than a result to wait for. The name is
@@ -178,7 +178,7 @@ def follow(
             raise click.UsageError(str(exc)) from exc
 
     if is_file_form(argv):
-        # The native cursor, [[file-follow]]: sb can stat a file, so quiet
+        # The native cursor, [[file-follow]]: sky.boss can stat a file, so quiet
         # and dead get different words.
         from cli.filefollow import follow_file
 
@@ -199,7 +199,7 @@ def _display_width(console: Console) -> int | None:
     """The width to tell a child about, or None when there is no display.
 
     Piped output has no width worth claiming — the consumer may be a file, and
-    a tool that wrapped to a number sb invented would be worse than one that
+    a tool that wrapped to a number sky.boss invented would be worse than one that
     used its own default.
     """
     return console.width if console.is_terminal else None

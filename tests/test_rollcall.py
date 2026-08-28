@@ -1,7 +1,7 @@
 """The roll-call — many projects, one answer.
 
 Every test here runs against a redirected `SB_HOME` (conftest sets it before
-anything imports `cli`). That matters more than usual: a project is a source sb
+anything imports `cli`). That matters more than usual: a project is a source sky.boss
 will *run*, so a suite reading the real home would be shelling out to whatever
 the operator happens to have declared.
 """
@@ -41,7 +41,7 @@ description = "declares no source at all"
 
 def test_declaring_both_a_command_and_a_file_is_refused(tmp_path):
     """Two different claims about where this project's truth lives. Picking one
-    would be sb guessing which the operator meant."""
+    would be sky.boss guessing which the operator meant."""
     write(tmp_path, """
 [project.both]
 argv = ["echo"]

@@ -1,4 +1,4 @@
-"""sb ui — the canvas.
+"""`sb ui` — the canvas.
 
 A command palette over a window canvas: every command opens a window, windows
 tile or float, and a pinned window re-runs itself on a cadence. It replaces

@@ -1,7 +1,7 @@
 """The tools — commands the operator saved.
 
 The properties worth defending are the three that keep operator content from
-becoming a way around sb's own rules: a tool expands to a sb command and not a
+becoming a way around sky.boss's own rules: a tool expands to a sky.boss command and not a
 shell command, it inherits `acts` rather than declaring it, and it may only
 carry a cadence if it reads. The fourth — a builtin always wins — retired into
 structure in round 2: saved commands live behind the `tools` group, where
@@ -45,7 +45,7 @@ def test_a_declared_tool_becomes_a_tool():
     assert tools[0].description == "open PRs"
 
 
-# ------------------------------------------------------- rule 1: a sb argv
+# ------------------------------------------------------- rule 1: a sky.boss argv
 
 
 def test_a_tool_cannot_name_a_bare_executable():
@@ -58,7 +58,7 @@ def test_a_tool_cannot_name_a_bare_executable():
 
 def test_the_refusal_names_the_way_to_do_it():
     """The mistake this catches is someone writing a shell command. Refusing
-    without saying which sb command would have run it wastes the trip."""
+    without saying which sky.boss command would have run it wastes the trip."""
     _, problems = one({"tool": {"x": {"argv": ["docker", "ps"]}}})
     assert "data" in problems[0] and "run" in problems[0]
 
@@ -182,7 +182,7 @@ def test_an_absent_home_declares_nothing_and_says_nothing(tmp_path):
 
 def test_a_file_that_cannot_be_parsed_is_reported_rather_than_raised(tmp_path):
     """It exists, so the operator expects it to work — but one broken file must
-    not stop sb running at all."""
+    not stop sky.boss running at all."""
     tmp_path.mkdir(parents=True, exist_ok=True)
     (tmp_path / "tools.toml").write_text("this is not = = toml")
     tools, problems = load(COMMANDS, home=tmp_path)
@@ -362,7 +362,7 @@ def test_dash_t_stands_where_a_command_word_could():
 
 def test_a_dash_t_belonging_to_someone_else_is_never_touched():
     """The rewrite stops at the first command word or `--` — past that point
-    every token is somebody's argv, not sb's."""
+    every token is somebody's argv, not sky.boss's."""
     assert expand_t(["read", "--", "ls", "-t"]) == ["read", "--", "ls", "-t"]
     assert expand_t(["run", "-t"]) == ["run", "-t"]
     assert expand_t(["tools", "-t"]) == ["tools", "-t"]
@@ -567,7 +567,7 @@ def test_a_name_that_could_not_be_a_command_is_refused(tmp_path):
 
 
 def test_an_unparseable_file_is_not_appended_to(tmp_path):
-    """Appending to a file sb cannot read would bury the real problem."""
+    """Appending to a file sky.boss cannot read would bury the real problem."""
     import rich_click as click
     import pytest
 

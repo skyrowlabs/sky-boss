@@ -495,7 +495,7 @@ def test_a_view_summarises_a_nested_dict_into_one_cell(capsys):
 
 
 def test_no_view_renders_exactly_as_it_always_did(capsys):
-    """sb's own commands must be untouched by any of this — their fields were
+    """sky.boss's own commands must be untouched by any of this — their fields were
     chosen by whoever wrote the command."""
     render(Result("x", data=[{"a": 1, "b": 2}]), as_json=False)
     assert _body(capsys.readouterr().out)[0].split() == ["A", "B"]

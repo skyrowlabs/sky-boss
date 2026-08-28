@@ -1,4 +1,4 @@
-"""sb read — showing what a tool printed, on a cadence.
+"""`sb read` — showing what a tool printed, on a cadence.
 
 The property that justifies the command is the one in `test_read_is_a_read`:
 `sb run` already carried text and could never be pinned, so the gap was never

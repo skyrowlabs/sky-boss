@@ -36,12 +36,12 @@ NU…   TI…   IS…   ME…   HE…   HE…   B…   BE…   L…   MA…   M�
 945   fi…   ✓     UN…   cb…   fi…   d…    4   a…   ab…   -    {'…   n…   run
 ```
 
-Fourteen columns crushed to three characters each, headers truncated past recognition, and a
-nested dict rendered as a Python repr. Every renderer we have takes **every key of every row, in
-first-seen order, at equal weight.** That rule is correct for sb's own commands, whose fields were
-chosen by the person who wrote the command. It is wrong the moment the data is *foreign*, because
-nobody chose those fields for a table — they are a tool's complete internal record of a pull
-request, and shaping them was always going to be somebody's job.
+Fourteen columns crushed to three characters each, headers truncated past recognition, and a nested
+dict rendered as a Python repr. Every renderer we have takes **every key of every row, in first-seen
+order, at equal weight.** That rule is correct for sky.boss's own commands, whose fields were chosen
+by the person who wrote the command. It is wrong the moment the data is *foreign*, because nobody
+chose those fields for a table — they are a tool's complete internal record of a pull request, and
+shaping them was always going to be somebody's job.
 
 Here is what that one row actually carries:
 
@@ -184,17 +184,17 @@ change at all** — `app.js` already treats everything past the command name as 
 
 **Does not do:**
 
-- **Does not reshape sb's own commands.** Only `wrap` sets a view, because only `wrap` carries
-  data nobody on this side chose. sb's own commands picked their fields deliberately and auto-dropping
-  one would be a bug wearing a feature's clothes. *(Corrected 2026-08-23: this line cited `sb info`,
-  a command removed 2026-08-20. Unlike the `wrap`→`data` rename below, a removed command leaves the
-  argument uncheckable rather than merely renamed — see Notes.)*
+- **Does not reshape sky.boss's own commands.** Only `wrap` sets a view, because only `wrap` carries
+  data nobody on this side chose. sky.boss's own commands picked their fields deliberately and
+  auto-dropping one would be a bug wearing a feature's clothes. *(Corrected 2026-08-23: this line
+  cited `sb info`, a command removed 2026-08-20. Unlike the `wrap`→`data` rename below, a removed
+  command leaves the argument uncheckable rather than merely renamed — see Notes.)*
 - **Does not persist — and does not need to.** No named views, no saved column sets, no state file
   *in this feature*. `wrap --cols …` is typed per window and dies with it, which keeps the canvas's
   "nothing survives the last window" intact.
 
   Persistence arrives from the other direction instead. [[tools]] gives the operator a
-  `tools.toml`, and because a tool is simply a **sb argv**, a saved column set is already
+  `tools.toml`, and because a tool is simply a **sky.boss argv**, a saved column set is already
   expressible without this feature growing a store of its own:
 
   ```toml
@@ -203,13 +203,13 @@ change at all** — `app.js` already treats everything past the command name as 
 
   That is the better split. Shaping stays a pure function of the rows plus some flags, and the
   question of where operator content lives is answered once, in the doc that exists to answer it.
-- **Does not sort or filter.** `wrap.py`'s docstring anticipates both and they are a separate
-  round; sorting is a canvas interaction (click a header) and belongs to the surface, not to the
-  shaping contract.
+- **Does not sort or filter.** `wrap.py`'s docstring anticipates both and they are a separate round;
+  sorting is a canvas interaction (click a header) and belongs to the surface, not to the shaping
+  contract.
 - **Does not touch `data`.** Stated twice on purpose.
-- **Does not guess a tool's JSON flag**, and does not learn `--cwd` for a tool that needs one.
-  `jam` requires `--cwd ~/src/jam.sense` because its wrapper resolves `.venv` against the
-  working directory; that is jam.sense's bug to fix and sb should not grow a workaround for it.
+- **Does not guess a tool's JSON flag**, and does not learn `--cwd` for a tool that needs one. `jam`
+  requires `--cwd ~/src/jam.sense` because its wrapper resolves `.venv` against the working
+  directory; that is jam.sense's bug to fix and sky.boss should not grow a workaround for it.
 - **Does not do ANSI.** Unchanged from [[canvas]]: a tool without JSON is out of scope rather than
   half-supported.
 
@@ -301,14 +301,14 @@ a generated-at stamp, a count, a version — because a bare array has nowhere to
 envelope is the normal case, not an exotic one, and the fixture was synthetic in exactly the way
 that hid it.
 
-**Finding the rows without guessing.** `--rows jobs` names the path explicitly, and is the same
-idea as `--cols checks.failed` one level up — dotted paths already reach into nested structures
-here. Unnamed, sb may infer only when the answer is unambiguous: **exactly one value in the
-mapping is a non-empty list of dicts.** Two candidates is not a near-miss to be broken by
-preferring the longer one or the better-named one; it is a question sb cannot answer, and it says
-so and renders as it does today. Matching on the *value* rather than on a blessed key name
-(`items`, `results`, `rows`) is rule 2 and rule 4's idiom unchanged — a name list goes stale the
-first time a tool disagrees with it, and the next tool always disagrees with it.
+**Finding the rows without guessing.** `--rows jobs` names the path explicitly, and is the same idea
+as `--cols checks.failed` one level up — dotted paths already reach into nested structures here.
+Unnamed, sky.boss may infer only when the answer is unambiguous: **exactly one value in the mapping
+is a non-empty list of dicts.** Two candidates is not a near-miss to be broken by preferring the
+longer one or the better-named one; it is a question sky.boss cannot answer, and it says so and
+renders as it does today. Matching on the *value* rather than on a blessed key name (`items`,
+`results`, `rows`) is rule 2 and rule 4's idiom unchanged — a name list goes stale the first time a
+tool disagrees with it, and the next tool always disagrees with it.
 
 The unshaped remainder keeps rendering as a mapping above the table, which is already what the
 operator wants: `generated 2026-08-23T20:02:53+00:00` is a useful line, just not a column.
@@ -528,8 +528,8 @@ worth writing down, because it will come up every time.
 Measured across all sixteen docs: every `key_files` path resolves except `mcp.md`'s two, which name
 files that spec has not built yet — correct for an unbuilt spec, not drift. `CLAUDE.md` was wrong in
 three ways about this directory (claimed it was empty, omitted three completed docs, listed two that
-had moved out) and is fixed. One stale reference: this doc's *Does not do* cited `sb info`, removed
-2026-08-20.
+had moved out) and is fixed. One stale reference: this doc's *Does not do* cited `sky.boss info`,
+removed 2026-08-20.
 
 **The rule the audit produced: correct the living sections, never the dated ones.** Why, Shape and
 Does-not-do describe the system *now*, so they can be wrong and should be fixed. Rounds and Notes
@@ -538,9 +538,9 @@ Rewriting those to match today would destroy the one thing this format is for.
 
 Which is why the seventeen `wrap` references above were **left exactly as they are**. They look like
 the biggest drift in the repo and are not drift at all; the 2026-08-21 supersession note already
-says so. `sb info` was different in kind: a rename leaves an argument followable, a removal leaves it
-citing nothing, and a reader cannot tell which they are looking at without checking. Fixed in place
-with the correction marked, rather than silently — the same standard the code is held to.
+says so. `sky.boss info` was different in kind: a rename leaves an argument followable, a removal
+leaves it citing nothing, and a reader cannot tell which they are looking at without checking. Fixed
+in place with the correction marked, rather than silently — the same standard the code is held to.
 
 ### Round 4 — the fixture was the bug (2026-08-23)
 

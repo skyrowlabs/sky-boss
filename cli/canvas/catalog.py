@@ -145,7 +145,7 @@ def _leaf(command: click.Command, path: tuple[str, ...]) -> list[dict]:
 
 def catalog(root: click.Group | None = None) -> list[dict]:
     """The whole palette. `root` is injectable for the same reason `dispatch`'s
-    was: sb is a two-command tree today and has no shape to test a walk on."""
+    was: sky.boss is a two-command tree today and has no shape to test a walk on."""
     if root is None:
         from cli import cli as root_group
 

@@ -158,10 +158,10 @@ since the first unbounded render froze one.
 
 - **Still no severity vocabulary.** No ERROR/WARN/INFO word list, no "this line looks bad".
   That is judgment, it belongs to the operator, and it is round 3 — arriving as *their*
-  declaration rather than sb's opinion. The boundary round 1 drew is unmoved.
+  declaration rather than sky.boss's opinion. The boundary round 1 drew is unmoved.
 - **No emoji or box-drawing handling.** Terminals already colour emoji and the canvas already
   shows them; "emphasize the icons" is answered by not dimming them, which nothing does. A rule
-  that restyled them would be sb overriding the font.
+  that restyled them would be sky.boss overriding the font.
 - **No change to `data`, envelopes, `--json`, or accrual output.** Tint is rendering.
 
 - [x] **The rules.** `cli/highlight.py` gains ref, number, date, time, code, path, bold and
@@ -183,9 +183,9 @@ The half round 2 cannot do, named in round 1's *"Does not do"* as this doc's fut
 asked for in the same breath as round 2: *"if we can only do so much by default we might
 consider a formatting tool or layer to user-defined tools."*
 
-**Shape is sb's; vocabulary is the operator's.** `ESCALATE`, `Done.`, `handing to 'claude'`,
+**Shape is sky.boss's; vocabulary is the operator's.** `ESCALATE`, `Done.`, `handing to 'claude'`,
 `skip` — these are the words that matter in one operator's log and mean nothing in anyone
-else's. sb cannot know them and must not guess, for exactly the reason it does not guess
+else's. sky.boss cannot know them and must not guess, for exactly the reason it does not guess
 columns ([[capture]]): a word list is a judgment wearing a regex's clothes.
 
 **So it is declared, in the file that already holds declarations about output.**
@@ -212,10 +212,10 @@ role the theme does not define is refused at load, by name. Nothing operator-aut
 hex anywhere near this — the rule the whole theme rests on does not get an exception for a
 config file.
 
-**Operator rules run after sb's and never displace them.** A declared pattern claims only text
+**Operator rules run after sky.boss's and never displace them.** A declared pattern claims only text
 no built-in rule already claimed, so a timestamp stays muted and a tag stays a tag whatever the
 operator writes. The alternative — letting a declaration win — makes every built-in rule
-conditional on a file sb does not ship, and the first surprising log would be unexplainable.
+conditional on a file sky.boss does not ship, and the first surprising log would be unexplainable.
 
 **A regex from a file is the one real hazard, and it is bounded rather than trusted.** Patterns
 are compiled at load and a bad one is refused by name; a pattern is length-capped; matching is
@@ -246,7 +246,7 @@ operator's own file on the operator's own machine, the same trust level as `tool
 
 ### Round 4 — the yellow, the glyphs, and the colour words (2026-08-22)
 
-Reported against the live stream: *"the default colour for sb follow is yellow, can you make it
+Reported against the live stream: *"the default colour for `sb follow` is yellow, can you make it
 a grayish colour. There are checks that should naturally be green, Xs red, escalated yellow, red
 is red — when words say a colour we should display that colour."*
 
@@ -261,7 +261,7 @@ a test on the styles.
 **Three rules, and all three are still shape rather than judgment** — worth arguing, because
 they look like the vocabulary rules this doc refuses:
 
-- **A check is green, a cross is red, a warning sign is warn.** Not sb deciding a line went
+- **A check is green, a cross is red, a warning sign is warn.** Not sky.boss deciding a line went
   well: `sb data` already renders a true boolean as a green `✓` and a false one as a red `✗`
   (`_cell` in `cli/output.py`). One value vocabulary, two surfaces — the same rule round 2 ran
   on. `⚠️` is two codepoints (the sign plus U+FE0F) and both are claimed, or the glyph tints
@@ -272,10 +272,10 @@ they look like the vocabulary rules this doc refuses:
   which is precisely what separates it from "the text says ERROR, so it is bad". Standalone
   words only, so `greenery` and `Greenland` are neither.
 
-**An ordinary stderr line is now grey, and sb's own voice keeps the warning tint.** Painting all
-of stderr yellow was the same judgment-in-a-regex's-clothes this module refuses everywhere else:
-a tool talking on its second channel is reporting progress or printing a banner as often as it
-is failing. The cursor's rotation and truncation announcements *are* sb speaking and must stay
+**An ordinary stderr line is now grey, and sky.boss's own voice keeps the warning tint.** Painting
+all of stderr yellow was the same judgment-in-a-regex's-clothes this module refuses everywhere else:
+a tool talking on its second channel is reporting progress or printing a banner as often as it is
+failing. The cursor's rotation and truncation announcements *are* sky.boss speaking and must stay
 loud, so they gain `voice` on the `Line` rather than borrowing a tag whose meaning changed
 underneath them.
 
@@ -288,16 +288,16 @@ means something in one grid and nothing anywhere else — so it is declared, not
   still carries a timestamp, a job name and durations that have their own roles, and a line-wide
   wash would erase all of them to say one thing.
 - **No process-state glyphs.** `▶ ▣ ⤼ ⤴` are jam's own vocabulary for started, held, skipped and
-  escalated — a shape rule for them would be sb guessing another tool's semantics from a
+  escalated — a shape rule for them would be sky.boss guessing another tool's semantics from a
   codepoint. They belong in a declared ruleset, which is where they went.
 
 - [x] **The clip regression.** The marker is a span, not a base style; a test asserts the body's
       roles survive the cut.
 - [x] **Glyph and colour-word rules**, positioned so a glyph inside a code span stays code.
-- [x] **stderr grey, `voice` warn**, on both surfaces — `Line.voice`, the terminal body, the
-      frame line, and a `.voice` class beside `.err`.
-- [x] **The operator's own vocabulary declared**, proving round 3 carries the half sb refuses to
-      guess.
+- [x] **stderr grey, `voice` warn**, on both surfaces — `Line.voice`, the terminal body, the frame
+      line, and a `.voice` class beside `.err`.
+- [x] **The operator's own vocabulary declared**, proving round 3 carries the half sky.boss refuses
+      to guess.
 
 ## Notes
 
@@ -348,7 +348,7 @@ no violet, and "looked better in a prototype" is how a second palette starts.
 
 **The split between the two rounds is the split the doc has always had.** Round 1 wrote it as
 *shape, not vocabulary*; round 2 is the rest of the shapes and round 3 is the vocabulary,
-arriving as the operator's declaration rather than sb's opinion. What is new is only *where*
+arriving as the operator's declaration rather than sky.boss's opinion. What is new is only *where*
 the declaration lives: `formats.toml`, beside the capture formats, because that file is already
 "what I have asserted about what my tools print" and `sb tools` already lists what it refused.
 
@@ -373,7 +373,7 @@ What the execution argued back:
 - **Round 3's ordering rule earned a test the moment it was written.** Operator rules run last
   and claim only unclaimed text, so a declared `2026` cannot repaint a timestamp and a declared
   `agent` cannot repaint a tag. The alternative — a declaration winning — makes every built-in
-  conditional on a file sb does not ship, and the first surprising log is unexplainable.
+  conditional on a file sky.boss does not ship, and the first surprising log is unexplainable.
 - **`highlight` on a saved command needed the same refusal `refresh` has.** Declared on a tool
   that wraps `data`, the field would load cleanly and mean nothing, because tint belongs to a
   stream. Refused at load by name — the "wrong but looks right" failure this loader exists to

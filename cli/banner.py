@@ -18,7 +18,7 @@ proportions the designer drew.
 **The mark paints its own background**, and that is what lets it use the design
 system at full strength instead of the CLI's darkened derivations (CLAUDE.md
 § Conventions).
-The derivations exist because sb renders into a terminal whose background
+The derivations exist because sky.boss renders into a terminal whose background
 nobody here knows; painting one removes the unknown, exactly as the canvas
 does. It is also the only answer available: the mark's own hues fail in
 *opposite* directions — the lit glass disappears on white, the dark shaft

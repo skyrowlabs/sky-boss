@@ -1,19 +1,19 @@
 """Capture — named formats: parse, transform, present. See [[capture]].
 
-**sb never guesses; the operator asserts.** A format is a named, operator-
+**sky.boss never guesses; the operator asserts.** A format is a named, operator-
 authored declaration in `$SB_HOME/formats.toml`, and the command line only
 says the name: `sb data --from jam-status -- sometool status`. The inference
 version of this feature — columns guessed from whitespace — is the "silently
 wrong" failure CLAUDE.md rejects by name, and it is not here.
 
 **Two levels: kinds are code, formats are declarations.** A kind is a parsing
-contract sb ships and tests (`json`, `lines`); a format parameterizes one and
+contract sky.boss ships and tests (`json`, `lines`); a format parameterizes one and
 may add a `jq` program as the pipeline's middle stage:
 
     bytes ──(kind: parse)──▶ data ──(jq: transform)──▶ data′ ──(view)──▶ display
 
 Presentation is already shape-driven, so the transform needs no formatting
-vocabulary: jq's job is to produce the shape, sb's job is to render the shape.
+vocabulary: jq's job is to produce the shape, sky.boss's job is to render the shape.
 
 **The deciding half is pure.** `capture()` is a function over text — no
 subprocess, no file I/O — which is what makes the interesting rules testable:
@@ -35,7 +35,7 @@ from cli.helpers import SB_HOME, child_env
 
 FORMATS_FILE = "formats.toml"
 
-# The kinds sb ships. A later kind — csv, an aligned table, multi-line
+# The kinds sky.boss ships. A later kind — csv, an aligned table, multi-line
 # records — arrives here one at a time when something real needs it.
 KINDS = ("json", "lines")
 
@@ -254,10 +254,10 @@ def transform(data, program: str, name: str, timeout: int | None = None):
     """Parsed data through the operator's own `jq` binary. Returns
     `(data, None)` or `(None, reason)`.
 
-    The binary rather than a Python binding: sb does not reimplement a JSON
+    The binary rather than a Python binding: sky.boss does not reimplement a JSON
     language, and a wheel is a gamble on 3.14 that buys nothing over the jq
-    already on the machine. It runs through `child_env()` like everything sb
-    spawns — the operator's environment, not sb's. See [[subprocess-env]].
+    already on the machine. It runs through `child_env()` like everything sky.boss
+    spawns — the operator's environment, not sky.boss's. See [[subprocess-env]].
 
     Absent jq degrades loudly *at use*, naming the format that wanted it;
     formats without a `jq` field never reach this function. A failing program

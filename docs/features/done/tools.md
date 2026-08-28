@@ -112,11 +112,11 @@ module.** A name in a skip-list is the beginning of the command table this desig
 
 ### Four rules that are not negotiable
 
-1. **`argv` is a sb argv, never a shell argv.** `["wrap", "--", "jam", …]` means `sb wrap -- jam …`.
-   A tool cannot name an arbitrary executable, because a tool that could would be a second `sb run`
-   — one that skips the read/write distinction the whole design rests on. Everything a tool wants
-   is already reachable through `run` or `wrap`, and going through them is what keeps **`sb run`
-   the single command that acts**.
+1. **`argv` is a sky.boss argv, never a shell argv.** `["wrap", "--", "jam", …]` means `sb wrap --
+   jam …`. A tool cannot name an arbitrary executable, because a tool that could would be a second
+   `sb run` — one that skips the read/write distinction the whole design rests on. Everything a tool
+   wants is already reachable through `run` or `wrap`, and going through them is what keeps **`sb
+   run` the single command that acts**.
 
 2. **`acts` is inherited, never declared.** Resolve the expansion's leaf in the Click tree and take
    *its* `acts`. A tool expanding to `run` acts and the canvas will not offer it a cadence; a tool
@@ -125,23 +125,23 @@ module.** A name in a skip-list is the beginning of the command table this desig
    and a safety property must have one source. It follows that **`every` on a tool that acts is
    refused at load**, for the same reason the canvas hides the pin control on one.
 
-3. **A builtin always wins.** *(Round 2 retired this into structure: saved commands live behind
-   the `tools` group, where `[tool.run]` collides with nothing — `sb run` is the builtin and
-   `sb tools run` is the tool. The rule below was validation while tools sat on the root, and its
-   reasoning is kept as written.)* A tool named `run`, `wrap`, `ui` or `tools` is skipped with a
-   warning naming the collision. Nothing operator-authored may shadow a sb command — otherwise a
-   stray `[tool.run]` silently redefines the one door that writes.
+3. **A builtin always wins.** *(Round 2 retired this into structure: saved commands live behind the
+   `tools` group, where `[tool.run]` collides with nothing — `sb run` is the builtin and `sb tools
+   run` is the tool. The rule below was validation while tools sat on the root, and its reasoning is
+   kept as written.)* A tool named `run`, `wrap`, `ui` or `tools` is skipped with a warning naming
+   the collision. Nothing operator-authored may shadow a sky.boss command — otherwise a stray
+   `[tool.run]` silently redefines the one door that writes.
 
-4. **No *surface* writes this file, and sb only ever appends to it.** *(Round 3, 2026-08-22,
-   narrowed this from "sb never writes this file" — `--save` writes one appended block from the
-   terminal. The security argument below is unchanged and is what the narrowing was measured
-   against; the sentence it was protecting was broader than the argument.)* Creation and every
-   edit are `$EDITOR`'s. The canvas server is remote code execution bound to a port and is
-   treated that way; giving it a route that writes a file sb will later *execute* would convert
-   a transient compromise into a persistent one. A hostile page that defeated the
-   header-and-token guard today gets one command; with a write route it would get every command
-   from then on. That is not a trade worth making for a save button, and the button
-   can be added later against a design that has thought about it.
+4. **No *surface* writes this file, and sky.boss only ever appends to it.** *(Round 3, 2026-08-22,
+   narrowed this from "sky.boss never writes this file" — `--save` writes one appended block from
+   the terminal. The security argument below is unchanged and is what the narrowing was measured
+   against; the sentence it was protecting was broader than the argument.)* Creation and every edit
+   are `$EDITOR`'s. The canvas server is remote code execution bound to a port and is treated that
+   way; giving it a route that writes a file sky.boss will later *execute* would convert a transient
+   compromise into a persistent one. A hostile page that defeated the header-and-token guard today
+   gets one command; with a write route it would get every command from then on. That is not a trade
+   worth making for a save button, and the button can be added later against a design that has
+   thought about it.
 
 `~` in an argv is expanded, since the whole point is that these are operator paths.
 
@@ -161,7 +161,7 @@ module.** A name in a skip-list is the beginning of the command table this desig
 - **No shell.** No pipes, no `&&`, no interpolation, no `shell=True`. Argv only, unchanged from
   [[canvas]].
 - **No sync, no sharing, no machine awareness.** One file, one machine. A tool naming a host that
-  is not on this tailnet fails when run, not at load — sb does not validate the world.
+  is not on this tailnet fails when run, not at load — sky.boss does not validate the world.
 - **Does not read the repo.** There is no in-repo fallback path to `$SB_HOME` and there must never
   be one. That fallback is precisely how operator content ended up committed last time.
 
@@ -209,7 +209,7 @@ stays only as the shape a command word must have.
   formats). One door for "what did I save"; no second listing command.
 - **`-t` is an argv spelling of `tools`, rewritten at the root** — not a Click alias and not
   a flag with behavior: `sb -t …` becomes `sb tools …` before parsing, in one tested place.
-  Options follow the tool name, as they do on every sb command; the prefix form
+  Options follow the tool name, as they do on every sky.boss command; the prefix form
   (`sb -t --refresh 30 jam-pr-list`) was considered and rejected — it would teach the group a
   forwarded option that belongs to the leaf.
 - **The envelope says the dotted path**, `tools.jam-pr-list`. Round 1 ruled "the envelope
@@ -243,11 +243,11 @@ palette teaches the new spelling immediately.
 
 ### Round 3 — saving the command you just ran (2026-08-22)
 
-**The gap is the one round 1 named and deferred.** A tool is a name plus a sb argv, and the only
-way to make one is to open `$EDITOR`, remember the TOML shape, and retype an argv you had
-working thirty seconds ago in your shell. The command this whole doc exists to make easy is
-*still* 110 characters the first time, and the moment you have it right is the moment you are
-furthest from a text editor.
+**The gap is the one round 1 named and deferred.** A tool is a name plus a sky.boss argv, and the
+only way to make one is to open `$EDITOR`, remember the TOML shape, and retype an argv you had
+working thirty seconds ago in your shell. The command this whole doc exists to make easy is *still*
+110 characters the first time, and the moment you have it right is the moment you are furthest from
+a text editor.
 
     sb data --cols number,title,merge_state --cwd ~/src/jam.sense \
             -- jam pr list --json --save=prs
@@ -255,7 +255,7 @@ furthest from a text editor.
 Then `sb tools prs` forever. **Save by example, from the terminal, at the end of the command
 that worked.**
 
-**This narrows rule 4 and keeps its argument intact.** The rule said *sb never writes this
+**This narrows rule 4 and keeps its argument intact.** The rule said *sky.boss never writes this
 file*; the argument underneath it was about **the canvas server**, which is remote code
 execution bound to a port, and about a *route* that would turn a transient compromise into a
 persistent one. None of that applies to a flag the operator types in their own shell — that is
@@ -265,14 +265,14 @@ recorded in Shape rule 4 with the original sentence visible beside it.
 
 **Three properties make the write safe to have at all:**
 
-1. **sb appends; it never rewrites.** The saved entry is a `[tool.<name>]` block added at the
+1. **sky.boss appends; it never rewrites.** The saved entry is a `[tool.<name>]` block added at the
    end of the file. Nothing above it is re-serialised, reordered, or reformatted, so every
    comment, blank line and hand-written argv the operator wrote survives byte-for-byte. This is
-   not politeness — round-tripping TOML would mean either a writer dependency or sb's own
+   not politeness — round-tripping TOML would mean either a writer dependency or sky.boss's own
    serialiser deciding how the operator's file should look, and both are ways to lose a file
-   that is not sb's. **Editing and deleting stay `$EDITOR`'s**, which is also why there is no
+   that is not sky.boss's. **Editing and deleting stay `$EDITOR`'s**, which is also why there is no
    `--save` overwrite: a name already declared is refused, naming what it currently runs.
-2. **The saved argv is what you typed.** Taken from the invocation itself, from the sb command
+2. **The saved argv is what you typed.** Taken from the invocation itself, from the sky.boss command
    word onward, with the `--save` token removed and nothing else added, normalised or guessed.
    A tool whose expansion does not match the line that created it is the failure this feature
    would otherwise introduce, and it would be invisible until the day the tool ran.
@@ -297,18 +297,18 @@ result.** The envelope says where it went; under `--json` that is a field, not p
 
 **Does not do:**
 
-- **No description, no editing, no removal.** `--save` writes a name and an argv. A description,
-  a changed argv, a deleted tool: `$EDITOR`, one file, no ceremony. A `--describe` flag is a
-  second thing to type at exactly the moment the operator wants to type less.
-- **No overwrite, no `--force`.** An existing name is refused with what it currently runs. The
-  fix is to edit the file, which is the one place edits happen.
-- **Still no route and still no button.** The canvas gains nothing. Its argv path can carry the
-  flag the same way it can carry any word, and that is honestly not a new hole: a client that
-  can reach the API can already ask for `sb run -- <anything>`, which is strictly more. sb does
-  not filter the flag out server-side, because a filter would be the server keeping a list of
-  sb's flags — the command table this design refuses to keep, in its most brittle form.
-- **No `~` re-contraction.** The shell expanded `~` before sb ever saw it, so an absolute path is
-  what gets saved. `_expand` still exists for the hand-written `~` in a file the operator typed.
+- **No description, no editing, no removal.** `--save` writes a name and an argv. A description, a
+  changed argv, a deleted tool: `$EDITOR`, one file, no ceremony. A `--describe` flag is a second
+  thing to type at exactly the moment the operator wants to type less.
+- **No overwrite, no `--force`.** An existing name is refused with what it currently runs. The fix
+  is to edit the file, which is the one place edits happen.
+- **Still no route and still no button.** The canvas gains nothing. Its argv path can carry the flag
+  the same way it can carry any word, and that is honestly not a new hole: a client that can reach
+  the API can already ask for `sb run -- <anything>`, which is strictly more. sky.boss does not
+  filter the flag out server-side, because a filter would be the server keeping a list of sky.boss's
+  flags — the command table this design refuses to keep, in its most brittle form.
+- **No `~` re-contraction.** The shell expanded `~` before sky.boss ever saw it, so an absolute path
+  is what gets saved. `_expand` still exists for the hand-written `~` in a file the operator typed.
 - **No validation of the world.** A saved argv naming a host, a repo or a tool that is not there
   fails when it runs, exactly as a hand-written one does.
 
@@ -334,7 +334,7 @@ result.** The envelope says where it went; under `--json` that is a field, not p
 
 ### Round 1 — what shipped, and the claim that did not survive (2026-08-20)
 
-The model held exactly as designed: a tool is a name plus a sb argv, registered
+The model held exactly as designed: a tool is a name plus a sky.boss argv, registered
 onto the Click tree, and `sb jam-pr-list`, `sb --help`, shell completion and the
 palette all worked the moment registration did. The four rules earned their
 keep — a `[tool.run]` and a `["docker", "ps"]` were both in the first real
@@ -371,7 +371,7 @@ against the file *text*, where it immediately failed on a comment saying
 about paths a real machine has. The test now parses the example and checks the
 *argvs*, which is the thing that could leak.
 
-**`SB_HOME` isolation matters more than `SB_STATE`'s.** A tool is an argv sb
+**`SB_HOME` isolation matters more than `SB_STATE`'s.** A tool is an argv sky.boss
 will run, so a suite that read the real home would register the operator's own
 commands into the tree under test, and `sb --help` would differ between two
 machines running the same suite. `tests/conftest.py` redirects it before
@@ -380,7 +380,7 @@ anything imports `cli`, for the same reason and at the same point.
 **Not built, and still not wanted:** anything that writes. No `sb tool add`, no
 `POST /api/tools`, no save button. The argument in Shape rule 4 is unchanged by
 having built the read half — if anything it is stronger now that a tool is
-demonstrably an argv sb will execute on a cadence.
+demonstrably an argv sky.boss will execute on a cadence.
 
 ### 2026-08-21 — the words moved; the history stays (supersession)
 
@@ -444,7 +444,7 @@ of remembered as a slogan.
 key, write it back — quietly requires a TOML *writer* (stdlib has `tomllib`, which only reads),
 and whichever one you pick then owns how the operator's hand-written file looks: comments gone,
 argv lists reflowed, ordering by whatever the serialiser prefers. Appending one block sidesteps
-all of it and buys a stronger claim than tidiness: **sb never touches a line the operator
+all of it and buys a stronger claim than tidiness: **sky.boss never touches a line the operator
 wrote.** It is also what makes "no overwrite" natural rather than a restriction — you cannot
 edit in place if you never rewrite, so editing stays exactly where it already was.
 

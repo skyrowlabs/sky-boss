@@ -228,7 +228,7 @@ def _ruleset(*rules):
 
 
 def test_a_declared_rule_tints_a_word_sb_would_never_judge():
-    """Shape is sb's; vocabulary is the operator's. `ESCALATE` means
+    """Shape is sky.boss's; vocabulary is the operator's. `ESCALATE` means
     everything in one log and nothing in anyone else's."""
     rules, problems = _ruleset({"pattern": r"\bESCALATE\b", "role": "warn"})
     assert problems == []
@@ -238,7 +238,7 @@ def test_a_declared_rule_tints_a_word_sb_would_never_judge():
 
 def test_a_declared_rule_cannot_repaint_a_timestamp_or_a_tag():
     """Operator rules run last and claim only unclaimed text. Letting a
-    declaration win would make every built-in conditional on a file sb does
+    declaration win would make every built-in conditional on a file sky.boss does
     not ship, and the first surprising log would be unexplainable."""
     rules, _ = _ruleset({"pattern": r"2026", "role": "fail"}, {"pattern": r"agent", "role": "ok"})
     line = "2026-08-22T05:00:02+00:00 [agent-fix] ok"
@@ -303,7 +303,7 @@ def test_declared_rules_still_respect_the_cap():
 
 
 def test_a_check_is_green_and_a_cross_is_red():
-    """Not sb judging a line: `sb data` already renders a true boolean as a
+    """Not sky.boss judging a line: `sb data` already renders a true boolean as a
     green ✓ and a false one as a red ✗. One value vocabulary, two surfaces."""
     for glyph in ("✓", "✔", "✅"):
         assert role_of(f"{glyph} ok · 0s", glyph) == "sb.ok", glyph

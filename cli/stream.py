@@ -51,7 +51,7 @@ class Line:
     text: str
     stderr: bool
     at: float
-    # sb's own announcement — a rotation, a truncation — pushed into the
+    # sky.boss's own announcement — a rotation, a truncation — pushed into the
     # stream because an event worth seeing belongs where the eyes are. It
     # rode the `stderr` tag until [[highlight]] round 4 made stderr grey;
     # the cursor's voice has to stay loud, so it gets a channel of its own
@@ -240,7 +240,7 @@ def accrue(
     exist — the caller already has an envelope shape for that.
 
     The pending queue is unbounded on purpose: every line must reach `echo`
-    exactly once, because a pipe reading sb's stdout is owed the tool's
+    exactly once, because a pipe reading sky.boss's stdout is owed the tool's
     whole output. Memory is bounded the same way it always was — the
     buffered path held the full text too — and the *envelope's* copy is
     capped at MAX_KEEP_CHARS with the cut declared.

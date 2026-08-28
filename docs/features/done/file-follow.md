@@ -21,7 +21,7 @@ key_files:
 
 The mission (`docs/design/fundamentals.md`) is following work as it happens — especially agentic
 work — and the concrete driver is jam.sense's `tmp/reporting/cron.log`: agent runs write there
-around the clock, and nothing in sb can hold a growing file open. The closest approximation,
+around the clock, and nothing in sky.boss can hold a growing file open. The closest approximation,
 `sb read -- cat …` on a cadence, re-reads the whole file every tick, renders the wrong end of it,
 and cannot answer the only question that matters mid-run: *is anything happening?*
 
@@ -33,7 +33,7 @@ minutes of nothing *while everything is fine*. A surface that cannot distinguish
 **Why a native loop and not a spawned `tail -F`:** the constitution first routed files through
 the process stream as `tail -F <path>` — one primitive, zero special cases — and reversed it the
 same day, because the improvements a file follow needs are made of file knowledge a spawned tail
-cannot see. sb can *stat* the file, so the liveness clock can say "file untouched since 19:00"
+cannot see. sky.boss can *stat* the file, so the liveness clock can say "file untouched since 19:00"
 rather than merely "no new lines arrived". Rotation and truncation are detected by inode and
 size rather than inherited from tail's flavor. Backfill-then-follow is one mechanism instead of
 a flag. The reversal and its original reasoning are recorded in the constitution; this doc
@@ -138,14 +138,14 @@ new command. It is one word added to a cursor that already knows almost everythi
     sb follow --due 15m tmp/reporting/cron.log
 
 Today the band says `quiet 3m` — knowledge, from a `stat`, not a guess from silence. That is the
-whole feature of this doc, and it stops one step short of the question actually being asked,
-which is *"is that bad?"* sb cannot know. **The operator can, and `--due` is where they say it.**
+whole feature of this doc, and it stops one step short of the question actually being asked, which
+is *"is that bad?"* sky.boss cannot know. **The operator can, and `--due` is where they say it.**
 Given an expectation, quiet 3m of 15m is *fine* and quiet 47m is **late**, and the difference is
 arithmetic rather than judgment.
 
 **It is a word on a band, and nothing else.** No alert, no exit code, no notification, no
 re-running anything. A follow is resident and observes; lateness is a fact it displays, and the
-moment it *acts* on that fact sb has become a monitoring system that pages you, which is a
+moment it *acts* on that fact sky.boss has become a monitoring system that pages you, which is a
 different product with a different failure mode.
 
 **Both follow forms take it**, because both already carry the clock it needs: the cursor has
@@ -159,14 +159,14 @@ too — a tool's argv carries `--due 15m` like any other flag, so `[[tools]]` ne
 
 **Does not do:**
 
-- **No crontab parsing, ever.** sb does not read `crontab -l`, does not compute a next-run time
-  and does not know what a schedule is. The operator asserts an interval; sb subtracts.
-- **No alerting or escalation.** Not an exit code, not a notification, not a webhook. If a late
-  log should page someone, that belongs to something whose job is paging.
-- **No expectation about content.** Lateness is time. "The log ticked but said the wrong thing"
-  is a Rule-branch question and belongs to [[highlight]]'s declared patterns.
+- **No crontab parsing, ever.** sky.boss does not read `crontab -l`, does not compute a next-run
+  time and does not know what a schedule is. The operator asserts an interval; sky.boss subtracts.
+- **No alerting or escalation.** Not an exit code, not a notification, not a webhook. If a late log
+  should page someone, that belongs to something whose job is paging.
+- **No expectation about content.** Lateness is time. "The log ticked but said the wrong thing" is a
+  Rule-branch question and belongs to [[highlight]]'s declared patterns.
 - **No history.** A follow shows what is happening now; "how often was it late last week" is a
-  report, and reports are what the tools sb watches already write.
+  report, and reports are what the tools sky.boss watches already write.
 
 - [x] **A duration is a shared parser.** `15m`, `2h`, `90s` → seconds, in `cli/helpers.py`,
       because [[delay]] needs the identical spelling and two parsers for one syntax is how they
@@ -199,7 +199,7 @@ clock, which keeps it pure and keeps `attention` a plain field that `to_dict` al
 is what made the canvas half free: no wire change, no new key, a new *value* in a slot that
 existed.
 
-**A stronger fact beats it.** `dead`, `absent` and `rotated` are things sb *knows*; late is
+**A stronger fact beats it.** `dead`, `absent` and `rotated` are things sky.boss *knows*; late is
 arithmetic over an assertion. A dead stream that is also late is still best described by its exit
 code, and letting the assertion overwrite the knowledge would be the tail wagging the dog.
 
@@ -286,9 +286,9 @@ the ring outruns the terminal on every frame.
 ### Round 2 — drafted, awaiting the word (2026-08-22)
 
 Drafted from the ideas list rather than from a defect, which makes the scoping the whole job. The
-sentence was "watcher for cron jobs" and the first three shapes it suggests are all wrong for
-this project: a crontab parser (sb inferring a schedule), a health checker (sb judging), and a
-notifier (sb acting on its own initiative). Each is refused by a rule that already exists.
+sentence was "watcher for cron jobs" and the first three shapes it suggests are all wrong for this
+project: a crontab parser (sky.boss inferring a schedule), a health checker (sky.boss judging), and
+a notifier (sky.boss acting on its own initiative). Each is refused by a rule that already exists.
 
 What survives is small enough to be almost embarrassing: **one flag, one new word in a slot that
 already exists, and a subtraction.** That is the sign it is the right shape here — the cursor

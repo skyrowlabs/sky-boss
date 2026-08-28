@@ -1,14 +1,14 @@
 """The MCP surface — the tools, offered to an agent.
 
-**The direction with value is the agent calling sb**, not sb calling an agent.
+**The direction with value is the agent calling sky.boss**, not sky.boss calling an agent.
 Chaining already works and needs nothing: `sb follow -- claude -p …` is a
-command, and feeding sb into an agent is a shell pipe. What does not exist is an
+command, and feeding sky.boss into an agent is a shell pipe. What does not exist is an
 agent being able to ask *"how are my projects"* without knowing the tool, its
 flags, its working-directory quirk and how to parse what it prints. The operator
 solved all four already, once, in `tools.toml`.
 
 **The surface is what the operator curated, and that is the whole safety
-argument.** The act/observe split rests on one sentence — sb cannot tell a read
+argument.** The act/observe split rests on one sentence — sky.boss cannot tell a read
 from a write by inspecting an argv and does not try, so choosing `data` over
 `run` is the *operator's* assertion. Hand that door to an agent and the
 assertion is being made by the thing it was protecting against. An MCP tool
@@ -254,7 +254,11 @@ def mcp() -> None:
     """Speak MCP on stdin/stdout, offering the tools to an agent.
 
     The client spawns this and owns the pipe; there is no port, no token and no
-    daemon. Register it with any MCP client as a stdio server:
+    daemon. It takes nothing and it is the client that types it:
+
+        sb mcp
+
+    Register it with any MCP client as a stdio server:
 
         {"command": "sb", "args": ["mcp"]}
 
@@ -269,7 +273,7 @@ def mcp() -> None:
     `data` over `run` is *your* assertion that something is a read, and an
     assertion an agent makes about its own argv is not a safety property.
 
-    sb is never in the credential path. A saved command runs with your
+    sky.boss is never in the credential path. A saved command runs with your
     environment, so an agent inherits your reach for exactly the commands you
     curated. That is the trade, stated rather than discovered.
 
