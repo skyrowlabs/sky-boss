@@ -186,7 +186,7 @@ and `--json` from a pipe is untouched, still one complete envelope built at exit
 - [x] **One `Outcome` → `Result`.** Extract `_accrued`'s tail in `cli/run.py` into a function both
       surfaces call, so ok, the stderr warning and the timed-out envelope are decided once. The
       terminal path must come out byte-identical; the existing `--json` purity tests are the proof.
-- [ ] **An act that is running.** `chrome.act` gains `running_since` the way `chrome.resident`
+- [x] **An act that is running.** `chrome.act` gains `running_since` the way `chrome.resident`
       already has it — attention `running` while the subprocess lives, the verdict at exit. Still
       no `interval` and still no countdown on the act shape: the absence is the split made visible,
       and that sentence stays in the docstring.

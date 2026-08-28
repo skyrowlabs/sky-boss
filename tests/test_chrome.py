@@ -438,3 +438,44 @@ def test_run_keeps_its_own_single_band(capsys):
     render(Result("run", data=None), source="run -- echo hello")
     captured = capsys.readouterr()
     assert "┌" not in captured.err and "└" not in captured.err
+
+
+# ---------------------------------------------------------------------------
+# Round 4 — an act that is running
+# ---------------------------------------------------------------------------
+
+
+def test_an_act_can_be_running_without_gaining_a_cadence():
+    """`act` says it never carries a countdown, and that still holds. What it
+    refuses is a *cadence* — a write happening again, or about to. This is one
+    write happening now, in a window watching it. See [[follow]] round 4."""
+    from cli import chrome as chrome_
+
+    running = chrome_.act("run -- ./deploy.sh", ok=True, running_since=1000.0)
+    assert running.shape == "act" and running.attention == "running"
+    top, bottom = chrome_.status_lines(running, 1125.0, 74)
+    assert "running 2m" in top and "running" in bottom
+
+    facts = running.to_dict()
+    # The two fields the sentence was ever about stay absent.
+    assert "interval" not in facts and "fires_at" not in facts
+
+    done = chrome_.act("run -- ./deploy.sh", ok=True, ran_at=1200.0, duration_s=7202.4)
+    assert done.attention == "ok"
+    top, bottom = chrome_.status_lines(done, 1200.0, 74)
+    assert "running" not in top and "ok" in bottom
+
+
+def test_a_snapshot_reads_running_the_same_way_a_resident_one_does():
+    from cli import chrome as chrome_
+
+    reading = chrome_.snapshot("read -- ./build.sh", ok=True, running_since=500.0)
+    assert reading.shape == "snapshot" and reading.attention == "running"
+    top, _ = chrome_.status_lines(reading, 560.0, 74)
+    assert "running 1m" in top
+
+    # A resident window still swaps its countdown for the same reading, and
+    # gets its countdown back the moment the run ends.
+    pinned = chrome_.resident("read -- x", ok=True, interval=30, last_run=100.0)
+    top, _ = chrome_.status_lines(pinned, 110.0, 74)
+    assert "next in 20s" in top
