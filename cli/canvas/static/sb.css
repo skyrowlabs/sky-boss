@@ -484,7 +484,24 @@ pre.raw {
  * the right, which is the mockup's arrangement — the reference is read while
  * typing, so it belongs beside the field rather than above it. */
 .bench { display: flex; flex: 1; gap: 3rem; min-height: 0; }
-.bench-main { flex: 1; display: flex; flex-direction: column; gap: 3rem; min-width: 0; }
+.bench-main { flex: 1; display: flex; flex-direction: column; gap: 3rem; min-width: 0; min-height: 0; }
+
+/* Everything between the spine and the last step. The contract selector stays
+ * at the top and the job strip stays at the bottom; whatever cannot fit between
+ * them scrolls here.
+ *
+ * **The bench is a screen, not a document.** Scrolling `.bench-main` instead
+ * would be the smaller change and would take the selector off the top — which
+ * Shape calls "the spine, and the first thing on the screen" — and would put
+ * the last step of a top-to-bottom flow somewhere you have to go looking for.
+ * That is a weaker version of the defect this fixes: without `min-height: 0`
+ * here, a flex child could not be smaller than its content, so the column
+ * overflowed and was *clipped*, and the job strip was simply gone with no
+ * scrollbar anywhere. See [[workbench]] round 4. */
+.bench-scroll {
+  flex: 1; min-height: 0; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 3rem;
+}
 
 .panel {
   border: var(--hair) solid var(--sb-hair); border-radius: var(--r-md);
@@ -578,7 +595,13 @@ pre.raw {
 
 /* ---------------------------------------------------------------- the result */
 
-.bench-result { flex: 1; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+/* A floor, not just a share. Inside a scrolling column `flex: 1` alone
+ * collapses to nothing the moment its siblings want the space — which is
+ * exactly what happened before round 4: the result pane shrank to two pixels
+ * while the fixed panels below it walked off the bottom of the window. */
+.bench-result {
+  flex: 1; min-height: 40rem; display: flex; flex-direction: column; overflow: hidden;
+}
 /* The pane scrolls, not the screen. A result is bounded by `MAX_ROWS` and
  * `MAX_CHARS` and still routinely taller than the window. */
 .bench-result .body { flex: 1; min-height: 0; overflow: auto; }
@@ -607,8 +630,15 @@ pre.raw {
 
 /* ------------------------------------------------------------- the reference */
 
+/* `max-width` is not decoration. The width is in `rem`, so it scales with
+ * `--sb-scale` while the window does not: at `--scale 2.4` the rail wanted
+ * 1037px of a 1416px window and left the bench 340px, where every note wrapped
+ * into a column and the job strip measured 1895px. A rail that starves the
+ * thing it annotates is the horizontal half of the same defect.
+ * See [[workbench]] round 4. */
 .bench-ref {
-  flex: none; width: 108rem; display: flex; flex-direction: column; overflow: hidden;
+  flex: none; width: 108rem; max-width: 34%;
+  display: flex; flex-direction: column; overflow: hidden;
 }
 .ref-list { flex: 1; overflow: auto; padding: 2rem 0; }
 .ref-foot {
@@ -678,7 +708,11 @@ pre.raw {
 /* What an act gets instead of a trial run. Not an apology for a missing
  * feature: the checks are real answers, and they are the ones that cost
  * nothing to ask. */
-.bench-blank.act { max-width: none; }
+/* Wider than the other blank states, because it carries the checks; bounded
+ * all the same. `none` made the refusal paragraph the tallest block on the
+ * bench, and it was the panel explaining why there is no trial run that pushed
+ * off the panel you go there to reach. */
+.bench-blank.act { max-width: 300rem; }
 .checks { margin: 2.5rem 0; display: flex; flex-direction: column; gap: 1rem; }
 .check { display: flex; align-items: baseline; gap: 2rem; }
 .check .mark { flex: none; width: 3rem; color: var(--sb-ok); }
@@ -701,12 +735,38 @@ pre.raw {
   border-color: var(--sb-hair); color: var(--sb-text-3);
 }
 
-.bench-job { flex: none; }
-.job-body { padding: 2.5rem 3.5rem; display: flex; flex-direction: column; gap: 2rem; }
-.job-row { display: flex; align-items: center; gap: 2.5rem; }
+/* Pinned to the bottom, capped, and scrolling inside — all three, because the
+ * first two alone each fail. Uncapped it takes whatever it needs, and at
+ * `--scale 2.0` in a short window that was 526px of a 425px column, so it
+ * pushed itself off. Capped without an inner scroll it *paints outside its own
+ * box*, which puts the name field below the window while the panel's rect sits
+ * correctly on screen — bounded and lying, which is worse than tall.
+ * See [[workbench]] round 4. */
+.bench-job { flex: none; max-height: 55%; display: flex; flex-direction: column; }
+.job-body {
+  padding: 2.5rem 3.5rem; display: flex; flex-direction: column; gap: 2rem;
+  min-height: 0; overflow-y: auto;
+}
+/* The name is the step and the save is the act; the block and the notes are
+ * what they produce. So the two ends stay put and the prose scrolls between
+ * them — the same shape as the bench itself, one panel down. */
+.job-body > .job-row:first-child {
+  position: sticky; top: 0; z-index: 1;
+  background: var(--sb-surface); padding-bottom: 1rem;
+}
+.job-body > .job-final {
+  position: sticky; bottom: 0; z-index: 1;
+  background: var(--sb-surface); padding-top: 1rem;
+}
+/* Wraps. The note beside the name field had no flex rule, so at a large
+ * `--scale` the fixed-width input left it a few characters of room and it
+ * became a column of single words — a strip that measured **1047px** in a
+ * 425px column, which is what pushed the last step off the bench. A note that
+ * cannot fit beside the field belongs under it. */
+.job-row { display: flex; align-items: center; gap: 2.5rem; flex-wrap: wrap; }
 .job-label { flex: none; color: var(--sb-brand); font-size: 2.75rem; }
 .job-name {
-  flex: none; width: 44rem; font: inherit; color: var(--sb-text);
+  flex: 1 1 44rem; max-width: 44rem; min-width: 24rem; font: inherit; color: var(--sb-text);
   background: transparent; outline: 0;
   border: var(--hair) solid var(--sb-hair); border-radius: var(--r-sm);
   padding: 1rem 2rem;
@@ -714,6 +774,10 @@ pre.raw {
 .job-name:focus { border-color: var(--sb-edge); }
 .job-name::placeholder { color: var(--sb-text-3); }
 .job-arrow { flex: none; color: var(--sb-text-3); }
+/* Scoped to the row, because `.job-body` is a *column* and `flex-basis` is
+ * whichever axis you are on: the same rule unscoped set the trailing note's
+ * **height** to 70rem and made it 322px of empty paragraph. */
+.job-row > .job-note { flex: 1 1 46rem; min-width: 0; }
 .job-line {
   flex: 1; min-width: 0; color: var(--sb-text-2); font-size: 2.75rem;
   padding: 1.5rem 2rem; border-radius: var(--r-sm);

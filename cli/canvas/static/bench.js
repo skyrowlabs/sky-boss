@@ -454,7 +454,7 @@ function JobStrip({ draft, actions }) {
               </span>
             `
           : html`
-              <div class="job-row">
+              <div class="job-row job-final">
                 <span class="job-arrow">→</span>
                 <div class="job-line">
                   ${saveLine
@@ -576,6 +576,7 @@ export function Bench({ commands, draft, actions }) {
               </div>
             `
           : html`
+              <div class="bench-scroll">
               <div class="panel bench-draft">
                 <div class="draft-row">
                   <span class="draft-label">--cwd</span>
@@ -649,6 +650,7 @@ export function Bench({ commands, draft, actions }) {
               </div>
 
               <${ViewControls} draft=${draft} actions=${actions} />
+              </div>
               <${JobStrip} draft=${draft} actions=${actions} />
             `}
       </div>

@@ -205,8 +205,13 @@ The rules that are not negotiable:
 - **Everything in `cli/canvas/static/` is served.** Anything left there is published; a test
   declares the inventory. Two scratch pages lived there during the build, one with a live token
   baked in.
-- **One number drives every size.** `--sb-scale` is injected from `sb ui --scale` and the stylesheet
-  is written in `rem` where `1rem` is four scaled pixels. Do not add a `px`. CSS `zoom` was rejected
+- **One number drives every size, so `--scale` is a geometry and not a preference.** `--sb-scale`
+  is injected from `sb ui --scale` and the stylesheet is written in `rem` where `1rem` is four
+  scaled pixels. Do not add a `px`. **A layout verified at one value of it has been verified once**
+  — every fixed `rem` width and height grows with the scale while the window does not, so a panel
+  that fits at 1.15 can starve its neighbour at 2.4. The workbench lost its last step this way and
+  nobody saw it for three rounds. Check a layout change at more than one scale; `[[workbench]]`
+  round 4 sweeps five. CSS `zoom` was rejected
   because it breaks dragging — `clientX` is unzoomed and `left` is zoomed — and
   `--force-device-scale-factor` because it *overrides* display scaling rather than multiplying it.
 - **The shell is a native webview** (`cli/canvas/shell.py`), because three things the operator asked
