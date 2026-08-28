@@ -11,6 +11,16 @@ npm start                   # main.js — one OS window per command
 
 `sb` must be on PATH, or set `SB_BIN`.
 
+Three environment variables, because Electron consumes argv before either entry
+point sees it and there is no second CLI here to grow a flag on. A host takes
+its configuration from the environment.
+
+| | |
+|---|---|
+| `SB_BIN` | Which `sb` to spawn. Defaults to whatever is on PATH |
+| `SB_FRAME=1` | Give the window its normal frame back. The default is frameless, which the window manager will still resize but gives you nothing visible to grab |
+| `SB_SIZE` | `1600,1000` or `1600x1000` — spelled the way `sb ui --size` spells it, and defaulting to the same 1600×1000. An unparseable value warns and falls back: a typo in a window size should cost you a window the wrong size, not a surface that will not open |
+
 **`canvas-main.js` is the one to look at.** ~100 lines, no preload and no IPC:
 it opens a single window on `ctx.url` and gets **whatever page sb is serving
 today**, unchanged, token and all. Panes stay divs, the layout stays the
