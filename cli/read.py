@@ -117,25 +117,16 @@ def read_(
     return result
 
 
-def _accrued(
-    argv: tuple[str, ...], timeout: int | None, cwd: str | None, source: str
-) -> Result:
-    """The streaming human rendering: lines as they arrive on the stream they
-    arrived on, a chrome stamp on stderr at exit. stdout stays exactly the
-    lines the tool printed, so a pipe sees what it always saw."""
-    from cli import chrome as chrome_
-    from cli import stream as stream_
+def envelope_for(outcome, timeout: int | None) -> Result:
+    """An `Outcome` onto `read`'s envelope — the sibling of `run.envelope_for`
+    and separate from it because the two commands disagree about what an
+    envelope says: a `read` reports a non-zero exit as a warning and carries
+    its error as text, an act carries a mapping. Shared between *surfaces*,
+    not between commands. See [[follow]] round 4.
 
+    `data` is None on success: the lines already reached the surface.
+    """
     result = Result()
-    try:
-        outcome = stream_.accrue(
-            list(argv), timeout=timeout, cwd=cwd, echo=_echo_line, columns=_width()
-        )
-    except FileNotFoundError:
-        result.ok = False
-        result.data = f"no such command: {argv[0]}"
-        return result
-
     if outcome.timed_out:
         result.ok = False
         result.data = f"timed out after {timeout}s"
@@ -146,6 +137,32 @@ def _accrued(
         result.warn("output truncated in the envelope; the terminal has all of it")
     if not result.ok:
         result.warn(f"exited {outcome.exit_code} after {outcome.duration_s}s")
+    result.data = None
+    return result
+
+
+def _accrued(
+    argv: tuple[str, ...], timeout: int | None, cwd: str | None, source: str
+) -> Result:
+    """The streaming human rendering: lines as they arrive on the stream they
+    arrived on, a chrome stamp on stderr at exit. stdout stays exactly the
+    lines the tool printed, so a pipe sees what it always saw."""
+    from cli import chrome as chrome_
+    from cli import stream as stream_
+
+    try:
+        outcome = stream_.accrue(
+            list(argv), timeout=timeout, cwd=cwd, echo=_echo_line, columns=_width()
+        )
+    except FileNotFoundError:
+        missing = Result()
+        missing.ok = False
+        missing.data = f"no such command: {argv[0]}"
+        return missing
+
+    result = envelope_for(outcome, timeout)
+    if outcome.timed_out:
+        return result
 
     facts = chrome_.snapshot(
         source,

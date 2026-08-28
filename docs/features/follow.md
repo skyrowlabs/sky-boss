@@ -183,7 +183,7 @@ and `--json` from a pipe is untouched, still one complete envelope built at exit
       tree. Server-side for the reason round 1 gave — a client that could strip `run --` itself is
       the start of a command table. Raises on an argv that is not one, like its sibling. Pure,
       tested against the tree.
-- [ ] **One `Outcome` → `Result`.** Extract `_accrued`'s tail in `cli/run.py` into a function both
+- [x] **One `Outcome` → `Result`.** Extract `_accrued`'s tail in `cli/run.py` into a function both
       surfaces call, so ok, the stderr warning and the timed-out envelope are decided once. The
       terminal path must come out byte-identical; the existing `--json` purity tests are the proof.
 - [ ] **An act that is running.** `chrome.act` gains `running_since` the way `chrome.resident`
