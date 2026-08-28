@@ -175,6 +175,15 @@ The rules that are not negotiable:
   expansion shown before it runs. It defaults to `$HOME` — neutral, because the canvas inherits
   whatever directory `sb ui` started in, and any repo with a `cli/` package shadows a tool's own.
 - **Only a read may be given a cadence.** See § Scope.
+- **A window that runs accrues; a window that refreshes does not.** An unpinned `run` or `read` is
+  held open on the session stream and its lines arrive as they are printed, exactly as they do in a
+  terminal; a pinned one is a watcher and gets a whole envelope on a cadence. The endings are the
+  distinction and the reason this is not a follow: a follow's exit — zero included — is a **death**,
+  and an act's exit 0 is the **answer**. It is a third route rather than a mode on `/api/run`, by
+  the argument that already made `/api/trial` a route. And **the 60s `DEFAULT_TIMEOUT` is the
+  watcher's ceiling, not everyone's** — it killed any long run at sixty seconds while
+  `sb run --timeout` was accepted and then overridden, which is the "wrong but looks right" failure
+  in its purest form. An accruing window carries no default bound. See [[follow]] round 4.
 - **The refresh clock lives in Python, keyed to the connection.** A watcher runs while its stream is
   open, so it pauses when the window closes and keeps running when the window is merely minimized.
   It cannot be a browser timer: a hidden page has its timers clamped to roughly one fire per minute,
@@ -229,7 +238,10 @@ The rules that are not negotiable:
 - **The frontend has no automated tests.** There is no JS test runner and adding one means npm. The
   pure parts — `unwrap`, `suggest`, `roleFor` — are what a runner would be for. Verified by
   rendering headless Chromium against the live server and reading the DOM back, which is not the
-  same thing and caught two real bugs.
+  same thing and caught two real bugs. **Treat that pass as an obligation, not a formality**: it is
+  what found `dead · exited undefined` — `Chrome.to_dict` dropped every falsy value, so a clean exit
+  never reached the page, in the one state that rendering exists to draw. The suite could not see it
+  because the terminal band reads the dataclass rather than the dict.
 
 ## CLI setup
 
@@ -446,7 +458,7 @@ Shared with sibling CLIs so the family feels like one tool.
 built surface as pure concept and decided the eight primitives, with dated decisions and
 visible reversals. Feature specs convert it into buildable rounds; read it before proposing a
 primitive-level change. `docs/features/done/` holds the completed docs — `canvas.md` (the
-surface, five rounds), `follow.md` (the streaming substrate, three rounds), `tools.md` (saved commands, three
+surface, five rounds), `follow.md` (the streaming substrate, four rounds), `tools.md` (saved commands, three
 rounds), `highlight.md` (lexical tint, four rounds), `capture.md` (declared structure),
 `refresh.md`, `header.md` (the mark, two rounds), `text-reads.md`, `subprocess-env.md`, `table-views.md` (the
 shaping contract, five rounds), `roll-call.md` (federating over projects), `file-follow.md` (the
