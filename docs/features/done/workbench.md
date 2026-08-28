@@ -1,5 +1,5 @@
 ---
-status: draft
+status: done
 created: 2026-08-26
 updated: 2026-08-27
 agent_value: 3
@@ -133,22 +133,24 @@ carries the contract's own *acts* or *observes* badge, because a rail that lists
 - [x] Tests, in `cli/view.py` where pytest reaches them: the offered set is exactly what the
       envelope carried, and a chip for a column no row has is never offered.
 
-### Round 3 — the act asymmetry and save (2026-08-26)
+### Round 3 — the act asymmetry and save (2026-08-26, done 2026-08-27)
 
-- [ ] **`run`'s refusal**, drawn: the checks that are possible without running, and one button
+- [x] **`run`'s refusal**, drawn: the checks that are possible without running, and one button
       that runs it for real.
-- [ ] **Save.** Compose the argv, show it, run it as a subprocess. The append-only and
+- [x] **Save.** Compose the argv, show it, run it as a subprocess. The append-only and
       refuse-a-duplicate behaviour comes from `--save` unchanged.
-- [ ] **The name field is the last control, and it is checked before it is used.** `--save`
+- [x] **The name field is the last control, and it is checked before it is used.** `--save`
       writes *before* it runs (`cli/data.py`), so a mis-composed argv is on disk before its own
       output shows it was wrong — and the name cannot be reused, because a duplicate is refused
-      and editing stays `$EDITOR`'s. The bench asks `/api/catalog` whether the name is taken and
+      and editing stays `$EDITOR`'s. The bench asks *the server* whether the name is taken and
       says so *before* offering the button, rather than surfacing a refusal after the write.
-- [ ] **Save is drawn as a second run, because it is one.** Trial run and save are two separate
+      **Not `/api/catalog`, as this line originally said** — `cli.tools.name_problem`, which reads
+      the file. The catalog would have answered a slightly different question.
+- [x] **Save is drawn as a second run, because it is one.** Trial run and save are two separate
       invocations of the same argv; the save does not confirm the trial run's output, it repeats
       the work. A UI that implies otherwise is claiming a guarantee `--save` does not make.
-- [ ] **The `[tool.name]` block** for `run`, rendered to copy.
-- [ ] Tests: no route writes `tools.toml`; the composed argv round-trips — saving it and reading
+- [x] **The `[tool.name]` block** for `run`, rendered to copy.
+- [x] Tests: no route writes `tools.toml`; the composed argv round-trips — saving it and reading
       the tool back yields the same invocation.
 
 ## Notes
@@ -309,3 +311,57 @@ requests. It did not survive a reload and did not reproduce afterwards, includin
 sequence that produced it. The most plausible cause was `shaped: null` meaning two different things
 (*no shaping asked for yet* and *this shaping found no rows*), which is now tracked as a separate
 `hasShaped`. That is a real bug fixed on its own merits; whether it was **the** bug is unproven.
+
+**2026-08-27 — round 3, and four defects the bench found in the CLI it was built on.**
+
+The doc predicted this: *"Building a surface that runs the real commands and draws the real
+envelope is the cheapest way to find the flags that should exist and the facts that should ship."*
+Three rounds in, the surface has cost more bugs than it has caused. All four below are in `cli/`,
+not in the bench.
+
+**1. `--save` wrote before a usage error refused the run.** `sb --json data --save prs --refresh 30
+-- …` appended the tool, cadence and all, and *then* exited 2 with `--refresh and --json refuse
+each other`. A name taken, a file changed, and a failure reported — the worst available
+combination, and the name could not be reused because a duplicate is refused. `--save` writes first
+on purpose (so a resident invocation saves at all), which means any refusal below it fires too
+late. The conflict check is now `refuse_resident_json` in `cli/output.py`, raised at the door in
+both `data` and `read`, with the guard left in the resident path as belt and braces. Found by a
+test hanging, which is its own small lesson: the test hung because running that line goes resident.
+
+**2. A hidden option was in the reference rail.** `sb run --refresh` is `hidden=True` and exists
+only to refuse an act a cadence with a readable message rather than a bare usage error. `--help`
+does not list it; the rail did. That is exactly the drift *one help string, two surfaces* is
+supposed to make impossible, and it was visible the moment the rail was drawn. `_options` now skips
+`param.hidden`.
+
+**3. A tool saved from the bench did not exist as far as its own surface was concerned.**
+`register` runs once at CLI boot — right for a process that exits, wrong for a server that lives
+for hours. The name check reads the file, so it refused the name; the tools rail read the
+in-process tree, so it claimed the tool was not there. A surface disagreeing with itself.
+`/api/catalog` now calls `tools.reload`, which drops the registered tools and reads the file again
+— the catalog's own doctrine one level down: *derived on every request, never kept*. Dropping first
+is what makes it a reload rather than an accumulation, so a tool deleted in `$EDITOR` also goes.
+
+**4. Two preflight requests raced.** `setCwd` then `setArgv` in the same tick both read the ref
+before the first `setDraft` landed, so the second request carried the old cwd and the checks
+described a line nobody had typed — the pane said `--cwd /home/you` while the block beside it
+said `/tmp`. One effect keyed on the fields that matter replaced per-setter firing; it sees the
+merged state by construction.
+
+**The cadence control is gone from the job strip, and its absence is the finding.** The mockup
+draws one and § Shape describes it. It cannot exist: a cadence is saved by having `--refresh` in
+force on the line being saved, `--refresh` goes *resident*, and a surface that runs a subprocess to
+completion cannot be resident — under `--json` it is a usage error. So the bench would compose a
+line that refuses itself. Absent rather than disabled, with the reason where the control would have
+been and `refresh = 30` in `$EDITOR` named as the way to get one. Whether the CLI should grow a way
+to record a cadence without going resident is a real question and not this round's.
+
+**What the act gets instead of a trial run.** Three checks, and the third is the one that matters:
+the argv goes through `make_context`, which parses and type-converts without invoking. So `--cwd`'s
+existence, an unknown flag and a bad integer are all caught by *sb's own parser* rather than by a
+surface re-deriving its rules. A bad `--cwd` fails the directory check and the parse both — a cause
+and its consequence, printed in that order, not a duplicate. `run it for real` is disabled while
+any check fails, and the line beside it says there is no dry run to fall back to.
+
+**`preflight` runs nothing, and a test proves it** by asking it to check `touch <path>` and
+asserting the path does not exist. That is the whole distinction between a check and a dry run.

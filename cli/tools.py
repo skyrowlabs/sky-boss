@@ -324,6 +324,29 @@ def make_command(tool: Tool) -> click.Command:
     return command
 
 
+def reload(root: click.Group, home: Path | None = None) -> list[str]:
+    """Drop every registered tool and read the file again. Returns the problems.
+
+    For a long-lived process. `register` runs once at CLI boot, which is right
+    for a command that exits — but the canvas server lives for hours, and a
+    tool saved from the workbench would otherwise not exist as far as its own
+    surface was concerned until you restarted it. The name would be refused
+    (that check reads the file) while the rail claimed the tool was not there:
+    a surface disagreeing with itself.
+
+    Dropping first is what makes it a *reload* rather than an accumulation —
+    `add_command` replaces by name, so a re-register alone would never notice a
+    tool the operator deleted in `$EDITOR`.
+
+    This is the catalog's own doctrine one level down: **derived on every
+    request, never kept.** See [[workbench]] round 3.
+    """
+    for name, command in list(tools.commands.items()):
+        if getattr(command, "sb_saved", False):
+            del tools.commands[name]
+    return register(root, home)
+
+
 def register(root: click.Group, home: Path | None = None) -> list[str]:
     """Put every declared tool behind the `tools` group. Returns the problems.
 
@@ -528,6 +551,35 @@ def block(name: str, argv: list[str], refresh: int = 0) -> str:
     return "\n".join(lines) + "\n"
 
 
+def name_problem(name: str, home: Path | None = None) -> str | None:
+    """Why this name cannot be saved, or None.
+
+    Split out of `save` for the workbench, which has to answer the question
+    *before* offering the button rather than after the write. That ordering is
+    not cosmetic: **`--save` writes before it runs** ([[tools]] round 3), so a
+    refusal discovered afterwards is a refusal discovered too late — and the
+    name cannot be reused, because a duplicate is refused and editing stays
+    `$EDITOR`'s. See [[workbench]] round 3.
+
+    One implementation, asked twice. A surface holding its own copy of the name
+    rule would be a second opinion about what sb will accept, and the two would
+    disagree the day the rule changed.
+    """
+    if not _NAME.match(name or ""):
+        return f"{name!r} cannot be a tool name — lowercase letters, digits and hyphens"
+
+    existing = read(home)
+    if "__error__" in existing:
+        # Appending to a file sb cannot parse would bury the operator's real
+        # problem under a second one.
+        return f"{existing['__error__']} — fix the file before saving into it"
+    declared = (existing.get("tool") or {}).get(name)
+    if declared is not None:
+        runs = " ".join(str(part) for part in (declared.get("argv") or []))
+        return f"{name!r} is already a tool — it runs `sb {runs}`. Edit the file to change it."
+    return None
+
+
 def save(
     name: str,
     argv: list[str],
@@ -541,22 +593,9 @@ def save(
     the same reason the loader does — a tool that writes cleanly and then
     fails to load is the worst of both.
     """
-    if not _NAME.match(name):
-        raise click.UsageError(
-            f"{name!r} cannot be a tool name — lowercase letters, digits and hyphens"
-        )
-
-    existing = read(home)
-    if "__error__" in existing:
-        # Appending to a file sb cannot parse would bury the operator's real
-        # problem under a second one.
-        raise click.UsageError(f"{existing['__error__']} — fix the file before saving into it")
-    declared = (existing.get("tool") or {}).get(name)
-    if declared is not None:
-        runs = " ".join(str(part) for part in (declared.get("argv") or []))
-        raise click.UsageError(
-            f"{name!r} is already a tool — it runs `sb {runs}`. Edit the file to change it."
-        )
+    problem = name_problem(name, home)
+    if problem:
+        raise click.UsageError(problem)
 
     if refresh and refresh not in INTERVALS:
         allowed = ", ".join(str(i) for i in INTERVALS)

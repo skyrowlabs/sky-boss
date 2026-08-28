@@ -40,6 +40,7 @@ from typing import NamedTuple
 from cli.helpers import parse_duration
 from pathlib import Path
 
+import rich_click as click
 from starlette.applications import Starlette
 from starlette.requests import Request
 from starlette.responses import HTMLResponse, JSONResponse, Response, StreamingResponse
@@ -175,6 +176,17 @@ def build(canvas: Canvas | None = None) -> Starlette:
     async def get_catalog(request: Request) -> Response:
         if not canvas.authorised(request):
             return _denied()
+        # Re-read the operator's tools before walking. `register` runs once at
+        # CLI boot, which is right for a process that exits and wrong for one
+        # that lives for hours: a tool saved from the workbench would not exist
+        # as far as its own surface was concerned until a restart, while the
+        # name check — which reads the file — already refused it. A surface
+        # disagreeing with itself. Same doctrine as the walk itself: derived on
+        # every request, never kept. See [[workbench]] round 3.
+        from cli import cli as root_group
+        from cli import tools as tools_
+
+        tools_.reload(root_group)
         # `home` is where a *raw* command runs unless the operator says
         # otherwise. Neutral on purpose: the canvas inherits whatever directory
         # `sb ui` was launched in, and launching it inside any repo with a
@@ -300,6 +312,50 @@ def build(canvas: Canvas | None = None) -> Starlette:
             }
         )
 
+    async def post_preflight(request: Request) -> Response:
+        """Everything the bench can say about an argv without running it.
+
+        This is the other half of *an act has no trial run*. `/api/trial`
+        refuses a write; this is what the bench offers instead — and the point
+        is that "we cannot run it" is not the same as "we can tell you
+        nothing". Three questions have answers that cost nothing: does the
+        directory exist, does the executable resolve, does sb's own parser
+        accept the line.
+
+        **sb's parser, not a second one.** The argv is fed to Click through
+        `make_context`, which parses and type-converts without invoking — so
+        `--cwd`'s existence check, an unknown flag and a bad integer are all
+        caught by the same code that would catch them at the door. A surface
+        re-deriving those rules would be the drift `/api/catalog` exists to
+        avoid, one level down.
+
+        It also answers the name, because that question has the same shape and
+        the same deadline: **`--save` writes before it runs**, so a refusal
+        found afterwards is found too late, under a name that then cannot be
+        reused. `cli.tools.name_problem` is asked rather than reimplemented.
+
+        Runs nothing, like `/api/catalog` and `/api/shape`.
+        """
+        if not canvas.authorised(request):
+            return _denied()
+        body = await request.json()
+        argv = [str(a) for a in (body.get("argv") or [])]
+        name = str(body.get("name") or "")
+        refresh = int(body.get("refresh") or 0)
+
+        out: dict = {"checks": preflight(argv)}
+        if name:
+            from cli import tools as tools_
+
+            problem = tools_.name_problem(name)
+            out["name"] = {"ok": problem is None, "reason": problem}
+            # The block `run` cannot save by example. Rendered by the same
+            # function `--save` appends with, so what you paste and what sb
+            # would have written are the same bytes.
+            saved = tools_.saved_argv(["sb", *argv], argv[0]) if argv else []
+            out["block"] = tools_.block(name, saved, refresh) if argv else None
+        return JSONResponse(out)
+
     async def post_watch(request: Request) -> Response:
         """Register, re-point, or stop one window's watcher."""
         if not canvas.authorised(request):
@@ -408,6 +464,7 @@ def build(canvas: Canvas | None = None) -> Starlette:
             Route("/api/run", post_run, methods=["POST"]),
             Route("/api/trial", post_trial, methods=["POST"]),
             Route("/api/shape", post_shape, methods=["POST"]),
+            Route("/api/preflight", post_preflight, methods=["POST"]),
             Route("/api/watch", post_watch, methods=["POST"]),
             Route("/api/follow", post_follow, methods=["POST"]),
             Route("/api/quit", post_quit, methods=["POST"]),
@@ -623,6 +680,91 @@ def _frame_line(line, ruleset=None) -> dict:
         if found:
             out["marks"] = found
     return out
+
+
+def preflight(argv: list[str]) -> list[dict]:
+    """What can be checked about an sb argv without running it.
+
+    Three questions, in the order a failure reads best: the directory, then the
+    executable, then the whole line. A bad `--cwd` fails the third check too —
+    Click's `exists=True` catches it — and that is not a duplicate so much as a
+    cause and its consequence, printed in that order.
+
+    Never raises and never runs. `make_context` parses and converts; it does
+    not invoke, and the commands here declare no eager callbacks that would.
+    """
+    import shutil
+
+    from cli import cli as root_group
+
+    checks: list[dict] = []
+    cwd = None
+    if "--cwd" in argv:
+        index = argv.index("--cwd")
+        if index + 1 < len(argv):
+            cwd = argv[index + 1]
+
+    if cwd is not None:
+        path = Path(cwd).expanduser()
+        checks.append(
+            {
+                "ok": path.is_dir(),
+                "label": "--cwd exists and is a directory",
+                "detail": str(path) if path.is_dir() else f"{cwd} is not a directory",
+            }
+        )
+
+    # The wrapped tool's own first word — everything after the separator.
+    foreign = argv[argv.index("--") + 1 :] if "--" in argv else []
+    if foreign:
+        binary = foreign[0]
+        if "/" in binary:
+            # A path, not a name: resolve it against `--cwd`, the way the
+            # child will, rather than against the server's own directory.
+            resolved = Path(cwd or ".").expanduser() / binary
+            found = str(resolved) if resolved.exists() else None
+        else:
+            found = shutil.which(binary)
+        checks.append(
+            {
+                "ok": bool(found),
+                "label": f"{binary} resolves",
+                "detail": found or f"{binary} is not on PATH",
+            }
+        )
+
+    command = root_group.commands.get(argv[0]) if argv else None
+    if command is None:
+        checks.append(
+            {
+                "ok": False,
+                "label": "sb accepts the argv",
+                "detail": f"no such command: {argv[0] if argv else '(nothing)'}",
+            }
+        )
+        return checks
+
+    try:
+        with command.make_context(argv[0], list(argv[1:]), resilient_parsing=False):
+            pass
+    except click.ClickException as exc:
+        checks.append(
+            {"ok": False, "label": "sb accepts the argv", "detail": exc.format_message()}
+        )
+    except Exception as exc:  # pragma: no cover — a parser bug, not a usage error
+        checks.append({"ok": False, "label": "sb accepts the argv", "detail": str(exc)})
+    else:
+        words = len(foreign) or len(argv)
+        checks.append(
+            {
+                "ok": True,
+                "label": "sb accepts the argv",
+                "detail": f"{words} word{'' if words == 1 else 's'} after the separator"
+                if foreign
+                else "parses",
+            }
+        )
+    return checks
 
 
 def _acts(argv: list[str], entry: dict | None = None) -> bool:

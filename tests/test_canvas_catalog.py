@@ -145,3 +145,25 @@ def test_a_summary_never_ends_on_a_colon_it_cannot_keep():
         """
 
     assert walk(colon, ("colon",))[0]["summary"] == "Follow a file that grows."
+
+
+def test_a_hidden_option_is_not_offered():
+    """`--help` does not list it, so neither may a surface that claims to be
+    reading the same help. `sb run --refresh` is the real case: it exists only
+    to refuse an act a cadence with a readable message."""
+
+    @click.command(name="quiet")
+    @click.option("--shown", help="visible")
+    @click.option("--secret", hidden=True)
+    def quiet():
+        """A command with something up its sleeve."""
+
+    flags = [o["flag"] for o in walk(quiet, ("quiet",))[0]["options"]]
+    assert flags == ["--shown"]
+
+
+def test_the_real_run_does_not_offer_its_refusal_flag():
+    from cli import cli as root
+
+    entry = next(e for e in catalog(root) if e["name"] == "run")
+    assert "--refresh" not in [o["flag"] for o in entry["options"]]

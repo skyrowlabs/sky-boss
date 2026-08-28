@@ -48,10 +48,20 @@ def _options(command: click.Command) -> list[dict]:
     Only actual switches and options — arguments are positional and a chip that
     inserted one would produce an argv nobody meant. `--help` is dropped for the
     same reason a chip toggling it would be a joke: it does not filter anything.
+
+    **A hidden option is not offered either.** `sb run --refresh` exists only to
+    refuse well — [[refresh]] rules that an act never takes a cadence, and
+    without the option Click answers it with a bare usage error instead of the
+    reason. It is `hidden=True`, so `--help` does not list it; the workbench's
+    reference rail did, which is the drift *one help string, two surfaces* is
+    supposed to make impossible. Found by reading the rail. See [[workbench]]
+    round 3.
     """
     out = []
     for param in command.params:
         if not isinstance(param, click.Option) or param.name == "help":
+            continue
+        if param.hidden:
             continue
         flag = max(param.opts, key=len)
         out.append(

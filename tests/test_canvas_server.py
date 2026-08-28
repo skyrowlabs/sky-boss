@@ -41,6 +41,7 @@ def auth(extra=None):
         ("/api/run", "post"),
         ("/api/trial", "post"),
         ("/api/shape", "post"),
+        ("/api/preflight", "post"),
         ("/api/watch", "post"),
         ("/api/follow", "post"),
         ("/api/quit", "post"),
@@ -350,3 +351,106 @@ def test_shaping_a_payload_with_no_rows_says_why(client):
     assert body["view"] is None
     assert body["offered"] == []
     assert "--cols not applied" in body["warnings"][0]
+
+
+# ------------------------------------------------ the act's checks ([[workbench]])
+
+
+def test_an_act_gets_checks_instead_of_a_trial(client):
+    """"We cannot run it" is not the same as "we can tell you nothing".
+
+    Three questions have answers that cost nothing, and the third is asked of
+    sb's own parser rather than of a copy of its rules.
+    """
+    body = client.post(
+        "/api/preflight",
+        headers=auth(),
+        json={"argv": ["run", "--cwd", "/tmp", "--", "ls", "-la"]},
+    ).json()
+    labels = [c["label"] for c in body["checks"]]
+    assert labels == ["--cwd exists and is a directory", "ls resolves", "sb accepts the argv"]
+    assert all(c["ok"] for c in body["checks"])
+
+
+def test_a_bad_cwd_fails_the_directory_check_and_the_parse(client):
+    """Not a duplicate — a cause and its consequence, in that order. The parse
+    catches it because `--cwd` is a `click.Path(exists=True)`, which is the
+    whole reason the argv goes through Click rather than through a second
+    opinion about what sb accepts."""
+    body = client.post(
+        "/api/preflight",
+        headers=auth(),
+        json={"argv": ["run", "--cwd", "/definitely/not/here", "--", "ls"]},
+    ).json()
+    assert [c["ok"] for c in body["checks"]] == [False, True, False]
+    assert "does not exist" in body["checks"][-1]["detail"]
+
+
+def test_an_unknown_flag_is_caught_without_running(client):
+    body = client.post(
+        "/api/preflight", headers=auth(), json={"argv": ["run", "--bogus", "--", "ls"]}
+    ).json()
+    parse = body["checks"][-1]
+    assert parse["ok"] is False
+    assert "--bogus" in parse["detail"]
+
+
+def test_preflight_runs_nothing(client, tmp_path):
+    """The whole point. A check that had side effects would be a dry run, and
+    there is no dry run."""
+    marker = tmp_path / "touched"
+    client.post(
+        "/api/preflight",
+        headers=auth(),
+        json={"argv": ["run", "--", "touch", str(marker)]},
+    )
+    assert not marker.exists()
+
+
+def test_the_name_is_judged_before_the_write(client):
+    """`--save` writes before it runs, so a refusal found afterwards is found
+    too late — under a name that then cannot be reused."""
+    body = client.post(
+        "/api/preflight", headers=auth(), json={"argv": ["data", "--", "x"], "name": "Bad Name"}
+    ).json()
+    assert body["name"]["ok"] is False
+    assert "lowercase letters" in body["name"]["reason"]
+
+
+def test_the_block_is_the_bytes_save_would_have_written(client):
+    """`run` cannot save by example, so it gets the block to paste — rendered
+    by the same function `--save` appends with, not by a second one."""
+    from cli import tools as tools_
+
+    argv = ["run", "--cwd", "/tmp", "--", "gh", "workflow", "run", "ci.yml"]
+    body = client.post(
+        "/api/preflight", headers=auth(), json={"argv": argv, "name": "ci-check"}
+    ).json()
+    assert body["block"] == tools_.block("ci-check", argv)
+
+
+# -------------------------------------------------------- the line that holds
+
+
+def test_no_route_writes_the_tools_file(client, tmp_path, monkeypatch):
+    """The rule [[workbench]] round 3 was ratified under, held the way
+    [[canvas]]'s no-CORS assertion is held.
+
+    Every route the bench touches, exercised with a `--save` in the argv, and
+    the file must still not exist. `--save` writes — from a *subprocess*, which
+    is the one writer sb has — and nothing in this process does.
+    """
+    home = tmp_path / "home"
+    monkeypatch.setattr("cli.helpers.SB_HOME", home)
+    monkeypatch.setattr("cli.tools.SB_HOME", home, raising=False)
+
+    argv = ["data", "--save", "prs", "--", "echo", "[]"]
+    for path, payload in (
+        ("/api/preflight", {"argv": argv, "name": "prs"}),
+        ("/api/shape", {"data": [{"a": 1}], "cols": ["a"]}),
+        ("/api/trial", {"argv": ["read", "--", "true"]}),
+    ):
+        client.post(path, headers=auth(), json=payload)
+
+    assert not (home / "tools.toml").exists()
+    assert not home.exists()

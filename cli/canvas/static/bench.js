@@ -200,13 +200,34 @@ ${lines.map(markedLine)}</pre
  *
  * A blank result pane is the failure this replaces: it looks identical whether
  * the bench is waiting for you, waiting for a command, or broken. */
-function Blank({ contract, composed }) {
+function Blank({ contract, composed, checks, onRun, running }) {
   if (contract === "run") {
     return html`
-      <div class="bench-blank">
+      <div class="bench-blank act">
         <b>an act has no trial run.</b>${" "}sb will not execute a write to show
         you what it would print. Every other contract on this bench is drafted by
-        running it and looking; this one is drafted by reading it and meaning it.
+        running it and looking; this one is drafted by reading it and meaning
+        it.${" "}What it can still check without running, it has:
+        ${checks.length > 0 &&
+        html`<div class="checks">
+          ${checks.map(
+            (c, i) => html`<div class=${`check ${c.ok ? "" : "bad"}`} key=${i}>
+              <span class="mark">${c.ok ? "✓" : "✕"}</span>
+              <span class="what">${c.label}</span>
+              <span class="detail">${c.detail}</span>
+            </div>`
+          )}
+        </div>`}
+        <div class="act-go">
+          <button
+            class="draft-real"
+            disabled=${!composed || running || checks.some((c) => !c.ok)}
+            onClick=${onRun}
+          >
+            ${running ? "running…" : "run it for real"}
+          </button>
+          <span>it will do the thing. There is no dry run to fall back to.</span>
+        </div>
       </div>
     `;
   }
@@ -375,6 +396,98 @@ function ViewControls({ draft, actions }) {
   `;
 }
 
+/* --------------------------------------------------------------- the job strip */
+
+/* The last step, and it reads left to right: the name, the cadence, and the
+ * line the bench will run.
+ *
+ * `run` has no `--save` at all — `--save` saves by example and the example
+ * ran — so it gets the `[tool.NAME]` block to paste instead, rendered by the
+ * same function `--save` appends with, so what you copy and what sb would have
+ * written are the same bytes.
+ */
+function JobStrip({ draft, actions }) {
+  const contract = draft.contract;
+  const acts = contract === "run";
+  const composed = compose(draft);
+  const named = Boolean(draft.save) && !draft.nameProblem;
+
+  const saveLine =
+    composed && draft.save
+      ? [composed[0], "--save", draft.save, ...composed.slice(1)]
+      : null;
+
+  return html`
+    <div class="panel bench-job">
+      <div class="panel-head">AS A JOB</div>
+      <div class="job-body">
+        <div class="job-row">
+          <span class="job-label">${acts ? "name" : "--save"}</span>
+          <input
+            class="job-name"
+            value=${draft.save}
+            placeholder=${acts ? "what to call it in tools.toml" : "keep this line"}
+            onInput=${(e) => actions.setSave(e.target.value)}
+          />
+          ${/* **No cadence control, and it is absent rather than disabled.**
+              The mockup drew one here and building it found why it cannot be:
+              a cadence is saved by having a `--refresh` in force on the line
+              being saved, and `--refresh` goes *resident* — which a surface
+              running a subprocess to completion cannot do. `--refresh` under
+              `--json` is a usage error, so the bench would compose a line that
+              refuses itself. See [[workbench]] round 3. */
+          html`<span class="job-note">
+            no cadence here — one is saved by having --refresh in force, and
+            that goes resident. Add${" "}<code>refresh = 30</code>${" "}in
+            $EDITOR; editing was always $EDITOR's.
+          </span>`}
+        </div>
+
+        ${draft.nameProblem && html`<div class="job-problem">${draft.nameProblem}</div>`}
+
+        ${acts
+          ? html`
+              <div class="job-line block">${draft.block || "name it to see the block"}</div>
+              <span class="job-note">
+                run does not take --save — --save saves by example, and the example
+                ran. Paste the block yourself; editing and deleting stay $EDITOR's.
+              </span>
+            `
+          : html`
+              <div class="job-row">
+                <span class="job-arrow">→</span>
+                <div class="job-line">
+                  ${saveLine
+                    ? html`<span class="draft-sb">sb</span> ${saveLine.join(" ")}`
+                    : html`<span class="dim">name it to see the line</span>`}
+                </div>
+                <button
+                  class="job-save"
+                  disabled=${!named || !composed || draft.saving}
+                  onClick=${() => actions.save()}
+                >
+                  ${draft.saving ? "saving…" : "save"}
+                </button>
+              </div>
+              ${draft.saved &&
+              html`<div class=${`job-result ${draft.saved.ok ? "" : "bad"}`}>
+                ${draft.saved.ok
+                  ? `saved — it runs ${draft.saved.runs || "(no expansion reported)"}`
+                  : draft.saved.error}
+              </div>`}
+              <span class="job-note">
+                <b>Save is a second run, not a confirmation.</b>${" "}It runs the same
+                argv again with --save in it, and --save writes${" "}<i>before</i>${" "}the
+                run produces anything — which is why the name is checked before the
+                button is offered. --save is still the only writer of tools.toml and
+                it only ever appends.
+              </span>
+            `}
+      </div>
+    </div>
+  `;
+}
+
 /* ------------------------------------------------------------------ the rail */
 
 /* One contract's own help, from the live Click tree. `--help` and the bench
@@ -517,7 +630,13 @@ export function Bench({ commands, draft, actions }) {
                             shaped=${draft.hasShaped ? draft.shaped : undefined}
                             warnings=${draft.hasShaped ? draft.shapeWarnings : undefined}
                           />`
-                        : html`<${Blank} contract=${chosen} composed=${composed} />`}
+                        : html`<${Blank}
+                            contract=${chosen}
+                            composed=${composed}
+                            checks=${draft.checks}
+                            running=${draft.running}
+                            onRun=${() => actions.runForReal()}
+                          />`}
                 </div>
                 <${Band}
                   where="foot"
@@ -530,6 +649,7 @@ export function Bench({ commands, draft, actions }) {
               </div>
 
               <${ViewControls} draft=${draft} actions=${actions} />
+              <${JobStrip} draft=${draft} actions=${actions} />
             `}
       </div>
 

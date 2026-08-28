@@ -78,11 +78,30 @@ const EMPTY_DRAFT = {
   from: "",
   due: "",
   highlight: "",
+
+  /* Round 3 — the job strip. The name is the *last* control and it is checked
+   * before it is used, because `--save` writes before it runs: a refusal found
+   * after the write is found too late, under a name that then cannot be
+   * reused. `checks` is what an act gets instead of a trial run. */
+  save: "",
+  checks: [],
+  nameProblem: null,
+  block: null,
+  saving: false,
+  saved: null,
 };
 
 
 let nextId = 0;
 const newId = () => `w${++nextId}`;
+
+/* A failed `sb data --save` reports itself in the envelope rather than in the
+ * exit status alone — `--save` refuses a duplicate name as a usage error, and
+ * the reason is the useful half. */
+function firstWarning(envelope) {
+  const said = (envelope && envelope.warnings) || [];
+  return said.length ? said[0] : null;
+}
 
 function intervalLabel(seconds) {
   if (!seconds) return "⟳ manual";
@@ -997,6 +1016,41 @@ function App() {
       });
   }
 
+  /* Ask the server what it can say without running: the act's checks, whether
+   * the name is free, and the block `run` cannot save by example. Fired on
+   * every change to the argv or the name, which is cheap because it runs
+   * nothing — the same reason `/api/catalog` is derived per request. */
+  function preflight(next) {
+    const argv = compose(next);
+    if (!argv) {
+      setDraft((d) => ({ ...d, checks: [], nameProblem: null, block: null }));
+      return;
+    }
+    api
+      .preflight(argv, { name: next.save })
+      .then((body) =>
+        setDraft((d) => ({
+          ...d,
+          checks: body.checks || [],
+          nameProblem: body.name && !body.name.ok ? body.name.reason : null,
+          block: body.block || null,
+        }))
+      )
+      .catch(() => {});
+  }
+
+  /* One effect owns the preflight, rather than each setter firing its own.
+   *
+   * Firing from the setters raced: `setCwd` then `setArgv` in the same tick
+   * both read `draftRef.current`, which the first `setDraft` has not updated
+   * yet, so the second request carried the *old* cwd and the checks described
+   * a line nobody had typed. An effect keyed on the fields that matter sees
+   * the merged state by construction. Measured — the pane reported `--cwd
+   * /home/you` while the block beside it said `/tmp`. */
+  useEffect(() => {
+    preflight(draftRef.current);
+  }, [draft.contract, draft.cwd, draft.argv, draft.save, draft.rows, draft.from, draft.due, draft.highlight, draft.cols]);
+
   const benchActions = {
     /* **Swaps the draft rather than clearing it.** The `--cwd` and the argv are
      * what you have been getting right; the contract is what you are still
@@ -1028,10 +1082,98 @@ function App() {
         shaped: null,
         shapeWarnings: [],
         rows: "",
+        /* The name goes with the result too. It named a tool wrapping a
+         * contract that is no longer selected, and `--save` on `run` is not a
+         * flag at all — it saves by example, and the example ran. */
+        save: "",
+        nameProblem: null,
+        block: null,
+        saved: null,
       }));
+
     },
     setCwd: (cwd) => setDraft((d) => ({ ...d, cwd })),
     setArgv: (argv) => setDraft((d) => ({ ...d, argv })),
+
+    /* The name. Judged by `cli.tools.name_problem` rather than here — a page
+     * holding a copy of the rule would disagree the day the rule changed. */
+    setSave: (save) => setDraft((d) => ({ ...d, save, saved: null })),
+    /* The act's one button. Down `/api/run`, which is the route that runs
+     * things — `/api/trial` refuses an act on purpose and asking it twice
+     * would not change its mind. Labelled for what it does: there is no dry
+     * run to fall back to, and the pane says so beside the button. */
+    runForReal: () => {
+      const d = draftRef.current;
+      const argv = compose(d);
+      if (!argv || d.running) return;
+      setDraft((prev) => ({ ...prev, running: true, error: null, result: null, chrome: null }));
+      api
+        .run(argv)
+        .then((result) =>
+          setDraft((prev) => ({
+            ...prev,
+            running: false,
+            result,
+            chrome: result.chrome || null,
+          }))
+        )
+        .catch((error) =>
+          setDraft((prev) => ({ ...prev, running: false, error: String(error) }))
+        );
+    },
+
+    /* **A second run, because it is one.** Save does not confirm the trial
+     * run's output; it repeats the work with `--save` in the line, and
+     * `--save` writes before that run produces anything. Down `/api/run`
+     * rather than `/api/trial` for the same reason — this is not a trial, and
+     * a route called trial that writes would be lying about itself.
+     *
+     * No route writes `tools.toml`. The subprocess does, through the one
+     * writer sb has, so append-only and refuse-a-duplicate come free. */
+    save: () => {
+      const d = draftRef.current;
+      if (!d.save || d.nameProblem || d.saving) return;
+      const argv = compose({ ...d, saving: true });
+      if (!argv) return;
+      const withSave = [argv[0], "--save", d.save, ...argv.slice(1)];
+      setDraft((prev) => ({ ...prev, saving: true, saved: null }));
+      api
+        .run(withSave)
+        .then((result) => {
+          const envelope = result.envelope || {};
+          const ok = result.ok && envelope.ok !== false;
+          setDraft((prev) => ({
+            ...prev,
+            saving: false,
+            /* `saved` is its own envelope key, beside `data` rather than
+             * inside it — omitted entirely when a command saved nothing, the
+             * same rule `view` follows. `runs` is the half worth showing: it
+             * is the operator's one chance to notice the saved line is not the
+             * line they meant. */
+            saved: {
+              ok,
+              runs: (envelope.saved && envelope.saved.runs) || null,
+              error: ok ? null : result.error || firstWarning(envelope) || "save failed",
+            },
+          }));
+          /* Two things go stale the instant a save lands: the tools rail,
+           * and the name — which is now taken, and taken because the file says
+           * so. Both are re-asked rather than patched here, because both
+           * answers are the server's. Without the second, the button stayed
+           * enabled on a name that would now be refused. */
+          if (ok) {
+            api.catalog().then((c) => setCommands(c.commands));
+            preflight(draftRef.current);
+          }
+        })
+        .catch((error) =>
+          setDraft((prev) => ({
+            ...prev,
+            saving: false,
+            saved: { ok: false, error: String(error) },
+          }))
+        );
+    },
 
     /* `--from`, `--due` and `--highlight` change how the tool is *read* or how
      * a stream is *opened*, so they only compose into the argv and take effect

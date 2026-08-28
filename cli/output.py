@@ -959,6 +959,31 @@ def _source_of(ctx, name: str) -> str:
     return name
 
 
+def refuse_resident_json(refresh: int | None) -> None:
+    """A `--refresh` under `--json` is a usage error, and it is raised *here*
+    rather than where residency begins.
+
+    The ordering is the point. `--save` writes before it runs — deliberately,
+    so that a resident invocation saves at all — so a refusal raised inside the
+    resident path fires *after* the append. `sb --json data --save prs
+    --refresh 30 -- …` therefore wrote the tool, cadence and all, and then
+    exited 2 with a usage error: a name taken, a file changed, and a failure
+    reported. Found by the workbench trying to save a cadence, which is exactly
+    the kind of thing a surface that runs the real commands finds. A usage
+    error belongs at the door, before any side effect.
+
+    The refusal itself is unchanged and still correct: a resident redraw is a
+    human rendering, and under `--json` it would be an endless stream of
+    envelopes on a pipe expecting one. A machine consumer that wants a cadence
+    is what the canvas API is for. See [[workbench]] round 3.
+    """
+    if refresh is None:
+        return
+    ctx = click.get_current_context()
+    if (ctx.find_root().obj or {}).get("as_json"):
+        raise click.UsageError("--refresh and --json refuse each other")
+
+
 def emit(func):
     """Wrap a command that returns a :class:`Result`.
 

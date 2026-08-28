@@ -58,6 +58,14 @@ export function shape(data, { cols, drop, rows } = {}) {
   return post("/api/shape", { data, cols, drop, rows });
 }
 
+/* Everything the bench can say about an argv without running it: the checks an
+ * act gets instead of a trial run, whether the `--save` name is free, and the
+ * `[tool.NAME]` block `run` cannot save by example. Runs nothing.
+ * See [[workbench]] round 3. */
+export function preflight(argv, { name, refresh } = {}) {
+  return post("/api/preflight", { argv, name, refresh });
+}
+
 export function watch(session, window, argv, interval) {
   return post("/api/watch", { session, window, argv, interval });
 }
