@@ -1,7 +1,7 @@
 ---
 status: done
 created: 2026-08-26
-updated: 2026-08-27
+updated: 2026-08-28
 agent_value: 3
 key_files:
   - cli/canvas/server.py
@@ -13,6 +13,7 @@ key_files:
   - cli/chrome.py
   - cli/tools.py
   - docs/design/Workbench.dc.html
+  - cli/canvas/static/sb.css
 ---
 
 # Workbench — where a command gets made
@@ -73,7 +74,9 @@ controls, because a view describes rows and that contract returns none; for `fol
 `--highlight`; for `run`, the panel says why there is nothing to shape.
 
 **The job strip is the last step and it reads left to right**: the `--save` name, the cadence, and
-the argv the bench will run. Cadence offers only `0 · 5 · 30 · 60 · 300` — the values [[tools]]
+the argv the bench will run. **It is pinned to the bottom of the bench and is always on screen**
+(round 4) — the panel that may grow without bound is the *result*, and that is the one that
+scrolls inside itself. Cadence offers only `0 · 5 · 30 · 60 · 300` — the values [[tools]]
 actually accepts — and it is **absent** on `follow` (resident by nature) and on `run` (a cadence on
 a write is a scheduler nobody asked for). Absent, not disabled: a greyed control invites an
 argument the design already had.
@@ -104,11 +107,78 @@ carries the contract's own *acts* or *observes* badge, because a rail that lists
   need four primitives that do not exist, and none of them is required for the bench to be worth
   opening. See `docs/open.md`.
 - **No history.** A saved tool has no run log yet. When it does, that is its own doc.
+- **No page-level scroll.** The bench is a screen, not a document: its panels are sized against
+  the viewport and the one that can outgrow it scrolls internally. Round 4 rejected making
+  `.bench-main` a scroll container for this reason.
 - **Does not replace the palette's one-line path.** Typing a foreign argv and getting
   `read -- <argv>` stays exactly as it is; the bench is where a line that took three tries goes to
   get made.
 
 ## Phases
+
+### Round 4 — the last step fell off the bottom (2026-08-28)
+
+Reported from use: *"we are missing a way to save the command on the workbench UI."* It is not
+missing. `JobStrip` renders for every contract, including `run`, where it carries the name field
+and the `[tool.NAME]` block round 3 built. **It is unreachable**, and nothing on the screen says so.
+
+Measured at the operator's window rather than inferred, with `--scale 1.6` in a 756px-tall window:
+
+```
+.bench-job    top 608 → bottom 987        viewport height 669
+.bench-main   scrollHeight 881, clientHeight 474
+```
+
+`.bench-main` is a flex column carrying `min-width: 0` and **no `overflow` and no `min-height: 0`**,
+so its children overflow and are clipped instead of scrolling. There is no scrollbar anywhere on
+the bench. At the default `--scale 1.15` in a tall enough window everything fits, which is exactly
+why this survived three rounds — **the bench was only ever looked at in the geometry it was built
+in.**
+
+**The act path is the worst case, which is why it was `run` that found it.** `.bench-blank.act`
+drops the `max-width` every other contract's blank state has, so the refusal paragraph, three
+checks and the button together are the tallest thing the result panel ever holds — and
+`.bench-result` is `flex: 1`, so it takes precisely the space the job strip needed. The panel
+explaining *why there is no trial run* pushed off the panel you go there to reach.
+
+### Pin the last step; scroll the panel that can grow
+
+Making `.bench-main` a scroll container was considered and **rejected**. It is the smaller change
+and it turns the bench into a document you scroll, which puts the last step of a top-to-bottom flow
+somewhere you have to go looking for — a weaker version of the defect being fixed. Worse, it would
+scroll the *contract selector* off the top, and Shape calls that "the spine, and the first thing on
+the screen".
+
+So: the job strip is pinned to the bottom of `.bench-main`, and the **result** panel scrolls inside
+itself. That is not a new idea — it is [[canvas]]'s rule for a window body arriving on the second
+screen, where the frame is fixed and the output is what overflows. It also puts the scrollbar on
+the one panel whose height genuinely depends on what a foreign command printed.
+
+**Does not do:**
+
+- **No page-level scroll**, per the rejection above. The bench is a screen, not a document.
+- **No responsive breakpoints, no collapsing panels.** ~~The reference rail keeps its fixed
+  width; this round is about the vertical axis only, which is the one that broke.~~ *Half reversed
+  while building: the rail gains a `max-width: 34%` and nothing else. Its width is in `rem`, so it
+  scales with `--sb-scale` while the window does not — at `--scale 2.4` it wanted 1037px of a
+  1416px window and left the bench 340px, where every note wrapped into a column and the strip
+  measured 1895px. The vertical overflow was partly the horizontal starvation. Still no
+  breakpoints and still no collapsing.*
+- **Nothing about `--save` on `run`.** Round 3's asymmetry is intact and is not what this was.
+  The block was always being rendered — it was being rendered off-screen.
+
+- [x] **`.bench-main` stops clipping**, and a `.bench-scroll` group takes everything between the
+      spine and the last step. `min-height: 0` so a flex child may be smaller than its content;
+      the contract selector and the job strip stay `flex: none` at the two ends.
+- [x] **The job strip is pinned, capped, and scrolls inside** — all three, because each of the
+      first two alone fails. The name row sticks to its top and the save row to its bottom, so the
+      step and the act stay put while the block and the notes scroll between them.
+- [x] **The panels that can grow own their overflow.** `.bench-result` keeps `flex: 1` with a
+      floor; the act blank state gets a bounded `max-width` back; the reference rail gains a
+      `max-width` so it cannot starve the column it annotates.
+- [x] **Verified by rendering at five geometries**, because one geometry is what caused this: at
+      `--scale` 1.15, 1.6, 2.0, 2.4 and 3.0, for an act and an observe, the contract selector, the
+      job strip, the name field and the save button are all on screen.
 
 ### Round 1 — the bench and the trial run (2026-08-26, done 2026-08-27)
 
@@ -366,3 +436,43 @@ while any check fails, and the line beside it says there is no dry run to fall b
 
 **`preflight` runs nothing, and a test proves it** by asking it to check `touch <path>` and
 asserting the path does not exist. That is the whole distinction between a check and a dry run.
+
+
+### Round 4 — executed, and every intermediate fix was wrong in an instructive way (2026-08-28)
+
+Four attempts, and the value is in what each one broke, because they are all the same mistake in
+different clothes: **fixing where a thing is drawn without bounding how big it can get.**
+
+1. **`min-height: 0` on `.bench-main` alone.** Correct and insufficient. The strip stopped being
+   clipped and started being *pushed*, because the fixed panels above it still wanted more than the
+   column had.
+2. **`max-height: 34%` on the strip.** This is the one worth remembering. A capped panel whose
+   content still overflows **paints outside its own box** — so `getBoundingClientRect()` on
+   `.bench-job` said 413→557 of a 669px viewport, perfectly on screen, while the name field inside
+   it was drawn below the window. The measurement agreed with the fix and the screen did not.
+   Bounded-and-lying is worse than tall.
+3. **`flex: 1 1 70rem` on `.job-note`.** Set the trailing note's **height** to 70rem — 322px of
+   empty paragraph — because `.job-body` is a *column* and `flex-basis` is whichever axis you are
+   on. The same declaration was correct in `.job-row`, six lines away. It is now scoped to the row.
+4. **Everything above, at `--scale 2.4`,** where the real driver turned out to be horizontal: the
+   reference rail's width is in `rem`, so it grows with the scale while the window does not, and it
+   took 1037px of 1416, leaving the bench 340px in which every note wrapped into a word-column. A
+   rail that starves the thing it annotates is the horizontal half of the same defect. Bounded, and
+   the Does-not-do amended.
+
+**What holds is pinned + capped + scrolling inside, with both ends sticky.** The name is the step
+and the save is the act, so those stay put; the block and the notes scroll between them. That is
+the bench's own shape one panel down, which is the argument for it beyond "it works".
+
+**One geometry is what caused this, so the verification is five.** Every earlier round was checked
+at the default `--scale 1.15` in a window that happened to be tall enough, and the bug was
+invisible in exactly that one configuration. The harness now sweeps 1.15/1.6/2.0/2.4/3.0 × act ×
+observe and asserts four elements are on screen. **`--scale` is not a preference, it is a
+geometry** — `CLAUDE.md` already says one number drives every size, and the corollary nobody had
+written down is that a layout verified at one value of it has been verified once.
+
+**The report was "we are missing a way to save the command", and nothing was missing.** Worth
+recording because the diagnosis nearly went the other way: the obvious reading was that round 3's
+act asymmetry had left `run` with no save path, which would have been a design argument. It was a
+`min-height`. **A feature you cannot see and a feature that is not there produce the same bug
+report**, and the difference is only visible by measuring.
