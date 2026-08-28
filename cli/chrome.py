@@ -135,15 +135,24 @@ def snapshot(
     warnings: int = 0,
     ran_at: float | None = None,
     duration_s: float | None = None,
+    running_since: float | None = None,
 ) -> Chrome:
-    """A one-time observe: ran once, stamped once."""
+    """A one-time observe: ran once, stamped once.
+
+    `running_since` is set while the subprocess is still alive — the same
+    mechanical reading `resident` has always had, arriving here because a
+    window that accrues has a *before* now. It says nothing about a cadence:
+    an accruing snapshot runs once, exactly as it always did. See [[follow]]
+    round 4.
+    """
     return Chrome(
         source=source,
         shape="snapshot",
-        attention=_verdict(ok, partial),
+        attention="running" if running_since is not None else _verdict(ok, partial),
         warnings=warnings,
         ran_at=ran_at,
         duration_s=duration_s,
+        running_since=running_since,
     )
 
 
@@ -155,11 +164,25 @@ def act(
     warnings: int = 0,
     ran_at: float | None = None,
     duration_s: float | None = None,
+    running_since: float | None = None,
 ) -> Chrome:
     """`run`: the same stamp a snapshot gets, and never a countdown — the
-    absence is the act/observe split made visible."""
+    absence is the act/observe split made visible.
+
+    **`running_since` is not a crack in that.** What `act` refuses is a
+    cadence and a countdown — a write happening again, or about to. This is
+    one write happening *now*, in a window watching it, and the field is
+    mechanical: the subprocess has not exited. `interval` and `fires_at` stay
+    absent, which is the part the sentence above was ever about.
+    """
     chrome = snapshot(
-        source, ok=ok, partial=partial, warnings=warnings, ran_at=ran_at, duration_s=duration_s
+        source,
+        ok=ok,
+        partial=partial,
+        warnings=warnings,
+        ran_at=ran_at,
+        duration_s=duration_s,
+        running_since=running_since,
     )
     return replace(chrome, shape="act")
 
@@ -379,13 +402,15 @@ def _top_spans(chrome: Chrome, now: float) -> tuple[list[Span], list[Span]]:
         # helplessly. See [[delay]].
         remaining = max(0, int((chrome.fires_at or 0) - now))
         return left, [(f"runs in {ago(remaining)}", ROLE["pending"]), (" · q cancels", "sb.label")]
-    if chrome.shape == "resident":
-        if chrome.running_since is not None:
-            right = [(f"running {ago(now - chrome.running_since)}", "sb.accent")]
-        else:
-            remaining = countdown(chrome, now)
-            if remaining is not None:
-                right = [(f"⟳ next in {remaining}s", "sb.accent")]
+    if chrome.running_since is not None and chrome.shape in ("snapshot", "act", "resident"):
+        # One reading for all three: the subprocess has not exited. A resident
+        # window swaps its countdown for it, and an accruing one has no
+        # countdown to swap. See [[follow]] round 4.
+        right = [(f"running {ago(now - chrome.running_since)}", "sb.accent")]
+    elif chrome.shape == "resident":
+        remaining = countdown(chrome, now)
+        if remaining is not None:
+            right = [(f"⟳ next in {remaining}s", "sb.accent")]
     elif chrome.shape == "stream":
         if chrome.attention == "dead":
             text = f"dead · exited {chrome.exit_code}"
