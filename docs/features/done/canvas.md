@@ -33,9 +33,9 @@ drawn, so the interactions are already settled: `Ctrl-K` for the palette, chips 
 command with different flags, a per-window refresh interval, tags, and a status bar counting
 tasks, windows, watchers and things wanting attention.
 
-The demand this puts on sb is small, which is the point. **Commands already return a `Result` and
-never print.** The TUI was the second consumer of that envelope; the canvas is the third, and the
-command layer does not change to accommodate it. What changes is the shell around it.
+The demand this puts on sky.boss is small, which is the point. **Commands already return a `Result`
+and never print.** The TUI was the second consumer of that envelope; the canvas is the third, and
+the command layer does not change to accommodate it. What changes is the shell around it.
 
 ## Shape
 
@@ -95,7 +95,7 @@ auto-refreshing a write is a scheduler nobody asked for.
 - **No daemon.** Nothing survives the last window closing. Deliberate, and the reason there is no
   scheduler, no state file, and no notion of a watcher that ran while you were away.
 - **No remote, no multi-user.** Loopback only, one operator, one machine.
-- **No credential handling.** Wrapped CLIs keep their own authentication; sb is never in the
+- **No credential handling.** Wrapped CLIs keep their own authentication; sky.boss is never in the
   credential path. Unchanged from `CLAUDE.md`.
 - **No ANSI-to-HTML fallback.** Rendering an ANSI table gives a picture of a table — no sorting, no
   chips, no resizing — and shipping it early would let it become the path everything takes. That
@@ -115,11 +115,11 @@ auto-refreshing a write is a scheduler nobody asked for.
 
 ## Phases
 
-### Round 7 — the palette accepts a command that is not sb's (2026-08-21)
+### Round 7 — the palette accepts a command that is not sky.boss's (2026-08-21)
 
-- [x] Anything typed whose first word is not a sb command is offered as a **raw command**, expanding
-      to `sb read -- <argv>`. The expansion is the suggestion's description, so what will run is
-      visible before Enter rather than discovered after.
+- [x] Anything typed whose first word is not a sky.boss command is offered as a **raw command**,
+      expanding to `sb read -- <argv>`. The expansion is the suggestion's description, so what will
+      run is visible before Enter rather than discovered after.
 - [x] Appended rather than shown only when nothing else matched. `list` matches `tools` by
       description, and a raw entry that hid behind a description match would be a palette that
       sometimes accepts a command and sometimes silently does not.
@@ -268,8 +268,8 @@ in-process because reading the tree runs nothing: **reads in, execution out.**
 with pin and cadence, and it could not be built: `run` is the only command, `run` acts, and an
 acting command may not be given a cadence. So nothing was pinnable and Phase 2's entire mechanism
 was unreachable from the UI. The mockup had already drawn this line — `wrap docker ps` carries
-`watcher: true`, `run cam-health` carries `task: true` — and sb had no equivalent. `wrap` is not
-the passthrough `CLAUDE.md` rejects: it does something the wrapped tool cannot express, which is
+`watcher: true`, `run cam-health` carries `task: true` — and sky.boss had no equivalent. `wrap` is
+not the passthrough `CLAUDE.md` rejects: it does something the wrapped tool cannot express, which is
 to hold itself open on a canvas and re-run itself, and it returns parsed data rather than bytes.
 
 **Two bugs that were real rather than test artifacts.**
@@ -306,13 +306,13 @@ the frontend grows.
 **Deleted `TUI_STYLES`/`TUI_THEME`,** whose only consumer was the surface being replaced. The
 concept survives as `cli/theme.css_variables`: the canvas paints `BG` itself, so it takes the
 tokens undarkened, exactly as the TUI did, but it renders from the envelope's data rather than
-from sb's bytes so it needs CSS custom properties rather than a Rich theme. The hex scan now
+from sky.boss's bytes so it needs CSS custom properties rather than a Rich theme. The hex scan now
 follows the surface rather than the language — `.css` and `.js` too, vendored code exempt — plus a
 check for `rgba()` literals, which is the form the drift would actually take here given the mockup
 is built out of them.
 
-**`cli/output.capture` now has no consumer.** It was the mechanism the TUI rendered through, and
-the canvas does not render sb's bytes at all. It is kept, tested and documented, but nothing in
+**`cli/output.capture` now has no consumer.** It was the mechanism the TUI rendered through, and the
+canvas does not render sky.boss's bytes at all. It is kept, tested and documented, but nothing in
 the shipped surface calls it. It is a candidate for deletion the next time this area is opened.
 
 
@@ -525,9 +525,9 @@ acts, so the only command that carried text was the one command that must never 
 
 ### Round 7 — a palette that accepts what you actually typed (2026-08-21)
 
-The request read as "stop making me call sb". What it turned out to mean is narrower and better:
-*stop making me type sb's prefix*. sb still executes — through `sb read`, which is what gives the
-window an envelope, a killable subprocess and a cadence. Only the typing changed.
+The request read as "stop making me call sky.boss". What it turned out to mean is narrower and
+better: *stop making me type the `sb` prefix*. sky.boss still executes — through `sb read`, which is
+what gives the window an envelope, a killable subprocess and a cadence. Only the typing changed.
 
 **The interesting problem was the working directory, not the parsing.** A raw command has no place
 to put `--cwd`, and the canvas inherits whatever directory `sb ui` was launched in — so a canvas
@@ -545,7 +545,7 @@ keeps having to design against.
 and it is wrong in a way that only shows up on particular input: `list` matches `tools` by its
 description, so a conditional raw entry would vanish for some queries and appear for others with no
 rule the operator could hold in their head. It is appended whenever the first word is not exactly a
-sb command, which is a rule you can state in one sentence.
+sky.boss command, which is a rule you can state in one sentence.
 
 **And it expands to `read`, never `run`.** The whole point is a window that refreshes, and only a
 read may be given a cadence. A raw command that wants to write is typed with `run --` in front of

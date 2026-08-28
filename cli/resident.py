@@ -344,7 +344,7 @@ def stream_body(lines, ruleset=None) -> Text:
     One assembler on purpose: two renderers holding their own opinions about
     how a stderr line looks would drift the week they were written. stdout
     lines are tinted lexically through [[highlight]]; a stderr line is grey,
-    because a second channel is not a severity; and sb's own announcements —
+    because a second channel is not a severity; and sky.boss's own announcements —
     a rotation, a truncation — keep the warning tint, which is what `voice`
     is for. None of them are re-tagged lexically. The text reaches the
     screen verbatim either way, because marks ride beside it, never instead.
@@ -358,7 +358,7 @@ def stream_body(lines, ruleset=None) -> Text:
             # Grey, not warn. A tool talking on stderr is using its second
             # channel — progress, banners, a summary — and painting all of it
             # yellow is the same judgment-in-a-regex's-clothes this module
-            # refuses elsewhere. sb's *own* voice keeps the warning tint.
+            # refuses elsewhere. sky.boss's *own* voice keeps the warning tint.
             body.append(
                 strip_ansi(line.text) + "\n",
                 style="sb.warn" if getattr(line, "voice", False) else "sb.label",
@@ -394,7 +394,7 @@ def reside(
     `q`, `Esc` and Ctrl-C all leave. See [[refresh]] round 2 for why the first
     two exist and why they degrade to nothing without a terminal.
 
-    The body is sb's own rendering, captured — `cli/output.py` owns every
+    The body is sky.boss's own rendering, captured — `cli/output.py` owns every
     byte that reaches a terminal, and a surface that renders elsewhere takes
     that claim up rather than routing around it. The bands come from the
     [[chrome]] contract; this module decides nothing about what they say.

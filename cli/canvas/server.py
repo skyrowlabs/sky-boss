@@ -1,4 +1,4 @@
-"""The canvas's backend: a loopback HTTP server that runs sb commands.
+"""The canvas's backend: a loopback HTTP server that runs sky.boss commands.
 
 **This is remote code execution bound to a port, and it is treated that way.**
 A page on any website you happen to have open can POST to `127.0.0.1` — it
@@ -221,7 +221,7 @@ def build(canvas: Canvas | None = None) -> Starlette:
         """The bench's run: `/api/run` with one rule added, and the rule is the
         whole reason it is a second route.
 
-        **An act has no trial run.** sb will not execute a write to show you
+        **An act has no trial run.** sky.boss will not execute a write to show you
         what it would print, so the bench offers what it can check without
         running and one button that runs it for real. That refusal lives here
         rather than in a button the surface declines to draw, because a UI that
@@ -319,10 +319,10 @@ def build(canvas: Canvas | None = None) -> Starlette:
         refuses a write; this is what the bench offers instead — and the point
         is that "we cannot run it" is not the same as "we can tell you
         nothing". Three questions have answers that cost nothing: does the
-        directory exist, does the executable resolve, does sb's own parser
+        directory exist, does the executable resolve, does sky.boss's own parser
         accept the line.
 
-        **sb's parser, not a second one.** The argv is fed to Click through
+        **sky.boss's parser, not a second one.** The argv is fed to Click through
         `make_context`, which parses and type-converts without invoking — so
         `--cwd`'s existence check, an unknown flag and a bad integer are all
         caught by the same code that would catch them at the door. A surface
@@ -350,7 +350,7 @@ def build(canvas: Canvas | None = None) -> Starlette:
             problem = tools_.name_problem(name)
             out["name"] = {"ok": problem is None, "reason": problem}
             # The block `run` cannot save by example. Rendered by the same
-            # function `--save` appends with, so what you paste and what sb
+            # function `--save` appends with, so what you paste and what sky.boss
             # would have written are the same bytes.
             saved = tools_.saved_argv(["sb", *argv], argv[0]) if argv else []
             out["block"] = tools_.block(name, saved, refresh) if argv else None
@@ -683,7 +683,7 @@ def _frame_line(line, ruleset=None) -> dict:
 
 
 def preflight(argv: list[str]) -> list[dict]:
-    """What can be checked about an sb argv without running it.
+    """What can be checked about a sky.boss argv without running it.
 
     Three questions, in the order a failure reads best: the directory, then the
     executable, then the whole line. A bad `--cwd` fails the third check too —

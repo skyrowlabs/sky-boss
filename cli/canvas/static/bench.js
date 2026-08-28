@@ -403,7 +403,7 @@ function ViewControls({ draft, actions }) {
  *
  * `run` has no `--save` at all — `--save` saves by example and the example
  * ran — so it gets the `[tool.NAME]` block to paste instead, rendered by the
- * same function `--save` appends with, so what you copy and what sb would have
+ * same function `--save` appends with, so what you copy and what sky.boss would have
  * written are the same bytes.
  */
 function JobStrip({ draft, actions }) {

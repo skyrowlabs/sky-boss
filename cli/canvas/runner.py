@@ -1,4 +1,4 @@
-"""Run one sb command and return its envelope. Out of process, on purpose.
+"""Run one sky.boss command and return its envelope. Out of process, on purpose.
 
 The feature doc's Phase 1 said to lift `cli/tui/dispatch.py` and run commands
 in-process. That was right for a terminal surface and is wrong for this one,
@@ -45,7 +45,7 @@ DEFAULT_TIMEOUT = 60
 
 @dataclass
 class Run:
-    """One execution: the envelope sb produced, and how the process ended."""
+    """One execution: the envelope sky.boss produced, and how the process ended."""
 
     argv: list[str]
     exit_code: int
@@ -117,7 +117,7 @@ def run(
 
     duration = round(time.monotonic() - started, 3)
 
-    # Click's own exit code for a usage error. sb never uses 2 — which is
+    # Click's own exit code for a usage error. sky.boss never uses 2 — which is
     # exactly why `partial` was given 3 — so seeing it here means the argv was
     # malformed and there is no envelope to find. Say so rather than reporting
     # "no JSON on stdout", which describes the symptom and not the cause.

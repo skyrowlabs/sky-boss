@@ -1,10 +1,10 @@
 """The tools — commands the operator saved.
 
-A tool is a **name plus a sb argv**. `sb jam-pr-list` expands to
+A tool is a **name plus a sky.boss argv**. `sb jam-pr-list` expands to
 `sb data --cwd … -- jam pr list --json` and runs it. That is the whole model,
 and everything below is the consequences of keeping it that small.
 
-**Tools are registered into the Click tree, not held in a list.** sb's hardest
+**Tools are registered into the Click tree, not held in a list.** sky.boss's hardest
 invariant is that nothing keeps a command table — the palette walks the live
 tree, so it cannot offer a command that does not exist. A tools list that was a
 second list of commands would break that on day one. Registering them instead
@@ -18,16 +18,16 @@ Nesting also retired the shadowing rule into structure: `sb tools run`
 collides with nothing, so "a builtin always wins" stopped being validation.
 `-t` is an argv spelling of `tools`, rewritten at the root — see cli/__init__.
 
-**The argv is a sb argv, never a shell argv.** A tool cannot name an arbitrary
+**The argv is a sky.boss argv, never a shell argv.** A tool cannot name an arbitrary
 executable, because a tool that could would be a second `sb run` — one that
 skips the read/write distinction the design rests on. Everything a tool wants is
 reachable through `run` or `data`, and going through them is what keeps `sb run`
 the single command that acts.
 
-**No *surface* writes this file, and sb only ever appends to it.** Round 3
+**No *surface* writes this file, and sky.boss only ever appends to it.** Round 3
 narrowed "nothing here writes" rather than reversing it: the argument under
 that sentence was about the canvas server — remote code execution bound to a
-port, where a *route* that wrote a file sb later runs would turn a transient
+port, where a *route* that wrote a file sky.boss later runs would turn a transient
 compromise into a persistent one. None of that describes `--save`, typed by
 the operator in their own shell at the same trust level as `$EDITOR`. So
 there is still no route and still no button; there is `save()`, which
@@ -95,7 +95,7 @@ def read(home: Path | None = None) -> dict:
     except (OSError, tomllib.TOMLDecodeError) as exc:
         # A file that exists and cannot be parsed *is* worth reporting — the
         # operator wrote it and is expecting it to work. Reported as a problem
-        # rather than raised, because one broken file must not stop sb running.
+        # rather than raised, because one broken file must not stop sky.boss running.
         return {"__error__": f"{path}: {exc}"}
 
 
@@ -106,7 +106,7 @@ def parse(
 ) -> tuple[list[Tool], list[str]]:
     """Validate declarations against the live tree. Pure — reads no file.
 
-    `commands` maps a runnable sb command to whether it acts. There is no
+    `commands` maps a runnable sky.boss command to whether it acts. There is no
     shadowing check any more: round 2 moved saved commands behind the `tools`
     group, where `[tool.run]` collides with nothing — the rule became
     structure. Only the *shape* of a name is still validated.
@@ -171,7 +171,7 @@ def _check(
     if argv[0] not in commands:
         # Names the alternative rather than just refusing: the mistake this
         # catches is someone writing a shell command, and the fix is to say
-        # which sb command would have run it.
+        # which sky.boss command would have run it.
         return (
             f"argv must start with a sb command, not {argv[0]!r} — "
             "put it behind `run` or `data`"
@@ -357,7 +357,7 @@ def register(root: click.Group, home: Path | None = None) -> list[str]:
     collides with nothing.
 
     `commands` and `resident` are still read off the *root's* walk, because a
-    tool's argv starts with a root-level sb command and inherits its verdicts.
+    tool's argv starts with a root-level sky.boss command and inherits its verdicts.
     """
     entries = walk(root)
     commands = {entry["name"]: entry["acts"] for entry in entries}
@@ -452,7 +452,7 @@ def _argv_of(command: click.Command) -> tuple[str, ...]:
 # Saving — the one write, and it only ever appends
 # ============================================================================
 #
-# See [[tools]] round 3. The rule this lives under: **sb never touches a line
+# See [[tools]] round 3. The rule this lives under: **sky.boss never touches a line
 # the operator wrote.** Round-tripping the file would mean a TOML *writer*
 # (the stdlib only reads) deciding how a hand-written file should look —
 # comments dropped, argv lists reflowed, keys reordered. Appending one block
@@ -461,7 +461,7 @@ def _argv_of(command: click.Command) -> tuple[str, ...]:
 
 
 def saved_argv(invocation: list[str], command: str) -> list[str]:
-    """The sb argv to save, taken from the line that is running.
+    """The sky.boss argv to save, taken from the line that is running.
 
     **What you typed, minus the flag that asked.** Not rebuilt from parsed
     options: a tool whose expansion does not match the line that created it is
@@ -471,7 +471,7 @@ def saved_argv(invocation: list[str], command: str) -> list[str]:
     Three things the scan has to get right:
 
     - It starts at the **command word**, so root flags (`--json`) are dropped —
-      a tool's argv begins with a sb command by contract.
+      a tool's argv begins with a sky.boss command by contract.
     - It stops looking at `--`. Everything after that belongs to the wrapped
       tool, and a `--save` in *there* is the foreign command's own flag. Click
       never parsed it as ours, so neither does this.
@@ -562,7 +562,7 @@ def name_problem(name: str, home: Path | None = None) -> str | None:
     `$EDITOR`'s. See [[workbench]] round 3.
 
     One implementation, asked twice. A surface holding its own copy of the name
-    rule would be a second opinion about what sb will accept, and the two would
+    rule would be a second opinion about what sky.boss will accept, and the two would
     disagree the day the rule changed.
     """
     if not _NAME.match(name or ""):
@@ -570,7 +570,7 @@ def name_problem(name: str, home: Path | None = None) -> str | None:
 
     existing = read(home)
     if "__error__" in existing:
-        # Appending to a file sb cannot parse would bury the operator's real
+        # Appending to a file sky.boss cannot parse would bury the operator's real
         # problem under a second one.
         return f"{existing['__error__']} — fix the file before saving into it"
     declared = (existing.get("tool") or {}).get(name)

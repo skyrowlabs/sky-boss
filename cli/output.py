@@ -1,4 +1,4 @@
-"""Output contract for the sb CLI.
+"""Output contract for the sky.boss CLI.
 
 Command functions return a :class:`Result`; this module owns every byte that
 reaches the terminal. Three consumers read command output — a human, ``sb
@@ -44,7 +44,7 @@ MAX_TABLE_ROWS = 2000
 #
 # There was a second Theme here, the same roles undarkened, for a surface that
 # rendered captured Rich output on a background it painted itself. The canvas
-# does not: it renders from the envelope's data rather than from sb's bytes, so
+# does not: it renders from the envelope's data rather than from sky.boss's bytes, so
 # the full-strength rendering of the palette reaches it as CSS custom
 # properties instead. See cli/theme.css_variables.
 THEME = Theme(STYLES)
@@ -107,10 +107,10 @@ class Capture:
 
 @contextlib.contextmanager
 def capture(width: int = 100, redirect: bool = True, theme: Theme | None = None):
-    """Redirect every byte sb would print into a buffer.
+    """Redirect every byte sky.boss would print into a buffer.
 
     This module claims to own every byte that reaches the terminal. A surface
-    that renders sb output somewhere other than a terminal — `sb tui` today —
+    that renders sky.boss output somewhere other than a terminal — `sb tui` today —
     has to be able to take that claim up rather than route around it, which is
     why capture lives here and not in the consumer.
 
@@ -135,7 +135,7 @@ def capture(width: int = 100, redirect: bool = True, theme: Theme | None = None)
 
     `COLUMNS` is set for the same reason the redirect exists. rich-click's own
     console is built where nothing here can reach it, so swapping the globals
-    sizes every byte sb writes and none of the bytes `--help` writes — help
+    sizes every byte sky.boss writes and none of the bytes `--help` writes — help
     came out at Rich's 80-column default whatever width was asked for. Setting
     `rich_click.WIDTH` does not take; the environment variable is the one lever
     that reaches a console constructed somewhere else. Harmless for the rest,
@@ -184,7 +184,7 @@ def capture(width: int = 100, redirect: bool = True, theme: Theme | None = None)
             os.environ["COLUMNS"] = saved_columns
 
 # Exit codes. `partial` gets its own code so a caller can branch on degradation
-# without parsing anything — which is what makes sb commands composable inside
+# without parsing anything — which is what makes sky.boss commands composable inside
 # job definitions.
 #
 # NOT 2: Click exits 2 on usage errors ("No such option"), and a caller
@@ -633,7 +633,7 @@ def _render_columns(
 
     Without a view this is what it always was: every key of every row, in
     first-seen order, at equal width. That is right for data whose fields a
-    person chose, and it is what sb's own commands still get.
+    person chose, and it is what sky.boss's own commands still get.
 
     With one, the columns and their relative widths were decided in cli/view.py
     and this only draws them — `no_wrap` with ellipsis overflow is what stops a
@@ -932,7 +932,7 @@ def exit_code(result: Result) -> int:
 
 
 def _command_path(ctx: click.Context) -> str:
-    """Click's "sb fleet status" as the dotted "fleet.status".
+    """Click's "sky.boss fleet status" as the dotted "fleet.status".
 
     This is the canonical command name: it goes in the envelope and becomes the
     MCP tool name, so deriving it from the actual command path means the two can

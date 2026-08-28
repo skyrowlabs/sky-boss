@@ -1,4 +1,4 @@
-"""sb follow — one verb, two mechanisms, dispatch by shape. See [[follow]].
+"""`sb follow` — one verb, two mechanisms, dispatch by shape. See [[follow]].
 
 The properties worth defending: the dispatch rule has no third shape, a
 stream refuses --json because it has no envelope to promise, any exit is a

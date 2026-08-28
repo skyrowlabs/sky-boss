@@ -1,4 +1,4 @@
-"""sb data — the read-only door to another CLI.
+"""`sb data` — the read-only door to another CLI.
 
 The properties worth defending are the two boundaries it draws. It must not
 become a second `sb run` by quietly carrying raw output, and it must not become
@@ -381,7 +381,7 @@ def test_a_shaping_flag_that_could_not_be_applied_is_never_silent():
 
 
 def test_no_flag_no_warning():
-    """A payload that is simply not a table is not a complaint — sb has always
+    """A payload that is simply not a table is not a complaint — sky.boss has always
     rendered a mapping as a mapping."""
     _, envelope = invoke(["--", "printf", '{"generated": "x"}'])
     assert envelope.get("warnings", []) == []

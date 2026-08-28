@@ -17,8 +17,8 @@ _ISOLATED = Path(tempfile.mkdtemp(prefix="sb-state-")) / "state"
 os.environ["SB_STATE"] = str(_ISOLATED)
 
 # And never the operator's real sky.boss home. This one matters more than STATE_DIR:
-# a tool is an argv sb will *run*, so a suite that read the real home would be
-# registering the operator's commands into the tree under test — and `sb
+# a tool is an argv sky.boss will *run*, so a suite that read the real home would be
+# registering the operator's commands into the tree under test — and `sky.boss
 # --help` would differ between two machines running the same suite.
 _ISOLATED_HOME = Path(tempfile.mkdtemp(prefix="sb-home-")) / "home"
 os.environ["SB_HOME"] = str(_ISOLATED_HOME)

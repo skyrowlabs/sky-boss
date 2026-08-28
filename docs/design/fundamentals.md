@@ -73,12 +73,12 @@ without changing it. Corollary, re-affirmed: the system never parses an authored
 columns — inferring structure from whitespace is the silently-wrong failure, and a tool with real
 structure has `--json`.
 
-**A Follow is an argv that never exits.** The primitive covers `journalctl -f`,
-`docker logs -f`, and a streaming agent session. *Superseded in part, same day:* this entry
-originally routed files through it too (`tail -F <path>`, "sb never grows a second, file-specific
-mechanism") — reversed under *rules begin basic* below: files get **watch**, a native tail-like
-loop, because the improvements watch needs are made of file knowledge a spawned tail cannot see.
-Follow remains the mechanism for streaming *commands*.
+**A Follow is an argv that never exits.** The primitive covers `journalctl -f`, `docker logs -f`,
+and a streaming agent session. *Superseded in part, same day:* this entry originally routed files
+through it too (`tail -F <path>`, "sky.boss never grows a second, file-specific mechanism") —
+reversed under *rules begin basic* below: files get **watch**, a native tail-like loop, because the
+improvements watch needs are made of file knowledge a spawned tail cannot see. Follow remains the
+mechanism for streaming *commands*.
 
 **A dead stream goes dead visibly; restarting it is the operator's click.** When the followed
 process exits or errors, the window plainly shows that the stream ended and when. No auto-restart:
@@ -104,12 +104,12 @@ primitives):
 Worked against the operator's three temporalities: instant commands, long processes, and watching
 files for change.
 
-**The Keyword is a name plus a sb argv, and it is already the right shape.** `[tool.jam-prs]` in
-`$SB_HOME/tools.toml` wrapping `wrap -- jam pr list --json` makes `sb jam-prs` real — in the CLI,
-completions and palette alike. Ratified as-is from the build: the keyword inherits act/observe
-from `argv[0]` and cannot declare it. Extended by this round: it inherits its *temporal shape*
-the same way — `wrap`/`read` snapshot, `run` snapshot-or-job, `follow` stream — so `follow`
-becomes the fourth savable entry point and no new tool field exists to get wrong.
+**The Keyword is a name plus a sky.boss argv, and it is already the right shape.** `[tool.jam-prs]`
+in `$SB_HOME/tools.toml` wrapping `wrap -- jam pr list --json` makes `sb jam-prs` real — in the CLI,
+completions and palette alike. Ratified as-is from the build: the keyword inherits act/observe from
+`argv[0]` and cannot declare it. Extended by this round: it inherits its *temporal shape* the same
+way — `wrap`/`read` snapshot, `run` snapshot-or-job, `follow` stream — so `follow` becomes the
+fourth savable entry point and no new tool field exists to get wrong.
 
 **One execution mechanism; the temporal shapes are policies over it.** Every command is the same
 event — spawn an argv, output accrues, maybe it exits. So:
@@ -143,15 +143,15 @@ branches from them later:
 
 **Corrected the same day: watch is a tail-*like* execution, not `tail -F` spawned.** This entry
 first read watch as sugar expanding to `tail -F` under the ratified Follow — "one primitive, two
-spellings, zero special cases." The operator corrected it: watch is sb's own read loop over the
-file — open, remember the offset, backfill the last N lines into the ring, poll for growth, emit
+spellings, zero special cases." The operator corrected it: watch is sky.boss's own read loop over
+the file — open, remember the offset, backfill the last N lines into the ring, poll for growth, emit
 new lines — not a subprocess wearing a different name. The superseded reading stays visible here
 because the reasons to reverse it are the design: owning the loop is what the "improvements" are
-made of. sb can *stat* the file, so the liveness clock distinguishes "file untouched since 19:00"
-from "no new lines matching" — a spawned tail can say neither. Truncation and rotation are
+made of. sky.boss can *stat* the file, so the liveness clock distinguishes "file untouched since
+19:00" from "no new lines matching" — a spawned tail can say neither. Truncation and rotation are
 detected by inode and size rather than inherited from tail's flavor. Backfill-then-follow is one
-mechanism instead of a flag. And the later branches — delta, conditional highlighting — bind to
-a loop sb owns rather than to another process's stdout.
+mechanism instead of a flag. And the later branches — delta, conditional highlighting — bind to a
+loop sky.boss owns rather than to another process's stdout.
 
 The Follow proper (an argv that never exits — `journalctl -f`, `docker logs -f`, a streaming
 agent session) stands unchanged for *commands* that stream. What changed is that files are no
@@ -331,4 +331,4 @@ Named but not designed. Parked, not promised.
   cadence, and a unit's journal is a Follow — a "manager-lite" may be nothing but keywords plus a
   layout. The full *manager* reading (enable/disable/edit units) acts, so it lives behind `sb run`
   like every action, and would need to respect an existing boundary: jam.sense keeps its own
-  scheduler, and sb never manages or edits its cron entries.
+  scheduler, and sky.boss never manages or edits its cron entries.

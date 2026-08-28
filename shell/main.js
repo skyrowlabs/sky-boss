@@ -45,13 +45,13 @@ const bridge = require("./bridge.js");
  * avoided here by having exactly one exit.
  *
  * What is still owed: a window whose renderer wedges without dying holds its
- * watcher forever. sb's own heartbeat frame is the material for a liveness
+ * watcher forever. sky.boss's own heartbeat frame is the material for a liveness
  * check; this sketch does not spend it.
  * ---------------------------------------------------------------------------
  */
 const windows = new Map(); // window_id → BrowserWindow
 
-let ctx = null; // the running sb: url, token, child
+let ctx = null; // the running `sb`: url, token, child
 let session = null; // learned from the `hello` frame
 let endStream = null;
 let quitting = false;
@@ -76,7 +76,7 @@ function create({ argv = null } = {}) {
       sandbox: true,
       // The clamping the README argues around: a browser timer in a hidden tab
       // is held to roughly one fire a minute. Chromium does the same to an
-      // occluded window unless told not to. sb keeps its refresh clock in
+      // occluded window unless told not to. sky.boss keeps its refresh clock in
       // Python and does not depend on this — but the *label* clock, and the
       // progress bar reading it, are cosmetic bugs today only because that is
       // true. Here they need not be bugs at all.
@@ -197,7 +197,7 @@ app.on("window-all-closed", () => app.quit());
 
 /* The session ends when this process does, which is the lifetime rule the old
  * one had, moved up exactly one level: there, the stream was the session's
- * life; here, the application is. sb is asked to quit rather than killed, so
+ * life; here, the application is. sky.boss is asked to quit rather than killed, so
  * its own teardown runs — every follower is a child process that would
  * otherwise be reparented rather than reaped. */
 app.on("before-quit", async (event) => {

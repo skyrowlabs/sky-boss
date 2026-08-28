@@ -51,7 +51,7 @@ changing the mark is changing those strings, not re-running a converter. The PNG
 
 **The mark paints its own background, and that is what licenses its colours.** Every CLI role is
 the smallest darkening of its token that clears 3.5:1 against *both* white and the void
-(CLAUDE.md § Conventions), because sb prints into a terminal whose background nobody here
+(CLAUDE.md § Conventions), because sky.boss prints into a terminal whose background nobody here
 knows. The mark
 removes that unknown by painting a panel, which puts it in the canvas's position rather than the
 CLI's — so it takes `BRAND`, `TEXT`, `TEXT_3` and `SURFACE_2` at full strength.
@@ -74,15 +74,15 @@ out when the envelope was asked for.
 
 **Does not do:**
 
-- **No banner on subcommands.** `sb read --help` is a reference page someone may read three times
-  in a day; a banner over every one is a banner nobody sees. Only the root wears it.
-- **No image rendering.** No sixel, no kitty graphics, no iTerm inline images. They would each be
-  a terminal-capability branch, and the mark already exists in a form every terminal can draw.
-- **No colour negotiation.** Rich degrades truecolor to 256 or 16 on its own; sb does not inspect
-  `COLORTERM` and pick a palette.
+- **No banner on subcommands.** `sb read --help` is a reference page someone may read three times in
+  a day; a banner over every one is a banner nobody sees. Only the root wears it.
+- **No image rendering.** No sixel, no kitty graphics, no iTerm inline images. They would each be a
+  terminal-capability branch, and the mark already exists in a form every terminal can draw.
+- **No colour negotiation.** Rich degrades truecolor to 256 or 16 on its own; sky.boss does not
+  inspect `COLORTERM` and pick a palette.
 - **No ASCII fallback of the mark.** The small-surface answer is a *name*, not a worse picture.
-- **Not a splash screen.** It appears where help appears, and nowhere else — never before a
-  command runs.
+- **Not a splash screen.** It appears where help appears, and nowhere else — never before a command
+  runs.
 
 ## Phases
 

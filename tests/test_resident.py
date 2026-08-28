@@ -410,7 +410,7 @@ def test_the_head_clip_is_untouched_by_the_direction_landing():
 
 
 def test_clipping_a_stream_does_not_repaint_the_body():
-    """The defect the operator reported as "the default colour for sb follow
+    """The defect the operator reported as "the default colour for `sb follow`
     is yellow". `Text(marker, style=...)` sets the *base* style of the whole
     object, so everything appended after the dropped-lines marker inherited
     warn — and because a follow's ring always outruns the terminal, every

@@ -21,7 +21,7 @@ CLAUDE.md: *inferring columns from whitespace is the "silently wrong" failure* �
 asymmetry that let [[highlight]] through cuts against it: a tint that misfires costs a color,
 a reformat that misfires **alters facts while looking finished**. So the flag is refused and
 the want behind it is built instead, on the doctrine every other decision here already stands
-on: **sb never guesses; the operator asserts.**
+on: **sky.boss never guesses; the operator asserts.**
 
 The first draft put the assertion inline — a raw regex on the command line — and the operator
 refused it on review: **commands must stay simple to execute.** What survived is the same
@@ -48,19 +48,19 @@ contract, not a redesign.*
 Presentation is already *shape-driven* — the renderers dispatch on what the data is (rows →
 shaped table, mapping → key/value, `ok` rows → status list, `*_bytes` → humanized) — so the
 transform stage needs no formatting vocabulary of its own: **jq's job is to produce the
-shape; sb's job is to render the shape.** Proven against live data before this round was
+shape; sky.boss's job is to render the shape.** Proven against live data before this round was
 drafted: the same `jam pr list --json` rendered as a table under one jq program and as a
 key/value card under another, with zero formatting code chosen by anyone.
 
 **Two levels: kinds are code, formats are declarations.**
 
-- A **kind** is a parsing contract sb ships and tests: `json` today; `lines` (a per-line
+- A **kind** is a parsing contract sky.boss ships and tests: `json` today; `lines` (a per-line
   pattern with named groups) is this round's addition. Later kinds — `csv`, aligned-`table`,
   multi-line records — arrive one at a time when something real needs them, exactly as
   [[refresh]] ruled for formats generally.
 - A **format** is an operator-declared, named parameterization of a kind, in
   **`$SB_HOME/formats.toml`** — operator content, outside the repo, `$EDITOR`-authored, and
-  sb reads it and never writes it, all inherited from the [[tools]] rules:
+  sky.boss reads it and never writes it, all inherited from the [[tools]] rules:
 
       [format.jam-status]
       description = "sometool status — PR, state, title"
@@ -83,7 +83,7 @@ named group, or a pattern that does not compile **fails loudly by name and does 
 one bad format must not cost the operator the other nine.
 
 **The transform is the operator's own `jq` binary**, spawned through `child_env()` with
-the program on its argv and the parsed data on stdin — sb does not reimplement a JSON
+the program on its argv and the parsed data on stdin — sky.boss does not reimplement a JSON
 language, and a Python binding is a wheels gamble on 3.14 that buys nothing over the binary.
 Absent `jq` degrades loudly *at use*, naming the format that wanted it; formats without a
 `jq` field never spawn anything. A jq program that fails is a failed contract with jq's own
@@ -136,7 +136,7 @@ runs `sb --json data --from … -- …` through the runner unchanged. No canvas 
   parsing contracts. Two doors would blur the assertion each one makes.
 - **Unmatched lines do not reach `data`.** Rows or a failed contract; the warning carries the
   count and sample; the record of the full text is `sb read`.
-- **sb never writes `formats.toml`.** Creation is `$EDITOR`, the same boundary the tools
+- **sky.boss never writes `formats.toml`.** Creation is `$EDITOR`, the same boundary the tools
   drew and for the same reason.
 - **No regex timeout machinery.** A catastrophic pattern is the operator's own foot, on their
   own machine, inside the `--timeout` the subprocess already has. Noted, not defended against.

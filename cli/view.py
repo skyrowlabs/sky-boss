@@ -14,7 +14,7 @@ correct — *render these columns in this order*. It also means there is exactly
 one opinion about column selection; two renderers holding their own would drift
 the week after they were written.
 
-Only `data` calls this. sb's own commands return fields a person chose
+Only `data` calls this. sky.boss's own commands return fields a person chose
 deliberately, and auto-dropping one of those would be a bug wearing a feature's
 clothes. See [[table-views]].
 """

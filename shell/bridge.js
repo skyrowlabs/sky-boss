@@ -8,11 +8,11 @@
  * changes its import and nothing else.
  *
  * What moved is who holds the secret. The token and the port now live in the
- * main process; the renderer never sees either, and reaches sb only through
+ * main process; the renderer never sees either, and reaches sky.boss only through
  * preload.js. That is the whole security gain of the shell: with N windows the
  * old arrangement would have had to write the token into N pages.
  *
- * sb is spawned exactly as `--no-browser` documents, so nothing under cli/
+ * sky.boss is spawned exactly as `--no-browser` documents, so nothing under cli/
  * changes to run this. `shell.py` made the same promise about pywebview and
  * kept it; there is no reason this shell should be allowed to be greedier.
  */
@@ -37,14 +37,14 @@ function freePort() {
   });
 }
 
-/* The token, read out of the page sb serves.
+/* The token, read out of the page sky.boss serves.
  *
  * `/` is not an API route and takes no header — server.py:117 says so, and
  * rests the token's secrecy on the same-origin policy instead. That is what
- * lets this shell start against an unmodified sb: it fetches the page the way
+ * lets this shell start against an unmodified sky.boss: it fetches the page the way
  * a window would, and keeps the token instead of rendering it.
  *
- * The handshake worth building later is sb printing `{"url":…,"token":…}` on
+ * The handshake worth building later is sky.boss printing `{"url":…,"token":…}` on
  * stdout once the bind is up. Not because scraping is fragile — the page is
  * ours — but because it would let this stop being HTTP at all. Note what is
  * *not* on the table either way: `--token X` on the command line, or the token
@@ -70,7 +70,7 @@ async function handshake(url, deadlineMs = 10_000) {
   }
 }
 
-/* Start sb and wait until it can be talked to. Resolves to the context every
+/* Start sky.boss and wait until it can be talked to. Resolves to the context every
  * other function here takes. */
 async function start({ sb = "sb", scale = null } = {}) {
   const port = await freePort();
@@ -81,7 +81,7 @@ async function start({ sb = "sb", scale = null } = {}) {
 
   const child = spawn(sb, argv, { stdio: ["ignore", "pipe", "pipe"] });
 
-  // sb's own diagnostics, kept rather than dropped. A shell that swallows the
+  // sky.boss's own diagnostics, kept rather than dropped. A shell that swallows the
   // stderr of the process it depends on turns every server-side failure into
   // an unexplained blank window.
   child.stderr.on("data", (b) => process.stderr.write(`[sb] ${b}`));
@@ -172,10 +172,10 @@ function stream(ctx, onFrame, onDown) {
   return () => controller.abort();
 }
 
-/* Reap sb when this process dies by signal.
+/* Reap sky.boss when this process dies by signal.
  *
  * Electron's `before-quit` is Electron's own lifecycle and a signal does not
- * enter it: the main process goes, the child is reparented to init, and sb
+ * enter it: the main process goes, the child is reparented to init, and sky.boss
  * keeps running with its port bound. Found the ordinary way — by stopping the
  * shell from the terminal that started it, which is how a shell under
  * development is stopped nearly every time.

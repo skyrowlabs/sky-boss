@@ -46,8 +46,8 @@ project, and the mistake available here is to rebuild it centrally.
 
 ## Shape
 
-**sb federates. It never owns.** Each project keeps its own state; sb reads what projects already
-publish and folds the answers together.
+**sky.boss federates. It never owns.** Each project keeps its own state; sky.boss reads what
+projects already publish and folds the answers together.
 
 That is not deference for its own sake — jam.sense's version is *better than a central one would
 be*. `scripts/reporting/run_ledger.py` is an append-only JSONL ledger, trimmed on write, holding
@@ -58,27 +58,27 @@ which is what makes *"never scheduled"* distinguishable from *"healthy and quiet
 remote heartbeat monitor structurally cannot see, because a job that never once pinged looks
 exactly like a job that is fine.
 
-A central ledger in sb would reproduce that badly, from further away, for six projects with
+A central ledger in sky.boss would reproduce that badly, from further away, for six projects with
 different notions of what a run is.
 
-**This is what keeps sb stateless.** [[canvas]] rules that nothing survives the last window —
+**This is what keeps sky.boss stateless.** [[canvas]] rules that nothing survives the last window —
 that is what makes the refresh clock a scheduler and not a daemon. Federation does not bend that
-rule; it explains why the rule was affordable. **sb is stateless because the projects are
+rule; it explains why the rule was affordable. **sky.boss is stateless because the projects are
 stateful.** The roll-call is a read, computed fresh, gone when the window closes.
 
-It is also the boundary that already exists, one level up. sb never manages, generates, or edits
-another project's cron — that was written for one sibling and it generalises without amendment:
-**sb observes, never owns.**
+It is also the boundary that already exists, one level up. sky.boss never manages, generates, or
+edits another project's cron — that was written for one sibling and it generalises without
+amendment: **sky.boss observes, never owns.**
 
 ### A source is an argv or a path
 
 Measured 2026-08-23 across the sibling repos: **four have a root executable**, six have none.
 
-A contract requiring every project to grow a CLI would stall on the six, and the six are exactly
-the young projects where the operator most wants visibility. So a project declares a *source*, and
-sb does not care which kind it is — it already has both readers, `sb data -- <argv>` for a command
-and a path for a file. A project with no CLI writes a JSON file on whatever cadence it likes; a
-project with a CLI is asked a question live.
+A contract requiring every project to grow a CLI would stall on the six, and the six are exactly the
+young projects where the operator most wants visibility. So a project declares a *source*, and
+sky.boss does not care which kind it is — it already has both readers, `sb data -- <argv>` for a
+command and a path for a file. A project with no CLI writes a JSON file on whatever cadence it
+likes; a project with a CLI is asked a question live.
 
 ```toml
 # $SB_HOME/projects.toml — beside tools.toml, authored by the operator
@@ -92,22 +92,22 @@ path = "~/src/house.fly/tmp/status.json"
 
 Same directory, same rules, same absent-degrades-to-nothing behaviour as [[tools]].
 
-### sb folds sources, not semantics
+### sky.boss folds sources, not semantics
 
-The tempting move is a common schema — every project reports `{id, status, when}` and sb totals
-the reds. **Rejected**, and on precedent rather than taste: [[highlight]] refused a severity
+The tempting move is a common schema — every project reports `{id, status, when}` and sky.boss
+totals the reds. **Rejected**, and on precedent rather than taste: [[highlight]] refused a severity
 vocabulary because ERROR/WARN/INFO is *a judgment wearing a regex's clothes*, and a cross-project
-health verdict is the same judgment one layer up. sb would be deciding that jam.sense's `red` and
-breeze.brain's `degraded` mean the same thing, on no evidence, and be wrong the first time a
+health verdict is the same judgment one layer up. sky.boss would be deciding that jam.sense's `red`
+and breeze.brain's `degraded` mean the same thing, on no evidence, and be wrong the first time a
 project meant something specific by its own word.
 
-So round 1 folds **sources**: one block per project, each rendering its own rows under its own
-name, with the projects that failed to answer named rather than omitted. That is genuinely useful
-— six blocks in one window is the thing that does not exist today — and it commits sb to nothing
-it would have to walk back.
+So round 1 folds **sources**: one block per project, each rendering its own rows under its own name,
+with the projects that failed to answer named rather than omitted. That is genuinely useful — six
+blocks in one window is the thing that does not exist today — and it commits sky.boss to nothing it
+would have to walk back.
 
 A cross-project verdict stays available to the operator *by declaration*, the way highlight rules
-already are: their words, their mapping, named on the command. Not sb's vocabulary.
+already are: their words, their mapping, named on the command. Not sky.boss's vocabulary.
 
 ### One project down is `partial`, never blank
 
@@ -122,9 +122,9 @@ the house rule; here it is the whole feature.
 - **Does not schedule, generate, or edit any project's cron.** Not for jam.sense, not for any
   future participant. The agents that own a project own its grid.
 - **Does not keep a ledger, a database, or any history.** No `runs.jsonl` of its own, no rollup
-  cache, no trend. sb reads what already exists. If a project's history is thin, that is that
+  cache, no trend. sky.boss reads what already exists. If a project's history is thin, that is that
   project's round to write.
-- **Does not define a status vocabulary.** No ok/warn/red of sb's own — see above.
+- **Does not define a status vocabulary.** No ok/warn/red of sky.boss's own — see above.
 - **Does not act.** A roll-call is a read: `acts: false`, so a window may pin it and give it a
   cadence. Restarting a failed job is `sb run` and stays the operator's finger on the trigger.
   This is [[canvas]]'s read/write line doing exactly the work it was kept for.
@@ -183,11 +183,11 @@ attached, or about what a failed read looks like.
 columns and a silently discarded `--cols`. The fold would have shipped unreadable.
 
 **Verified against real sources**, with `SB_HOME` redirected to a scratch directory rather than
-written into the operator's own — a projects.toml is operator content and sb does not author it
-unasked. jam.sense answered live over its CLI (29 jobs), a second project was read from a JSON
-file on disk with no CLI involved, and a third had published nothing yet. Two failures, both
-named, both blocks present, exit 3. That last part is the whole feature: the healthy project
-rendered in full while two others were down.
+written into the operator's own — a projects.toml is operator content and sky.boss does not author
+it unasked. jam.sense answered live over its CLI (29 jobs), a second project was read from a JSON
+file on disk with no CLI involved, and a third had published nothing yet. Two failures, both named,
+both blocks present, exit 3. That last part is the whole feature: the healthy project rendered in
+full while two others were down.
 
 **One defect found and deliberately not fixed here.** `--cols` naming a column that does not exist
 renders a column of dashes rather than saying so — the same silence round 4 was opened for, one
@@ -204,14 +204,14 @@ missing; the fold was, and the fold is one round.
 Two things were rejected on evidence gathered the same afternoon:
 
 **A central ledger.** Proposed in conversation as the answer to "does anything survive the last
-window" — a daemon, or a state file sb owns. Reading `run_ledger.py` killed it: jam.sense's is
-append-only for a concurrency reason a central one would have to rediscover, joins against the
-live crontab for a reason a remote monitor structurally cannot, and is tuned to a retention window
-its own author measured (695 rows over 16.6 days → 2,600 for 60). sb would have built a worse one
-and made itself a daemon to do it. **The projects are stateful, so sb does not have to be.**
+window" — a daemon, or a state file sky.boss owns. Reading `run_ledger.py` killed it: jam.sense's is
+append-only for a concurrency reason a central one would have to rediscover, joins against the live
+crontab for a reason a remote monitor structurally cannot, and is tuned to a retention window its
+own author measured (695 rows over 16.6 days → 2,600 for 60). sky.boss would have built a worse one
+and made itself a daemon to do it. **The projects are stateful, so sky.boss does not have to be.**
 
-**A common status schema.** Killed by [[highlight]]'s precedent, which is the more useful half:
-the argument against a severity vocabulary was never about severity. It is that sb does not get to
+**A common status schema.** Killed by [[highlight]]'s precedent, which is the more useful half: the
+argument against a severity vocabulary was never about severity. It is that sky.boss does not get to
 decide what another tool's word means. Folding sources rather than semantics costs the round its
 flashiest feature — one number for "how many things are red across everything" — and buys the
 contract the ability to be wrong about nothing.

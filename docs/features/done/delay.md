@@ -28,7 +28,7 @@ the terminal without saying so; `systemd-run` survives but is invisible unless y
 is the ordinary case: *I want this to run in five minutes, I want to watch it happen, and I want
 to change my mind.*
 
-That is a thing sb is unusually well placed to draw, because it already draws it. The chrome
+That is a thing sky.boss is unusually well placed to draw, because it already draws it. The chrome
 contract computes a countdown for every refreshing window (`chrome.countdown()`); the resident
 loop already redraws once a second and already leaves on `q`. A delayed run is those two parts
 pointed at a command that has not started yet.
@@ -69,7 +69,7 @@ have a round.
 **Does not do:**
 
 - **No survival, no detach, no `nohup`, no unit generation.** A command that must outlive the
-  surface belongs to systemd, and sb will not generate the unit for you — the same line
+  surface belongs to systemd, and sky.boss will not generate the unit for you — the same line
   [[follow]] draws for streams.
 - **No repeat.** `--delay` is not `--refresh` and there is no `--every`. Once, later, once.
 - **No absolute times.** `--delay 5m`, not `--at 19:00`. Absolute is a real want and a separate

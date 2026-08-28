@@ -1,7 +1,7 @@
 /* The other shell: one window, the canvas inside it.
  *
  * main.js gives every command an OS window. This one does not — it opens a
- * single window on the page sb already serves, which means the canvas stays
+ * single window on the page sky.boss already serves, which means the canvas stays
  * the canvas: panes are divs, the layout is yours rather than the window
  * manager's, and anything a pane wants to know about another pane is a lookup
  * in one JS heap instead of a message across a process boundary.
@@ -104,9 +104,9 @@ app.whenReady().then(async () => {
     return { action: "deny" };
   });
 
-  // The surface's own close button posts /api/quit, which sets sb's `quitting`
+  // The surface's own close button posts /api/quit, which sets sky.boss's `quitting`
   // latch and takes the server down. Nothing tells this process about that, so
-  // it watches the child instead: sb going away is the session ending, whoever
+  // it watches the child instead: sky.boss going away is the session ending, whoever
   // asked for it.
   ctx.child.once("exit", () => app.exit(0));
 

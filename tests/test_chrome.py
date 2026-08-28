@@ -286,7 +286,7 @@ NOW = 10_000.0
 
 
 def test_no_expectation_means_silence_is_neither_good_nor_bad():
-    """Without `--due`, quiet is a duration and nothing else. sb has no opinion
+    """Without `--due`, quiet is a duration and nothing else. sky.boss has no opinion
     about whether three minutes is a long time."""
     facts = cursor("cron.log", last_write_at=NOW - 180)
     assert facts.attention == "quiet"
@@ -327,7 +327,7 @@ def test_a_late_band_says_how_long_and_what_was_expected():
 
 
 def test_a_stronger_fact_beats_late():
-    """`absent` and `rotated` are things sb *knows*. Late is arithmetic over an
+    """`absent` and `rotated` are things sky.boss *knows*. Late is arithmetic over an
     assertion, and it must not overwrite knowledge."""
     for state in ("absent", "rotated"):
         facts = cursor("x.log", state=state, last_write_at=NOW - 9999, due=60, now=NOW)
@@ -349,7 +349,7 @@ def test_both_follow_forms_take_the_expectation():
 
 
 def test_late_is_warn_rather_than_fail():
-    """A late log is a fact about a clock, not a verdict about a job — sb does
+    """A late log is a fact about a clock, not a verdict about a job — sky.boss does
     not know whether it died or the machine was asleep."""
     assert ROLE["late"] == "sb.warn"
 

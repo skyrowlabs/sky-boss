@@ -15,11 +15,11 @@ key_files:
 
 ## Why
 
-The ideas list asks, of chaining sb into an agent: *"how different is this from the tools we
+The ideas list asks, of chaining sky.boss into an agent: *"how different is this from the tools we
 have?"* Honestly answered: **barely, and the arrow is pointing the wrong way.**
 
 `sb run -- claude -p "…"` already works. `sb follow -- claude -p "…"` already works and gives
-you a ring, a liveness clock and a dead state. Feeding sb's output *into* an agent is
+you a ring, a liveness clock and a dead state. Feeding sky.boss's output *into* an agent is
 `sb --json data -- jam pr list --json | claude -p "…"`, which is a shell pipe, and `tools.toml`
 bans pipes on purpose — a pipeline tool would reintroduce a mini-language for something bash
 already does. There is no feature in that direction worth building.
@@ -29,7 +29,7 @@ know the state of something has to know the tool, its flags, its working-directo
 how to parse what it prints. The operator solved all four already — once, for themselves, in
 `tools.toml`. `sb tools jam-pr-list` is a name that means *"open PRs, with the merge column
 GitHub cannot show, from the right directory, as data."* That is exactly the shape MCP exists to
-carry, and sb is already holding it.
+carry, and sky.boss is already holding it.
 
 **Two things this repo built for other reasons make the surface nearly free:**
 
@@ -51,7 +51,7 @@ Speaks MCP on stdin/stdout. The client spawns it; the client owns the pipe.
 ### The tools are the surface, and this is the whole safety argument
 
 **Exposing `data` or `read` would convert an operator's assertion into an agent's guess.** The
-act/observe split rests on one sentence: *sb cannot tell a read from a write by inspecting an
+act/observe split rests on one sentence: *sky.boss cannot tell a read from a write by inspecting an
 argv and does not try — choosing `data` over `run` is the operator's assertion that this one is
 a read.* That works because the operator typed it. An MCP tool called `data` taking a free-form
 argv would let the **agent** make that assertion, about an argv nobody reviewed, and an
@@ -84,7 +84,7 @@ written into a list:
 - **`resident` → excluded.** A stream has no single response, which is why `sb follow` already
   refuses `--json`; a request/response protocol is the same shape of problem and gets the same
   answer.
-- **sb's own commands → excluded.** `sb tools` is a listing, and MCP lists tools natively; the
+- **sky.boss's own commands → excluded.** `sb tools` is a listing, and MCP lists tools natively; the
   argv-takers are excluded above. `sb mcp` excludes itself with `sb_surface`, exactly as
   `sb ui` does.
 
@@ -110,12 +110,12 @@ the same caps here, for the same reason.
 
 ### Credentials
 
-Unchanged, and this is why the boundary above matters. **sb is never in the credential path** —
-external CLIs keep their own authentication, which CLAUDE.md names as the thing that *keeps a
-future MCP surface safe to expose*. A saved command runs through `child_env()` with the
-operator's environment, so `prs` returns GitHub data because `gh` is authenticated. The agent
-therefore inherits the operator's reach for exactly the commands the operator curated — which is
-the intended trade, stated plainly rather than discovered.
+Unchanged, and this is why the boundary above matters. **sky.boss is never in the credential path**
+— external CLIs keep their own authentication, which CLAUDE.md names as the thing that *keeps a
+future MCP surface safe to expose*. A saved command runs through `child_env()` with the operator's
+environment, so `prs` returns GitHub data because `gh` is authenticated. The agent therefore
+inherits the operator's reach for exactly the commands the operator curated — which is the intended
+trade, stated plainly rather than discovered.
 
 **Does not do:**
 
@@ -136,23 +136,22 @@ the intended trade, stated plainly rather than discovered.
 
 ### Round 1 — tools/list and tools/call over stdio (2026-08-22)
 
-- [x] **The protocol subset, hand-rolled.** `initialize`, `notifications/initialized`,
-      `tools/list`, `tools/call`, and a proper JSON-RPC error for anything else. No new
-      dependency: the official SDK brings pydantic into a project that has deliberately avoided
-      it, to save perhaps a hundred lines of JSON-RPC over a pipe. Revisit if the surface ever
-      grows resources and prompts.
+- [x] **The protocol subset, hand-rolled.** `initialize`, `notifications/initialized`, `tools/list`,
+      `tools/call`, and a proper JSON-RPC error for anything else. No new dependency: the official
+      SDK brings pydantic into a project that has deliberately avoided it, to save perhaps a hundred
+      lines of JSON-RPC over a pipe. Revisit if the surface ever grows resources and prompts.
 - [x] **The tool list is the catalog, filtered.** Saved, not acting, not resident — read off
-      `catalog.walk()`, never a list of names. A test asserts a saved command wrapping `run`
-      never appears, and that adding one to `tools.toml` makes it appear with no code change.
-- [x] **`tools/call` runs it through the existing runner**, `child_env()` and all, and returns
-      the envelope as JSON text. Failure is an envelope, not a fault. Results are capped.
-- [x] **stdout carries protocol and nothing else.** The purity rule sb already tests, applied to
-      a new consumer: a warning goes to stderr, a band goes to stderr, and a stray `print` is a
+      `catalog.walk()`, never a list of names. A test asserts a saved command wrapping `run` never
+      appears, and that adding one to `tools.toml` makes it appear with no code change.
+- [x] **`tools/call` runs it through the existing runner**, `child_env()` and all, and returns the
+      envelope as JSON text. Failure is an envelope, not a fault. Results are capped.
+- [x] **stdout carries protocol and nothing else.** The purity rule sky.boss already tests, applied
+      to a new consumer: a warning goes to stderr, a band goes to stderr, and a stray `print` is a
       corrupted session rather than an ugly one.
-- [x] **`sb mcp` registers as a surface** — `sb_surface = True`, so it stays out of the palette
-      and out of its own tool list.
-- [x] **Help is the doc**, including the sentence that says what an agent may and may not reach
-      and where the boundary is written down.
+- [x] **`sb mcp` registers as a surface** — `sb_surface = True`, so it stays out of the palette and
+      out of its own tool list.
+- [x] **Help is the doc**, including the sentence that says what an agent may and may not reach and
+      where the boundary is written down.
 
 ## Notes
 
@@ -201,7 +200,7 @@ exposure needs a boundary. Writing the boundary down is the entire feature.
 It is not a property of an argv, it is a property of *who typed the argv*: `data` means "the
 operator asserts this is a read". Hand that door to an agent and the assertion is being made by
 the thing the assertion was protecting against. That single sentence rules out the obvious
-design — one MCP tool per sb command — and points at the tools, where every argv already has
+design — one MCP tool per sky.boss command — and points at the tools, where every argv already has
 a human behind it.
 
 **Two rules written for unrelated reasons turned out to be load-bearing here**, which is usually

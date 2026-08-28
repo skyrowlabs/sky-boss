@@ -7,15 +7,14 @@ you keep here.
 
 Four ideas, and everything else follows from them:
 
-- **`sb run` is the only command that acts.** Everything else reads. That line is load-bearing:
-  a window may re-run a read on a cadence, because re-running a read is a refresh and re-running
-  a write is a scheduler nobody asked for.
-- **Commands return data; they never print.** One envelope — `ok` / `partial` / `data` /
-  `warnings` — rendered by whoever is consuming it. `--json` on any command gives you the
-  envelope itself.
-- **sb never parses human output.** `sb data` takes JSON. `sb read` shows what a command printed,
-  verbatim, and says that is what it is doing. There is no `--pretty` that guesses.
-- **sb is never in the credential path.** External CLIs keep their own authentication.
+- **`sb run` is the only command that acts.** Everything else reads. That line is load-bearing: a
+  window may re-run a read on a cadence, because re-running a read is a refresh and re-running a
+  write is a scheduler nobody asked for.
+- **Commands return data; they never print.** One envelope — `ok` / `partial` / `data` / `warnings`
+  — rendered by whoever is consuming it. `--json` on any command gives you the envelope itself.
+- **sky.boss never parses human output.** `sb data` takes JSON. `sb read` shows what a command
+  printed, verbatim, and says that is what it is doing. There is no `--pretty` that guesses.
+- **sky.boss is never in the credential path.** External CLIs keep their own authentication.
 
 ## Install
 
@@ -42,7 +41,7 @@ Needs Python 3.11+. Shell completion for fish:
 | `sb ui` | Opens the surface — a canvas of windows, and a workbench for authoring a command |
 | `sb mcp` | Speaks MCP on stdio, offering your saved commands to an agent |
 
-`--` separates sb's flags from the command's own.
+`--` separates sky.boss's flags from the command's own.
 
 ## Running something
 
@@ -90,8 +89,8 @@ web-2  down
 ```
 
 Real tools wrap their rows in a mapping, because a bare array has nowhere to put a timestamp.
-`--rows` says where they are; without it sb infers only when exactly one value is a list of rows,
-and reports rather than guesses when two are.
+`--rows` says where they are; without it sky.boss infers only when exactly one value is a list of
+rows, and reports rather than guesses when two are.
 
 ```console
 $ sb data --rows hosts --cols host,state -- printf '{"generated":"2026-08-23T20:00:00Z","hosts":[{"host":"web-1","state":"up"},{"host":"web-2","state":"down"}]}'
@@ -190,7 +189,7 @@ The band is the scrollbar:
 ```
 
 `--due` is the cron watcher, and it never learned what cron is: a schedule is a declaration, a run
-is evidence, and the evidence is the log. You assert an interval; sb subtracts.
+is evidence, and the evidence is the log. You assert an interval; sky.boss subtracts.
 
 ## Running something later
 
@@ -249,9 +248,9 @@ sb roll-call
 sb roll-call --only jam-sense
 ```
 
-**sb federates; it never owns.** No ledger, no history, no cache — each project stays the authority
-on itself, which is what lets sb stay stateless. A copy of a schedule that agents rewrite goes
-stale without announcing it; unreachability is visible, staleness is not.
+**sky.boss federates; it never owns.** No ledger, no history, no cache — each project stays the
+authority on itself, which is what lets sky.boss stay stateless. A copy of a schedule that agents
+rewrite goes stale without announcing it; unreachability is visible, staleness is not.
 
 One project down is `partial`, never blank:
 
@@ -300,8 +299,8 @@ picture of it. `--cols` is the flag this exists for. It is one you get wrong by 
 by looking, and until now there was nowhere to look.
 
 Nothing is selected when the bench opens, because the contract is the one bit no parser can infer
-and choosing it for you would be that inference with a friendlier face. An **act has no trial
-run** — sb will not execute a write to show you what it would print — and the server refuses one
+and choosing it for you would be that inference with a friendlier face. An **act has no trial run**
+— sky.boss will not execute a write to show you what it would print — and the server refuses one
 rather than the page merely not offering it.
 
 ```bash

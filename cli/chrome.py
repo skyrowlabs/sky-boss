@@ -47,7 +47,7 @@ ROLE = {
     "absent": "sb.warn",
     "rotated": "sb.warn",
     # Warn, not fail. A late log is a fact about a clock, not a verdict about a
-    # job — sb does not know whether the job died or the machine was asleep, and
+    # job — sky.boss does not know whether the job died or the machine was asleep, and
     # colouring it as a failure would be the judgment [[file-follow]] round 2
     # refuses to make.
     "late": "sb.warn",
@@ -249,12 +249,12 @@ def stream(
 def _late(state: str, since: float | None, due: int, now: float | None) -> str:
     """`late` when the operator's expectation has been exceeded, else `state`.
 
-    **The operator asserts an interval; sb subtracts.** No crontab is read, no
+    **The operator asserts an interval; sky.boss subtracts.** No crontab is read, no
     next-run is computed, nothing here knows what a schedule is — the whole
     judgment was made when someone typed `--due 15m`, and this is the
     arithmetic that follows from it.
 
-    A stronger fact wins. `dead`, `absent` and `rotated` are things sb *knows*,
+    A stronger fact wins. `dead`, `absent` and `rotated` are things sky.boss *knows*,
     and a dead stream being also late adds nothing — the exit code is the
     better answer. Only the quiet states can become late. See [[file-follow]]
     round 2.

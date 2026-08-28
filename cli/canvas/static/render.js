@@ -1,6 +1,6 @@
 /* Turning one envelope into what a window shows.
  *
- * The window renders from `data`, never from sb's rendered bytes. That is the
+ * The window renders from `data`, never from sky.boss's rendered bytes. That is the
  * whole reason the wrapped-CLI contract is `--json`: a chip that re-sorts a
  * column needs rows, and an ANSI table is a picture of rows. Nothing here
  * parses human output.

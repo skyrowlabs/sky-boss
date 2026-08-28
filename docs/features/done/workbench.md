@@ -33,10 +33,11 @@ and no surface has ever shown that set to anyone. **It is a flag you get wrong b
 by looking, and there is nowhere to look.**
 
 The second diagnostic came from the design pass. On a canvas whose every pane is a stream of
-timestamped lines, three of the four output contracts have nowhere to appear: the shaped table,
-the verbatim block, the file cursor with its stat row. They are built, tested, and invisible. The
+timestamped lines, three of the four output contracts have nowhere to appear: the shaped table, the
+verbatim block, the file cursor with its stat row. They are built, tested, and invisible. The
 workbench is the one screen where all four are visible at once, **because it is the only screen
-where you choose between them** — and the choosing is the thing sb says no parser can do for you.
+where you choose between them** — and the choosing is the thing sky.boss says no parser can do for
+you.
 
 The console the mockup started from was two screens wearing one. It carried a job rail and a live
 tail (watching, which the tower already does better) bolted to a composer (authoring, which
@@ -57,11 +58,11 @@ really use — the shaped table, the verbatim block, the ring, the file cursor �
 [[chrome]] band for that temporal shape, top and bottom. Nothing is re-implemented: this is the
 existing execution path pointed at a page that has room for the result.
 
-For `run` there is no trial. sb will not execute a write to show you what it would print, so the
-bench offers what it *can* check without running — the argv parses, the executable resolves, the
-`--cwd` exists — and a single button that runs it for real, labelled as such. The asymmetry is not
-a limitation to apologise for; it is the act/observe split appearing a third time, after `--help`
-and after the missing `--refresh` flag.
+For `run` there is no trial. sky.boss will not execute a write to show you what it would print, so
+the bench offers what it *can* check without running — the argv parses, the executable resolves, the
+`--cwd` exists — and a single button that runs it for real, labelled as such. The asymmetry is not a
+limitation to apologise for; it is the act/observe split appearing a third time, after `--help` and
+after the missing `--refresh` flag.
 
 **The view controls are per contract, and the column checklist is built from the run.** For `data`,
 every key the trial returned is a chip — selected ones in order, unselected ones dim — assembled
@@ -95,7 +96,7 @@ carries the contract's own *acts* or *observes* badge, because a rail that lists
   [[canvas]]'s no-CORS test does.
 - **No editing or deleting a saved tool.** `--save` appends and refuses a name that exists.
   Editing and deleting stay `$EDITOR`'s, unchanged by a surface existing.
-- **No dry run, ever.** There is no `--what-if` for an act and inventing one would mean sb
+- **No dry run, ever.** There is no `--what-if` for an act and inventing one would mean sky.boss
   modelling what a foreign command does.
 - **No inferring the contract from the argv.** The selector is the assertion. A bench that guessed
   `data` from a trailing `--json` would be the act/observe split undone by a heuristic.
@@ -228,12 +229,12 @@ stream until the timeout and then report a hang as a result.
 window's would. Nothing new was built to hold it open. This is the same reasoning as the trial run
 itself: the bench adds a place to look, not a mechanism.
 
-**`--` is inserted, and inserting it chooses nothing.** The bench prefixes the operator's typed
-argv with `--` unless they typed one. That is safe even for `follow`, whose file-versus-command
-dispatch reads what comes *after* the separator — `sb follow -- build.log` is still the file form.
-What the bench does *not* do is decide the form itself, which would be the second parser sb refuses
-to have. The composed line is drawn above the result before it runs, so the one real limitation —
-the argv is split on whitespace, so a foreign argument containing a space cannot be typed yet — is
+**`--` is inserted, and inserting it chooses nothing.** The bench prefixes the operator's typed argv
+with `--` unless they typed one. That is safe even for `follow`, whose file-versus-command dispatch
+reads what comes *after* the separator — `sb follow -- build.log` is still the file form. What the
+bench does *not* do is decide the form itself, which would be the second parser sky.boss refuses to
+have. The composed line is drawn above the result before it runs, so the one real limitation — the
+argv is split on whitespace, so a foreign argument containing a space cannot be typed yet — is
 visible rather than silent. That is the first flag the trial run has already asked for.
 
 **What building it changed elsewhere**, which is the Notes entry above predicting itself:
@@ -302,8 +303,8 @@ tinting belongs to a window living with a stream. `--highlight` being a *control
 makes that untenable: you cannot choose a ruleset by name and then not see what it claimed.
 `markedLine` moved from `app.js` into `render.js` so there is one slicer rather than a copy —
 verified against the operator's own `[highlight.jam]`, which claimed `passed`/`clean` as ok,
-`failed`/`errors` as fail, `escalating` as warn and `skipped`/`deferred` as muted, while sb's own
-timestamp rule had already claimed `20:41` ahead of them.
+`failed`/`errors` as fail, `escalating` as warn and `skipped`/`deferred` as muted, while sky.boss's
+own timestamp rule had already claimed `20:41` ahead of them.
 
 **One unexplained thing, recorded rather than claimed fixed.** During testing the page reached a
 state where no `setDraft` re-rendered — the composed line froze while chip clicks still fired their
@@ -358,10 +359,10 @@ to record a cadence without going resident is a real question and not this round
 
 **What the act gets instead of a trial run.** Three checks, and the third is the one that matters:
 the argv goes through `make_context`, which parses and type-converts without invoking. So `--cwd`'s
-existence, an unknown flag and a bad integer are all caught by *sb's own parser* rather than by a
-surface re-deriving its rules. A bad `--cwd` fails the directory check and the parse both — a cause
-and its consequence, printed in that order, not a duplicate. `run it for real` is disabled while
-any check fails, and the line beside it says there is no dry run to fall back to.
+existence, an unknown flag and a bad integer are all caught by *sky.boss's own parser* rather than
+by a surface re-deriving its rules. A bad `--cwd` fails the directory check and the parse both — a
+cause and its consequence, printed in that order, not a duplicate. `run it for real` is disabled
+while any check fails, and the line beside it says there is no dry run to fall back to.
 
 **`preflight` runs nothing, and a test proves it** by asking it to check `touch <path>` and
 asserting the path does not exist. That is the whole distinction between a check and a dry run.

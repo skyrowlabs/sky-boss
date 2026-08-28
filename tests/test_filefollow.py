@@ -307,7 +307,7 @@ def test_the_inline_cursor_frame_keeps_the_newest_lines():
 
 def test_the_cursors_own_voice_stays_loud_when_stderr_goes_grey():
     """A tool talking on stderr is using its second channel — progress, a
-    banner, a summary — and painting all of it yellow is a judgment. sb's own
+    banner, a summary — and painting all of it yellow is a judgment. sky.boss's own
     announcements are not that, so they carry `voice` rather than borrowing a
     tag whose meaning changed underneath them. See [[highlight]] round 4."""
     from cli.resident import stream_body

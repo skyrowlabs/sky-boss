@@ -97,8 +97,8 @@ purpose.* The clock-source selector crosses it deliberately and, as drawn, hones
 explicit, with the consequence written under each option. It still needs a dated fundamentals
 decision, not just a radio button in a mockup.
 
-**11. jam.sense keeps its own scheduler.** `CLAUDE.local.md` says sb never manages, generates or
-edits its cron entries — and the mockup's original cast *was* that scheduler. The cast has since
+**11. jam.sense keeps its own scheduler.** `CLAUDE.local.md` says sky.boss never manages, generates
+or edits its cron entries — and the mockup's original cast *was* that scheduler. The cast has since
 been mixed on purpose ([[workbench]] Notes), but the underlying question is untouched: does
 sky.boss **observe** those entries, or does the boundary move? Defensible either way; currently
 unstated, which is the one thing it should not be.

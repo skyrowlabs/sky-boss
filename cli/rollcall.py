@@ -1,18 +1,18 @@
 """The roll-call — many projects, one answer.
 
-**sb federates. It never owns.** Each project stays the authority on its own
+**sky.boss federates. It never owns.** Each project stays the authority on its own
 state; this asks all of them and folds the answers together. There is no ledger
-here, no history, no cache — and that is what keeps sb stateless. A central
+here, no history, no cache — and that is what keeps sky.boss stateless. A central
 store would be a *copy*, and a copy of a schedule that agents rewrite goes stale
 without announcing it. Unreachability is visible; staleness is not.
 
 **A source is an argv or a path.** Most projects have no CLI, and a contract
 that required one would stall on exactly the young projects where visibility is
-most wanted. A project declares where its status comes from and sb does not care
+most wanted. A project declares where its status comes from and sky.boss does not care
 which kind it is — the reader is `sb data`'s, whole, in both cases.
 
-**sb folds sources, not semantics.** No common status vocabulary, no cross-project
-verdict, no totalling of anyone's `red`. sb does not get to decide what another
+**sky.boss folds sources, not semantics.** No common status vocabulary, no cross-project
+verdict, no totalling of anyone's `red`. sky.boss does not get to decide what another
 tool's word means — the same refusal [[highlight]] made about severity, one level
 up. One block per project, each under its own name, in its own words.
 
@@ -119,7 +119,7 @@ def _check(name: str, body) -> str | None:
     has_path = bool(body.get("path"))
     # Exactly one, and the refusal is deliberate rather than a precedence rule:
     # a project declaring both has said two different things about where its
-    # truth lives, and picking one for them would be sb guessing which.
+    # truth lives, and picking one for them would be sky.boss guessing which.
     if has_argv and has_path:
         return "declares both argv and path — a source is one or the other"
     if not has_argv and not has_path:
