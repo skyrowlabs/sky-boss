@@ -31,7 +31,7 @@ import rich_click as click
 
 from cli import tools as tools_
 from cli.helpers import child_env
-from cli.output import Result, band, emit
+from cli.output import Result, band, emit, refuse_resident_json
 
 # A 120k-line result kills a browser tab as dead as it killed a RichLog. The
 # substrate changed; the rule did not.
@@ -96,6 +96,9 @@ def read_(
         sb read --save status -- sometool status
     """
     ctx = click.get_current_context()
+    # Before the write, not inside the resident path — same defect `data` had.
+    # See [[workbench]] round 3.
+    refuse_resident_json(refresh)
     # Saved *before* the run, so a resident invocation saves at all (it never
     # reaches its own exit) and a failing one still saves. You are saving an
     # argv, not a result. See [[tools]] round 3.
@@ -235,11 +238,8 @@ def _reside(
     from cli import resident
 
     ctx = click.get_current_context()
-    if (ctx.find_root().obj or {}).get("as_json"):
-        # A resident redraw is a human rendering; under --json it would be an
-        # endless stream of envelopes on a pipe that expects one. A machine
-        # consumer that wants a cadence is what the canvas API is for.
-        raise click.UsageError("--refresh and --json refuse each other")
+    # Belt and braces: the caller refuses this before `--save` writes.
+    refuse_resident_json(refresh)
     source = f"{ctx.info_name} -- {shlex.join(argv)}"
     resident.reside(source, refresh, lambda: _once(argv, timeout, cwd), screen=screen)
     raise click.exceptions.Exit(0)

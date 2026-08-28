@@ -88,10 +88,12 @@ sky.boss **observe** those entries, or does the boundary move? Defensible either
 unstated, which is the one thing it should not be.
 
 **12. `--save` invoked from a surface.** *Closed 2026-08-27 → [[workbench]] Notes, ratified as
-proposed.* Stronger than the item assumed: the bench adds no execution path ([[canvas]] already
+proposed, and **built** the same day in round 3.* Stronger than the item assumed: the bench adds no execution path ([[canvas]] already
 runs subprocesses) and `--save` already composes with a cadence, so the bench composes a one-liner
 the CLI supports rather than teaching it anything. Held by a test — no route writes `tools.toml`.
-Two consequences of `--save` writing *before* it runs became round-3 items there.
+Two consequences of `--save` writing *before* it runs became round-3 items there, and building
+them found a third: a usage error raised *below* the write left a tool on disk under a name that
+could not be reused, then reported a failure. Fixed in `cli/output.py`.
 
 ## The Governor
 

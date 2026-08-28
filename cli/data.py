@@ -52,7 +52,7 @@ import rich_click as click
 
 from cli import capture as capture_
 from cli.helpers import child_env
-from cli.output import Result, emit
+from cli.output import Result, emit, refuse_resident_json
 from cli.view import find_rows, shape, warnings_for
 
 
@@ -152,6 +152,12 @@ def data(
     _, problem = capture_.resolve(from_)
     if problem:
         raise click.UsageError(problem)
+    # Before the write, not inside the resident path. `--save` writes first on
+    # purpose, so a refusal raised further down fires after the append — and
+    # this one used to, leaving a tool on disk under a name that could not be
+    # reused, then reporting a usage error. See [[workbench]] round 3.
+    refuse_resident_json(refresh)
+
     # Saved *before* the run, so a resident invocation saves at all (it never
     # reaches its own exit) and a failing one still saves. You are saving an
     # argv, not a result. See [[tools]] round 3.
@@ -185,11 +191,9 @@ def _reside(
     from cli import resident
 
     ctx = click.get_current_context()
-    if (ctx.find_root().obj or {}).get("as_json"):
-        # A resident redraw is a human rendering; under --json it would be an
-        # endless stream of envelopes on a pipe that expects one. A machine
-        # consumer that wants a cadence is what the canvas API is for.
-        raise click.UsageError("--refresh and --json refuse each other")
+    # Belt and braces: the caller refuses this before `--save` writes, and this
+    # is the guard for any future path that reaches residency another way.
+    refuse_resident_json(refresh)
     source = f"{ctx.info_name} -- {shlex.join(argv)}"
     resident.reside(
         source,

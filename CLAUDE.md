@@ -430,10 +430,9 @@ rounds), `highlight.md` (lexical tint, four rounds), `capture.md` (declared stru
 `refresh.md`, `header.md` (the mark, two rounds), `text-reads.md`, `subprocess-env.md`, `table-views.md` (the
 shaping contract, five rounds), `roll-call.md` (federating over projects), `file-follow.md` (the
 native cursor, two rounds), `chrome.md` (what a window knows about its output, three rounds), `mcp.md` (the tools offered to
-an agent), `delay.md` (once, later), and the constitution's rounds as they land.
-**`docs/features/` holds one draft** — `workbench.md`, the authoring surface, opened 2026-08-26,
-round 1 landed 2026-08-27 with rounds 2 and 3 open.
-Everything else written before it has been executed. Every earlier spec was deleted with the
+an agent), `delay.md` (once, later), `workbench.md` (the authoring surface, three rounds — opened
+and finished 2026-08-26/27), and the constitution's rounds as they land.
+**`docs/features/` is empty**: everything written so far has been executed. Every earlier spec was deleted with the
 system it described; the docs that predate the 2026-08-21 renames say `wrap`/`every` on purpose —
 dated, never scrubbed.
 

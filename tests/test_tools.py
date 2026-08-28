@@ -724,3 +724,105 @@ def test_a_follow_saves_without_opening_a_stream(tmp_path, monkeypatch):
     assert result.exit_code == 0
     assert 'argv = ["follow", "x/y.log"]' in (tmp_path / "tools.toml").read_text()
     assert "saved cron" in result.output
+
+
+# --------------------------------------------- what the bench composes ([[workbench]])
+
+
+def test_the_bench_ordering_round_trips_with_the_cadence_lifted(tmp_path, monkeypatch):
+    """The bench puts `--save` and `--refresh` straight after the command word,
+    ahead of `--cwd` and the view flags, and the saved tool must still be the
+    line that made it.
+
+    Two things are asserted rather than one. The argv round-trips *without*
+    either flag — they asked for the save, they are not part of it. And the
+    cadence lands in the tool's own field, because a `--refresh` baked into a
+    saved argv would make `sb tools <name>` go resident on its own.
+
+    The invocation is injected rather than run, which is what `save_invocation`
+    takes one for: running this line goes resident, which is the whole reason
+    the bench cannot compose it. See [[workbench]] round 3.
+    """
+    from cli.tools import cadence_of, read, save_invocation, saved_argv
+
+    monkeypatch.setattr("cli.tools.SB_HOME", tmp_path)
+
+    typed = [
+        "data", "--save", "prs", "--refresh", "30",
+        "--cwd", str(tmp_path), "--cols", "a",
+        "--", "printf", '[{"a": 1}]',
+    ]
+    assert saved_argv(typed, "data") == [
+        "data", "--cwd", str(tmp_path), "--cols", "a", "--", "printf", '[{"a": 1}]'
+    ]
+    assert cadence_of(typed, "data") == 30
+
+    written = save_invocation("prs", "data", typed)
+    assert written["refresh"] == 30
+    declared = read(tmp_path)["tool"]["prs"]
+    assert declared["refresh"] == 30
+    assert declared["argv"] == saved_argv(typed, "data")
+
+
+def test_a_name_is_judged_the_same_way_whoever_asks(tmp_path, monkeypatch):
+    """`name_problem` is what `save` refuses on, so the bench asking it before
+    the button and the CLI raising on it are one implementation. A surface with
+    its own copy of the rule would disagree the day the rule changed."""
+    import rich_click as click
+
+    from cli.tools import name_problem, save
+
+    monkeypatch.setattr("cli.tools.SB_HOME", tmp_path)
+
+    assert name_problem("prs", tmp_path) is None
+    assert "lowercase letters" in name_problem("Bad Name", tmp_path)
+    assert "lowercase letters" in name_problem("", tmp_path)
+
+    save("prs", ["data", "--", "true"], home=tmp_path)
+    taken = name_problem("prs", tmp_path)
+    assert "already a tool" in taken
+    with pytest.raises(click.UsageError) as raised:
+        save("prs", ["data", "--", "true"], home=tmp_path)
+    assert str(raised.value) == taken
+
+
+def test_a_refused_cadence_writes_nothing(tmp_path, monkeypatch):
+    """`--save` writes before it runs, so a usage error raised further down
+    fired *after* the append: `sb --json data --save prs --refresh 30` left the
+    tool on disk, cadence and all, then exited 2. A name taken, a file changed,
+    and a failure reported.
+
+    Found by the workbench trying to save a cadence — which is what a surface
+    that runs the real commands is for. A usage error belongs at the door,
+    before any side effect.
+    """
+    from click.testing import CliRunner
+
+    from cli import cli
+
+    monkeypatch.setenv("SB_HOME", str(tmp_path))
+    monkeypatch.setattr("cli.helpers.SB_HOME", tmp_path)
+    monkeypatch.setattr("cli.tools.SB_HOME", tmp_path)
+
+    result = CliRunner().invoke(
+        cli, ["--json", "data", "--save", "prs", "--refresh", "30", "--", "printf", "[]"]
+    )
+    assert result.exit_code == 2
+    assert "refuse each other" in result.output
+    assert not (tmp_path / "tools.toml").exists()
+
+
+def test_the_same_ordering_holds_for_read(tmp_path, monkeypatch):
+    from click.testing import CliRunner
+
+    from cli import cli
+
+    monkeypatch.setenv("SB_HOME", str(tmp_path))
+    monkeypatch.setattr("cli.helpers.SB_HOME", tmp_path)
+    monkeypatch.setattr("cli.tools.SB_HOME", tmp_path)
+
+    result = CliRunner().invoke(
+        cli, ["--json", "read", "--save", "log", "--refresh", "30", "--", "printf", "hi"]
+    )
+    assert result.exit_code == 2
+    assert not (tmp_path / "tools.toml").exists()
