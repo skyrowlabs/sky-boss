@@ -27,6 +27,29 @@ let win = null;
 
 const FRAMELESS = process.env.SB_FRAME !== "1";
 
+/* Geometry, spelled the way `sb ui --size` spells it — `1600,1000` or
+ * `1600x1000`, and the CLI's own default when neither is given. An env var
+ * rather than a flag because Electron eats argv before this file sees it, and
+ * because there is no second CLI here to grow one: the shell is a host, and a
+ * host takes its configuration from the environment.
+ *
+ * Anything unparseable falls back rather than raising. A typo in a window size
+ * should cost you a window the wrong size, not a surface that will not open.
+ */
+const DEFAULT_SIZE = [1600, 1000];
+
+function parseSize(value) {
+  if (!value) return DEFAULT_SIZE;
+  const parts = value.replace("x", ",").split(",").map((n) => parseInt(n, 10));
+  if (parts.length !== 2 || parts.some((n) => !Number.isFinite(n) || n <= 0)) {
+    console.error(`shell: ignoring SB_SIZE=${value} — expected WIDTH,HEIGHT`);
+    return DEFAULT_SIZE;
+  }
+  return parts;
+}
+
+const [WIDTH, HEIGHT] = parseSize(process.env.SB_SIZE);
+
 app.whenReady().then(async () => {
   app.setName("sky.boss");
   bridge.reapOnSignal(() => ctx);
@@ -40,8 +63,8 @@ app.whenReady().then(async () => {
   }
 
   win = new BrowserWindow({
-    width: 1100,
-    height: 720,
+    width: WIDTH,
+    height: HEIGHT,
     minWidth: 640,
     minHeight: 400,
     frame: !FRAMELESS,
