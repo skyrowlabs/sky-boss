@@ -616,3 +616,148 @@ def test_resolve_run_descends_to_a_saved_keyword_like_its_sibling(tmp_path):
             n for n, c in list(tools_group.commands.items()) if getattr(c, "sb_saved", False)
         ]:
             del tools_group.commands[name]
+
+
+# ---------------------------------------------------------------------------
+# Round 4 — an accruing window
+# ---------------------------------------------------------------------------
+
+
+def _accruing(argv, command="run", timeout=None):
+    """A Follower over a real child, shaped as `/api/accrue` would build it."""
+    from cli.canvas.server import Follower, Job
+    from cli.stream import ChildStream
+
+    job = Job(command, argv, None, timeout, command == "run")
+    return Follower(child=ChildStream(argv), argv=[command, "--", *argv], kind="accrue", job=job)
+
+
+def _until(predicate, seconds=10.0):
+    """Bounded, like every wait here. A guard on frames bounds frames, not
+    time — the bound has to be a clock."""
+    import time as _t
+
+    deadline = _t.monotonic() + seconds
+    while _t.monotonic() < deadline:
+        if predicate():
+            return True
+        _t.sleep(0.02)
+    return False
+
+
+def test_an_accruing_run_ships_its_lines_before_it_has_a_verdict():
+    """The black-box gap, closed on the canvas. The window sees the line while
+    the command is still working, and the band reads `running` — mechanically,
+    the subprocess has not exited."""
+    from cli.canvas.server import follower_frames
+    from cli.canvas.watch import Session
+
+    follower = _accruing(["sh", "-c", "echo working; sleep 30"])
+    session = Session(id="s1")
+    session.followers["w1"] = follower
+    try:
+        assert _until(lambda: follower.child.lines())
+        [frame] = follower_frames(session, now=1000.0)
+        assert [line["text"] for line in frame["lines"]] == ["working"]
+        assert frame["chrome"]["shape"] == "act"
+        assert frame["chrome"]["attention"] == "running"
+        # No verdict yet, and no death: the two words that would be wrong here.
+        assert "result" not in frame and "exit_code" not in frame["chrome"]
+    finally:
+        follower.child.kill()
+
+
+def test_exit_is_a_verdict_for_an_accruing_run_and_a_death_for_a_follow():
+    """The one place the two kinds genuinely differ, and the reason this could
+    not be spelled as letting `/api/follow` take a `run` argv: that route's
+    whole rendering treats exit 0 as a death, and for an act exit 0 is the
+    answer."""
+    from cli.canvas.server import Follower, follower_frames
+    from cli.canvas.watch import Session
+    from cli.stream import ChildStream
+
+    accruing = _accruing(["sh", "-c", "echo done"])
+    followed = Follower(child=ChildStream(["sh", "-c", "echo done"]), argv=["sh"])
+    session = Session(id="s1")
+    session.followers["w1"] = accruing
+    session.followers["w2"] = followed
+    accruing.child.wait(timeout=10)
+    followed.child.wait(timeout=10)
+
+    frames = {frame["window"]: frame for frame in follower_frames(session, now=1000.0)}
+
+    verdict = frames["w1"]
+    assert verdict["chrome"]["shape"] == "act" and verdict["chrome"]["attention"] == "ok"
+    assert verdict["result"]["ok"] is True
+    assert verdict["result"]["envelope"]["command"] == "run"
+    # The lines already reached the window; nothing is delivered twice.
+    assert verdict["result"]["envelope"]["data"] is None
+
+    death = frames["w2"]
+    assert death["chrome"]["shape"] == "stream" and death["chrome"]["attention"] == "dead"
+    assert "result" not in death
+
+
+def test_a_failing_accruing_run_carries_the_envelope_its_command_would_have_built():
+    from cli.canvas.server import follower_frames
+    from cli.canvas.watch import Session
+
+    follower = _accruing(["sh", "-c", "exit 3"], command="read")
+    session = Session(id="s1")
+    session.followers["w1"] = follower
+    follower.child.wait(timeout=10)
+
+    [frame] = follower_frames(session, now=1000.0)
+    # A read, so a snapshot — `acts` is inherited from the argv's first word.
+    assert frame["chrome"]["shape"] == "snapshot"
+    assert frame["result"]["ok"] is False
+    assert frame["result"]["envelope"]["warnings"][0].startswith("exited 3")
+
+
+def test_a_run_window_is_not_killed_at_sixty_seconds():
+    """The ceiling `/api/run` applies is the watcher's, and it was silently
+    everyone's. An accruing window is watched by construction and dies with its
+    window, so it has no default bound — `--timeout` in the argv is the
+    operator's, and it is honoured."""
+    from cli.canvas.server import expired
+    from cli.canvas.watch import Session
+
+    session = Session(id="s1")
+    unbounded = _accruing(["sleep", "300"])
+    bounded = _accruing(["sleep", "300"], timeout=30)
+    session.followers["w1"] = unbounded
+    session.followers["w2"] = bounded
+    try:
+        started = unbounded.child.started_at
+        # Two minutes in: the ceiling would have killed both an hour of work ago.
+        assert expired(session, now=started + 120.0) == [bounded]
+        assert expired(session, now=started + 10.0) == []
+    finally:
+        unbounded.child.kill()
+        bounded.child.kill()
+
+
+def test_a_follow_is_never_expired_however_long_it_is_quiet():
+    """A stream has no bound to exceed. That it stopped printing is
+    [[file-follow]]'s `--due` question, answered by saying so rather than by
+    killing it."""
+    from cli.canvas.server import Follower, expired
+    from cli.canvas.watch import Session
+    from cli.stream import ChildStream
+
+    followed = Follower(child=ChildStream(["sleep", "300"]), argv=["sleep"], due=1)
+    session = Session(id="s1")
+    session.followers["w1"] = followed
+    try:
+        assert expired(session, now=followed.child.started_at + 100_000.0) == []
+    finally:
+        followed.child.kill()
+
+
+def test_accrue_refuses_a_stream_and_says_where_to_go():
+    import pytest
+
+    from cli.canvas.server import resolve_run
+
+    with pytest.raises(ValueError, match="follow it instead"):
+        resolve_run(["follow", "--", "journalctl", "-f"])

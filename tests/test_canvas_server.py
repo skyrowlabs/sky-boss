@@ -34,26 +34,39 @@ def auth(extra=None):
 # ------------------------------------------------------------------- refusals
 
 
-@pytest.mark.parametrize(
-    "path,method",
-    [
-        ("/api/catalog", "get"),
-        ("/api/run", "post"),
-        ("/api/trial", "post"),
-        ("/api/shape", "post"),
-        ("/api/preflight", "post"),
-        ("/api/watch", "post"),
-        ("/api/follow", "post"),
-        ("/api/quit", "post"),
-        ("/api/stream", "get"),
-    ],
-)
+GUARDED = [
+    ("/api/catalog", "get"),
+    ("/api/run", "post"),
+    ("/api/trial", "post"),
+    ("/api/shape", "post"),
+    ("/api/preflight", "post"),
+    ("/api/watch", "post"),
+    ("/api/follow", "post"),
+    ("/api/accrue", "post"),
+    ("/api/quit", "post"),
+    ("/api/stream", "get"),
+]
+
+
+@pytest.mark.parametrize("path,method", GUARDED)
 def test_every_api_route_refuses_a_request_with_no_token(client, path, method):
     """Enumerated rather than spot-checked. A route added later without the
     guard is the whole failure mode, and this is what catches it."""
     kwargs = {"json": {}} if method == "post" else {}
     response = getattr(client, method)(path, **kwargs)
     assert response.status_code == 403
+
+
+def test_the_guarded_list_names_every_api_route_there_is():
+    """The list above only catches an unguarded route if someone remembers to
+    add it, which is the same hazard `static/`'s inventory has — so it is
+    checked the same way, against the real thing, rather than trusted."""
+    live = {
+        route.path
+        for route in build(Canvas(token="t")).routes
+        if getattr(route, "path", "").startswith("/api/")
+    }
+    assert live == {path for path, _ in GUARDED}
 
 
 def test_a_wrong_token_is_refused(client):
