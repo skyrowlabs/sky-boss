@@ -51,6 +51,7 @@ from dataclasses import dataclass
 from cli import chrome as chrome_
 from cli import highlight as highlight_
 from cli import stream as stream_
+from cli import view as view_
 from cli.canvas import runner
 from cli.canvas.catalog import catalog, entry_for
 from cli.canvas.watch import INTERVALS, Session
@@ -253,6 +254,52 @@ def build(canvas: Canvas | None = None) -> Starlette:
         payload["chrome"] = chrome_for(argv, payload)
         return JSONResponse(payload)
 
+    async def post_shape(request: Request) -> Response:
+        """Re-shape a payload the bench already has. Runs nothing.
+
+        **A view describes how to present data; it never filters it** — so
+        changing which columns are drawn is a question about the *drawing*, and
+        answering it by re-running the foreign tool would be re-fetching to
+        decide a layout. It would also make every chip click show a slightly
+        different dataset, which is precisely the comparison the checklist
+        exists to let you make.
+
+        So the page posts back the payload its trial run returned and gets a
+        fresh view. This is introspection, not execution — `cli/view.shape` is
+        a pure function of the rows — and it belongs on the same side of *reads
+        in, execution out* as `/api/catalog`.
+
+        Two views are computed, and the second one is the point. **`offered` is
+        shaped without `cols`**, because with `--cols` in force `shape` returns
+        exactly what was named and `hidden` is empty — a checklist built from
+        the filtered view would lose every column the moment you unticked it,
+        and there would be no way to tick it back. See [[workbench]] round 2.
+        """
+        if not canvas.authorised(request):
+            return _denied()
+        body = await request.json()
+        data = body.get("data")
+        cols = [str(c) for c in (body.get("cols") or [])]
+        drop = [str(c) for c in (body.get("drop") or [])]
+        rows_path = str(body.get("rows") or "") or None
+
+        found = view_.find_rows(data, rows_path)
+        view = view_.shape(data, cols=cols, drop=drop, rows_path=rows_path)
+        # The full checklist, from the same payload with nothing asked of it.
+        whole = view_.shape(data, rows_path=rows_path)
+        return JSONResponse(
+            {
+                "view": view,
+                "offered": view_.offered(whole),
+                "warnings": view_.warnings_for(
+                    view,
+                    reason=found.reason if found.rows is None else None,
+                    requested=cols,
+                    dropped=drop,
+                ),
+            }
+        )
+
     async def post_watch(request: Request) -> Response:
         """Register, re-point, or stop one window's watcher."""
         if not canvas.authorised(request):
@@ -360,6 +407,7 @@ def build(canvas: Canvas | None = None) -> Starlette:
             Route("/api/catalog", get_catalog),
             Route("/api/run", post_run, methods=["POST"]),
             Route("/api/trial", post_trial, methods=["POST"]),
+            Route("/api/shape", post_shape, methods=["POST"]),
             Route("/api/watch", post_watch, methods=["POST"]),
             Route("/api/follow", post_follow, methods=["POST"]),
             Route("/api/quit", post_quit, methods=["POST"]),

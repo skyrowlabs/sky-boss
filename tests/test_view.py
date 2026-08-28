@@ -12,10 +12,13 @@ import copy
 import pytest
 
 from cli.view import (
+    columns_of,
     find_rows,
+    offered,
     resolve,
     shape,
     summarise_mapping,
+    warnings_for,
 )
 
 
@@ -441,3 +444,72 @@ def test_the_heuristic_never_reports_missing(rows):
     """Only a *named* column can be missing. The heuristic reads the keys off
     the rows, so it cannot name one that is not there."""
     assert "missing" not in shape(rows)
+
+
+# ------------------------------------------------- the checklist ([[workbench]])
+
+
+def test_the_offered_set_is_exactly_what_the_envelope_carried():
+    """`columns + details + hidden` — every key, partitioned by why it is where
+    it is and none dropped. The bench builds its checklist from this and
+    nothing else, so a key that leaks out of the partition is a chip that
+    cannot be ticked."""
+    rows = [
+        {"number": 1, "title": "x" * 60, "empty": None, "state": "open"},
+        {"number": 2, "title": "y" * 60, "empty": None, "state": "merged"},
+    ]
+    view = shape(rows)
+    assert offered(view) == ["number", "state", "title", "empty"]
+    assert set(offered(view)) == set(columns_of(rows))
+
+
+def test_offered_groups_inline_then_prose_then_hidden():
+    """The order is the answer to *why is this chip here*, which is the
+    question the checklist exists to settle. Not the tool's key order."""
+    rows = [{"n": 1, "prose": "p" * 60, "gone": None}]
+    view = shape(rows)
+    assert offered(view) == ["n", "prose", "gone"]
+
+
+def test_a_column_no_row_has_is_never_offered():
+    """A chip for a field that does not exist would be the palette's failure in
+    miniature — it has already told you the column is there. `--cols` may
+    *name* one and it is drawn empty on purpose, but it never joins the set you
+    are choosing from, because that set comes from an unfiltered shaping."""
+    rows = [{"a": 1, "b": 2}]
+    assert "nope" not in offered(shape(rows))
+    named = shape(rows, cols=["a", "nope"])
+    assert named["missing"] == ["nope"]
+    # And the unfiltered shaping — which is what the bench asks for — is
+    # unaffected by anything that was named.
+    assert offered(shape(rows)) == ["a", "b"]
+
+
+def test_a_filtered_view_answers_a_narrower_question():
+    """With `--cols` in force `hidden` is empty, so a checklist built from the
+    drawn view would lose every column the moment it was unticked and offer no
+    way back. This is why /api/shape shapes twice."""
+    rows = [{"a": 1, "b": 2, "c": 3}]
+    filtered = shape(rows, cols=["a"])
+    assert filtered["hidden"] == []
+    assert offered(filtered) == ["a"]
+    assert offered(shape(rows)) == ["a", "b", "c"]
+
+
+def test_the_hidden_warning_names_only_what_was_not_asked_for():
+    """A silently hidden column is the looks-right-and-isn't failure. Naming a
+    column back at someone who just typed `--drop` for it is noise."""
+    rows = [{"a": 1, "b": None, "c": 3}]
+    view = shape(rows, drop=["c"])
+    said = warnings_for(view, dropped=["c"])
+    assert len(said) == 1
+    assert "1 column hidden: b" in said[0]
+
+
+def test_a_flag_that_could_not_be_applied_says_so():
+    """The defect [[table-views]] round 4 was opened for: `--cols` was discarded
+    without a word whenever the payload wrapped its rows."""
+    said = warnings_for(None, reason="no list of rows in this payload", requested=["a"])
+    assert said == ["--cols not applied — no list of rows in this payload"]
+    # No assertion to be wrong about means nothing to say.
+    assert warnings_for(None, reason="no list of rows in this payload") == []

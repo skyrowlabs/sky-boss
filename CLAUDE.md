@@ -150,6 +150,13 @@ Two rules there are the canvas's own, arriving on a new screen:
   refusal is server-side: a surface that declines to draw a button has not refused anything.
 - **A follow trial is a pseudo-window on the session**, held open by `/api/follow` under the window
   id `bench`, so it dies with the session exactly as a window's stream does. No second transport.
+- **A chip re-shapes; it does not re-run.** `/api/shape` is a pure function of the payload the
+  trial already returned — introspection, like `/api/catalog`. A view *describes* data and never
+  filters it, so which columns are drawn is a question about the drawing, and re-running to settle
+  it would also make every chip compare against a different dataset. It shapes **twice**: once with
+  what was asked for, and once with nothing asked for, because with `--cols` in force `shape`
+  returns only what was named and `hidden` is empty — a checklist built from that would lose a
+  column the instant you unticked it.
 
 **There is deliberately no nav entry for the plan or the tower.** They are drawn in
 `docs/design/` and need four primitives that do not exist. A nav offering a screen that is not
@@ -404,7 +411,9 @@ Shared with sibling CLIs so the family feels like one tool.
   null when absent, so an unshaped envelope stays byte-identical to one from before views existed.
   The rules live in `cli/view.py` and not in `render.js`, because the frontend has no test runner:
   that puts the deciding half where pytest reaches it and leaves both renderers drawing what they
-  are told. See [[table-views]].
+  are told. **The warnings a shaping is owed live there too** as of 2026-08-27 — *which columns
+  went quiet* is the same kind of decision, and it stopped being inline in `cli/data.py` the moment
+  the bench became a second caller. See [[table-views]].
 - **Degrade gracefully.** An unreachable host or absent config warns in yellow on **stderr** and
   continues. Keep stdout clean so `--json` stays parseable, and never collapse "reports clear"
   into "cannot see".

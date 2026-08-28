@@ -405,3 +405,96 @@ def _view(columns, details, hidden, key: str | None, missing: list[str] | None =
     if missing:
         view["missing"] = missing
     return view
+
+
+def offered(view: dict | None) -> list[str]:
+    """Every column a `--cols` could name, in the order a checklist should show.
+
+    `columns + details + hidden` — which is the same *set* as every key the rows
+    carry, because `shape` partitions the keys and drops none. Assembled from
+    the view rather than from the rows because that is what the envelope
+    carries, and a second walk of the data would be a second opinion about what
+    a column is.
+
+    **Grouped by role rather than by the tool's key order.** Inline first, then
+    the prose that left the row, then what a rule hid — so the checklist says
+    *why* each chip is where it is, which is the question you are there to
+    answer. Ordering the chosen set by this rather than by click order is
+    deliberate too: the same set of columns should produce the same table
+    however you arrived at it.
+
+    **Only an unfiltered view carries the whole set.** With `--cols` in force
+    `shape` returns exactly what was named and `hidden` is empty, so a caller
+    that wants the full checklist must shape the payload *without* `cols` — see
+    the `/api/shape` route, which does. Passing a filtered view here is not
+    wrong, it just answers a narrower question.
+    """
+    if not view:
+        return []
+    keys = [c["key"] for c in view.get("columns", [])]
+    keys += [c["key"] for c in view.get("details", [])]
+    keys += list(view.get("hidden", []))
+    return keys
+
+
+def warnings_for(
+    view: dict | None,
+    *,
+    reason: str | None = None,
+    requested: list[str] | None = None,
+    dropped: list[str] | None = None,
+) -> list[str]:
+    """The three things a shaped view is owed a word about.
+
+    Lifted out of `cli/data.py` when the workbench grew a second caller. It was
+    always the kind of decision this module exists to hold — *what is worth
+    telling the operator about this shaping* — and it was inline only because
+    there had been one caller. Two renderers of the same warning would drift
+    the week after they were written, which is the argument the module header
+    already makes about columns.
+
+    `reason` is `find_rows`'s, and is passed only when the rows were not found;
+    an inferred miss is not an error, so the caller decides whether there was
+    an assertion to be wrong. See [[table-views]] and [[workbench]] round 2.
+    """
+    requested = requested or []
+    dropped = dropped or []
+    out: list[str] = []
+
+    # A flag that could not be applied says so. `--cols` used to be discarded
+    # without a word whenever the payload wrapped its rows, so the operator saw
+    # fifteen crushed columns and no reason. Anything that asks for shaping and
+    # gets none is owed the reason shaping declined.
+    if reason and (requested or dropped):
+        asked = ", ".join(
+            f"--{name}" for name, v in (("cols", requested), ("drop", dropped)) if v
+        )
+        out.append(f"{asked} not applied — {reason}")
+
+    if not view:
+        return out
+
+    if view.get("missing"):
+        # Named by hand and carried by no row. Worded to say *which* problem it
+        # is: a field nothing has is a typo or a rename, where a field that is
+        # present and empty is a tool that returned nothing this time, and the
+        # two want different fixes. The column is still drawn — "nothing
+        # matched" is often the answer being looked for.
+        absent = view["missing"]
+        out.append(
+            f"no row has {'this field' if len(absent) == 1 else 'these fields'}: "
+            f"{', '.join(absent)} — drawn empty, in case that is the answer"
+        )
+
+    # Only what the operator did *not* ask to lose. A silently hidden column is
+    # the "looks right and isn't" failure — the table reads as complete when it
+    # is not — but naming a column back at someone who just typed `--drop` for
+    # it is noise.
+    surprising = [key for key in view.get("hidden", []) if key not in dropped]
+    if surprising:
+        count = len(surprising)
+        out.append(
+            f"{count} column{'' if count == 1 else 's'} hidden: "
+            f"{', '.join(surprising)} — use --cols to choose"
+        )
+    return out

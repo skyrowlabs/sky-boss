@@ -20,7 +20,7 @@
 
 import { html, render, useEffect, useRef, useState } from "./vendor/htm-preact.js";
 import * as api from "./api.js";
-import { Body, summarise } from "./render.js";
+import { Body, markedLine, summarise } from "./render.js";
 import { BENCH_WINDOW, Bench, RESIDENT, compose } from "./bench.js";
 
 const TILE = "tile";
@@ -56,7 +56,30 @@ const EMPTY_DRAFT = {
   lines: [],
   running: false,
   error: null,
+
+  /* Round 2 — the view controls. Every one of these composes into the argv,
+   * and two of them also re-shape what is already drawn.
+   *
+   * `offered` is the checklist, and it comes from the server shaping the same
+   * payload with *nothing* asked of it. It cannot be read off the drawn view:
+   * with `--cols` in force `shape` returns exactly what was named and `hidden`
+   * is empty, so a checklist built from that would lose a column the moment
+   * you unticked it and offer no way back. */
+  cols: [],
+  offered: [],
+  /* `shaped` is null both before a shaping has been asked for and when one
+   * came back saying there are no rows here — two different states that must
+   * not render the same, so the fact of having an answer is tracked
+   * separately rather than inferred from the answer being empty. */
+  hasShaped: false,
+  shaped: null,
+  shapeWarnings: [],
+  rows: "",
+  from: "",
+  due: "",
+  highlight: "",
 };
+
 
 let nextId = 0;
 const newId = () => `w${++nextId}`;
@@ -447,34 +470,6 @@ function streamLabel(win) {
   if (c.attention === "dead") return `dead · exited ${c.exit_code}`;
   if (c.attention === "running") return "live";
   return c.attention;
-}
-
-/* One followed line, marks applied dumbly. The rules live in Python and the
- * offsets arrive beside the verbatim text ([[highlight]]); this only slices
- * and wraps — a page holding its own opinion about what a timestamp looks
- * like is the drift the one-rule-set design exists to prevent. A stderr line
- * never carries marks and keeps its warn tint. */
-function markedLine(l) {
-  if (l.stderr || !l.marks || !l.marks.length)
-    return html`<span class=${l.voice ? "voice" : l.stderr ? "err" : ""}
-      >${l.text + "\n"}</span
-    >`;
-  const parts = [];
-  let cursor = 0;
-  for (const [start, end, role] of l.marks) {
-    if (start > cursor) parts.push(l.text.slice(cursor, start));
-    /* A role may be composite — "bold sb.path" — because bold is a weight
-     * rather than a colour and composes instead of competing for the slot.
-     * Each word becomes its own class; CSS stacks them for free. */
-    const classes = role
-      .split(" ")
-      .map((r) => "mk-" + r.replace("sb.", ""))
-      .join(" ");
-    parts.push(html`<span class=${classes}>${l.text.slice(start, end)}</span>`);
-    cursor = end;
-  }
-  parts.push(l.text.slice(cursor) + "\n");
-  return html`<span>${parts}</span>`;
 }
 
 function StreamBody({ win, actions }) {
@@ -973,6 +968,35 @@ function App() {
 
   /* ------------------------------------------------------------ the bench */
 
+  /* Re-draw what is already in hand. Runs nothing: `/api/shape` is a pure
+   * function of the payload the trial run returned, so a chip click costs one
+   * loopback round trip rather than another execution of a foreign command —
+   * and every chip compares against the same rows, which is the comparison the
+   * checklist exists to let you make. */
+  function reshape(next) {
+    const data = next.result && next.result.envelope && next.result.envelope.data;
+    if (data === undefined) return;
+    api
+      .shape(data, { cols: next.cols, rows: next.rows || undefined })
+      .then((body) =>
+        setDraft((d) => ({
+          ...d,
+          hasShaped: true,
+          shaped: body.view,
+          shapeWarnings: body.warnings || [],
+          /* Only ever from a shaping with nothing asked of it — the server
+           * computes it that way, so this is safe to take on every reply and
+           * the checklist never shrinks to what is currently ticked. */
+          offered: body.offered || [],
+        }))
+      )
+      .catch(() => {
+        /* A failed re-shape leaves the last good drawing alone. The rows have
+         * not changed and neither has the answer; only the presentation
+         * request went unanswered. */
+      });
+  }
+
   const benchActions = {
     /* **Swaps the draft rather than clearing it.** The `--cwd` and the argv are
      * what you have been getting right; the contract is what you are still
@@ -995,10 +1019,45 @@ function App() {
         lines: [],
         running: false,
         error: null,
+        /* The view controls go with the result, for the same reason it does:
+         * they describe a shaping of rows this contract may not even return.
+         * `--cols` under `read` is a control for a table that cannot exist. */
+        cols: [],
+        offered: [],
+        hasShaped: false,
+        shaped: null,
+        shapeWarnings: [],
+        rows: "",
       }));
     },
     setCwd: (cwd) => setDraft((d) => ({ ...d, cwd })),
     setArgv: (argv) => setDraft((d) => ({ ...d, argv })),
+
+    /* `--from`, `--due` and `--highlight` change how the tool is *read* or how
+     * a stream is *opened*, so they only compose into the argv and take effect
+     * on the next trial run. Nothing is re-shaped here, and the panel says so
+     * rather than leaving it to be discovered by clicking. */
+    set: (key, value) => setDraft((d) => ({ ...d, [key]: value })),
+
+    /* A chip. The chosen set is rebuilt in the checklist's own order rather
+     * than in click order, so the same set of columns produces the same table
+     * however you arrived at it — `--cols` sets column order, and making that
+     * depend on the sequence of clicks would be a table that quietly differs
+     * from an identical-looking one. */
+    toggle: (key) => {
+      const d = draftRef.current;
+      const cols = d.cols.includes(key)
+        ? d.cols.filter((c) => c !== key)
+        : d.offered.filter((c) => c === key || d.cols.includes(c));
+      setDraft((prev) => ({ ...prev, cols }));
+      reshape({ ...d, cols });
+    },
+
+    setRows: (rows) => {
+      const d = draftRef.current;
+      setDraft((prev) => ({ ...prev, rows }));
+      reshape({ ...d, rows });
+    },
     trial: () => {
       const current = draftRef.current;
       const argv = compose(current);
@@ -1010,6 +1069,9 @@ function App() {
         result: null,
         chrome: null,
         lines: [],
+        hasShaped: false,
+        shaped: null,
+        shapeWarnings: [],
       }));
 
       /* A stream is held open, not run to completion. It goes down the same
@@ -1043,14 +1105,19 @@ function App() {
        * rather than a status code translated into a sentence here. */
       api
         .trial(argv)
-        .then((result) =>
+        .then((result) => {
           setDraft((d) => ({
             ...d,
             running: false,
             result,
             chrome: result.chrome || null,
-          }))
-        )
+          }));
+          /* One shaping call after every trial, whether or not `--cols` was in
+           * force. It is what supplies `offered`, which the envelope cannot:
+           * a run that carried `--cols` came back with a view describing only
+           * the named columns. */
+          if (current.contract === "data") reshape({ ...current, result });
+        })
         .catch((error) =>
           setDraft((d) => ({ ...d, running: false, error: String(error) }))
         );

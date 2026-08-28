@@ -348,7 +348,16 @@ export function unwrap(envelope) {
   return { kind: "value", value: data };
 }
 
-export function Body({ result }) {
+/* `shaped` overrides the envelope's own view, and only the bench passes one.
+ * It is the *same* view, re-derived by `/api/shape` from the same payload with
+ * different columns asked for — still Python's opinion, still one opinion.
+ * The envelope itself is left alone: it stays byte-identical to the CLI's,
+ * which is the boundary tests/test_chrome.py and cli/view.py both hold.
+ *
+ * `warnings` overrides the envelope's for the same reason: which columns went
+ * quiet is a fact about *this* shaping, and the ones the trial run came back
+ * with describe the shaping it happened to do. See [[workbench]] round 2. */
+export function Body({ result, shaped, warnings: given }) {
   if (!result) return html`<div class="spin">…</div>`;
   if (result.error) return html`<div class="fail">${result.error}</div>`;
 
@@ -356,12 +365,12 @@ export function Body({ result }) {
   if (!envelope) return html`<div class="v-dim">no envelope</div>`;
 
   const view = unwrap(envelope);
-  const warnings = envelope.warnings || [];
+  const warnings = given || envelope.warnings || [];
 
   /* A view describes `data`. When the rows came out of `sb run`'s stdout
    * instead, `data` is the run envelope and the view would be describing the
    * wrong object — so it applies only to rows that are the data themselves. */
-  const shape = view.wrapped ? null : envelope.view;
+  const shape = view.wrapped ? null : shaped !== undefined ? shaped : envelope.view;
 
   let body;
   if (view.kind === "rows") body = html`<${Table} rows=${view.rows} view=${shape} />`;
@@ -415,4 +424,37 @@ export function summarise(result) {
   const envelope = result.envelope || {};
   if (envelope.partial) return "partial";
   return envelope.ok === false ? "failed" : "ok";
+}
+
+/* One followed line, marks applied dumbly. The rules live in Python and the
+ * offsets arrive beside the verbatim text ([[highlight]]); this only slices
+ * and wraps — a page holding its own opinion about what a timestamp looks
+ * like is the drift the one-rule-set design exists to prevent. A stderr line
+ * never carries marks and keeps its warn tint.
+ *
+ * Here rather than in app.js because two surfaces draw a followed line now:
+ * a canvas window living with a stream, and the bench trialling one so you
+ * can see which words `--highlight` claimed. Two copies of a slicer would
+ * be the same drift this function exists to prevent, one level up. */
+export function markedLine(l) {
+  if (l.stderr || !l.marks || !l.marks.length)
+    return html`<span class=${l.voice ? "voice" : l.stderr ? "err" : ""}
+      >${l.text + "\n"}</span
+    >`;
+  const parts = [];
+  let cursor = 0;
+  for (const [start, end, role] of l.marks) {
+    if (start > cursor) parts.push(l.text.slice(cursor, start));
+    /* A role may be composite — "bold sb.path" — because bold is a weight
+     * rather than a colour and composes instead of competing for the slot.
+     * Each word becomes its own class; CSS stacks them for free. */
+    const classes = role
+      .split(" ")
+      .map((r) => "mk-" + r.replace("sb.", ""))
+      .join(" ");
+    parts.push(html`<span class=${classes}>${l.text.slice(start, end)}</span>`);
+    cursor = end;
+  }
+  parts.push(l.text.slice(cursor) + "\n");
+  return html`<span>${parts}</span>`;
 }

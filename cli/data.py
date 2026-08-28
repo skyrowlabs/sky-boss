@@ -53,7 +53,7 @@ import rich_click as click
 from cli import capture as capture_
 from cli.helpers import child_env
 from cli.output import Result, emit
-from cli.view import find_rows, shape
+from cli.view import find_rows, shape, warnings_for
 
 
 @click.command()
@@ -342,40 +342,19 @@ def parse_text(
         parsed, cols=requested, drop=dropped, enabled=not no_shape, rows_path=rows_path
     )
 
-    # A flag that could not be applied says so. This is the defect this round
-    # was opened for and it outlives the specific fix: `--cols` was discarded
-    # without a word whenever the payload wrapped its rows, so the operator saw
-    # fifteen crushed columns and no reason. Anything that asks for shaping and
-    # gets none is owed the reason shaping declined.
-    if found.rows is None and (requested or dropped):
-        asked = ", ".join(f"--{name}" for name, v in (("cols", cols), ("drop", drop)) if v)
-        result.warn(f"{asked} not applied — {found.reason}")
-
-    if result.view and result.view.get("missing"):
-        # Named by hand and carried by no row. Worded to say *which* problem it
-        # is: a field nothing has is a typo or a rename, where a field that is
-        # present and empty is a tool that returned nothing this time, and the
-        # two want different fixes. The column is still drawn — "nothing
-        # matched" is often the answer being looked for. See [[table-views]]
-        # round 5.
-        absent = result.view["missing"]
-        result.warn(
-            f"no row has {'this field' if len(absent) == 1 else 'these fields'}: "
-            f"{', '.join(absent)} — drawn empty, in case that is the answer"
-        )
-
-    if result.view:
-        # Only what the operator did *not* ask to lose. A silently hidden
-        # column is the "looks right and isn't" failure — the table reads as
-        # complete when it is not — but naming a column back at someone who
-        # just typed `--drop` for it is noise.
-        surprising = [key for key in result.view["hidden"] if key not in dropped]
-        if surprising:
-            count = len(surprising)
-            result.warn(
-                f"{count} column{'' if count == 1 else 's'} hidden: "
-                f"{', '.join(surprising)} — use --cols to choose"
-            )
+    # What this shaping is owed a word about. Three warnings, all decided in
+    # cli/view.py rather than here — the bench asks the same question of the
+    # same payload without re-running the tool ([[workbench]] round 2), and two
+    # copies of "which columns went quiet" would drift the week after they were
+    # written. An *inferred* miss is not an error, so the reason is passed only
+    # when there was an assertion to be wrong about.
+    for warning in warnings_for(
+        result.view,
+        reason=found.reason if found.rows is None else None,
+        requested=requested,
+        dropped=dropped,
+    ):
+        result.warn(warning)
 
     return result
 

@@ -23,7 +23,7 @@
  */
 
 import { html, useEffect, useRef } from "./vendor/htm-preact.js";
-import { Body, summarise } from "./render.js";
+import { Body, markedLine, summarise } from "./render.js";
 
 /* The four entry points, split by the one bit that matters. Named here rather
  * than filtered out of the catalog by a property, because this list is not
@@ -64,12 +64,25 @@ export function words(text) {
  * null when there is not yet a command — no contract, or no argv. The trial
  * button reads that as "nothing to run" rather than each caller re-deciding.
  */
-export function compose({ contract, cwd, argv }) {
+export function compose(draft) {
+  const { contract, cwd, argv } = draft;
   if (!contract) return null;
   const tail = words(argv);
   if (!tail.length) return null;
   const out = [contract];
   if ((cwd || "").trim()) out.push("--cwd", cwd.trim());
+  /* The view controls, each on the contract that has the flag. Offering
+   * `--cols` under `read` would be a control for a table that contract cannot
+   * return, which is the same mistake as offering a cadence on a write. */
+  if (contract === "data") {
+    if (draft.cols && draft.cols.length) out.push("--cols", draft.cols.join(","));
+    if ((draft.rows || "").trim()) out.push("--rows", draft.rows.trim());
+    if ((draft.from || "").trim()) out.push("--from", draft.from.trim());
+  }
+  if (contract === RESIDENT) {
+    if ((draft.due || "").trim()) out.push("--due", draft.due.trim());
+    if ((draft.highlight || "").trim()) out.push("--highlight", draft.highlight.trim());
+  }
   if (tail[0] !== "--") out.push("--");
   return [...out, ...tail];
 }
@@ -84,7 +97,7 @@ function stamp(seconds) {
 /* The [[chrome]] band, top and bottom — the same facts a canvas window wears,
  * given the room the bench has and a tile does not. One contract drawn twice:
  * nothing here derives a verdict, it only spells the one Python sent. */
-function Band({ chrome, where, result, running, contract }) {
+function Band({ chrome, where, result, running, contract, warnings }) {
   const attention = chrome && chrome.attention;
   const refused = Boolean(result && result.error);
   const bad = attention === "failed" || attention === "dead" || refused;
@@ -113,6 +126,13 @@ function Band({ chrome, where, result, running, contract }) {
    * facts the canvas window's foot carries, drawn from the same chrome. */
   const streaming = chrome && (chrome.shape === "stream" || chrome.shape === "cursor");
 
+  /* The warnings on screen, not the ones the trial run happened to come back
+   * with. Once a chip has re-shaped the payload, the envelope's count is about
+   * a shaping nobody is looking at any more — and a foot saying "1 warning"
+   * above a body showing none is the looks-right-and-isn't failure in
+   * miniature. See [[workbench]] round 2. */
+  const count = warnings !== undefined ? warnings.length : (chrome && chrome.warnings) || 0;
+
   return html`
     <div class="band foot">
       <span>
@@ -122,11 +142,8 @@ function Band({ chrome, where, result, running, contract }) {
             ? summarise(result)
             : ""}
       </span>
-      ${chrome &&
-      chrome.warnings > 0 &&
-      html`<span class="band-warn">
-        ${chrome.warnings} warning${chrome.warnings === 1 ? "" : "s"}
-      </span>`}
+      ${count > 0 &&
+      html`<span class="band-warn">${count} warning${count === 1 ? "" : "s"}</span>`}
       <div class="spacer"></div>
       <span class="band-hint">${streaming ? streamFoot(chrome) : ranFoot(result, chrome)}</span>
     </div>
@@ -153,10 +170,19 @@ function streamFoot(chrome) {
 
 /* ------------------------------------------------------------------ results */
 
-/* A follow trial's tail. Deliberately plainer than the canvas's `StreamBody`:
- * the marks, the parked ring and the restart band belong to a window that is
- * living with a stream, and this one is being drafted. What it must show is
- * that the file cursor and the stream are real renderers, which they are. */
+/* A follow trial's tail, with the marks applied.
+ *
+ * Round 1 drew this plain, on the reasoning that the tinting belongs to a
+ * window living with a stream rather than to one being drafted. Round 2
+ * reverses that, and the reversal is the whole point of `--highlight` being a
+ * control here: **you cannot choose a ruleset by name and then not see what it
+ * claimed.** The rules still live in Python and the offsets still arrive
+ * beside the verbatim text; `markedLine` is shared with the canvas rather than
+ * copied, so there is one slicer and no second opinion about what a timestamp
+ * looks like.
+ *
+ * Still deliberately without the parked ring and the restart band: those are
+ * for living with a stream, and this one is being drafted. */
 function Tail({ lines }) {
   /* Newest lines stay in view. A live log showing anything but its tail is
    * broken, and the bench is no more exempt from that than a window is. */
@@ -166,7 +192,7 @@ function Tail({ lines }) {
     if (node) node.scrollTop = node.scrollHeight;
   }, [lines]);
   return html`<pre class="raw stream" ref=${ref}>
-${lines.map((l) => (l.stderr ? html`<span class="err">${l.text + "\n"}</span>` : l.text + "\n"))}</pre
+${lines.map(markedLine)}</pre
   >`;
 }
 
@@ -194,6 +220,159 @@ function Blank({ contract, composed }) {
     `;
   }
   return html`<div class="bench-blank">nothing run yet — trial run to see it</div>`;
+}
+
+/* ------------------------------------------------------------ view controls */
+
+/* One flag with a text value. Enough of them to be worth a component, and all
+ * of them share the one thing worth saying: whether changing it re-draws what
+ * is on screen or waits for the next trial run. */
+function Field({ label, value, placeholder, note, onChange }) {
+  return html`
+    <div class="vc-field">
+      <span class="vc-label">${label}</span>
+      <input
+        value=${value}
+        placeholder=${placeholder || ""}
+        onInput=${(e) => onChange(e.target.value)}
+      />
+      ${note && html`<span class="vc-note">${note}</span>`}
+    </div>
+  `;
+}
+
+/* The view controls, per contract, because a view describes rows and not every
+ * contract returns any.
+ *
+ * `data` gets the checklist and the two flags that change what counts as a
+ * row. `follow` gets the two that make a stream's silence and its vocabulary
+ * legible. `read` gets neither and is told why — a view describes rows, and
+ * verbatim output has none to describe. `run` returns an exit code.
+ */
+function ViewControls({ draft, actions }) {
+  const contract = draft.contract;
+
+  if (contract === "run") {
+    return html`
+      <div class="panel bench-view">
+        <div class="panel-head">NO VIEW</div>
+        <div class="vc-body">
+          <span class="vc-none">
+            nothing to shape. An act returns an exit code, not rows — and the exit
+            code is the whole verdict.
+          </span>
+        </div>
+      </div>
+    `;
+  }
+
+  if (contract === "read") {
+    return html`
+      <div class="panel bench-view">
+        <div class="panel-head">NO VIEW</div>
+        <div class="vc-body">
+          <span class="vc-none">
+            <b>read has no view</b>${" "}— a view describes rows, and this contract
+            returns none. Output is shown verbatim by contract; inferring columns
+            from whitespace is the silently-wrong failure, and a tool with real
+            structure has ${"`--json`"}. Tint is still on, and it is shape rather
+            than judgment.
+          </span>
+        </div>
+      </div>
+    `;
+  }
+
+  if (contract === RESIDENT) {
+    return html`
+      <div class="panel bench-view">
+        <div class="panel-head">VIEW</div>
+        <div class="vc-body">
+          <${Field}
+            label="--due"
+            value=${draft.due}
+            placeholder="15m"
+            note="what makes late a word this window can say"
+            onChange=${(v) => actions.set("due", v)}
+          />
+          <${Field}
+            label="--highlight"
+            value=${draft.highlight}
+            placeholder="a ruleset in formats.toml"
+            note="runs after sb's own and claims only unclaimed text"
+            onChange=${(v) => actions.set("highlight", v)}
+          />
+          <span class="vc-note wide">
+            Both open the stream, so they take effect on the next trial run — and
+            the tint you then see is the answer to which words your rules claimed.
+          </span>
+        </div>
+      </div>
+    `;
+  }
+
+  /* data. The checklist is the thing this whole screen was opened for.
+   *
+   * A chip is lit when its column is *drawn*, which is not the same as when it
+   * was *named*. With no `--cols` in force the shaping has already decided —
+   * an empty column and an opaque sha are hidden by rule — so lighting every
+   * chip would say the table is showing nine columns when it is showing six.
+   * Read off the view rather than inferred, like everything else here. */
+  const chosen = draft.cols;
+  const explicit = chosen.length > 0;
+  const shaped = draft.hasShaped ? draft.shaped : null;
+  const drawn = shaped
+    ? new Set([
+        ...shaped.columns.map((c) => c.key),
+        ...shaped.details.map((c) => c.key),
+      ])
+    : new Set(draft.offered);
+  return html`
+    <div class="panel bench-view">
+      <div class="panel-head">VIEW</div>
+      <div class="vc-body">
+        ${draft.offered.length === 0
+          ? html`<span class="vc-none">
+              the checklist is what the run returned — trial run it first
+            </span>`
+          : html`
+              <div class="vc-chips">
+                ${draft.offered.map(
+                  (key) => html`<button
+                    key=${key}
+                    class=${`vc-chip ${drawn.has(key) ? "on" : ""}`}
+                    onClick=${() => actions.toggle(key)}
+                  >
+                    ${key}
+                  </button>`
+                )}
+              </div>
+              <span class="vc-note wide">
+                ${explicit
+                  ? `--cols ${chosen.join(",")} — every column drawn is one you named.`
+                  : "no --cols yet, so the lit ones are the shaping's own choices."}${" "}The
+                checklist is what the run returned, not what you remember — and a
+                column a rule hid is still one you may name.
+              </span>
+            `}
+        <div class="vc-row">
+          <${Field}
+            label="--rows"
+            value=${draft.rows}
+            placeholder="where the rows are, if the payload wraps them"
+            onChange=${(v) => actions.setRows(v)}
+          />
+          <${Field}
+            label="--from"
+            value=${draft.from}
+            placeholder="json, or a format you declared"
+            note="changes how the bytes are read — next trial run"
+            onChange=${(v) => actions.set("from", v)}
+          />
+        </div>
+      </div>
+    </div>
+  `;
 }
 
 /* ------------------------------------------------------------------ the rail */
@@ -333,7 +512,11 @@ export function Bench({ commands, draft, actions }) {
                     : chosen === RESIDENT && draft.lines.length
                       ? html`<${Tail} lines=${draft.lines} />`
                       : draft.result
-                        ? html`<${Body} result=${draft.result} />`
+                        ? html`<${Body}
+                            result=${draft.result}
+                            shaped=${draft.hasShaped ? draft.shaped : undefined}
+                            warnings=${draft.hasShaped ? draft.shapeWarnings : undefined}
+                          />`
                         : html`<${Blank} contract=${chosen} composed=${composed} />`}
                 </div>
                 <${Band}
@@ -342,8 +525,11 @@ export function Bench({ commands, draft, actions }) {
                   result=${draft.result}
                   running=${draft.running}
                   contract=${chosen}
+                  warnings=${draft.hasShaped ? draft.shapeWarnings : undefined}
                 />
               </div>
+
+              <${ViewControls} draft=${draft} actions=${actions} />
             `}
       </div>
 

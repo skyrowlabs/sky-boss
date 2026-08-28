@@ -40,6 +40,7 @@ def auth(extra=None):
         ("/api/catalog", "get"),
         ("/api/run", "post"),
         ("/api/trial", "post"),
+        ("/api/shape", "post"),
         ("/api/watch", "post"),
         ("/api/follow", "post"),
         ("/api/quit", "post"),
@@ -310,3 +311,42 @@ def test_a_saved_command_is_judged_by_what_it_expands_to():
     assert entry_for(["tools", "deploy"], entries)["acts"] is True
     assert entry_for(["tools"], entries)["acts"] is False
     assert entry_for(["nothing", "here"], entries) is None
+
+
+def test_shaping_runs_nothing_and_returns_the_whole_checklist(client):
+    """`/api/shape` is introspection, not execution — a pure function of the
+    payload the bench already has. The `offered` set is shaped *without* the
+    columns that were asked for, which is the reason the route shapes twice:
+    a checklist built from the drawn view would lose a column the moment it was
+    unticked. See [[workbench]] round 2.
+    """
+    data = [{"a": 1, "b": 2, "c": None}, {"a": 3, "b": 4, "c": None}]
+    response = client.post(
+        "/api/shape", headers=auth(), json={"data": data, "cols": ["a"]}
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert [c["key"] for c in body["view"]["columns"]] == ["a"]
+    # Everything remains tickable, including the one a rule would have hidden.
+    assert body["offered"] == ["a", "b", "c"]
+
+
+def test_shaping_reports_what_this_shaping_hid(client):
+    """The warning is a fact about the shaping on screen, not about whichever
+    one the trial run happened to do."""
+    data = [{"a": 1, "gone": None}]
+    body = client.post("/api/shape", headers=auth(), json={"data": data}).json()
+    assert any("1 column hidden: gone" in w for w in body["warnings"])
+
+
+def test_shaping_a_payload_with_no_rows_says_why(client):
+    """A named `--rows` that finds nothing is the operator's assertion being
+    wrong, and saying so is the whole point of the flag."""
+    body = client.post(
+        "/api/shape",
+        headers=auth(),
+        json={"data": {"meta": 1}, "rows": "nope", "cols": ["a"]},
+    ).json()
+    assert body["view"] is None
+    assert body["offered"] == []
+    assert "--cols not applied" in body["warnings"][0]
