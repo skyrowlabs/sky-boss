@@ -198,10 +198,10 @@ and `--json` from a pipe is untouched, still one complete envelope built at exit
 - [x] **The ceiling moves to where it is for.** `DEFAULT_TIMEOUT` stays on the watcher and on
       `/api/trial`; an accruing window has no default bound and honours `--timeout` from the argv.
       A test asserts a run window is not killed at sixty seconds.
-- [ ] **The frontend splits accruing from resident.** `win.stream` stops meaning `entry.resident`;
+- [x] **The frontend splits accruing from resident.** `win.stream` stops meaning `entry.resident`;
       a window knows which it is, and an accruing run ends with an act band rather than a dead one.
       Closing still SIGTERMs the child either way.
-- [ ] **Verified by rendering.** There is no JS runner, so the check is the one this repo already
+- [x] **Verified by rendering.** There is no JS runner, so the check is the one this repo already
       uses: headless Chromium against a live server, a run window watched from first line to act
       band, and the DOM read back. Bounded waits only.
 

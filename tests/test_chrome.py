@@ -479,3 +479,19 @@ def test_a_snapshot_reads_running_the_same_way_a_resident_one_does():
     pinned = chrome_.resident("read -- x", ok=True, interval=30, last_run=100.0)
     top, _ = chrome_.status_lines(pinned, 110.0, 74)
     assert "next in 20s" in top
+
+
+def test_a_clean_exit_survives_the_trip_to_the_canvas():
+    """`exit_code` is the one field here where absent and zero are different
+    facts, and the omit-falsy rule collapsed them — so the surface rendered
+    `dead · exited undefined` for a command that simply finished. Found by
+    rendering rather than by the suite; the terminal band reads the dataclass
+    and never saw it. See [[follow]] round 4."""
+    from cli import chrome as chrome_
+
+    assert chrome_.stream("x", exit_code=0, exited_at=1.0).to_dict()["exit_code"] == 0
+    assert chrome_.stream("x", exit_code=1, exited_at=1.0).to_dict()["exit_code"] == 1
+    # Still absent when there is no exit to report, and every count still
+    # drops its zero.
+    facts = chrome_.stream("x").to_dict()
+    assert "exit_code" not in facts and "warnings" not in facts and "due" not in facts
