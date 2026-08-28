@@ -82,3 +82,20 @@ def test_a_missing_command_fails_rather_than_raising():
     _, envelope = invoke(["--", "definitely-not-a-real-command-xyz"])
     assert envelope["ok"] is False
     assert "no such command" in envelope["data"]
+
+
+def test_envelope_for_is_reads_own_and_not_shared_with_run():
+    """Shared between *surfaces*, not between commands: a `read` reports a
+    non-zero exit as a warning and carries its error as text, where an act
+    carries a mapping. See [[follow]] round 4."""
+    from cli.read import envelope_for
+    from cli.stream import Outcome
+
+    ok = envelope_for(Outcome(0, 0.1, "rows\n", ""), 60)
+    assert ok.ok is True and ok.data is None and ok.warnings == []
+
+    failed = envelope_for(Outcome(3, 0.2, "", "boom\n"), 60)
+    assert failed.ok is False and failed.warnings == ["exited 3 after 0.2s"]
+
+    late = envelope_for(Outcome(-1, 60.0, "", "", timed_out=True), 60)
+    assert late.ok is False and late.data == "timed out after 60s"

@@ -147,6 +147,37 @@ def _await(
     return clock() >= fires_at
 
 
+def envelope_for(argv, outcome, timeout: int | None) -> Result:
+    """An `Outcome` onto `run`'s envelope. One place, deliberately.
+
+    Both surfaces accrue now ([[follow]] round 4) and the canvas must not
+    re-decide ok, the stderr warning or the timed-out shape beside this. Round
+    2's caution — that a shared helper can be *"correct for its first caller
+    and silently wrong for its second"* — is the argument for sharing **on
+    purpose** rather than against sharing, exactly as `clip`'s direction was:
+    one function that both callers state their case to, instead of two that
+    drift.
+
+    `data` is None on success because the lines already reached the surface, on
+    the streams they arrived on. Nothing is delivered twice.
+    """
+    result = Result()
+    if outcome.timed_out:
+        result.ok = False
+        result.data = {
+            "argv": list(argv),
+            "error": f"timed out after {timeout}s",
+            "duration_s": outcome.duration_s,
+        }
+        return result
+
+    result.ok = outcome.exit_code == 0
+    if outcome.stderr.strip() and result.ok:
+        result.warn("wrote to stderr")
+    result.data = None
+    return result
+
+
 def _accrued(argv: tuple[str, ...], timeout: int | None, cwd: str | None) -> Result:
     """Stream the lines as they arrive; stamp the act on stderr at exit. The
     stamp is chrome, so it never says a countdown — an act is stamped once."""
@@ -154,25 +185,19 @@ def _accrued(argv: tuple[str, ...], timeout: int | None, cwd: str | None) -> Res
     from cli import stream as stream_
     from cli.read import _echo_line, output_width
 
-    result = Result()
     try:
         outcome = stream_.accrue(
             list(argv), timeout=timeout, cwd=cwd, echo=_echo_line, columns=_width()
         )
     except FileNotFoundError:
-        result.ok = False
-        result.data = {"argv": list(argv), "error": f"no such command: {argv[0]}"}
-        return result
+        missing = Result()
+        missing.ok = False
+        missing.data = {"argv": list(argv), "error": f"no such command: {argv[0]}"}
+        return missing
 
+    result = envelope_for(argv, outcome, timeout)
     if outcome.timed_out:
-        result.ok = False
-        result.data = {"argv": list(argv), "error": f"timed out after {timeout}s",
-                       "duration_s": outcome.duration_s}
         return result
-
-    result.ok = outcome.exit_code == 0
-    if outcome.stderr.strip() and result.ok:
-        result.warn("wrote to stderr")
 
     facts = chrome_.act(
         f"run -- {shlex.join(argv)}",

@@ -225,3 +225,31 @@ def _quiet():
     from rich.console import Console
 
     return {"console": Console(file=io.StringIO(), width=80), "ticks": 1}
+
+
+# ---------------------------------------------------------------------------
+# Round 4 — the envelope both surfaces build
+# ---------------------------------------------------------------------------
+
+
+def test_envelope_for_is_the_one_place_an_outcome_becomes_a_run_envelope():
+    """The canvas accrues too now, and must not re-decide any of this beside
+    `cli/run.py`. See [[follow]] round 4."""
+    from cli.run import envelope_for
+    from cli.stream import Outcome
+
+    ok = envelope_for(["true"], Outcome(0, 0.1, "hi\n", ""), None)
+    # `data` is None on success: the lines already reached the surface, on the
+    # streams they arrived on. Nothing is delivered twice.
+    assert ok.ok is True and ok.data is None and ok.warnings == []
+
+    noisy = envelope_for(["x"], Outcome(0, 0.1, "", "chatter\n"), None)
+    assert noisy.ok is True and noisy.warnings == ["wrote to stderr"]
+
+    # A failure does not also warn about its stderr — the exit code said it.
+    failed = envelope_for(["x"], Outcome(2, 0.1, "", "boom\n"), None)
+    assert failed.ok is False and failed.warnings == []
+
+    late = envelope_for(["sleep"], Outcome(-1, 60.0, "", "", timed_out=True), 60)
+    assert late.ok is False
+    assert late.data == {"argv": ["sleep"], "error": "timed out after 60s", "duration_s": 60.0}
