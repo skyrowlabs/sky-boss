@@ -190,10 +190,12 @@ and `--json` from a pipe is untouched, still one complete envelope built at exit
       already has it — attention `running` while the subprocess lives, the verdict at exit. Still
       no `interval` and still no countdown on the act shape: the absence is the split made visible,
       and that sentence stays in the docstring.
-- [ ] **`/api/run` accrues an unpinned window.** A `Follower` over the resolved foreign argv,
+- [x] **`/api/accrue` holds an unpinned window open.** A `Follower` over the resolved foreign argv,
       frames on the session stream that already exists, the act band at exit. No second transport,
       no `text/event-stream` — the preflight rule is why. A pinned window keeps the snapshot path.
-- [ ] **The ceiling moves to where it is for.** `DEFAULT_TIMEOUT` stays on the watcher and on
+      *(Written as "`/api/run` accrues"; built as a second route, by `/api/run`'s own argument —
+      see Notes.)*
+- [x] **The ceiling moves to where it is for.** `DEFAULT_TIMEOUT` stays on the watcher and on
       `/api/trial`; an accruing window has no default bound and honours `--timeout` from the argv.
       A test asserts a run window is not killed at sixty seconds.
 - [ ] **The frontend splits accruing from resident.** `win.stream` stops meaning `entry.resident`;

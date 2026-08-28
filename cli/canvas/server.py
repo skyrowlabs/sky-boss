@@ -436,6 +436,55 @@ def build(canvas: Canvas | None = None) -> Starlette:
         )
         return JSONResponse({"following": True})
 
+    async def post_accrue(request: Request) -> Response:
+        """Start, restart, or stop one window's **accruing** run.
+
+        A second route rather than a mode on `/api/run`, by that route's own
+        argument: `/api/run` runs to completion and returns an envelope, and
+        one route that sometimes returns an envelope and sometimes returns
+        *"watch the stream"* is a route with two contracts. `/api/run` keeps
+        its one — the watcher and every pinned window still need it — and this
+        one holds a child open for a window exactly as `/api/follow` does.
+
+        **What it refuses is the mirror of what `/api/trial` refuses.** A
+        resident argv is not run to completion, so it is followed, not
+        accrued; and an argv carrying an sb-level flag `resolve_run` cannot
+        account for goes back to `/api/run`, because accrual spawns the
+        foreign command directly and a dropped `--save` would not save.
+        """
+        if not canvas.authorised(request):
+            return _denied()
+        body = await request.json()
+        session = canvas.sessions.get(str(body.get("session") or ""))
+        if session is None:
+            return JSONResponse({"error": "no such session"}, status_code=409)
+        window_id = str(body.get("window") or "")
+        if not window_id:
+            return JSONResponse({"error": "no window"}, status_code=400)
+
+        existing = session.followers.pop(window_id, None)
+        if existing is not None:
+            await asyncio.to_thread(existing.child.kill)
+        if body.get("stop"):
+            return JSONResponse({"accruing": False})
+
+        argv = [str(a) for a in (body.get("argv") or [])]
+        try:
+            job = resolve_run(argv)
+        except ValueError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        lines = int(body.get("lines") or stream_.DEFAULT_LINES)
+        try:
+            child = await asyncio.to_thread(
+                lambda: stream_.ChildStream(job.foreign, cwd=job.cwd, limit=lines)
+            )
+        except (FileNotFoundError, OSError) as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        session.followers[window_id] = Follower(
+            child=child, argv=argv, kind="accrue", job=job
+        )
+        return JSONResponse({"accruing": True, "acts": job.acts})
+
     async def stream(request: Request) -> Response:
         """The session. Newline-delimited JSON for as long as the window lives.
 
@@ -467,6 +516,7 @@ def build(canvas: Canvas | None = None) -> Starlette:
             Route("/api/preflight", post_preflight, methods=["POST"]),
             Route("/api/watch", post_watch, methods=["POST"]),
             Route("/api/follow", post_follow, methods=["POST"]),
+            Route("/api/accrue", post_accrue, methods=["POST"]),
             Route("/api/quit", post_quit, methods=["POST"]),
             Route("/api/stream", stream),
             Mount("/static", NoCacheStatic(directory=STATIC), name="static"),
@@ -494,7 +544,14 @@ class NoCacheStatic(StaticFiles):
 @dataclass
 class Follower:
     """One window's held-open stream — a process's or a file's — and where
-    its frames left off."""
+    its frames left off.
+
+    **Two kinds ride it**, and the difference is only ever what exit means.
+    A `follow` is not expected to exit, so any exit is a death; an `accrue`
+    is a `run` or a `read` whose lines arrive while it works, so exit is the
+    verdict it was always going to produce. Lines ship identically for both —
+    the transport was never the thing that differed. See [[follow]] round 4.
+    """
 
     child: object  # ChildStream or FileCursor; one interface, see [[file-follow]]
     argv: list[str]
@@ -509,6 +566,18 @@ class Follower:
     exited_at: float | None = None
     dead_announced: bool = False
     last_state: str | None = None
+    # follow | accrue.
+    kind: str = "follow"
+    # Set for an accruing follower: what its sb-level argv resolved to, which
+    # is what decides `act` from `snapshot` and carries the operator's bound.
+    job: Job | None = None
+    # Whether anything reached stderr. Tracked as lines pass rather than read
+    # off the ring, because the ring evicts and the warning must not depend on
+    # how chatty the tail happened to be.
+    spoke_on_stderr: bool = False
+    # Set when the loop kills a child for exceeding the bound the operator
+    # declared, so the envelope can say `timed out` rather than `exited -15`.
+    timed_out: bool = False
 
 
 class Follow(NamedTuple):
@@ -591,6 +660,10 @@ def resolve_run(argv: list[str], root=None) -> Job:
         root = root_group
 
     argv = _expand_saved(list(argv), root)
+    if argv[:1] == ["follow"]:
+        # Named rather than lumped in with the generic refusal, because this
+        # one has an answer: the transport is the same, the ending is not.
+        raise ValueError("a stream is held open, not accrued — follow it instead")
     if not argv or argv[0] not in ("run", "read"):
         raise ValueError("not a run or read argv")
     command = argv[0]
@@ -720,8 +793,13 @@ def follower_frames(session: Session, now: float | None = None) -> list[dict]:
         if newly_dead:
             follower.dead_announced = True
         follower.last_state = cursor_state
+        if any(line.stderr for line in fresh):
+            follower.spoke_on_stderr = True
 
-        if cursor_state is not None:
+        result = None
+        if follower.kind == "accrue":
+            facts, result = _accrual(follower, child, code, moment)
+        elif cursor_state is not None:
             # A file: the chrome carries what the loop statted — quiet,
             # absent and rotated are the cursor's verdicts, never re-derived.
             facts = chrome_.cursor(
@@ -745,15 +823,95 @@ def follower_frames(session: Session, now: float | None = None) -> list[dict]:
                 due=follower.due,
                 now=moment,
             )
-        frames.append(
-            {
-                "type": "stream",
-                "window": window_id,
-                "lines": [_frame_line(line, follower.ruleset) for line in fresh],
-                "chrome": facts.to_dict(),
-            }
-        )
+        frame = {
+            "type": "stream",
+            "window": window_id,
+            "lines": [_frame_line(line, follower.ruleset) for line in fresh],
+            "chrome": facts.to_dict(),
+        }
+        # Only on the frame that announces the exit, and shaped exactly like
+        # `/api/run`'s payload so the page has one way to read a verdict.
+        if result is not None:
+            frame["result"] = result
+        frames.append(frame)
     return frames
+
+
+def _accrual(follower, child, code: int | None, now: float):
+    """The chrome an accruing window wears, and its envelope once it has one.
+
+    While the child lives this is the running reading [[chrome]] round 4 added
+    — mechanically, the subprocess has not exited. At exit it is the stamp the
+    command would have produced in a terminal, built by that command's own
+    `envelope_for` so the canvas re-decides none of it.
+    """
+    from cli.read import envelope_for as read_envelope
+    from cli.run import envelope_for as run_envelope
+
+    job = follower.job
+    build = chrome_.act if (job and job.acts) else chrome_.snapshot
+    source = " ".join(follower.argv)
+    started = getattr(child, "started_at", None)
+
+    if code is None:
+        return build(source, ok=True, running_since=started), None
+
+    duration = round(now - started, 3) if started is not None else None
+    outcome = stream_.Outcome(
+        exit_code=code,
+        duration_s=duration if duration is not None else 0.0,
+        stdout="",
+        stderr="x" if follower.spoke_on_stderr else "",
+        timed_out=follower.timed_out,
+    )
+    bound = job.timeout if job else None
+    if job and job.command == "read":
+        envelope = read_envelope(outcome, bound)
+    else:
+        envelope = run_envelope(follower.argv, outcome, bound)
+    envelope.command = job.command if job else ""
+
+    facts = build(
+        source,
+        ok=envelope.ok,
+        partial=envelope.partial,
+        warnings=len(envelope.warnings),
+        ran_at=now,
+        duration_s=duration,
+    )
+    return facts, {
+        "argv": list(follower.argv),
+        "exit_code": code,
+        "duration_s": duration,
+        "envelope": envelope.to_dict(),
+        "error": None,
+        "stderr": "",
+        "ok": envelope.ok,
+    }
+
+
+def expired(session: Session, now: float | None = None) -> list:
+    """Accruing followers past the bound their operator declared.
+
+    Pure — it kills nothing. The loop does the killing, because `kill` blocks
+    for the grace period and everything blocking here goes off the loop.
+
+    **A follow is never in this list.** It has no bound to exceed; a stream
+    that stopped printing is [[file-follow]]'s `--due` question and is answered
+    by saying so, not by killing it.
+    """
+    moment = time.time() if now is None else now
+    out = []
+    for follower in list(session.followers.values()):
+        job = follower.job
+        if follower.kind != "accrue" or job is None or not job.timeout:
+            continue
+        if follower.timed_out or follower.child.exit_code is not None:
+            continue
+        started = getattr(follower.child, "started_at", None)
+        if started is not None and moment - started >= job.timeout:
+            out.append(follower)
+    return out
 
 
 def _frame_line(line, ruleset=None) -> dict:
@@ -997,6 +1155,13 @@ async def stream_frames(
                 advance = getattr(follower.child, "tick", None)
                 if advance is not None:
                     await asyncio.to_thread(advance)
+            # The operator's bound, enforced where the blocking can happen.
+            # `expired` decides and this kills, for the same reason every other
+            # blocking call here goes off the loop.
+            for follower in expired(session):
+                follower.timed_out = True
+                await asyncio.to_thread(follower.child.kill)
+
             for stream_frame in follower_frames(session):
                 await queue.put(stream_frame)
             if watch_files:
