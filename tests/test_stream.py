@@ -284,3 +284,52 @@ def test_a_snapshot_read_is_not_unbuffered_for_no_reason():
 
     assert "PYTHONUNBUFFERED" not in child_env(150)
     assert child_env(150, stream=True)["PYTHONUNBUFFERED"] == "1"
+
+
+# --- [[subprocess-env]] round 4: the operator's --env -----------------------
+
+
+def test_the_operators_declaration_beats_sky_boss_own_two():
+    """`extra` is applied last, over COLUMNS and PYTHONUNBUFFERED both.
+
+    The two sky.boss sets are facts it knows about the child's surroundings; the
+    operator's is a fact about the child. A tool whose author says
+    PYTHONUNBUFFERED breaks it must be able to say so."""
+    from cli.helpers import child_env
+
+    env = child_env(150, stream=True, extra={"COLUMNS": "40", "PYTHONUNBUFFERED": "0"})
+    assert env["COLUMNS"] == "40"
+    assert env["PYTHONUNBUFFERED"] == "0"
+
+
+def test_env_adds_without_disturbing_the_operators_environment(monkeypatch):
+    """Round 1's rule is unchanged: the environment is theirs, minus the two
+    variables sb's own wrapper set. `--env` adds; it does not replace."""
+    monkeypatch.setenv("SB_TEST_INHERITED", "kept")
+    from cli.helpers import child_env
+
+    env = child_env(extra={"SB_TEST_DECLARED": "set"})
+    assert env["SB_TEST_INHERITED"] == "kept"
+    assert env["SB_TEST_DECLARED"] == "set"
+    assert "PYTHONPATH" not in env
+
+
+def test_an_env_token_without_a_value_is_refused_not_ignored():
+    """`--env FOO` is someone reaching for the shell's `export`. Dropping it
+    silently leaves a window that runs, exits 0, and is missing the output the
+    flag was added to produce — this round's own failure, reintroduced."""
+    import click
+    import pytest
+
+    from cli.helpers import parse_env
+
+    with pytest.raises(click.UsageError) as caught:
+        parse_env(["JAM_TRANSCRIPT_STDOUT"])
+    assert "JAM_TRANSCRIPT_STDOUT" in str(caught.value)
+
+
+def test_an_env_value_may_be_empty_or_carry_an_equals():
+    """Empty is a real value and not an unset — only the first `=` splits."""
+    from cli.helpers import parse_env
+
+    assert parse_env(["A=", "B=x=y"]) == {"A": "", "B": "x=y"}

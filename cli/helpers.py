@@ -8,6 +8,8 @@ import os
 import subprocess
 from pathlib import Path
 
+import click
+
 # sky.boss is installed via a symlink on PATH, so the current working directory is
 # never a reliable anchor — you run `sb` from wherever you happen to be. Every
 # path in this CLI derives from here. See CLAUDE.md § CLI setup.
@@ -85,7 +87,12 @@ INVOCATION: list[str] = []
 BOOTSTRAP = ("PYTHONPATH", "PYTHONSAFEPATH")
 
 
-def child_env(columns: int | None = None, *, stream: bool = False) -> dict[str, str]:
+def child_env(
+    columns: int | None = None,
+    *,
+    stream: bool = False,
+    extra: dict[str, str] | None = None,
+) -> dict[str, str]:
     """The environment a spawned command should see: the operator's, not sky.boss's.
 
     Without this, `sb run -- python3 -c "import cli"` imports *this* package
@@ -106,6 +113,16 @@ def child_env(columns: int | None = None, *, stream: bool = False) -> dict[str, 
     where a wrapped line would be a corrupted one. `LINES` is deliberately not
     set: a tool that thinks it knows the height may decide to paginate, and a
     pager inside a stream is a hang. See [[subprocess-env]] round 2.
+
+    **`extra` is the operator's `--env`, and it is applied last** — over
+    `COLUMNS` and `PYTHONUNBUFFERED` both. The two above are sky.boss adding a
+    fact it *knows*: it has a terminal, so it knows the width; a pipe is
+    block-buffered, so it knows the delay. Nothing lets it know what a tool
+    would have *printed* to a terminal, and a tool that asks `isatty()` and
+    stays quiet is the one failure in this class with no symptom. Only the
+    tool's author knows, and they wrote it down as a variable — so the operator
+    declares it, and a declaration about this child beats sky.boss's guess about
+    every child. See [[subprocess-env]] round 4.
     """
     env = {k: v for k, v in os.environ.items() if k not in BOOTSTRAP}
     if columns:
@@ -124,7 +141,39 @@ def child_env(columns: int | None = None, *, stream: bool = False) -> dict[str, 
         # family — sky.boss's siblings are all Python — and it costs a
         # non-Python child nothing. See [[subprocess-env]] round 3.
         env["PYTHONUNBUFFERED"] = "1"
+    if extra:
+        env.update(extra)
     return env
+
+
+def parse_env(pairs: tuple[str, ...] | list[str]) -> dict[str, str]:
+    """`--env NAME=VALUE` occurrences into a mapping, or a usage error.
+
+    One parser for four commands and the canvas's two resolvers, so a token the
+    terminal accepts is a token an accruing window accepts. See
+    [[subprocess-env]] round 4.
+
+    **A token with no `=` is refused rather than ignored.** `--env FOO` is
+    someone reaching for the shell's `export`, and silently dropping it would
+    leave a window that runs, exits 0, and is missing the output the flag was
+    added to produce — which is the exact failure this round exists to remove,
+    reintroduced by the fix for it.
+
+    A value may be empty (`--env FOO=`) and may contain `=`; only the first one
+    splits. **Unsetting is not offered**: an empty variable and an absent one
+    are different things to a tool that checks, and `BOOTSTRAP` stays the only
+    removal sky.boss performs.
+    """
+    out: dict[str, str] = {}
+    for pair in pairs:
+        name, sep, value = pair.partition("=")
+        if not sep or not name:
+            raise click.UsageError(
+                f"--env takes NAME=VALUE, not {pair!r} "
+                "(a value may be empty: --env NAME=)"
+            )
+        out[name] = value
+    return out
 
 
 def run_command(
