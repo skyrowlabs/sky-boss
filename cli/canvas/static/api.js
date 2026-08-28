@@ -49,6 +49,15 @@ export function trial(argv, timeout) {
   return post("/api/trial", { argv, timeout });
 }
 
+/* Re-shape a payload the bench already has, without re-running anything. A
+ * view describes how to present data and never filters it, so which columns
+ * are drawn is a question about the drawing — answering it by re-fetching
+ * would also make every chip click compare against a different dataset.
+ * See [[workbench]] round 2. */
+export function shape(data, { cols, drop, rows } = {}) {
+  return post("/api/shape", { data, cols, drop, rows });
+}
+
 export function watch(session, window, argv, interval) {
   return post("/api/watch", { session, window, argv, interval });
 }

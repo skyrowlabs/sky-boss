@@ -123,14 +123,14 @@ carries the contract's own *acts* or *observes* badge, because a rail that lists
 - [x] Tests: the bench route refuses an unauthenticated request like every other; a trial run of
       an `acts` contract is refused server-side and not merely hidden in the UI.
 
-### Round 2 — the view controls (2026-08-26)
+### Round 2 — the view controls (2026-08-26, done 2026-08-27)
 
-- [ ] **The column checklist**, assembled from `view.columns + view.details + view.hidden`. No new
+- [x] **The column checklist**, assembled from `view.columns + view.details + view.hidden`. No new
       envelope field; if one turns out to be needed, that is a [[table-views]] round, not this one.
-- [ ] Clicking a chip rebuilds the table, the hidden-column warning and the composed argv together.
-- [ ] `--from` and `--rows` beside it; `--due` and `--highlight` for `follow`, with the declared
+- [x] Clicking a chip rebuilds the table, the hidden-column warning and the composed argv together.
+- [x] `--from` and `--rows` beside it; `--due` and `--highlight` for `follow`, with the declared
       highlight rules applied to the drawn result so you can see which words claimed what.
-- [ ] Tests, in `cli/view.py` where pytest reaches them: the offered set is exactly what the
+- [x] Tests, in `cli/view.py` where pytest reaches them: the offered set is exactly what the
       envelope carried, and a chip for a column no row has is never offered.
 
 ### Round 3 — the act asymmetry and save (2026-08-26)
@@ -253,3 +253,59 @@ draws on the bench: clicking a tool there should load it *into the draft*, and t
 saved command is not something the page has — the server resolves it, as `resolve_follow` does.
 That is a real dependency and not a layout question, so it waits rather than being drawn as a
 sidebar that opens canvas windows from the wrong screen.
+
+**2026-08-27 — round 2, and the trap the checklist walks into if you do not shape twice.**
+
+**A chip click re-shapes; it does not re-run.** `/api/shape` takes the payload the trial run
+already returned and hands back a fresh view — a pure function of the rows, running nothing, on the
+same side of *reads in, execution out* as `/api/catalog`. Two reasons, and the second is the one
+that decided it. A view *describes how to present data and never filters it*, so which columns are
+drawn is a question about the drawing, and answering it by re-running the foreign tool would be
+re-fetching to settle a layout. And re-running would make every chip compare against a slightly
+different dataset, which is precisely the comparison the checklist exists to let you make.
+
+**The trap: a `--cols` view cannot supply its own checklist.** With `--cols` in force `shape`
+returns exactly what was named and `hidden` is empty — so a checklist built from the drawn view
+loses every column the moment you untick it, with no way to tick it back. The route therefore
+shapes **twice**: once with what was asked for, to draw; once with nothing asked for, for
+`offered`. Held by a test, because it is invisible until someone unticks the last column.
+
+**A chip is lit when its column is drawn, not when it was named.** With no `--cols` the shaping has
+already decided — an empty column and an opaque sha are hidden by rule — so lighting every chip
+would claim nine columns were showing when six are. Read off the view like everything else here.
+
+**The chosen set is rebuilt in the checklist's order, not in click order.** `--cols` sets column
+order, and letting that depend on the sequence of clicks would produce a table that quietly differs
+from an identical-looking one. The checklist's own order is inline → prose → hidden-by-rule, which
+answers *why is this chip here* rather than reproducing the tool's key order.
+
+**Two flags re-shape and three do not.** `--cols` and `--rows` describe the drawing. `--from`
+changes how the tool's bytes are parsed, and `--due` and `--highlight` belong to a stream being
+opened — all three compose into the argv and take effect on the next trial run. The panel says so
+rather than leaving it to be discovered by clicking.
+
+**`warnings_for` moved into `cli/view.py`, and it should always have been there.** It was inline in
+`cli/data.py` only because there had been one caller. *Which columns went quiet* is exactly the
+kind of decision the module header already argues belongs in Python — and the bench asks the same
+question of the same payload without re-running the tool, so two copies would have drifted the week
+after they were written.
+
+**The foot band counts this shaping's warnings, not the trial's.** Found by looking at a screenshot:
+the band said `1 warning` above a body showing none, because the chrome still carried the count
+from the run while the body had been re-shaped. A footer describing a shaping nobody is looking at
+any more is the looks-right-and-isn't failure in miniature.
+
+**Round 1's plain follow tail is reversed here.** It was drawn without marks on the reasoning that
+tinting belongs to a window living with a stream. `--highlight` being a *control* on this screen
+makes that untenable: you cannot choose a ruleset by name and then not see what it claimed.
+`markedLine` moved from `app.js` into `render.js` so there is one slicer rather than a copy —
+verified against the operator's own `[highlight.jam]`, which claimed `passed`/`clean` as ok,
+`failed`/`errors` as fail, `escalating` as warn and `skipped`/`deferred` as muted, while sb's own
+timestamp rule had already claimed `20:41` ahead of them.
+
+**One unexplained thing, recorded rather than claimed fixed.** During testing the page reached a
+state where no `setDraft` re-rendered — the composed line froze while chip clicks still fired their
+requests. It did not survive a reload and did not reproduce afterwards, including against the exact
+sequence that produced it. The most plausible cause was `shaped: null` meaning two different things
+(*no shaping asked for yet* and *this shaping found no rows*), which is now tracked as a separate
+`hasShaped`. That is a real bug fixed on its own merits; whether it was **the** bug is unproven.

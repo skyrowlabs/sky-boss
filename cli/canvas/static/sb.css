@@ -633,3 +633,42 @@ pre.raw {
 .ref-flag-name { flex: none; width: 22rem; color: var(--sb-brand); font-size: 2.75rem; }
 /* Also reading text, and the longest run of it on the screen. */
 .ref-flag-desc { flex: 1; color: var(--sb-text-2); font-size: 2.75rem; line-height: 1.5; }
+
+/* ------------------------------------------------------------ view controls */
+
+/* Below the result rather than beside it: the checklist is read *against* the
+ * table it changes, and a control that made you look away from the thing it
+ * changed would be the second terminal this screen exists to remove. */
+.bench-view { flex: none; }
+.vc-body { padding: 2.5rem 3.5rem; display: flex; flex-direction: column; gap: 2.5rem; }
+.vc-none { color: var(--sb-text-2); line-height: 1.55; }
+.vc-none b { color: var(--sb-text); }
+
+.vc-chips { display: flex; flex-wrap: wrap; gap: 1.5rem; }
+/* Unselected is dim, not hidden. A column the shaping dropped is still a
+ * column you may name, and the whole point of the checklist is that the set
+ * you can choose from does not change as you choose. */
+.vc-chip {
+  font: inherit; font-size: 2.75rem; cursor: pointer;
+  background: transparent; color: var(--sb-text-3);
+  border: var(--hair) solid var(--sb-hair); border-radius: var(--r-sm);
+  padding: 0.5rem 2rem;
+}
+.vc-chip:hover { color: var(--sb-text-2); }
+.vc-chip.on { background: var(--sb-tint); border-color: var(--sb-edge); color: var(--sb-brand); }
+
+.vc-row { display: flex; gap: 3.5rem; }
+.vc-row > * { flex: 1; min-width: 0; }
+.vc-field { display: flex; align-items: baseline; gap: 2rem; flex-wrap: wrap; }
+.vc-label { flex: none; width: 22rem; color: var(--sb-brand); font-size: 2.75rem; }
+.vc-field input {
+  flex: 1; min-width: 20rem; font: inherit; font-size: 2.75rem;
+  color: var(--sb-text); background: transparent; outline: 0;
+  border: var(--hair) solid var(--sb-hair); border-radius: var(--r-sm);
+  padding: 0.75rem 1.5rem;
+}
+.vc-field input:focus { border-color: var(--sb-edge); }
+.vc-field input::placeholder { color: var(--sb-text-3); }
+/* Reading text, so TEXT_2 — the same rule the reference rail follows. */
+.vc-note { flex-basis: 100%; margin-left: 24rem; color: var(--sb-text-2); font-size: 2.5rem; }
+.vc-note.wide { margin-left: 0; line-height: 1.5; }
