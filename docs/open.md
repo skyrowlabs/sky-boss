@@ -30,12 +30,28 @@ looking at real failures, not by drawing one.*
 slots for the deferred) was the only widget anywhere showing one run's shape at a glance. It died
 with the console. It probably belongs in the tower; nothing has claimed it. See [[workbench]] Notes.
 
-**3. The floating canvas: keep the metaphor or let it go.** [[canvas]] was built around
-overlapping draggable windows and calls that the central metaphor. The mockup demoted it to one of
-three layouts, and removing the console removed it entirely — the tower's `merged / split` does
-the same job with structure. **This is a reversal of a stated primitive and needs an argument, not
-an omission.** The case for keeping it is heterogeneous observes: a table beside a follow beside a
-file cursor, which the structured views cannot express.
+**3. The floating canvas: ~~keep the metaphor or let it go~~ — it was never let go.** *Mostly
+answered 2026-08-27 by building the workbench, and the wording below was wrong from the day it was
+written.*
+
+The item said "removing the console removed it entirely". That was true of the **mockup** and never
+of the product: `tiled / floating` has been in the top bar since [[canvas]] round 1 and still is —
+`position: absolute`, `begin_move_drag` on the bar, a resize grip, z-order on focus, all working.
+The item read as though a shipped feature had been dropped, which is the one thing a list like this
+must not do.
+
+**The reversal it feared did not happen, because [[workbench]] was added *beside* the canvas rather
+than instead of it.** The three artboards were drawn as three screens; what got built is a nav with
+two entries, one of which is the canvas, unchanged. A primitive is only reversed by something
+replacing it.
+
+And the case the item names as the argument for keeping it was checked rather than assumed: a
+shaped table, a verbatim `git log`, and a live file cursor, overlapping and independently draggable
+on one canvas. That is the thing structured views cannot express, and it works today.
+
+**What is actually still open is narrower**: when the tower arrives with its own `merged / split`,
+does the canvas screen stay? That is a question about a screen that does not exist yet, and it
+should be asked then rather than pre-answered now.
 
 **4. The secondary label tier's contrast.** *Closed 2026-08-27 → [[fundamentals]] § the label
 tier: a border token is not a text token.* Ruled not a contrast question at all: `TEXT_3` is
