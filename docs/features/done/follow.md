@@ -1,5 +1,5 @@
 ---
-status: active
+status: complete
 created: 2026-08-21
 updated: 2026-08-28
 agent_value: 3
@@ -14,6 +14,10 @@ key_files:
   - cli/canvas/server.py
   - cli/canvas/runner.py
   - cli/canvas/static/app.js
+  - cli/canvas/static/api.js
+  - cli/chrome.py
+  - tests/test_canvas_server.py
+  - tests/test_chrome.py
   - tests/test_stream.py
   - tests/test_follow.py
   - tests/test_filefollow.py
@@ -553,3 +557,62 @@ budget should move to `run`; the job that opened this round carries `--budget 12
 that owns the budget — arriving as a real case rather than an argument. And [[open]] item 1, the
 failure screen, is marked *blocked on evidence*; an accruing two-hour agent run is the first thing
 here likely to produce some.
+
+
+### Round 4 — executed, and rendering found the older bug (2026-08-28)
+
+The round was right about the shape and wrong about one route. What the execution argued back:
+
+**`/api/run` does not accrue; `/api/accrue` does.** The phase said to put accrual on `/api/run`,
+and building it ran straight into that route's own argument, written a round earlier in
+`post_trial`: *"a route that sometimes refuses `run` and sometimes does not is a route with two
+contracts."* A route that sometimes returns an envelope and sometimes returns *watch the stream* is
+the same sentence with the nouns changed. So there are three routes with one contract each —
+`/api/run` runs to completion, `/api/follow` holds open what should not exit, `/api/accrue` holds
+open what should. The phase box is amended and says where it went.
+
+**`resolve_run` refuses what it cannot account for, and that is load-bearing rather than tidy.**
+An accruing window spawns the *foreign* argv directly, so any sb-level flag the resolver does not
+read is silently dropped — `read --save status` would accrue perfectly and save nothing. Refusing
+sends the caller back to `runner.run`, which honours every flag by construction because it runs the
+real `sb`. **A flag is opted into accrual, never out of it**, which means the next flag added to
+`read` is safe by default instead of safe if someone remembers. The client does not copy the rule:
+it POSTs and falls back on a 400.
+
+**Sharing `Outcome` → `Result` split one way and not the other.** The phase said "one place"; there
+are two, one per command, each with two surface callers. `run` and `read` genuinely disagree about
+what an envelope says — a read reports a non-zero exit as a warning and carries its error as text,
+an act carries a mapping — and collapsing them would have been the wrong sharing at exactly the
+moment the round was congratulating itself on the right kind.
+
+**The frontend's conflation was one word doing two jobs.** `stream: Boolean(entry.resident)` had
+been harmless because every streaming window was a follow. Splitting it turned up three places that
+had silently meant the wrong one: the PIN control (hidden from any stream, when what it must be
+hidden from is an *act* — a read may be pinned while it accrues), the dead band (offered to
+anything that exited, when an act exiting 0 has succeeded and offering to restart it reads as
+recovery from a failure that did not happen), and the reconnect, which respawns a follow and must
+**not** respawn an act — that would be a second write nobody asked for.
+
+**Rendering found a bug older than the round, in the one state it exists to draw.** `Chrome.to_dict`
+omitted every falsy value, so `exit_code: 0` never reached the page and a follow that finished
+cleanly rendered `dead · exited undefined`. Zero is *absent* for a count and *meaningful* for an
+exit code, and the same filter was serving both. The terminal band never showed it because it reads
+the dataclass rather than the dict — so the surface with no test runner had the defect, and the
+verification this round promised is what surfaced it. Fixed with a test, and it is the clearest
+case yet for the headless pass being a real obligation rather than a formality.
+
+**The guarded-route list was a hand-maintained inventory, which is the thing this repo does not
+keep.** Its own docstring says *"a route added later without the guard is the whole failure mode,
+and this is what catches it"* — true only if whoever adds the route also adds the line. It is now
+checked against the real route table, the same way `static/`'s inventory is.
+
+**One cosmetic thing left alone deliberately.** A window flashes the snapshot spinner for one tick
+before the accrue POST answers, then becomes a stream. Optimistically drawing an empty stream would
+be worse on the fallback path, and the spinner is the honest reading of *we have not been told yet*.
+
+**Two waits, both bounded, and the second one taught the same lesson twice.** The headless harness
+first pressed Enter in the same task that set the palette's query, which opened whichever command
+had been highlighted against the *previous* render — React state is not a variable. And the probe
+for "is a cadence offered" matched `button.sbtn`, which is also what the follow's **restart** button
+is, so a passing assertion was reading the wrong element. Both were harness bugs reported as
+product failures, which is the specific hazard of verifying through a DOM.
