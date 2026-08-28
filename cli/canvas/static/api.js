@@ -86,6 +86,23 @@ export function unfollow(session, window) {
   return post("/api/follow", { session, window, stop: true });
 }
 
+/* An accruing run ([[follow]] round 4). Same transport as `follow`, different
+ * ending: a `run` or `read` whose lines arrive while it works and whose exit
+ * is the verdict it was always going to produce, not a death.
+ *
+ * Not a mode on `run` for that route's own reason — one route that sometimes
+ * returns an envelope and sometimes returns "watch the stream" is a route with
+ * two contracts. A 400 here means the server will not accrue this argv, and
+ * the caller falls back to `run`, which honours every sb-level flag by
+ * running the real `sb`. */
+export function accrue(session, window, argv) {
+  return post("/api/accrue", { session, window, argv });
+}
+
+export function unaccrue(session, window) {
+  return post("/api/accrue", { session, window, stop: true });
+}
+
 /* Ends the whole surface. The window has no frame, so this is the close
  * button — and it is guarded like every other route, because ending your
  * session is a real effect and a page you did not open must not be able to

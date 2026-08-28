@@ -116,8 +116,15 @@ class Chrome:
             "fires_at", "ring_first", "ring_last", "parked",
         ):
             value = getattr(self, key)
-            if value not in (None, 0):
-                out[key] = value
+            # Zero is *absent* for a count and *meaningful* for an exit code,
+            # which is the one field here where "unset" and "0" are different
+            # facts. Dropping it made the canvas read `dead · exited undefined`
+            # for the most ordinary death there is — a command that finished.
+            # Found by rendering, in [[follow]] round 4; the terminal band
+            # never saw it, because it reads the dataclass rather than this.
+            if value is None or (value == 0 and key != "exit_code"):
+                continue
+            out[key] = value
         return out
 
 

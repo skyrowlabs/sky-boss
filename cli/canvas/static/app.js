@@ -497,7 +497,10 @@ function StreamBody({ win, actions }) {
     const node = bodyRef.current;
     if (node) node.scrollTop = node.scrollHeight;
   }, [win.streamLines]);
-  const dead = win.chrome && win.chrome.attention === "dead";
+  /* Only a follow dies. An accruing run reaching exit 0 has *succeeded*, and
+   * offering to restart it there would read as recovery from a failure that
+   * did not happen — its ⟳ is in the title bar like every other run's. */
+  const dead = win.resident && win.chrome && win.chrome.attention === "dead";
   return html`
     <div class="body" ref=${bodyRef}>
       <pre class="raw stream">
@@ -536,7 +539,7 @@ function Window({ win, now, layout, focused, actions, intervals }) {
         <span class="num">#${win.num}</span>
         <span class="cmd">${win.label}</span>
         <span class=${`age ${failed ? "bad" : ""}`}>
-          ${win.stream
+          ${win.resident
             ? streamLabel(win)
             : win.running
               ? "running…"
@@ -552,7 +555,7 @@ function Window({ win, now, layout, focused, actions, intervals }) {
         )}
         <span class="addtag" onClick=${() => actions.tag(win.id)}>＋tag</span>
         ${!win.acts &&
-        !win.stream &&
+        !win.resident &&
         html`
           <button class=${`sbtn ${win.pinned ? "on" : ""}`} onClick=${() => actions.pin(win.id)}>
             ${win.pinned ? "PINNED" : "PIN"}
@@ -690,8 +693,13 @@ function App() {
             if (win.pinned) api.watch(frame.session, win.id, argvOf(win), win.interval);
             /* A follow window's child died with the old session; a reconnect
              * spawns a fresh one, which is the honest reading of "nothing
-             * survives the last window". */
-            if (win.stream) api.follow(frame.session, win.id, argvOf(win));
+             * survives the last window".
+             *
+             * An accruing window is deliberately *not* respawned. Its child
+             * died with the session too, but re-running it would be a second
+             * write nobody asked for — the ⟳ is the operator's click, and a
+             * reconnect is not one. It is left holding what it had. */
+            if (win.resident) api.follow(frame.session, win.id, argvOf(win));
           }
           /* The bench's own stream died with the old session too. Re-opened
            * from the draft rather than remembered separately — the draft is
@@ -722,7 +730,20 @@ function App() {
               if (w.id !== frame.window) return w;
               const limit = (frame.chrome && frame.chrome.ring_limit) || 200;
               const lines = [...(w.streamLines || []), ...frame.lines].slice(-limit);
-              return { ...w, streamLines: lines, chrome: frame.chrome, running: false };
+              /* `result` rides only the frame that announces an accruing
+               * window's exit, shaped exactly like `/api/run`'s payload so the
+               * page has one way to read a verdict. Until it arrives the
+               * window is still working — which is not true of a follow, where
+               * every frame means the same thing. */
+              const done = Boolean(frame.result);
+              return {
+                ...w,
+                streamLines: lines,
+                chrome: frame.chrome,
+                running: w.resident ? false : !done && w.running,
+                result: done ? frame.result : w.result,
+                ranAt: done ? Date.now() : w.ranAt,
+              };
             })
           );
         } else if (frame.type === "run") {
@@ -753,13 +774,13 @@ function App() {
     return () => document.removeEventListener("keydown", onKey);
   }, []);
 
-  function execute(id, argv, stream = null) {
-    /* `stream` is passed explicitly from open(), because the state update
+  function execute(id, argv, resident = null) {
+    /* `resident` is passed explicitly from open(), because the state update
      * that adds the window has not landed in windowsRef yet on the very
      * first execute. Everywhere else the window is looked up. */
     const win = windowsRef.current.find((w) => w.id === id);
-    if (stream === null) stream = Boolean(win && win.stream);
-    if (stream) {
+    if (resident === null) resident = Boolean(win && win.resident);
+    if (resident) {
       /* Streams are held open by the server, not run to completion. This is
        * also the restart affordance: re-POSTing kills the corpse and spawns
        * fresh, so the ⟳ button means "again" for a stream too. */
@@ -777,8 +798,40 @@ function App() {
       }
       return;
     }
+    /* An unpinned run or read accrues: its lines arrive while it works and its
+     * exit is the verdict. A *pinned* one does not — a pinned window is a
+     * watcher, the server re-runs it on a cadence and delivers whole
+     * envelopes, which is also the one place the timeout ceiling belongs.
+     *
+     * Whether this particular argv can accrue is the server's call, not a rule
+     * copied here: `resolve_run` refuses anything it cannot fully account for,
+     * because accrual spawns the foreign command directly and a dropped
+     * `--save` would not save. A refusal falls back to `run`. */
+    if (sessionRef.current && !win?.pinned) {
+      setWindows((all) =>
+        all.map((w) =>
+          w.id === id ? { ...w, streamLines: [], chrome: null, result: null, running: true } : w
+        )
+      );
+      api
+        .accrue(sessionRef.current, id, argv)
+        .then((answer) => {
+          if (answer && answer.accruing) {
+            patch(id, () => ({ stream: true }));
+            return;
+          }
+          patch(id, () => ({ stream: false }));
+          return snapshotRun(id, argv);
+        })
+        .catch(() => snapshotRun(id, argv));
+      return;
+    }
+    snapshotRun(id, argv);
+  }
+
+  function snapshotRun(id, argv) {
     setWindows((all) => all.map((w) => (w.id === id ? { ...w, running: true } : w)));
-    api
+    return api
       .run(argv)
       .then((result) =>
         setWindows((all) =>
@@ -829,8 +882,13 @@ function App() {
       argv: [...entry.argv, ...extra],
       label: entry.raw ? entry.rawWords.join(" ") : [...entry.argv, ...extra].join(" "),
       acts: entry.acts,
-      /* Resident by nature — a stream is held open, not run. Inherited from
-       * the catalog, so a saved keyword wrapping follow is one too. */
+      /* Two facts, not one. `resident` is the operator's assertion that this
+       * is not expected to exit — inherited from the catalog, so a saved
+       * keyword wrapping follow is one too. `stream` is only whether the body
+       * is a list of lines, which a `run` or `read` becomes the moment the
+       * server agrees to accrue it. They coincided until [[follow]] round 4
+       * and reading one as the other is why an act could not be watched. */
+      resident: Boolean(entry.resident),
       stream: Boolean(entry.resident),
       streamLines: [],
       chrome: null,
@@ -863,7 +921,7 @@ function App() {
     setSelected(0);
     setFloating(false);
     setFocus(id);
-    execute(id, argvOf(win), win.stream);
+    execute(id, argvOf(win), win.resident);
     /* Registered now rather than on the next session frame, so a tool that
      * opens pinned starts its clock immediately instead of on the next tick. */
     if (win.pinned) reWatch(win);
@@ -888,10 +946,11 @@ function App() {
       const win = windowsRef.current.find((w) => w.id === id);
       if (sessionRef.current) {
         api.unwatch(sessionRef.current, id);
-        /* Closing a follow's window SIGTERMs its process — streams die with
-         * their window, which is what keeps a follow a stream and not a
-         * service manager. */
-        if (win && win.stream) api.unfollow(sessionRef.current, id);
+        /* Closing the window SIGTERMs its child — a stream dies with its
+         * window, which is what keeps a follow a stream and not a service
+         * manager, and an accruing act a run and not a daemon. */
+        if (win && win.resident) api.unfollow(sessionRef.current, id);
+        else if (win && win.stream) api.unaccrue(sessionRef.current, id);
       }
       setWindows((all) => all.filter((w) => w.id !== id));
     },
