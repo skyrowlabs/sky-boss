@@ -241,7 +241,7 @@ start with a sky.boss command, a cadence is refused on a tool that acts or is re
       refuses.
 - [x] **The validator runs before the write**, sharing one function with the loader's refusals so
       the two cannot drift.
-- [ ] **`POST /api/tools`** — create/replace and delete, guarded like every route, with the refusal
+- [x] **`POST /api/tools`** — create/replace and delete, guarded like every route, with the refusal
       as a 400 carrying its reason. A test that it refuses an unauthenticated request, alongside
       the existing route inventory.
 - [ ] **The bench saves for real.** Its `--save` row currently prints a block for you to paste;

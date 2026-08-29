@@ -43,6 +43,7 @@ GUARDED = [
     ("/api/watch", "post"),
     ("/api/follow", "post"),
     ("/api/accrue", "post"),
+    ("/api/tools", "post"),
     ("/api/quit", "post"),
     ("/api/stream", "get"),
 ]
@@ -467,3 +468,62 @@ def test_no_route_writes_the_tools_file(client, tmp_path, monkeypatch):
 
     assert not (home / "tools.toml").exists()
     assert not home.exists()
+
+
+# --- [[tools]] round 4: the route that rule 4 said would never exist ---------
+
+
+def test_the_tools_route_writes_and_reloads(client, tmp_path, monkeypatch):
+    """The write reaches the file *and* the tree. A tool on disk that the rail
+    does not list is a surface disagreeing with itself — the name is refused as
+    taken while nothing shows it exists."""
+    monkeypatch.setenv("SB_HOME", str(tmp_path))
+    monkeypatch.setattr("cli.helpers.SB_HOME", tmp_path)
+    monkeypatch.setattr("cli.tools.SB_HOME", tmp_path)
+    body = {"name": "probe", "argv": ["read", "--", "echo", "hi"], "description": "a probe"}
+    response = client.post("/api/tools", json=body, headers=auth())
+    assert response.status_code == 200, response.text
+    out = response.json()
+    assert out["action"] == "created"
+    assert out["problems"] == []
+    assert "[tool.probe]" in (tmp_path / "tools.toml").read_text()
+
+    # …and again, which is a replace rather than a refusal.
+    body["argv"] = ["read", "--", "echo", "bye"]
+    again = client.post("/api/tools", json=body, headers=auth()).json()
+    assert again["action"] == "replaced"
+    assert "bye" in (tmp_path / "tools.toml").read_text()
+
+    gone = client.post("/api/tools", json={"name": "probe", "delete": True}, headers=auth())
+    assert gone.status_code == 200, gone.text
+    assert "[tool.probe]" not in (tmp_path / "tools.toml").read_text()
+
+
+def test_the_tools_route_refuses_with_the_loaders_own_reason(client, tmp_path, monkeypatch):
+    """A 400 carrying why, not a 500 and not a silent write. `write_problem`
+    is asked, so the route cannot hold a second opinion."""
+    monkeypatch.setenv("SB_HOME", str(tmp_path))
+    monkeypatch.setattr("cli.helpers.SB_HOME", tmp_path)
+    monkeypatch.setattr("cli.tools.SB_HOME", tmp_path)
+    response = client.post(
+        "/api/tools",
+        json={"name": "nope", "argv": ["ls", "-la"]},
+        headers=auth(),
+    )
+    assert response.status_code == 400
+    assert "must start with" in response.json()["error"]
+    assert not (tmp_path / "tools.toml").exists(), "refused and still wrote"
+
+
+def test_the_tools_route_will_not_give_a_cadence_to_a_write(client, tmp_path, monkeypatch):
+    """The act/observe split holds through the new door too."""
+    monkeypatch.setenv("SB_HOME", str(tmp_path))
+    monkeypatch.setattr("cli.helpers.SB_HOME", tmp_path)
+    monkeypatch.setattr("cli.tools.SB_HOME", tmp_path)
+    response = client.post(
+        "/api/tools",
+        json={"name": "deploy", "argv": ["run", "--", "true"], "refresh": 30},
+        headers=auth(),
+    )
+    assert response.status_code == 400
+    assert "acts" in response.json()["error"]
