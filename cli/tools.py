@@ -869,8 +869,8 @@ def backup(home: Path | None = None, stamp: str | None = None) -> Path | None:
     return kept
 
 
-def block_range(text: str, name: str) -> tuple[int, int] | None:
-    """The line range `[tool.NAME]` occupies, as `[start, end)`. None if absent.
+def block_range(text: str, name: str, table: str = "tool") -> tuple[int, int] | None:
+    """The line range `[TABLE.NAME]` occupies, as `[start, end)`. None if absent.
 
     **Located by line, not by round-tripping the document.** `tools.toml` is
     hand-written and carries the operator's prose — in this repo, a five-line
@@ -889,7 +889,7 @@ def block_range(text: str, name: str) -> tuple[int, int] | None:
     for i, line in enumerate(lines):
         stripped = line.strip()
         if start is None:
-            if stripped == f"[tool.{name}]":
+            if stripped == f"[{table}.{name}]":
                 start = i
             continue
         if _HEADER.match(stripped):
@@ -989,6 +989,101 @@ def remove_block(name: str, home: Path | None = None) -> dict:
         "file": str(path),
         **({"backup": str(kept)} if kept else {}),
     }
+
+
+def group_problem(name: str, description: str = "") -> str | None:
+    """Why this group cannot be written, or None.
+
+    The loader's own check, asked before the write — the rule round 4 set for
+    tools and there is no reason a group gets a second opinion.
+    """
+    return _check_group(name, {"description": description}, set())
+
+
+def write_group(name: str, description: str = "", home: Path | None = None) -> dict:
+    """Create or replace `[group.NAME]`. Backed up first, like every write."""
+    problem = group_problem(name, description)
+    if problem:
+        raise click.UsageError(f"group {name!r}: {problem}")
+
+    path = home_file(home)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    text = path.read_text(encoding="utf-8") if path.exists() else ""
+    kept = backup(home)
+
+    lines = [f"[group.{name}]"]
+    if description:
+        lines.append(f"description = {_toml_string(description)}")
+    fresh = "\n".join(lines) + "\n"
+
+    span = block_range(text, name, table="group")
+    if span is None:
+        joiner = "" if not text else ("" if text.endswith("\n\n") else ("\n" if text.endswith("\n") else "\n\n"))
+        path.write_text(text + joiner + fresh, encoding="utf-8")
+        action = "created"
+    else:
+        rows = text.splitlines(keepends=True)
+        start, end = span
+        while end > start and not rows[end - 1].strip():
+            end -= 1
+        path.write_text("".join(rows[:start]) + fresh + "".join(rows[end:]), encoding="utf-8")
+        action = "replaced"
+    return {
+        "name": name,
+        "action": action,
+        "file": str(path),
+        **({"description": description} if description else {}),
+        **({"backup": str(kept)} if kept else {}),
+    }
+
+
+def remove_group(name: str, home: Path | None = None) -> dict:
+    """Delete `[group.NAME]`. Refused while any command still names it.
+
+    **The refusal is here, not in the button.** A surface that only declines to
+    *draw* a control has not refused anything — the sentence round 5 wrote
+    about `/api/trial`, and it applies to every gesture a page can make up.
+
+    It names the commands rather than just counting them, because "3 commands
+    are still in it" leaves you opening the file to find out which.
+
+    Deleting a group never deletes a command. A cascade here would be the
+    surface deciding that *delete this label* meant *delete this work*.
+    """
+    path = home_file(home)
+    text = path.read_text(encoding="utf-8") if path.exists() else ""
+
+    raw = read(home)
+    holders = sorted(
+        tool
+        for tool, body in (raw.get("tool") or {}).items()
+        if isinstance(body, dict) and body.get("group") == name
+    )
+    if holders:
+        raise click.UsageError(
+            f"{name!r} still holds {_plural(len(holders))}: {', '.join(holders)} — "
+            "move them out first"
+        )
+
+    span = block_range(text, name, table="group")
+    if span is None:
+        raise click.UsageError(f"{name!r} is not a declared group in {path}")
+
+    kept = backup(home)
+    rows = text.splitlines(keepends=True)
+    start, end = span
+    start = _with_leading_comments(rows, start)
+    path.write_text("".join(rows[:start]) + "".join(rows[end:]), encoding="utf-8")
+    return {
+        "name": name,
+        "action": "deleted",
+        "file": str(path),
+        **({"backup": str(kept)} if kept else {}),
+    }
+
+
+def _plural(count: int) -> str:
+    return "1 command" if count == 1 else f"{count} commands"
 
 
 def name_problem(name: str, home: Path | None = None) -> str | None:

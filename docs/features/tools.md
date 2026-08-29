@@ -307,7 +307,7 @@ a perfectly valid group name and silently a second group, where `Jam` at least g
       See Notes.*
 - [x] **The catalog carries the ordered list**, and `sectionsOf` in `app.js` becomes a bucket-by-
       name rather than a second copy of the ordering rule.
-- [ ] **The writer.** `write_group`, `remove_group` — refusing one that any command still names,
+- [x] **The writer.** `write_group`, `remove_group` — refusing one that any command still names,
       naming them — and `block_range` generalised to a table prefix so it can find `[group.x]`.
       Backups as ever. `POST /api/groups`, guarded, joining the route-inventory test.
 - [x] **`highlight` round-trips.** `block()` serialises it; a test saves a tool that has one, reads
