@@ -414,6 +414,18 @@ Shared with sibling CLIs so the family feels like one tool.
   kept: stripping the venv the wrapper prepends would be sky.boss choosing which `python3` a foreign
   tool finds. Not a clean room — scrub what sky.boss added to boot and nothing else. See
   [[subprocess-env]].
+- **A tool that gates its output on `isatty()` is the operator's to declare.** Every child gets a
+  pipe, so a tool that decides *what to print* by asking whether it has a terminal prints less
+  under sky.boss than in your shell — not late, not narrow, **absent**, and absent output looks
+  exactly like a job quietly working. sky.boss supplies `COLUMNS` and `PYTHONUNBUFFERED` because it
+  *knows* those two; it cannot know what a tool would have said to a terminal, so it does not
+  guess and keeps no table of tools. `--env NAME=VALUE` on `run`, `read`, `follow` and `data` is
+  how you say it, applied last over sky.boss's own two, and it rides into a saved tool in the argv
+  exactly as `--cwd` does. **Not a credential path** — the value is written verbatim into
+  `tools.toml` and drawn in a window title; anything secret is already inherited.
+  `env NAME=VALUE …` in the argv is *not* the same thing and is rejected in
+  [[subprocess-env]] round 4: it makes the bench report `env resolves /usr/bin/env`, so the
+  surface vouches for the wrapper instead of the tool.
 - **One palette, in `cli/theme.py`** — Skyrow Labs' **design system**, copied verbatim from its own
   `colors_and_type.css`, vendored at `docs/design/` so the copy is checkable. The system is
   dark-only by declaration.

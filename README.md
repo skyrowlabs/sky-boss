@@ -60,6 +60,30 @@ beta
 └ ok · 0.1s · ran 20:03:29 ────────────────────────────────────────────┘
 ```
 
+### When a tool says less than it does in your terminal
+
+Every command sky.boss runs gets a pipe, not a terminal. Most tools only *lay out* differently for
+one — sky.boss passes the real width so they do not — but some decide **what to print at all** by
+asking `isatty()`, and those go quiet. Nothing is late or dropped; the tool never said it. That is
+the one failure here with no symptom, because a window missing half its output looks exactly like
+a job quietly working.
+
+sky.boss will not guess which variable turns it back on, and keeps no table of tools that need one.
+You say it:
+
+```console
+$ sb run --env GREETING=hello -- sh -c 'echo $GREETING'
+hello
+```
+
+Repeatable, on `run`, `read`, `follow` and `data`, and applied last — over sky.boss's own
+`COLUMNS` and `PYTHONUNBUFFERED`, because a declaration about *this* child beats a default about
+every child. It rides into a saved command in the argv, exactly as `--cwd` does.
+
+**Not for secrets.** The value is written verbatim into `tools.toml` and drawn in a window title.
+Anything private is already inherited from your own environment — sky.boss is never in the
+credential path.
+
 ## Reading another tool as data
 
 `sb data` parses a tool's JSON and decides how to draw it — which columns are worth showing, which
