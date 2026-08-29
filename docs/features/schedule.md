@@ -220,6 +220,24 @@ falls inside the run's `started`/`finished`; there is no shared id. That is [[op
 identity that outlives a window — arriving as a concrete consequence rather than a design worry, and
 it is a prerequisite for any view that wants to show a run *and* what it decided.
 
+**And that join is already wrong in the data, not merely fragile.** The skyrow-workspace session
+pointed out that time containment holds only until two runs of the same job overlap, which a
+hand-run alongside a scheduled fire is. Measured on the same 1,051 rows:
+
+- **6 pairs of same-job runs have overlapping windows**, twice for `agent-fix` itself. The widest is
+  a 2h52m `agent-fix` run with a 2-second `agent-fix` run starting inside it.
+- **1 decision row already matches two runs.** A `release` decision at 19:20:00 falls inside a run
+  that ended `ok` *and* a run that ended `failed`. Whichever a joiner picked, it would be asserting
+  an attribution the data does not support — and one of the two answers is the opposite of the
+  other.
+- **11 decision rows match no run at all**, which is the same absence problem in the other
+  direction.
+
+So this is not "a key would be tidier". A time-containment join silently attributes an outcome to
+the wrong run, and there is a live instance of it in 1,051 rows. Any view that pairs a run with what
+it decided is blocked on item 6, and building one on time containment first would be building the
+bug.
+
 Deliberately unopened. It needs [[open]] item 5 (history, on the ledger) and a notion of lateness
 that is a judgment. `overdue` is `False` for all 31 jobs today, so there is **no evidence** for a
 late-state rendering — the same position items 1 and 5 were in before the ledger landed, and the
