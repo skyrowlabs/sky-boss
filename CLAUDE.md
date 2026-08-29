@@ -525,10 +525,18 @@ Shared with sibling CLIs so the family feels like one tool.
   repo produces most. A command that runs perfectly and renders nothing leaves a consumer unable to
   tell *absence of output* from *absence of event* — which is the same lie as a wrong answer, minus
   the chance of noticing. Named 2026-08-29 by the skyrow-workspace session after a day that produced
-  five instances. **Three are sky.boss's own:** `sb follow` down a pipe drew nothing while the loop
-  ran (fixed); `sb data --refresh` down a pipe still does, and **hangs** while doing it, because it
-  is resident and never exits; and `sb ui --no-browser` promises to print a URL and prints nothing,
-  because `server.run()` blocks before `emit` renders. **Two are the same class elsewhere**, which
+  five instances. **Three were sky.boss's own, all fixed 2026-08-29:** `sb follow` down a pipe drew
+  nothing while the loop ran; `sb data --refresh` down a pipe did the same and **hung** while doing
+  it, because residency never exits — now a usage error naming the fix ([[refresh]] round 3); and
+  `sb ui --no-browser` promised to print a URL and printed nothing, because `server.run()` blocks
+  before `emit` renders ([[canvas]] round 9).
+
+  **Fixing that last one turned up two more in the same function**, neither reported: the
+  browser-fallback degrade — a message whose whole content is *"serving only — open {url}"* —
+  blocked on the same call, and `sb --json ui` promised an envelope and then blocked, where
+  `sb follow` had refused exactly that a week earlier. Three from one report, which is the argument
+  for sweeping this class rather than fixing instances: a reporter finds the one that costs them
+  something, and the others are sitting beside it. **Two are the same class elsewhere**, which
   is what makes it a class rather than a quirk of this repo: a typo'd table in the operator's
   `projects.toml` returned zero projects and zero problems, identical to a fresh clone — the typo
   was theirs, the *silence* was this parser's (fixed) — and jam.sense's

@@ -530,3 +530,36 @@ def test_the_tools_route_will_not_give_a_cadence_to_a_write(client, tmp_path, mo
     )
     assert response.status_code == 400
     assert "acts" in response.json()["error"]
+
+
+# ============================================================================
+# The URL it promised to print — [[canvas]] round 9
+# ============================================================================
+
+
+def test_serving_note_names_the_url_and_the_mode(capsys):
+    """`sb ui --no-browser` documented itself as 'print the URL and wait' and
+    only did the second half: `emit` renders when a command returns, and every
+    foreground-serving mode calls `server.run()`, which returns when the server
+    stops."""
+    from cli.output import serving_note
+
+    serving_note("http://127.0.0.1:8765/", "headless")
+    captured = capsys.readouterr()
+    assert "8765" in captured.err
+    assert "headless" in captured.err
+    # stdout stays clean — this is status, not payload, exactly as saved_note is
+    assert captured.out == ""
+
+
+def test_ui_refuses_json_rather_than_promising_an_envelope_it_never_sends():
+    """Resident, so there is no envelope. `sb follow` already refuses this; `ui`
+    used to block in server.run() and print nothing, which is the same promise
+    kept by silence."""
+    from click.testing import CliRunner
+
+    from cli import cli
+
+    result = CliRunner().invoke(cli, ["--json", "ui", "--no-browser"])
+    assert result.exit_code == 2
+    assert "no meaning here" in result.output

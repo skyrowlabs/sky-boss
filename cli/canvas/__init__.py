@@ -30,7 +30,7 @@ import rich_click as click
 from cli.canvas import shell
 from cli.canvas.server import Canvas, build
 from cli.helpers import STATE_DIR
-from cli.output import Result, emit
+from cli.output import Result, emit, serving_note
 
 # In preference order, for `--browser`. The first three take `--app`, which is
 # the whole reason this is not `webbrowser.open`.
@@ -135,6 +135,16 @@ def ui(
     """
     import uvicorn
 
+    # Resident, so there is no envelope to emit — the same refusal `sb follow`
+    # makes and for the same reason. Today `sb --json ui` blocks in
+    # `server.run()` and prints nothing at all, which is a promise kept by
+    # silence. See [[canvas]] round 9.
+    ctx = click.get_current_context()
+    if (ctx.find_root().obj or {}).get("as_json"):
+        raise click.UsageError(
+            "ui is resident and emits no envelope — --json has no meaning here"
+        )
+
     result = Result()
     if scale <= 0:
         result.ok = False
@@ -198,6 +208,10 @@ def ui(
 
     if no_browser:
         mode = "headless"
+        # Before the block, not after: `server.run()` returns when the server
+        # stops, so anything `emit` would render arrives to nobody. See
+        # [[canvas]] round 9.
+        serving_note(url, mode)
         with contextlib.suppress(KeyboardInterrupt):
             server.run()
 
@@ -205,7 +219,11 @@ def ui(
         mode = "kiosk" if kiosk else "browser"
         binary = _browser()
         if binary is None:
+            # The message whose entire purpose is to hand over a URL, on the
+            # path that then blocks forever. It needs this more than the mode
+            # above does.
             result.degrade(f"no chromium-family browser found; serving only — open {url}")
+            serving_note(url, "browser unavailable")
             with contextlib.suppress(KeyboardInterrupt):
                 server.run()
         else:

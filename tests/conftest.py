@@ -67,3 +67,25 @@ def said():
         return " ".join(text.split())
 
     return read
+
+
+@pytest.fixture
+def at_a_terminal(monkeypatch):
+    """Make `cli.output._out()` report a terminal for this test.
+
+    `--refresh` refuses without one ([[refresh]] round 3), and a `CliRunner`
+    never has one. A test that drives the resident *plumbing* — that `--screen`
+    reaches the loop, that `--save` writes before residency — is standing in for
+    an operator at a terminal, and this is that claim made out loud rather than
+    left implicit in the absence of a check.
+
+    It does not make anything render: those tests stub `resident.reside`. It
+    only gets them through the door.
+    """
+    from rich.console import Console
+
+    from cli.output import THEME
+
+    monkeypatch.setattr(
+        "cli.output.console", Console(theme=THEME, highlight=False, force_terminal=True)
+    )

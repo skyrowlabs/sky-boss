@@ -61,7 +61,7 @@ import rich_click as click
 
 from cli import capture as capture_
 from cli.helpers import child_env, parse_env
-from cli.output import Result, emit, refuse_resident_json
+from cli.output import Result, emit, refuse_resident_json, refuse_resident_pipe
 from cli.view import find_rows, shape, warnings_for
 
 
@@ -222,6 +222,7 @@ def data(
     # this one used to, leaving a tool on disk under a name that could not be
     # reused, then reporting a usage error. See [[workbench]] round 3.
     refuse_resident_json(refresh)
+    refuse_resident_pipe(refresh)
 
     # Saved *before* the run, so a resident invocation saves at all (it never
     # reaches its own exit) and a failing one still saves. You are saving an
@@ -262,6 +263,7 @@ def _reside(
     # Belt and braces: the caller refuses this before `--save` writes, and this
     # is the guard for any future path that reaches residency another way.
     refuse_resident_json(refresh)
+    refuse_resident_pipe(refresh)
     source = f"{ctx.info_name} -- {shlex.join(argv)}"
     resident.reside(
         source,

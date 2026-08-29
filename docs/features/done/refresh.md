@@ -1,7 +1,7 @@
 ---
 status: complete
 created: 2026-08-21
-updated: 2026-08-22
+updated: 2026-08-29
 agent_value: 3
 key_files:
   - cli/data.py
@@ -82,6 +82,40 @@ a confusion trap.
   a scheduler — a terminal residency is owned by its process, a canvas cadence by its stream.
 
 ## Phases
+
+### Round 3 — a cadence needs a screen (2026-08-29)
+
+**The defect.** `sb data --refresh 2 … | cat` renders **0 bytes and never exits**. The same command
+under `script` renders 14,237. `rich.Live` owns a cursor, a pipe has none, so every frame is
+suppressed while the loop runs perfectly — and because residency is by nature endless, the caller
+does not get a wrong answer, it *hangs*.
+
+This is [[follow]]'s bug, found on 2026-08-29 by the skyrow-workspace session driving `sb` against a
+live job, one day after the follow half was fixed. The fix missed it for a structural reason worth
+recording: the `emit` spill went onto `resident.hold`, the *streaming* path, and `resident.reside`
+is a different function that `data --refresh` and `read --refresh` both use.
+
+**The answer is not follow's.** A follow's content *is* a stream of lines, so verbatim was the
+obvious degrade. A refreshing table has no sensible pipe reading — repeating a whole table every N
+seconds is not a document — and rendering once while silently ignoring `--refresh` is the
+wrong-but-looks-right failure this repo names by hand.
+
+**So: refuse, at the door.** The precedent is already in the code and needs no new argument.
+`refuse_resident_json` turns down `--json --refresh` because *a resident redraw is a human rendering*
+and under `--json` it would be an endless stream of envelopes on a pipe expecting one. Off a
+terminal there is no human rendering to do at all. Same rule, one step further.
+
+The consumer's version of the argument is the stronger one and it is why this is a refusal rather
+than a degrade: **a refusal is a sentence where a hang is not.** See `CLAUDE.md` § *Worked fine,
+told nobody*, of which this is one of five instances.
+
+- [x] `refuse_resident_pipe(refresh)` in `cli/output.py`, beside `refuse_resident_json` and raised
+      in the same two places in each command — at the door before `--save` writes, and again inside
+      `_reside` for any future path that reaches residency another way.
+- [x] The message names the fix: drop `--refresh` for a single read.
+- [x] `--screen` does not exempt it. The alternate screen is *more* of a terminal requirement, not
+      less.
+- [x] A test that a piped `--refresh` is a usage error rather than a silence, for `data` and `read`.
 
 ### Round 2 — leaving, and staying in place (2026-08-22)
 
@@ -263,3 +297,24 @@ in a test: check who owns the terminal before changing the code.
 still leave only on Ctrl-C. The same `q`/`Esc` argument applies to them and the module was
 written to be shared, but their docs record "Ctrl-C leaves" as a decision, and changing a
 recorded decision is a round in *their* docs rather than a quiet extension of this one.
+
+### 2026-08-29 — round 3, and the fixture that had to say so out loud
+
+**Five existing tests broke on the new refusal, and they were right to.** They drive `--refresh`
+through `CliRunner` — which never has a terminal — with `resident.reside` stubbed, to assert that
+`--screen` reaches the loop and that `--save` writes before residency. Legitimate properties, and
+the tests were standing in for an operator at a terminal without ever saying so; the absence of a
+check was what let them.
+
+They now take an `at_a_terminal` fixture that forces `cli.output.console` to report one. It renders
+nothing extra — `reside` is still stubbed — it only gets them through the door, and it makes the
+claim they were already making visible in the signature.
+
+**The check is on stdout specifically**, through `_out()` rather than a fresh `Console`. `reside`
+renders to stdout, so a terminal on stderr is no help, and asking through `_out()` is what lets the
+suite's redirection be the thing that answers.
+
+**One boundary worth naming:** the refusal is about the *cadence*, not about the pipe. Every read
+without `--refresh` works off a terminal exactly as before, which is why this is a usage error on
+one flag rather than a mode. There is a test for that, because it is the regression a careless
+version of this fix would ship.
