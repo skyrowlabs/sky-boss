@@ -1299,6 +1299,121 @@ def test_the_ungrouped_are_not_a_section():
     assert sections(tools, []) == []
 
 
+# ------------------------------------------------------ writing a group
+
+
+def test_a_group_is_created_and_loads_back(tmp_path):
+    from cli.tools import load_groups, write_group
+
+    out = write_group("archive", "old things", home=tmp_path)
+    assert out["action"] == "created"
+    groups, problems = load_groups(tmp_path)
+    assert problems == []
+    assert groups[0].name == "archive"
+    assert groups[0].description == "old things"
+
+
+def test_writing_a_group_twice_replaces_rather_than_doubles(tmp_path):
+    from cli.tools import load_groups, write_group
+
+    write_group("archive", "old", home=tmp_path)
+    assert write_group("archive", "older", home=tmp_path)["action"] == "replaced"
+    groups, _ = load_groups(tmp_path)
+    assert [(g.name, g.description) for g in groups] == [("archive", "older")]
+
+
+def test_a_group_write_leaves_every_other_byte_alone(tmp_path):
+    """The splice argument, one table over."""
+    from cli.tools import write_group
+
+    (tmp_path / "tools.toml").write_text(SAMPLE)
+    before = (tmp_path / "tools.toml").read_text()
+    write_group("archive", home=tmp_path)
+    after = (tmp_path / "tools.toml").read_text()
+    assert after.startswith(before.rstrip("\n"))
+    assert after.rstrip().endswith("[group.archive]")
+
+
+def test_a_group_that_still_holds_commands_is_not_deleted(tmp_path):
+    """Refused server-side, and it names them — '3 commands are still in it'
+    leaves you opening the file to find out which."""
+    import pytest
+    import rich_click as click
+
+    from cli.tools import remove_group
+
+    (tmp_path / "tools.toml").write_text(
+        "[group.jam]\n"
+        '[tool.prs]\ngroup = "jam"\nargv = ["data", "--", "x"]\n'
+        '[tool.ci]\ngroup = "jam"\nargv = ["data", "--", "y"]\n'
+    )
+    with pytest.raises(click.UsageError) as exc:
+        remove_group("jam", home=tmp_path)
+    assert "2 commands" in str(exc.value)
+    assert "ci" in str(exc.value) and "prs" in str(exc.value)
+    assert "[group.jam]" in (tmp_path / "tools.toml").read_text()
+
+
+def test_an_empty_group_is_deleted_and_nothing_else_is(tmp_path):
+    from cli.tools import remove_group
+
+    (tmp_path / "tools.toml").write_text(
+        "[group.archive]\n"
+        '[tool.prs]\ngroup = "jam"\nargv = ["data", "--", "x"]\n'
+    )
+    remove_group("archive", home=tmp_path)
+    after = (tmp_path / "tools.toml").read_text()
+    assert "[group.archive]" not in after
+    assert '[tool.prs]' in after and 'group = "jam"' in after
+
+
+def test_deleting_a_group_that_is_not_declared_is_an_error(tmp_path):
+    """A group can exist by being *named* without being declared, and there is
+    no declaration to remove — saying so beats a silent success."""
+    import pytest
+    import rich_click as click
+
+    from cli.tools import remove_group
+
+    (tmp_path / "tools.toml").write_text("")
+    with pytest.raises(click.UsageError):
+        remove_group("nosuch", home=tmp_path)
+
+
+def test_a_bad_group_name_is_refused_before_it_is_written(tmp_path):
+    import pytest
+    import rich_click as click
+
+    from cli.tools import write_group
+
+    with pytest.raises(click.UsageError):
+        write_group("No Good", home=tmp_path)
+    assert not (tmp_path / "tools.toml").exists()
+
+
+def test_the_group_route_creates_and_refuses(tmp_path, monkeypatch):
+    from starlette.testclient import TestClient
+
+    from cli.canvas.server import TOKEN_HEADER, Canvas, build
+
+    (tmp_path / "tools.toml").write_text(
+        '[group.jam]\n[tool.prs]\ngroup = "jam"\nargv = ["data", "--", "printf", "[]"]\n'
+    )
+    monkeypatch.setattr("cli.tools.SB_HOME", tmp_path, raising=False)
+    client = TestClient(build(Canvas(token="t")))
+    headers = {TOKEN_HEADER: "t"}
+
+    made = client.post("/api/groups", json={"name": "archive"}, headers=headers)
+    assert made.json()["action"] == "created"
+
+    held = client.post("/api/groups", json={"name": "jam", "delete": True}, headers=headers)
+    assert held.status_code == 400
+    assert "prs" in held.json()["error"]
+
+    gone = client.post("/api/groups", json={"name": "archive", "delete": True}, headers=headers)
+    assert gone.json()["action"] == "deleted"
+
+
 # ------------------------------------------------- every declared field survives
 
 

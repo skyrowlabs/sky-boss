@@ -44,6 +44,7 @@ GUARDED = [
     ("/api/follow", "post"),
     ("/api/accrue", "post"),
     ("/api/tools", "post"),
+    ("/api/groups", "post"),
     ("/api/prefs", "get"),
     ("/api/prefs", "post"),
     ("/api/quit", "post"),

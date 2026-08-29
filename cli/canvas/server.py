@@ -246,6 +246,41 @@ def build(canvas: Canvas | None = None) -> Starlette:
         out["problems"] = await asyncio.to_thread(tools_.reload, root_group)
         return JSONResponse(out)
 
+    async def post_groups(request: Request) -> Response:
+        """Create, replace or delete one group. Guarded like every other route.
+
+        A second door rather than a verb on `/api/tools`, because a group is a
+        different object with its own validator — and round 4's route was
+        deliberately shaped as *a whole tool*, which a group is not.
+
+        A delete is refused server-side while any command still names the
+        group, and the refusal names them. The rail hides the ✕ on a group that
+        holds something, but a surface that only declines to draw a control has
+        not refused anything. See [[tools]] round 6.
+        """
+        if not canvas.authorised(request):
+            return _denied()
+        body = await request.json()
+        name = str(body.get("name") or "")
+        from cli import cli as root_group
+
+        try:
+            if body.get("delete"):
+                out = await asyncio.to_thread(tools_.remove_group, name)
+            else:
+                out = await asyncio.to_thread(
+                    tools_.write_group, name, str(body.get("description") or "")
+                )
+        except click.UsageError as exc:
+            return JSONResponse({"error": exc.format_message()}, status_code=400)
+        except OSError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+
+        # Same reason `/api/tools` reloads: the file and the tree must not
+        # disagree about what exists the instant after a write.
+        out["problems"] = await asyncio.to_thread(tools_.reload, root_group)
+        return JSONResponse(out)
+
     async def post_quit(request: Request) -> Response:
         """The close button. Guarded like every other route.
 
@@ -618,6 +653,7 @@ def build(canvas: Canvas | None = None) -> Starlette:
             Route("/api/follow", post_follow, methods=["POST"]),
             Route("/api/accrue", post_accrue, methods=["POST"]),
             Route("/api/tools", post_tools, methods=["POST"]),
+            Route("/api/groups", post_groups, methods=["POST"]),
             Route("/api/prefs", get_prefs),
             Route("/api/prefs", post_prefs, methods=["POST"]),
             Route("/api/quit", post_quit, methods=["POST"]),

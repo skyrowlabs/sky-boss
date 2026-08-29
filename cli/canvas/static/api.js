@@ -125,6 +125,17 @@ export function deleteTool(name) {
   return post("/api/tools", { name, delete: true });
 }
 
+/* Groups. A second door rather than a verb on `/api/tools`, because a group is
+ * a different object with its own validator — and that route is shaped as a
+ * whole tool, which a group is not. See [[tools]] round 6. */
+export function writeGroup({ name, description }) {
+  return post("/api/groups", { name, description });
+}
+
+export function deleteGroup(name) {
+  return post("/api/groups", { name, delete: true });
+}
+
 /* What the surface remembers about itself between launches — currently which
  * tool groups are folded. A route rather than `localStorage` because `sb ui`
  * binds an ephemeral port every launch, so the page has a different origin
