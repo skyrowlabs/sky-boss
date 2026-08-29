@@ -90,12 +90,18 @@ const EMPTY_DRAFT = {
   from: "",
   due: "",
   highlight: "",
+  /* [[table-views]] round 6. `--cols` says *which* columns; these two say
+   * *how many* — everything, or everything minus these. `noShape` wins over
+   * `cols` in `compose`, because the two disagree by construction. */
+  noShape: false,
+  drop: "",
 
   /* Round 3 — the job strip. The name is the *last* control and it is checked
    * before it is used, because `--save` writes before it runs: a refusal found
    * after the write is found too late, under a name that then cannot be
    * reused. `checks` is what an act gets instead of a trial run. */
   save: "",
+  describe: "",
   checks: [],
   nameProblem: null,
   block: null,
@@ -534,6 +540,94 @@ ${win.streamLines.map(markedLine)}</pre
   `;
 }
 
+/* A window's own view controls ([[table-views]] round 6).
+ *
+ * The same question the bench answers, asked of a payload that keeps being
+ * replaced. Round 3 established that `hidden` is a property of the *run* —
+ * an empty column, an opaque sha — and true at any width, so no window is ever
+ * big enough to reveal one. Overruling that is the operator's to do, and until
+ * this round the only way was to edit the saved tool.
+ *
+ * Folded by default: most windows are looked at, not configured, and a control
+ * strip on every table would cost every window three lines to serve the few
+ * where the question comes up.
+ */
+function ViewControls({ win, actions }) {
+  /* The view lives on the *envelope*, not on the run result — `win.result` is
+   * `{ok, envelope, …}` and `render.js` reads `envelope.view`. Reading one
+   * level too shallow renders nothing at all and looks exactly like a window
+   * whose contract returns no rows. */
+  const envelope = win.result && win.result.envelope;
+  const view = envelope && envelope.view;
+  const offered = win.viewOffered || [];
+  /* **Not gated on the view existing**, and that is the whole of "reverting is
+   * a control, not a memory game". Choosing *everything* removes the view —
+   * that is what `--no-shape` means — so controls that needed one disappeared
+   * the moment you used them, taking the way back with them. `offered` is the
+   * durable fact: once a shaping has answered for this window, it stays
+   * answerable. */
+  if (!offered.length && !(view && view.columns)) return null;
+  const chosen = win.viewCols || [];
+  const everything = Boolean(win.viewEvery);
+  /* With no view every column is drawn, which is what having no view means. */
+  const drawn = view
+    ? new Set([
+        ...(view.columns || []).map((c) => c.key),
+        ...(view.details || []).map((c) => c.key),
+      ])
+    : new Set(offered);
+
+  if (!win.viewOpen) {
+    const hidden = ((view && view.hidden) || []).length;
+    return html`
+      <button class="vw-open" onClick=${() => actions.viewToggle(win.id)}>
+        columns${hidden ? ` · ${hidden} hidden by rule` : ""}
+      </button>
+    `;
+  }
+
+  return html`
+    <div class="vw">
+      <div class="vw-chips">
+        ${offered.map(
+          (key) => html`<button
+            key=${key}
+            class=${`vc-chip ${drawn.has(key) ? "on" : ""}`}
+            onClick=${() => actions.viewCol(win.id, key)}
+          >
+            ${key}
+          </button>`
+        )}
+      </div>
+      <div class="vw-row">
+        <button
+          class=${`vc-every ${everything ? "on" : ""}`}
+          onClick=${() => actions.viewEvery(win.id)}
+          title="every column, in the order found"
+        >
+          ${everything ? "✓ everything" : "everything"}
+        </button>
+        <button
+          class="vw-clear"
+          disabled=${!chosen.length && !everything}
+          onClick=${() => actions.viewClear(win.id)}
+        >
+          clear
+        </button>
+        <span class="vw-note">
+          ${everything
+            ? "every column, in the order found."
+            : chosen.length
+              ? `${chosen.length} named — every column drawn is one you chose.`
+              : "the lit ones are the shaping's own choices. A column a rule hid is still one you may name."}
+        </span>
+        <div class="spacer"></div>
+        <button class="vw-open" onClick=${() => actions.viewToggle(win.id)}>close</button>
+      </div>
+    </div>
+  `;
+}
+
 function Window({ win, now, layout, focused, actions, intervals }) {
   const age = win.ranAt ? Math.round((now - win.ranAt) / 1000) : null;
   const chrome = (win.result && win.result.chrome) || win.chrome;
@@ -627,9 +721,13 @@ function Window({ win, now, layout, focused, actions, intervals }) {
         </div>
       `}
 
+      ${!win.stream && html`<${ViewControls} win=${win} actions=${actions} />`}
+
       ${win.stream
         ? html`<${StreamBody} win=${win} actions=${actions} />`
-        : html`<div class="body"><${Body} result=${win.result} /></div>`}
+        : html`<div class="body">
+            <${Body} result=${win.result} warnings=${win.viewWarnings} />
+          </div>`}
 
       <div class="foot">
         <span>
@@ -956,11 +1054,124 @@ function App() {
     else api.unwatch(sessionRef.current, win.id);
   }
 
+  /* Re-shape a window's table when the operator has chosen columns, and again
+   * every time the payload underneath is replaced.
+   *
+   * **The difference between a window and the bench.** On the bench a shaping
+   * is a one-shot against a frozen trial payload; here the payload is replaced
+   * on every watcher tick, every manual refresh and every re-run. A choice that
+   * did not survive that would be undone by a 30-second watcher while the
+   * operator watched it happen — worse than offering no control. So the choice
+   * lives on the *window* and is re-applied to each new result, keyed on the
+   * result object rather than on a tick count.
+   *
+   * Runs nothing: `/api/shape` is a pure function of rows the page already
+   * holds. See [[table-views]] round 6.
+   */
+  useEffect(() => {
+    for (const win of windows) {
+      const result = win.result;
+      const envelope = result && result.envelope;
+      const view = envelope && envelope.view;
+      /* **Not `if (!view) continue`.** Choosing *everything* removes the view,
+       * which is what `--no-shape` means — and a guard that skipped a window
+       * without one meant the effect could never put the shaping back. Clear
+       * became a no-op, and every later chip read its columns off a view that
+       * was not there. Once a window has been shaped it stays shapeable, and
+       * `viewOffered` is the record of that. */
+      const shapeable = (view && view.columns) || (win.viewOffered || []).length > 0;
+      if (win.stream || !envelope || !shapeable) continue;
+      if (win.viewFor === result) continue;
+
+      const cols = win.viewCols || [];
+      /* The rows path is remembered too, for the same reason: it lives on the
+       * view, and the view is a thing the operator can remove. */
+      const rowsPath = (view && view.rows) || win.viewRows;
+      api
+        .shape(envelope.data, { cols, rows: rowsPath })
+        .then((body) =>
+          patch(win.id, (w) => {
+            /* `everything` needs no view at all: with none, the renderer
+             * derives its own columns from the rows in the order found, which
+             * is exactly what `--no-shape` means. The call still happens
+             * because `offered` — the checklist — comes from a shaping with
+             * *nothing* asked of it, and a checklist built from the filtered
+             * view would lose a column the moment you unticked it. */
+            /* Three states, one of which used to be "leave it alone" and was
+             * wrong. Clearing after *everything* has to put the shaping's own
+             * view back, and there is nothing to put back from — choosing
+             * everything destroyed it. `body.view` is a shaping of this same
+             * payload with whatever is currently asked, which for no choice is
+             * the shaping's own answer. So the no-choice branch installs it
+             * rather than preserving whatever the last choice left behind. */
+            const next = {
+              ...w.result,
+              envelope: {
+                ...w.result.envelope,
+                view: w.viewEvery ? null : body.view,
+              },
+            };
+            /* Stamped with the object this loop is about to *install*, not the
+             * one it read. Stamping the old one leaves `viewFor !== result` on
+             * the very next render, so the effect re-fires against its own
+             * output — a shaping loop that hits the server forever and looks
+             * like nothing at all, because the view it computes is identical
+             * every time. */
+            return {
+              result: next,
+              viewOffered: body.offered || [],
+              viewRows: (body.view && body.view.rows) || w.viewRows,
+              /* The banner is about *this* shaping, not the one the run came
+               * back with. Left on the envelope's own warnings it kept saying
+               * "2 columns hidden: head" with `head` drawn above it — a
+               * warning that is wrong is worse than no warning. */
+              viewWarnings: w.viewEvery ? [] : body.warnings || [],
+              viewFor: next,
+            };
+          })
+        )
+        .catch(() => patch(win.id, (w) => ({ viewFor: w.result })));
+    }
+  }, [windows]);
+
   const actions = {
     focus: (id) => {
       setFocus(id);
       if (layout === FLOAT) patch(id, () => ({ z: ++zTop.current }));
     },
+    /* Fold the strip. Most windows are looked at, not configured. */
+    viewToggle: (id) => patch(id, (w) => ({ viewOpen: !w.viewOpen })),
+
+    /* Tick or untick one column. Naming any column puts `--cols` in force, and
+     * from then on every column drawn is one the operator chose — which is why
+     * the first tick has to seed from what is currently *drawn* rather than
+     * from nothing, or ticking one column would hide the other nine. */
+    viewCol: (id, key) =>
+      patch(id, (w) => {
+        const view = w.result && w.result.envelope && w.result.envelope.view;
+        const current =
+          (w.viewCols || []).length > 0
+            ? w.viewCols
+            : [
+                ...((view && view.columns) || []).map((c) => c.key),
+                ...((view && view.details) || []).map((c) => c.key),
+              ];
+        const next = current.includes(key)
+          ? current.filter((c) => c !== key)
+          : (w.viewOffered || []).filter((c) => c === key || current.includes(c));
+        return { viewCols: next, viewEvery: false, viewFor: null };
+      }),
+
+    /* Every column, in the order found. Exclusive with a column list, because
+     * the two say different things about the same question. */
+    viewEvery: (id) =>
+      patch(id, (w) => ({ viewEvery: !w.viewEvery, viewCols: [], viewFor: null })),
+
+    /* Back to the shaping's own choices. There has to be a way back: with
+     * `--cols` in force the shaping returns only what was named, so without
+     * this the operator's first tick would be one-way. */
+    viewClear: (id) => patch(id, () => ({ viewCols: [], viewEvery: false, viewFor: null })),
+
     close: (id) => {
       const win = windowsRef.current.find((w) => w.id === id);
       if (sessionRef.current) {
@@ -1163,6 +1374,8 @@ function App() {
         /* The name goes with the result too. It named a tool wrapping a
          * contract that is no longer selected, and `--save` on `run` is not a
          * flag at all — it saves by example, and the example ran. */
+        noShape: false,
+        drop: "",
         save: "",
         describe: "",
         nameProblem: null,
@@ -1222,7 +1435,7 @@ function App() {
      * confirmation is `confirm()` rather than a modal because this surface has
      * no modal and inventing one to ask a yes/no question is the larger
      * change. A delete is not undoable from here — the backup is the undo. */
-    drop: (tool) => {
+    forget: (tool) => {
       const name = shortOf(tool);
       if (!window.confirm(`Delete the tool "${name}"? Its file is backed up first.`)) return;
       api
@@ -1486,7 +1699,7 @@ function App() {
                 commands=${commands}
                 open=${open}
                 edit=${benchActions.edit}
-                drop=${benchActions.drop}
+                drop=${benchActions.forget}
               />
               <div
                 class=${`canvas ${layout}`}

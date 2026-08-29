@@ -712,6 +712,39 @@ pre.raw {
 .vc-chip:hover { color: var(--sb-text-2); }
 .vc-chip.on { background: var(--sb-tint); border-color: var(--sb-edge); color: var(--sb-brand); }
 
+/* `--no-shape`, on both surfaces. A toggle rather than a field: it takes no
+ * value, and it is exclusive with the checklist above it. */
+.vc-every {
+  flex: none; padding: 1rem 2rem; background: none; cursor: pointer;
+  border: var(--hair) solid var(--sb-hair); border-radius: 1.5rem;
+  color: var(--sb-text-3); font: inherit; font-size: 2.75rem;
+}
+.vc-every.on { background: var(--sb-tint); border-color: var(--sb-edge); color: var(--sb-brand); }
+
+/* A window's own view strip ([[table-views]] round 6). Folded to one line
+ * until asked for: most windows are looked at, not configured, and a strip on
+ * every table would cost every window three lines to serve the few where the
+ * question comes up. */
+.vw-open {
+  flex: none; align-self: flex-start; margin: 0 3rem 1rem; padding: 0.5rem 0;
+  background: none; border: none; cursor: pointer;
+  color: var(--sb-text-3); font: inherit; font-size: 2.75rem;
+}
+.vw-open:hover { color: var(--sb-brand); }
+.vw {
+  flex: none; display: flex; flex-direction: column; gap: 1.5rem;
+  padding: 1.5rem 3rem; border-bottom: var(--hair) solid var(--sb-hair);
+}
+.vw-chips { display: flex; flex-wrap: wrap; gap: 1.5rem; }
+.vw-row { display: flex; align-items: center; gap: 2.5rem; flex-wrap: wrap; }
+.vw-clear {
+  flex: none; padding: 1rem 2rem; background: none; cursor: pointer;
+  border: var(--hair) solid var(--sb-hair); border-radius: 1.5rem;
+  color: var(--sb-text-3); font: inherit; font-size: 2.75rem;
+}
+.vw-clear:disabled { opacity: 0.4; cursor: default; }
+.vw-note { color: var(--sb-text-3); font-size: 2.75rem; min-width: 0; }
+
 .vc-row { display: flex; gap: 3.5rem; }
 .vc-row > * { flex: 1; min-width: 0; }
 .vc-field { display: flex; align-items: baseline; gap: 2rem; flex-wrap: wrap; }

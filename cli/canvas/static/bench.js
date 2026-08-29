@@ -80,7 +80,14 @@ export function compose(draft) {
    * `--cols` under `read` would be a control for a table that contract cannot
    * return, which is the same mistake as offering a cadence on a write. */
   if (contract === "data") {
-    if (draft.cols && draft.cols.length) out.push("--cols", draft.cols.join(","));
+    /* `--no-shape` first, and it is exclusive with `--cols`: one says *every
+     * column in the order found* and the other says *exactly these, in this
+     * order*, so composing both would be asking sky.boss to obey two
+     * instructions that disagree. The UI makes them mutually exclusive rather
+     * than letting the CLI arbitrate. See [[table-views]] round 6. */
+    if (draft.noShape) out.push("--no-shape");
+    else if (draft.cols && draft.cols.length) out.push("--cols", draft.cols.join(","));
+    if (!draft.noShape && (draft.drop || "").trim()) out.push("--drop", draft.drop.trim());
     if ((draft.rows || "").trim()) out.push("--rows", draft.rows.trim());
     if ((draft.from || "").trim()) out.push("--from", draft.from.trim());
   }
@@ -381,6 +388,21 @@ function ViewControls({ draft, actions }) {
                 column a rule hid is still one you may name.
               </span>
             `}
+        <div class="vc-row">
+          <button
+            class=${`vc-every ${draft.noShape ? "on" : ""}`}
+            onClick=${() => actions.set("noShape", !draft.noShape)}
+            title="every column, in the order found — defeats every rule, including the checklist"
+          >
+            ${draft.noShape ? "✓ --no-shape" : "--no-shape"}
+          </button>
+          <${Field}
+            label="--drop"
+            value=${draft.drop}
+            placeholder="hide these, keeping the rest of the shaping"
+            onChange=${(v) => actions.set("drop", v)}
+          />
+        </div>
         <div class="vc-row">
           <${Field}
             label="--rows"
