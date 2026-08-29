@@ -525,21 +525,37 @@ Shared with sibling CLIs so the family feels like one tool.
   repo produces most. A command that runs perfectly and renders nothing leaves a consumer unable to
   tell *absence of output* from *absence of event* — which is the same lie as a wrong answer, minus
   the chance of noticing. Named 2026-08-29 by the skyrow-workspace session after a day that produced
-  five instances: `sb follow` down a pipe drew nothing while the loop ran (fixed); `sb data
-  --refresh` down a pipe still does, and **hangs** while doing it, because it is resident and never
-  exits; `sb ui --no-browser` promises to print a URL and prints nothing, because `server.run()`
-  blocks before `emit` renders; a typo'd table in `projects.toml` returned zero projects and zero
-  problems, identical to a fresh clone (fixed); and jam.sense's `state_dir(INFLIGHT, "inflight")`
-  was green in its own suite because the writer and the reader agreed with each other.
+  five instances. **Three are sky.boss's own:** `sb follow` down a pipe drew nothing while the loop
+  ran (fixed); `sb data --refresh` down a pipe still does, and **hangs** while doing it, because it
+  is resident and never exits; and `sb ui --no-browser` promises to print a URL and prints nothing,
+  because `server.run()` blocks before `emit` renders. **Two are the same class elsewhere**, which
+  is what makes it a class rather than a quirk of this repo: a typo'd table in the operator's
+  `projects.toml` returned zero projects and zero problems, identical to a fresh clone — the typo
+  was theirs, the *silence* was this parser's (fixed) — and jam.sense's
+  `state_dir(INFLIGHT, "inflight")` was green in its own suite because the writer and the reader
+  agreed with each other.
 
   The tell is always the same: **the silent path and the healthy path are the same bytes.** When a
   command can produce nothing, ask what a consumer seeing nothing would conclude, and if the answer
   is "the same thing they'd conclude if it never ran", say something. Refusing is a legitimate way
   to say it — a refusal is a sentence where a hang is not. See [[open]] § Where a follow ends.
 
-  Four of the five were found by a *consumer* rather than by this repo's tests, which is the part
-  worth taking seriously: a reader cannot see its own blind spot, and the suite is written by the
-  same reader.
+  **None of the five was caught by a test suite.** All were found by running the thing and looking
+  at what came out — three by this repo, two by a consumer. That distribution is the part worth
+  taking seriously, and the two consumer-found ones are the two a suite *structurally could not*
+  have caught: `inflight/inflight` was green precisely because writer and reader shared the mistake,
+  and `sb data --refresh` is covered by tests that read the dataclass rather than the rendered pipe.
+
+  The generalisation, which lives in the workspace guide because it is not one repo's:
+  **no repo's suite can find a disagreement about an artifact it publishes, because the suite is
+  written by the same author as the code it tests.** A writer and a reader inside one repo agree by
+  construction, and green proves only that. You cannot fix it by testing harder — the blind spot is
+  in the assumption the suite encodes — so the fix is to run the real consumer against the real
+  producer at every seam, before believing either.
+
+  *(An earlier version of this paragraph claimed four of the five were consumer-found. That was
+  wrong: `sb follow`, `sb ui --no-browser` and the `projects.toml` silence were all found here.
+  Corrected rather than quietly restated, because the workspace guide links to this list.)*
 - **`.env` is gitignored and never committed.** Ship a `.env.example`.
 
 ## Feature workflow
