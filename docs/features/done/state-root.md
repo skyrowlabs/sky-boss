@@ -66,9 +66,19 @@ operator wrote this by hand in their own editor.
 **The environment wins, and the case that settles it is a redirected test run.** Point
 `SL_AGENT_LOGS` at a scratch directory and the producers write there; if the file won, sky.boss
 would carry on reading the real root and report a ledger that nothing was writing to — mismatched,
-and silently. The file is the fallback because that is the level the *surface* can reach: `sb ui`
-opens a native webview, and a window started from a desktop launcher inherits no shell environment,
-so an env-only knob would work in a terminal and silently not in the canvas.
+and silently.
+
+**The file is the fallback because an environment variable is a snapshot and a file is not.** A
+variable is fixed when the process starts, so a `sb ui` window open for hours holds whatever was set
+at launch while a fresh shell sees the current value — both correct, mutually inconsistent, and
+invisible, which is the failure `docs/open.md` raised against having two levels at all. The file is
+re-read at use, so a pinned window picks up an edit on its next tick. *A launcher-started window
+inheriting no shell environment is a second reason and a weaker one — see Notes, where it was
+briefly the main one.*
+
+The two levels are a **declaration and an override**, not two ways to say the same thing:
+`state_root` says where this machine's state lives, `SL_AGENT_LOGS` says where to look for this run.
+That is the shape `SB_HOME` and `SB_STATE` already have.
 
 **Resolved at use, never at import.** `SB_HOME` and `SB_STATE` are module constants because they
 are sky.boss's own; this one is read from a file the operator edits under a pinned window, so it is
@@ -195,3 +205,41 @@ resolves to an absolute path, where joining first would make `jam-sense:log/cron
 path under the window's directory. The canvas is also the reason the file level exists at all — a
 webview started from a desktop launcher inherits no shell environment, so an env-only knob would
 work in a terminal and silently not in the surface.
+
+### 2026-08-29 — the launcher argument was hypothetical, and a better one was underneath
+
+The paragraph above this one, written the same day, says the canvas "is the reason the file level
+exists at all", and the Shape section argued it this way:
+
+> The file is the fallback because that is the level the *surface* can reach: `sb ui` opens a native
+> webview, and a window started from a desktop launcher inherits no shell environment, so an
+> env-only knob would work in a terminal and silently not in the canvas.
+
+**True in general, and not yet true here.** Checked when the operator asked whether `sb ui` should
+inherit a shell: there is no `.desktop` file installed, so nothing on this machine launches the
+surface that way. The argument was load-bearing prose resting on a case that does not currently
+occur.
+
+The reason underneath it is stronger and was there the whole time: **a variable is a snapshot, a
+file is not.** An env-only knob would not merely be unreachable from a launcher — it would be
+*frozen at launch* for every long-lived window, terminal-started ones included, which is precisely
+the inconsistency `docs/open.md` warned two levels would create. The file is re-read at use, so the
+level that fixes the launcher case is the same level that fixes the stale-window case, and only the
+second one is happening today. Shape edited; this entry keeps the original.
+
+Two things that came out of the same check and are worth having written down:
+
+- **`sb ui` should not inherit a shell**, and the frozen-snapshot point is why: sourcing a shell
+  would hand the surface a *different* snapshot, not a live value. It would also run arbitrary
+  startup code, and a non-interactive fish does not execute the same paths an interactive one does,
+  so the surface would see an environment the operator's terminal never had.
+  `cli/canvas/shell.py` already sets its two Wayland variables with `os.environ.setdefault` — only
+  where the operator has not chosen — which is the existing statement of this rule: sky.boss fills a
+  gap in an environment and never manufactures one. Same reasoning as the refusal to write a
+  window-manager rule.
+- **`SL_AGENT_LOGS` is set nowhere on this machine** — not in the environment, not in `config.fish`,
+  not in `environment.d/`. So the file is what resolves everywhere, and the override is unused
+  rather than redundant. Declaring it in `environment.d/` was considered and declined by the
+  operator: it would duplicate a value `projects.toml` already carries, and the duplicate is the
+  half that goes stale. Worth revisiting only to redirect the *writers*, which read that name and
+  not the file.

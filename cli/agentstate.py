@@ -12,9 +12,11 @@ directory — then `state_root` in `$SB_HOME/projects.toml`, then nothing. The
 environment wins because the case that decides it is a redirected test run: if
 the file won, sky.boss would carry on reading the real root while the producers
 wrote to scratch, and report a ledger nothing was writing to. The file is the
-fallback because it is the level a *surface* can reach — `sb ui` opens a native
-webview, and a window started from a desktop launcher inherits no shell
-environment.
+fallback because a variable is a *snapshot* and a file is not: an env-only knob
+would be frozen at launch for every long-lived window, so a `sb ui` open for
+hours would hold what was set when it started while a fresh shell saw something
+else. This is re-read at use. (A launcher-started window inheriting no shell
+environment is a second reason and a weaker one — see [[state-root]] Notes.)
 
 **Resolved at use, never at import.** `SB_HOME` and `SB_STATE` are module
 constants because they are sky.boss's own. This one is read from a file the
