@@ -1,9 +1,10 @@
 ---
-status: active         # draft | active | complete — the directory follows this
+status: complete       # draft | active | complete — the directory follows this
 created: 2026-08-29
 updated: 2026-08-29
 agent_value: 3         # a new seam, a new declaration, and a new address form
-key_files: [cli/agentstate.py, cli/rollcall.py, cli/data.py, cli/follow.py]
+key_files: [cli/agentstate.py, cli/rollcall.py, cli/data.py, cli/follow.py,
+            cli/canvas/server.py, tests/test_agentstate.py]
 ---
 
 # The agent-state root
@@ -142,9 +143,55 @@ it can derive *and verify* — an asymmetry that means the conclusion does not t
 
 ### Round 2 — the address form (2026-08-29)
 
-- [ ] `<project>:<path>` resolved in `sb data` and `sb follow`, literal path first.
-- [ ] `is_file_form` in both commands recognises it, so a project reference with no slash is not
+- [x] `<project>:<path>` resolved in `sb data` and `sb follow`, literal path first.
+- [x] `is_file_form` in both commands recognises it, so a project reference with no slash is not
       mistaken for a command.
-- [ ] Every failure names the fix; none of them raise.
+- [x] Every failure names the fix; none of them raise.
 
 ## Notes
+
+### 2026-08-29 — round 1, and a suite that was reading the operator's machine
+
+Two things the tests found rather than the design.
+
+**The suite did not isolate `SL_AGENT_LOGS`.** `conftest.py` redirects `SB_STATE` and `SB_HOME` at
+import, with a paragraph each explaining why, and this third root had no equivalent — so a run in a
+shell exporting it would have resolved the operator's real project directories, and a run without
+one would not. Cleared rather than redirected, because *no root declared* is a state these tests
+have to exercise; each test that wants one sets it.
+
+**`sb_home` is one directory shared by the whole run.** That is fine for reading an empty home and
+wrong the moment a test *writes* a `projects.toml` into it — two of these do, and they polluted the
+tests asserting no root is declared. They pass a per-test home instead, which is free because every
+function here already takes one. No other test in the suite writes there, so there was nothing
+pre-existing to fix.
+
+### 2026-08-29 — round 2, and the failure that kept reappearing in new shapes
+
+The address form was built and then found *three* separate ways to reproduce the exact failure the
+Why section is about — a wrong reference reported as something other than a wrong reference. Each
+was found by running it, and none was visible in the diff.
+
+1. **`jam:ledger/runs.jsonl` → `no such file: jam:ledger/runs.jsonl`.** An undeclared prefix is not
+   a reference, so the string stays a literal path — correct, and it produces a path error naming a
+   file that could never exist. `unresolved_hint` adds the reason the other reading did not happen,
+   worded as an addition because a genuine path containing a colon is still what was typed.
+2. **`jam:runs.jsonl` → `no such command`.** With no separator it never reaches the file reader at
+   all, so fixing only the file path would have fixed the slash form and missed this one. The hint
+   is on both errors.
+3. **`sb follow jam:log/cron.log` → silence, forever.** Waiting on a file that does not exist yet is
+   the file form's normal case and the whole reason `sb follow new.log` is legal. For a typo it
+   means waiting for a file that will never exist. Warned on stderr rather than refused, because the
+   rare genuine colon-named file must still be followable.
+
+**`SB_HOME` is frozen at import, and that shaped the signatures.** `_split`, `is_project_form`,
+`resolve` and `unresolved_hint` all take a `home` for the same reason `root` and `directory` do: a
+caller that must reach a different home has no other way in, and a test is exactly that caller.
+Threading it was not tidiness — the first four address tests failed against the operator's isolated
+home rather than the one they had written.
+
+**The canvas resolves before its cwd join**, and the order is load-bearing: a project reference
+resolves to an absolute path, where joining first would make `jam-sense:log/cron.log` a relative
+path under the window's directory. The canvas is also the reason the file level exists at all — a
+webview started from a desktop launcher inherits no shell environment, so an env-only knob would
+work in a terminal and silently not in the surface.

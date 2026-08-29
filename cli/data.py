@@ -88,7 +88,13 @@ def is_file_form(argv: tuple[str, ...]) -> bool:
         return True
     if shutil.which(target):
         return False
-    return Path(target).is_file()
+    if Path(target).is_file():
+        return True
+    # `jam-sense:runs.jsonl` has no separator and would otherwise fall through
+    # to the argv side and be reported as a missing command. See [[state-root]].
+    from cli.agentstate import is_project_form
+
+    return is_project_form(target)
 
 
 @click.command()
@@ -313,8 +319,14 @@ def _once(
             env=child_env(extra=env),
         )
     except FileNotFoundError:
+        # The same hint the file path carries. A reference with no separator
+        # and an undeclared prefix lands here rather than in the file reader,
+        # so leaving it out would fix `jam:log/cron.log` and miss
+        # `jam:cron.log`. See [[state-root]].
+        from cli.agentstate import unresolved_hint
+
         result.ok = False
-        result.data = {"error": f"no such command: {argv[0]}"}
+        result.data = {"error": f"no such command: {argv[0]}{unresolved_hint(argv[0])}"}
         return result
     except subprocess.TimeoutExpired:
         result.ok = False
@@ -367,12 +379,27 @@ def _from_file(
         result.data = {"error": problem}
         return result
 
+    # `<project>:<path>` down to a real path, or the reason there is no such
+    # state directory. Inert for an ordinary path. See [[state-root]].
+    from cli.agentstate import resolve as resolve_state
+
+    path, problem = resolve_state(path)
+    if problem:
+        result.ok = False
+        result.data = {"path": path, "error": problem}
+        return result
+
     target = Path(path)
     try:
         text = target.read_text()
     except FileNotFoundError:
+        from cli.agentstate import unresolved_hint
+
         result.ok = False
-        result.data = {"path": path, "error": f"no such file: {path}"}
+        result.data = {
+            "path": path,
+            "error": f"no such file: {path}{unresolved_hint(path)}",
+        }
         return result
     except IsADirectoryError:
         result.ok = False

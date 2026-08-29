@@ -120,3 +120,98 @@ def directory(slug: str, home: Path | None = None) -> Found:
         None,
         f"no state directory {slug!r}; the root holds {', '.join(siblings)}",
     )
+
+
+# ============================================================================
+# The address form — <project>:<path>
+# ============================================================================
+
+
+def _split(target: str, home: Path | None = None) -> tuple[str, str] | None:
+    """`<name>:<rest>` where `<name>` is a **declared project**, or None.
+
+    The lookup is what makes this a resolution rather than a guess: the set of
+    project names is closed and operator-authored, exactly like the formats
+    `--from <name>` resolves against. A prefix matching no declared project is
+    not a project reference, and the whole string stays the literal path it
+    always was — so this can never take an address away from someone who was
+    not asking for one.
+    """
+    name, sep, rest = target.partition(":")
+    if not sep or not name:
+        return None
+    from cli.rollcall import load
+
+    projects, _ = load(home)
+    if name not in {project.name for project in projects}:
+        return None
+    return name, rest
+
+
+def is_project_form(target: str, home: Path | None = None) -> bool:
+    """Does this name a declared project's state directory?
+
+    Asked by `is_file_form` in both commands, because a reference with no
+    slash — `jam-sense:runs.jsonl` — would otherwise fall through to the
+    argv side and be reported as a missing command.
+    """
+    if Path(target).exists():
+        return False
+    return _split(target, home) is not None
+
+
+def resolve(target: str, home: Path | None = None) -> tuple[str, str | None]:
+    """A typed path down to a real one: `(path, None)` or `(target, reason)`.
+
+    **An existing file always wins**, so a directory genuinely named
+    `jam-sense:log` resolves to itself. Same precedence `is_file_form` applies
+    when a bare word is both an executable and a file: the concrete thing wins,
+    and `./name` is how you are explicit.
+
+    Anything that is not a project reference is returned untouched. This is on
+    the path of every file read, so it has to be inert for the ordinary case.
+    """
+    if Path(target).exists():
+        return target, None
+    split = _split(target, home)
+    if split is None:
+        return target, None
+
+    slug, rest = split
+    found = directory(slug, home)
+    if found.path is None:
+        return target, found.problem
+    if not rest:
+        return str(found.path), None
+    return str(found.path / rest), None
+
+
+def unresolved_hint(target: str, home: Path | None = None) -> str:
+    """The clause a failed *path* is owed when it looks like a project
+    reference and no such project is declared. Empty when it does not.
+
+    `resolve` leaves an undeclared prefix alone on purpose — the set of project
+    names is closed, so a prefix outside it is not a reference and the string
+    stays the literal path it always was. That is right, and on its own it
+    produces `no such file: jam:ledger/runs.jsonl`: a path error naming a file
+    that could never exist, which is the "wrong but looks right" failure in the
+    one place this feature was built to remove it.
+
+    So the file error stays true and gains the reason the other reading did not
+    happen — the same courtesy `capture.resolve` extends when it lists the
+    formats that do exist. Worded as an addition rather than a replacement,
+    because a genuine path that merely contains a colon is still what the
+    operator typed.
+    """
+    name, sep, _ = target.partition(":")
+    if not sep or not name or "/" in name:
+        return ""
+    from cli.rollcall import load
+
+    projects, _ = load(home)
+    names = sorted(project.name for project in projects)
+    if name in names:
+        return ""
+    if not names:
+        return f" — and no projects are declared, so {name!r} is not a project reference"
+    return f" — and no project {name!r} is declared (declared: {', '.join(names)})"
