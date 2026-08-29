@@ -403,36 +403,42 @@ function ViewControls({ draft, actions }) {
 
 /* --------------------------------------------------------------- the job strip */
 
-/* The last step, and it reads left to right: the name, the cadence, and the
- * line the bench will run.
+/* The last step, and it reads left to right: the name, the description, and
+ * the line that will be saved.
  *
- * `run` has no `--save` at all — `--save` saves by example and the example
- * ran — so it gets the `[tool.NAME]` block to paste instead, rendered by the
- * same function `--save` appends with, so what you copy and what sky.boss would have
- * written are the same bytes.
+ * **Since [[tools]] round 4 this writes, and it writes for every contract** —
+ * `run` included. The old split was a consequence of the mechanism rather than
+ * of the design: saving went down `/api/run` with `--save` in the argv,
+ * `--save` saves by example, and there is no example for a write you have not
+ * run. A route that writes a tool needs no example, so an act saves like
+ * anything else. What is still refused is a *cadence* on one, which is the
+ * act/observe split and was never about saving.
  */
 function JobStrip({ draft, actions }) {
-  const contract = draft.contract;
-  const acts = contract === "run";
   const composed = compose(draft);
-  const named = Boolean(draft.save) && !draft.nameProblem;
-
-  const saveLine =
-    composed && draft.save
-      ? [composed[0], "--save", draft.save, ...composed.slice(1)]
-      : null;
+  /* `nameProblem` no longer gates the button: an existing name is a *replace*,
+   * which is the whole of round 4. It is still shown, because "this is already
+   * a tool and it runs X" is exactly what you want to read before you
+   * overwrite it. */
+  const named = Boolean(draft.save);
 
   return html`
     <div class="panel bench-job">
       <div class="panel-head">AS A JOB</div>
       <div class="job-body">
         <div class="job-row">
-          <span class="job-label">${acts ? "name" : "--save"}</span>
+          <span class="job-label">name</span>
           <input
             class="job-name"
             value=${draft.save}
-            placeholder=${acts ? "what to call it in tools.toml" : "keep this line"}
+            placeholder="what to call it in tools.toml"
             onInput=${(e) => actions.setSave(e.target.value)}
+          />
+          <input
+            class="job-name"
+            value=${draft.describe || ""}
+            placeholder="description — what it is for"
+            onInput=${(e) => actions.setDescribe(e.target.value)}
           />
           ${/* **No cadence control, and it is absent rather than disabled.**
               The mockup drew one here and building it found why it cannot be:
@@ -450,44 +456,40 @@ function JobStrip({ draft, actions }) {
 
         ${draft.nameProblem && html`<div class="job-problem">${draft.nameProblem}</div>`}
 
-        ${acts
-          ? html`
-              <div class="job-line block">${draft.block || "name it to see the block"}</div>
-              <span class="job-note">
-                run does not take --save — --save saves by example, and the example
-                ran. Paste the block yourself; editing and deleting stay $EDITOR's.
-              </span>
-            `
-          : html`
-              <div class="job-row job-final">
-                <span class="job-arrow">→</span>
-                <div class="job-line">
-                  ${saveLine
-                    ? html`<span class="draft-sb">sb</span> ${saveLine.join(" ")}`
-                    : html`<span class="dim">name it to see the line</span>`}
-                </div>
-                <button
-                  class="job-save"
-                  disabled=${!named || !composed || draft.saving}
-                  onClick=${() => actions.save()}
-                >
-                  ${draft.saving ? "saving…" : "save"}
-                </button>
-              </div>
-              ${draft.saved &&
-              html`<div class=${`job-result ${draft.saved.ok ? "" : "bad"}`}>
-                ${draft.saved.ok
-                  ? `saved — it runs ${draft.saved.runs || "(no expansion reported)"}`
-                  : draft.saved.error}
-              </div>`}
-              <span class="job-note">
-                <b>Save is a second run, not a confirmation.</b>${" "}It runs the same
-                argv again with --save in it, and --save writes${" "}<i>before</i>${" "}the
-                run produces anything — which is why the name is checked before the
-                button is offered. --save is still the only writer of tools.toml and
-                it only ever appends.
-              </span>
-            `}
+        <div class="job-line block">${draft.block || "name it to see the block"}</div>
+
+        <div class="job-row job-final">
+          <span class="job-arrow">→</span>
+          <div class="job-line">
+            ${composed
+              ? html`<span class="draft-sb">sb</span> ${composed.join(" ")}`
+              : html`<span class="dim">nothing drafted yet</span>`}
+          </div>
+          <button
+            class="job-save"
+            disabled=${!named || !composed || draft.saving}
+            onClick=${() => actions.save()}
+          >
+            ${draft.saving ? "saving…" : draft.nameProblem ? "replace" : "save"}
+          </button>
+        </div>
+
+        ${draft.saved &&
+        html`<div class=${`job-result ${draft.saved.ok ? "" : "bad"}`}>
+          ${draft.saved.ok
+            ? `${draft.saved.action || "saved"} — it runs ${
+                draft.saved.runs || "(no expansion reported)"
+              }${draft.saved.backup ? ` · backed up to ${draft.saved.backup}` : ""}`
+            : draft.saved.error}
+        </div>`}
+
+        <span class="job-note">
+          <b>Saving no longer runs anything.</b>${" "}It used to run the argv a second
+          time with --save in it, because --save saves by example. This writes the
+          block through a route instead — so an act can be saved too, an existing
+          name is replaced rather than refused, and the file is copied into
+          $SB_HOME/backups/ before it changes.
+        </span>
       </div>
     </div>
   `;
