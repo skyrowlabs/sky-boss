@@ -346,7 +346,7 @@ environment was modified" would announce what is already on the screen.
       likewise `resolve_follow`. Without this an accruing window silently falls back to
       `snapshotRun` — a flag is opted **in** to accrual, never out of it ([[follow]] round 4), so
       an unaccounted flag is a long act back under the watcher's ceiling.
-- [ ] **The bench composes it** — a repeatable `--env` row beside `--cwd` in the draft, and
+- [x] **The bench composes it** — a repeatable `--env` row beside `--cwd` in the draft, and
       preflight keeps resolving the *tool*, which is the check the `env` workaround loses.
 - [ ] **Docs**: `CLAUDE.md` § Conventions gains the sentence that a tool gating output on
       `isatty()` is the operator's to declare, and the README example.

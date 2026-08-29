@@ -50,6 +50,10 @@ const WORKBENCH = "workbench";
 const EMPTY_DRAFT = {
   contract: null,
   cwd: "",
+  /* [[subprocess-env]] round 4. A tool that gates its output on isatty()
+   * says less into a pipe, and only its author knows which variable turns
+   * that back on — so the operator declares it. */
+  env: "",
   argv: "",
   result: null,
   chrome: null,
@@ -1152,6 +1156,7 @@ function App() {
 
     },
     setCwd: (cwd) => setDraft((d) => ({ ...d, cwd })),
+    setEnv: (env) => setDraft((d) => ({ ...d, env })),
     setArgv: (argv) => setDraft((d) => ({ ...d, argv })),
 
     /* The name. Judged by `cli.tools.name_problem` rather than here — a page
