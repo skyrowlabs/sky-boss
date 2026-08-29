@@ -437,3 +437,128 @@ def test_a_missing_column_does_not_make_the_result_partial():
     result, envelope = invoke(["--cols", "nope", "--", "printf", '[{"a": 1}]'])
     assert envelope["partial"] is False
     assert result.exit_code == 0
+
+
+# ============================================================================
+# The path form — [[jsonl-reads]] round 1
+# ============================================================================
+
+
+def test_the_file_form_needs_a_path_not_a_bare_word():
+    """Nearly `follow`'s rule, and the difference is the point. Follow calls a
+    bare unknown word a file because a log legitimately does not exist yet;
+    here there is nothing to wait for, so it stays a command and the error says
+    `no such command` rather than `no such file`."""
+    from cli.data import is_file_form
+
+    assert is_file_form(("ledger/runs.jsonl",))
+    assert is_file_form(("/var/log/syslog",))
+    assert not is_file_form(("definitely-not-a-real-command-xyz",))
+    assert not is_file_form(("sh",))  # an executable wins a bare word
+    assert not is_file_form(("printf", "hi"))  # more than one word is an argv
+
+
+def test_a_bare_unknown_word_is_still_a_missing_command(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    _, envelope = invoke(["--", "definitely-not-a-real-command-xyz"])
+    assert "no such command" in envelope["data"]["error"]
+
+
+def test_an_existing_file_in_the_cwd_is_the_file_form(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "runs.jsonl").write_text('{"job": "release"}\n')
+    _, envelope = invoke(["--from", "jsonl", "runs.jsonl"])
+    assert envelope["data"] == [{"job": "release"}]
+
+
+def test_a_jsonl_file_reads_as_rows(tmp_path):
+    path = tmp_path / "runs.jsonl"
+    path.write_text('{"job": "a", "rc": 0}\n\n{"job": "b", "rc": 1}\n')
+    _, envelope = invoke(["--from", "jsonl", str(path)])
+    assert envelope["ok"] is True
+    assert envelope["data"] == [{"job": "a", "rc": 0}, {"job": "b", "rc": 1}]
+
+
+def test_a_malformed_line_is_counted_and_sampled_never_dropped(tmp_path):
+    """The whole reason this shares `Captured`. A silently dropped ledger row
+    reads as *that job never ran*, which is the question the ledger exists to
+    settle."""
+    path = tmp_path / "runs.jsonl"
+    path.write_text('{"job": "a"}\ntruncated{\n{"job": "b"}\n')
+    _, envelope = invoke(["--from", "jsonl", str(path)])
+    assert envelope["ok"] is True
+    assert envelope["data"] == [{"job": "a"}, {"job": "b"}]
+    assert any("1 of 3 lines not a JSON object" in w for w in envelope["warnings"])
+    assert any("truncated{" in w for w in envelope["warnings"])
+
+
+def test_a_line_that_is_valid_json_but_not_an_object_is_malformed(tmp_path):
+    """`42` is valid JSON and is not a record. Letting one through would put a
+    non-row into a list the view layer may assume is rows."""
+    path = tmp_path / "x.jsonl"
+    path.write_text('{"a": 1}\n42\n')
+    _, envelope = invoke(["--from", "jsonl", str(path)])
+    assert envelope["data"] == [{"a": 1}]
+    assert any("1 of 2 lines not a JSON object" in w for w in envelope["warnings"])
+
+
+def test_a_file_with_no_parseable_line_fails_rather_than_returning_empty(tmp_path):
+    """`capture`'s rule. An empty table would read as *the ledger records
+    nothing*, the exact lie this command exists never to tell."""
+    path = tmp_path / "x.jsonl"
+    path.write_text("nope\nalso nope\n")
+    _, envelope = invoke(["--from", "jsonl", str(path)])
+    assert envelope["ok"] is False
+    assert "no line is a JSON object" in envelope["data"]["error"]
+
+
+def test_an_empty_file_is_not_a_failure(tmp_path):
+    """The line `capture` already draws and this round nearly erased. Lines
+    that arrived and all failed is a broken contract; *no lines* is a ledger
+    with nothing in it yet, and calling that a failure would make a fresh
+    project unreadable until its first run."""
+    path = tmp_path / "x.jsonl"
+    path.write_text("")
+    _, envelope = invoke(["--from", "jsonl", str(path)])
+    assert envelope["ok"] is True
+    assert envelope["data"] == []
+
+
+def test_the_not_json_error_names_from_jsonl_when_that_is_the_fix(tmp_path):
+    """A diagnostic on a failure, not inference — sky.boss still refuses to choose
+    `jsonl` for you. But `not JSON` alone about a 1,000-line ledger leaves the
+    operator to work out something the failure already knows."""
+    path = tmp_path / "runs.jsonl"
+    path.write_text('{"a": 1}\n{"a": 2}\n{"a": 3}\n')
+    _, envelope = invoke([str(path)])
+    assert envelope["ok"] is False
+    assert "--from jsonl" in envelope["data"]["error"]
+
+
+def test_a_genuinely_broken_file_does_not_get_the_jsonl_hint(tmp_path):
+    path = tmp_path / "x.txt"
+    path.write_text("this is\nnot json at all\n")
+    _, envelope = invoke([str(path)])
+    assert "--from jsonl" not in envelope["data"]["error"]
+    assert "not JSON" in envelope["data"]["error"]
+
+
+def test_a_missing_file_says_so(tmp_path):
+    _, envelope = invoke(["--from", "jsonl", str(tmp_path / "gone.jsonl")])
+    assert envelope["ok"] is False
+    assert "no such file" in envelope["data"]["error"]
+
+
+def test_a_directory_says_so_rather_than_permission_denied(tmp_path):
+    """The failure this round removes. A path used to reach `subprocess.run`
+    and come back `Permission denied` for something the operator can read."""
+    _, envelope = invoke(["--from", "jsonl", str(tmp_path)])
+    assert envelope["ok"] is False
+    assert "is a directory" in envelope["data"]["error"]
+
+
+def test_cols_and_the_view_work_unchanged_against_a_file(tmp_path):
+    path = tmp_path / "runs.jsonl"
+    path.write_text('{"job": "a", "rc": 0, "note": "x"}\n{"job": "b", "rc": 1, "note": "y"}\n')
+    _, envelope = invoke(["--from", "jsonl", "--cols", "job,rc", str(path)])
+    assert [c["key"] for c in envelope["view"]["columns"]] == ["job", "rc"]

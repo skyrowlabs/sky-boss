@@ -37,7 +37,7 @@ FORMATS_FILE = "formats.toml"
 
 # The kinds sky.boss ships. A later kind — csv, an aligned table, multi-line
 # records — arrives here one at a time when something real needs it.
-KINDS = ("json", "lines")
+KINDS = ("json", "jsonl", "lines")
 
 
 @dataclass(frozen=True)
@@ -95,6 +95,65 @@ def capture(text: str, fmt: Format) -> Captured:
         rows.append({key: _shape(value) for key, value in match.groupdict().items()})
 
     return Captured(rows, total, unmatched, sample)
+
+
+def parse_jsonl(text: str) -> Captured:
+    """One JSON object per line. Pure, and deliberately the same `Captured`
+    the lines kind returns.
+
+    Sharing the account is the point rather than a convenience: a ledger row
+    that fails to parse and is silently dropped does not read as corruption,
+    it reads as *that job never ran* — which is indistinguishable from a job
+    that genuinely did not fire, and is the precise question a ledger exists
+    to settle. `Captured` already carries a count, a sample and the
+    zero-rows-is-a-failure verdict, so a bad line here gets exactly the visible
+    account a missed capture gets. See [[jsonl-reads]].
+
+    A line that parses to something other than an object counts as malformed.
+    A bare `42` is valid JSON and is not a record, and letting one through
+    would put a non-row into a list the view layer is entitled to assume is
+    rows.
+    """
+    rows: list[dict] = []
+    total = bad = 0
+    sample: str | None = None
+
+    for line in text.splitlines():
+        if not line.strip():
+            continue
+        total += 1
+        try:
+            value = json.loads(line)
+        except json.JSONDecodeError:
+            value = None
+        if not isinstance(value, dict):
+            bad += 1
+            if sample is None:
+                sample = line
+            continue
+        rows.append(value)
+
+    return Captured(rows, total, bad, sample)
+
+
+def malformed_warning(captured: Captured, name: str) -> str | None:
+    """`unmatched_warning`'s wording for a kind with no pattern. "Did not
+    match" is a regex's verb and would be a small lie about what was tried."""
+    if not captured.unmatched or captured.matched_nothing:
+        return None
+    plural = "" if captured.total == 1 else "s"
+    return (
+        f"{captured.unmatched} of {captured.total} line{plural} not a JSON object "
+        f"— first: {_clip(captured.sample)!r}"
+    )
+
+
+def _clip(line: str | None, limit: int = 120) -> str:
+    """A malformed line is under no obligation to be short. The sample exists
+    to be recognised, not read — and a warning is a line of prose, so a 900-
+    character one would bury the sentence carrying it."""
+    line = line or ""
+    return line if len(line) <= limit else line[:limit] + "…"
 
 
 # Shape, not judgment: digits with an optional sign and an optional decimal
@@ -191,13 +250,13 @@ def _check_format(name: str, body) -> str | None:
         return "jq must be a string holding a jq program"
 
     pattern = body.get("pattern", "")
-    if kind == "json":
+    if kind in ("json", "jsonl"):
         if pattern:
             # Refused rather than ignored: a pattern sitting meaninglessly on
             # a json format is the "wrong but looks right" failure.
-            return "pattern means nothing on kind 'json'"
+            return f"pattern means nothing on kind {kind!r}"
         if not jq:
-            return "a json format with no jq field declares nothing — drop it or transform"
+            return f"a {kind} format with no jq field declares nothing — drop it or transform"
         return None
 
     # lines
@@ -227,6 +286,11 @@ def resolve(name: str, home: Path | None = None) -> tuple[Format | None, str | N
     the least helpful true sentence available."""
     if name == "json":
         return Format(name="json", kind="json"), None
+    if name == "jsonl":
+        # Parameterless like `json`, unlike `lines`: one object per line is a
+        # whole contract on its own, with nothing left for the operator to
+        # declare. See [[jsonl-reads]].
+        return Format(name="jsonl", kind="jsonl"), None
     if name == "lines":
         return None, (
             "'lines' needs a pattern — declare a format in formats.toml "
