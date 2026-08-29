@@ -213,6 +213,18 @@ body {
   border-bottom: var(--hair) solid var(--sb-hair);
 }
 .tools-list { flex: 1; overflow: auto; padding: 1.5rem 0; }
+
+/* A section heading, since [[tools]] round 5. `--sb-text-2`, not `--sb-text-3`:
+ * fundamentals ruled TEXT_3 is structure rather than reading text, and a group
+ * name is read. The ungrouped bucket takes a rule instead of a heading and only
+ * when something is above it — a divider at the top of a list divides nothing. */
+.tool-group {
+  padding: 2rem 3rem 1rem; color: var(--sb-text-2);
+  font-size: 2.5rem; font-weight: 700; letter-spacing: .12em;
+  text-transform: uppercase;
+}
+.tool-section:first-child .tool-group { padding-top: 0; }
+.tool-rule { margin: 2rem 3rem 1.5rem; border-top: var(--hair) solid var(--sb-hair); }
 .tools-empty { padding: 1.5rem 3rem; color: var(--sb-text-3); line-height: 1.5; }
 .tools-foot {
   flex: none; padding: 2.5rem 3rem; color: var(--sb-text-3);

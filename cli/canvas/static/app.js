@@ -287,8 +287,29 @@ function useNow() {
  * carries, so a tool that stops existing stops appearing here with no code
  * involved. See [[tools]].
  */
+/* Sections, in the order `cli/tools.py` gives the listing: named groups
+ * alphabetical, the ungrouped last. Within a group nothing sorts here — the
+ * catalog already walks `sorted(command.commands)`, so the entries arrive in
+ * name order and re-sorting would be a second copy of a rule that is decided
+ * in Python on purpose. See [[tools]] round 5. */
+function sectionsOf(saved) {
+  const by = new Map();
+  for (const c of saved) {
+    const key = c.group || "";
+    if (!by.has(key)) by.set(key, []);
+    by.get(key).push(c);
+  }
+  const sections = [...by.keys()]
+    .filter(Boolean)
+    .sort()
+    .map((g) => [g, by.get(g)]);
+  if (by.has("")) sections.push(["", by.get("")]);
+  return sections;
+}
+
 function Tools({ commands, open, edit, drop }) {
   const saved = commands.filter((c) => c.saved);
+  const sections = sectionsOf(saved);
   return html`
     <div class="tools">
       <div class="tools-head">TOOLS</div>
@@ -297,7 +318,13 @@ function Tools({ commands, open, edit, drop }) {
         html`<div class="tools-empty">
           nothing saved yet — declare a tool in tools.toml
         </div>`}
-        ${saved.map(
+        ${sections.map(
+          ([group, items]) => html`
+          <div key=${group || "\u0000"} class="tool-section">
+            ${group
+              ? html`<div class="tool-group">${group}</div>`
+              : sections.length > 1 && html`<div class="tool-rule"></div>`}
+        ${items.map(
           (c) => html`
             <div key=${c.name} class="tool-row">
               <button
@@ -325,6 +352,9 @@ function Tools({ commands, open, edit, drop }) {
               </button>
             </div>
           `
+        )}
+          </div>
+        `
         )}
       </div>
       <!-- An expression, not markup: htm does not decode HTML entities, so a
