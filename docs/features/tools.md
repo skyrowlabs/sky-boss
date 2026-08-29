@@ -1,5 +1,5 @@
 ---
-status: complete
+status: active
 created: 2026-08-20
 updated: 2026-08-28
 agent_value: 3
@@ -175,6 +175,12 @@ module.** A name in a skip-list is the beginning of the command table this desig
 - **No arguments.** A tool is a *fixed* argv. `sb jam-pr-list 945` is refused rather than appended,
   because a tool that takes arguments is a shell function, and this is not a shell.
 - **No groups, no nesting.** Flat names at the top level. `sb jam-pr-list`, not `sb jam pr-list`.
+  *Amended 2026-08-28 (round 5), and the sentence above still holds every word of what it was
+  about.* A tool may now declare `group = "jam"`, which is a **label the surfaces sort under and
+  nothing else**. The address is untouched: `sb tools jam-pr-list`, never `sb tools jam pr-list`,
+  and there is still no such thing as a group you can invoke. It follows that **names stay globally
+  unique** — two tools in different groups may not share a name, because the thing that has to be
+  unambiguous is the word you type, and that word never carries the group.
 - **No shell.** No pipes, no `&&`, no interpolation, no `shell=True`. Argv only, unchanged from
   [[canvas]].
 - **No sync, no sharing, no machine awareness.** One file, one machine. A tool naming a host that
@@ -183,6 +189,124 @@ module.** A name in a skip-list is the beginning of the command table this desig
   be one. That fallback is precisely how operator content ended up committed last time.
 
 ## Phases
+
+### Round 5 — the rail gets sections (2026-08-28)
+
+The rail is a flat alphabetical list, which is exactly right for six tools and wrong for thirty.
+It is one `flex: 1` column between a header and a footer, and the only thing separating a
+jam.sense read from a breeze.brain follow is that they sort into different parts of the alphabet.
+The operator's ask: **group them.**
+
+**A group is a declared label, not an address.** One optional field:
+
+```toml
+[tool.jam-pr-list]
+group = "jam"
+argv  = ["data", "--cwd", "~/src/jam.sense", "--", "jam", "pr", "list", "--json"]
+refresh = 30
+```
+
+Three things this deliberately is not, each rejected against something already written down here:
+
+- **Not inferred from the name.** `jam-pr-list` and `jam-ci` share a prefix, and splitting on the
+  first dash would group them for free with no new field and no edit to any existing tool. It is
+  also a heuristic, and this repo has rejected that shape twice — the `--pretty` that guesses
+  columns, and the bench that would read a trailing `--json` and pick `data` for you. The
+  workbench's rule is the one that governs: **the contract is asserted, never inferred.** A
+  prefix rule cannot be told apart from a coincidence, so `disk-free` invents a `disk` group and
+  the operator's only recourse is to rename a tool to escape a grouping they never asked for.
+- **Not derived from what it wraps.** Grouping by `argv[0]` — all the reads here, all the follows
+  there — is free and needs no field at all. It groups by *mechanism* when the question the rail
+  answers is about *subject*: the operator wants their jam.sense tools together, and whether one
+  of them is a `read` and another a `follow` is already on the row.
+- **Not a namespace.** See the amended Does-not-do line above. The group never enters the address,
+  so names stay globally unique and `sb tools <name>` is unchanged.
+
+**The grouping lives in the envelope, not in `app.js`.** `sb tools` prints its sections from the
+same field the rail draws from, which is the rule [[table-views]] already paid for: the deciding
+half goes where pytest reaches it, and both renderers draw what they are told. The alternative —
+grouping as pure presentation in the frontend — would give the CLI and the rail two different
+readings of one file, in the repo whose frontend has no test runner.
+
+The field rides the established path and adds no new one: `Tool.group` → `sb_group` on the
+registered command object → the catalog, exactly as `sb_saved`, `sb_acts` and `sb_refresh` already
+travel. **A property on the command, never a name written down in a module.**
+
+**A group name is a key, not just a caption**, so it takes the same shape a tool name does —
+lowercase letters, digits and hyphens, `_NAME` as it stands. It is what the collapsed-state store
+is keyed on and what the writer splices, and a free-text caption means `jam ` and `jam` are two
+groups that look like one. The rail uppercases it for display, which is where the caption lives.
+`group = ""` is ungrouped, identical to omitting it — a bench field left blank is the common case
+and refusing it would be a modal for nothing.
+
+**Order is alphabetical: groups, then tools within them, with the ungrouped last** under no
+heading, after a divider. Declaration order was the tempting answer — the file is hand-written and
+its order is an assertion, the same reasoning that makes `--save` keep the argv you typed — and it
+was rejected because **the catalog already sorts** (`catalog.py`, `sorted(command.commands)`, and
+`_listing`'s `sorted(tools.commands.items())`). Preserving file order means threading a position
+index through a structure that exists to read properties off command objects, to buy an ordering
+the operator can get by naming a group. With zero groups declared, alphabetical-within-ungrouped is
+byte-identical to what the rail draws today, which is the property worth having.
+
+**Collapse persists, or it is not a fold.** A group header toggles; the set of collapsed groups
+survives a restart, because a rail with thirty tools is the whole reason to build this and a fold
+that reopens on every `sb ui` is a fold you stop using. Two constraints on where that state goes:
+
+- **Not `tools.toml`.** That is operator content, hand-authored, and writing a UI preference into
+  it would put sky.boss's own state in a file the operator owns — and drag a backup rotation
+  behind every chevron click.
+- **`$SB_STATE`, conceptually** — this is machine state, and `rm -rf ~/.local/state/sb` resetting
+  the surface is the documented meaning of that directory.
+
+The cheapest implementation of "in `$SB_STATE`" is `localStorage`, which needs no route and no
+Python at all, and lands in the browser profile that already lives there on the `--browser` path.
+**Whether it survives in the native webview is unverified** — nothing in `cli/canvas/static/`
+touches `localStorage` today, and `shell.py` configures no storage path. So the phase checks it
+rather than assuming, and names its fallback: a small JSON file in `$SB_STATE` behind a guarded
+route, the same guard as every other. Either way an absent or unreadable store degrades to
+**everything open**, and a key naming a group that no longer exists is ignored on read and never
+written back.
+
+**Does not do:**
+
+- **Does not group the palette.** The palette is a search and typing is already the filter;
+  sections inside a list that is being narrowed keystroke by keystroke are noise. The rail is a
+  standing list, which is what makes grouping worth anything there.
+- **No `--group` on `--save`.** Round 3's argument against `--describe` is unchanged and applies
+  word for word: it is a second thing to type at exactly the moment the operator wants to type
+  less. A group is added later, in the bench or in `$EDITOR`, where the tool is being thought
+  about rather than captured.
+- **No nested groups.** One level. A group of groups is the nesting the address already refuses,
+  arriving through the sidebar.
+- **No group operations.** No "run the group", no "collapse all", no drag-to-regroup, no delete-a-
+  group. A group is a string on a tool; the way to empty one is to stop writing it.
+- **No colour per group, no icons, no ordering field.** The rail has one palette and it is
+  [[header]]'s; a per-group hue is the first hex outside `theme.py` waiting to happen.
+
+- [x] **The field and the loader.** `group` on `Tool`, validated in `_check` against `_NAME` with
+      `""` and absent both meaning ungrouped; `sb_group` set on the registered command in
+      `cli/__init__.py`. Tests: a valid group survives, a bad shape is skipped and *named* while
+      the other tools load, and a tool with no group is unchanged from today.
+- [ ] **`sb tools` prints sections.** `_listing` carries `group` on every declared row and renders
+      grouped — groups alphabetical, tools alphabetical within, ungrouped last under no heading.
+      A test that a file with no groups produces the listing byte-identical to today's.
+- [ ] **The catalog and the rail.** `group` through `catalog.py` beside `saved`; `Tools()` in
+      `app.js` renders headers with a count and an ungrouped bucket after a divider. **Swept at
+      more than one `--scale`** — new fixed `rem` heights inside a 184px rail is precisely the
+      shape that starved the bench's last step for three rounds. Verified by reading the DOM back
+      from headless Chromium, and no `/* */` inside an `htm` tag.
+- [ ] **Collapse, persisted.** Chevron on the header, collapsed set in `localStorage`. **First
+      confirm it survives a native-webview restart**; if it does not, a `$SB_STATE` file behind a
+      guarded route instead, and say so in Notes. Unknown keys ignored on read and dropped on
+      write; an unreadable store means everything open.
+- [ ] **The bench and the writer.** A group field on the bench beside description; `/api/tools`
+      carries `group` through create/replace; the splice writes and removes the line within the
+      block, so comments above it still survive (round 4's guarantee, now with one more line in
+      the block). The shared validator gains the group check, so the writer still cannot accept a
+      tool the loader will refuse.
+- [ ] **Docs.** `CLAUDE.md` § tools if the command table changes, README's saving section,
+      `tools.example.toml` grows a group — and the test that the tracked example names no home
+      directory keeps passing.
 
 ### Round 4 — the interface writes (2026-08-28)
 

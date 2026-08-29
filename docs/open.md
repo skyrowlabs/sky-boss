@@ -163,3 +163,86 @@ split this repo uses instead — [[open]], `ideas.md`, [[fundamentals]], one doc
 different design, not a smaller one. Also still out: `release-please` and a `VERSION` file, because
 the version comes from `git describe` and `cli/banner.py` prints it; a tracked `VERSION` is a
 second source of truth that can disagree with the tag, and the mark would be where it showed.
+
+---
+
+## Watching the agents on this machine
+
+Opened 2026-08-28. The tower's `IN FLIGHT` band is drawn for jobs sky.boss started. The jobs the
+operator actually wants to watch right now are the ones it did not: several Claude Code sessions
+running side by side across sibling repos, each holding a working tree, each burning a context
+window nobody can see the bottom of. That is the tower's subject arriving early, from outside.
+
+**16. The tower shows live agent sessions.** An observe, in the tower, listing what is running now.
+
+The mechanism exists and was verified on this machine rather than assumed: `~/.claude/sessions/`
+holds one JSON file per live session, `<pid>.json`, written by the session itself and carrying
+`sessionId`, `cwd`, `name`, `status` (`busy` / `idle`), `kind`, `entrypoint`, `startedAt`,
+`version`, `procStart`, and a messaging socket path. Five were live when this item was written,
+one per sibling repo. `ps` finds the same processes and can tell you none of that.
+
+Three things are already known about it, and each is the kind of detail that costs a round if it
+is rediscovered:
+
+- **Liveness is two fields, not one.** A record outlives the process that wrote it, so `pid` alone
+  lies twice — once for a crashed session, once for a recycled PID. The record pins `procStart`
+  (field 22 of `/proc/<pid>/stat`) for exactly this, and a row is live only when both agree. A
+  reader that trusts the PID reports dead sessions as running, which is the "wrong but looks right"
+  failure this repo keeps naming.
+- **It is an internal format with no contract.** Undocumented, versioned per record, free to change
+  under a client update. So an absent, renamed or unparseable registry degrades to *nothing
+  declared* — the rule an absent `$SB_HOME` already lives under — and never to a raised error or an
+  empty band that reads as "nothing is running".
+- **Reading it is a read; touching it is not.** `messagingSocketPath` is a live socket into another
+  agent's session, and a stop button or a send-a-message affordance would put a *write* into a
+  panel built as an observe. Not forbidden — [[fundamentals]] would just have to say so on purpose,
+  the way the clock-source selector crosses the daemon line on purpose. Undecided, and currently
+  out.
+
+**What this quietly supplies is item 6.** *Job identity that outlives a window* is the primitive
+the plan and the tower are blocked on, and a session registry hands it over for free — a stable
+`sessionId`, a derived `name`, and a start time that survives every window sky.boss ever drew. It
+does not *close* item 6, because sky.boss's own runs are still anonymous and that is the harder
+half. It does mean the tower's `IN FLIGHT` band can have real rows in it before item 6 lands, which
+is the first time any of those four primitives has had a path that does not start with the other
+three.
+
+**It needs a command, not just a panel.** The surface is a consumer of the envelope and never a
+second CLI ([[canvas]]), so this is a `sb` command the tower renders — and its shape is already in
+the tree: [[roll-call]] asks every declared project how it is and folds the answers. This asks
+every provider who is running and folds the answers. Same fold, different population. **Do not name
+it `fleet`** — that word is bbrain's rental fleet and the collision has already cost clarity once.
+
+**17. Providers, modularly — Claude first, and only Claude verified.** The operator's ask is that
+this not be Anthropic-shaped in its bones, and the honest position is that only one registry has
+been read. So: one adapter interface, one adapter written against a format that was actually
+inspected, and no speculative adapters for tools whose on-disk state nobody here has opened. A
+second provider is a second adapter and a day of reading, not a refactor — which is the whole
+point of deciding the seam now.
+
+The seam that makes that true: an adapter answers *what agent sessions are live*, returns records
+in one vocabulary — provider, id, name, cwd, status, started, pid — and an adapter that finds
+nothing is **silent**, not an error. Nobody has five agent CLIs installed at once, so "not present"
+is the common case and must not print anything. The envelope carries the provider on every row,
+because a tower that shows five rows without saying which are which is worse than one that shows
+four.
+
+Two halves are genuinely open:
+
+- **Where an adapter lives.** Parsing a format is code, so adapters are probably modules in `cli/`.
+  But *which are enabled* looks like operator content — `projects.toml` is the precedent, and it is
+  outside the repo and never written by sky.boss. Splitting it that way means shipping code for a
+  provider the operator has turned off, which is fine, and lets a machine with nothing installed
+  stay silent without a config file existing at all.
+- **What a row shows when the provider knows more than the interface does.** `status: busy` is
+  Claude's word. Context used, model, token spend, the branch a session is sitting on — some of
+  that exists per-provider and none of it generalises. A lowest-common-denominator record that
+  drops it is honest and thin; a per-provider extras bag is useful and is how a common vocabulary
+  rots. Undecided. Whichever wins, the tower must render a row from a provider it has never heard
+  of without special-casing it, or the modularity was decorative.
+
+**Not in scope, and worth writing down before someone proposes it**: managing these sessions,
+starting them, routing work between them, or reading their transcripts. sky.boss watches what other
+tools do. An agent's transcript is the operator's conversation, and a panel that surfaced it would
+put someone else's prompts on a canvas that also has an [[mcp]] surface. The band shows that a
+session exists, where, and whether it is working.
