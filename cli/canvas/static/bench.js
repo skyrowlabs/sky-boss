@@ -65,12 +65,17 @@ export function words(text) {
  * button reads that as "nothing to run" rather than each caller re-deciding.
  */
 export function compose(draft) {
-  const { contract, cwd, argv } = draft;
+  const { contract, cwd, env, argv } = draft;
   if (!contract) return null;
   const tail = words(argv);
   if (!tail.length) return null;
   const out = [contract];
   if ((cwd || "").trim()) out.push("--cwd", cwd.trim());
+  /* Repeatable, so each pair becomes its own flag. Space-separated here for
+   * the same reason the argv row is: it is the palette's limitation carried
+   * over, not a new one — a value containing a space cannot be typed yet.
+   * On every contract, because every one of them spawns. */
+  for (const pair of words(env)) out.push("--env", pair);
   /* The view controls, each on the contract that has the flag. Offering
    * `--cols` under `read` would be a control for a table that contract cannot
    * return, which is the same mistake as offering a cadence on a write. */
@@ -585,6 +590,16 @@ export function Bench({ commands, draft, actions }) {
                     value=${draft.cwd}
                     title="where this command runs"
                     onInput=${(e) => actions.setCwd(e.target.value)}
+                  />
+                </div>
+                <div class="draft-row">
+                  <span class="draft-label">--env</span>
+                  <input
+                    class="draft-cwd"
+                    value=${draft.env}
+                    placeholder="NAME=VALUE — visible, so not for secrets"
+                    title="a variable the command will see; repeat by separating with a space"
+                    onInput=${(e) => actions.setEnv(e.target.value)}
                   />
                 </div>
                 <div class="draft-row">
