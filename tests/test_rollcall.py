@@ -82,6 +82,78 @@ cols = "job,result"
     assert project.from_ == "json"
 
 
+def test_a_typo_in_the_table_name_is_named_rather_than_silent(tmp_path):
+    """The whole file used to vanish for one letter. `[projct.…]` parsed clean,
+    declared nothing, and left roll-call printing the sentence a fresh clone
+    gets — so the operator's evidence for "I declared this" was identical to the
+    evidence for "I never did"."""
+    write(tmp_path, """
+[projct.jam-sense]
+argv = ["jam", "report", "status", "--json"]
+""")
+    projects, problems = load(tmp_path)
+    assert projects == []
+    assert problems == ["unknown table 'projct' — ignored"]
+
+
+def test_an_unknown_table_does_not_cost_the_projects_beside_it(tmp_path):
+    write(tmp_path, """
+[state]
+root = "~/somewhere"
+
+[project.good]
+argv = ["echo", "{}"]
+""")
+    projects, problems = load(tmp_path)
+    assert [p.name for p in projects] == ["good"]
+    assert problems == ["unknown table 'state' — ignored"]
+
+
+def test_a_mistyped_key_is_named_rather_than_falling_back_to_a_default(tmp_path):
+    """`timout = 5` silently became the 60-second default, which is the worst
+    shape a typo can take: the declaration is gone and the value it was
+    overriding looks deliberate."""
+    write(tmp_path, """
+[project.jam-sense]
+argv = ["echo", "{}"]
+col = "job,result"
+timout = 5
+""")
+    projects, problems = load(tmp_path)
+    assert projects[0].timeout == 60 and projects[0].cols == ""
+    assert problems == [
+        "project 'jam-sense': unknown key 'col' — ignored",
+        "project 'jam-sense': unknown key 'timout' — ignored",
+    ]
+
+
+def test_a_project_that_cannot_load_is_reported_once(tmp_path):
+    """Not twice. A project with no source is already named for that, and
+    adding an unknown-key line beside it would bury the reason it failed."""
+    write(tmp_path, """
+[project.bad]
+describtion = "no source, and a typo besides"
+""")
+    _, problems = load(tmp_path)
+    assert len(problems) == 1 and "declares neither" in problems[0]
+
+
+def test_the_known_keys_cover_every_field_a_project_can_carry():
+    """The set is spelled out rather than derived, so this is what stops a new
+    field becoming a declaration sky.boss silently ignores. Two fields are not
+    keys: `name` is the table's own, and `from_` clears the keyword."""
+    from dataclasses import fields
+
+    from cli.rollcall import PROJECT_KEYS, Project
+
+    expected = {
+        "from" if f.name == "from_" else f.name
+        for f in fields(Project)
+        if f.name != "name"
+    }
+    assert expected == set(PROJECT_KEYS)
+
+
 def test_parse_reads_no_file():
     """Pure, like every other deciding half here."""
     projects, problems = parse({"project": {"a": {"path": "/tmp/a.json"}}})

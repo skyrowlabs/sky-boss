@@ -33,6 +33,20 @@ from cli.output import Result, emit
 
 PROJECTS_FILE = "projects.toml"
 
+# The keys a project may declare, and the tables the file may hold. Both sets
+# are closed and both are small, which is what makes naming an unknown one
+# cheap rather than officious.
+#
+# Spelled out rather than derived from `Project`'s fields because two of them
+# do not correspond: `name` is the table's own key, and `from_` carries a
+# trailing underscore to clear the keyword. `tests/test_rollcall.py` walks the
+# dataclass against this set, so a field added without a key here fails there
+# rather than becoming a declaration sky.boss silently ignores.
+PROJECT_KEYS = frozenset(
+    {"argv", "path", "cwd", "from", "rows", "cols", "timeout", "description"}
+)
+TOP_LEVEL_TABLES = frozenset({"project"})
+
 
 @dataclass
 class Project:
@@ -90,11 +104,25 @@ def parse(raw: dict) -> tuple[list[Project], list[str]]:
     projects: list[Project] = []
     problems: list[str] = []
 
+    # A typo in a table name used to cost the operator the whole file in
+    # silence: `[projct.jam-sense]` parsed clean, declared nothing, and left
+    # `roll-call` saying "no projects declared" — the same sentence a fresh
+    # clone gets. Named, never fatal: an unfamiliar table is reported and the
+    # rest of the file is read, so this can never be the reason a good
+    # declaration stops working.
+    for table in raw:
+        if table not in TOP_LEVEL_TABLES and table != "__error__":
+            problems.append(f"unknown table {table!r} — ignored")
+
     for name, body in (raw.get("project") or {}).items():
         problem = _check(name, body)
         if problem:
             problems.append(f"project {name!r}: {problem}")
             continue
+        # After `_check`, so a project that is wrong in a way that stops it
+        # loading is reported once for that rather than twice.
+        for key in _unknown_keys(body):
+            problems.append(f"project {name!r}: unknown key {key!r} — ignored")
         projects.append(
             Project(
                 name=name,
@@ -110,6 +138,17 @@ def parse(raw: dict) -> tuple[list[Project], list[str]]:
         )
 
     return projects, problems
+
+
+def _unknown_keys(body: dict) -> list[str]:
+    """Keys sky.boss does not read, in declaration order.
+
+    Reported rather than refused, and the wording says *ignored* rather than
+    *invalid* on purpose: that sentence stays true if an older sky.boss ever
+    reads a file written for a newer one, so the check cannot become the thing
+    that rejects a file it merely does not understand yet.
+    """
+    return [key for key in body if key not in PROJECT_KEYS]
 
 
 def _check(name: str, body) -> str | None:
