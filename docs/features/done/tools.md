@@ -1,5 +1,5 @@
 ---
-status: active
+status: complete
 created: 2026-08-20
 updated: 2026-08-28
 agent_value: 3
@@ -15,7 +15,11 @@ key_files:
   - cli/canvas/catalog.py
   - cli/canvas/server.py
   - cli/canvas/static/app.js
+  - cli/canvas/static/bench.js
+  - cli/canvas/static/api.js
   - cli/canvas/static/sb.css
+  - cli/canvas/prefs.py
+  - tests/test_prefs.py
   - tools.example.toml
   - tests/test_tools.py
   - tests/conftest.py
@@ -320,9 +324,11 @@ no longer exists is dropped on write rather than kept forever.
       block, so comments above it still survive (round 4's guarantee, now with one more line in
       the block). The shared validator gains the group check, so the writer still cannot accept a
       tool the loader will refuse.
-- [ ] **Docs.** `CLAUDE.md` § tools if the command table changes, README's saving section,
-      `tools.example.toml` grows a group — and the test that the tracked example names no home
-      directory keeps passing.
+- [x] **Docs.** `CLAUDE.md` (the command table row, `$SB_STATE`'s new file, the
+      declared-not-inferred rule, and the ephemeral-origin finding), README's saving section,
+      `tools.example.toml` grows groups — and the test that the tracked example names no home
+      directory keeps passing. The example's header also lost a paragraph round 4 had already
+      falsified; see Notes.
 
 ### Round 4 — the interface writes (2026-08-28)
 
@@ -575,7 +581,11 @@ result.** The envelope says where it went; under `--json` that is a field, not p
 
 ### Round 5 — the rail gets sections (2026-08-28)
 
-*Accreting as the round lands.*
+**Six phases, all shipped.** A tool declares `group`; the loader validates it, the listing orders
+by it, the catalog carries it, the rail draws sections that fold, the bench writes it and the
+splice preserves it. Nothing was deferred. The three findings worth keeping are below: the listing
+groups without headings, `localStorage` could never have worked here, and the shipped example was
+still asserting a rule round 4 had reversed.
 
 **The listing groups without a heading, and the reason is that a heading would have been
 presentation encoded as data.** The phase said "prints sections", and the obvious way to get them
@@ -641,6 +651,14 @@ one more line nobody wrote on purpose.
 Verified through the real route against a real file: `/api/tools` created a grouped tool, refused
 `group = "No Good"` with **the loader's own message** (`write_problem` calls `_check`, so there is
 still one opinion), and the operator's comment above the untouched block survived byte for byte.
+
+**`tools.example.toml` was still asserting a rule reversed three commits earlier.** Its header
+carried round 4's *"No surface writes this file. The canvas server is remote code execution bound
+to a port…"* — the paragraph round 4 spent its whole Why disproving. Round 4 updated `CLAUDE.md`,
+the README and rule 4 itself, and missed the shipped example, which is the one of the four a new
+operator reads *first*. Rewritten to describe what the surface actually does. Worth naming as a
+class: a reversal has to be swept for by grepping the claim, not by remembering where it was
+written.
 
 *Observed, not caused — and checked rather than assumed:* **the workbench overlaps itself at
 `--scale 2.4`** in a 1500×950 viewport, panels stacking over each other with the job strip's own
