@@ -323,7 +323,7 @@ a perfectly valid group name and silently a second group, where `Jam` at least g
       declines.
 - [x] **Drag and drop.** Rows draggable, sections and the ungrouped bucket as targets, a visible
       drop state. Verified by reading the DOM back, and swept at more than one `--scale`.
-- [ ] **The bench's picker** — a `datalist` fed from the catalog's groups, free text still allowed.
+- [x] **The bench's picker** — a `datalist` fed from the catalog's groups, free text still allowed.
 - [ ] **Docs.** `CLAUDE.md` on the group model, `tools.example.toml` grows a `[group.…]`,
       README's saving section.
 
