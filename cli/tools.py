@@ -41,6 +41,7 @@ import re
 import shlex
 import tomllib
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 
 import rich_click as click
@@ -542,13 +543,237 @@ def _toml_string(value: str) -> str:
     return f'"{escaped}"'
 
 
-def block(name: str, argv: list[str], refresh: int = 0) -> str:
-    """The text appended to `tools.toml` for one saved tool."""
+def block(name: str, argv: list[str], refresh: int = 0, description: str = "") -> str:
+    """The text appended to `tools.toml` for one saved tool.
+
+    `description` since [[tools]] round 4: `--save` cannot supply one — it saves
+    by example and the example was an argv — but a surface that authors a tool
+    can ask, and a list of saved commands without descriptions is a list of
+    argvs you have to read to recognise.
+    """
     parts = ", ".join(_toml_string(part) for part in argv)
-    lines = [f"[tool.{name}]", f"argv = [{parts}]"]
+    lines = [f"[tool.{name}]"]
+    if description:
+        lines.append(f"description = {_toml_string(description)}")
+    lines.append(f"argv = [{parts}]")
     if refresh:
         lines.append(f"refresh = {refresh}")
     return "\n".join(lines) + "\n"
+
+
+#: How many backups of `tools.toml` to keep. Every mutating write copies the
+#: current file first, at the operator's request when rule 4 was relaxed
+#: ([[tools]] round 4). Twenty is a day of heavy editing and a few kilobytes;
+#: the point is that "undo" is a `cp` rather than a feature.
+BACKUPS_KEPT = 20
+
+#: A table header at column 0 — `[tool.x]`, `[highlight.y]`. What ends a block.
+_HEADER = re.compile(r"^\[[^\[\]]+\]\s*(#.*)?$")
+
+
+def command_table(root=None) -> tuple[dict[str, bool], frozenset[str]]:
+    """`(commands, resident)` off the live Click tree, as `register` derives them.
+
+    One derivation, so the writer and the loader cannot disagree about what a
+    sky.boss command is. Walking the real tree rather than keeping a list is the
+    catalog's own doctrine ([[canvas]]): a table would drift the day a command
+    was added.
+    """
+    if root is None:
+        from cli import cli as root_group
+
+        root = root_group
+    entries = walk(root)
+    return (
+        {entry["name"]: entry["acts"] for entry in entries},
+        frozenset(entry["name"] for entry in entries if entry.get("resident")),
+    )
+
+
+def write_problem(
+    name: str,
+    argv: list[str],
+    refresh: int = 0,
+    home: Path | None = None,
+    root=None,
+) -> str | None:
+    """Why this tool cannot be written, or None.
+
+    **Every refusal the loader makes, made first.** A tool that writes cleanly
+    and then fails to load is the worst of both — it is on disk, it is not in
+    the tree, and the only evidence is a line in `sb tools`. So this runs
+    `_check`, the loader's own function, against a body built from the same
+    fields the write is about to serialise. Two implementations of this rule
+    would disagree the day one of them changed.
+
+    It deliberately does **not** refuse a name that already exists: round 4
+    made create and replace one call, because they are one intent. The shape of
+    a name is still checked, and a file sky.boss cannot parse is still refused —
+    splicing into a document whose structure is unknown is how a tool is lost.
+    """
+    if not _NAME.match(name or ""):
+        return f"{name!r} cannot be a tool name — lowercase letters, digits and hyphens"
+
+    existing = read(home)
+    if "__error__" in existing:
+        return f"{existing['__error__']} — fix the file before writing into it"
+
+    commands, resident = command_table(root)
+    body: dict = {"argv": list(argv)}
+    if refresh:
+        body["refresh"] = refresh
+    return _check(name, body, commands, set(), resident)
+
+
+def backup(home: Path | None = None, stamp: str | None = None) -> Path | None:
+    """Copy `tools.toml` aside before it is rewritten. None if there is nothing
+    to copy.
+
+    Before every mutating write, not on a timer and not on a schedule: the file
+    being replaced is the only thing worth keeping, and the moment it is about
+    to stop existing is the only moment that is true.
+
+    Kept in `$SB_HOME/backups/` rather than beside the file, so `ls ~/.sky-boss`
+    still shows three config files and not a drift of dated ones.
+    """
+    path = home_file(home)
+    if not path.exists() or not path.stat().st_size:
+        return None
+    when = stamp or datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    into = path.parent / "backups"
+    into.mkdir(parents=True, exist_ok=True)
+    kept = into / f"tools.{when}.toml"
+    # A second is not fine-grained enough: editing a tool and deleting another
+    # inside the same second would leave one backup where the operator was
+    # promised two, and the one it left would be the wrong one.
+    bump = 1
+    while kept.exists():
+        kept = into / f"tools.{when}-{bump}.toml"
+        bump += 1
+    kept.write_bytes(path.read_bytes())
+    # Oldest first by name, which is why the stamp is sortable.
+    existing = sorted(into.glob("tools.*.toml"))
+    for stale in existing[:-BACKUPS_KEPT]:
+        stale.unlink()
+    return kept
+
+
+def block_range(text: str, name: str) -> tuple[int, int] | None:
+    """The line range `[tool.NAME]` occupies, as `[start, end)`. None if absent.
+
+    **Located by line, not by round-tripping the document.** `tools.toml` is
+    hand-written and carries the operator's prose — in this repo, a five-line
+    comment about why `--cwd` is required for a sibling CLI. Parsing the whole
+    file and re-serialising it would reformat every block including the ones
+    nobody asked to change; splicing one line range leaves every other byte
+    identical *by construction*, which is a stronger guarantee than any
+    round-trip offers. See [[tools]] round 4.
+
+    The range starts at the header, so **comments above a block are outside it**
+    and survive an edit. They are the operator's prose and may still be true of
+    the tool that replaces this one.
+    """
+    lines = text.splitlines(keepends=True)
+    start = None
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if start is None:
+            if stripped == f"[tool.{name}]":
+                start = i
+            continue
+        if _HEADER.match(stripped):
+            return (start, i)
+    return None if start is None else (start, len(lines))
+
+
+def _with_leading_comments(lines: list[str], start: int) -> int:
+    """Walk back over the comment lines *touching* a block header.
+
+    Contiguous comments — no blank line between — unambiguously describe the
+    block below them, so a delete takes them with it. A comment separated by a
+    blank line is a section heading for whatever follows and stays. Getting
+    this wrong in either direction destroys the operator's writing or litters
+    their file with prose about a tool that no longer exists.
+    """
+    i = start
+    while i > 0 and lines[i - 1].lstrip().startswith("#"):
+        i -= 1
+    return i
+
+
+def write_block(
+    name: str,
+    argv: list[str],
+    refresh: int = 0,
+    description: str = "",
+    home: Path | None = None,
+) -> dict:
+    """Create or replace one tool. Returns what happened, and where the backup went.
+
+    Create and replace are one call because they are one intent — *this name
+    should run this argv* — and asking the caller to know which it is means the
+    surface holds an opinion about the file's current contents that may be one
+    tick out of date.
+    """
+    problem = write_problem(name, argv, refresh, home)
+    if problem:
+        raise click.UsageError(problem)
+
+    path = home_file(home)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    text = path.read_text(encoding="utf-8") if path.exists() else ""
+    kept = backup(home)
+    fresh = block(name, argv, refresh, description)
+
+    span = block_range(text, name)
+    if span is None:
+        joiner = "" if not text else ("" if text.endswith("\n\n") else ("\n" if text.endswith("\n") else "\n\n"))
+        path.write_text(text + joiner + fresh, encoding="utf-8")
+        action = "created"
+    else:
+        lines = text.splitlines(keepends=True)
+        start, end = span
+        # The old block's trailing blank lines are separation, not content, and
+        # they belong to the *file*. Shrink the range to leave them where they
+        # are rather than consuming and re-emitting them — dropping them glues
+        # the replacement to the next block, and re-emitting them as well
+        # doubles them. Both still parse, and both read as sky.boss having
+        # reformatted something nobody asked it to touch.
+        while end > start and not lines[end - 1].strip():
+            end -= 1
+        path.write_text("".join(lines[:start]) + fresh + "".join(lines[end:]), encoding="utf-8")
+        action = "replaced"
+    return {
+        "name": name,
+        "action": action,
+        "file": str(path),
+        "runs": "sb " + shlex.join(argv),
+        **({"refresh": refresh} if refresh else {}),
+        **({"backup": str(kept)} if kept else {}),
+    }
+
+
+def remove_block(name: str, home: Path | None = None) -> dict:
+    """Delete one tool. Raises if it is not there — a silent no-op on a delete
+    reads as success and leaves the operator believing a command is gone."""
+    path = home_file(home)
+    text = path.read_text(encoding="utf-8") if path.exists() else ""
+    span = block_range(text, name)
+    if span is None:
+        raise click.UsageError(f"{name!r} is not a tool in {path}")
+
+    kept = backup(home)
+    lines = text.splitlines(keepends=True)
+    start, end = span
+    start = _with_leading_comments(lines, start)
+    remaining = "".join(lines[:start]) + "".join(lines[end:])
+    path.write_text(remaining, encoding="utf-8")
+    return {
+        "name": name,
+        "action": "deleted",
+        "file": str(path),
+        **({"backup": str(kept)} if kept else {}),
+    }
 
 
 def name_problem(name: str, home: Path | None = None) -> str | None:

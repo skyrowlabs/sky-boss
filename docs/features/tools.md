@@ -1,5 +1,5 @@
 ---
-status: complete
+status: active
 created: 2026-08-20
 updated: 2026-08-22
 agent_value: 3
@@ -166,6 +166,90 @@ module.** A name in a skip-list is the beginning of the command table this desig
   be one. That fallback is precisely how operator content ended up committed last time.
 
 ## Phases
+
+### Round 4 — the interface writes (2026-08-28)
+
+**Rule 4 is relaxed at the operator's direction**, and the sentence it turns on was already false
+when it was written. As stated:
+
+> A hostile page that defeated the header-and-token guard today gets one command; with a write
+> route it would get every command from then on.
+
+The first half is the error. A page past the guard does not get *one command* — it gets
+`/api/run`, which runs an arbitrary argv, and one arbitrary argv is `sh -c 'cat >> ~/.sky-boss/tools.toml'`,
+or a crontab line, or `~/.bashrc`. **Persistence was already on the far side of that boundary.** The
+write route adds a convenience for the operator and nothing at all for an attacker who is already
+executing commands as them. What actually defends this surface is unchanged and is where the
+argument belonged all along: loopback bind, the required custom header that forces a never-answered
+preflight, the per-launch token, the `Origin` check, and no CORS allow-origin header anywhere.
+
+The operator's case, which is the one that matters: *"the user is going to want to edit commands
+without jumping out of the UI."* Round 3 already conceded the shape of this — it narrowed rule 4
+from "sky.boss never writes this file" and said the button *"can be added later against a design
+that has thought about it."* This is that design.
+
+**The surface may create, edit and delete a tool. sky.boss still never rewrites a file it did not
+have to touch.**
+
+**Splice, do not round-trip.** `tools.toml` is hand-written and carries the operator's comments —
+in this very repo, `# --cwd is required: jam's wrapper does not set PYTHONSAFEPATH…`. A TOML
+library that parses and re-serialises the whole document silently reformats every block, including
+the ones nobody asked to change; a style-preserving library (`tomlkit`) avoids most of that and is
+still a new dependency doing more than is needed. Instead a write locates the target block's **line
+range** and replaces or removes exactly those lines. Every other byte in the file is untouched by
+construction, which is a stronger guarantee than any round-trip can offer and needs no dependency.
+
+- A block runs from its `[tool.NAME]` line to the line before the next table header at column 0,
+  or to EOF.
+- **Comments above a block survive an edit**, because the range starts at the header. They are the
+  operator's prose and may still be true of the edited tool.
+- **A delete takes the contiguous comment lines immediately above it** — no blank line between —
+  since those unambiguously describe the block being removed. A comment separated by a blank line
+  is a section heading and stays.
+
+**Every mutating write backs up first**, at the operator's request. The current file is copied to
+`$SB_HOME/backups/tools.<utc-stamp>.toml` before the new one is written, and the last 20 are kept.
+Cheap, outside the repo, and it makes "undo" a `cp` rather than a feature.
+
+**The write is one route, guarded like every other**, taking a whole tool rather than a patch: name,
+argv, refresh, description. Create and edit are the same call — a name that exists is replaced, a
+name that does not is appended. Delete is its own verb.
+
+**Every refusal the loader already makes, the writer makes first.** A tool that writes cleanly and
+then fails to load is the worst of both, which is round 3's rule and does not change: the argv must
+start with a sky.boss command, a cadence is refused on a tool that acts or is resident by nature,
+`refresh` must be one of `INTERVALS`, and a name may not shadow a sky.boss command.
+
+**Does not do:**
+
+- **Does not become a config editor.** Tools only. `formats.toml` and `projects.toml` are not
+  reachable from any route, and `projects.toml` in particular is declared operator-owned by
+  [[roll-call]] and never written by sky.boss.
+- **Does not edit a file it cannot parse.** If the target block cannot be located unambiguously the
+  write is refused with the reason, and `$EDITOR` is still there. A surface that guesses at a
+  malformed file is how you lose a tool you spent an afternoon on.
+- **Does not preserve a comment through an edit of the block it is inside.** Comments *within* a
+  block go when the block is replaced — the block is being restated, and a comment about the old
+  argv is worse than no comment. Comments above it survive.
+- **Does not offer a diff, a history, or a restore UI.** The backups are files. `ls` and `cp`.
+- **Still refuses to run a tool whose argv does not start with a sky.boss command.** The write path
+  changes who may author a tool, not what a tool may be.
+
+- [x] **The splice** — `replace_block`, `remove_block`, `block_range` in `cli/tools.py`, plus the
+      backup. Tests for: comments above survive an edit, contiguous comments go with a delete, a
+      separated section heading stays, every other block is byte-identical, an unlocatable block
+      refuses.
+- [x] **The validator runs before the write**, sharing one function with the loader's refusals so
+      the two cannot drift.
+- [ ] **`POST /api/tools`** — create/replace and delete, guarded like every route, with the refusal
+      as a 400 carrying its reason. A test that it refuses an unauthenticated request, alongside
+      the existing route inventory.
+- [ ] **The bench saves for real.** Its `--save` row currently prints a block for you to paste;
+      it writes it. The name check it already does becomes the create/replace decision.
+- [ ] **The sidebar edits and deletes.** A tool row opens its argv in the bench; a delete asks
+      once and says where the backup went.
+- [ ] **Docs**: rule 4 rewritten in place with the original kept and struck, `CLAUDE.md` § tools
+      and § Where things live updated, README's saving section.
 
 ### Round 1 — the tools read (2026-08-20)
 
