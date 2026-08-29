@@ -356,6 +356,12 @@ def load_groups(home: Path | None = None) -> tuple[list[Group], list[str]]:
 # tool did not appear will look.
 PROBLEMS: list[str] = []
 
+#: The declared groups, captured by `register` at the same moment the tools
+#: are. Read from the file *once*: a listing that re-read the home would show
+#: groups from disk beside tools from the tree, and those two can disagree the
+#: instant anything writes. See [[tools]] round 6.
+GROUPS: list[Group] = []
+
 
 def _expansion(tool: Tool) -> str:
     return "sb " + shlex.join(tool.argv)
@@ -496,7 +502,9 @@ def register(root: click.Group, home: Path | None = None) -> list[str]:
     loaded, problems = load(commands, home, resident)
     for tool in loaded:
         tools.add_command(make_command(tool))
-    return problems
+    groups, group_problems = load_groups(home)
+    GROUPS[:] = groups
+    return problems + group_problems
 
 
 @click.group(invoke_without_command=True)
@@ -568,6 +576,19 @@ def _listing() -> Result:
 
     from cli import highlight as highlight_
 
+    # Declared groups ride the same listing, for the reason the formats do:
+    # one door for "what did I declare, and what was refused". Without this an
+    # empty group would be visible in the rail and invisible from the terminal,
+    # which is the CLI/rail divergence round 5 was built to avoid.
+    declared_tools = [
+        Tool(
+            name=name,
+            argv=list(getattr(command, "sb_argv", ())),
+            group=_group_of(command),
+        )
+        for name, command in saved
+    ]
+
     formats, format_problems = capture_.load_formats()
     # Declared highlight rulesets ride the same listing as the formats beside
     # them in the file: one door for "what did I declare, and what was
@@ -575,6 +596,15 @@ def _listing() -> Result:
     rulesets, highlight_problems = highlight_.load_rulesets()
     result.data = {
         "tools": declared,
+        "groups": [
+            {
+                "name": section["name"],
+                "description": section["description"],
+                "commands": section["count"],
+                "declared": section["declared"],
+            }
+            for section in sections(declared_tools, GROUPS)
+        ],
         "formats": [
             {"name": fmt.name, "kind": fmt.kind, "description": fmt.description}
             for fmt in sorted(formats, key=lambda f: f.name)
