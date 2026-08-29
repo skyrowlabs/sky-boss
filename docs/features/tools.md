@@ -319,7 +319,7 @@ a perfectly valid group name and silently a second group, where `Jam` at least g
       it if absent, remove it if the value is empty. `POST /api/tools` gains a `regroup` verb that
       goes through it. Tests: every other key survives, a comment *inside* the block survives, and
       a regroup of a tool carrying `highlight` keeps it.
-- [ ] **`+ group` and the ✕**, with the delete asking once and the refusal shown when the server
+- [x] **`+ group` and the ✕**, with the delete asking once and the refusal shown when the server
       declines.
 - [ ] **Drag and drop.** Rows draggable, sections and the ungrouped bucket as targets, a visible
       drop state. Verified by reading the DOM back, and swept at more than one `--scale`.
@@ -744,6 +744,17 @@ registered. Those two can disagree the instant anything writes — and the test 
 immediately, because its fixture registers from a `tmp_path` the ambient home knows nothing about.
 `GROUPS` is a module global filled by `register` beside the tools, one read, and `register` now
 returns both kinds of problem in one list.
+
+**A count appears on an empty group as well as a folded one.** Round 5 drew the count only when a
+group was folded, because that is when its contents are hidden. An empty group hides nothing and
+still needs the number, or a section with a header and no rows reads as a rendering bug rather than
+as a group you have not filled yet.
+
+**`window.confirm` cannot be driven headlessly, and it takes the session with it.** The delete
+verification hung for the full two minutes on the first attempt: a modal dialog blocks the page and
+every subsequent CDP command with it. Stubbing `window.confirm` and `window.alert` before clicking
+is the way to verify any path that asks — worth knowing for every future round, because both the
+tool delete and the group delete ask.
 
 Two consequences worth writing down. **The route accepts `highlight` but the client deliberately
 does not send it** — the bench composes the flag into the argv, so sending the field as well would

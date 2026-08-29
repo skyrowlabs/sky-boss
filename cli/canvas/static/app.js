@@ -321,10 +321,13 @@ function sectionsOf(saved, groups) {
  * Read once on mount and written on every toggle. Both directions swallow
  * their failure in `api.js`, so an unreachable preference costs the fold and
  * never the rail — everything open is the honest degradation. */
-function Tools({ commands, groups, open, edit, drop }) {
+function Tools({ commands, groups, open, edit, drop, addGroup, dropGroup }) {
   const saved = commands.filter((c) => c.saved);
   const sections = sectionsOf(saved, groups);
   const [folded, setFolded] = useState(() => new Set());
+  /* The name being typed, or null when the control is closed. An empty string
+   * is the open-and-blank state and has to be distinguishable from it. */
+  const [naming, setNaming] = useState(null);
   useEffect(() => {
     let live = true;
     api.prefs().then((stored) => {
@@ -356,17 +359,32 @@ function Tools({ commands, groups, open, edit, drop }) {
           ([group, items]) => html`
           <div key=${group || "\u0000"} class="tool-section">
             ${group
-              ? html`<button
-                  class="tool-group"
-                  aria-expanded=${!folded.has(group)}
-                  title=${folded.has(group) ? "show these" : "fold these away"}
-                  onClick=${() => toggle(group)}
-                >
-                  <span class="tool-chevron">${folded.has(group) ? "▸" : "▾"}</span>
-                  <span class="tool-group-name">${group}</span>
-                  ${folded.has(group) &&
-                  html`<span class="tool-count">${items.length}</span>`}
-                </button>`
+              ? html`<div class="tool-group-row">
+                  <button
+                    class="tool-group"
+                    aria-expanded=${!folded.has(group)}
+                    title=${folded.has(group) ? "show these" : "fold these away"}
+                    onClick=${() => toggle(group)}
+                  >
+                    <span class="tool-chevron">${folded.has(group) ? "▸" : "▾"}</span>
+                    <span class="tool-group-name">${group}</span>
+                    ${(folded.has(group) || items.length === 0) &&
+                    html`<span class="tool-count">${items.length}</span>`}
+                  </button>
+                  ${/* A sibling, not a child — a button inside a button is not
+                       valid and the row is the pattern `.tool-row` already
+                       uses. Only on an empty group, and the server refuses a
+                       non-empty one regardless: hiding a control is not
+                       refusing. See [[tools]] round 6. */
+                  items.length === 0 &&
+                  html`<button
+                    class="tool-group-drop"
+                    title="delete this empty group"
+                    onClick=${() => dropGroup(group)}
+                  >
+                    ✕
+                  </button>`}
+                </div>`
               : sections.length > 1 && html`<div class="tool-rule"></div>`}
         ${(group && folded.has(group) ? [] : items).map(
           (c) => html`
@@ -401,6 +419,29 @@ function Tools({ commands, groups, open, edit, drop }) {
         `
         )}
       </div>
+      ${naming === null
+        ? html`<button class="tools-add" onClick=${() => setNaming("")}>
+            + group
+          </button>`
+        : html`<form
+            class="tools-add-form"
+            onSubmit=${(e) => {
+              e.preventDefault();
+              const name = naming.trim();
+              setNaming(null);
+              if (name) addGroup(name);
+            }}
+          >
+            <input
+              class="tools-add-name"
+              autofocus
+              value=${naming}
+              placeholder="group name"
+              onInput=${(e) => setNaming(e.target.value)}
+              onKeyDown=${(e) => e.key === "Escape" && setNaming(null)}
+              onBlur=${() => setNaming(null)}
+            />
+          </form>`}
       <!-- An expression, not markup: htm does not decode HTML entities, so a
            literal &lt; here renders as the four characters "&lt;" on screen.
            Angle brackets inside a template have to arrive as a string. -->
@@ -860,6 +901,15 @@ function App() {
    * long after this closure was made. */
   const draftRef = useRef(draft);
   draftRef.current = draft;
+
+  /* Re-read after any write. Three callers had this inline and a fourth was
+   * about to; the catalog is derived per request, so refreshing it is the only
+   * way the surface learns what it just changed. */
+  const refreshCatalog = () =>
+    api.catalog().then((c) => {
+      setCommands(c.commands);
+      setGroups(c.groups || []);
+    });
 
   useEffect(() => {
     api.catalog().then((body) => {
@@ -1539,13 +1589,45 @@ function App() {
             window.alert(`Could not delete ${name}: ${result.error}`);
             return;
           }
-          api.catalog().then((c) => {
-              setCommands(c.commands);
-              setGroups(c.groups || []);
-            });
+          refreshCatalog();
         })
         .catch((error) => window.alert(`Could not delete ${name}: ${error}`));
     },
+
+    /* Make a group. It has nothing in it, which is the whole reason a group
+     * can be declared at all — round 5's group was a label on a command, so
+     * an empty one had nowhere to exist. See [[tools]] round 6. */
+    addGroup: (name) => {
+      api
+        .writeGroup({ name })
+        .then((result) => {
+          if (result.error) {
+            window.alert(`Could not add "${name}": ${result.error}`);
+            return;
+          }
+          refreshCatalog();
+        })
+        .catch((error) => window.alert(`Could not add "${name}": ${error}`));
+    },
+
+    /* Unmake one. The rail only offers this on a group with nothing in it, and
+     * the server refuses a non-empty one regardless — a surface that declines
+     * to draw a button has not refused anything. Deleting a group never
+     * deletes a command; the refusal names what is still in it. */
+    dropGroup: (name) => {
+      if (!window.confirm(`Delete the group "${name}"? Its file is backed up first.`)) return;
+      api
+        .deleteGroup(name)
+        .then((result) => {
+          if (result.error) {
+            window.alert(`Could not delete "${name}": ${result.error}`);
+            return;
+          }
+          refreshCatalog();
+        })
+        .catch((error) => window.alert(`Could not delete "${name}": ${error}`));
+    },
+
     /* The act's one button. Down `/api/run`, which is the route that runs
      * things — `/api/trial` refuses an act on purpose and asking it twice
      * would not change its mind. Labelled for what it does: there is no dry
@@ -1621,10 +1703,7 @@ function App() {
            * answers are the server's. Without the second, the button stayed
            * enabled on a name that would now be refused. */
           if (ok) {
-            api.catalog().then((c) => {
-              setCommands(c.commands);
-              setGroups(c.groups || []);
-            });
+            refreshCatalog();
             preflight(draftRef.current);
           }
         })
@@ -1804,6 +1883,8 @@ function App() {
               <${Tools}
                 commands=${commands}
                 groups=${groups}
+                addGroup=${benchActions.addGroup}
+                dropGroup=${benchActions.dropGroup}
                 open=${open}
                 edit=${benchActions.edit}
                 drop=${benchActions.forget}
