@@ -326,4 +326,50 @@ a key in the file that already declares the projects the root is keyed by.
   when it launched while a fresh shell sees a new value — both correct, mutually inconsistent, and
   invisible.
 - **A declared project may have no state directory.** `projects.toml` declares `jam-sense` and
-  `breeze-brain`; only one has logs. That has to read as *nothing to follow*, never as an error.
+  `breeze-brain`; only one has logs. That has to read as *nothing to follow*, never as an error —
+  and see the section below, which is about telling that case apart from a mistake.
+
+### Getting from a project to its directory
+
+The root is half the derivation. The other half is the directory *under* it, which the seam
+specifies as the project's **slug** — deliberately the same key `projects.toml` uses, so nothing
+maintains a second table. Taking the key at face value is the obvious implementation and it has one
+failure worth designing around.
+
+**The failure is not the derivation, it is that its failure is invisible.** An operator who writes
+`[project.jam]` for brevity gets a lookup in `<root>/jam/`, which is not there, which reports
+*nothing to follow* — the exact sentence a project that genuinely has no logs yet gets. Same shape
+as the three defects found the day this was written: not wrong output, but output whose wrongness
+cannot be told from a normal state.
+
+**The seam already refused this derivation from the other end**, and its reasoning is worth reading
+before deciding, because the conclusion does not transfer:
+
+> `STATE_SLUG` is written in rather than taken from the directory name … deriving the slug from the
+> checkout would hand each of them a private state root.
+
+Every writer *declares* its slug because derivation was judged unsafe. But a writer runs inside one
+tree and cannot see the others, so it has no way to check a guess. **A reader sees the whole root**,
+so it can afford to derive *and verify* — an asymmetry that means copying the writers' conclusion
+here would be importing a constraint that does not apply.
+
+So: derive from the key, and close the gap by listing `<root>/*`, which is a directory read with no
+schema knowledge in it. Three states, and the middle one is the whole point:
+
+- **Directory exists** → use it.
+- **Absent, but the root holds other directories** → name them. *"no state directory `jam`; the root
+  holds `jam-sense`, `breeze-brain`"* makes a naming mismatch self-evident in one line.
+- **Root absent or empty** → silent. A fresh machine has no root, and saying so every invocation is
+  the noise an absent `$SB_HOME` already declines to make.
+
+An optional per-project override then becomes the escape hatch rather than the mechanism: you reach
+for it because the diagnostic named it, not because you remembered. That ordering matters — an
+optional field that is usually redundant gets omitted, so it cannot be the primary answer.
+
+**Blocked on the root existing**, since the middle case needs a root to enumerate. Not blocked on
+anything else, and the listing is cheap enough that it needs no cache.
+
+**Related and already shipped:** the same class of silence in the *parser* — a typo'd table name
+returning zero projects and zero problems — was closed on 2026-08-29 in `cli/rollcall.py`, which is
+where the state root would have been swallowed next. That fix stands alone and is not a prerequisite
+for any of the above.
