@@ -1,8 +1,8 @@
 ---
-status: active
+status: complete
 created: 2026-08-20
 updated: 2026-08-28
-agent_value: 3
+agent_value: 3  # four rounds; the tty verdict is the one nobody rediscovers
 key_files:
   - cli/helpers.py
   - cli/run.py
@@ -348,7 +348,7 @@ environment was modified" would announce what is already on the screen.
       an unaccounted flag is a long act back under the watcher's ceiling.
 - [x] **The bench composes it** — a repeatable `--env` row beside `--cwd` in the draft, and
       preflight keeps resolving the *tool*, which is the check the `env` workaround loses.
-- [ ] **Docs**: `CLAUDE.md` § Conventions gains the sentence that a tool gating output on
+- [x] **Docs**: `CLAUDE.md` § Conventions gains the sentence that a tool gating output on
       `isatty()` is the operator's to declare, and the README example.
 
 ## Notes
@@ -474,3 +474,47 @@ rule of the canvas. Recorded against the day someone reaches for the two-word fi
 round and it should be argued on its own"* — which is exactly what happened, four rounds and eight
 days later. A refusal that names the condition for its own reversal is the most useful kind, and
 striking it through beats editing it into agreement.
+
+### Round 4 — executed (2026-08-28)
+
+Five phases, all shipped, 829 tests. Four things worth keeping.
+
+**The naming test failed on this round's own prose**, at `tests/test_stream.py:307` — a docstring
+saying `the variables sb's own wrapper set`, which is precisely the `a sb` fingerprint
+`CLAUDE.md` records from the 368-instance sweep. Written fresh, eight days after that sweep, by
+someone who had read the rule. The test is the reason it cost ten seconds instead of being found
+by the next rename.
+
+It then failed a second time on *this paragraph*, for quoting the first one in italics — the mask
+covers fenced blocks, inline spans and HTML tags, and an italic quotation is prose by every rule
+it applies. Correct, and the fix is the backticks above: a phrase being quoted *as* a mistake is
+still the literal thing being typed, which is exactly what the span form is for.
+
+**The fake spawns in `tests/test_follow.py` were updated rather than worked around.** Adding `env`
+to `ChildStream` broke nine tests whose injected `spawn=lambda argv, cwd, limit, columns: child`
+did not take it. Passing `env` only when truthy would have made all nine pass and left the seam
+untested for the new argument — the fakes gained the parameter instead, which is what round 2 did
+for `columns` and the reason those nine were the ones that noticed.
+
+**The live server could not verify its own Python.** The bench check came back
+`✗ sb accepts the argv — No such option '--env'` against a `sb ui` started before phase 1: live
+reload fingerprints `static/` and pushes a frame, and Python is deliberately not hot-reloadable.
+The tempting move — restart it — would have killed the operator's two-hour `jam report agent-task`,
+which is parented to that server ([[follow]] round 4's session lifetime, and `docs/open.md` item 6
+in one sentence). Verified by calling `preflight()` in a fresh interpreter instead. **A surface
+that holds a running job is a surface you cannot restart to test**, which is a cost of the current
+design worth naming even though nothing here fixes it.
+
+**The workaround's refutation is the thing to keep.** `sb run -- env VAR=1 jam …` runs correctly
+and makes the bench print `✓ env resolves /usr/bin/env`. Measured against the running bench before
+the flag existed and again after:
+
+```
+env in the argv    ->  env resolves /usr/bin/env
+--env on the flag  ->  jam resolves /usr/local/bin/jam
+```
+
+Two lines, and they are why a two-word workaround is not the answer. A check that looks like it
+vouches for your tool and vouches for `/usr/bin/env` is worse than no check — the palette rule
+("a palette offering a command that does not exist is worse than no palette, because it has
+already told you it does") applied to a different control.
