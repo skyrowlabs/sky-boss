@@ -298,8 +298,14 @@ function useNow() {
  * here either: the catalog walks `sorted(command.commands)`.
  *
  * The ungrouped are appended last and are deliberately *not* a server-side
- * group — they are a bucket, and a bucket cannot be deleted. */
-function sectionsOf(saved, groups) {
+ * group — they are a bucket, and a bucket cannot be deleted.
+ *
+ * `dragging` forces that bucket to exist. Without it, a rail where every
+ * command is in a group draws no ungrouped section — and then there is nowhere
+ * to drop one to take it *out* of a group, which found itself the first time
+ * the drag was tested end to end. The empty bucket appears only while
+ * something is being dragged, so it costs nothing the rest of the time. */
+function sectionsOf(saved, groups, dragging) {
   const by = new Map();
   for (const c of saved) {
     const key = c.group || "";
@@ -307,7 +313,7 @@ function sectionsOf(saved, groups) {
     by.get(key).push(c);
   }
   const sections = groups.map((g) => [g.name, by.get(g.name) || [], g]);
-  if (by.has("")) sections.push(["", by.get(""), null]);
+  if (by.has("") || dragging) sections.push(["", by.get("") || [], null]);
   return sections;
 }
 
@@ -321,13 +327,32 @@ function sectionsOf(saved, groups) {
  * Read once on mount and written on every toggle. Both directions swallow
  * their failure in `api.js`, so an unreachable preference costs the fold and
  * never the rail — everything open is the honest degradation. */
-function Tools({ commands, groups, open, edit, drop, addGroup, dropGroup }) {
+/* Dragging a command into a group.
+ *
+ * HTML5 drag and drop rather than pointer events, because the browser already
+ * does the hard half — the drag image, the cursor, the escape key, the drop
+ * outside — and reimplementing that with `pointermove` is how a rail ends up
+ * with its own broken window manager.
+ *
+ * What crosses is the command's **name**, and nothing else. The drop handler
+ * sends a regroup, which splices one line server-side; it does not restate the
+ * command, because the rail knows a command's `summary` and not its
+ * `description` and cannot see a `highlight` at all. See [[tools]] round 6. */
+const DRAG_TYPE = "application/x-sb-tool";
+
+function Tools({ commands, groups, open, edit, drop, addGroup, dropGroup, move }) {
   const saved = commands.filter((c) => c.saved);
-  const sections = sectionsOf(saved, groups);
+  /* Whether something is in flight, so the ungrouped bucket can exist as a
+   * target even when nothing is in it. */
+  const [dragging, setDragging] = useState(false);
+  const sections = sectionsOf(saved, groups, dragging);
   const [folded, setFolded] = useState(() => new Set());
   /* The name being typed, or null when the control is closed. An empty string
    * is the open-and-blank state and has to be distinguishable from it. */
   const [naming, setNaming] = useState(null);
+  /* The section the pointer is over, so it can say so. `null` is "not
+   * dragging"; `""` is the ungrouped bucket, which is a real target. */
+  const [over, setOver] = useState(null);
   useEffect(() => {
     let live = true;
     api.prefs().then((stored) => {
@@ -357,7 +382,31 @@ function Tools({ commands, groups, open, edit, drop, addGroup, dropGroup }) {
         </div>`}
         ${sections.map(
           ([group, items]) => html`
-          <div key=${group || "\u0000"} class="tool-section">
+          <div
+            key=${group || "\u0000"}
+            class=${`tool-section${over === group ? " over" : ""}`}
+            onDragOver=${(e) => {
+              if (!e.dataTransfer.types.includes(DRAG_TYPE)) return;
+              /* Preventing the default is what makes an element a drop target
+               * at all — without it the browser refuses the drop and there is
+               * nothing to debug. */
+              e.preventDefault();
+              e.dataTransfer.dropEffect = "move";
+              if (over !== group) setOver(group);
+            }}
+            onDragLeave=${(e) => {
+              /* Only when the pointer has actually left the section, not when
+               * it crosses one of the rows inside it. */
+              if (!e.currentTarget.contains(e.relatedTarget)) setOver(null);
+            }}
+            onDrop=${(e) => {
+              e.preventDefault();
+              setOver(null);
+              setDragging(false);
+              const name = e.dataTransfer.getData(DRAG_TYPE);
+              if (name) move(name, group);
+            }}
+          >
             ${group
               ? html`<div class="tool-group-row">
                   <button
@@ -385,10 +434,28 @@ function Tools({ commands, groups, open, edit, drop, addGroup, dropGroup }) {
                     ✕
                   </button>`}
                 </div>`
-              : sections.length > 1 && html`<div class="tool-rule"></div>`}
+              : sections.length > 1 &&
+                html`<div class="tool-rule">
+                  ${dragging && items.length === 0
+                    ? html`<span class="tool-rule-label">ungrouped</span>`
+                    : ""}
+                </div>`}
         ${(group && folded.has(group) ? [] : items).map(
           (c) => html`
-            <div key=${c.name} class="tool-row">
+            <div
+              key=${c.name}
+              class="tool-row"
+              draggable=${true}
+              onDragStart=${(e) => {
+                e.dataTransfer.setData(DRAG_TYPE, shortOf(c));
+                e.dataTransfer.effectAllowed = "move";
+                setDragging(true);
+              }}
+              onDragEnd=${() => {
+                setOver(null);
+                setDragging(false);
+              }}
+            >
               <button
                 class="tool"
                 title=${c.summary || c.name}
@@ -1628,6 +1695,22 @@ function App() {
         .catch((error) => window.alert(`Could not delete "${name}": ${error}`));
     },
 
+    /* Move a command into a group, or out of every group by dropping it in the
+     * ungrouped bucket. A regroup, not a save: it changes the one line, so a
+     * field the rail cannot see is not a field the rail can lose. */
+    move: (name, group) => {
+      api
+        .regroupTool(name, group)
+        .then((result) => {
+          if (result.error) {
+            window.alert(`Could not move ${name}: ${result.error}`);
+            return;
+          }
+          refreshCatalog();
+        })
+        .catch((error) => window.alert(`Could not move ${name}: ${error}`));
+    },
+
     /* The act's one button. Down `/api/run`, which is the route that runs
      * things — `/api/trial` refuses an act on purpose and asking it twice
      * would not change its mind. Labelled for what it does: there is no dry
@@ -1885,6 +1968,7 @@ function App() {
                 groups=${groups}
                 addGroup=${benchActions.addGroup}
                 dropGroup=${benchActions.dropGroup}
+                move=${benchActions.move}
                 open=${open}
                 edit=${benchActions.edit}
                 drop=${benchActions.forget}
