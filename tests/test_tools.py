@@ -374,6 +374,42 @@ def test_the_listing_reports_formats_beside_tools(saved, tmp_path):
     assert any("unknown kind" in w for w in envelope["warnings"])
 
 
+def test_the_listing_groups_with_the_ungrouped_last(saved):
+    """Groups alphabetical, tools alphabetical within, ungrouped last."""
+    from click.testing import CliRunner
+
+    saved(
+        '[tool.zebra]\nargv = ["data", "--", "printf", "[]"]\n'
+        '[tool.node]\ngroup = "bbrain"\nargv = ["data", "--", "printf", "[]"]\n'
+        '[tool.prs]\ngroup = "jam"\nargv = ["data", "--", "printf", "[]"]\n'
+        '[tool.ci]\ngroup = "jam"\nargv = ["data", "--", "printf", "[]"]\n'
+        '[tool.disk]\nargv = ["data", "--", "printf", "[]"]\n'
+    )
+    rows = json.loads(CliRunner().invoke(cli, ["--json", "tools"]).stdout)["data"]["tools"]
+    assert [(r.get("group", ""), r["name"]) for r in rows] == [
+        ("bbrain", "node"),
+        ("jam", "ci"),
+        ("jam", "prs"),
+        ("", "disk"),
+        ("", "zebra"),
+    ]
+
+
+def test_a_file_with_no_groups_lists_exactly_as_it_did_before_groups(saved):
+    """The key is omitted rather than empty, and the column renderer takes
+    every key of every row — so no group declared is no column drawn, and the
+    listing is what it was before this round."""
+    from click.testing import CliRunner
+
+    saved(
+        '[tool.prs]\nargv = ["data", "--", "printf", "[]"]\n'
+        '[tool.disk]\nargv = ["data", "--", "printf", "[]"]\n'
+    )
+    rows = json.loads(CliRunner().invoke(cli, ["--json", "tools"]).stdout)["data"]["tools"]
+    assert [r["name"] for r in rows] == ["disk", "prs"]
+    assert all("group" not in r for r in rows)
+
+
 def test_running_a_tool_dispatches_to_its_expansion(saved):
     from click.testing import CliRunner
 
