@@ -24,7 +24,7 @@ from __future__ import annotations
 
 import os
 import time
-from typing import Callable
+from typing import Callable, Iterable
 
 from cli.stream import DEFAULT_LINES, Line, Ring
 
@@ -280,6 +280,13 @@ def follow_file(
             key, height=_height(), held=len(cursor.lines()), dropped=cursor.dropped
         )
 
+    since = 0
+
+    def spill() -> Iterable[str]:
+        nonlocal since
+        new, since = cursor.fresh(since)
+        return [line.text for line in new]
+
     resident.hold(
         frame,
         tick=cursor.tick,
@@ -288,4 +295,5 @@ def follow_file(
         ticks=ticks,
         wait=wait,
         on_key=scroll,
+        emit=spill,
     )

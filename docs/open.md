@@ -246,3 +246,40 @@ starting them, routing work between them, or reading their transcripts. sky.boss
 tools do. An agent's transcript is the operator's conversation, and a panel that surfaced it would
 put someone else's prompts on a canvas that also has an [[mcp]] surface. The band shows that a
 session exists, where, and whether it is working.
+
+---
+
+## Where a follow ends, when nobody is watching a terminal
+
+**Half of this is settled.** `sb follow` down a pipe rendered *nothing*: `rich.Live` owns a cursor,
+a non-terminal console has none, so it suppressed every frame while the loop ran perfectly — a
+working follow drawing to a surface that discards it. The operator ruled on 2026-08-29 that the
+non-TTY path **degrades to verbatim lines**: chrome, bands and liveness clock suppressed, lines
+printed as they arrive. Not a new product — [[file-follow]]'s "verbatim lines only, no parsing, no
+judgment" already described it, and this is that rule with the rendering removed. Built the same
+day; `hold` takes an `emit` and the two forms supply one over the `fresh()` delta reader the canvas
+already used. Refusing loudly and streaming the `--json` envelope were both turned down — the first
+closes non-interactive use, the second makes `follow` a second data-producing command beside
+`sb data`.
+
+**What is still open is termination, and the two forms may not answer it alike.** The ruling was
+about rendering. On a terminal, a dead stream keeps drawing: "a corpse on screen is information."
+A pipe has no screen to keep it on, so the question is what the *last bytes* are.
+
+- A **process** that exits has an exit code, and [[follow]] round 4 is emphatic that a follow's
+  exit — zero included — is a **death**, not an answer. Saying so costs one line. But a line that
+  is not log output, on a stream that promised verbatim log output, is the parsing problem this
+  whole ruling avoided.
+- A **file** has no exit code at all. It stops growing, which is not an event; it is the absence of
+  one, and the `--due` clock exists because "quiet" and "dead" are different words. Off a terminal
+  there is no band to say which. Does `--due` print a line when it lapses? That is a judgment, and
+  the verbatim rule was chosen partly to have none.
+- And **when does it return?** Resident-by-nature has no natural end off a terminal. Today it runs
+  until killed, which is right for `tail -f` and wrong for a script that wants the backfill and
+  out. `--ticks` exists in the suite; nothing exposes it.
+
+**Worth keeping from the diagnosis:** `cli/follow.py:219` already asked `console.is_terminal` and
+used the answer to pick a display width, throwing the rest away. `cli/banner.py:151` asked the same
+question and handed the decision up. The fix was not "add a check" but "use the check that was
+already there for the thing it was actually telling you" — which is the shape to look for in
+whatever answers the above.

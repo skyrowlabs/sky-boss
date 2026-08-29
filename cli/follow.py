@@ -29,7 +29,7 @@ from __future__ import annotations
 import shlex
 import shutil
 import time
-from typing import Callable
+from typing import Callable, Iterable
 
 import rich_click as click
 
@@ -298,9 +298,25 @@ def follow_process(
             dropped=child.dropped,
         )
 
+    # The high-water mark for the non-terminal path. `fresh` is the canvas's
+    # own delta reader, reused rather than reimplemented: a drop shows up as
+    # `since` jumping rather than as silence.
+    since = 0
+
+    def spill() -> Iterable[str]:
+        nonlocal since
+        new, since = child.fresh(since)
+        return [line.text for line in new]
+
     try:
         resident.hold(
-            frame, console=out, screen=screen, ticks=ticks, wait=wait, on_key=scroll
+            frame,
+            console=out,
+            screen=screen,
+            ticks=ticks,
+            wait=wait,
+            on_key=scroll,
+            emit=spill,
         )
     finally:
         # Streams die with their window. The terminal's window is the loop,

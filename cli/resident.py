@@ -30,7 +30,7 @@ screen, and is the only part that touches real time by default.
 from __future__ import annotations
 
 import time
-from typing import Callable
+from typing import Callable, Iterable
 
 from rich.console import Console, Group
 from rich.live import Live
@@ -187,6 +187,7 @@ def hold(
     wait: Callable[[float], str | None] | None = None,
     transient: bool = False,
     on_key: Callable[[str], bool] | None = None,
+    emit: Callable[[], Iterable[str]] | None = None,
 ) -> None:
     """Draw a frame every tick until the operator leaves.
 
@@ -200,6 +201,25 @@ def hold(
     kills its child in a `finally`, and that difference is the point rather
     than an inconsistency. See [[follow]] round 2.
 
+    **`emit` is what this does when nobody is watching a terminal.** `Live`
+    owns the cursor and repaints in place, so on a non-terminal console there
+    is no cursor to own and it suppresses its output entirely — the loop runs,
+    every frame is built, and not one byte reaches the pipe. That is a working
+    follow rendering to a surface that discards it, which is the failure this
+    whole tool exists to make impossible. A caller that can produce its new
+    lines passes `emit` and gets them printed verbatim instead: no chrome, no
+    bands, no liveness clock, nothing to parse around. Not a new product —
+    [[file-follow]]'s "verbatim lines only, no parsing, no judgment" already
+    describes it, and this is that rule with the rendering removed.
+
+    A caller with nothing sensible to print line-at-a-time — a countdown, whose
+    every frame replaces the last — passes nothing and keeps the old behaviour.
+
+    The check was already here, one module over: `cli/follow.py` asks
+    `console.is_terminal` to pick a display width and throws the rest of the
+    answer away. This is not a new question, it is the one that was being asked
+    and half-heard.
+
     `transient` erases the last frame on the way out, and the default is off
     for the reason above: leaving a follow should leave the tail of the log you
     were watching. A **countdown** is the opposite — its final frame says
@@ -208,6 +228,28 @@ def hold(
     """
 
     def run(wait_for: Callable[[float], str | None]) -> None:
+        if emit is not None and not console.is_terminal:
+            def spill() -> None:
+                new = list(emit())
+                if not new:
+                    return
+                # Written straight to the file rather than through
+                # `console.print`, because rich is a *renderer*: it wraps to a
+                # width, crops, and reads markup out of the text. On a pipe it
+                # defaults to 80 columns, so a 140-character log line arrives
+                # truncated — verbatim output that quietly is not. "No parsing,
+                # no judgment" has to include the rendering.
+                console.file.write("".join(line + "\n" for line in new))
+                # Flushed per batch, and that is half the fix rather than
+                # tidiness. stdout to a pipe is block-buffered, so a follow
+                # emitting three lines an hour would sit in a 4 KB buffer and
+                # reach its reader as nothing at all — the same silence this
+                # branch exists to end, one layer further down.
+                console.file.flush()
+
+            _turn(spill, tick, wait_for, ticks, on_key)
+            return
+
         if screen:
             def draw() -> None:
                 console.clear()
