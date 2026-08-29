@@ -203,19 +203,21 @@ gesture that makes or unmakes one. Every ask in this round runs into that same w
 
 Five asks, one model change under all of them.
 
-**1. The window is called COMMANDS.** The word *tool* does two jobs in this repo and they are not
-the same job: `[tool.prs]` is a command the operator saved, and *"a tool that gates its output on
-`isatty()`"* is the foreign CLI being wrapped. The surface is where the ambiguity costs something,
-because the rail sits next to a palette that runs foreign CLIs all day. So on screen it is a
-**command**.
+**1. ~~The window is called COMMANDS.~~ Declined by the operator, 2026-08-29, before it was
+built.** The argument for it, kept because the ambiguity it names is real and will come back:
 
-**The CLI, the file and the slug keep the word.** `sb tools`, `tools.toml`, `[tool.x]` and
-[[tools]] are all unchanged. That divergence is deliberate and it is not free — it is the second
-time this repo has had a surface and a CLI disagree about a noun — but the alternative is a rename
-with a file migration, and this round is not that. If the surface's word proves right, that is its
-own decision with its own round. **Identifiers do not move either**: `.tools`, `.tool-row`,
-`sb_saved` and the rest are outside the naming rule by construction, and churning them buys a
-reader nothing.
+> The word *tool* does two jobs in this repo and they are not the same job: `[tool.prs]` is a
+> command the operator saved, and *"a tool that gates its output on `isatty()`"* is the foreign CLI
+> being wrapped. The surface is where the ambiguity costs something, because the rail sits next to
+> a palette that runs foreign CLIs all day. So on screen it is a **command**. **The CLI, the file
+> and the slug keep the word** — `sb tools`, `tools.toml`, `[tool.x]` and [[tools]] unchanged.
+
+What killed it is the sentence that was already in the proposal admitting the cost: *"that
+divergence is deliberate and it is not free — it is the second time this repo has had a surface and
+a CLI disagree about a noun."* Buying clarity in one surface by making two surfaces disagree is not
+obviously a trade worth making, and **nothing else in this round depended on it** — the group model
+never touched the word. The rail says `TOOLS`, and if the word is ever worth changing it is worth
+changing everywhere, in a round that owns the file migration.
 
 **2. A group can be declared, so an empty one can exist.**
 
@@ -288,7 +290,8 @@ a perfectly valid group name and silently a second group, where `Jam` at least g
 - **Deleting a group never deletes a command.** It is refused while any command names it, and the
   refusal names them. A cascade here would be the surface deciding that "delete this label" meant
   "delete this work".
-- **The CLI does not learn the word "command".** See ask 1. No `sb commands`, no alias.
+- **Nothing is renamed.** See ask 1 — the surface keeps saying `TOOLS`, and so do the CLI, the
+  file and the slug. If the word changes it changes everywhere, in a round that owns the migration.
 - **`/api/groups` is not a config editor**, the same line round 4 drew for `/api/tools`. Groups in
   `tools.toml`, nothing else, nowhere else.
 - **No drag between the rail and a window, or onto the canvas.** Dragging is for reorganising the
@@ -315,15 +318,13 @@ a perfectly valid group name and silently a second group, where `Jam` at least g
       it if absent, remove it if the value is empty. `POST /api/tools` gains a `regroup` verb that
       goes through it. Tests: every other key survives, a comment *inside* the block survives, and
       a regroup of a tool carrying `highlight` keeps it.
-- [ ] **The rename**, on screen only: the rail head, the row titles, the empty state, the footer's
-      metavar. `tools.toml` stays spelled `tools.toml` wherever it names the file.
 - [ ] **`+ group` and the ✕**, with the delete asking once and the refusal shown when the server
       declines.
 - [ ] **Drag and drop.** Rows draggable, sections and the ungrouped bucket as targets, a visible
       drop state. Verified by reading the DOM back, and swept at more than one `--scale`.
 - [ ] **The bench's picker** — a `datalist` fed from the catalog's groups, free text still allowed.
-- [ ] **Docs.** `CLAUDE.md` on the surface/CLI noun divergence and the group model,
-      `tools.example.toml` grows a `[group.…]`, README's saving section.
+- [ ] **Docs.** `CLAUDE.md` on the group model, `tools.example.toml` grows a `[group.…]`,
+      README's saving section.
 
 ### Round 5 — the rail gets sections (2026-08-28)
 
