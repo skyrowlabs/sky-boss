@@ -1123,6 +1123,76 @@ def test_a_comment_above_a_grouped_block_still_survives_an_edit(tmp_path):
     assert 'group = "jam"' in after
 
 
+# ------------------------------------------------- every declared field survives
+
+
+def test_block_serialises_every_declared_field_of_a_tool():
+    """The guard, not the fix. `block()` has to know every field a tool can
+    declare, and `highlight` was missing from round 4 until round 6 measured
+    it: a followed tool declaring a ruleset came back without one, and the only
+    evidence was a stream that stopped being tinted.
+
+    Walking the dataclass means the next field added fails here rather than
+    silently going missing from every rewrite. `acts` and `resident` are
+    excluded because they are *derived* from the argv and never declared."""
+    import dataclasses
+
+    from cli.tools import Tool, block
+
+    derived = {"name", "argv", "acts", "resident"}
+    declared = [f.name for f in dataclasses.fields(Tool) if f.name not in derived]
+
+    # `block` is a pure serialiser with no validation of its own, so it is
+    # asked for a combination no *loader* would accept — a cadence and a
+    # ruleset together. The question here is only whether every field can
+    # reach the file.
+    written = block(
+        "x",
+        ["follow", "--", "tail", "-f", "/tmp/x"],
+        refresh=30,
+        description="d",
+        group="g",
+        highlight="h",
+    )
+    for field in declared:
+        assert f"{field} =" in written, f"block() does not serialise {field!r}"
+
+
+def test_a_saved_highlight_survives_a_rewrite(tmp_path):
+    """The bug itself, from the outside: write a tool that has one, rewrite it,
+    read it back."""
+    from cli.tools import load, write_block
+
+    home = tmp_path
+    write_block(
+        "applog",
+        ["follow", "--", "printf", "x"],
+        description="app log",
+        home=home,
+        highlight="jam",
+    )
+    write_block(
+        "applog",
+        ["follow", "--", "printf", "y"],
+        description="app log",
+        home=home,
+        highlight="jam",
+    )
+    tools, problems = load({"follow": False}, home=home, resident=frozenset({"follow"}))
+    assert problems == []
+    assert tools[0].highlight == "jam"
+
+
+def test_the_catalog_carries_a_highlight_so_a_surface_can_restate_it(saved):
+    """The half that makes the fix reach the bench: a surface rewriting a tool
+    has to be able to see every field it is restating."""
+    saved(
+        '[tool.applog]\nargv = ["follow", "--", "printf", "x"]\nhighlight = "jam"\n'
+    )
+    entry = next(e for e in walk(cli) if e["name"] == "tools applog")
+    assert entry["highlight"] == "jam"
+
+
 def test_a_file_that_does_not_parse_is_never_spliced(tmp_path):
     """Splicing into a document whose structure is unknown is how a tool is
     lost. $EDITOR is still there."""

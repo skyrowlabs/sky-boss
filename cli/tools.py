@@ -345,6 +345,11 @@ def make_command(tool: Tool) -> click.Command:
     # same path every other property does: a property on the command, never a
     # name written down in a module. See [[tools]] round 5.
     command.sb_group = tool.group
+    # Carried so a surface that *rewrites* this tool can restate it. A replace
+    # is a restatement, which only works if every declared field is reachable
+    # from the surface doing the restating — otherwise the writer accepts an
+    # incomplete statement as a complete one. See [[tools]] round 6.
+    command.sb_highlight = tool.highlight
     command.sb_argv = tuple(tool.argv)
     # Inherited, never declared. The catalog reads this rather than the command
     # path, because the path of `sb deploy-thing` says nothing about the `run`
@@ -597,6 +602,7 @@ def block(
     refresh: int = 0,
     description: str = "",
     group: str = "",
+    highlight: str = "",
 ) -> str:
     """The text appended to `tools.toml` for one saved tool.
 
@@ -618,6 +624,13 @@ def block(
     lines.append(f"argv = [{parts}]")
     if refresh:
         lines.append(f"refresh = {refresh}")
+    # Every declared field a tool can carry has to be here, or a rewrite drops
+    # it silently. `highlight` was missing from round 4 until round 6 measured
+    # it: a followed tool declaring a ruleset came back without one, and the
+    # only evidence was a stream that stopped being tinted. A test walks the
+    # dataclass so the next field added cannot repeat it.
+    if highlight:
+        lines.append(f"highlight = {_toml_string(highlight)}")
     return "\n".join(lines) + "\n"
 
 
@@ -657,6 +670,7 @@ def write_problem(
     home: Path | None = None,
     root=None,
     group: str = "",
+    highlight: str = "",
 ) -> str | None:
     """Why this tool cannot be written, or None.
 
@@ -685,6 +699,8 @@ def write_problem(
         body["refresh"] = refresh
     if group:
         body["group"] = group
+    if highlight:
+        body["highlight"] = highlight
     return _check(name, body, commands, set(), resident)
 
 
@@ -771,6 +787,7 @@ def write_block(
     description: str = "",
     home: Path | None = None,
     group: str = "",
+    highlight: str = "",
 ) -> dict:
     """Create or replace one tool. Returns what happened, and where the backup went.
 
@@ -779,7 +796,7 @@ def write_block(
     surface holds an opinion about the file's current contents that may be one
     tick out of date.
     """
-    problem = write_problem(name, argv, refresh, home, group=group)
+    problem = write_problem(name, argv, refresh, home, group=group, highlight=highlight)
     if problem:
         raise click.UsageError(problem)
 
@@ -787,7 +804,7 @@ def write_block(
     path.parent.mkdir(parents=True, exist_ok=True)
     text = path.read_text(encoding="utf-8") if path.exists() else ""
     kept = backup(home)
-    fresh = block(name, argv, refresh, description, group)
+    fresh = block(name, argv, refresh, description, group, highlight)
 
     span = block_range(text, name)
     if span is None:
@@ -813,6 +830,7 @@ def write_block(
         "file": str(path),
         "runs": "sb " + shlex.join(argv),
         **({"group": group} if group else {}),
+        **({"highlight": highlight} if highlight else {}),
         **({"refresh": refresh} if refresh else {}),
         **({"backup": str(kept)} if kept else {}),
     }

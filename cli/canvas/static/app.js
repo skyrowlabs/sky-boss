@@ -1506,6 +1506,15 @@ function App() {
         save: shortOf(tool),
         describe: tool.summary || "",
         group: tool.group || "",
+        /* Seeded from the *field*, because the argv of a tool declaring
+         * `highlight = "jam"` carries no `--highlight` to decompose — and
+         * without this the bench opens with the control blank, composes a line
+         * without it, and the save drops the ruleset. Measured in [[tools]]
+         * round 6: the tint just stopped, with nothing to read anywhere. It
+         * lands back in the argv rather than the field, which is a change of
+         * representation the operator can see in the line the bench shows
+         * before it saves. */
+        highlight: tool.highlight || "",
       }));
     },
 

@@ -139,6 +139,10 @@ def _leaf(command: click.Command, path: tuple[str, ...]) -> list[dict]:
             # and never part of the address — empty for everything that is not
             # a grouped saved command. See [[tools]] round 5.
             "group": getattr(command, "sb_group", ""),
+            # Declared on a followed tool, and shipped for the same reason
+            # `expansion` is: a surface that rewrites this tool has to be able
+            # to restate it. See [[tools]] round 6.
+            "highlight": getattr(command, "sb_highlight", ""),
             # What a saved command *expands to*, for the surface that edits it.
             # `argv` above is the path you type — `tools drainer` — which is
             # the right answer for running it and no answer at all for opening
