@@ -340,7 +340,7 @@ environment was modified" would announce what is already on the screen.
 
 - [x] **`child_env(columns, *, stream, extra)`** — `extra` applied last, over sky.boss's own two.
       A test that it wins over both.
-- [ ] **`--env NAME=VALUE` on `run`, `read`, `follow` and `data`**, repeatable. A value with no
+- [x] **`--env NAME=VALUE` on `run`, `read`, `follow` and `data`**, repeatable. A value with no
       `=` is a usage error naming the offending token, not a silently ignored flag.
 - [ ] **The canvas accounts for it.** `Job` carries `env` and `resolve_run` accepts `--env`;
       likewise `resolve_follow`. Without this an accruing window silently falls back to

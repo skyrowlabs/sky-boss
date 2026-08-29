@@ -253,3 +253,40 @@ def test_envelope_for_is_the_one_place_an_outcome_becomes_a_run_envelope():
     late = envelope_for(["sleep"], Outcome(-1, 60.0, "", "", timed_out=True), 60)
     assert late.ok is False
     assert late.data == {"argv": ["sleep"], "error": "timed out after 60s", "duration_s": 60.0}
+
+
+# --- [[subprocess-env]] round 4: --env --------------------------------------
+
+
+def test_env_reaches_the_child(tmp_path):
+    """The whole point, end to end: a variable the operator declared is one the
+    command can read."""
+    from click.testing import CliRunner
+
+    from cli import cli
+
+    result = CliRunner().invoke(
+        cli,
+        ["--json", "run", "--env", "SB_DECLARED=hello", "--",
+         "python3", "-c", "import os; print(os.environ['SB_DECLARED'])"],
+    )
+    assert result.exit_code == 0, result.output
+    assert "hello" in result.output
+
+
+def test_env_without_a_value_is_a_usage_error_before_anything_runs(tmp_path):
+    """A dropped flag would leave a run that exits 0 and is missing the output
+    the flag was added to produce — this round's own failure."""
+    from click.testing import CliRunner
+
+    from cli import cli
+
+    marker = tmp_path / "ran"
+    result = CliRunner().invoke(
+        cli,
+        ["run", "--env", "NOPE", "--",
+         "python3", "-c", f"open({str(marker)!r}, 'w').write('x')"],
+    )
+    assert result.exit_code == 2  # Click's usage error
+    assert "NAME=VALUE" in result.output
+    assert not marker.exists(), "the command ran despite a refused --env"
