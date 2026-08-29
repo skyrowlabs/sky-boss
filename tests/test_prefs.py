@@ -96,3 +96,48 @@ def test_the_route_refuses_a_bad_shape_with_its_reason(tmp_path, monkeypatch):
     )
     assert response.status_code == 400
     assert "folded" in response.json()["error"]
+
+
+# ============================================================================
+# A second key — [[tools]] round 7
+# ============================================================================
+
+
+def test_a_writer_does_not_erase_a_key_it_did_not_mention(tmp_path):
+    """The bug the second key would have introduced. Two writers own one key
+    each — the fold control sends `folded`, the rail drag sends `rail` — and a
+    replace means whichever moved last erases the other, silently."""
+    prefs.write({"folded": ["jam-sense"]}, tmp_path)
+    prefs.write({"rail": 60}, tmp_path)
+    assert prefs.read(tmp_path) == {"folded": ["jam-sense"], "rail": 60}
+
+
+def test_a_key_is_cleared_by_its_empty_value_not_by_omission(tmp_path):
+    """Omission means 'no opinion'; `[]` means 'none'. That distinction is what
+    makes two independent writers safe."""
+    prefs.write({"folded": ["a"], "rail": 60}, tmp_path)
+    prefs.write({"folded": []}, tmp_path)
+    assert prefs.read(tmp_path) == {"folded": [], "rail": 60}
+
+
+def test_a_rail_width_out_of_range_is_refused(tmp_path):
+    """`_usable` returned True for any value of the right type, which was fine
+    when the only key was a list carrying its own bounds — and a way to store a
+    rail of 1e9 the moment a number arrived."""
+    assert prefs.write({"rail": 10**9}, tmp_path) is not None
+    assert prefs.write({"rail": 1}, tmp_path) is not None
+    assert prefs.write({"rail": prefs.RAIL_MIN}, tmp_path) is None
+    assert prefs.write({"rail": prefs.RAIL_MAX}, tmp_path) is None
+
+
+def test_true_is_not_a_rail_width(tmp_path):
+    """`bool` is an `int` in Python, and `True` would pass the range check as a
+    one-rem rail if arithmetic were left to decide."""
+    assert prefs.write({"rail": True}, tmp_path) is not None
+
+
+def test_an_unknown_key_is_still_dropped(tmp_path):
+    """Merging must not become a way to grow the file. This is round 5's line
+    and the merge does not move it."""
+    prefs.write({"rail": 60, "theme": "dark"}, tmp_path)
+    assert prefs.read(tmp_path) == {"rail": 60}
