@@ -1123,6 +1123,96 @@ def test_a_comment_above_a_grouped_block_still_survives_an_edit(tmp_path):
     assert 'group = "jam"' in after
 
 
+# ----------------------------------------------------- a group can be declared
+# Round 6. A group exists if any command names it, or if it is declared —
+# neither implies the other, which is what keeps every round-5 file working.
+
+
+def _groups(raw):
+    from cli.tools import parse_groups
+
+    return parse_groups(raw)
+
+
+def test_a_declared_group_is_a_group():
+    groups, problems = _groups({"group": {"jam": {"description": "jam.sense"}}})
+    assert problems == []
+    assert groups[0].name == "jam"
+    assert groups[0].description == "jam.sense"
+
+
+def test_a_group_may_be_declared_with_nothing_in_it():
+    """The whole point: an empty table is a group with no commands, which is
+    the thing that had nowhere to exist before this round."""
+    groups, problems = _groups({"group": {"archive": {}}})
+    assert problems == []
+    from cli.tools import Group
+
+    assert groups[0] == Group("archive", "")
+
+
+@pytest.mark.parametrize("name", ["Jam", "jam sense", "-jam", "jam.sense"])
+def test_a_group_name_takes_the_same_shape_a_tool_name_does(name):
+    groups, problems = _groups({"group": {name: {}}})
+    assert groups == []
+    assert "lowercase" in problems[0]
+
+
+def test_one_bad_group_does_not_cost_the_others():
+    groups, problems = _groups({"group": {"Bad": {}, "good": {}}})
+    assert [g.name for g in groups] == ["good"]
+    assert len(problems) == 1
+
+
+def test_a_group_declaration_that_is_not_a_table_is_refused():
+    groups, problems = _groups({"group": {"jam": "nope"}})
+    assert groups == []
+    assert "not a table" in problems[0]
+
+
+def test_no_group_table_declares_no_groups():
+    """Every file written before this round is untouched by it."""
+    assert _groups(GOOD) == ([], [])
+
+
+def test_a_group_exists_if_it_is_named_or_declared():
+    from cli.tools import Group, sections
+
+    tools, _ = one(
+        {
+            "tool": {
+                "prs": {"argv": ["data", "--", "x"], "group": "jam"},
+                "ci": {"argv": ["data", "--", "y"], "group": "jam"},
+                "disk": {"argv": ["data", "--", "z"]},
+            }
+        }
+    )
+    out = sections(tools, [Group("archive", "old things"), Group("jam", "jam.sense")])
+    assert out == [
+        {"name": "archive", "description": "old things", "declared": True, "count": 0},
+        {"name": "jam", "description": "jam.sense", "declared": True, "count": 2},
+    ]
+
+
+def test_a_group_named_but_not_declared_still_exists():
+    """Round 5's files keep working — that is the whole compatibility rule."""
+    from cli.tools import sections
+
+    tools, _ = one({"tool": {"prs": {"argv": ["data", "--", "x"], "group": "jam"}}})
+    assert sections(tools, []) == [
+        {"name": "jam", "description": "", "declared": False, "count": 1}
+    ]
+
+
+def test_the_ungrouped_are_not_a_section():
+    """They are the bucket every surface draws last. An entry here would make
+    them a group, and a group can be deleted."""
+    from cli.tools import sections
+
+    tools, _ = one({"tool": {"disk": {"argv": ["data", "--", "z"]}}})
+    assert sections(tools, []) == []
+
+
 # ------------------------------------------------- every declared field survives
 
 

@@ -297,7 +297,7 @@ a perfectly valid group name and silently a second group, where `Jam` at least g
 - **No drag between the rail and a window, or onto the canvas.** Dragging is for reorganising the
   rail. A command is opened by clicking it, as it always was.
 
-- [ ] **The model.** `[group.NAME]` parsed by a `parse_groups` beside `parse` — a separate pure
+- [x] **The model.** `[group.NAME]` parsed by a `parse_groups` beside `parse` — a separate pure
       function rather than a third return value, so nothing that calls `load` changes. `Group(name,
       description)`; `_NAME` shape; a malformed group is skipped and named like a malformed tool.
       `groups()` returns the union — declared ∪ named — alphabetical, with a count each.
