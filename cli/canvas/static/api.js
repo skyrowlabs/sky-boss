@@ -114,6 +114,9 @@ export function unaccrue(session, window) {
  * now: that path can only ever append and can only ever refuse a name that
  * exists, because it is `--save`, and `--save` saves by example. Editing and
  * deleting need a door that is not an example. */
+/* `highlight` is deliberately absent: the bench composes `--highlight` into
+ * the argv, so sending the field as well would apply the ruleset twice. The
+ * route accepts it for a caller that wants the field form. */
 export function writeTool({ name, argv, refresh, description, group }) {
   return post("/api/tools", { name, argv, refresh, description, group });
 }

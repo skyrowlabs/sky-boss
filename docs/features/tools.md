@@ -1,7 +1,7 @@
 ---
-status: complete
+status: active
 created: 2026-08-20
-updated: 2026-08-28
+updated: 2026-08-29
 agent_value: 3
 key_files:
   - cli/tools.py
@@ -193,6 +193,137 @@ module.** A name in a skip-list is the beginning of the command table this desig
   be one. That fallback is precisely how operator content ended up committed last time.
 
 ## Phases
+
+### Round 6 — a group is a thing (2026-08-29)
+
+Round 5 made a group a *label on a command*, which is the cheapest thing that could have worked and
+is why it shipped in a day. It also means **a group does not exist** — it is a string that happens
+to appear on two blocks, so there is nowhere to put one that is empty, nothing to name, and no
+gesture that makes or unmakes one. Every ask in this round runs into that same wall.
+
+Five asks, one model change under all of them.
+
+**1. The window is called COMMANDS.** The word *tool* does two jobs in this repo and they are not
+the same job: `[tool.prs]` is a command the operator saved, and *"a tool that gates its output on
+`isatty()`"* is the foreign CLI being wrapped. The surface is where the ambiguity costs something,
+because the rail sits next to a palette that runs foreign CLIs all day. So on screen it is a
+**command**.
+
+**The CLI, the file and the slug keep the word.** `sb tools`, `tools.toml`, `[tool.x]` and
+[[tools]] are all unchanged. That divergence is deliberate and it is not free — it is the second
+time this repo has had a surface and a CLI disagree about a noun — but the alternative is a rename
+with a file migration, and this round is not that. If the surface's word proves right, that is its
+own decision with its own round. **Identifiers do not move either**: `.tools`, `.tool-row`,
+`sb_saved` and the rest are outside the naming rule by construction, and churning them buys a
+reader nothing.
+
+**2. A group can be declared, so an empty one can exist.**
+
+```toml
+[group.jam]
+description = "jam.sense"
+
+[tool.prs]
+group = "jam"
+argv  = ["data", "--", "gh", "pr", "list", "--json"]
+
+[group.archive]        # declared, empty, and therefore deletable
+```
+
+The rule, which is what keeps every file that works today working:
+
+> **A group exists if any command names it, or if it is declared.** Neither implies the other.
+
+So round 5's files need no edit — a `group = "jam"` with no `[group.jam]` is exactly as valid as it
+was — and `[group.archive]` with nothing pointing at it is a group with no commands rather than a
+declaration nobody honoured. A declared group may carry a `description`; that is the only field,
+and the name takes the same `_NAME` shape a command does, for the reason round 5 gave: it is a key.
+
+**The union and its order are computed in Python, not in the rail.** `/api/catalog` gains a
+`groups` list, already ordered, already counted, so `sectionsOf` in `app.js` stops holding a copy of
+an ordering rule that is decided in `cli/tools.py`. That is round 5's own argument arriving one
+layer down: the deciding half goes where pytest reaches it. `sb tools` grows the same list, so an
+empty group is visible from the terminal too — the CLI/rail parity round 5 was built to preserve.
+
+**3. The rail makes and unmakes them.** A `+ group` control creates one; a section header carries a
+✕ **when it holds no commands.** The refusal is server-side: `remove_group` refuses a group any
+command still names, and says which. A surface that only declines to *draw* a button has not
+refused anything — the same sentence round 5 wrote about `/api/trial`, applied here.
+
+**4. Dragging a command into a group changes one line.** And that is not a convenience, it is the
+only correct way to do it, because of something this round found on its way in:
+
+> **`block()` does not serialise `highlight`, so any rewrite through the bench silently drops a
+> declared ruleset.** Measured: a `[tool.applog]` carrying `highlight = "jam"` comes back without
+> it. A round-4 defect, live since 2026-08-28, and invisible until the day the stream drew grey.
+
+A drag that round-tripped a command through the surface would inherit that bug and add its own —
+the rail knows a command's `summary`, not its `description`, and writing one back as the other
+invents a description equal to the expansion. So a regroup **splices the `group =` line inside the
+block** rather than rewriting the block, which preserves every other key *by construction* —
+`highlight`, anything a future round adds, and the comments *inside* the block that a replacement
+would take. Round 4's own argument, one level finer.
+
+`block()` is fixed to carry `highlight` regardless, because the bench's save path still rewrites
+and still drops it.
+
+**A drag is a write and is backed up like every other write.** The operator's call: the rule is
+*before every mutating write*, and an exception for writes deemed small is how the next person
+learns the rule has exceptions. The cost is real and is stated rather than designed around —
+reorganising ten commands spends ten of the twenty backup slots.
+
+**5. The bench picks from what exists, and can still name what does not.** A `datalist`, so typing
+`jam` completes and typing `archive-2` creates. The failure it removes is the near-miss: `jamm` is
+a perfectly valid group name and silently a second group, where `Jam` at least gets refused.
+
+**Does not do:**
+
+- **No nested groups.** One level, unchanged from round 5. `[group.jam.prs]` is not a thing.
+- **No group operations beyond make, unmake and move.** No "run the group", no collapse-all, no
+  reordering by hand — a group's position is alphabetical and there is no `order` field, because an
+  ordering the operator maintains by hand is one more thing to keep true.
+- **No renaming a group in place.** A rename is a delete and N writes, and doing it atomically over
+  a hand-edited file is a bigger promise than this round should make. `$EDITOR` and a
+  find-and-replace is the honest answer, and the file is backed up.
+- **Deleting a group never deletes a command.** It is refused while any command names it, and the
+  refusal names them. A cascade here would be the surface deciding that "delete this label" meant
+  "delete this work".
+- **The CLI does not learn the word "command".** See ask 1. No `sb commands`, no alias.
+- **`/api/groups` is not a config editor**, the same line round 4 drew for `/api/tools`. Groups in
+  `tools.toml`, nothing else, nowhere else.
+- **No drag between the rail and a window, or onto the canvas.** Dragging is for reorganising the
+  rail. A command is opened by clicking it, as it always was.
+
+- [ ] **The model.** `[group.NAME]` parsed by a `parse_groups` beside `parse` — a separate pure
+      function rather than a third return value, so nothing that calls `load` changes. `Group(name,
+      description)`; `_NAME` shape; a malformed group is skipped and named like a malformed tool.
+      `groups()` returns the union — declared ∪ named — alphabetical, with a count each.
+- [ ] **`sb tools` shows them**, including the empty ones, in the same listing as tools, formats
+      and highlights. A test that a file with no `[group.…]` produces the listing byte-identical to
+      round 5's.
+- [ ] **The catalog carries the ordered list**, and `sectionsOf` in `app.js` becomes a bucket-by-
+      name rather than a second copy of the ordering rule.
+- [ ] **The writer.** `write_group`, `remove_group` — refusing one that any command still names,
+      naming them — and `block_range` generalised to a table prefix so it can find `[group.x]`.
+      Backups as ever. `POST /api/groups`, guarded, joining the route-inventory test.
+- [x] **`highlight` round-trips.** `block()` serialises it; a test saves a tool that has one, reads
+      it back, and finds it still there. This is a round-4 defect fixed in passing, not new work.
+      *Shipped first, on its own, at the operator's word — it is data loss and it depends on
+      nothing in this round. The bench half turned out to be different from what this line assumed;
+      see Notes.*
+- [ ] **`set_field` and the regroup.** A line-level splice inside a block: replace the key, insert
+      it if absent, remove it if the value is empty. `POST /api/tools` gains a `regroup` verb that
+      goes through it. Tests: every other key survives, a comment *inside* the block survives, and
+      a regroup of a tool carrying `highlight` keeps it.
+- [ ] **The rename**, on screen only: the rail head, the row titles, the empty state, the footer's
+      metavar. `tools.toml` stays spelled `tools.toml` wherever it names the file.
+- [ ] **`+ group` and the ✕**, with the delete asking once and the refusal shown when the server
+      declines.
+- [ ] **Drag and drop.** Rows draggable, sections and the ungrouped bucket as targets, a visible
+      drop state. Verified by reading the DOM back, and swept at more than one `--scale`.
+- [ ] **The bench's picker** — a `datalist` fed from the catalog's groups, free text still allowed.
+- [ ] **Docs.** `CLAUDE.md` on the surface/CLI noun divergence and the group model,
+      `tools.example.toml` grows a `[group.…]`, README's saving section.
 
 ### Round 5 — the rail gets sections (2026-08-28)
 
@@ -578,6 +709,30 @@ result.** The envelope says where it went; under `--json` that is a field, not p
       its "Nothing here writes" claim, if it carries one, is amended with the same reversal.
 
 ## Notes
+
+### Round 6 — a group is a thing (2026-08-29)
+
+*Accreting as the round lands.*
+
+**The `highlight` loss had two halves and only one was the one written down.** The visible half was
+`block()`: it serialised `description`, `group`, `argv` and `refresh` and simply did not know about
+`highlight`, so any rewrite dropped it. That is fixed, and fixed with a **guard rather than a
+patch** — `test_block_serialises_every_declared_field_of_a_tool` walks `Tool`'s own dataclass
+fields, minus the two that are *derived* from the argv (`acts`, `resident`), and fails if any
+declared one cannot reach the file. The next field added cannot repeat this.
+
+The second half was in the bench, and it is the opposite of what the phase assumed. The phase said
+*"the bench has no control for a ruleset"* — it does, a visible `--highlight` field that **composes
+into the argv**. So the bench never needed a hidden pass-through; what it needed was **seeding**.
+A tool declaring `highlight = "jam"` as a *field* has no `--highlight` in its argv for `edit()` to
+decompose, so the bench opened with the control blank and composed a line without it. Seeding the
+control from `tool.highlight` fixes it, and the catalog now carries the field so it can.
+
+Two consequences worth writing down. **The route accepts `highlight` but the client deliberately
+does not send it** — the bench composes the flag into the argv, so sending the field as well would
+apply the ruleset twice; the parameter exists for a caller that wants the field form. And a bench
+edit **changes the representation**, field to flag, which is visible in the block the bench draws
+before it saves. That is acceptable where a silent drop was not.
 
 ### Round 5 — the rail gets sections (2026-08-28)
 
