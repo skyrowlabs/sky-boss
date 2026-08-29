@@ -342,7 +342,7 @@ environment was modified" would announce what is already on the screen.
       A test that it wins over both.
 - [x] **`--env NAME=VALUE` on `run`, `read`, `follow` and `data`**, repeatable. A value with no
       `=` is a usage error naming the offending token, not a silently ignored flag.
-- [ ] **The canvas accounts for it.** `Job` carries `env` and `resolve_run` accepts `--env`;
+- [x] **The canvas accounts for it.** `Job` carries `env` and `resolve_run` accepts `--env`;
       likewise `resolve_follow`. Without this an accruing window silently falls back to
       `snapshotRun` — a flag is opted **in** to accrual, never out of it ([[follow]] round 4), so
       an unaccounted flag is a long act back under the watcher's ceiling.
