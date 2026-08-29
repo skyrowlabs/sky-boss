@@ -212,6 +212,10 @@ separate schedule *source*, for a project whose schedule does not ride its statu
 to add later and hard to take back — the argument that settled one state root rather than one per
 project.
 
+**Specced 2026-08-29 → [[schedule]], round 1 drafted and not built.** The answers above are the
+doc's Shape, and the ruling that this is not the vocabulary roll-call refuses is stated there
+with its date. Round 2 — the past tense — is deliberately unopened for the reason below.
+
 **Still open after all that:** whether it is worth building now, given items 5–9 sit underneath it
 and jam.sense is the only project that would populate it.
 
