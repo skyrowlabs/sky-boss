@@ -239,6 +239,14 @@ body {
  * rail is hovered: a delete that is always lit in a list you click to *run*
  * things is a misclick waiting to happen, which is the argument the row's own
  * ✕ already made. See [[tools]] round 6. */
+/* Where a dragged command would land. A tint of the brand rather than a
+ * border, because a border changes the section's height and the rail visibly
+ * jumps as the pointer crosses it. */
+.tool-section.over {
+  background: color-mix(in srgb, var(--sb-brand) 14%, transparent);
+}
+.tool-row[draggable="true"] { cursor: grab; }
+
 .tool-group-row { display: flex; align-items: center; }
 .tool-group-row .tool-group { flex: 1; min-width: 0; }
 .tool-group-drop {
@@ -263,6 +271,12 @@ body {
 .tools-add-name::placeholder { color: var(--sb-text-3); }
 .tool-section:first-child .tool-group { padding-top: 0; }
 .tool-rule { margin: 2rem 3rem 1.5rem; border-top: var(--hair) solid var(--sb-hair); }
+/* Only drawn while a drag is in flight and the bucket is empty — an unlabelled
+ * empty divider is not a target anyone would aim at. */
+.tool-rule-label {
+  display: block; padding-top: 1rem; color: var(--sb-text-2);
+  font-size: 2.5rem; letter-spacing: .12em; text-transform: uppercase;
+}
 .tools-empty { padding: 1.5rem 3rem; color: var(--sb-text-3); line-height: 1.5; }
 .tools-foot {
   flex: none; padding: 2.5rem 3rem; color: var(--sb-text-3);

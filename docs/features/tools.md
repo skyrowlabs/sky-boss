@@ -321,7 +321,7 @@ a perfectly valid group name and silently a second group, where `Jam` at least g
       a regroup of a tool carrying `highlight` keeps it.
 - [x] **`+ group` and the ✕**, with the delete asking once and the refusal shown when the server
       declines.
-- [ ] **Drag and drop.** Rows draggable, sections and the ungrouped bucket as targets, a visible
+- [x] **Drag and drop.** Rows draggable, sections and the ungrouped bucket as targets, a visible
       drop state. Verified by reading the DOM back, and swept at more than one `--scale`.
 - [ ] **The bench's picker** — a `datalist` fed from the catalog's groups, free text still allowed.
 - [ ] **Docs.** `CLAUDE.md` on the group model, `tools.example.toml` grows a `[group.…]`,
@@ -749,6 +749,18 @@ returns both kinds of problem in one list.
 group was folded, because that is when its contents are hidden. An empty group hides nothing and
 still needs the number, or a section with a header and no rows reads as a rendering bug rather than
 as a group you have not filled yet.
+
+**The drag had nowhere to drop a command *out*, and only running it found that.** A rail where
+every command is in a group draws no ungrouped section — the bucket is rendered from what is in it —
+so once you had tidied everything away there was no target for taking anything back out, and the
+only route was the bench. The fix is that the bucket exists **while a drag is in flight**, labelled
+`ungrouped`, and costs nothing the rest of the time. The full round trip is verified: `applog` into
+`logs` and back out, with `group = "logs"` inserted and then removed cleanly.
+
+**And the round trip is what proves the splice.** After a move in and a move out, `applog`'s block
+still carries its `highlight = "jam"`, the comment *inside* the block, and the comment above it —
+every one of which a `write_block` rewrite would have taken. That is the argument this round was
+built on, observed rather than asserted.
 
 **`window.confirm` cannot be driven headlessly, and it takes the session with it.** The delete
 verification hung for the full two minutes on the first attempt: a modal dialog blocks the page and
