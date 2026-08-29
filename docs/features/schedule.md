@@ -169,6 +169,57 @@ distinction to be accepted, where the one above only asks the existing sentence 
 
 ### Round 2 — the past tense (not scheduled)
 
+**Before anything here is built, read this.** A status view over `ledger/runs.jsonl` is the obvious
+next thing and it has a trap in it that looks like a shortcut. `rc` and `status` **disagree by
+design**, and `rc` is the field anyone reaches for first.
+
+A gate job that ran perfectly and found the thing it gates broken exits **zero** — deliberately,
+because its monitor is a dead-man switch on *execution*, and a red gate must not take the monitor
+down by looking like a crash. The funnel records that as `status: "red"` with `rc: 0`. So `rc` is
+structurally unable to carry failure for exactly the jobs whose failure matters most.
+
+Measured against the live ledger on 2026-08-29, 1,051 rows:
+
+| status | rc | rows |
+|---|---|---|
+| `ok` | 0 | 797 |
+| `skipped` | 0 | 215 |
+| `failed` | 1 | 20 |
+| **`red`** | **0** | **19** |
+
+**19 of the 39 non-nominal rows — 48% — exit zero**, across seven jobs (`agent-fix`, `agent-task`,
+`integration`, `ratchet-watch`, `release`, `sentinel`, `test-gaps`). A view keyed on `rc` would
+report 20 problems where there are 39, and the ones it dropped would be the `red` half.
+
+This is not a new rule, it is the sharpest instance of the one in § The ruling: **sky.boss may
+order; only a provider may judge.** `status` is the provider's verdict and `rc` is a process detail
+that resembles one. Read the field that was published as the judgment, never the field that looks
+like it. There is no `rc` reference anywhere in `cli/` today and there should not be one.
+
+Found by the skyrow-workspace session on 2026-08-29 while driving `sb data` against a live
+agent-fix run; it lives in `skyrow-workspace/strategy/seams/agent-state.md` as the contract's own
+warning, because the consumer is the one who hits it and cannot see jam.sense's source comments
+from here.
+
+**And the same run showed something sharper, which is that `runs.jsonl` is not the whole verdict.**
+That `agent-fix` invocation stood down — `develop` was not CI-green, so it fixed nothing — and its
+row reads:
+
+```json
+{"job": "agent-fix", "started": "2026-08-29T20:16:57+00:00",
+ "finished": "2026-08-29T20:22:55+00:00", "duration_s": 358, "rc": 0, "status": "ok"}
+```
+
+`ok`, and correctly so: the job *executed* perfectly. What it did not do — drain two issues — and why
+is in **`ledger/decisions.jsonl`**, as `{"kind": "escalation", "job": "agent-fix", "title": "develop
+is not CI-green (red) — `agent-fix` stood down"}`. A status view reading only `runs.jsonl` would draw
+a clean green run and be right about execution while missing the entire outcome.
+
+**The two files join on `(job, time window)` and nothing else.** The escalation's `at` (20:22:54)
+falls inside the run's `started`/`finished`; there is no shared id. That is [[open]] item 6 — job
+identity that outlives a window — arriving as a concrete consequence rather than a design worry, and
+it is a prerequisite for any view that wants to show a run *and* what it decided.
+
 Deliberately unopened. It needs [[open]] item 5 (history, on the ledger) and a notion of lateness
 that is a judgment. `overdue` is `False` for all 31 jobs today, so there is **no evidence** for a
 late-state rendering — the same position items 1 and 5 were in before the ledger landed, and the
