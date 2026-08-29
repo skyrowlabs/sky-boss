@@ -1,5 +1,5 @@
 ---
-status: active
+status: complete
 created: 2026-08-20
 updated: 2026-08-29
 agent_value: 3
@@ -19,7 +19,10 @@ key_files:
   - cli/canvas/static/api.js
   - cli/canvas/static/sb.css
   - cli/canvas/prefs.py
+  - cli/canvas/catalog.py
+  - cli/canvas/server.py
   - tests/test_prefs.py
+  - tests/test_canvas_server.py
   - tools.example.toml
   - tests/test_tools.py
   - tests/conftest.py
