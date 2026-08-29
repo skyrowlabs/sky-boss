@@ -324,7 +324,8 @@ a perfectly valid group name and silently a second group, where `Jam` at least g
 - [x] **Drag and drop.** Rows draggable, sections and the ungrouped bucket as targets, a visible
       drop state. Verified by reading the DOM back, and swept at more than one `--scale`.
 - [x] **The bench's picker** — a `datalist` fed from the catalog's groups, free text still allowed.
-- [ ] **Docs.** `CLAUDE.md` on the group model, `tools.example.toml` grows a `[group.…]`,
+- [x] **Docs.** `CLAUDE.md` on the group model *and* on the rewrite/splice rule the round turned
+      on, `tools.example.toml` grows three `[group.…]` tables including a deliberately empty one,
       README's saving section.
 
 ### Round 5 — the rail gets sections (2026-08-28)
@@ -714,7 +715,13 @@ result.** The envelope says where it went; under `--json` that is a field, not p
 
 ### Round 6 — a group is a thing (2026-08-29)
 
-*Accreting as the round lands.*
+**Nine phases shipped, one declined.** A group can be declared, so an empty one exists; the rail
+makes, unmakes and reorganises them; the bench picks from what exists. The rename was declined
+before it was built and its argument is kept above.
+
+The round's spine turned out to be a single sentence that was not in the plan at the start: **a
+rewrite has to know every field, and a splice does not.** It arrived as a bug, became the reason a
+drag works the way it does, and is now a rule in `CLAUDE.md`.
 
 **The `highlight` loss had two halves and only one was the one written down.** The visible half was
 `block()`: it serialised `description`, `group`, `argv` and `refresh` and simply did not know about

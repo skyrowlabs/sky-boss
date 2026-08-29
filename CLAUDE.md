@@ -160,7 +160,10 @@ Two rules there are the canvas's own, arriving on a new screen:
   heuristic. The same rule governs a tool's **group** ([[tools]] round 5): it is a declared field,
   not a prefix read off the name, because a prefix rule cannot be told apart from a coincidence and
   `disk-free` would invent a group nobody asked for. A group is a *label the surfaces sort under*
-  and never part of the address — `sb tools <name>` is unchanged and names stay globally unique. `/api/trial` is `/api/run` with one rule added — **an act has no trial run** — and it
+  and never part of the address — `sb tools <name>` is unchanged and names stay globally unique.
+  Round 6 gave a group a `[group.NAME]` table of its own, under the rule that **a group exists if
+  any command names it, or if it is declared** — neither implies the other, which is what let empty
+  groups exist without invalidating a single file written before them. `/api/trial` is `/api/run` with one rule added — **an act has no trial run** — and it
   is a second route rather than a flag because the palette must keep opening `sb run` windows. The
   refusal is server-side: a surface that declines to draw a button has not refused anything.
 - **A follow trial is a pseudo-window on the session**, held open by `/api/follow` under the window
@@ -190,6 +193,15 @@ The rules that are not negotiable:
   expansion shown before it runs. It defaults to `$HOME` — neutral, because the canvas inherits
   whatever directory `sb ui` started in, and any repo with a `cli/` package shadows a tool's own.
 - **Only a read may be given a cadence.** See § Scope.
+- **A rewrite has to know every field; a splice does not.** `block()` serialises a tool, so a
+  field it has not heard of is dropped on every rewrite — which is not hypothetical: a declared
+  `highlight` was lost that way for a day, visible only as a stream that stopped being tinted. A
+  test now walks `Tool`'s dataclass fields so the next one added cannot repeat it. And the surgical
+  path is `set_field`, which splices **one line inside a block**: everything else survives by
+  construction, including keys the caller has never heard of and the operator's comments *inside*
+  the block. Dragging a command between groups goes down it, because the rail knows a command's
+  `summary` and not its `description` and cannot see a `highlight` at all — a surface must not
+  restate what it cannot read. See [[tools]] round 6.
 - **A window that runs accrues; a window that refreshes does not.** An unpinned `run` or `read` is
   held open on the session stream and its lines arrive as they are printed, exactly as they do in a
   terminal; a pinned one is a watcher and gets a whole envelope on a cadence. The endings are the

@@ -273,6 +273,20 @@ and names stay unique across every group. Groups sort alphabetically with the un
 ungrouped until you say otherwise. Which groups you have folded is remembered between launches, in
 `~/.local/state/sb/` with the rest of the surface's own state.
 
+**A group exists if any command names it, or if it is declared** — neither implies the other. A
+declaration is how an *empty* group exists:
+
+```toml
+[group.archive]
+description = "old things"
+```
+
+The rail can make one (`+ group`), delete one **while it holds nothing**, and move a command between
+groups by dragging its row. A delete is refused while any command is still in the group, and the
+refusal names them; it never deletes a command. A drag changes the one `group` line inside that
+command's block, so nothing else in it — including a comment you wrote inside it — is touched, and
+the file is backed up first like every other write.
+
 ## Many projects at once
 
 Declare what each project publishes in `~/.sky-boss/projects.toml` — a command to ask, or a file
