@@ -373,6 +373,30 @@ already used. Refusing loudly and streaming the `--json` envelope were both turn
 closes non-interactive use, the second makes `follow` a second data-producing command beside
 `sb data`.
 
+**`sb data --refresh` has the same bug, and the fix that closed it for `follow` did not touch it.**
+Found 2026-08-29 by the skyrow-workspace session driving `sb` against a live job — reported as
+*probably a resident TUI declining to render to a pipe rather than a defect*, which was the right
+caution and the wrong conclusion. Measured:
+
+```
+timeout 6 sb data --from jsonl --refresh 2 --cols job,status <file>   piped  →  0 bytes, exit 124
+same command under `script`                                          tty    →  14,237 bytes
+```
+
+Identical to the follow case above: `rich.Live` owns a cursor, a pipe has none, every frame
+suppressed while the loop runs perfectly. The `emit` spill went onto `resident.hold` — the streaming
+path — and `resident.reside`, which `data --refresh` and `read --refresh` both use, was never given
+one.
+
+**But the answer is probably not the same.** A follow's content *is* a stream of lines, so verbatim
+was the obvious degrade. A refreshing table has no sensible pipe reading: repeating a whole table
+every N seconds is not a document, and silently rendering once while ignoring `--refresh` is the
+"wrong but looks right" failure. **The recommendation is to refuse**, which has a precedent already
+in the code rather than needing a new argument: `refuse_resident_json` refuses `--json --refresh` on
+the grounds that a resident render has no single envelope. A resident render also has no screen
+here. `sb data --refresh` down a pipe should say so and name the fix — drop `--refresh` for a single
+read — instead of producing nothing for as long as you let it run.
+
 **What is still open is termination, and the two forms may not answer it alike.** The ruling was
 about rendering. On a terminal, a dead stream keeps drawing: "a corpse on screen is information."
 A pipe has no screen to keep it on, so the question is what the *last bytes* are.
@@ -488,3 +512,31 @@ anything else, and the listing is cheap enough that it needs no cache.
 returning zero projects and zero problems — was closed on 2026-08-29 in `cli/rollcall.py`, which is
 where the state root would have been swallowed next. That fix stands alone and is not a prerequisite
 for any of the above.
+
+
+▎ 19. The tools rail does not scale past a handful. Raised by the operator 2026-08-29, watching
+▎ the live agent-fix run. The rail is a fixed-width column down the left of the canvas and a tool
+▎ name longer than it gets clipped — jam-agent-fix-log renders as jam-agent-fix-l…. Four tools
+▎ today, so it reads as cosmetic; it is the shape of the problem rather than its size.
+▎
+▎ Two candidate answers and they are not the same feature. Expandable — the rail widens, or a
+▎ tool expands in place to show its full name and expansion — keeps the rail as the address and
+▎ costs canvas width, which is the thing windows are competing for. A different listing — a
+▎ palette-driven picker, a searchable overlay, the groups from [[tools]] round 6 doing real work —
+▎ stops treating the rail as the complete index and makes it a shortcut bar. The second is probably
+▎ right and is much the larger change.
+▎
+▎ Two constraints that are already known and would bite here:
+▎
+▎ - --scale is a geometry, not a preference, and CLAUDE.md is explicit that a layout verified
+▎   at one value of it has been verified once. Every fixed rem width grows with the scale while
+▎   the window does not. Whatever this becomes has to be checked across the sweep, not at 1.15 —
+▎   the workbench lost a step to exactly this for three rounds.
+▎ - Groups already exist and are empty. [[tools]] rounds 5 and 6 gave a group a [group.NAME]
+▎   table and the rule that a group exists if any command names it, or if it is declared. The
+▎   catalog reports groups: 0 today. A grouped rail may be most of the answer already built, and
+▎   should be tried before anything new is designed.
+▎
+▎ Not urgent: four tools fit. It becomes real at roughly a dozen, or the first time a name is long
+▎ enough that two tools clip to the same string — which is the actual failure, since the rail is
+▎ how you tell them apart.
