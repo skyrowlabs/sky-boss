@@ -580,15 +580,6 @@ def _listing() -> Result:
     # one door for "what did I declare, and what was refused". Without this an
     # empty group would be visible in the rail and invisible from the terminal,
     # which is the CLI/rail divergence round 5 was built to avoid.
-    declared_tools = [
-        Tool(
-            name=name,
-            argv=list(getattr(command, "sb_argv", ())),
-            group=_group_of(command),
-        )
-        for name, command in saved
-    ]
-
     formats, format_problems = capture_.load_formats()
     # Declared highlight rulesets ride the same listing as the formats beside
     # them in the file: one door for "what did I declare, and what was
@@ -603,7 +594,7 @@ def _listing() -> Result:
                 "commands": section["count"],
                 "declared": section["declared"],
             }
-            for section in sections(declared_tools, GROUPS)
+            for section in sections(registered(), GROUPS)
         ],
         "formats": [
             {"name": fmt.name, "kind": fmt.kind, "description": fmt.description}
@@ -627,6 +618,20 @@ def _argv_of(command: click.Command) -> tuple[str, ...]:
 
 def _group_of(command: click.Command) -> str:
     return getattr(command, "sb_group", "")
+
+
+def registered() -> list[Tool]:
+    """Every registered tool, off the tree rather than off the file.
+
+    The tree is what actually ran `register`, so this cannot disagree with what
+    `sb tools` lists or what the palette offers. Only the fields `sections`
+    needs are filled — this is a view of the registration, not a re-parse.
+    """
+    return [
+        Tool(name=name, argv=list(_argv_of(command)), group=_group_of(command))
+        for name, command in tools.commands.items()
+        if getattr(command, "sb_saved", False)
+    ]
 
 
 # ============================================================================

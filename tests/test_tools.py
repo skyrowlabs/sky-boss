@@ -410,6 +410,32 @@ def test_a_file_with_no_groups_lists_exactly_as_it_did_before_groups(saved):
     assert all("group" not in r for r in rows)
 
 
+def test_the_catalog_ships_every_group_ordered_and_counted(saved, tmp_path, monkeypatch):
+    """The rail buckets; it does not order. An empty group appears in no
+    command's `group` field, so a rail deriving its own sections could never
+    draw one."""
+    from starlette.testclient import TestClient
+
+    from cli.canvas.server import TOKEN_HEADER, Canvas, build
+
+    saved(
+        "[group.archive]\n"
+        '[group.jam]\ndescription = "jam.sense"\n'
+        '[tool.prs]\ngroup = "jam"\nargv = ["data", "--", "printf", "[]"]\n'
+    )
+    # The catalog reloads from the ambient home on every request — the doctrine
+    # that keeps it from drifting — so the ambient home has to be the one the
+    # fixture wrote. `cli.tools` imported `SB_HOME` by value, so that binding is
+    # the one that matters; without this line the assertion fails.
+    monkeypatch.setattr("cli.tools.SB_HOME", tmp_path, raising=False)
+    client = TestClient(build(Canvas(token="t")))
+    body = client.get("/api/catalog", headers={TOKEN_HEADER: "t"}).json()
+    assert body["groups"] == [
+        {"name": "archive", "description": "", "declared": True, "count": 0},
+        {"name": "jam", "description": "jam.sense", "declared": True, "count": 1},
+    ]
+
+
 def test_the_listing_shows_a_group_with_nothing_in_it(saved, tmp_path):
     """The reason declared groups exist at all: an empty one has to be visible
     from the terminal, or the rail and the CLI disagree about what there is."""
