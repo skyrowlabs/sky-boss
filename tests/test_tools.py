@@ -1299,6 +1299,129 @@ def test_the_ungrouped_are_not_a_section():
     assert sections(tools, []) == []
 
 
+# --------------------------------------------- moving a command between groups
+
+
+def test_a_regroup_changes_one_line_and_keeps_everything_else(tmp_path):
+    """The property the whole design turns on. A rewrite has to know every
+    field; a splice does not, which is why a drag uses one."""
+    from cli.tools import regroup
+
+    (tmp_path / "tools.toml").write_text(
+        "# why this needs --cwd\n"
+        "[tool.applog]\n"
+        'description = "the app log"\n'
+        "# this comment is INSIDE the block\n"
+        'argv = ["follow", "--", "printf", "x"]\n'
+        'highlight = "jam"\n'
+        "\n"
+        '[tool.other]\nargv = ["read", "--", "printf", "y"]\n'
+    )
+    regroup("applog", "jam", home=tmp_path)
+    after = (tmp_path / "tools.toml").read_text()
+
+    assert 'group = "jam"' in after
+    # Everything a rewrite would have taken:
+    assert "# why this needs --cwd" in after
+    assert "# this comment is INSIDE the block" in after
+    assert 'highlight = "jam"' in after
+    assert 'description = "the app log"' in after
+    assert '[tool.other]\nargv = ["read", "--", "printf", "y"]' in after
+
+
+def test_a_regroup_replaces_an_existing_group_rather_than_adding_one(tmp_path):
+    from cli.tools import regroup
+
+    (tmp_path / "tools.toml").write_text(
+        '[tool.prs]\ngroup = "jam"\nargv = ["data", "--", "x"]\n'
+    )
+    regroup("prs", "bbrain", home=tmp_path)
+    after = (tmp_path / "tools.toml").read_text()
+    assert after.count("group =") == 1
+    assert 'group = "bbrain"' in after
+
+
+def test_regrouping_to_nothing_removes_the_line(tmp_path):
+    """Empty is ungrouped, and `block` writes no line for it — one
+    representation for 'not set', not two."""
+    from cli.tools import regroup
+
+    (tmp_path / "tools.toml").write_text(
+        '[tool.prs]\ngroup = "jam"\nargv = ["data", "--", "x"]\n'
+    )
+    regroup("prs", "", home=tmp_path)
+    assert "group" not in (tmp_path / "tools.toml").read_text()
+
+
+def test_a_regroup_survives_a_reload(tmp_path):
+    from cli.tools import load, regroup
+
+    (tmp_path / "tools.toml").write_text(
+        '[tool.applog]\nargv = ["follow", "--", "printf", "x"]\nhighlight = "jam"\n'
+    )
+    regroup("applog", "logs", home=tmp_path)
+    tools, problems = load({"follow": False}, home=tmp_path, resident=frozenset({"follow"}))
+    assert problems == []
+    assert tools[0].group == "logs"
+    assert tools[0].highlight == "jam", "the splice must not cost a field it cannot see"
+
+
+def test_a_regroup_into_a_name_the_loader_would_refuse_is_refused(tmp_path):
+    """The rail offers only groups that exist, but the route is a door and a
+    door is not a list."""
+    import pytest
+    import rich_click as click
+
+    from cli.tools import regroup
+
+    (tmp_path / "tools.toml").write_text('[tool.prs]\nargv = ["data", "--", "x"]\n')
+    with pytest.raises(click.UsageError):
+        regroup("prs", "No Good", home=tmp_path)
+    assert "group" not in (tmp_path / "tools.toml").read_text()
+
+
+def test_regrouping_something_that_is_not_a_tool_is_an_error(tmp_path):
+    import pytest
+    import rich_click as click
+
+    from cli.tools import regroup
+
+    (tmp_path / "tools.toml").write_text("")
+    with pytest.raises(click.UsageError):
+        regroup("nosuch", "jam", home=tmp_path)
+
+
+def test_a_drag_is_backed_up_like_every_other_write(tmp_path):
+    """The operator's call: the rule is *before every mutating write*, and an
+    exception for writes deemed small is how the next person learns the rule
+    has exceptions."""
+    from cli.tools import regroup
+
+    (tmp_path / "tools.toml").write_text('[tool.prs]\nargv = ["data", "--", "x"]\n')
+    out = regroup("prs", "jam", home=tmp_path)
+    assert "backup" in out
+    assert (tmp_path / "backups").exists()
+
+
+def test_the_regroup_route_moves_one_command(tmp_path, monkeypatch):
+    from starlette.testclient import TestClient
+
+    from cli.canvas.server import TOKEN_HEADER, Canvas, build
+
+    (tmp_path / "tools.toml").write_text(
+        '[tool.prs]\nargv = ["data", "--", "printf", "[]"]\n'
+    )
+    monkeypatch.setattr("cli.tools.SB_HOME", tmp_path, raising=False)
+    client = TestClient(build(Canvas(token="t")))
+    moved = client.post(
+        "/api/tools",
+        json={"name": "prs", "group": "jam", "regroup": True},
+        headers={TOKEN_HEADER: "t"},
+    )
+    assert moved.json()["action"] == "regrouped"
+    assert 'group = "jam"' in (tmp_path / "tools.toml").read_text()
+
+
 # ------------------------------------------------------ writing a group
 
 

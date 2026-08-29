@@ -968,6 +968,82 @@ def write_block(
     }
 
 
+#: A `key = value` at the start of a line inside a block. Deliberately not a
+#: TOML parser: this only ever has to recognise the simple scalar assignments
+#: `block` itself writes, and anything it does not recognise is left alone.
+_ASSIGN = re.compile(r"^\s*([A-Za-z_][A-Za-z0-9_-]*)\s*=")
+
+
+def set_field(name: str, key: str, value: str, home: Path | None = None) -> dict:
+    """Change one key inside one tool's block, leaving every other byte alone.
+
+    **Finer than `write_block`, and that is the point.** A replace restates the
+    whole tool, which means the caller has to know every field it declares —
+    and round 6 measured what happens when one of them cannot: a `highlight`
+    that the writer did not know about was dropped on every rewrite, silently,
+    for a day. A surface reorganising the rail knows a command's *name* and
+    nothing else it would be safe to restate.
+
+    So this splices a line, not a block. Everything else survives **by
+    construction**: fields this function has never heard of, the operator's
+    comments *inside* the block (which a replace takes), and their line order.
+    Round 4's own argument, one level finer.
+
+    An empty `value` removes the line rather than writing `key = ""`, matching
+    what `block` does with an empty field — one representation for "not set".
+    """
+    path = home_file(home)
+    if not path.exists():
+        raise click.UsageError(f"{name!r} is not a tool in {path}")
+    text = path.read_text(encoding="utf-8")
+    span = block_range(text, name)
+    if span is None:
+        raise click.UsageError(f"{name!r} is not a tool in {path}")
+
+    kept = backup(home)
+    rows = text.splitlines(keepends=True)
+    start, end = span
+    line = f"{key} = {_toml_string(value)}\n" if value else ""
+
+    at = next(
+        (
+            i
+            for i in range(start + 1, end)
+            if (match := _ASSIGN.match(rows[i])) and match.group(1) == key
+        ),
+        None,
+    )
+    if at is not None:
+        rows[at : at + 1] = [line] if line else []
+    elif line:
+        # Straight after the header, so a field that was absent lands where
+        # `block` would have put it rather than after the argv.
+        rows[start + 1 : start + 1] = [line]
+
+    path.write_text("".join(rows), encoding="utf-8")
+    return {
+        "name": name,
+        "action": "regrouped" if key == "group" else "changed",
+        "file": str(path),
+        key: value,
+        **({"backup": str(kept)} if kept else {}),
+    }
+
+
+def regroup(name: str, group: str, home: Path | None = None) -> dict:
+    """Move one command into a group, or out of every group.
+
+    Validated the way a write is, so a drag cannot put a command into a name
+    the loader will refuse — the rail offers only groups that exist, but the
+    route is a door and a door is not a list.
+    """
+    if group:
+        problem = group_problem(group)
+        if problem:
+            raise click.UsageError(f"group {group!r}: {problem}")
+    return set_field(name, "group", group, home)
+
+
 def remove_block(name: str, home: Path | None = None) -> dict:
     """Delete one tool. Raises if it is not there — a silent no-op on a delete
     reads as success and leaves the operator believing a command is gone."""
