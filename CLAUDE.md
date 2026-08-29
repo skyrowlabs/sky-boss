@@ -60,6 +60,7 @@ replaced by a browser one the same day. What exists:
 | `sb run -- <argv>` | Runs a command and reports what it printed. **The only command that acts**. `--delay 5m` runs it once, later, behind a countdown you can cancel |
 | `sb data -- <argv>` | Reads another CLI's JSON as data. An observe; `--refresh N` keeps it resident |
 | `sb data <path>` | Reads a file of records as data — `--from jsonl` is one object per line. See [[jsonl-reads]] |
+| `<project>:<path>` | An address, not a command: a declared project's state directory. See [[state-root]] |
 | `sb read -- <argv>` | Shows what a command printed, verbatim. An observe, for tools with no `--json` |
 | `sb follow -- <argv>` | Holds a command's stream open. Resident by nature; any exit is a visible death. Arrows and PgUp scroll back through the ring |
 | `sb follow <path>` | Follows a file with a native stat cursor, so quiet and dead are different words. `--due 15m` makes late a word too |
@@ -342,7 +343,7 @@ check there first.
 | Code, tests, docs | this repo | the project | here |
 | Saved commands (`tools.toml`) | `~/.sky-boss/` (`$SB_HOME`) | the operator, `--save`, and the surface | never |
 | Capture formats and highlight rules (`formats.toml`) | `~/.sky-boss/` (`$SB_HOME`) | the operator | never |
-| Declared projects (`projects.toml`) | `~/.sky-boss/` (`$SB_HOME`) | the operator | never |
+| Declared projects and the agent-state root (`projects.toml`) | `~/.sky-boss/` (`$SB_HOME`) | the operator | never |
 | Backups of `tools.toml` | `~/.sky-boss/backups/` | sky.boss, before every write | never |
 | Browser profile for the canvas | `~/.local/state/sb/` (`$SB_STATE`) | the machine | never |
 | What the surface remembers about itself (`prefs.json`) | `~/.local/state/sb/` (`$SB_STATE`) | the surface | never |

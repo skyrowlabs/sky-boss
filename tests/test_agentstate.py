@@ -140,3 +140,88 @@ def test_no_root_at_all_names_both_ways_to_declare_one(home, monkeypatch):
     monkeypatch.delenv("SL_AGENT_LOGS", raising=False)
     problem = agentstate.directory("jam-sense", home).problem
     assert "SL_AGENT_LOGS" in problem and "state_root" in problem
+
+
+# ── the address form ─────────────────────────────────────────────────────────
+
+
+@pytest.fixture
+def declared(home, tmp_path, monkeypatch):
+    """A home declaring two projects, and a root holding one of them."""
+    (home / "projects.toml").write_text(
+        'state_root = "{root}"\n\n'
+        "[project.jam-sense]\nargv = [\"jam\", \"status\"]\n\n"
+        "[project.breeze-brain]\nargv = [\"bbrain\", \"status\"]\n".format(
+            root=tmp_path / "state"
+        )
+    )
+    monkeypatch.setenv("SB_HOME", str(home))
+    monkeypatch.delenv("SL_AGENT_LOGS", raising=False)
+    (tmp_path / "state" / "jam-sense" / "ledger").mkdir(parents=True)
+    return tmp_path / "state"
+
+
+def test_a_project_reference_resolves_to_a_real_path(declared, home):
+    path, problem = agentstate.resolve("jam-sense:ledger/runs.jsonl", home)
+    assert problem is None
+    assert path == str(declared / "jam-sense" / "ledger" / "runs.jsonl")
+
+
+def test_a_bare_reference_is_the_state_directory_itself(declared, home):
+    path, problem = agentstate.resolve("jam-sense:", home)
+    assert (path, problem) == (str(declared / "jam-sense"), None)
+
+
+def test_an_ordinary_path_passes_through_untouched(declared, home):
+    """This sits on the path of every file read, so it has to be inert for the
+    ordinary case."""
+    assert agentstate.resolve("ledger/runs.jsonl", home) == ("ledger/runs.jsonl", None)
+    assert agentstate.resolve("/var/log/syslog", home) == ("/var/log/syslog", None)
+
+
+def test_an_undeclared_prefix_is_not_a_reference(declared, home):
+    """The set of project names is closed and operator-authored, so a prefix
+    outside it is not an address — the string stays the literal path it always
+    was. This can never take an address away from someone not asking for one."""
+    assert agentstate.resolve("jam:ledger/runs.jsonl", home) == ("jam:ledger/runs.jsonl", None)
+    assert not agentstate.is_project_form("jam:ledger/runs.jsonl", home)
+
+
+def test_a_declared_project_with_no_state_directory_names_what_is_there(declared, home):
+    path, problem = agentstate.resolve("breeze-brain:ledger/runs.jsonl", home)
+    assert path == "breeze-brain:ledger/runs.jsonl"
+    assert "no state directory 'breeze-brain'" in problem
+    assert "the root holds jam-sense" in problem
+
+
+def test_an_existing_file_wins_over_the_project_reading(declared, home, tmp_path, monkeypatch):
+    """Same precedence `is_file_form` applies when a bare word is both an
+    executable and a file: the concrete thing wins."""
+    monkeypatch.chdir(tmp_path)
+    weird = tmp_path / "jam-sense:ledger"
+    weird.mkdir()
+    (weird / "runs.jsonl").write_text("{}\n")
+    assert agentstate.resolve("jam-sense:ledger/runs.jsonl", home)[0] == "jam-sense:ledger/runs.jsonl"
+
+
+def test_a_reference_with_no_separator_is_still_the_file_form(declared, home):
+    """`jam-sense:runs.jsonl` has no slash and would otherwise fall through to
+    the argv side and be reported as a missing command."""
+    assert agentstate.is_project_form("jam-sense:runs.jsonl", home)
+
+
+def test_the_hint_explains_why_the_other_reading_did_not_happen(declared, home):
+    hint = agentstate.unresolved_hint("jam:log/cron.log", home)
+    assert "no project 'jam' is declared" in hint
+    assert "breeze-brain, jam-sense" in hint
+
+
+def test_no_hint_for_a_declared_project_or_an_ordinary_path(declared, home):
+    assert agentstate.unresolved_hint("jam-sense:log/cron.log", home) == ""
+    assert agentstate.unresolved_hint("ledger/runs.jsonl", home) == ""
+    assert agentstate.unresolved_hint("/var/log/syslog", home) == ""
+
+
+def test_a_colon_after_a_slash_is_not_a_prefix(declared, home):
+    """`./weird:name` is a path with a colon in its basename, not an address."""
+    assert agentstate.unresolved_hint("logs/weird:name.txt", home) == ""

@@ -29,6 +29,7 @@ from __future__ import annotations
 import shlex
 import shutil
 import time
+from pathlib import Path
 from typing import Callable, Iterable
 
 import rich_click as click
@@ -188,9 +189,38 @@ def follow(
     if is_file_form(argv):
         # The native cursor, [[file-follow]]: sky.boss can stat a file, so quiet
         # and dead get different words.
+        from cli.agentstate import resolve as resolve_state
         from cli.filefollow import follow_file
 
-        follow_file(argv[0], limit=lines, screen=screen, ruleset=ruleset, due=seconds)
+        # `<project>:<path>` down to a real path — loudly here, before the
+        # stream opens, for the reason `--due` is parsed here rather than at
+        # the first tick. Inert for an ordinary path. See [[state-root]].
+        target, problem = resolve_state(argv[0])
+        if problem:
+            raise click.UsageError(problem)
+
+        # An *undeclared* prefix is not a reference, so it stays the literal
+        # path — and a literal path that is not there is the file form's normal
+        # case, because `sb follow new.log` has to be legal before the first
+        # write. That is right for a real file and useless for a typo: a
+        # mistyped project reference waits forever for a file that will never
+        # exist. Warned rather than refused, since the rare genuine colon-named
+        # file must still be followable. See [[state-root]].
+        if not Path(target).exists():
+            from cli.agentstate import unresolved_hint
+
+            hint = unresolved_hint(target)
+            if hint:
+                from cli.output import _err
+
+                # The channel every warning uses, for the reason the band does:
+                # this is status, not payload, and a follow's stdout must stay
+                # exactly the lines the file holds.
+                _err().print(
+                    f"[yellow]⚠️  waiting on {target}{hint}[/yellow]", highlight=False
+                )
+
+        follow_file(target, limit=lines, screen=screen, ruleset=ruleset, due=seconds)
     else:
         follow_process(
             list(argv),

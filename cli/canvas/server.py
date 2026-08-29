@@ -561,7 +561,15 @@ def build(canvas: Canvas | None = None) -> Starlette:
             if kind == "file":
                 from cli.filefollow import FileCursor
 
-                path = foreign[0]
+                # Resolved before the cwd join, and the order matters: a
+                # project reference resolves to an absolute path, where joining
+                # first would make `jam-sense:log/cron.log` a relative path
+                # under the window's directory. See [[state-root]].
+                from cli.agentstate import resolve as resolve_state
+
+                path, problem = resolve_state(foreign[0])
+                if problem:
+                    return JSONResponse({"error": problem}, status_code=400)
                 if cwd and not path.startswith("/"):
                     path = str(Path(cwd) / path)
                 child = await asyncio.to_thread(
