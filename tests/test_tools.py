@@ -197,6 +197,65 @@ def test_a_tilde_in_an_argv_is_expanded():
     assert "~" not in tools[0].argv[2]
 
 
+# --------------------------------------------------------------- groups
+# A group is a declared label the surfaces sort under. It is not inferred from
+# the name and not derived from what the tool wraps — the workbench's rule that
+# the contract is asserted, never inferred, governs here too. See [[tools]]
+# round 5.
+
+
+def test_a_group_is_carried_through():
+    tools, problems = one(
+        {"tool": {"prs": {"argv": ["data", "--", "x"], "group": "jam"}}}
+    )
+    assert problems == []
+    assert tools[0].group == "jam"
+
+
+def test_a_tool_with_no_group_is_ungrouped():
+    tools, _ = one(GOOD)
+    assert tools[0].group == ""
+
+
+def test_an_empty_group_is_ungrouped_rather_than_refused():
+    # A bench field left blank is the common case; refusing it would be a modal
+    # for nothing.
+    tools, problems = one({"tool": {"prs": {"argv": ["data", "--", "x"], "group": ""}}})
+    assert problems == []
+    assert tools[0].group == ""
+
+
+@pytest.mark.parametrize("group", ["Jam", "jam sense", "-jam", "jam.sense", "jam/x"])
+def test_a_group_that_is_not_a_key_is_refused(group):
+    # A group is keyed on, not just captioned: `jam ` and `jam` would be two
+    # groups that look like one.
+    tools, problems = one(
+        {"tool": {"prs": {"argv": ["data", "--", "x"], "group": group}}}
+    )
+    assert tools == []
+    assert "group" in problems[0]
+
+
+def test_a_non_string_group_is_refused():
+    tools, problems = one({"tool": {"prs": {"argv": ["data", "--", "x"], "group": 3}}})
+    assert tools == []
+    assert "group must be a string" in problems[0]
+
+
+def test_a_bad_group_costs_only_its_own_tool():
+    tools, problems = one(
+        {
+            "tool": {
+                "bad": {"argv": ["data", "--", "x"], "group": "No Good"},
+                "good": {"argv": ["data", "--", "y"], "group": "jam"},
+            }
+        }
+    )
+    assert [t.name for t in tools] == ["good"]
+    assert len(problems) == 1
+    assert "bad" in problems[0]
+
+
 def test_a_tilde_inside_a_value_is_left_alone():
     tools, _ = one({"tool": {"x": {"argv": ["data", "--", "y", "a~b"]}}})
     assert tools[0].argv[-1] == "a~b"

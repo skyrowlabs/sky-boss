@@ -74,6 +74,13 @@ class Tool:
     acts: bool = False
     resident: bool = False
     highlight: str = ""
+    # A label the surfaces sort under, never part of the address: the
+    # address `sb tools jam-pr-list` is unchanged and there is no group you
+    # can invoke, so names stay globally unique — the word typed never
+    # carries the group. Empty
+    # means ungrouped, which is where a tool goes when it says nothing.
+    # See [[tools]] round 5.
+    group: str = ""
 
 
 def home_file(home: Path | None = None) -> Path:
@@ -139,6 +146,7 @@ def parse(
                 acts=commands[argv[0]],
                 resident=argv[0] in resident,
                 highlight=str(body.get("highlight", "")),
+                group=str(body.get("group", "")),
             )
         )
 
@@ -205,6 +213,16 @@ def _check(
             # would load fine and mean nothing — the "wrong but looks right"
             # failure this loader exists to catch. See [[highlight]] round 3.
             return f"highlight is only for a follow (`{argv[0]}` is not resident)"
+
+    group = body.get("group", "")
+    if not isinstance(group, str):
+        return "group must be a string"
+    if group and not _NAME.match(group):
+        # The same shape a tool name takes, because a group is a *key* as well
+        # as a caption: the collapsed-state store is keyed on it and the writer
+        # splices it. A free-text label makes `jam ` and `jam` two groups that
+        # look like one. The rail uppercases it, which is where the caption is.
+        return "group must be lowercase letters, digits and hyphens"
 
     if refresh not in INTERVALS:
         # Not pedantry: the surface cycles the interval through this list, and
@@ -322,6 +340,11 @@ def make_command(tool: Tool) -> click.Command:
     # `sb_surface` rather than by consulting a list of names.
     command.sb_saved = True
     command.sb_refresh = tool.refresh
+    # Declared, not inherited — unlike `acts`, a group is a statement about
+    # where the operator wants to see this, which nothing can derive. Rides the
+    # same path every other property does: a property on the command, never a
+    # name written down in a module. See [[tools]] round 5.
+    command.sb_group = tool.group
     command.sb_argv = tuple(tool.argv)
     # Inherited, never declared. The catalog reads this rather than the command
     # path, because the path of `sb deploy-thing` says nothing about the `run`
