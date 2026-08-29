@@ -305,7 +305,7 @@ a perfectly valid group name and silently a second group, where `Jam` at least g
       and highlights. *The envelope grows a `groups` key **always**, the shape `formats` and
       `highlights` already have — so "byte-identical" narrowed to "the `tools` table is unchanged".
       See Notes.*
-- [ ] **The catalog carries the ordered list**, and `sectionsOf` in `app.js` becomes a bucket-by-
+- [x] **The catalog carries the ordered list**, and `sectionsOf` in `app.js` becomes a bucket-by-
       name rather than a second copy of the ordering rule.
 - [ ] **The writer.** `write_group`, `remove_group` — refusing one that any command still names,
       naming them — and `block_range` generalised to a table prefix so it can find `[group.x]`.

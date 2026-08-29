@@ -286,6 +286,14 @@ def build(canvas: Canvas | None = None) -> Starlette:
         return JSONResponse(
             {
                 "commands": catalog(),
+                # Every group that exists — declared, named by a command, or
+                # both — already ordered and counted. Computed in
+                # `cli.tools.sections` rather than in the rail: round 5 had
+                # `app.js` holding the ordering rule, and that became one copy
+                # too many the moment a group could also be *declared*, because
+                # the rail would then need to know about a file it never reads.
+                # See [[tools]] round 6.
+                "groups": tools_.sections(tools_.registered(), tools_.GROUPS),
                 "intervals": list(INTERVALS),
                 "home": str(Path.home()),
             }

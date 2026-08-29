@@ -288,23 +288,26 @@ function useNow() {
  * carries, so a tool that stops existing stops appearing here with no code
  * involved. See [[tools]].
  */
-/* Sections, in the order `cli/tools.py` gives the listing: named groups
- * alphabetical, the ungrouped last. Within a group nothing sorts here — the
- * catalog already walks `sorted(command.commands)`, so the entries arrive in
- * name order and re-sorting would be a second copy of a rule that is decided
- * in Python on purpose. See [[tools]] round 5. */
-function sectionsOf(saved) {
+/* Sections, in the order the *server* gives them.
+ *
+ * Round 5 sorted here. That was one copy too many the moment a group could be
+ * *declared* as well as named, because an empty group appears in no command's
+ * `group` field and the rail would have had to know about a file it never
+ * reads. `/api/catalog` now ships `groups` already ordered and counted, from
+ * `cli.tools.sections`, and this only buckets. Within a group nothing sorts
+ * here either: the catalog walks `sorted(command.commands)`.
+ *
+ * The ungrouped are appended last and are deliberately *not* a server-side
+ * group — they are a bucket, and a bucket cannot be deleted. */
+function sectionsOf(saved, groups) {
   const by = new Map();
   for (const c of saved) {
     const key = c.group || "";
     if (!by.has(key)) by.set(key, []);
     by.get(key).push(c);
   }
-  const sections = [...by.keys()]
-    .filter(Boolean)
-    .sort()
-    .map((g) => [g, by.get(g)]);
-  if (by.has("")) sections.push(["", by.get("")]);
+  const sections = groups.map((g) => [g.name, by.get(g.name) || [], g]);
+  if (by.has("")) sections.push(["", by.get(""), null]);
   return sections;
 }
 
@@ -318,9 +321,9 @@ function sectionsOf(saved) {
  * Read once on mount and written on every toggle. Both directions swallow
  * their failure in `api.js`, so an unreachable preference costs the fold and
  * never the rail — everything open is the honest degradation. */
-function Tools({ commands, open, edit, drop }) {
+function Tools({ commands, groups, open, edit, drop }) {
   const saved = commands.filter((c) => c.saved);
-  const sections = sectionsOf(saved);
+  const sections = sectionsOf(saved, groups);
   const [folded, setFolded] = useState(() => new Set());
   useEffect(() => {
     let live = true;
@@ -826,6 +829,9 @@ function Window({ win, now, layout, focused, actions, intervals }) {
 
 function App() {
   const [commands, setCommands] = useState([]);
+  /* Every group that exists — declared, named, or both — ordered and counted
+   * by the server. See [[tools]] round 6. */
+  const [groups, setGroups] = useState([]);
   const [intervals, setIntervals] = useState([0, 5, 30, 60, 300]);
   /* Where a raw command runs unless the window says otherwise. Supplied by the
    * server rather than assumed, since the browser cannot know it. */
@@ -858,6 +864,7 @@ function App() {
   useEffect(() => {
     api.catalog().then((body) => {
       setCommands(body.commands);
+      setGroups(body.groups || []);
       setIntervals(body.intervals);
       setHome(body.home || "");
       /* Only into a draft nobody has touched. Overwriting a typed `--cwd`
@@ -1532,7 +1539,10 @@ function App() {
             window.alert(`Could not delete ${name}: ${result.error}`);
             return;
           }
-          api.catalog().then((c) => setCommands(c.commands));
+          api.catalog().then((c) => {
+              setCommands(c.commands);
+              setGroups(c.groups || []);
+            });
         })
         .catch((error) => window.alert(`Could not delete ${name}: ${error}`));
     },
@@ -1611,7 +1621,10 @@ function App() {
            * answers are the server's. Without the second, the button stayed
            * enabled on a name that would now be refused. */
           if (ok) {
-            api.catalog().then((c) => setCommands(c.commands));
+            api.catalog().then((c) => {
+              setCommands(c.commands);
+              setGroups(c.groups || []);
+            });
             preflight(draftRef.current);
           }
         })
@@ -1790,6 +1803,7 @@ function App() {
             <div class="stage">
               <${Tools}
                 commands=${commands}
+                groups=${groups}
                 open=${open}
                 edit=${benchActions.edit}
                 drop=${benchActions.forget}
