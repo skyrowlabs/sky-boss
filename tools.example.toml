@@ -28,10 +28,25 @@
 # It never becomes part of the address: `sb tools prs`, never `sb tools jam prs`,
 # and names stay unique across every group. Leave it out to be ungrouped.
 #
+# A group exists if any command names it, or if it is declared with a
+# [group.NAME] table of its own — neither implies the other. Declaring one is
+# how an *empty* group exists, which is what the rail's "+ group" button
+# writes. A declared group may carry a description and nothing else.
+#
 # A leading ~ in an argv is expanded, so your own paths work.
 # A tool takes no arguments: `sb prs 945` is an error, not an append.
 # A tool can never shadow a sb command; that declaration is skipped and named.
 # `sb tools` lists what loaded, and what was refused and why.
+
+[group.code]
+description = "Anything about a checkout"
+
+[group.box]
+description = "This machine"
+
+# Declared and empty: it exists so you can drag things into it. Delete it from
+# the rail — that only works while nothing is in it.
+[group.archive]
 
 [tool.prs]
 description = "Open pull requests"
