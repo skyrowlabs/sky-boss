@@ -397,6 +397,12 @@ the grounds that a resident render has no single envelope. A resident render als
 here. `sb data --refresh` down a pipe should say so and name the fix — drop `--refresh` for a single
 read — instead of producing nothing for as long as you let it run.
 
+**And the consumer's version of that argument is stronger than the renderer's.** The alternative —
+render once and ignore `--refresh` — is not merely untidy: an automation that pipes this does not
+get a wrong answer, it **hangs**, because the command is resident and never exits. Refusing turns a
+hang into a sentence. That is `CLAUDE.md` § *Worked fine, told nobody*, which this is one of the
+five instances of.
+
 **What is still open is termination, and the two forms may not answer it alike.** The ruling was
 about rendering. On a terminal, a dead stream keeps drawing: "a corpse on screen is information."
 A pipe has no screen to keep it on, so the question is what the *last bytes* are.

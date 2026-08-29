@@ -521,6 +521,25 @@ Shared with sibling CLIs so the family feels like one tool.
 - **Degrade gracefully.** An unreachable host or absent config warns in yellow on **stderr** and
   continues. Keep stdout clean so `--json` stays parseable, and never collapse "reports clear" into
   "cannot see".
+- **Worked fine, told nobody.** The rule above, turned on sky.boss itself, and it is the failure this
+  repo produces most. A command that runs perfectly and renders nothing leaves a consumer unable to
+  tell *absence of output* from *absence of event* — which is the same lie as a wrong answer, minus
+  the chance of noticing. Named 2026-08-29 by the skyrow-workspace session after a day that produced
+  five instances: `sb follow` down a pipe drew nothing while the loop ran (fixed); `sb data
+  --refresh` down a pipe still does, and **hangs** while doing it, because it is resident and never
+  exits; `sb ui --no-browser` promises to print a URL and prints nothing, because `server.run()`
+  blocks before `emit` renders; a typo'd table in `projects.toml` returned zero projects and zero
+  problems, identical to a fresh clone (fixed); and jam.sense's `state_dir(INFLIGHT, "inflight")`
+  was green in its own suite because the writer and the reader agreed with each other.
+
+  The tell is always the same: **the silent path and the healthy path are the same bytes.** When a
+  command can produce nothing, ask what a consumer seeing nothing would conclude, and if the answer
+  is "the same thing they'd conclude if it never ran", say something. Refusing is a legitimate way
+  to say it — a refusal is a sentence where a hang is not. See [[open]] § Where a follow ends.
+
+  Four of the five were found by a *consumer* rather than by this repo's tests, which is the part
+  worth taking seriously: a reader cannot see its own blind spot, and the suite is written by the
+  same reader.
 - **`.env` is gitignored and never committed.** Ship a `.env.example`.
 
 ## Feature workflow
