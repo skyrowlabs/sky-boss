@@ -1,7 +1,7 @@
 ---
 status: complete
 created: 2026-08-20
-updated: 2026-08-22
+updated: 2026-08-28
 agent_value: 3
 key_files:
   - cli/canvas/server.py
@@ -114,6 +114,75 @@ auto-refreshing a write is a scheduler nobody asked for.
   that reads as information. Round 5 ships the bar only for the one quantity actually known.
 
 ## Phases
+
+### Round 8 — tiled did not tile (2026-08-28)
+
+Reported by the operator across three messages, each a different way of noticing the same thing:
+*"if I run 1 command the window should take up all of the space shouldn't it"*, then *"like a
+tiling manager like i3 where every time you add a command it splits the window space"*, then
+*"the tiles are not stretching."*
+
+**They were right, and the layout was never tiling.** Measured on a live canvas:
+
+```
+canvas                 2298 x 1157
+one window             561 x 86      — 24% of the width, 7% of the height
+gridTemplateColumns    560.656px 560.656px 560.656px 560.656px   ← three tracks empty
+```
+
+Two independent causes, in `sb.css`:
+
+- **`repeat(auto-fill, minmax(115rem, 1fr))`** builds every track that fits *whether or not
+  anything occupies it*. `auto-fit` collapses the empty ones. Swapped live on the same canvas:
+  `auto-fill` → 548px, `auto-fit` → 2248px.
+- **`align-content: start` with content-sized rows and `max-height: 115rem` per window.** Even at
+  full width a window is as tall as its content, capped at 529px.
+
+**The cost is not cosmetic**, which is what took three messages to surface. Running
+`read -- jam pr list` in a tiled window looked like sky.boss was dropping output. It was not —
+the window's text is byte-identical to the terminal's — but the window took 620x320 of the canvas
+and put **206px of visible body over 336px of content**, so two thirds of the result was behind a
+scroll on a canvas with 1157px going spare. A surface that shows a third of an answer while
+looking finished is the same failure as a palette offering a command that does not exist.
+
+**A tile divides the canvas; it does not sit in a strip at the top of it.**
+
+Columns come from the **count**, not from a fixed minimum: `ceil(sqrt(n))`, so one window fills,
+two split down the middle, four quarter it. Rows stretch (`grid-auto-rows: 1fr`,
+`align-content: stretch`), and the per-window `max-height` goes.
+
+**`max-height` was load-bearing and is replaced rather than deleted.** Its comment says why it
+existed — *"without this a thirty-row table makes one window taller than the canvas and pushes
+every other window off it"* — and that is exactly what content-sized rows do. Stretched rows are
+bounded by the canvas by construction, so the table now scrolls inside its own tile, which is what
+the cap was trying to approximate.
+
+**Does not do:**
+
+- **Not i3.** No BSP tree, no per-node split ratios, no `move left/right`. The tree itself is
+  ~80 lines; what it drags in is the cost. i3 splits *the focused container* and this surface has
+  no notion of focus — no current window, no keyboard navigation, no rule for what takes focus when
+  one closes — so focus alone is a larger change than the tiling, and split direction, gutter
+  resize and tree restructuring each follow it. There is also nowhere honest to test it:
+  `CLAUDE.md` records that the frontend has **no test runner**, and a layout tree is precisely the
+  pure, off-by-one-prone code a runner exists for. `cli/view.py` solved that by putting the
+  deciding half in Python, and a layout tree cannot go there — it changes on every drag.
+  Revisit when it is possible to say which of focus, resize or move is actually missed.
+- **No resize handle in tiled mode.** `app.js` renders `.resize` only under `FLOAT`, and that
+  stays: a grid item's size is the grid's to decide, and a drag that fought the layout would be a
+  control that appears to work and does not. Verified — 0 handles tiled, 2 floating.
+- **Does not remember a layout.** Nothing on this surface survives a reload, and a JS edit forces
+  one. An arrangement you lose every reload is worse than one you never made.
+- **Does not pass the tile's width to the child.** A tool that lays out to its own default still
+  will, however wide the tile. That is [[subprocess-env]]'s question — round 2 excluded the canvas
+  on the grounds that *"a browser window's character width is not a number the server knows"* —
+  and it is a round of that doc, not of this one.
+
+- [x] **Columns from the count**, rows stretched, `max-height` gone. Measured at 1, 2, 3, 4 and 6
+      windows and at more than one `--scale`, because a layout verified at one scale has been
+      verified once.
+- [x] **The body scrolls inside the tile**, so a long result is bounded by the canvas rather than
+      by a fixed cap.
 
 ### Round 7 — the palette accepts a command that is not sky.boss's (2026-08-21)
 
@@ -570,3 +639,50 @@ engineering survives unchanged — frameless is a request a window manager may r
 measurement that proved it is still here. What went is the claim that it is *this* desktop's
 behaviour, which was never the point and could not be published.
 
+### Round 8 — executed (2026-08-28)
+
+Three CSS declarations and one function, and the whole round was in the measuring.
+
+**Measured at every count, and the numbers are the proof the old layout never tiled:**
+
+```
+n=1   1x1   2298 x 1134      (was 561 x 86)
+n=2   2x1   1140 x 1134
+n=3   2x2   1140 x 558
+n=4   2x2   1140 x 558
+n=5   3x2    754 x 558
+n=6   3x2    754 x 558
+```
+
+The case that produced the report — `read -- jam pr list` in a tile — went from **206px of visible
+body over 336px of content** to `bodyVisible 1031, bodyActual 1031, fullyVisible: true`. Nothing
+about the output changed; it was never truncated. What changed is that the window stopped being a
+keyhole.
+
+**Swept five scales**, per the rule this repo learned in [[workbench]] round 4: 0.9, 1.15, 1.6,
+2.0 and 2.4 all cover 90–97% of the canvas with no horizontal overflow. The coverage falls with
+scale because the gap is a fixed `4rem` that grows while the canvas does not — expected, and the
+reason to check rather than assume.
+
+**The `htm` comment trap caught this round, from a standing start.** `CLAUDE.md` documents it
+exactly — *a `/* … */` written inside a tag is parsed as attribute text and silently mangles that
+element's children* — and the first attempt put a four-line comment inside the `<div class="canvas">`
+opening tag, between `ref` and `style`. The documented symptom is vanishing children; the observed
+symptom was a **blank page**, because the element whose children vanished was the canvas itself.
+Worth adding to the note: the failure scales with what the element contained, so the same mistake
+reads as a missing input in one place and a dead surface in another. Found by reloading and
+reading the DOM back, which is the obligation `CLAUDE.md` records — the suite cannot see it,
+because there is no JS test runner.
+
+**`max-height: 115rem` was deleted and its job kept.** Its comment was a real constraint — a
+thirty-row table otherwise pushes every other window off the canvas — but with stretched rows the
+row is bounded by the canvas by construction, so the cap was approximating something the layout
+now guarantees. Replaced with `min-height: 0`, which is what lets the body scroll inside the tile
+rather than expanding it.
+
+**What was not built, and the reason is worth keeping.** The operator asked whether an i3-style
+BSP split was too complicated. The tiling arithmetic is not the cost — a tree with per-node ratios
+is ~80 lines. Focus is: i3 splits *the focused container*, this surface has no notion of focus, and
+adding one brings keyboard navigation, a focus ring, and a rule for what takes focus when a window
+closes — each larger than this round. That, plus the absence of a JS test runner for exactly the
+kind of code a layout tree is, is why this round is a grid and not a tree.
