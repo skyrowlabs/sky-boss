@@ -31,7 +31,7 @@ import rich_click as click
 
 from cli import tools as tools_
 from cli.helpers import child_env, parse_env
-from cli.output import Result, band, emit, refuse_resident_json
+from cli.output import Result, band, emit, refuse_resident_json, refuse_resident_pipe
 
 # A 120k-line result kills a browser tab as dead as it killed a RichLog. The
 # substrate changed; the rule did not.
@@ -108,6 +108,7 @@ def read_(
     # Before the write, not inside the resident path — same defect `data` had.
     # See [[workbench]] round 3.
     refuse_resident_json(refresh)
+    refuse_resident_pipe(refresh)
     # Saved *before* the run, so a resident invocation saves at all (it never
     # reaches its own exit) and a failing one still saves. You are saving an
     # argv, not a result. See [[tools]] round 3.
@@ -283,6 +284,7 @@ def _reside(
     ctx = click.get_current_context()
     # Belt and braces: the caller refuses this before `--save` writes.
     refuse_resident_json(refresh)
+    refuse_resident_pipe(refresh)
     source = f"{ctx.info_name} -- {shlex.join(argv)}"
     resident.reside(source, refresh, lambda: _once(argv, timeout, cwd, env), screen=screen)
     raise click.exceptions.Exit(0)

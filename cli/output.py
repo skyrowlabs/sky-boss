@@ -984,6 +984,65 @@ def refuse_resident_json(refresh: int | None) -> None:
         raise click.UsageError("--refresh and --json refuse each other")
 
 
+def serving_note(url: str, mode: str) -> None:
+    """Say where the surface is, on stderr, **before** the server blocks.
+
+    `sb ui --no-browser` documented itself as *"print the URL and wait"* and
+    only did the second half: `emit` renders when a command *returns*, and every
+    foreground-serving mode calls `server.run()`, which returns when the server
+    stops. The URL was computed and never reached anyone — a zero-byte log
+    beside a listening socket. Worse in the browser path's fallback, whose whole
+    message is *"serving only — open {url}"*.
+
+    stderr for the reason `saved_note` uses it: this is status, not payload, and
+    a resident command has no envelope to put it in. See [[canvas]] round 9 and
+    `CLAUDE.md` § *Worked fine, told nobody*.
+    """
+    band(
+        [
+            ("serving ", "sb.label"),
+            (url, "sb.accent"),
+            (f"  {mode}", "sb.muted"),
+            ("  ctrl-c to stop", "sb.muted"),
+        ]
+    )
+
+
+def refuse_resident_pipe(refresh: int | None) -> None:
+    """A `--refresh` with no terminal to draw on is a usage error.
+
+    **The same rule as `refuse_resident_json`, one step further.** That one
+    turns down `--json --refresh` because a resident redraw is a *human
+    rendering* and under `--json` it would be an endless stream of envelopes on
+    a pipe expecting one. Off a terminal there is no human rendering to do at
+    all: `rich.Live` owns a cursor, a pipe has none, so every frame is
+    suppressed while the loop runs perfectly.
+
+    **And the caller does not get a wrong answer, it hangs** — residency is
+    endless by nature, so `sb data --refresh 2 … | cat` produced 0 bytes for as
+    long as you let it run, where the same command on a terminal rendered
+    14,237. A refusal is a sentence where a hang is not. See [[refresh]] round
+    3 and `CLAUDE.md` § *Worked fine, told nobody*.
+
+    Raised at the door for the ordering reason its sibling documents: `--save`
+    writes before it runs, so a refusal raised inside the resident path fires
+    after the append.
+
+    `--screen` does not exempt it. The alternate screen is more of a terminal
+    requirement than the inline path, not less.
+    """
+    if refresh is None:
+        return
+    # stdout specifically: `resident.reside` renders there, so a terminal on
+    # stderr is no help. Asked through `_out()` rather than a fresh Console so
+    # the suite's redirection is the one answering.
+    if _out().is_terminal:
+        return
+    raise click.UsageError(
+        "--refresh needs a terminal to draw on — drop it for a single read"
+    )
+
+
 def emit(func):
     """Wrap a command that returns a :class:`Result`.
 

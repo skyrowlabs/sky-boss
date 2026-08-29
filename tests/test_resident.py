@@ -184,7 +184,7 @@ def test_a_refresh_of_zero_is_a_usage_error_on_read_and_data():
     assert result.exit_code == 2
 
 
-def test_a_resident_read_runs_through_the_loop(monkeypatch):
+def test_a_resident_read_runs_through_the_loop(monkeypatch, at_a_terminal):
     """The command hands the loop its own snapshot closure — proven by
     intercepting reside() rather than by waiting on a real residency."""
     calls = {}
@@ -234,7 +234,7 @@ def test_a_keyword_runs_once_unless_the_flag_is_given(tmp_path):
         undeclare()
 
 
-def test_a_bare_refresh_on_a_keyword_adopts_its_own_field(tmp_path, monkeypatch):
+def test_a_bare_refresh_on_a_keyword_adopts_its_own_field(tmp_path, monkeypatch, at_a_terminal):
     calls = {}
 
     def fake_reside(source, interval, run_once, **kwargs):
@@ -250,7 +250,7 @@ def test_a_bare_refresh_on_a_keyword_adopts_its_own_field(tmp_path, monkeypatch)
         undeclare()
 
 
-def test_an_explicit_value_outranks_the_field(tmp_path, monkeypatch):
+def test_an_explicit_value_outranks_the_field(tmp_path, monkeypatch, at_a_terminal):
     calls = {}
     monkeypatch.setattr(
         "cli.resident.reside", lambda source, interval, run_once, **kw: calls.update(interval=interval)
@@ -365,7 +365,7 @@ def test_the_refresh_help_says_how_to_leave(said):
         assert "q, Esc or Ctrl-C to leave" in help_text
 
 
-def test_the_screen_flag_reaches_the_resident_loop(monkeypatch):
+def test_the_screen_flag_reaches_the_resident_loop(monkeypatch, at_a_terminal):
     seen = {}
     monkeypatch.setattr(
         "cli.resident.reside",
@@ -432,3 +432,67 @@ def test_clipping_a_stream_does_not_repaint_the_body():
     assert out.plain[warn[0].start : warn[0].end].startswith("31 more lines")
     # ...and the body's own roles survived the cut.
     assert any(str(s.style) == "sb.num" for s in out.spans)
+
+
+# ============================================================================
+# A cadence needs a screen — [[refresh]] round 3
+# ============================================================================
+
+
+def test_a_piped_refresh_is_a_usage_error_not_a_silence():
+    """The defect this closes: `sb data --refresh 2 … | cat` rendered 0 bytes
+    and never exited, because `rich.Live` owns a cursor and a pipe has none.
+    Residency is endless, so the caller did not get a wrong answer — it hung.
+    A refusal is a sentence where a hang is not."""
+    for argv in (
+        ["data", "--refresh", "2", "--", "printf", "[]"],
+        ["read", "--refresh", "2", "--", "printf", "hi"],
+    ):
+        result = CliRunner().invoke(cli, argv)
+        assert result.exit_code == 2, argv
+        assert "needs a terminal" in result.output
+
+
+def test_the_refusal_names_the_fix():
+    result = CliRunner().invoke(cli, ["data", "--refresh", "2", "--", "printf", "[]"])
+    assert "drop it for a single read" in result.output
+
+
+def test_screen_does_not_exempt_it():
+    """The alternate screen is *more* of a terminal requirement, not less."""
+    result = CliRunner().invoke(
+        cli, ["read", "--refresh", "2", "--screen", "--", "printf", "hi"]
+    )
+    assert result.exit_code == 2
+
+
+def test_a_single_read_is_untouched_off_a_terminal():
+    """The refusal is about the cadence, not about the pipe. Everything without
+    `--refresh` must keep working exactly as it did — this is the whole reason
+    it is a usage error on one flag rather than a mode."""
+    result = CliRunner().invoke(cli, ["read", "--", "printf", "hi"])
+    assert result.exit_code == 0
+    assert "hi" in result.output
+
+
+def test_the_refusal_fires_before_save_writes(tmp_path, monkeypatch):
+    """Same ordering its sibling documents: `--save` writes before it runs, so a
+    refusal raised inside the resident path would fire after the append — a name
+    taken, a file changed, and a failure reported."""
+    monkeypatch.setattr("cli.tools.SB_HOME", tmp_path)
+    result = CliRunner().invoke(
+        cli, ["read", "--refresh", "30", "--save", "prs", "--", "printf", "hi"]
+    )
+    assert result.exit_code == 2
+    assert not (tmp_path / "tools.toml").exists()
+
+
+def test_a_terminal_still_goes_resident(at_a_terminal, monkeypatch):
+    reached = {}
+    monkeypatch.setattr(
+        "cli.resident.reside",
+        lambda source, interval, run_once, **kw: reached.update(interval=interval),
+    )
+    result = CliRunner().invoke(cli, ["read", "--refresh", "7", "--", "printf", "hi"])
+    assert result.exit_code == 0
+    assert reached == {"interval": 7}

@@ -1,7 +1,7 @@
 ---
 status: complete
 created: 2026-08-20
-updated: 2026-08-28
+updated: 2026-08-29
 agent_value: 3
 key_files:
   - cli/canvas/server.py
@@ -114,6 +114,33 @@ auto-refreshing a write is a scheduler nobody asked for.
   that reads as information. Round 5 ships the bar only for the one quantity actually known.
 
 ## Phases
+
+### Round 9 — the URL it promised to print (2026-08-29)
+
+`sb ui --no-browser` documents itself as *"Serve only; print the URL and wait."* It waits. It does
+not print — the log file is zero bytes while the socket is happily listening.
+
+**Why:** `emit` renders the envelope when the command *returns*, and every foreground-serving mode
+calls `server.run()`, which returns when the server stops. The URL is computed at the top of the
+function and never reaches anyone.
+
+**A second instance in a worse place.** The browser path's fallback does
+`result.degrade(f"no chromium-family browser found; serving only — open {url}")` and then blocks on
+the same `server.run()`. So the one message whose entire purpose is to hand the operator a URL to
+open by hand is also never printed. Found while looking for the first.
+
+**The fix respects "commands return data; they never print" by using the exception that already
+exists for this.** A resident command that renders its own last frame ends with
+`raise click.exceptions.Exit(0)` rather than returning — `cli/data.py`'s `_reside` says so
+explicitly. `sb ui` is resident by the same definition, so it announces on **stderr** before it
+blocks, exactly as `saved_note` does for a `--save` that precedes a stream, and for the same
+reason: this is status, not payload.
+
+- [x] A band on stderr before any foreground `server.run()`, naming the URL and the mode.
+- [x] The degrade path prints too — it is the one that most needs to.
+- [x] `sb --json ui` refuses, as `follow` already does: a resident surface has no envelope, and
+      today it silently produces none.
+- [x] A test that the URL reaches stderr before the server blocks.
 
 ### Round 8 — tiled did not tile (2026-08-28)
 
@@ -686,3 +713,25 @@ is ~80 lines. Focus is: i3 splits *the focused container*, this surface has no n
 adding one brings keyboard navigation, a focus ring, and a rule for what takes focus when a window
 closes — each larger than this round. That, plus the absence of a JS test runner for exactly the
 kind of code a layout tree is, is why this round is a grid and not a tree.
+
+### 2026-08-29 — round 9, and the third instance nobody was looking for
+
+Opened because a consumer could not find the URL. Closing it turned up two more of the same shape in
+the same function, neither of which anyone had reported.
+
+**The degrade path was worse than the reported bug.** `no chromium-family browser found; serving
+only — open {url}` exists solely to hand over a URL, and it blocked on the same `server.run()` that
+swallowed the first one. A message whose entire content is an instruction, delivered to nobody.
+
+**And `sb --json ui` was the same failure wearing an envelope.** It has `@emit`, so it promises JSON;
+it then blocks in `server.run()` and prints nothing at all. `sb follow` already refuses `--json` with
+*"resident and emits no envelope"* — the identical situation, decided a week earlier, in a command
+one directory away. Now refused the same way.
+
+Three instances in one function, from one report. That is the argument for treating *"worked fine,
+told nobody"* as a class to sweep for rather than a bug to fix: the reporter found the one that cost
+them something, and the other two were sitting beside it.
+
+`serving_note` lives in `cli/output.py` next to `saved_note` because it is the same thing — status
+on stderr, before a resident command stops returning. Commands still never print; this is the band
+mechanism they already had.

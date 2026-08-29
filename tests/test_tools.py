@@ -872,7 +872,7 @@ def test_a_failing_command_still_saves_because_an_argv_is_not_a_result(tmp_path,
     assert "[tool.nope]" in (tmp_path / "tools.toml").read_text()
 
 
-def test_a_resident_read_saves_before_it_goes_resident(tmp_path, monkeypatch):
+def test_a_resident_read_saves_before_it_goes_resident(tmp_path, monkeypatch, at_a_terminal):
     """A residency never reaches its own exit, so saving after the run would
     mean the flag silently did nothing on exactly the invocations most worth
     keeping."""
