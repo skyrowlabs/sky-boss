@@ -124,31 +124,96 @@ expression), `next_run` **already computed**, `last_run`, `overdue`, `scheduled_
 discards most of it at the view layer. So there is no new source contract to negotiate with a
 sibling repo, and nothing here is blocked on jam.sense.
 
-**What is actually open is the vocabulary, and it is a narrowing of a stated refusal.**
-`cli/rollcall.py`: *"sky.boss folds sources, not semantics. No common status vocabulary, no
-cross-project verdict."* A schedule view across projects needs exactly that — some shared idea of
-what a row is. The distinction that would license a narrow one: roll-call refuses to decide what
-another tool's **word** means, and a cron expression and an ISO timestamp are not words, they are
-measurements. sky.boss can fold *when* without folding *how bad*. That argument has to be made
-explicitly and dated if this is built, because it genuinely narrows a rule this repo states twice.
+**Answered 2026-08-29, not built.** Five questions, and the first was misframed. What follows is
+the recommendation on each; the boundary above is unchanged.
 
-If it holds, the vocabulary should be the smallest that supports a time axis — name, schedule, next,
-last — with everything else staying the provider's and drawn in its own block. Which is **item 17b
-arriving in a second place**: what a row shows when the provider knows more than the interface. Two
-occurrences is the point at which that question stops being deferrable.
+**~~It is a narrowing of a stated refusal.~~ It is not — the refusal does not apply.** The original
+argument, kept because it is the one a reader will reach for and it is weaker than it looks:
 
-**Three things it would have to get right, none of them the boundary:**
+> `cli/rollcall.py`: *"sky.boss folds sources, not semantics. No common status vocabulary, no
+> cross-project verdict."* A schedule view needs exactly that. The distinction that would license a
+> narrow one: roll-call refuses to decide what another tool's **word** means, and a cron expression
+> and an ISO timestamp are not words, they are measurements.
 
-- **A project with no scheduler at all.** breeze-brain has none today. That must read as *this
-  project declares no schedule* and never as an error or an empty row, which reads as *nothing is
-  scheduled*. Same shape as the absent state directory in [[state-root]], and the same fix: say
-  which of the two it is.
-- **sky.boss has no time axis anywhere.** `run`, `read`, `follow`, `data` and `roll-call` are all
-  *now*. This is the first thing needing a future tense, and *what should have fired and did not*
-  needs a past — which is item 5, on the ledger. Items 6–9 are the primitives underneath it.
-- **Whose clock.** `next_run` arriving pre-computed from the provider is convenient and is also the
-  provider's answer to item 9. Two projects could disagree about what time it is, and a view that
-  merged them would be asserting a resolution nobody made.
+That asks a reader to accept a new distinction. None is needed. Read what roll-call refuses: *no
+common **status** vocabulary, no cross-project **verdict**, no totalling of anyone's `red`* — three
+clauses, all of them about producing a judgment sky.boss is not entitled to make. **A schedule row
+makes none.** It says when, not how bad. The rule is about verdicts and a schedule is not one, so
+this is a question the refusal never covered rather than an exception to it. Still to be written
+down and dated if built, because "no common vocabulary" reads at a glance as forbidding it.
+
+The test to carry forward: **sky.boss may order; only a provider may judge.**
+
+**The vocabulary: `name`, `schedule`, `next`, `last`.** Everything else stays the provider's and is
+drawn in its own block — item 17b, still open, now in its second place.
+
+- **`schedule` is opaque and never parsed.** Parsing `15 5 * * *` puts a second implementation of
+  cron semantics beside the real one, and it will be wrong about DST before it is wrong about
+  anything else. Shown verbatim, which is the `sb read` rule.
+- **`next` is provider-supplied or absent — sky.boss never computes it from `schedule`.** Deriving
+  it is that same second implementation wearing a helpful face. Nothing needs deriving today:
+  jam.sense supplies `next_run` for all 31 jobs.
+
+**A project with no schedule is counted, never drawn.** It does not appear in the rows and the view
+reports the arithmetic — *"2 of 3 projects declare a schedule"*. Not a blank row, because rows sort
+by time and a row with no time has nowhere honest to go. roll-call's *one project down is partial,
+never blank* is the same instinct: report the absence, do not render it. breeze-brain is the case,
+today.
+
+A **second** absence is already in the data and wants a different word: `test-gap-drain` has no
+`last_run` at all — a job that has never run, which is not the same as a project that declares no
+schedule, and neither is an empty cell.
+
+**The time axis: build the future, leave the past.** *What fires next across all projects* is one
+sort over provider-supplied timestamps — no new primitive, no history, no clock of sky.boss's own.
+This matters because sky.boss has **no time axis anywhere**: `run`, `read`, `follow`, `data` and
+`roll-call` are all *now*, so this is the first future tense in the tool.
+
+*What should have fired and did not* stays out. It needs history (item 5) **and** a notion of
+lateness, and lateness is a judgment — the one place the roll-call refusal genuinely does bite.
+jam.sense already computes `overdue`; display that field and never compute a rival. Note it is
+`False` for all 31 jobs today, so the late-rendering has **no evidence behind it** — the same shape
+items 1 and 5 were in before the ledger arrived, and the same answer: do not draw a state you have
+never seen.
+
+**Whose clock: parse to an instant, never compare strings.** `next_run` arriving pre-computed is the
+provider's answer to item 9 rather than a convenience, and the payload already carries the trap. One
+response, the same jobs, two fields:
+
+```
+next_run    all -05:00      2026-08-30T05:15:00-05:00
+last_run    all +00:00      2026-08-29T10:19:15+00:00
+```
+
+A lexical sort of `next_run` is correct today *only* because those 31 values happen to share an
+offset. It breaks the moment two projects disagree, or the moment anything sorts those two fields
+together. So an offset is required, a naive timestamp is a declaration error rather than something
+to guess a zone for, and sorting is on the parsed instant.
+
+**Never normalize for display.** Show each provider's own string with its own offset. Two projects
+disagreeing about what time it is should be visible rather than merged into a resolution nobody
+made. That also disposes of item 9's selector half: sky.boss does not pick a clock, it reads the one
+each provider stamped.
+
+**The mechanism: a declared mapping over the source that already exists.** No second command, no
+second subprocess.
+
+```toml
+[project.jam-sense.schedule]
+rows = "jobs"
+name = "job"
+schedule = "schedule"
+next = "next_run"
+last = "last_run"
+```
+
+The operator asserting structure, exactly as `--rows`, `--cols` and `--from` already have them do. A
+separate schedule *source*, for a project whose schedule does not ride its status payload, is easy
+to add later and hard to take back — the argument that settled one state root rather than one per
+project.
+
+**Still open after all that:** whether it is worth building now, given items 5–9 sit underneath it
+and jam.sense is the only project that would populate it.
 
 **Cheap and independent of all of it:** widen that `cols` and look at a real schedule table before
 designing one. The rows are already there.
