@@ -410,6 +410,66 @@ def test_a_file_with_no_groups_lists_exactly_as_it_did_before_groups(saved):
     assert all("group" not in r for r in rows)
 
 
+def test_the_listing_shows_a_group_with_nothing_in_it(saved, tmp_path):
+    """The reason declared groups exist at all: an empty one has to be visible
+    from the terminal, or the rail and the CLI disagree about what there is."""
+    from click.testing import CliRunner
+
+    saved(
+        '[group.jam]\ndescription = "jam.sense"\n'
+        "[group.archive]\n"
+        '[tool.prs]\ngroup = "jam"\nargv = ["data", "--", "printf", "[]"]\n'
+    )
+    groups = json.loads(CliRunner().invoke(cli, ["--json", "tools"]).stdout)["data"]["groups"]
+    assert groups == [
+        {"name": "archive", "description": "", "commands": 0, "declared": True},
+        {"name": "jam", "description": "jam.sense", "commands": 1, "declared": True},
+    ]
+
+
+def test_a_group_named_by_a_command_lists_without_being_declared(saved):
+    from click.testing import CliRunner
+
+    saved('[tool.prs]\ngroup = "jam"\nargv = ["data", "--", "printf", "[]"]\n')
+    groups = json.loads(CliRunner().invoke(cli, ["--json", "tools"]).stdout)["data"]["groups"]
+    assert groups == [
+        {"name": "jam", "description": "", "commands": 1, "declared": False}
+    ]
+
+
+def test_the_tools_table_is_unchanged_by_groups_existing(saved):
+    """The envelope grows a `groups` key, always — the same shape `formats` and
+    `highlights` have. What must not change is the tools table itself."""
+    from click.testing import CliRunner
+
+    saved('[tool.prs]\nargv = ["data", "--", "printf", "[]"]\n')
+    data = json.loads(CliRunner().invoke(cli, ["--json", "tools"]).stdout)["data"]
+    assert data["groups"] == []
+    assert data["tools"] == [
+        {
+            "name": "prs",
+            "description": "sb data -- printf '[]'",
+            "runs": "sb data -- printf []",
+            "acts": False,
+            "refresh": 0,
+        }
+    ]
+
+
+def test_a_malformed_group_is_reported_alongside_a_malformed_tool(saved):
+    """`register` returns both kinds in one list, which is what `cli/__init__`
+    extends `PROBLEMS` with at startup and what `sb tools` then reports. The
+    fixture takes the return value directly, because it registers into a tree
+    that is already built."""
+    problems = saved(
+        '[group."Bad Name"]\n'
+        '[tool."Bad Tool"]\nargv = ["data", "--", "x"]\n'
+        '[tool.prs]\nargv = ["data", "--", "printf", "[]"]\n'
+    )
+    assert any(p.startswith("group ") for p in problems)
+    assert any(p.startswith("tool ") for p in problems)
+
+
 def test_running_a_tool_dispatches_to_its_expansion(saved):
     from click.testing import CliRunner
 

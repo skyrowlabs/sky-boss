@@ -301,9 +301,10 @@ a perfectly valid group name and silently a second group, where `Jam` at least g
       function rather than a third return value, so nothing that calls `load` changes. `Group(name,
       description)`; `_NAME` shape; a malformed group is skipped and named like a malformed tool.
       `groups()` returns the union — declared ∪ named — alphabetical, with a count each.
-- [ ] **`sb tools` shows them**, including the empty ones, in the same listing as tools, formats
-      and highlights. A test that a file with no `[group.…]` produces the listing byte-identical to
-      round 5's.
+- [x] **`sb tools` shows them**, including the empty ones, in the same listing as tools, formats
+      and highlights. *The envelope grows a `groups` key **always**, the shape `formats` and
+      `highlights` already have — so "byte-identical" narrowed to "the `tools` table is unchanged".
+      See Notes.*
 - [ ] **The catalog carries the ordered list**, and `sectionsOf` in `app.js` becomes a bucket-by-
       name rather than a second copy of the ordering rule.
 - [ ] **The writer.** `write_group`, `remove_group` — refusing one that any command still names,
@@ -728,6 +729,21 @@ into the argv**. So the bench never needed a hidden pass-through; what it needed
 A tool declaring `highlight = "jam"` as a *field* has no `--highlight` in its argv for `edit()` to
 decompose, so the bench opened with the control blank and composed a line without it. Seeding the
 control from `tool.highlight` fixes it, and the catalog now carries the field so it can.
+
+**The `groups` key is always present, which is a narrowing of what the phase promised.** It said a
+file with no `[group.…]` should produce a listing *byte-identical* to round 5's. That is achievable
+— round 5 itself omits a row's `group` key when empty, for exactly that property — and it is the
+wrong call one level up: `formats` and `highlights` are always in this envelope even when empty,
+because "what did I declare" is a fixed set of questions with sometimes-empty answers. A key that
+appears only sometimes makes every consumer handle its absence. So the promise that held is the one
+that matters: **the `tools` table is unchanged**, and a test asserts it field for field.
+
+**Groups are captured at registration, not read by the listing.** The first cut had `_listing` call
+`load_groups()`, which reads the home *now* while the tools it lists came from the tree as
+registered. Those two can disagree the instant anything writes — and the test suite found it
+immediately, because its fixture registers from a `tmp_path` the ambient home knows nothing about.
+`GROUPS` is a module global filled by `register` beside the tools, one read, and `register` now
+returns both kinds of problem in one list.
 
 Two consequences worth writing down. **The route accepts `highlight` but the client deliberately
 does not send it** — the bench composes the flag into the argv, so sending the field as well would
