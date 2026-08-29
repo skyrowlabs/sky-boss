@@ -307,9 +307,39 @@ function sectionsOf(saved) {
   return sections;
 }
 
+/* Which groups are folded. Held in `$SB_STATE` on the server rather than in
+ * `localStorage`, because `sb ui` binds an ephemeral port every launch and
+ * browser storage is keyed by origin — a fold written under one launch's
+ * origin is simply not there under the next. Never `tools.toml` either: that
+ * is the operator's file, and a chevron click has no business writing it or
+ * spending one of round 4's backups on it. See [[tools]] round 5.
+ *
+ * Read once on mount and written on every toggle. Both directions swallow
+ * their failure in `api.js`, so an unreachable preference costs the fold and
+ * never the rail — everything open is the honest degradation. */
 function Tools({ commands, open, edit, drop }) {
   const saved = commands.filter((c) => c.saved);
   const sections = sectionsOf(saved);
+  const [folded, setFolded] = useState(() => new Set());
+  useEffect(() => {
+    let live = true;
+    api.prefs().then((stored) => {
+      if (live && Array.isArray(stored.folded)) setFolded(new Set(stored.folded));
+    });
+    return () => {
+      live = false;
+    };
+  }, []);
+  const toggle = (group) => {
+    const next = new Set(folded);
+    if (!next.delete(group)) next.add(group);
+    setFolded(next);
+    /* Written back against the groups that currently exist, so one the
+     * operator renamed or emptied stops being remembered rather than sitting
+     * in the file forever matching nothing. */
+    const groups = new Set(sections.map(([g]) => g).filter(Boolean));
+    api.savePrefs({ folded: [...next].filter((g) => groups.has(g)) });
+  };
   return html`
     <div class="tools">
       <div class="tools-head">TOOLS</div>
@@ -322,9 +352,19 @@ function Tools({ commands, open, edit, drop }) {
           ([group, items]) => html`
           <div key=${group || "\u0000"} class="tool-section">
             ${group
-              ? html`<div class="tool-group">${group}</div>`
+              ? html`<button
+                  class="tool-group"
+                  aria-expanded=${!folded.has(group)}
+                  title=${folded.has(group) ? "show these" : "fold these away"}
+                  onClick=${() => toggle(group)}
+                >
+                  <span class="tool-chevron">${folded.has(group) ? "▸" : "▾"}</span>
+                  <span class="tool-group-name">${group}</span>
+                  ${folded.has(group) &&
+                  html`<span class="tool-count">${items.length}</span>`}
+                </button>`
               : sections.length > 1 && html`<div class="tool-rule"></div>`}
-        ${items.map(
+        ${(group && folded.has(group) ? [] : items).map(
           (c) => html`
             <div key=${c.name} class="tool-row">
               <button

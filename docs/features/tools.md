@@ -258,14 +258,29 @@ that reopens on every `sb ui` is a fold you stop using. Two constraints on where
 - **`$SB_STATE`, conceptually** — this is machine state, and `rm -rf ~/.local/state/sb` resetting
   the surface is the documented meaning of that directory.
 
-The cheapest implementation of "in `$SB_STATE`" is `localStorage`, which needs no route and no
-Python at all, and lands in the browser profile that already lives there on the `--browser` path.
-**Whether it survives in the native webview is unverified** — nothing in `cli/canvas/static/`
-touches `localStorage` today, and `shell.py` configures no storage path. So the phase checks it
-rather than assuming, and names its fallback: a small JSON file in `$SB_STATE` behind a guarded
-route, the same guard as every other. Either way an absent or unreadable store degrades to
-**everything open**, and a key naming a group that no longer exists is ignored on read and never
-written back.
+~~The cheapest implementation of "in `$SB_STATE`" is `localStorage`~~ — **the check said no, and
+the fallback is what shipped.** The paragraph as written, because the reason it was wrong is not the
+reason it expected:
+
+> The cheapest implementation of "in `$SB_STATE`" is `localStorage`, which needs no route and no
+> Python at all, and lands in the browser profile that already lives there on the `--browser` path.
+> **Whether it survives in the native webview is unverified** — nothing in `cli/canvas/static/`
+> touches `localStorage` today, and `shell.py` configures no storage path. So the phase checks it
+> rather than assuming, and names its fallback: a small JSON file in `$SB_STATE` behind a guarded
+> route, the same guard as every other.
+
+The native webview was the suspect and it was not the problem: `private_mode` defaults to `True`,
+and setting `private_mode=False` with a `storage_path` makes WebKitGTK persist `localStorage`
+across a full restart — measured twice, `null` then the value.
+
+**`sb ui` binds an ephemeral port every launch.** `port = port or _free_port()`, so the page is
+served from `http://127.0.0.1:<different>/` each time, browser storage is keyed by origin, and a
+fold written under one launch's origin is *not there* under the next. That is true in all three
+shells, has nothing to do with private mode, and cannot be configured away without pinning the
+port. So `cli/canvas/prefs.py` holds it: a small JSON file in `$SB_STATE` behind `GET`/`POST
+/api/prefs`, guarded like every other route, strictly shaped so it cannot become a second config
+file. An absent or unreadable store degrades to **everything open**, and a key naming a group that
+no longer exists is dropped on write rather than kept forever.
 
 **Does not do:**
 
@@ -296,10 +311,10 @@ written back.
       more than one `--scale`** — new fixed `rem` heights inside a 184px rail is precisely the
       shape that starved the bench's last step for three rounds. Verified by reading the DOM back
       from headless Chromium, and no `/* */` inside an `htm` tag.
-- [ ] **Collapse, persisted.** Chevron on the header, collapsed set in `localStorage`. **First
-      confirm it survives a native-webview restart**; if it does not, a `$SB_STATE` file behind a
-      guarded route instead, and say so in Notes. Unknown keys ignored on read and dropped on
-      write; an unreadable store means everything open.
+- [x] **Collapse, persisted.** Chevron on the header; the folded set in `$SB_STATE` behind
+      `/api/prefs`, *not* `localStorage` — the check found the reason and it was not the one this
+      line expected. See Notes. Unknown keys ignored on read and dropped on write; an unreadable
+      store means everything open.
 - [ ] **The bench and the writer.** A group field on the bench beside description; `/api/tools`
       carries `group` through create/replace; the splice writes and removes the line within the
       block, so comments above it still survive (round 4's guarantee, now with one more line in
@@ -588,6 +603,34 @@ list under the fold at 2.4, which is what it is for.
 *Observed, not caused:* at `--scale 2.4` in a 1300px viewport the **top bar** overflows and the
 right-hand counters clip. That is the bar's geometry, not this round's, and it is what the
 "verified at one value of it has been verified once" rule predicts.
+
+**`localStorage` cannot work here, and the reason is not the one the phase was written to check.**
+The phase suspected the native webview, on the grounds that nothing in `static/` used
+`localStorage` and `shell.py` set no storage path. That suspicion was correct about the mechanism
+and irrelevant to the outcome. Measured, in this order:
+
+1. `webview.start`'s `private_mode` defaults to **`True`**, so the native shell keeps nothing
+   between launches. Read off the signature rather than guessed.
+2. Setting `private_mode=False` with a `storage_path` under `$SB_STATE` **fixes exactly that** —
+   a two-run probe against WebKitGTK returned `null`, then the value, with the store landing at
+   `<storage>/localstorage/http_127.0.0.1_<port>.localstorage`.
+3. **And that filename is the answer.** `sb ui` calls `_free_port()` unless told otherwise, so
+   every launch serves the page from a **different origin**, and per-origin storage is empty on
+   arrival by construction. The webview fix makes the fold survive a restart *of the browser* and
+   not a restart *of `sb ui`*, which is the only restart anyone cares about. Pinning the port to
+   buy a stable origin would be the tail wagging the dog.
+
+So the `shell.py` change was reverted — it was no longer needed, and turning off private mode
+persists cookies and cache nobody asked for — and the doc's own named fallback shipped:
+`cli/canvas/prefs.py`, a strictly-shaped JSON file in `$SB_STATE` behind a guarded `/api/prefs`.
+Verified end to end the way the substitute demands: fold `jam` on port 8820, kill the server,
+start a new one on **8821** with a **fresh browser profile**, and the group comes back folded with
+its count. `localStorage` could not have passed that test in any configuration.
+
+**The route is shaped, not open.** `KEYS` names what may be stored and anything else is dropped, so
+this is the surface's own state rather than a second config file — round 4's line when it refused
+to let `/api/tools` become a config editor, applied one route over. It joins the guarded-route
+inventory test, which is what catches a route added later without the guard.
 
 ### Round 1 — what shipped, and the claim that did not survive (2026-08-20)
 
