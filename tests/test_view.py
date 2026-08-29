@@ -18,6 +18,7 @@ from cli.view import (
     resolve,
     shape,
     summarise_mapping,
+    variance,
     warnings_for,
 )
 
@@ -513,3 +514,55 @@ def test_a_flag_that_could_not_be_applied_says_so():
     assert said == ["--cols not applied — no list of rows in this payload"]
     # No assertion to be wrong about means nothing to say.
     assert warnings_for(None, reason="no list of rows in this payload") == []
+
+
+# ============================================================================
+# Record-shape variance — [[jsonl-reads]] round 3
+# ============================================================================
+
+
+def test_a_superset_row_is_not_variance():
+    """jam.sense's `runs.jsonl`: 1,047 rows of six fields and one carrying three
+    more, the record of a refusal. The union is nine columns and every one is a
+    field some real record has, so the header describes something real and
+    there is nothing to warn about. A rule that fired here would teach the
+    operator to skip the line that matters."""
+    rows = [{"job": "a", "rc": 0}] * 3 + [{"job": "b", "rc": 1, "reason": "held"}]
+    assert variance(rows) == 0
+
+
+def test_disagreeing_shapes_are_variance():
+    """The union is four keys and the widest record has three — a header
+    describing a record never written."""
+    rows = [{"kind": "run", "started": 1, "rc": 0}, {"kind": "answered", "at": 2}]
+    assert variance(rows) == 2
+
+
+def test_identical_rows_are_never_variance():
+    assert variance([{"a": 1}, {"a": 2}]) == 0
+
+
+def test_variance_is_omitted_from_the_view_when_there_is_nothing_to_say():
+    """The envelope-stability rule every optional key here follows: an
+    unremarkable payload's view is byte-identical to one from before this."""
+    shaped = shape([{"a": 1}, {"a": 2}])
+    assert "shapes" not in shaped
+
+
+def test_variance_reaches_the_view_and_the_warning():
+    rows = [{"kind": "run", "started": 1, "rc": 0}, {"kind": "answered", "at": 2}]
+    shaped = shape(rows)
+    assert shaped["shapes"] == 2
+    warnings = warnings_for(shaped)
+    assert any("2 record shapes" in w for w in warnings)
+    assert any("union no single record has" in w for w in warnings)
+
+
+def test_the_variance_warning_is_silent_once_cols_is_in_force():
+    """Both reasons this module already keeps quiet about a dropped column: the
+    sentence would be false — named columns are not a union — and it would
+    recommend the flag just typed. The fact stays on the view."""
+    rows = [{"kind": "run", "started": 1, "rc": 0}, {"kind": "answered", "at": 2}]
+    shaped = shape(rows, cols=["kind"])
+    assert shaped["shapes"] == 2
+    assert warnings_for(shaped, requested=["kind"]) == []

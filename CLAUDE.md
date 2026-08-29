@@ -59,6 +59,7 @@ replaced by a browser one the same day. What exists:
 |---|---|
 | `sb run -- <argv>` | Runs a command and reports what it printed. **The only command that acts**. `--delay 5m` runs it once, later, behind a countdown you can cancel |
 | `sb data -- <argv>` | Reads another CLI's JSON as data. An observe; `--refresh N` keeps it resident |
+| `sb data <path>` | Reads a file of records as data — `--from jsonl` is one object per line. See [[jsonl-reads]] |
 | `sb read -- <argv>` | Shows what a command printed, verbatim. An observe, for tools with no `--json` |
 | `sb follow -- <argv>` | Holds a command's stream open. Resident by nature; any exit is a visible death. Arrows and PgUp scroll back through the ring |
 | `sb follow <path>` | Follows a file with a native stat cursor, so quiet and dead are different words. `--due 15m` makes late a word too |
@@ -106,6 +107,13 @@ refresh and re-running a write is a scheduler nobody asked for.** sky.boss canno
 write by inspecting an argv and does not try: choosing `data` over `run` is the operator's
 assertion that this one is a read.
 
+**A path is the one case that needs no assertion**, and it is the rule's own reasoning that
+retires it rather than an exception carved beside it. `sb data <path>` is never executed, so there
+is no write to be uncertain about — inspection works here, and the reason for refusing to inspect
+is gone. The dispatch is argument shape, the same split `sb follow` makes, minus one case: follow
+calls a bare unknown word a file because a log must be followable before its first write, and a
+file with no records has nothing to wait for. See [[jsonl-reads]].
+
 A saved command **inherits** that assertion rather than restating it — `acts` comes from the first
 word of its argv and a declared one is ignored, so `[tool.deploy]` wrapping `run` is refused a
 cadence exactly as `sb run` is. This is also why a tool's argv must start with a sky.boss command: a
@@ -133,6 +141,13 @@ commands. If groups come back, group them that way and be slower to add one.
   structure has `--json`. What [[capture]] added is the operator asserting the structure by name —
   a format in `$SB_HOME/formats.toml` with a pattern and optionally a jq transform, named on
   `sb data --from <name>`. No format, no table; a `--pretty` flag that guesses remains rejected.
+- **Splitting a file of variant records by its discriminator.** [[jsonl-reads]] round 3 reports
+  variance and refuses to act on it: a `--where kind=run` is the query language the bullet above
+  rejects, arriving through a side door. What sky.boss owes the operator is the *reason* a table is
+  thirty columns wide — that no single record has thirty fields — and `--cols` is already how a
+  wide table gets narrowed. The rule that decides it is `union > widest single shape`, which fires
+  when the header describes a record that was never written, and stays silent when one shape merely
+  nests inside another.
 - **Wrapping an external CLI for passthrough.** `sb gh pr list` is strictly worse than
   `gh pr list`. Reach for an external tool only where `sb` does something that tool cannot express.
   `sb data` is the carve-out and it earns it: holding a foreign CLI's output open on a canvas and

@@ -168,6 +168,39 @@ def columns_of(rows: list[dict]) -> list[str]:
     return seen
 
 
+def variance(rows: list[dict]) -> int:
+    """How many distinct record shapes there are, but **only when the union is
+    a shape no record has**. Otherwise 0, meaning nothing to say.
+
+    `columns_of` unions keys across every row, and jam.sense's `runs.jsonl` is
+    the case that earned it: 1,047 rows carry six fields and exactly one
+    carries three more — the record of a refusal. Reading columns off the first
+    row would drop all three from the one row anyone goes looking for.
+
+    The union stops being an answer when the shapes genuinely disagree. An
+    event log with a `kind` discriminator — four kinds, ten key-sets, thirty
+    union keys — shapes into 25 columns, a table no renderer can draw.
+
+    So the question is not *do the rows differ* but **is the union a row that
+    exists?** In `runs.jsonl` the rare shape is a superset of the common one,
+    so every union column is a field some real record carries and the header
+    describes something real. Where the widest single record has sixteen fields
+    and the union has thirty, the header describes a record never written.
+
+    Measured against all six row-bearing files in a real state root, this fires
+    on exactly one. A rule that also fired on `runs.jsonl` would be worse than
+    none — it would teach the operator to skip the line that matters. See
+    [[jsonl-reads]] round 3.
+    """
+    shapes = {frozenset(row) for row in rows}
+    if len(shapes) < 2:
+        return 0
+    union = set().union(*shapes)
+    if len(union) <= max(len(shape) for shape in shapes):
+        return 0
+    return len(shapes)
+
+
 def is_rows(data) -> bool:
     """A non-empty list of plain objects — the only thing there is to shape."""
     return (
@@ -359,7 +392,10 @@ def shape(
         details = [c for c in chosen if _is_prose(rows, c["key"])]
         # Drawn *and* reported. Drawing it answers the question the operator
         # asked; saying so answers the one they did not know to ask.
-        return _view(inline, details, [], found.key, missing=_absent(rows, cols))
+        return _view(
+            inline, details, [], found.key,
+            missing=_absent(rows, cols), shapes=variance(rows),
+        )
 
     if not enabled:
         return None
@@ -389,10 +425,17 @@ def shape(
     details = [_describe(key, rows) for key in kept if _is_prose(rows, key)]
     columns = [_describe(key, rows) for key in kept if not _is_prose(rows, key)]
 
-    return _view(columns, details, hidden, found.key)
+    return _view(columns, details, hidden, found.key, shapes=variance(rows))
 
 
-def _view(columns, details, hidden, key: str | None, missing: list[str] | None = None) -> dict:
+def _view(
+    columns,
+    details,
+    hidden,
+    key: str | None,
+    missing: list[str] | None = None,
+    shapes: int = 0,
+) -> dict:
     """The view, plus the key its rows came from when they came from one.
 
     **Omitted rather than null** when the payload was already a list, so an
@@ -404,6 +447,8 @@ def _view(columns, details, hidden, key: str | None, missing: list[str] | None =
         view["rows"] = key
     if missing:
         view["missing"] = missing
+    if shapes:
+        view["shapes"] = shapes
     return view
 
 
@@ -444,7 +489,7 @@ def warnings_for(
     requested: list[str] | None = None,
     dropped: list[str] | None = None,
 ) -> list[str]:
-    """The three things a shaped view is owed a word about.
+    """The four things a shaped view is owed a word about.
 
     Lifted out of `cli/data.py` when the workbench grew a second caller. It was
     always the kind of decision this module exists to hold — *what is worth
@@ -496,5 +541,22 @@ def warnings_for(
         out.append(
             f"{count} column{'' if count == 1 else 's'} hidden: "
             f"{', '.join(surprising)} — use --cols to choose"
+        )
+
+    # Why the table is this wide, which is the one thing a wide table cannot
+    # say for itself. Not a suggestion to filter — splitting by discriminator
+    # is the query language [[jsonl-reads]] rules out — but the operator
+    # reading 25 columns is owed the fact that no record has 25 fields.
+    #
+    # Silent once `--cols` is in force, for both of the reasons this module
+    # already keeps quiet about a `--drop`ped column: the sentence stops being
+    # true — three named columns are not a union of anything — and it would be
+    # recommending the flag the operator just typed. The fact stays on the
+    # view, where a surface can still show it; what goes is the prose.
+    if view.get("shapes") and not requested:
+        drawn = len(view.get("columns", [])) + len(view.get("details", []))
+        out.append(
+            f"{view['shapes']} record shapes here, so these {drawn} columns are a "
+            "union no single record has — use --cols to pick a shape"
         )
     return out

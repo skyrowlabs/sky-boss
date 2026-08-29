@@ -1,9 +1,9 @@
 ---
-status: active         # draft | active | complete — the directory follows this
+status: complete       # draft | active | complete — the directory follows this
 created: 2026-08-29
 updated: 2026-08-29
-agent_value: 2         # design settled; carries the whole shape of unbuilt work
-key_files: [cli/data.py, cli/follow.py, cli/capture.py, cli/view.py]
+agent_value: 3         # three rounds shipped; the path form, the kind and the variance rule
+key_files: [cli/data.py, cli/capture.py, cli/view.py, tests/test_data.py, tests/test_view.py]
 ---
 
 # Reading a file of records as data
@@ -170,14 +170,83 @@ a tick can afford, the answer is a bound on rows read — `MAX_ROWS` has a prece
 
 ### Round 3 — a union no record has (2026-08-29)
 
-- [ ] `shape()` counts distinct record shapes and records the count only when the union is
+- [x] `shape()` counts distinct record shapes and records the count only when the union is
       wider than any single shape — the key is omitted otherwise, so an unremarkable
       payload's envelope is unchanged.
-- [ ] `warnings_for` says how many shapes there are and points at `--cols`.
-- [ ] Silent when one shape nests inside another, which is the common case and the one
+- [x] `warnings_for` says how many shapes there are and points at `--cols`.
+- [x] Silent when one shape nests inside another, which is the common case and the one
       where the union is still a real row.
 
 ## Notes
+
+### 2026-08-29 — three rounds, and two things the suite decided
+
+**The file-form rule is not `follow`'s, and the suite is what said so.** Reusing
+`cli/follow.py`'s `is_file_form` outright broke
+`test_a_missing_command_fails_rather_than_raising` immediately: follow treats a bare word that no
+executable answers to as a *file*, because `sb follow new.log` has to be legal before the log's
+first write. That reasoning does not survive the trip. A file with no records has no rows to
+return, so there is nothing to wait for, and `no such command` is the true sentence where
+`no such file` is a confident wrong one. `data` keeps the two rules the commands agree on — a
+separator means a path, an executable beats a bare word — and diverges on the fallback only.
+
+Worth noting *how* it was caught. The collision was invisible in the diff and obvious the moment
+the suite ran, which is the case the CLAUDE.md line about testing decisions rather than ceremony
+is describing: the test existed because someone decided a missing command should be named, and it
+held that decision against a change made two features later.
+
+**"Zero rows is a failure" was over-broad, and Round 1 said it in its own words.** The bullet cited
+`capture`'s rule as its justification while stating something wider than that rule: `matched_nothing`
+is `total > 0 and not rows`, and the `total > 0` is deliberate — "the tool printed nothing" is a
+real answer. For a file it is *more* obviously real, because a ledger with no runs in it yet is
+what every project has on its first day. Corrected in the bullet, with the reasoning, rather than
+quietly implemented the other way.
+
+### 2026-08-29 — round 3, and the number that made it a rule
+
+The variance warning started as "warn when the rows disagree" and would have been noise. jam.sense's
+`runs.jsonl` has two shapes across 1,048 rows, and firing on it would have trained the operator to
+skip the warning line — on the file where the rare shape is the record of a refusal.
+
+What made it a rule is a measurement rather than a judgement. Across all six row-bearing files in
+the state root:
+
+| File | rows | shapes | union | widest | fires |
+|---|---|---|---|---|---|
+| `decisions.jsonl` | 411 | 10 | 30 | 16 | **yes** |
+| `runs.jsonl` | 1048 | 2 | 9 | 9 | no |
+| `implement_ready_plans.jsonl` | 23 | 1 | 7 | 7 | no |
+| `queue_deferrals.jsonl` | 31 | 1 | 6 | 6 | no |
+| `memory/agent_task_queue.json` | 12 | 1 | 6 | 6 | no |
+| `product/decisions.json` → `records` | 11 | 1 | 19 | 19 | no |
+
+`union > widest single shape` separates them exactly, and it says something rather than fitting the
+data: it fires when the header describes a record that was never written. Where one shape nests
+inside another the union is still a real row, which is the `runs.jsonl` case and the reason that
+file is the one this must stay quiet about.
+
+**A second suppression arrived from rendering it, not from designing it.** With `--cols kind,job,at`
+the warning read *"10 record shapes here, so these 3 columns are a union no single record has"* —
+false, and recommending the flag the operator had just typed. `cli/view.py` already refuses to name
+a column back at someone who typed `--drop` for it, and this is the same rule. The count stays on
+the view, where a surface can still draw it; the prose goes.
+
+### 2026-08-29 — what did not need building
+
+The audit that opened this doc looked at all six state classes and only `ledger/` warranted code.
+`input/` is 2.1 MB of what jam.sense feeds its jobs rather than a record of what happened, and
+reading it would be reading a sibling's internals rather than its published state. `memory/` is
+four different things in one directory — row lists, state objects, bare SHA files, pip freezes —
+and its one table-shaped member arrives free through the path form. `product/` needed nothing:
+`find_rows` already refuses `decisions.json` correctly, naming both candidate lists rather than
+picking one.
+
+Two things were checked *because they looked wrong* and turned out right, which is worth recording
+so nobody re-opens them. `_is_prose` sends `title` out of the table for jam.sense's task queue,
+which looks like it is hiding the one scannable column — median title there is 88 characters and
+the classification is correct, and it is correct because the rule measures values rather than
+trusting the name. And the chrome's `N columns` counts the payload's columns while the table draws
+the view's; that predates this work and is the intended split.
 
 ### 2026-08-29 — where this came from
 
