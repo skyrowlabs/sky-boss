@@ -111,6 +111,48 @@ Two consequences of `--save` writing *before* it runs became round-3 items there
 them found a third: a usage error raised *below* the write left a tool on disk under a name that
 could not be reused, then reported a failure. Fixed in `cli/output.py`.
 
+**18. A schedule viewer, over schedules sky.boss did not write.** Raised by the operator
+2026-08-29. **The boundary half needs no decision** — it is item 11 answered in the direction it was
+always leaning, and `CLAUDE.local.md` already binds it: sky.boss never manages, generates or edits
+another project's cron entries, and that rule was written to bind *whatever scheduler sky.boss grows
+next*. A viewer does not move the line; it is the line being used.
+
+**What makes this smaller than it looks: the data already arrives.** `jam report status --json` is
+the source `projects.toml` already declares, and it sends 31 job rows carrying `schedule` (the cron
+expression), `next_run` **already computed**, `last_run`, `overdue`, `scheduled_in_cron`,
+`intentionally_off` and `unscheduled_reason`. The operator's `cols = "job,result,last_age,overdue"`
+discards most of it at the view layer. So there is no new source contract to negotiate with a
+sibling repo, and nothing here is blocked on jam.sense.
+
+**What is actually open is the vocabulary, and it is a narrowing of a stated refusal.**
+`cli/rollcall.py`: *"sky.boss folds sources, not semantics. No common status vocabulary, no
+cross-project verdict."* A schedule view across projects needs exactly that — some shared idea of
+what a row is. The distinction that would license a narrow one: roll-call refuses to decide what
+another tool's **word** means, and a cron expression and an ISO timestamp are not words, they are
+measurements. sky.boss can fold *when* without folding *how bad*. That argument has to be made
+explicitly and dated if this is built, because it genuinely narrows a rule this repo states twice.
+
+If it holds, the vocabulary should be the smallest that supports a time axis — name, schedule, next,
+last — with everything else staying the provider's and drawn in its own block. Which is **item 17b
+arriving in a second place**: what a row shows when the provider knows more than the interface. Two
+occurrences is the point at which that question stops being deferrable.
+
+**Three things it would have to get right, none of them the boundary:**
+
+- **A project with no scheduler at all.** breeze-brain has none today. That must read as *this
+  project declares no schedule* and never as an error or an empty row, which reads as *nothing is
+  scheduled*. Same shape as the absent state directory in [[state-root]], and the same fix: say
+  which of the two it is.
+- **sky.boss has no time axis anywhere.** `run`, `read`, `follow`, `data` and `roll-call` are all
+  *now*. This is the first thing needing a future tense, and *what should have fired and did not*
+  needs a past — which is item 5, on the ledger. Items 6–9 are the primitives underneath it.
+- **Whose clock.** `next_run` arriving pre-computed from the provider is convenient and is also the
+  provider's answer to item 9. Two projects could disagree about what time it is, and a view that
+  merged them would be asserting a resolution nobody made.
+
+**Cheap and independent of all of it:** widen that `cols` and look at a real schedule table before
+designing one. The rows are already there.
+
 ## The Governor
 
 **13. What it costs, and what it does when it cannot run.** The governor is LLM narration over a
@@ -286,6 +328,8 @@ whatever answers the above.
 
 ## Where sky.boss learns the agent-state root
 
+*Closed 2026-08-29 → [[state-root]] round 1, built the same day.* Settled as proposed below, with one correction the doc records: the file level was argued here on the canvas — a launcher-started webview inherits no shell environment — and that is true in general but hypothetical on this machine, where no `.desktop` file exists. The reason that held is the one the precedence bullet below already gestures at: **a variable is a snapshot and a file is not**, so an env-only knob would be frozen at launch for every long-lived window, terminal-started ones included. The operator declared `state_root` on 2026-08-29; `SL_AGENT_LOGS` is set nowhere on this machine, so the file is what resolves.
+
 **Decided that it should; not decided how it is told.** `~/src/sl-agent-logs/<slug>/` is the
 state root the sibling repos' automation writes to, and its layout was designed so a log path is
 derivable from a project sky.boss already knows: the directory under it is the project's **slug**,
@@ -330,6 +374,8 @@ a key in the file that already declares the projects the root is keyed by.
   and see the section below, which is about telling that case apart from a mistake.
 
 ### Getting from a project to its directory
+
+*Closed 2026-08-29 → [[state-root]] rounds 1 and 2.* Built as proposed — derive from the key, verify by listing `<root>/*`, three states with the sibling listing in the middle. Round 2 then found the same invisible failure in three shapes the proposal did not anticipate, each outside the derivation itself: an undeclared prefix reported as a missing *file*, the same reference with no separator reported as a missing *command*, and `sb follow` waiting in silence forever on a path that could never exist. The listing was the easy half.
 
 The root is half the derivation. The other half is the directory *under* it, which the seam
 specifies as the project's **slug** — deliberately the same key `projects.toml` uses, so nothing
