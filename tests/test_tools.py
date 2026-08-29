@@ -838,3 +838,148 @@ def test_save_carries_env_into_the_saved_argv():
     assert saved_argv(line, "read") == [
         "read", "--env", "JAM_TRANSCRIPT_STDOUT=1", "--", "jam", "status",
     ]
+
+
+# --- [[tools]] round 4: the interface writes --------------------------------
+
+SAMPLE = '''# a section heading, separated by a blank line
+
+# describes alpha
+[tool.alpha]
+argv = ["read", "--", "echo", "a"]
+
+[tool.beta]
+# inside beta
+argv = ["read", "--", "echo", "b"]
+refresh = 30
+'''
+
+
+def _home(tmp_path):
+    (tmp_path / "tools.toml").write_text(SAMPLE)
+    return tmp_path
+
+
+def test_replacing_a_block_leaves_every_other_byte_alone(tmp_path):
+    """The whole argument for splicing rather than round-tripping: a write
+    touches one line range and nothing else can have been reformatted."""
+    from cli.tools import write_block
+
+    home = _home(tmp_path)
+    write_block("alpha", ["read", "--", "echo", "CHANGED"], home=home)
+    after = (home / "tools.toml").read_text()
+    assert after[after.index("[tool.beta]"):] == SAMPLE[SAMPLE.index("[tool.beta]"):]
+
+
+def test_a_comment_above_a_block_survives_an_edit(tmp_path):
+    """It is the operator's prose and may still be true of the tool that
+    replaces this one. The range starts at the header for exactly this."""
+    from cli.tools import write_block
+
+    home = _home(tmp_path)
+    write_block("alpha", ["read", "--", "echo", "x"], home=home)
+    after = (home / "tools.toml").read_text()
+    assert "# describes alpha" in after
+    assert "# a section heading" in after
+
+
+def test_a_delete_takes_the_comments_touching_it_but_not_a_heading(tmp_path):
+    """Contiguous comments describe the block below them. One separated by a
+    blank line is a heading for whatever follows and is not ours to remove."""
+    from cli.tools import remove_block
+
+    home = _home(tmp_path)
+    remove_block("alpha", home=home)
+    after = (home / "tools.toml").read_text()
+    assert "[tool.alpha]" not in after
+    assert "# describes alpha" not in after, "took the block, left its prose"
+    assert "# a section heading" in after, "ate a heading that was not the block's"
+    assert "[tool.beta]" in after
+
+
+def test_separation_between_blocks_is_neither_lost_nor_doubled(tmp_path):
+    from cli.tools import write_block
+
+    home = _home(tmp_path)
+    write_block("alpha", ["read", "--", "echo", "x"], home=home)
+    after = (home / "tools.toml").read_text()
+    assert after.count("\n\n") == SAMPLE.count("\n\n")
+
+
+def test_a_write_backs_the_file_up_first(tmp_path):
+    from cli.tools import write_block
+
+    home = _home(tmp_path)
+    out = write_block("alpha", ["read", "--", "echo", "x"], home=home)
+    import os
+
+    assert open(out["backup"], encoding="utf-8").read() == SAMPLE, "the backup is the file as it was"
+    assert os.path.dirname(out["backup"]).endswith("backups")
+
+
+def test_two_writes_in_one_second_keep_two_backups(tmp_path):
+    """A second is not fine-grained enough, and the operator was promised a
+    copy per write."""
+    from cli.tools import backup
+
+    home = _home(tmp_path)
+    first = backup(home, stamp="20260828T000000Z")
+    second = backup(home, stamp="20260828T000000Z")
+    assert first != second
+    assert first.exists() and second.exists()
+
+
+def test_backups_are_capped(tmp_path):
+    from cli.tools import BACKUPS_KEPT, backup
+
+    home = _home(tmp_path)
+    for i in range(BACKUPS_KEPT + 5):
+        backup(home, stamp=f"20260828T0000{i:02d}Z")
+    assert len(list((home / "backups").iterdir())) == BACKUPS_KEPT
+
+
+def test_the_writer_refuses_everything_the_loader_would(tmp_path):
+    """One rule, asked twice. A tool that writes cleanly and then fails to load
+    is on disk, absent from the tree, and evidenced only by a line in
+    `sb tools`."""
+    from cli.tools import write_problem
+
+    home = _home(tmp_path)
+    assert write_problem("ok-name", ["read", "--", "echo", "x"], home=home) is None
+    assert "must start with" in (write_problem("x", ["ls"], home=home) or "")
+    assert "acts" in (write_problem("x", ["run", "--", "true"], 30, home=home) or "")
+    assert "follow" in (write_problem("x", ["follow", "--", "tail"], 30, home=home) or "")
+    assert "one of" in (write_problem("x", ["read", "--", "true"], 7, home=home) or "")
+    assert "cannot be a tool name" in (write_problem("Bad Name", ["read", "--", "x"], home=home) or "")
+
+
+def test_replacing_an_existing_name_is_allowed_where_save_refuses_it(tmp_path):
+    """Round 3's `--save` refuses a duplicate because editing was $EDITOR's.
+    Round 4 made create and replace one call, because they are one intent."""
+    from cli.tools import name_problem, write_block, write_problem
+
+    home = _home(tmp_path)
+    assert "already a tool" in (name_problem("alpha", home) or ""), "--save still refuses"
+    assert write_problem("alpha", ["read", "--", "echo", "x"], home=home) is None
+    assert write_block("alpha", ["read", "--", "echo", "x"], home=home)["action"] == "replaced"
+
+
+def test_deleting_something_that_is_not_there_is_an_error(tmp_path):
+    """A silent no-op on a delete reads as success and leaves the operator
+    believing a command is gone."""
+    import pytest
+    import rich_click as click
+
+    from cli.tools import remove_block
+
+    with pytest.raises(click.UsageError):
+        remove_block("nosuch", home=_home(tmp_path))
+
+
+def test_a_file_that_does_not_parse_is_never_spliced(tmp_path):
+    """Splicing into a document whose structure is unknown is how a tool is
+    lost. $EDITOR is still there."""
+    from cli.tools import write_problem
+
+    (tmp_path / "tools.toml").write_text("[tool.broken\nargv = nope")
+    assert "fix the file" in (write_problem("x", ["read", "--", "y"], home=tmp_path) or "")
