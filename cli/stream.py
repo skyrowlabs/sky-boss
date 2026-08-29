@@ -108,6 +108,7 @@ class ChildStream:
         limit: int = DEFAULT_LINES,
         clock: Callable[[], float] = time.time,
         columns: int | None = None,
+        env: dict[str, str] | None = None,
     ):
         self.argv = list(argv)
         self.clock = clock
@@ -122,7 +123,7 @@ class ChildStream:
             text=True,
             bufsize=1,  # line buffered, so a line arrives when it is printed
             cwd=cwd,
-            env=child_env(columns, stream=True),
+            env=child_env(columns, stream=True, extra=env),
         )
         self._threads = [
             threading.Thread(target=pump, args=(self.proc.stdout, False, self._sink, clock), daemon=True),
@@ -227,6 +228,7 @@ def accrue(
     sleep: Callable[[float], None] = time.sleep,
     poll: float = 0.05,
     columns: int | None = None,
+    env: dict[str, str] | None = None,
 ) -> Outcome:
     """Run an argv, handing each line to `echo` as it arrives.
 
@@ -260,7 +262,7 @@ def accrue(
         text=True,
         bufsize=1,
         cwd=cwd,
-        env=child_env(columns, stream=True),
+        env=child_env(columns, stream=True, extra=env),
     )
     threads = [
         threading.Thread(target=pump, args=(proc.stdout, False, sink, clock), daemon=True),

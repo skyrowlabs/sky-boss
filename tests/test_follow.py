@@ -122,7 +122,7 @@ def drive(child, ticks=2):
         console=recording,
         screen=False,
         ticks=ticks,
-        spawn=lambda argv, cwd=None, limit=None, columns=None: child,
+        spawn=lambda argv, cwd=None, limit=None, columns=None, env=None: child,
     )
     return recording.export_text(), child
 
@@ -246,7 +246,7 @@ def keyed(child, keys_pressed, ticks=100, screen=False):
         console=Console(record=True, width=70, force_terminal=True),
         screen=screen,
         ticks=ticks,
-        spawn=lambda argv, cwd=None, limit=None, columns=None: child,
+        spawn=lambda argv, cwd=None, limit=None, columns=None, env=None: child,
     )
     return len(spent)
 
@@ -304,7 +304,7 @@ def test_an_inline_frame_shows_the_newest_lines_not_the_oldest():
         console=recording,
         screen=False,
         ticks=1,
-        spawn=lambda argv, cwd=None, limit=None, columns=None: child,
+        spawn=lambda argv, cwd=None, limit=None, columns=None, env=None: child,
     )
     text = recording.export_text()
     assert "line 39" in text and "line 0" not in text
@@ -367,7 +367,7 @@ def test_a_real_terminal_leaves_on_q_and_kills_the_child():
             clock=lambda: 160.0,
             console=Console(file=screen_out, width=70, height=12, force_terminal=True),
             ticks=3,
-            spawn=lambda argv, cwd=None, limit=None, columns=None: child,
+            spawn=lambda argv, cwd=None, limit=None, columns=None, env=None: child,
         )
         assert time_.monotonic() - started < 1.0  # left on the key, not the bound
         assert child.killed is True

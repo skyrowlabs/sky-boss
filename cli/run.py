@@ -22,7 +22,7 @@ import time
 from rich.console import Console
 import rich_click as click
 
-from cli.helpers import child_env, parse_duration
+from cli.helpers import child_env, parse_duration, parse_env
 from cli.output import Result, band, emit
 from cli.read import _width
 
@@ -31,6 +31,13 @@ from cli.read import _width
 @click.argument("argv", nargs=-1, required=True)
 @click.option("--timeout", type=int, default=None, help="Give up after this many seconds.")
 @click.option("--cwd", type=click.Path(file_okay=False, exists=True), help="Run it here.")
+@click.option(
+    "--env",
+    "env_pairs",
+    metavar="NAME=VALUE",
+    multiple=True,
+    help="Set a variable for the command. Visible, so not for secrets.",
+)
 @click.option(
     "--delay",
     metavar="WHEN",
@@ -47,6 +54,7 @@ def run(
     argv: tuple[str, ...],
     timeout: int | None,
     cwd: str | None,
+    env_pairs: tuple[str, ...],
     delay: str | None,
     refresh: str | None,
 ) -> Result:
@@ -79,6 +87,8 @@ def run(
             "scheduler nobody asked for. To run it once, later, use --delay."
         )
 
+    env = parse_env(env_pairs)
+
     if delay:
         try:
             seconds = parse_duration(delay)
@@ -92,8 +102,8 @@ def run(
     if not (ctx.find_root().obj or {}).get("as_json"):
         # A Job is a stream that ends — see [[follow]]. The envelope path
         # below is what --json and every machine consumer still get.
-        return _accrued(argv, timeout, cwd)
-    return _once(argv, timeout, cwd)
+        return _accrued(argv, timeout, cwd, env)
+    return _once(argv, timeout, cwd, env)
 
 
 def _await(
@@ -178,7 +188,12 @@ def envelope_for(argv, outcome, timeout: int | None) -> Result:
     return result
 
 
-def _accrued(argv: tuple[str, ...], timeout: int | None, cwd: str | None) -> Result:
+def _accrued(
+    argv: tuple[str, ...],
+    timeout: int | None,
+    cwd: str | None,
+    env: dict[str, str] | None = None,
+) -> Result:
     """Stream the lines as they arrive; stamp the act on stderr at exit. The
     stamp is chrome, so it never says a countdown — an act is stamped once."""
     from cli import chrome as chrome_
@@ -187,7 +202,12 @@ def _accrued(argv: tuple[str, ...], timeout: int | None, cwd: str | None) -> Res
 
     try:
         outcome = stream_.accrue(
-            list(argv), timeout=timeout, cwd=cwd, echo=_echo_line, columns=_width()
+            list(argv),
+            timeout=timeout,
+            cwd=cwd,
+            echo=_echo_line,
+            columns=_width(),
+            env=env,
         )
     except FileNotFoundError:
         missing = Result()
@@ -213,7 +233,12 @@ def _accrued(argv: tuple[str, ...], timeout: int | None, cwd: str | None) -> Res
     return result
 
 
-def _once(argv: tuple[str, ...], timeout: int | None, cwd: str | None) -> Result:
+def _once(
+    argv: tuple[str, ...],
+    timeout: int | None,
+    cwd: str | None,
+    env: dict[str, str] | None = None,
+) -> Result:
     result = Result()
     started = time.monotonic()
 
@@ -227,7 +252,7 @@ def _once(argv: tuple[str, ...], timeout: int | None, cwd: str | None) -> Result
             check=False,
             # The operator's environment, not sky.boss's, plus the width of the
             # display its output is headed for. See [[subprocess-env]].
-            env=child_env(_width()),
+            env=child_env(_width(), extra=env),
         )
     except FileNotFoundError:
         result.ok = False

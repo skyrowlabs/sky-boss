@@ -826,3 +826,15 @@ def test_the_same_ordering_holds_for_read(tmp_path, monkeypatch):
     )
     assert result.exit_code == 2
     assert not (tmp_path / "tools.toml").exists()
+
+
+def test_save_carries_env_into_the_saved_argv():
+    """`saved_argv` copies the line you typed, so `--env` rides along exactly
+    as `--cwd` does — no `env` field in tools.toml, one way to say it.
+    See [[subprocess-env]] round 4."""
+    from cli.tools import saved_argv
+
+    line = ["read", "--env", "JAM_TRANSCRIPT_STDOUT=1", "--save", "x", "--", "jam", "status"]
+    assert saved_argv(line, "read") == [
+        "read", "--env", "JAM_TRANSCRIPT_STDOUT=1", "--", "jam", "status",
+    ]

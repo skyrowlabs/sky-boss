@@ -51,7 +51,7 @@ import time
 import rich_click as click
 
 from cli import capture as capture_
-from cli.helpers import child_env
+from cli.helpers import child_env, parse_env
 from cli.output import Result, emit, refuse_resident_json
 from cli.view import find_rows, shape, warnings_for
 
@@ -60,6 +60,13 @@ from cli.view import find_rows, shape, warnings_for
 @click.argument("argv", nargs=-1, required=True)
 @click.option("--timeout", type=int, default=60, help="Give up after this many seconds.")
 @click.option("--cwd", type=click.Path(file_okay=False, exists=True), help="Run it here.")
+@click.option(
+    "--env",
+    "env_pairs",
+    metavar="NAME=VALUE",
+    multiple=True,
+    help="Set a variable for the command. Visible, so not for secrets.",
+)
 @click.option("--cols", help="Show exactly these columns, in this order. Dotted paths allowed.")
 # Where the rows are, when the payload wraps them. Named beats inferred: sky.boss
 # infers only when exactly one value is a list of rows, and reports rather than
@@ -105,6 +112,7 @@ def data(
     argv: tuple[str, ...],
     timeout: int | None,
     cwd: str | None,
+    env_pairs: tuple[str, ...],
     cols: str | None,
     rows_path: str | None,
     drop: str | None,
@@ -152,6 +160,7 @@ def data(
     _, problem = capture_.resolve(from_)
     if problem:
         raise click.UsageError(problem)
+    env = parse_env(env_pairs)
     # Before the write, not inside the resident path. `--save` writes first on
     # purpose, so a refusal raised further down fires after the append — and
     # this one used to, leaving a tool on disk under a name that could not be
@@ -167,8 +176,10 @@ def data(
 
         saved = tools_.save_invocation(save, click.get_current_context().info_name)
     if refresh is not None:
-        _reside(argv, timeout, cwd, cols, rows_path, drop, no_shape, from_, refresh, screen)
-    result = _once(argv, timeout, cwd, cols, rows_path, drop, no_shape, from_)
+        _reside(
+            argv, timeout, cwd, cols, rows_path, drop, no_shape, from_, refresh, screen, env
+        )
+    result = _once(argv, timeout, cwd, cols, rows_path, drop, no_shape, from_, env)
     result.saved = saved
     return result
 
@@ -184,6 +195,7 @@ def _reside(
     from_: str,
     refresh: int,
     screen: bool = False,
+    env: dict[str, str] | None = None,
 ) -> None:
     """Go resident, or refuse. Same contract as `read`'s: never returns
     normally, ends when the operator leaves, and the clean Exit skips
@@ -198,7 +210,7 @@ def _reside(
     resident.reside(
         source,
         refresh,
-        lambda: _once(argv, timeout, cwd, cols, rows_path, drop, no_shape, from_),
+        lambda: _once(argv, timeout, cwd, cols, rows_path, drop, no_shape, from_, env),
         screen=screen,
     )
     raise click.exceptions.Exit(0)
@@ -213,6 +225,7 @@ def _once(
     drop: str | None,
     no_shape: bool,
     from_: str = "json",
+    env: dict[str, str] | None = None,
 ) -> Result:
     result = Result()
     started = time.monotonic()
@@ -235,8 +248,10 @@ def _once(
             timeout=timeout,
             cwd=cwd,
             check=False,
-            # The operator's environment, not sky.boss's. See [[subprocess-env]].
-            env=child_env(),
+            # The operator's environment, not sky.boss's — plus anything they
+            # declared with --env. No width, ever: these bytes are parsed, and a
+            # wrapped line is a corrupted document. See [[subprocess-env]].
+            env=child_env(extra=env),
         )
     except FileNotFoundError:
         result.ok = False

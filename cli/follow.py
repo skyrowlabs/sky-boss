@@ -33,7 +33,7 @@ from typing import Callable
 
 import rich_click as click
 
-from cli.helpers import parse_duration
+from cli.helpers import parse_duration, parse_env
 from rich.console import Console, Group
 
 from cli import chrome as chrome_
@@ -66,6 +66,13 @@ def is_file_form(argv: tuple[str, ...]) -> bool:
 @click.command(name="follow")
 @click.argument("argv", nargs=-1, required=True)
 @click.option("--cwd", type=click.Path(file_okay=False, exists=True), help="Run it here.")
+@click.option(
+    "--env",
+    "env_pairs",
+    metavar="NAME=VALUE",
+    multiple=True,
+    help="Set a variable for the command. Visible, so not for secrets. Ignored by the file form.",
+)
 @click.option(
     "--lines",
     type=click.IntRange(min=1),
@@ -102,6 +109,7 @@ def is_file_form(argv: tuple[str, ...]) -> bool:
 def follow(
     argv: tuple[str, ...],
     cwd: str | None,
+    env_pairs: tuple[str, ...],
     lines: int,
     screen: bool,
     save: str | None,
@@ -185,7 +193,13 @@ def follow(
         follow_file(argv[0], limit=lines, screen=screen, ruleset=ruleset, due=seconds)
     else:
         follow_process(
-            list(argv), cwd=cwd, limit=lines, screen=screen, ruleset=ruleset, due=seconds
+            list(argv),
+            cwd=cwd,
+            limit=lines,
+            screen=screen,
+            ruleset=ruleset,
+            due=seconds,
+            env=parse_env(env_pairs),
         )
 
 
@@ -218,6 +232,7 @@ def follow_process(
     ruleset=None,
     spawn=ChildStream,
     due: int = 0,
+    env: dict[str, str] | None = None,
 ) -> None:
     """The process form's whole rendering: ring, chrome bands, dead state.
 
@@ -237,7 +252,7 @@ def follow_process(
         # The child lays out for the terminal it will be shown in, not for a
         # pipe's default. `sb follow -- x` and `x` should draw the same
         # picture; see [[subprocess-env]] round 2.
-        child = spawn(argv, cwd=cwd, limit=limit, columns=_display_width(out))
+        child = spawn(argv, cwd=cwd, limit=limit, columns=_display_width(out), env=env)
     except FileNotFoundError:
         raise click.UsageError(f"no such command: {argv[0]}")
 

@@ -30,7 +30,7 @@ import time
 import rich_click as click
 
 from cli import tools as tools_
-from cli.helpers import child_env
+from cli.helpers import child_env, parse_env
 from cli.output import Result, band, emit, refuse_resident_json
 
 # A 120k-line result kills a browser tab as dead as it killed a RichLog. The
@@ -55,6 +55,13 @@ def strip_ansi(text: str) -> str:
 @click.option("--timeout", type=int, default=60, help="Give up after this many seconds.")
 @click.option("--cwd", type=click.Path(file_okay=False, exists=True), help="Run it here.")
 @click.option(
+    "--env",
+    "env_pairs",
+    metavar="NAME=VALUE",
+    multiple=True,
+    help="Set a variable for the command. Visible, so not for secrets.",
+)
+@click.option(
     "--refresh",
     type=click.IntRange(min=1),
     default=None,
@@ -78,6 +85,7 @@ def read_(
     argv: tuple[str, ...],
     timeout: int | None,
     cwd: str | None,
+    env_pairs: tuple[str, ...],
     refresh: int | None,
     screen: bool,
     save: str | None,
@@ -96,6 +104,7 @@ def read_(
         sb read --save status -- sometool status
     """
     ctx = click.get_current_context()
+    env = parse_env(env_pairs)
     # Before the write, not inside the resident path — same defect `data` had.
     # See [[workbench]] round 3.
     refuse_resident_json(refresh)
@@ -104,15 +113,17 @@ def read_(
     # argv, not a result. See [[tools]] round 3.
     saved = tools_.save_invocation(save, ctx.info_name) if save else None
     if refresh is not None:
-        _reside(argv, timeout, cwd, refresh, screen)
+        _reside(argv, timeout, cwd, refresh, screen, env)
     if not (ctx.find_root().obj or {}).get("as_json"):
         # Live accrual: output shows while the process runs, exit stamps the
         # status. A Job is a stream that ends — see [[follow]]. The envelope
         # path below is untouched; under --json it is still built complete,
         # once, at exit.
-        result = _accrued(argv, timeout, cwd, source=f"{ctx.info_name} -- {shlex.join(argv)}")
+        result = _accrued(
+            argv, timeout, cwd, source=f"{ctx.info_name} -- {shlex.join(argv)}", env=env
+        )
     else:
-        result = _once(argv, timeout, cwd)
+        result = _once(argv, timeout, cwd, env)
     result.saved = saved
     return result
 
@@ -142,7 +153,11 @@ def envelope_for(outcome, timeout: int | None) -> Result:
 
 
 def _accrued(
-    argv: tuple[str, ...], timeout: int | None, cwd: str | None, source: str
+    argv: tuple[str, ...],
+    timeout: int | None,
+    cwd: str | None,
+    source: str,
+    env: dict[str, str] | None = None,
 ) -> Result:
     """The streaming human rendering: lines as they arrive on the stream they
     arrived on, a chrome stamp on stderr at exit. stdout stays exactly the
@@ -152,7 +167,12 @@ def _accrued(
 
     try:
         outcome = stream_.accrue(
-            list(argv), timeout=timeout, cwd=cwd, echo=_echo_line, columns=_width()
+            list(argv),
+            timeout=timeout,
+            cwd=cwd,
+            echo=_echo_line,
+            columns=_width(),
+            env=env,
         )
     except FileNotFoundError:
         missing = Result()
@@ -201,7 +221,12 @@ def output_width() -> int:
     return shutil.get_terminal_size((100, 24)).columns
 
 
-def _once(argv: tuple[str, ...], timeout: int | None, cwd: str | None) -> Result:
+def _once(
+    argv: tuple[str, ...],
+    timeout: int | None,
+    cwd: str | None,
+    env: dict[str, str] | None = None,
+) -> Result:
     result = Result()
     started = time.monotonic()
 
@@ -213,7 +238,7 @@ def _once(argv: tuple[str, ...], timeout: int | None, cwd: str | None) -> Result
             timeout=timeout,
             cwd=cwd,
             check=False,
-            env=child_env(_width()),
+            env=child_env(_width(), extra=env),
         )
     except FileNotFoundError:
         result.ok = False
@@ -248,6 +273,7 @@ def _reside(
     cwd: str | None,
     refresh: int,
     screen: bool = False,
+    env: dict[str, str] | None = None,
 ) -> None:
     """Go resident, or refuse. Never returns normally — the loop ends when
     the operator leaves, and the clean Exit skips `emit`'s rendering because
@@ -258,5 +284,5 @@ def _reside(
     # Belt and braces: the caller refuses this before `--save` writes.
     refuse_resident_json(refresh)
     source = f"{ctx.info_name} -- {shlex.join(argv)}"
-    resident.reside(source, refresh, lambda: _once(argv, timeout, cwd), screen=screen)
+    resident.reside(source, refresh, lambda: _once(argv, timeout, cwd, env), screen=screen)
     raise click.exceptions.Exit(0)

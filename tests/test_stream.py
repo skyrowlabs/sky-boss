@@ -304,7 +304,7 @@ def test_the_operators_declaration_beats_sky_boss_own_two():
 
 def test_env_adds_without_disturbing_the_operators_environment(monkeypatch):
     """Round 1's rule is unchanged: the environment is theirs, minus the two
-    variables sb's own wrapper set. `--env` adds; it does not replace."""
+    variables the `sb` wrapper set. `--env` adds; it does not replace."""
     monkeypatch.setenv("SB_TEST_INHERITED", "kept")
     from cli.helpers import child_env
 
