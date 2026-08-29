@@ -228,6 +228,15 @@ def build(canvas: Canvas | None = None) -> Starlette:
         try:
             if body.get("delete"):
                 out = await asyncio.to_thread(tools_.remove_block, name)
+            elif body.get("regroup"):
+                # A move, not a restatement. It splices the `group =` line
+                # inside the block, so every other field survives even the ones
+                # no surface can see — which is not a nicety: a rewrite dropped
+                # a declared `highlight` for a day because the serialiser did
+                # not know about it. See [[tools]] round 6.
+                out = await asyncio.to_thread(
+                    tools_.regroup, name, str(body.get("group") or "")
+                )
             else:
                 out = await asyncio.to_thread(
                     tools_.write_block,

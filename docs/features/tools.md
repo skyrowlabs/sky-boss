@@ -315,7 +315,7 @@ a perfectly valid group name and silently a second group, where `Jam` at least g
       *Shipped first, on its own, at the operator's word — it is data loss and it depends on
       nothing in this round. The bench half turned out to be different from what this line assumed;
       see Notes.*
-- [ ] **`set_field` and the regroup.** A line-level splice inside a block: replace the key, insert
+- [x] **`set_field` and the regroup.** A line-level splice inside a block: replace the key, insert
       it if absent, remove it if the value is empty. `POST /api/tools` gains a `regroup` verb that
       goes through it. Tests: every other key survives, a comment *inside* the block survives, and
       a regroup of a tool carrying `highlight` keeps it.

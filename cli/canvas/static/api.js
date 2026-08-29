@@ -125,6 +125,15 @@ export function deleteTool(name) {
   return post("/api/tools", { name, delete: true });
 }
 
+/* Move one command between groups. Not `writeTool` with a different `group`:
+ * that restates the whole tool, and the rail knows a command's `summary` — not
+ * its `description` — so a round-trip through here would invent a description
+ * equal to the expansion and drop any field the surface cannot see. This
+ * changes one line. See [[tools]] round 6. */
+export function regroupTool(name, group) {
+  return post("/api/tools", { name, group, regroup: true });
+}
+
 /* Groups. A second door rather than a verb on `/api/tools`, because a group is
  * a different object with its own validator — and that route is shaped as a
  * whole tool, which a group is not. See [[tools]] round 6. */
