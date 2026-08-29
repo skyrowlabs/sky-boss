@@ -197,6 +197,42 @@ module.** A name in a skip-list is the beginning of the command table this desig
 
 ## Phases
 
+### Round 7 — the rail is a width you can set (2026-08-29)
+
+The rail is `width: 46rem`, fixed, and `flex: none`. It never shrinks — so narrowing the surface
+eats the *canvas* while the rail keeps everything. That is the same failure `CLAUDE.md` records for
+`--scale` ("a panel that fits at 1.15 can starve its neighbour at 2.4") arrived at from the other
+direction, and the same fix works: change the number. Today the only way to change it is `--scale`,
+which changes every other number too.
+
+**Drag its right edge.** A handle, a pointer drag, a clamp, and the width remembered.
+
+**In `rem`, not `px`, and the conversion is the part to get right.** The stylesheet is written in
+`rem` where `1rem = 4px × --sb-scale`, and `CLAUDE.md` says not to add a `px` — so a drag that
+stored pixels would be a width that meant something different at every scale. The handler reads
+`getComputedStyle(document.documentElement).fontSize` for px-per-rem rather than recomputing
+`4 × scale`, because a second copy of that formula is a second thing to keep in step. This is the
+`clientX`-versus-CSS-units mismatch that got `zoom` rejected in round 4 of [[canvas]], met head-on
+instead of avoided.
+
+**Remembered in `$SB_STATE`, not `localStorage`.** `sb ui` binds an ephemeral port, so the page's
+origin differs every launch and browser storage is empty on arrival by construction — the finding
+that produced `prefs.json` in round 5. This is a second key in the same strictly-shaped file.
+
+**An `int` key needs a bound, and `KEYS` currently only bounds lists.** `_usable` returns `True` for
+any value of the right type, which was fine when the only key was a list of names with `MAX_ITEMS`
+and `MAX_LEN`. A number wants the same treatment for the same reason the bound exists at all: not
+security — a page past the guard has `/api/run` — but a file that quietly grows or a stored width of
+`1e9` that renders as a rail nobody can drag back.
+
+- [x] `--sb-rail` custom property, defaulting to the current `46rem`, so an unset pref renders
+      exactly what it renders today.
+- [x] A drag handle on the rail's right edge; pointer events, clamped between a floor and a ceiling.
+- [x] `rail` added to `prefs.KEYS` as an `int` of rem, with a range check in `_usable`.
+- [x] Written on release rather than per pointer move — one file write per drag, not per pixel.
+- [x] Verified by rendering headless Chromium and reading the width back, at more than one
+      `--scale`, per `CLAUDE.md`'s standing obligation about the untested frontend.
+
 ### Round 6 — a group is a thing (2026-08-29)
 
 Round 5 made a group a *label on a command*, which is the cheapest thing that could have worked and
@@ -1098,3 +1134,44 @@ which keeps `argv` meaning one thing.
 act from the bench, reopen it from the rail, replace it, delete it. The file returned **byte for
 byte** to its starting state with both comments intact, and three backups were written — one per
 write, which is the promise.
+
+### 2026-08-29 — round 7, and two bugs the render pass caught
+
+**The second prefs key turned a whole-file rewrite into a bug, before it was one.** `prefs.write`
+was documented as *"Replace what is remembered"*, which is the same thing as a merge while there is
+one key and a data-loss bug the moment there are two: the fold control sends `folded`, the rail drag
+sends `rail`, and whichever moved last erased the other. Round 5's folds would have vanished the
+first time anyone dragged the rail, silently.
+
+It is the identical failure `CLAUDE.md` records for `tools.toml` — a declared `highlight` dropped on
+every `write_block` for a day, visible only as a stream that stopped being tinted — and the same
+rule fixes it: **a rewrite has to know every field; a merge does not.** A key is now cleared by
+sending its empty value rather than by omission, so "no opinion" and "none" stay different things.
+
+**And `_usable` had no bound for a number.** It returned `True` for any value of the right type,
+which was correct while the only key was a list carrying `MAX_ITEMS` and `MAX_LEN`, and a way to
+store a rail of `1e9` the moment an `int` arrived. Bounded now — and `bool` rejected explicitly,
+because `True` is an `int` in Python and would have sailed through a range check as a one-rem rail.
+
+**The headless render pass earned its keep on the first try.** The drag worked, the width was exact,
+and *nothing was saved*: `setState` is batched, so a pointerup arriving in the same task as the last
+pointermove read the `rail` its handler had closed over at the previous render — `null` on a first
+drag, which the guard read as "nothing to save". **A real mouse renders between the two events and
+hides this completely.** Only a synthetic drag dispatched in one tick shows it. The width to save
+now comes off the drag state rather than out of component state, which is correct regardless of when
+rendering happens.
+
+That is the second time this obligation has found something a suite could not: `CLAUDE.md` cites
+`dead · exited undefined`, and this is the same shape — the pure layer is right and the rendered
+path is not.
+
+**One thing that cost ten minutes and is worth knowing.** The API kept returning `{}` for a value
+that wrote correctly when called directly. The running `sb ui` had the *old* `prefs.py`: Python is
+not hot-reloadable here, deliberately, and live reload covers `static/` only. The symptom — a write
+that silently drops a key it does not know — was indistinguishable from the bug being in the new
+code.
+
+**Verified at two scales**, which is what the `rem` storage exists for. At 1.15 a 100px drag is
+68rem; at 2.4 the same gesture is 56rem, and one stored `46` renders 211.59px and 441.59px
+respectively. The px-per-rem is read from the document's computed `font-size` rather than
+recomputed as `4 x scale`, so there is one place for that formula rather than two.

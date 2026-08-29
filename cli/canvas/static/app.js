@@ -317,6 +317,71 @@ function sectionsOf(saved, groups, dragging) {
   return sections;
 }
 
+/* The rail's width, in `rem`, and the drag that sets it. See [[tools]] round 7.
+ *
+ * **Rem rather than pixels, and the conversion is read rather than recomputed.**
+ * The stylesheet is measured in `rem` where `1rem = 4px x --sb-scale`, so a
+ * width stored in pixels would mean a different rail at every scale. The
+ * px-per-rem comes from the root's computed `font-size` instead of a second
+ * copy of that formula — one place to be wrong instead of two. This is the
+ * `clientX`-is-not-CSS-units mismatch that got `zoom` rejected in [[canvas]]
+ * round 4, met head-on.
+ *
+ * Written on release, not per move: one file write per drag rather than one
+ * per pixel. */
+const RAIL_DEFAULT = 46;
+const RAIL_MIN = 18;
+const RAIL_MAX = 160;
+
+function pxPerRem() {
+  const size = parseFloat(getComputedStyle(document.documentElement).fontSize);
+  return size > 0 ? size : 4;
+}
+
+function useRailWidth() {
+  const [rail, setRail] = useState(null);
+  const dragging = useRef(null);
+
+  const onPointerDown = (event) => {
+    event.preventDefault();
+    const start = event.clientX;
+    const from = rail === null ? RAIL_DEFAULT : rail;
+    dragging.current = { start, from, unit: pxPerRem() };
+    event.target.setPointerCapture(event.pointerId);
+    document.body.classList.add("rail-dragging");
+  };
+
+  const onPointerMove = (event) => {
+    const state = dragging.current;
+    if (!state) return;
+    const moved = (event.clientX - state.start) / state.unit;
+    const next = Math.round(state.from + moved);
+    state.value = Math.min(RAIL_MAX, Math.max(RAIL_MIN, next));
+    setRail(state.value);
+  };
+
+  /* The width to save comes off the drag state, **not** out of `rail`.
+   *
+   * `setState` is batched, so a pointerup arriving in the same task as the
+   * last pointermove sees the `rail` this handler closed over at its last
+   * render — `null` on a first drag, which the guard below then read as
+   * "nothing to save". A real mouse renders between the two events and hid
+   * it; a synthetic drag dispatched in one tick did not, which is what the
+   * headless render pass is for. See [[tools]] round 7. */
+  const onPointerUp = (event) => {
+    const state = dragging.current;
+    if (!state) return;
+    dragging.current = null;
+    document.body.classList.remove("rail-dragging");
+    if (event.target.hasPointerCapture?.(event.pointerId)) {
+      event.target.releasePointerCapture(event.pointerId);
+    }
+    if (state.value !== undefined) api.savePrefs({ rail: state.value });
+  };
+
+  return { rail, setRail, onPointerDown, onPointerMove, onPointerUp };
+}
+
 /* Which groups are folded. Held in `$SB_STATE` on the server rather than in
  * `localStorage`, because `sb ui` binds an ephemeral port every launch and
  * browser storage is keyed by origin — a fold written under one launch's
@@ -347,6 +412,7 @@ function Tools({ commands, groups, open, edit, drop, addGroup, dropGroup, move }
   const [dragging, setDragging] = useState(false);
   const sections = sectionsOf(saved, groups, dragging);
   const [folded, setFolded] = useState(() => new Set());
+  const grip = useRailWidth();
   /* The name being typed, or null when the control is closed. An empty string
    * is the open-and-blank state and has to be distinguishable from it. */
   const [naming, setNaming] = useState(null);
@@ -356,7 +422,9 @@ function Tools({ commands, groups, open, edit, drop, addGroup, dropGroup, move }
   useEffect(() => {
     let live = true;
     api.prefs().then((stored) => {
-      if (live && Array.isArray(stored.folded)) setFolded(new Set(stored.folded));
+      if (!live) return;
+      if (Array.isArray(stored.folded)) setFolded(new Set(stored.folded));
+      if (Number.isFinite(stored.rail)) grip.setRail(stored.rail);
     });
     return () => {
       live = false;
@@ -373,7 +441,18 @@ function Tools({ commands, groups, open, edit, drop, addGroup, dropGroup, move }
     api.savePrefs({ folded: [...next].filter((g) => groups.has(g)) });
   };
   return html`
-    <div class="tools">
+    <div
+      class="tools"
+      style=${grip.rail === null ? "" : `--sb-rail: ${grip.rail}rem`}
+    >
+      <div
+        class="tools-grip"
+        onPointerDown=${grip.onPointerDown}
+        onPointerMove=${grip.onPointerMove}
+        onPointerUp=${grip.onPointerUp}
+        onPointerCancel=${grip.onPointerUp}
+        title="drag to resize"
+      ></div>
       <div class="tools-head">TOOLS</div>
       <div class="tools-list">
         ${saved.length === 0 &&

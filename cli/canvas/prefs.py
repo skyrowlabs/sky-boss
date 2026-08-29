@@ -38,6 +38,11 @@ PREFS_FILE = "prefs.json"
 KEYS: dict[str, object] = {
     # Which tool groups are folded in the rail. See [[tools]] round 5.
     "folded": list,
+    # How wide the rail is, in `rem`. Stored in rem rather than pixels because
+    # the stylesheet is measured in them — `1rem = 4px x --sb-scale` — so a
+    # pixel width would mean a different rail at every scale. See [[tools]]
+    # round 7.
+    "rail": int,
 }
 
 # A bound on how much the surface may remember. Not a security boundary — a
@@ -46,6 +51,15 @@ KEYS: dict[str, object] = {
 # a slow launch, months later.
 MAX_ITEMS = 200
 MAX_LEN = 64
+
+# What a rail width may be, in rem. The floor is narrow enough to be nearly
+# closed and wide enough to still show the drag handle; the ceiling stops a
+# rail that has eaten the canvas. Bounds rather than a bare `int` check because
+# `_usable` used to return True for any value of the right type — fine when the
+# only key was a list carrying its own limits, and a way to store a width of
+# 1e9 the moment a number arrived. See [[tools]] round 7.
+RAIL_MIN = 18
+RAIL_MAX = 160
 
 
 def path(state: Path | None = None) -> Path:
@@ -70,11 +84,29 @@ def read(state: Path | None = None) -> dict:
 
 
 def write(body: dict, state: Path | None = None) -> str | None:
-    """Replace what is remembered. The reason it was refused, or None."""
+    """Merge into what is remembered. The reason it was refused, or None.
+
+    **Merge, not replace, and the second key is what forced it.** With one key
+    a whole-file rewrite was the same thing. With two there are two writers —
+    the fold control sends `folded`, the rail drag sends `rail` — and a replace
+    means whichever moved last erases the other. Round 5's folds would vanish
+    the first time anyone dragged the rail, silently, exactly the way a
+    `highlight` field vanished on every `write_block` until [[tools]] round 6
+    replaced it with a splice.
+
+    So the rule `CLAUDE.md` states for `tools.toml` holds here too: **a rewrite
+    has to know every field; a merge does not.** A caller states what it knows
+    and claims nothing about the rest.
+
+    A key is therefore *cleared* by sending its empty value, never by omitting
+    it — omission means "no opinion", `[]` means "none". That distinction is
+    what makes two independent writers safe.
+    """
     kept = {key: value for key, value in body.items() if key in KEYS}
     for key, value in kept.items():
         if not _usable(key, value):
             return f"{key!r} is not a usable value"
+    kept = {**read(state), **kept}
 
     target = path(state)
     try:
@@ -88,8 +120,15 @@ def write(body: dict, state: Path | None = None) -> str | None:
 def _usable(key: str, value) -> bool:
     if key not in KEYS or not isinstance(value, KEYS[key]):
         return False
+    # `bool` is an `int` in Python, and `True` would sail through the range
+    # check below as a one-rem rail. Rejected explicitly rather than left to
+    # arithmetic.
+    if isinstance(value, bool):
+        return False
     if isinstance(value, list):
         return len(value) <= MAX_ITEMS and all(
             isinstance(item, str) and 0 < len(item) <= MAX_LEN for item in value
         )
+    if key == "rail":
+        return RAIL_MIN <= value <= RAIL_MAX
     return True

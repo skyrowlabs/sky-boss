@@ -202,11 +202,28 @@ body {
  * a 3rem gap. Same selector, same specificity, different element. */
 .stage { display: flex; flex: 1; gap: 3rem; min-height: 0; }
 
+/* The rail's width is a variable so a drag can set it and an unset pref
+   renders exactly what it rendered before this existed. `position: relative`
+   is what the handle absolutely positions against. See [[tools]] round 7. */
 .tools {
-  flex: none; width: 46rem; display: flex; flex-direction: column;
+  flex: none; width: var(--sb-rail, 46rem); display: flex; flex-direction: column;
   border: var(--hair) solid var(--sb-hair); border-radius: var(--r-md);
-  background: var(--sb-surface); overflow: hidden;
+  background: var(--sb-surface); overflow: hidden; position: relative;
 }
+
+/* The grab strip, sitting over the rail's right border. Wider than the border
+   it straddles because a one-hair target is a target you miss; it is
+   transparent until hovered so the rail looks unchanged at rest. */
+.tools-grip {
+  position: absolute; top: 0; right: 0; bottom: 0; width: 2rem;
+  cursor: col-resize; z-index: 2; background: transparent;
+  transition: background 120ms ease;
+}
+.tools-grip:hover, .tools-grip.dragging { background: var(--sb-brand); opacity: .5; }
+
+/* While dragging, the pointer is captured and text selection off — otherwise a
+   drag that leaves the strip selects half the rail on its way past. */
+body.rail-dragging { user-select: none; cursor: col-resize; }
 .tools-head {
   flex: none; padding: 2.5rem 3rem; color: var(--sb-brand);
   font-weight: 700; letter-spacing: .16em; font-size: 2.75rem;
