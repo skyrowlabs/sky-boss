@@ -227,14 +227,21 @@ the window wants systemd.** Cancelling exits non-zero, so a script can tell the 
 
 ## Saving a command
 
-`--save NAME` on `read`, `data` or `follow` saves the invocation and then runs it. It only ever
-appends to `~/.sky-boss/tools.toml`, and refuses a name that exists — editing and deleting stay
-`$EDITOR`'s.
+`--save NAME` on `read`, `data` or `follow` saves the invocation and then runs it. It appends to
+`~/.sky-boss/tools.toml` and refuses a name that exists, because `--save` saves *by example* — and
+`run` does not take it at all, since there is no example for a write you have not run.
 
 ```bash
 sb data --cols number,title --refresh 30 --save prs -- gh pr list --json number,title
 sb tools prs        # or the short spelling: sb -t prs
 ```
+
+**The workbench writes too**, and it is the way to create an act, to edit one, or to delete one.
+Its save button writes the block directly rather than re-running your command, so it works for
+every contract; a name that already exists is replaced rather than refused, and the tools rail
+carries ✎ and ✕ per row. Every write copies `tools.toml` into `~/.sky-boss/backups/` first, and
+only ever rewrites the one block it is changing — the rest of the file, your comments included, is
+untouched byte for byte.
 
 `sb tools` lists what you saved, and what failed to load. A fresh clone has saved nothing and says
 so rather than raising:
