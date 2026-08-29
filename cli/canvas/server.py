@@ -38,8 +38,6 @@ import uuid
 from pathlib import Path
 from typing import NamedTuple
 
-import click
-
 from cli.helpers import parse_duration, parse_env
 
 import rich_click as click
@@ -54,6 +52,7 @@ from dataclasses import dataclass
 from cli import chrome as chrome_
 from cli import highlight as highlight_
 from cli import stream as stream_
+from cli import tools as tools_
 from cli import view as view_
 from cli.canvas import runner
 from cli.canvas.catalog import catalog, entry_for
@@ -157,6 +156,55 @@ def build(canvas: Canvas | None = None) -> Starlette:
             "</svg>"
         )
         return Response(svg, media_type="image/svg+xml", headers={"cache-control": "no-cache"})
+
+    async def post_tools(request: Request) -> Response:
+        """Create, replace or delete one saved command.
+
+        **The route rule 4 said would never exist**, added at the operator's
+        direction with the security argument re-examined rather than waived.
+        That argument was: a hostile page past the guard *"gets one command;
+        with a write route it would get every command from then on."* The first
+        half is wrong. A page past the guard gets `/api/run`, which runs an
+        arbitrary argv, and one arbitrary argv appends to `tools.toml` — or to
+        a crontab, or to a shell profile. **Persistence was already on the far
+        side of that boundary**, so this adds convenience for the operator and
+        nothing for an attacker already executing as them. What defends this
+        surface is unchanged: loopback, the required header that forces a
+        preflight nothing answers, the per-launch token, the `Origin` check.
+
+        Guarded like every other route, and the refusal is a 400 carrying its
+        reason — `cli.tools.write_problem` asked, never reimplemented, so the
+        writer, the loader and this route hold one opinion.
+
+        **Reloads the tree after writing**, because the alternative is a
+        surface that disagrees with itself: the tool exists in the file, the
+        rail does not list it, and the name is refused as taken. See
+        `tools_.reload` and [[workbench]] round 3.
+        """
+        if not canvas.authorised(request):
+            return _denied()
+        body = await request.json()
+        name = str(body.get("name") or "")
+        from cli import cli as root_group
+
+        try:
+            if body.get("delete"):
+                out = await asyncio.to_thread(tools_.remove_block, name)
+            else:
+                out = await asyncio.to_thread(
+                    tools_.write_block,
+                    name,
+                    [str(a) for a in (body.get("argv") or [])],
+                    int(body.get("refresh") or 0),
+                    str(body.get("description") or ""),
+                )
+        except click.UsageError as exc:
+            return JSONResponse({"error": exc.format_message()}, status_code=400)
+        except OSError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+
+        out["problems"] = await asyncio.to_thread(tools_.reload, root_group)
+        return JSONResponse(out)
 
     async def post_quit(request: Request) -> Response:
         """The close button. Guarded like every other route.
@@ -521,6 +569,7 @@ def build(canvas: Canvas | None = None) -> Starlette:
             Route("/api/watch", post_watch, methods=["POST"]),
             Route("/api/follow", post_follow, methods=["POST"]),
             Route("/api/accrue", post_accrue, methods=["POST"]),
+            Route("/api/tools", post_tools, methods=["POST"]),
             Route("/api/quit", post_quit, methods=["POST"]),
             Route("/api/stream", stream),
             Mount("/static", NoCacheStatic(directory=STATIC), name="static"),
