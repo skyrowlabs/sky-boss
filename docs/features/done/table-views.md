@@ -215,6 +215,78 @@ change at all** — `app.js` already treats everything past the command name as 
 
 ## Phases
 
+### Round 6 — the controls reach the window (2026-08-28)
+
+Reported by the operator, looking at a `jam pr list --json` window: *"there are 2 hidden columns in
+the output even though the window could support it — is there a way to tie the output to the window
+size so that for larger windows potentially all of the data could be displayed?"*
+
+**The drawing is already tied to the window, and round 3 is why.** Measured on a live window at four
+widths, the same ten columns are drawn every time:
+
+```
+1140px   HEAD_REF 267  CHECKS 151      spare width spreads to the columns that want it
+ 760px   HEAD_REF  85                  squeezed, still ten
+ 520px   at their floors, body scrolls sideways
+ 380px   at their floors, body scrolls sideways
+```
+
+Nothing is ever dropped for width. That is round 3's whole result — the fixed budget of eight came
+out precisely because *a count cannot answer a question about width*, and fitting moved to each
+renderer.
+
+**The two hidden columns were the other kind**, and no window is big enough to help them: `head` is
+a 40-character sha hidden as an opaque identifier, and `marker_payload` was `null` in every row at
+that moment. `hidden` means hidden *by rule* — a property of the run, true at any width — which is
+the split this doc already draws and which held up exactly as written.
+
+**So the gap is not the fitting. It is that the operator cannot overrule the rule from the window.**
+`--cols` and `--no-shape` both exist and both defeat every heuristic; neither is reachable from a
+canvas window, and until now the answer to "show me `head` in this one window" was to edit the saved
+tool. The bench has had a column checklist since round 2 of [[workbench]]. A window has had nothing.
+
+**The window is not the bench, and one thing genuinely differs.** On the bench a shaping is a
+one-shot against a frozen trial payload. In a window the payload is replaced underneath — on every
+watcher tick, on every manual refresh, on every re-run. So a column choice is **window state that
+outlives the payload it was made against**, re-applied to each new one. A control that reset on the
+next tick would be worse than no control, because a 30-second watcher would undo it while you
+watched.
+
+**A window that carries a table carries its view controls**, folded away until asked for.
+
+- The same checklist the bench draws, from the same `/api/shape` — **which runs nothing.** A view
+  describes data and never filters it, so which columns are drawn is a question about the drawing;
+  re-running a foreign tool to answer it would also make every click compare a different dataset.
+- **`--no-shape` and `--drop` join `--cols`** in the bench at the same time, because the bench is
+  where a tool is authored and it has been able to say *draw exactly these* but not *draw
+  everything*.
+- **The choice is remembered on the window and re-applied**, so a watcher tick redraws with the
+  operator's columns rather than the shaping's.
+- **Reverting is a control, not a memory game.** With `--cols` in force `shape` returns only what
+  was named and `hidden` is empty, which is why the bench shapes twice; the window inherits that and
+  keeps a *clear* affordance so there is always a way back to the shaping's own choices.
+
+**Does not do:**
+
+- **Does not re-run anything, ever.** Not on a chip, not on a clear. `/api/shape` is introspection
+  and stays on the reads-in side of the line.
+- **Does not write the choice to the tool.** A window's columns are this window's. Persisting them
+  is what the bench and `--cols` in a saved argv are for, and a control that silently edited
+  `tools.toml` would be a write with no name on it — the opposite of what [[tools]] round 4 just
+  built a door for.
+- **Does not offer controls on a window with no view.** `read`, `follow` and `run` return no rows;
+  a checklist over them would be a control for a table that contract cannot produce, which is the
+  same mistake as offering a cadence on a write.
+- **Does not fit by width.** Still round 3's answer: the server decides which columns are worth
+  showing, the renderer fits them, and a column that does not fit scrolls rather than vanishing.
+
+- [x] **`--no-shape` and `--drop` in the bench**, beside the checklist.
+- [x] **A view strip on a window that has a view**, folded by default: the checklist, a
+      show-everything toggle, and a clear.
+- [x] **The choice survives a refresh** — held on the window, re-applied to each new payload, and
+      tested against the pure layer rather than by waiting for a tick.
+
+
 ### Round 5 — a named column that is not there (2026-08-23)
 
 Round 4 closed one silence and left its twin open, one step along. Found while verifying
@@ -756,3 +828,38 @@ handle on the native webview; the operator's own window is the confirming test.
 Measured after, at the operator's terminal width of 100: ten columns, `checks` and `execution`
 among them, and the envelope warning down to `head` — the sha, which was always correctly
 gone.
+
+### Round 6 — executed (2026-08-28)
+
+**The report was about width and the answer was not.** Measuring first is what settled it: ten
+columns drawn at 1140px, at 760px, at 520px and at 380px, spare width spreading to `HEAD_REF`
+(267px) and `CHECKS` (151px) at the top end, everything on its floor with a sideways scroll at the
+bottom. Round 3 had already done the work being asked for; what had never existed was a way to
+overrule `hidden`.
+
+**Three bugs, and all three were the same mistake.** Every one was a guard written as *"if there is
+no view, do nothing"* — correct until `--no-shape` makes *having no view* a legitimate state the
+operator can ask for:
+
+1. `ViewControls` returned null without a view, so choosing **everything** deleted the controls that
+   had just been used, with no way back.
+2. The re-shape effect `continue`d without a view, so **clear** could never restore the shaping.
+   Every later chip then read `drawn` off a view that was not there and selected one column.
+3. The warnings banner read the *envelope's* warnings, so it went on saying **"2 columns hidden:
+   head"** with `head` drawn immediately below it.
+
+Written into Shape as *"reverting is a control, not a memory game"* and then built wrong three
+times running. The lesson is narrower than "test it": **a feature whose whole purpose is to remove
+a thing gets built by someone whose every guard assumes that thing is present.**
+
+**A fourth, different in kind: the effect re-fired against its own output.** The patch stamped
+`viewFor` with the result it had *read* while installing a new object, so `viewFor !== result` on
+the very next render — an infinite shaping loop that was invisible, because the view it computed was
+identical every time. Caught by counting `/api/shape` calls in the harness rather than by looking; a
+loop that produces the right answer forever looks exactly like one that ran once. Settled state is
+now one call per click, asserted.
+
+**Verified as a sequence, not as states.** 10 columns → everything (14) → clear (back to 10) → tick
+`head` (11) → re-run → still 11, strip still open. The re-run is the round's actual claim: a choice
+made against one payload holds across the next. All four bugs lived in the transitions; none is
+visible in any single state.
