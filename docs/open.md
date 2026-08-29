@@ -283,3 +283,47 @@ used the answer to pick a display width, throwing the rest away. `cli/banner.py:
 question and handed the decision up. The fix was not "add a check" but "use the check that was
 already there for the thing it was actually telling you" — which is the shape to look for in
 whatever answers the above.
+
+## Where sky.boss learns the agent-state root
+
+**Decided that it should; not decided how it is told.** `~/src/sl-agent-logs/<slug>/` is the
+state root the sibling repos' automation writes to, and its layout was designed so a log path is
+derivable from a project sky.boss already knows: the directory under it is the project's **slug**,
+deliberately the same key `projects.toml` uses. See `skyrow-workspace/strategy/seams/agent-state.md`.
+
+That derivation does not work today, because sky.boss knows the slug and not the root, and
+`projects.toml` declares no root. The writers each carry a default — `Path.home() / "skyrow.labs" /
+"sl-agent-logs"` — and **sky.boss must not copy it.** A writer may hardcode that path because it
+lives there; sky.boss ships to machines with no such directory, and a workspace layout baked into a
+published tool is the same class of leak as a host name in a tracked file.
+
+The shape that fits the house pattern — `SB_HOME` and `SB_STATE` are both `environ.get(...) or
+<default>` — is two levels and no default:
+
+1. `SL_AGENT_LOGS` in the environment, **the same name the writers honour**, so one knob points the
+   producers and the reader at the same scratch directory. That is the whole value of matching it.
+2. A root declared in `$SB_HOME/projects.toml`, operator-authored and hand-edited.
+3. Neither → *nothing declared*, which degrades to no state root rather than raising. Same rule as
+   an absent `$SB_HOME`.
+
+**Both levels rather than one, for a reason specific to this tool.** An env-only knob is invisible
+to the canvas: `sb ui` opens a native webview, and a window started from a desktop launcher inherits
+no shell environment — so the knob would work in a terminal and silently not in the surface. That is
+the failure mode this file exists to catch.
+
+`projects.toml` rather than a new file, because `$SB_HOME` holds three and `prefs.json` is already
+deliberately shaped so it cannot become a second config file. A fourth for one string is worse than
+a key in the file that already declares the projects the root is keyed by.
+
+**Open, and both need the operator:**
+
+- **The file is operator-owned and sky.boss never writes it**, so adding a key is a request, not a
+  task this repo can take.
+- **One root or one per project?** One, on the seam's own argument: repeating the root per project
+  rebuilds the hand-maintained table the slug convention exists to remove. A per-project override is
+  easy to add later and hard to take back.
+- **Precedence is not free.** If the environment wins, a long-lived `sb ui` holds whatever was set
+  when it launched while a fresh shell sees a new value — both correct, mutually inconsistent, and
+  invisible.
+- **A declared project may have no state directory.** `projects.toml` declares `jam-sense` and
+  `breeze-brain`; only one has logs. That has to read as *nothing to follow*, never as an error.
