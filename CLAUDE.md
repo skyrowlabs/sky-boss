@@ -64,7 +64,7 @@ replaced by a browser one the same day. What exists:
 | `sb follow <path>` | Follows a file with a native stat cursor, so quiet and dead are different words. `--due 15m` makes late a word too |
 | `sb roll-call` | Asks every declared project how it is and folds the answers. An observe. See [[roll-call]] |
 | `sb mcp` | Speaks MCP on stdio, offering the tools to an agent. A surface. See [[mcp]] |
-| `sb tools` | Lists the operator's saved commands, and any that failed to load |
+| `sb tools` | Lists the operator's saved commands, and any that failed to load, grouped |
 | `sb ui` | Opens the surface: **the canvas**, a command palette over tiled and floating windows, and **the workbench**, where a command gets authored. See [[workbench]] |
 | `sb tools <name>` | Runs a saved command; `sb -t <name>` is the short spelling. See [[tools]] |
 
@@ -157,7 +157,10 @@ Two rules there are the canvas's own, arriving on a new screen:
 
 - **The contract is asserted, never inferred**, and nothing is selected when the bench opens. A
   bench that read a trailing `--json` and chose `data` would be the act/observe split undone by a
-  heuristic. `/api/trial` is `/api/run` with one rule added — **an act has no trial run** — and it
+  heuristic. The same rule governs a tool's **group** ([[tools]] round 5): it is a declared field,
+  not a prefix read off the name, because a prefix rule cannot be told apart from a coincidence and
+  `disk-free` would invent a group nobody asked for. A group is a *label the surfaces sort under*
+  and never part of the address — `sb tools <name>` is unchanged and names stay globally unique. `/api/trial` is `/api/run` with one rule added — **an act has no trial run** — and it
   is a second route rather than a flag because the palette must keep opening `sb run` windows. The
   refusal is server-side: a surface that declines to draw a button has not refused anything.
 - **A follow trial is a pseudo-window on the session**, held open by `/api/follow` under the window
@@ -202,6 +205,15 @@ The rules that are not negotiable:
   so a 5s watcher would silently become a 60s one at the exact moment you stopped being able to see
   that it had. Nothing survives the last window, which is what makes this a scheduler and not a
   daemon.
+- **The surface has no stable origin, so browser storage cannot hold anything across launches.**
+  `sb ui` binds an *ephemeral* port unless told otherwise, so the page is served from
+  `http://127.0.0.1:<different>/` every time and `localStorage` — which is keyed by origin — is
+  empty on arrival by construction. True in all three shells. Anything the surface must remember
+  between launches goes in `$SB_STATE` through `cli/canvas/prefs.py` and the guarded `/api/prefs`,
+  which is strictly shaped so it cannot become a second config file. **The native webview is a red
+  herring here**: `pywebview`'s `private_mode` does default to `True`, and turning it off with a
+  `storage_path` really does make WebKitGTK persist `localStorage` — across a restart of the
+  *browser*, which is not the restart anyone cares about. See [[tools]] round 5.
 - **Reads in, execution out.** Introspection runs in-process because walking the tree runs nothing.
   Commands run in a *subprocess*, because a thread cannot be cancelled and a watcher fires
   unattended — one hung `git fetch` would strand a thread forever. `sb --json` already prints the
@@ -306,6 +318,7 @@ check there first.
 | Declared projects (`projects.toml`) | `~/.sky-boss/` (`$SB_HOME`) | the operator | never |
 | Backups of `tools.toml` | `~/.sky-boss/backups/` | sky.boss, before every write | never |
 | Browser profile for the canvas | `~/.local/state/sb/` (`$SB_STATE`) | the machine | never |
+| What the surface remembers about itself (`prefs.json`) | `~/.local/state/sb/` (`$SB_STATE`) | the surface | never |
 
 **`$SB_HOME` is the operator content directory, and it is outside the repo with no fallback path
 into it.** *It does have one fallback path* **outside** *the repo*: the 2026-08-27 rename moved the

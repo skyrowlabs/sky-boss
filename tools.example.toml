@@ -5,12 +5,12 @@
 # read, data or follow that just worked and it appends a block like the ones
 # below, then runs. It only ever appends — nothing above the new block is
 # rewritten, and a name that already exists is refused rather than replaced,
-# so editing and deleting stay yours.
+# because --save saves by example.
 #
-# No *surface* writes this file. The canvas server is remote code execution
-# bound to a port, and a route that could write a file sb later runs would
-# turn a transient compromise into a persistent one; a flag you type in your
-# own shell is not that.
+# The workbench in `sb ui` writes too: it creates, replaces and deletes. A
+# write splices one block's line range, so every other byte — including these
+# comments — is left alone, and the file is copied into $SB_HOME/backups/
+# before it changes.
 #
 # A tool is a NAME plus a SB ARGV. `argv` starts with a sb command — `run` or
 # `data` — never a bare executable. That is not a formality: a tool that could
@@ -24,6 +24,10 @@
 # `acts` is inherited from that first word and cannot be declared here. You
 # already asserted read-or-write by choosing `data` over `run`.
 #
+# `group` is optional and is a label the tools rail sorts under, nothing more.
+# It never becomes part of the address: `sb tools prs`, never `sb tools jam prs`,
+# and names stay unique across every group. Leave it out to be ungrouped.
+#
 # A leading ~ in an argv is expanded, so your own paths work.
 # A tool takes no arguments: `sb prs 945` is an error, not an append.
 # A tool can never shadow a sb command; that declaration is skipped and named.
@@ -31,6 +35,7 @@
 
 [tool.prs]
 description = "Open pull requests"
+group = "code"
 # Many tools resolve their environment against the working directory rather
 # than their installed location, so --cwd is often needed even on PATH.
 argv = ["data", "--cwd", "/path/to/your/checkout",
@@ -42,6 +47,7 @@ refresh = 30
 
 [tool.containers]
 description = "What is running"
+group = "box"
 # --cols picks the columns when the automatic shaping guesses wrong; the
 # warning on a shaped table names what it hid, so you know what to ask for.
 argv = ["data", "--cols", "Names,Image,Status",
@@ -50,5 +56,6 @@ refresh = 5
 
 [tool.disk]
 description = "What is left on this box"
+group = "box"
 # This one acts, because `run` acts. No `refresh` is permitted on it.
 argv = ["run", "--", "df", "-h", "/"]

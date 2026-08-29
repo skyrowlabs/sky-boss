@@ -258,6 +258,21 @@ $ sb tools
 A saved command inherits `acts` from the first word of its argv, so one wrapping `run` is refused a
 cadence exactly as `sb run` is — the read/write line survives being given a name.
 
+**A tool may declare a group**, and the rail draws it as a folded-away section rather than one long
+alphabetical list:
+
+```toml
+[tool.prs]
+group = "jam"
+argv  = ["data", "--", "gh", "pr", "list", "--json", "number,title"]
+```
+
+It is a *label*, never an address — `sb tools prs` is unchanged, there is no group you can invoke,
+and names stay unique across every group. Groups sort alphabetically with the ungrouped last, in
+`sb tools` and in the rail alike. Nothing is guessed from the name: a tool called `disk-free` is
+ungrouped until you say otherwise. Which groups you have folded is remembered between launches, in
+`~/.local/state/sb/` with the rest of the surface's own state.
+
 ## Many projects at once
 
 Declare what each project publishes in `~/.sky-boss/projects.toml` — a command to ask, or a file
