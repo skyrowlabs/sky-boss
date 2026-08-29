@@ -33,6 +33,14 @@ const FLOAT = "float";
  * you the thing exists. See [[workbench]] and docs/open.md.
  */
 const CANVAS = "canvas";
+
+/* How many columns the tile grid gets: a function of how many windows there
+ * are, not of a fixed minimum width. One fills the canvas, two split it, four
+ * quarter it. `auto-fill` used to build every track that fitted whether or not
+ * anything occupied it. See [[canvas]] round 8. */
+function tileColumns(count) {
+  return Math.max(1, Math.ceil(Math.sqrt(count)));
+}
 const WORKBENCH = "workbench";
 
 /* What the bench opens on. Decided before the screen existed rather than
@@ -1404,7 +1412,11 @@ function App() {
         : html`
             <div class="stage">
               <${Tools} commands=${commands} open=${open} />
-              <div class=${`canvas ${layout}`} ref=${canvas}>
+              <div
+                class=${`canvas ${layout}`}
+                ref=${canvas}
+                style=${`--sb-cols: ${tileColumns(windows.length)}`}
+              >
                 ${windows.length === 0 &&
                 html`<div class="empty">no windows open — run a command to open one</div>`}
                 ${windows.map(

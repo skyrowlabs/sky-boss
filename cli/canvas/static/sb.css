@@ -232,15 +232,24 @@ body {
 .tool-acts { flex: none; color: var(--sb-warn); font-weight: 700; }
 
 .canvas { flex: 1; overflow: auto; position: relative; padding: 2.5rem 0; }
+/* `--sb-cols` is set by app.js from the window count. `auto-fill` used to build
+ * every track that fitted whether or not anything occupied it, so one window on
+ * a wide canvas sat in the first of four empty columns. See [[canvas]] round 8. */
 .canvas.tile {
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(115rem, 1fr));
-  gap: 4rem; align-content: start;
+  display: grid;
+  grid-template-columns: repeat(var(--sb-cols, 1), minmax(0, 1fr));
+  grid-auto-rows: minmax(0, 1fr);
+  gap: 4rem; align-content: stretch;
 }
 .canvas.float .win { position: absolute; }
 
-/* A tile is bounded and scrolls inside. Without this a thirty-row table makes
- * one window taller than the canvas and pushes every other window off it. */
-.canvas.tile .win { max-height: 115rem; }
+/* A tile is bounded and scrolls inside — still true, and now by construction.
+ * The fixed `max-height: 115rem` this replaces was approximating the same
+ * thing: with content-sized rows a thirty-row table made one window taller
+ * than the canvas and pushed every other window off it. A stretched row is
+ * bounded by the canvas already, so the cap bought nothing and cost every
+ * window the space it was not using. See [[canvas]] round 8. */
+.canvas.tile .win { min-height: 0; }
 
 .empty {
   position: absolute; inset: 0; display: grid; place-items: center;
