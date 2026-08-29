@@ -291,7 +291,7 @@ written back.
       groups alphabetical, tools alphabetical within, ungrouped last. *Shipped as a `GROUP` column
       with the groups contiguous rather than as headed sections; see Notes.* A test that a file
       with no groups produces the listing byte-identical to today's.
-- [ ] **The catalog and the rail.** `group` through `catalog.py` beside `saved`; `Tools()` in
+- [x] **The catalog and the rail.** `group` through `catalog.py` beside `saved`; `Tools()` in
       `app.js` renders headers with a count and an ungrouped bucket after a divider. **Swept at
       more than one `--scale`** — new fixed `rem` heights inside a 184px rail is precisely the
       shape that starved the bench's last step for three rounds. Verified by reading the DOM back
@@ -577,6 +577,17 @@ rather than set to `""` when a tool is ungrouped**, which is what makes the "no 
 means the listing is exactly what it was" property true rather than approximately true:
 `_render_columns` takes every key of every row, so an absent key is an absent column, and a file
 with no groups produces byte-identical output with no special case anywhere.
+
+**The rail was verified headless at four scales — 1.0, 1.15, 1.8, 2.4 — and the section heading is
+`--sb-text-2`, not `--sb-text-3`.** Reaching for the dimmest token is the obvious move for a
+heading that must not compete with the tool names under it, and [[fundamentals]] § the label tier
+had already ruled that one out: `TEXT_3` is *"structure, not reading text"* and is what `BORDER`
+is. A group name is read. Nothing starved at any scale; the rail's own `overflow: auto` takes the
+list under the fold at 2.4, which is what it is for.
+
+*Observed, not caused:* at `--scale 2.4` in a 1300px viewport the **top bar** overflows and the
+right-hand counters clip. That is the bar's geometry, not this round's, and it is what the
+"verified at one value of it has been verified once" rule predicts.
 
 ### Round 1 — what shipped, and the claim that did not survive (2026-08-20)
 

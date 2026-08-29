@@ -135,6 +135,10 @@ def _leaf(command: click.Command, path: tuple[str, ...]) -> list[dict]:
             # A saved command may declare the cadence it wants to open on.
             # Zero for everything else, which is what a window starts at now.
             "refresh": getattr(command, "sb_refresh", 0),
+            # The label the tools rail sorts under. Declared, never inferred,
+            # and never part of the address — empty for everything that is not
+            # a grouped saved command. See [[tools]] round 5.
+            "group": getattr(command, "sb_group", ""),
             # What a saved command *expands to*, for the surface that edits it.
             # `argv` above is the path you type — `tools drainer` — which is
             # the right answer for running it and no answer at all for opening
