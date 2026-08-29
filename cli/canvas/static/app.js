@@ -1960,7 +1960,12 @@ function App() {
       `}
 
       ${screen === WORKBENCH
-        ? html`<${Bench} commands=${commands} draft=${draft} actions=${benchActions} />`
+        ? html`<${Bench}
+            commands=${commands}
+            groups=${groups}
+            draft=${draft}
+            actions=${benchActions}
+          />`
         : html`
             <div class="stage">
               <${Tools}

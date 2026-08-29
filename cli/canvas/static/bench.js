@@ -436,7 +436,7 @@ function ViewControls({ draft, actions }) {
  * anything else. What is still refused is a *cadence* on one, which is the
  * act/observe split and was never about saving.
  */
-function JobStrip({ draft, actions }) {
+function JobStrip({ draft, actions, groups }) {
   const composed = compose(draft);
   /* `nameProblem` no longer gates the button: an existing name is a *replace*,
    * which is the whole of round 4. It is still shown, because "this is already
@@ -465,14 +465,27 @@ function JobStrip({ draft, actions }) {
           ${/* Declared, never inferred — the bench does not read a prefix off
               the name and guess a group, for the same reason it does not read
               a trailing --json and guess a contract. Blank is ungrouped.
-              See [[tools]] round 5. */
+              See [[tools]] round 5.
+
+              A `datalist` rather than a `select` ([[tools]] round 6): picking
+              an existing group is the common case and typing a new one still
+              has to work, because a group that can only be made in the rail is
+              a round trip in the middle of authoring. What it removes is the
+              near-miss — `jamm` is a perfectly valid name and silently a
+              second group, where `Jam` at least gets refused. */
           html`<input
             class="job-group"
+            list="sb-groups"
             value=${draft.group || ""}
             placeholder="group"
             title="where the tools rail sorts it — blank is ungrouped"
             onInput=${(e) => actions.setGroup(e.target.value)}
           />`}
+          <datalist id="sb-groups">
+            ${(groups || []).map(
+              (g) => html`<option key=${g.name} value=${g.name}>${g.description}</option>`
+            )}
+          </datalist>
           ${/* **No cadence control, and it is absent rather than disabled.**
               The mockup drew one here and building it found why it cannot be:
               a cadence is saved by having a `--refresh` in force on the line
@@ -561,7 +574,7 @@ function Reference({ entry, name }) {
 
 /* ------------------------------------------------------------------- screen */
 
-export function Bench({ commands, draft, actions }) {
+export function Bench({ commands, groups, draft, actions }) {
   const byName = {};
   for (const c of commands) byName[c.name] = c;
 
@@ -701,7 +714,7 @@ export function Bench({ commands, draft, actions }) {
 
               <${ViewControls} draft=${draft} actions=${actions} />
               </div>
-              <${JobStrip} draft=${draft} actions=${actions} />
+              <${JobStrip} draft=${draft} actions=${actions} groups=${groups} />
             `}
       </div>
 
