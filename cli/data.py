@@ -27,6 +27,13 @@ wrapped tool prints something that is not JSON, that is a failed contract rather
 than a payload — this says so and points at `sb run`, which exists to show you
 what a command actually printed.
 
+**A path is a subject, not just an argv.** `sb data <path>` reads a file of
+records through the same formats and the same view. `data`'s argument is
+normally the operator's *assertion* that an argv reads rather than writes,
+because sky.boss cannot tell by inspection — but a path is not executed, so there
+is no write to be uncertain about and the rule's own reasoning retires the
+question. See [[jsonl-reads]].
+
 **`--from` names the parsing contract** — the `json` kind, or a format the
 operator declared in `$SB_HOME/formats.toml`: a per-line pattern for a tool
 with no `--json`, a jq program as the pipeline's middle stage, or both. The
@@ -45,8 +52,10 @@ from __future__ import annotations
 
 import json
 import shlex
+import shutil
 import subprocess
 import time
+from pathlib import Path
 
 import rich_click as click
 
@@ -56,16 +65,46 @@ from cli.output import Result, emit, refuse_resident_json
 from cli.view import find_rows, shape, warnings_for
 
 
+def is_file_form(argv: tuple[str, ...]) -> bool:
+    """One argument, and it is a path rather than a command.
+
+    **Nearly `cli/follow.py`'s rule, and the one difference is load-bearing.**
+    Follow treats a bare word that no executable answers to as a file, because
+    `sb follow new.log` has to be legal before the log's first write — a file
+    that does not exist yet is the normal case for something you are waiting
+    on. There is nothing to wait for here: a file with no records has no rows
+    to return, so a bare unknown word stays a command and `no such command` is
+    the true sentence rather than `no such file`.
+
+    Everything the two agree on, they agree on for the same reasons: a
+    separator means a path outright, and a bare word that is both an executable
+    and a file in the cwd resolves to the executable, exactly as a shell would.
+    Write `./name` to mean the file. See [[jsonl-reads]] round 1.
+    """
+    if len(argv) != 1:
+        return False
+    target = argv[0]
+    if "/" in target:
+        return True
+    if shutil.which(target):
+        return False
+    return Path(target).is_file()
+
+
 @click.command()
 @click.argument("argv", nargs=-1, required=True)
 @click.option("--timeout", type=int, default=60, help="Give up after this many seconds.")
-@click.option("--cwd", type=click.Path(file_okay=False, exists=True), help="Run it here.")
+@click.option(
+    "--cwd",
+    type=click.Path(file_okay=False, exists=True),
+    help="Run it here. Ignored by the file form.",
+)
 @click.option(
     "--env",
     "env_pairs",
     metavar="NAME=VALUE",
     multiple=True,
-    help="Set a variable for the command. Visible, so not for secrets.",
+    help="Set a variable for the command. Visible, so not for secrets. Ignored by the file form.",
 )
 @click.option("--cols", help="Show exactly these columns, in this order. Dotted paths allowed.")
 # Where the rows are, when the payload wraps them. Named beats inferred: sky.boss
@@ -86,7 +125,7 @@ from cli.view import find_rows, shape, warnings_for
     default="json",
     show_default=True,
     metavar="NAME",
-    help="How to read what the tool prints: a kind (json) or a declared format.",
+    help="How to read what arrives: a kind (json, jsonl) or a declared format.",
 )
 @click.option(
     "--refresh",
@@ -136,6 +175,17 @@ def data(
     Some tools resolve their own environment against the working directory
     rather than their installed location, so `--cwd` is often required even for
     a command that is on PATH.
+
+    A single argument that names a path is read as a file instead — the same
+    split `sb follow` makes, and a file needs no assertion that it is a read
+    because it is never executed:
+
+        sb data --from jsonl ledger/runs.jsonl
+
+    `--from jsonl` is one JSON object per line. A line that is not one is
+    counted and sampled in the warnings, never quietly skipped: a dropped
+    ledger row reads as "that job never ran", which is the one thing a ledger
+    exists to settle.
 
     Rows are shaped into a table worth reading — an empty column and an opaque
     identifier are dropped, a nested dict is summarised, and anything that does
@@ -230,6 +280,15 @@ def _once(
     result = Result()
     started = time.monotonic()
 
+    # The split lives here rather than in `data()` so every caller inherits it
+    # — the resident loop re-enters through this function on every tick, and a
+    # dispatch made once at startup would run a file read the first time and a
+    # subprocess forever after. See [[jsonl-reads]].
+    if is_file_form(argv):
+        return _from_file(
+            argv[0], started, cols, rows_path, drop, no_shape, from_, timeout
+        )
+
     # Re-resolved on every run rather than closed over: the resident loop and
     # the canvas both re-enter here, and the operator editing formats.toml
     # under a pinned window is the REPL. A name that resolved at startup and
@@ -281,6 +340,61 @@ def _once(
     )
 
 
+def _from_file(
+    path: str,
+    started: float,
+    cols: str | None,
+    rows_path: str | None,
+    drop: str | None,
+    no_shape: bool,
+    from_: str,
+    timeout: int | None,
+) -> Result:
+    """A file of records, through the same format and the same view.
+
+    Every failure here is one the operator can fix from the message, which is
+    the bar the subprocess path already meets — a file that is a directory, or
+    unreadable, or not text, each says which. The previous behaviour was worse
+    than a missing feature: a path reached `subprocess.run` and came back
+    `Permission denied` for a file the operator can read perfectly well, and
+    the real problem — that this is not a command — was the one thing the
+    message did not say.
+    """
+    result = Result()
+    fmt, problem = capture_.resolve(from_)
+    if problem:
+        result.ok = False
+        result.data = {"error": problem}
+        return result
+
+    target = Path(path)
+    try:
+        text = target.read_text()
+    except FileNotFoundError:
+        result.ok = False
+        result.data = {"path": path, "error": f"no such file: {path}"}
+        return result
+    except IsADirectoryError:
+        result.ok = False
+        result.data = {"path": path, "error": f"{path} is a directory, not a file"}
+        return result
+    except PermissionError:
+        result.ok = False
+        result.data = {"path": path, "error": f"cannot read {path}: permission denied"}
+        return result
+    except UnicodeDecodeError:
+        result.ok = False
+        result.data = {"path": path, "error": f"{path} is not text"}
+        return result
+
+    meta = {
+        "path": path,
+        "bytes": len(text),
+        "duration_s": round(time.monotonic() - started, 2),
+    }
+    return parse_text(text, meta, fmt, result, cols, rows_path, drop, no_shape, timeout)
+
+
 def parse_text(
     text: str,
     meta: dict,
@@ -305,12 +419,22 @@ def parse_text(
             parsed = json.loads(text)
         except json.JSONDecodeError:
             result.ok = False
+            result.data = {**meta, "error": _not_json(text)}
+            return result
+    elif fmt.kind == "jsonl":
+        captured = capture_.parse_jsonl(text)
+        if captured.matched_nothing:
+            result.ok = False
             result.data = {
                 **meta,
-                "error": "not JSON — ask the tool for JSON, or use `sb run` to see "
-                "what it printed",
+                "error": "no line is a JSON object — check --from, or use `sb read` "
+                "to see what is there",
             }
             return result
+        warning = capture_.malformed_warning(captured, fmt.name)
+        if warning:
+            result.warn(warning)
+        parsed = captured.rows
     else:
         # The lines kind. ANSI is stripped before matching for the same
         # reason `read` strips it: the first time a tool decides it is
@@ -384,6 +508,32 @@ def _split(value: str | None) -> list[str]:
     if not value:
         return []
     return [part.strip() for part in value.split(",") if part.strip()]
+
+
+def _not_json(text: str) -> str:
+    """Why the whole text is not JSON, and — when it is visibly a file of
+    records — which flag reads it.
+
+    A diagnostic on a failure, not inference. sky.boss still refuses to *choose*
+    `jsonl` for you; the difference is that a 1,048-line ledger meeting the
+    default `--from json` says what to type instead of leaving you to work it
+    out from "not JSON". Naming the fix on a failure is the same courtesy
+    `capture.resolve` already extends when it lists the formats that exist.
+    """
+    base = "not JSON — ask the tool for JSON, or use `sb run` to see what it printed"
+    lines = [line for line in text.splitlines() if line.strip()]
+    if len(lines) < 2:
+        return base
+    for line in lines[:2]:
+        try:
+            if not isinstance(json.loads(line), dict):
+                return base
+        except json.JSONDecodeError:
+            return base
+    return (
+        f"not JSON, but each of its {len(lines)} lines parses alone "
+        "— that is JSONL: add --from jsonl"
+    )
 
 
 def _first_line(text: str) -> str:

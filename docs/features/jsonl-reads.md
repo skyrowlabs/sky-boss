@@ -1,5 +1,5 @@
 ---
-status: draft          # draft | active | complete — the directory follows this
+status: active         # draft | active | complete — the directory follows this
 created: 2026-08-29
 updated: 2026-08-29
 agent_value: 2         # design settled; carries the whole shape of unbuilt work
@@ -88,6 +88,37 @@ silent about it.
 - **Not an inference engine for the row container.** JSONL is a bare sequence of objects,
   so `--rows` has nothing to point at. If a `.json` file with a wrapping mapping is ever
   in scope, it takes the existing `--rows` rules unchanged.
+- **Not a splitter.** A file of variant records is reported as variant and drawn whole. A
+  `--where kind=run` would be the query language the bullet above rules out, arriving
+  through a side door.
+
+### Variance — when the union is a shape nothing has
+
+`columns_of` already unions keys across every row rather than reading them off the first,
+and `ledger/runs.jsonl` is the case it was written for: 1,047 of its 1,048 rows carry six
+fields and **exactly one** carries three more — `reason`, `refusal_streak`,
+`ungated_commits`, the record of a refusal. Reading columns from the first row would drop
+all three from the one row anyone would go looking for.
+
+The union stops being an answer when the shapes genuinely disagree. `ledger/decisions.jsonl`
+is an event log with a `kind` discriminator — four kinds, **ten distinct key-sets, thirty
+union keys** — and `shape()` returns **25 visible columns**: a table no renderer can draw and
+no operator can read.
+
+The discriminating question is not *do the rows differ* but **is the union a row that
+exists?** In `runs.jsonl` the rare shape is a *superset* of the common one, so the union is
+nine columns and every one is a field some real record carries. In `decisions.jsonl` the
+widest single record has sixteen fields and the union has thirty — the header describes a
+record that was never written.
+
+So the rule is `union > widest single shape`. Measured against all six row-bearing files in
+the tree, it fires on `decisions.jsonl` and stays silent on every other. A warning that also
+fired on `runs.jsonl` would be worse than none: it would teach the operator to skip the line
+that matters.
+
+**This reports; it does not fix.** Splitting by discriminator is filtering, and `--cols` is
+already how a wide table gets narrowed. What the operator cannot do today is understand
+*why* it is wide.
 
 ### The ruling — `sb data <path>`, same verb
 
@@ -115,16 +146,18 @@ ground here, not more.
 ### Round 1 — the path form, one contract (2026-08-29)
 
 - [x] Settle the verb question — `sb data <path>`, ruled above.
-- [ ] Dispatch a path argument to a file reader, mirroring `cli/follow.py`'s split.
-- [ ] `--from jsonl`: one object per line, blank lines skipped, malformed lines counted
+- [x] Dispatch a path argument to a file reader, mirroring `cli/follow.py`'s split.
+- [x] `--from jsonl`: one object per line, blank lines skipped, malformed lines counted
       and named in `warnings` rather than dropped.
-- [ ] A file that parses to zero rows is a failure, not an empty table — the rule
-      `capture` already follows.
-- [ ] `--cols` and the existing view path work unchanged against the result.
+- [x] A file whose lines *all* fail to parse is a failure, not an empty table — the rule
+      `capture` already follows. An **empty** file is not: `Captured.matched_nothing` is
+      `total > 0 and not rows` precisely because "the tool printed nothing" is a real
+      answer, and so is a ledger with no runs in it yet. Corrected mid-round; see Notes.
+- [x] `--cols` and the existing view path work unchanged against the result.
 
 ### Round 2 — the cadence, settled (2026-08-29)
 
-- [ ] A path read on a cadence **re-reads the whole file** each tick, and says so.
+- [x] A path read on a cadence **re-reads the whole file** each tick, and says so.
 
 Re-reading is the answer rather than a concession to one. A partial re-read means holding a byte
 offset between ticks, and a cursor held across ticks is precisely what `sb follow <path>` already
@@ -134,6 +167,15 @@ which is also what makes pinning one safe.
 
 The cost is real and bounded: `runs.jsonl` is 150 KB at 1,042 rows. If a ledger ever outgrows what
 a tick can afford, the answer is a bound on rows read — `MAX_ROWS` has a precedent — not a cursor.
+
+### Round 3 — a union no record has (2026-08-29)
+
+- [ ] `shape()` counts distinct record shapes and records the count only when the union is
+      wider than any single shape — the key is omitted otherwise, so an unremarkable
+      payload's envelope is unchanged.
+- [ ] `warnings_for` says how many shapes there are and points at `--cols`.
+- [ ] Silent when one shape nests inside another, which is the common case and the one
+      where the union is still a real row.
 
 ## Notes
 
