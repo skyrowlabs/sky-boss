@@ -846,14 +846,18 @@ pre.raw {
  * cannot fit beside the field belongs under it. */
 .job-row { display: flex; align-items: center; gap: 2.5rem; flex-wrap: wrap; }
 .job-label { flex: none; color: var(--sb-brand); font-size: 2.75rem; }
-.job-name {
+.job-name, .job-group {
   flex: 1 1 44rem; max-width: 44rem; min-width: 24rem; font: inherit; color: var(--sb-text);
   background: transparent; outline: 0;
   border: var(--hair) solid var(--sb-hair); border-radius: var(--r-sm);
   padding: 1rem 2rem;
 }
-.job-name:focus { border-color: var(--sb-edge); }
-.job-name::placeholder { color: var(--sb-text-3); }
+/* Narrower than its neighbours: a group is one word, and giving it an equal
+ * third of the row wraps the row at every scale rather than only the wide
+ * ones. See [[tools]] round 5. */
+.job-group { flex: 1 1 26rem; max-width: 30rem; min-width: 18rem; }
+.job-name:focus, .job-group:focus { border-color: var(--sb-edge); }
+.job-name::placeholder, .job-group::placeholder { color: var(--sb-text-3); }
 .job-arrow { flex: none; color: var(--sb-text-3); }
 /* Scoped to the row, because `.job-body` is a *column* and `flex-basis` is
  * whichever axis you are on: the same rule unscoped set the trailing note's

@@ -235,6 +235,7 @@ def build(canvas: Canvas | None = None) -> Starlette:
                     [str(a) for a in (body.get("argv") or [])],
                     int(body.get("refresh") or 0),
                     str(body.get("description") or ""),
+                    group=str(body.get("group") or ""),
                 )
         except click.UsageError as exc:
             return JSONResponse({"error": exc.format_message()}, status_code=400)

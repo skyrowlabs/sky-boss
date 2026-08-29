@@ -1071,6 +1071,58 @@ def test_deleting_something_that_is_not_there_is_an_error(tmp_path):
         remove_block("nosuch", home=_home(tmp_path))
 
 
+# --------------------------------------------------- the writer carries a group
+
+
+def test_a_written_group_lands_in_the_block_and_loads_back(tmp_path):
+    from cli.tools import load, write_block
+
+    home = _home(tmp_path)
+    out = write_block("gamma", ["read", "--", "echo", "x"], home=home, group="jam")
+    assert out["group"] == "jam"
+    assert 'group = "jam"' in (home / "tools.toml").read_text()
+    tools, problems = load({"read": False, "run": True}, home=home)
+    assert problems == []
+    assert next(t for t in tools if t.name == "gamma").group == "jam"
+
+
+def test_clearing_the_group_removes_the_line_rather_than_writing_an_empty_one(tmp_path):
+    """Blank is ungrouped, so the field goes away — a `group = ""` left behind
+    would load as ungrouped too, and be one more line nobody wrote on purpose."""
+    from cli.tools import write_block
+
+    home = _home(tmp_path)
+    write_block("gamma", ["read", "--", "echo", "x"], home=home, group="jam")
+    write_block("gamma", ["read", "--", "echo", "x"], home=home, group="")
+    assert "group" not in (home / "tools.toml").read_text()
+
+
+def test_the_writer_refuses_a_group_the_loader_would_refuse(tmp_path):
+    """One function, asked twice. A tool that writes cleanly and then fails to
+    load is the worst of both, which is round 4's rule and does not change."""
+    from cli.tools import write_problem
+
+    home = _home(tmp_path)
+    assert "group" in (
+        write_problem("gamma", ["read", "--", "echo", "x"], home=home, group="No Good") or ""
+    )
+    assert write_problem("gamma", ["read", "--", "echo", "x"], home=home, group="jam") is None
+
+
+def test_a_comment_above_a_grouped_block_still_survives_an_edit(tmp_path):
+    """Round 4's guarantee, with one more line inside the block."""
+    from cli.tools import write_block
+
+    home = tmp_path
+    (home / "tools.toml").write_text(
+        '# why this needs --cwd\n[tool.alpha]\nargv = ["read", "--", "echo", "a"]\n'
+    )
+    write_block("alpha", ["read", "--", "echo", "b"], home=home, group="jam")
+    after = (home / "tools.toml").read_text()
+    assert after.startswith("# why this needs --cwd\n")
+    assert 'group = "jam"' in after
+
+
 def test_a_file_that_does_not_parse_is_never_spliced(tmp_path):
     """Splicing into a document whose structure is unknown is how a tool is
     lost. $EDITOR is still there."""
