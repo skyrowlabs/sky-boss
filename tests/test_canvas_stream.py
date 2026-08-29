@@ -761,3 +761,58 @@ def test_accrue_refuses_a_stream_and_says_where_to_go():
 
     with pytest.raises(ValueError, match="follow it instead"):
         resolve_run(["follow", "--", "journalctl", "-f"])
+
+
+# --- [[subprocess-env]] round 4: --env on the canvas ------------------------
+
+
+def test_an_accruing_argv_accounts_for_env_rather_than_refusing_it():
+    """The trap this phase exists to avoid. `resolve_run` refuses any flag it
+    cannot account for, and a refusal sends the window back to `/api/run` —
+    where the watcher's 60s ceiling applies. So an unaccounted `--env` would
+    silently put a two-hour act back under a one-minute bound."""
+    from cli.canvas.server import resolve_run
+
+    job = resolve_run(
+        ["run", "--cwd", "/tmp", "--env", "JAM_TRANSCRIPT_STDOUT=1", "--", "jam", "x"]
+    )
+    assert job.env == {"JAM_TRANSCRIPT_STDOUT": "1"}
+    assert job.foreign == ["jam", "x"]
+    assert job.timeout is None, "an act still carries no bound of the surface's"
+
+
+def test_a_follow_argv_accounts_for_env_too():
+    from cli.canvas.server import resolve_follow
+
+    follow = resolve_follow(["follow", "--env", "A=1", "--env", "B=2", "--", "tail", "-f", "x"])
+    assert follow.env == {"A": "1", "B": "2"}
+    assert follow.foreign == ["tail", "-f", "x"]
+
+
+def test_a_malformed_env_is_a_refusal_the_route_can_send():
+    """`parse_env` raises Click's UsageError, which a route cannot return.
+    Both resolvers turn it into the ValueError every other refusal here is,
+    so the page gets a 400 with a reason instead of a 500."""
+    import pytest
+
+    from cli.canvas.server import resolve_run
+
+    with pytest.raises(ValueError) as caught:
+        resolve_run(["run", "--env", "NOPE", "--", "true"])
+    assert "NAME=VALUE" in str(caught.value)
+
+
+def test_an_accruing_child_is_spawned_with_the_declared_variable(tmp_path):
+    """End to end through the real spawn: the window's child can read it."""
+    from cli import stream as stream_
+    from cli.canvas.server import resolve_run
+
+    job = resolve_run(
+        ["run", "--env", "SB_DECLARED=canvas", "--",
+         "python3", "-c", "import os; print(os.environ['SB_DECLARED'])"]
+    )
+    child = stream_.ChildStream(job.foreign, cwd=job.cwd, env=job.env)
+    child.proc.wait(timeout=10)
+    for thread in child._threads:
+        thread.join(timeout=5)
+    assert [line.text for line in child.lines()] == ["canvas"]

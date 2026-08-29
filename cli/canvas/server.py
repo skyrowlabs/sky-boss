@@ -35,10 +35,12 @@ import secrets
 import threading
 import time
 import uuid
+from pathlib import Path
 from typing import NamedTuple
 
-from cli.helpers import parse_duration
-from pathlib import Path
+import click
+
+from cli.helpers import parse_duration, parse_env
 
 import rich_click as click
 from starlette.applications import Starlette
@@ -407,7 +409,7 @@ def build(canvas: Canvas | None = None) -> Starlette:
 
         argv = [str(a) for a in (body.get("argv") or [])]
         try:
-            kind, foreign, cwd, lines, highlight, due = resolve_follow(argv)
+            kind, foreign, cwd, lines, highlight, due, env = resolve_follow(argv)
         except ValueError as exc:
             return JSONResponse({"error": str(exc)}, status_code=400)
         ruleset = None
@@ -427,7 +429,7 @@ def build(canvas: Canvas | None = None) -> Starlette:
                 )
             else:
                 child = await asyncio.to_thread(
-                    lambda: stream_.ChildStream(foreign, cwd=cwd, limit=lines)
+                    lambda: stream_.ChildStream(foreign, cwd=cwd, limit=lines, env=env)
                 )
         except (FileNotFoundError, OSError) as exc:
             return JSONResponse({"error": str(exc)}, status_code=400)
@@ -476,7 +478,9 @@ def build(canvas: Canvas | None = None) -> Starlette:
         lines = int(body.get("lines") or stream_.DEFAULT_LINES)
         try:
             child = await asyncio.to_thread(
-                lambda: stream_.ChildStream(job.foreign, cwd=job.cwd, limit=lines)
+                lambda: stream_.ChildStream(
+                    job.foreign, cwd=job.cwd, limit=lines, env=job.env
+                )
             )
         except (FileNotFoundError, OSError) as exc:
             return JSONResponse({"error": str(exc)}, status_code=400)
@@ -594,6 +598,9 @@ class Follow(NamedTuple):
     lines: int
     highlight: str | None
     due: int = 0
+    # The operator's `--env`, already parsed. The file form ignores it —
+    # nothing is spawned. See [[subprocess-env]] round 4.
+    env: dict[str, str] = {}
 
 
 class Job(NamedTuple):
@@ -611,6 +618,10 @@ class Job(NamedTuple):
     cwd: str | None
     timeout: int | None
     acts: bool
+    # The operator's `--env`, already parsed. Accounted for rather than
+    # refused, because refusing it would drop a long act back under the
+    # watcher's ceiling — see [[subprocess-env]] round 4.
+    env: dict[str, str] = {}
 
 
 def _expand_saved(argv: list[str], root) -> list[str]:
@@ -673,6 +684,7 @@ def resolve_run(argv: list[str], root=None) -> Job:
     # 4: a two-hour act is bounded by the operator, not by the surface.
     timeout: int | None = None if command == "run" else 60
     cwd: str | None = None
+    env_pairs: list[str] = []
     rest = argv[1:]
     foreign: list[str] = []
     i = 0
@@ -692,6 +704,10 @@ def resolve_run(argv: list[str], root=None) -> Job:
                 raise ValueError(f"unreadable --timeout: {rest[i + 1]!r}") from exc
             i += 2
             continue
+        if token == "--env" and i + 1 < len(rest):
+            env_pairs.append(rest[i + 1])
+            i += 2
+            continue
         if token.startswith("-"):
             raise ValueError(f"{token} is not accountable here — run it whole")
         foreign = rest[i:]
@@ -701,7 +717,12 @@ def resolve_run(argv: list[str], root=None) -> Job:
 
     # `acts` off the first word, which is exactly the rule a saved tool
     # inherits by — the expansion decides, and a declared `acts` is ignored.
-    return Job(command, foreign, cwd, timeout, command == "run")
+    try:
+        env = parse_env(env_pairs)
+    except click.UsageError as exc:
+        # The CLI raises a usage error; a route needs a refusal it can send.
+        raise ValueError(str(exc)) from exc
+    return Job(command, foreign, cwd, timeout, command == "run", env)
 
 
 def resolve_follow(
@@ -732,6 +753,7 @@ def resolve_follow(
     lines = stream_.DEFAULT_LINES
     highlight: str | None = None
     due = 0
+    env_pairs: list[str] = []
     rest = argv[1:]
     foreign: list[str] = []
     i = 0
@@ -746,6 +768,10 @@ def resolve_follow(
             continue
         if token == "--lines" and i + 1 < len(rest):
             lines = int(rest[i + 1])
+            i += 2
+            continue
+        if token == "--env" and i + 1 < len(rest):
+            env_pairs.append(rest[i + 1])
             i += 2
             continue
         if token == "--highlight" and i + 1 < len(rest):
@@ -770,7 +796,11 @@ def resolve_follow(
     from cli.follow import is_file_form
 
     kind = "file" if is_file_form(tuple(foreign)) else "process"
-    return Follow(kind, foreign, cwd, lines, highlight, due)
+    try:
+        env = parse_env(env_pairs)
+    except click.UsageError as exc:
+        raise ValueError(str(exc)) from exc
+    return Follow(kind, foreign, cwd, lines, highlight, due, env)
 
 
 def follower_frames(session: Session, now: float | None = None) -> list[dict]:
