@@ -234,6 +234,33 @@ body {
 .tool-count {
   flex: none; color: var(--sb-text-3); font-weight: 400; letter-spacing: 0;
 }
+
+/* The ✕ on an empty group, and the + that makes one. Both stay quiet until the
+ * rail is hovered: a delete that is always lit in a list you click to *run*
+ * things is a misclick waiting to happen, which is the argument the row's own
+ * ✕ already made. See [[tools]] round 6. */
+.tool-group-row { display: flex; align-items: center; }
+.tool-group-row .tool-group { flex: 1; min-width: 0; }
+.tool-group-drop {
+  flex: none; opacity: 0; padding: 2rem 3rem 1rem 1rem;
+  background: none; border: none; cursor: pointer;
+  color: var(--sb-text-3); font: inherit;
+}
+.tool-group-row:hover .tool-group-drop { opacity: 1; }
+.tool-group-drop:hover { color: var(--sb-danger); }
+
+.tools-add {
+  flex: none; padding: 1.5rem 3rem; background: none; border: none;
+  border-top: var(--hair) solid var(--sb-hair);
+  cursor: pointer; color: var(--sb-text-3); font: inherit; text-align: left;
+}
+.tools-add:hover { color: var(--sb-brand); }
+.tools-add-form { flex: none; border-top: var(--hair) solid var(--sb-hair); }
+.tools-add-name {
+  width: 100%; font: inherit; color: var(--sb-text); background: transparent;
+  border: none; outline: 0; padding: 1.5rem 3rem;
+}
+.tools-add-name::placeholder { color: var(--sb-text-3); }
 .tool-section:first-child .tool-group { padding-top: 0; }
 .tool-rule { margin: 2rem 3rem 1.5rem; border-top: var(--hair) solid var(--sb-hair); }
 .tools-empty { padding: 1.5rem 3rem; color: var(--sb-text-3); line-height: 1.5; }
