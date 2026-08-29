@@ -64,6 +64,85 @@ command has run more than once, *how did this go the last seven nights* is the o
 and the ring buffer plus the file of record already exist. Nobody owns it. *Blocked on evidence —
 needs jobs that have run twice.*
 
+**19. The tools rail does not scale past a handful.** Raised by the operator 2026-08-29,
+watching the live agent-fix run. The rail is a fixed-width column down the left of the canvas and a
+tool name longer than it gets clipped — `jam-agent-fix-log` renders as `jam-agent-fix-l…`. Four
+tools today, so it reads as cosmetic; it is the shape of the problem rather than its size.
+
+*Half-answered 2026-08-29 → [[tools]] round 7: the rail is a width you can drag, clamped 18–160rem
+and remembered in `$SB_STATE`.* That is the first of the two candidates below, taken because it was
+small. The second is untouched and is still probably right — dragging lets you see a long name, it
+does not stop the rail from being the complete index.
+
+Two candidate answers and they are not the same feature. **Expandable** — the rail widens, or a tool
+expands in place to show its full name and expansion — keeps the rail as the address and costs
+canvas width, which is the thing windows are competing for. **A different listing** — a
+palette-driven picker, a searchable overlay, the groups from [[tools]] round 6 doing real work —
+stops treating the rail as the complete index and makes it a shortcut bar. The second is much the
+larger change.
+
+Two constraints that are already known and would bite here:
+
+- `--scale` **is a geometry, not a preference**, and `CLAUDE.md` is explicit that a layout verified
+  at one value of it has been verified once. Every fixed `rem` width grows with the scale while the
+  window does not. Whatever this becomes has to be checked across the sweep, not at 1.15 — the
+  workbench lost a step to exactly this for three rounds.
+- **Groups already exist and are empty.** [[tools]] rounds 5 and 6 gave a group a `[group.NAME]`
+  table and the rule that *a group exists if any command names it, or if it is declared*. The
+  catalog reports `groups: 0` today. A grouped rail may be most of the answer already built, and
+  should be tried before anything new is designed.
+
+Not urgent: four tools fit. It becomes real at roughly a dozen, or the first time a name is long
+enough that two tools clip to the same string — which is the actual failure, since the rail is how
+you tell them apart.
+
+**20. Five tweaks to the followed line's tint.** Raised by the operator 2026-08-29, reading the
+live agent-fix drain through `--highlight jam`. Verbatim: symbols emphasised or given a different
+colour; quoted text differentiated; `#123` in a unique colour; text wrapped in `[]`, `()` or `{}` in
+a different colour; and *escalate* emphasised. Owned by [[highlight]] when it reopens — this is
+round 5's raw material, not a design.
+
+**Check the first one before designing anything.** `escalat(e|ed|es|ing|ion|ions)` is already in the
+operator's own `[highlight.jam]` ruleset at `role = "warn"`, and the tool being watched names
+`--highlight jam`, so the word *is* tinted. If the ask is that it stand out **more**, the gap is not
+a colour: **a declared rule may name a colour and never a weight.** `_emphasise` grants bold only to
+markdown `**…**` and to headings, so there is no spelling an operator can write to ask for it. That
+is the smallest change on this list and probably the one to do first, because a `weight` key answers
+*emphasised* for every future word instead of for one.
+
+**`#123` already tints — as `sb.num`, the same role every other number takes.** So the ask is
+precisely the collision, and it is where four of the five land.
+
+**Four of the five want a colour that does not exist.** `STYLES` has eight roles and every one
+already means something: `accent`, `label`, `muted`, `ok`, `fail`, `warn`, `num`, `path`. A ninth is
+a palette change, and `cli/highlight.py` records the last attempt in its own comments — a violet for
+code spans was prototyped, looked good, and was rejected as *"exactly how a second palette starts"*.
+So the question this item actually holds is **not which shapes to tint, but where a new colour comes
+from**, and there are only three honest answers: reuse a role and accept the collision; reach for
+weight or dimming instead of hue, since bold already composes without taking the colour slot; or add
+a role to the design system, which is an edit to the vendored `colors_and_type.css` and therefore
+not a sky.boss decision at all.
+
+**Brackets were refused deliberately, and only `[]` was ever considered.** The tag rule is
+positional — *a bracket mid-prose is prose* — because a leading `[job]` is the boundary the eye
+scans in a multi-job log and a mid-line `[1]` is not. `()` and `{}` have no rule at all, and the
+brace is the one to think about hardest: an agent log carries JSON, so a `{…}` rule tints whole
+objects and becomes the loudest thing on the screen.
+
+**Quotes need the false-match pass the number rule already failed once.** A single-quote rule
+matches the apostrophe in `don't` and runs to the next apostrophe on the line. That is the same
+class as the version of `_NUMBER` that tinted `8 issue` and `104 archive` — invisible in a unit test
+and unmissable in a rendered log, which is why the round 2 rules were prototyped against a real one.
+Note also that `handing to '…'` in the operator's ruleset already claims a quoted string, and a
+built-in rule would claim it first: built-ins run before declared rules and declared rules only take
+unclaimed text.
+
+**"Symbols" needs the operator before it needs a design.** Glyphs already tint — round 4 does ✓, ✗,
+⚠ and the colour words. If the ask is punctuation (`->`, `=>`, `::`, `|`) that is a new shape and a
+cheap one; if it is that the existing glyphs should read stronger, it is the same weight-not-hue
+answer as *escalate*. Worth asking which rather than guessing, since the two cost very different
+amounts.
+
 ## Primitives the plan and the tower need, none of which exist
 
 These four are why [[workbench]] is buildable now and the other two screens are not. Each is
@@ -519,30 +598,3 @@ returning zero projects and zero problems — was closed on 2026-08-29 in `cli/r
 where the state root would have been swallowed next. That fix stands alone and is not a prerequisite
 for any of the above.
 
-
-▎ 19. The tools rail does not scale past a handful. Raised by the operator 2026-08-29, watching
-▎ the live agent-fix run. The rail is a fixed-width column down the left of the canvas and a tool
-▎ name longer than it gets clipped — jam-agent-fix-log renders as jam-agent-fix-l…. Four tools
-▎ today, so it reads as cosmetic; it is the shape of the problem rather than its size.
-▎
-▎ Two candidate answers and they are not the same feature. Expandable — the rail widens, or a
-▎ tool expands in place to show its full name and expansion — keeps the rail as the address and
-▎ costs canvas width, which is the thing windows are competing for. A different listing — a
-▎ palette-driven picker, a searchable overlay, the groups from [[tools]] round 6 doing real work —
-▎ stops treating the rail as the complete index and makes it a shortcut bar. The second is probably
-▎ right and is much the larger change.
-▎
-▎ Two constraints that are already known and would bite here:
-▎
-▎ - --scale is a geometry, not a preference, and CLAUDE.md is explicit that a layout verified
-▎   at one value of it has been verified once. Every fixed rem width grows with the scale while
-▎   the window does not. Whatever this becomes has to be checked across the sweep, not at 1.15 —
-▎   the workbench lost a step to exactly this for three rounds.
-▎ - Groups already exist and are empty. [[tools]] rounds 5 and 6 gave a group a [group.NAME]
-▎   table and the rule that a group exists if any command names it, or if it is declared. The
-▎   catalog reports groups: 0 today. A grouped rail may be most of the answer already built, and
-▎   should be tried before anything new is designed.
-▎
-▎ Not urgent: four tools fit. It becomes real at roughly a dozen, or the first time a name is long
-▎ enough that two tools clip to the same string — which is the actual failure, since the rail is
-▎ how you tell them apart.
