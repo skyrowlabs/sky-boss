@@ -83,6 +83,29 @@ class Tool:
     group: str = ""
 
 
+@dataclass(frozen=True)
+class Group:
+    """One declared group.
+
+    A group is a **label the surfaces sort under**, never part of an address —
+    `sb tools prs`, never `sb tools jam prs`, and names stay globally unique
+    because the word typed never carries the group. See [[tools]] round 5.
+
+    Round 6 lets one be *declared*, which is what gives an **empty** group
+    somewhere to exist. The rule both halves live under:
+
+        A group exists if any command names it, or if it is declared.
+        Neither implies the other.
+
+    So a `group = "jam"` with no `[group.jam]` is exactly as valid as it was
+    before this table existed, and `[group.archive]` with nothing pointing at
+    it is a group with no commands rather than a declaration nobody honoured.
+    """
+
+    name: str
+    description: str = ""
+
+
 def home_file(home: Path | None = None) -> Path:
     return (home or SB_HOME) / TOOLS_FILE
 
@@ -151,6 +174,75 @@ def parse(
         )
 
     return tools, problems
+
+
+def parse_groups(raw: dict) -> tuple[list[Group], list[str]]:
+    """Declared groups, and a problem for each declaration that is unusable.
+
+    A separate pure function rather than a third value out of `parse`, so
+    nothing that already calls `parse` or `load` has to change. Same contract
+    as `parse` otherwise: nothing raises, and one bad declaration costs only
+    itself.
+    """
+    problems: list[str] = []
+    if "__error__" in raw:
+        return [], [raw["__error__"]]
+
+    groups: list[Group] = []
+    seen: set[str] = set()
+    for name, body in (raw.get("group") or {}).items():
+        problem = _check_group(name, body, seen)
+        if problem:
+            problems.append(f"group {name!r}: {problem}")
+            continue
+        seen.add(name)
+        groups.append(Group(name=name, description=str(body.get("description", ""))))
+    return groups, problems
+
+
+def _check_group(name: str, body, seen: set[str]) -> str | None:
+    if not isinstance(body, dict):
+        return "not a table"
+    if not _NAME.match(name):
+        # The same shape a tool name takes, and for the reason round 5 gave:
+        # a group is a key as well as a caption.
+        return "name must be lowercase letters, digits and hyphens"
+    if name in seen:
+        return "declared twice"
+    description = body.get("description", "")
+    if not isinstance(description, str):
+        return "description must be a string"
+    return None
+
+
+def sections(tools: list[Tool], groups: list[Group]) -> list[dict]:
+    """Every group that exists, in the order the surfaces draw it.
+
+    **The union and its order are computed here, not in the rail.** Round 5 had
+    `app.js` hold the ordering rule; that was one copy too many the moment a
+    group could also be declared, because the rail would then need to know
+    about a file it never reads. Same argument [[table-views]] made for
+    `cli/view.py`: the deciding half goes where pytest reaches it.
+
+    Alphabetical, and the ungrouped are not in here at all — they are the
+    bucket every surface draws last, and giving them an entry would make them a
+    group that could be deleted.
+    """
+    declared = {group.name: group for group in groups}
+    counts: dict[str, int] = {}
+    for tool in tools:
+        if tool.group:
+            counts[tool.group] = counts.get(tool.group, 0) + 1
+
+    return [
+        {
+            "name": name,
+            "description": declared[name].description if name in declared else "",
+            "declared": name in declared,
+            "count": counts.get(name, 0),
+        }
+        for name in sorted(set(declared) | set(counts))
+    ]
 
 
 def _check(
@@ -247,6 +339,11 @@ def load(
 ) -> tuple[list[Tool], list[str]]:
     """Every declared tool, and every reason one was skipped."""
     return parse(read(home), commands, resident)
+
+
+def load_groups(home: Path | None = None) -> tuple[list[Group], list[str]]:
+    """Every declared group, and every reason one was skipped."""
+    return parse_groups(read(home))
 
 
 # ============================================================================
