@@ -287,9 +287,10 @@ written back.
       `""` and absent both meaning ungrouped; `sb_group` set on the registered command in
       `cli/__init__.py`. Tests: a valid group survives, a bad shape is skipped and *named* while
       the other tools load, and a tool with no group is unchanged from today.
-- [ ] **`sb tools` prints sections.** `_listing` carries `group` on every declared row and renders
-      grouped — groups alphabetical, tools alphabetical within, ungrouped last under no heading.
-      A test that a file with no groups produces the listing byte-identical to today's.
+- [x] **`sb tools` groups.** `_listing` carries `group` on every declared row and orders them —
+      groups alphabetical, tools alphabetical within, ungrouped last. *Shipped as a `GROUP` column
+      with the groups contiguous rather than as headed sections; see Notes.* A test that a file
+      with no groups produces the listing byte-identical to today's.
 - [ ] **The catalog and the rail.** `group` through `catalog.py` beside `saved`; `Tools()` in
       `app.js` renders headers with a count and an ungrouped bucket after a divider. **Swept at
       more than one `--scale`** — new fixed `rem` heights inside a 184px rail is precisely the
@@ -556,6 +557,26 @@ result.** The envelope says where it went; under `--json` that is a field, not p
       its "Nothing here writes" claim, if it carries one, is amended with the same reversal.
 
 ## Notes
+
+### Round 5 — the rail gets sections (2026-08-28)
+
+*Accreting as the round lands.*
+
+**The listing groups without a heading, and the reason is that a heading would have been
+presentation encoded as data.** The phase said "prints sections", and the obvious way to get them
+was to reshape `data["tools"]` from a list of rows into a mapping of group → rows —
+`_render_mapping` already draws an accent heading per key, so it would have cost nothing and looked
+right. It was rejected on the rule [[table-views]] settled: a view *describes* data and never
+restructures it. A mapping keyed by group is a table that has had its rendering folded into its
+shape, and `sb --json tools` would then hand a consumer a different type depending on whether the
+operator happened to declare a group.
+
+What shipped instead is a `group` key on each row, rows ordered so groups are contiguous with the
+ungrouped last, and the existing column renderer drawing a `GROUP` column. **The key is omitted
+rather than set to `""` when a tool is ungrouped**, which is what makes the "no groups declared
+means the listing is exactly what it was" property true rather than approximately true:
+`_render_columns` takes every key of every row, so an absent key is an absent column, and a file
+with no groups produces byte-identical output with no special case anywhere.
 
 ### Round 1 — what shipped, and the claim that did not survive (2026-08-20)
 

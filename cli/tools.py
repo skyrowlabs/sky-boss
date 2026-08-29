@@ -436,16 +436,32 @@ def _listing() -> Result:
     from cli import capture as capture_
 
     result = Result()
+    saved = [
+        (name, command)
+        for name, command in tools.commands.items()
+        if getattr(command, "sb_saved", False)
+    ]
+    # Groups alphabetical, tools alphabetical within them, the ungrouped last.
+    # Declaration order was the tempting alternative — the file is hand-written
+    # and its order is an assertion — and it lost to the fact that the catalog
+    # already sorts: honouring file order means threading a position index
+    # through a structure that exists to read properties off command objects,
+    # to buy an ordering the operator can have by naming a group.
+    saved.sort(key=lambda pair: (not _group_of(pair[1]), _group_of(pair[1]), pair[0]))
     declared = [
         {
             "name": name,
+            # Omitted rather than empty, so a file with no groups declared
+            # produces the listing it produced before groups existed — the
+            # column renderer takes every key of every row, so an absent key
+            # is an absent column. See [[tools]] round 5.
+            **({"group": _group_of(command)} if _group_of(command) else {}),
             "description": command.short_help or "",
             "runs": " ".join(("sb", *_argv_of(command))),
             "acts": getattr(command, "sb_acts", False),
             "refresh": getattr(command, "sb_refresh", 0),
         }
-        for name, command in sorted(tools.commands.items())
-        if getattr(command, "sb_saved", False)
+        for name, command in saved
     ]
 
     from cli import highlight as highlight_
@@ -475,6 +491,10 @@ def _listing() -> Result:
 
 def _argv_of(command: click.Command) -> tuple[str, ...]:
     return getattr(command, "sb_argv", ())
+
+
+def _group_of(command: click.Command) -> str:
+    return getattr(command, "sb_group", "")
 
 
 # ============================================================================
