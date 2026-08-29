@@ -330,3 +330,26 @@ def test_the_roll_call_is_in_the_palette_because_the_tree_is():
     from cli.canvas.catalog import catalog
 
     assert "roll-call" in {entry["name"] for entry in catalog()}
+
+
+# ============================================================================
+# The state root as a top-level key — [[state-root]] round 1
+# ============================================================================
+
+
+def test_state_root_is_a_declaration_not_an_unknown_table():
+    projects, problems = parse({"state_root": "~/logs", "project": {}})
+    assert problems == []
+    assert projects == []
+
+
+def test_an_unknown_top_level_key_is_named_as_a_key_not_a_table():
+    """It used to say `unknown table 'staet_root'`, which sends the operator
+    looking for a `[staet_root]` heading they never wrote."""
+    _, problems = parse({"staet_root": "~/logs"})
+    assert problems == ["unknown key 'staet_root' — ignored"]
+
+
+def test_an_unknown_table_is_still_called_a_table():
+    _, problems = parse({"projct": {"jam-sense": {}}})
+    assert problems == ["unknown table 'projct' — ignored"]

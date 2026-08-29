@@ -47,6 +47,11 @@ PROJECT_KEYS = frozenset(
 )
 TOP_LEVEL_TABLES = frozenset({"project"})
 
+# Top-level keys that are not tables. `state_root` is read by cli/agentstate.py
+# rather than here — this set exists so the unknown-table check below does not
+# report the operator's own declaration as a mistake. See [[state-root]].
+TOP_LEVEL_KEYS = frozenset({"state_root"})
+
 
 @dataclass
 class Project:
@@ -111,8 +116,10 @@ def parse(raw: dict) -> tuple[list[Project], list[str]]:
     # rest of the file is read, so this can never be the reason a good
     # declaration stops working.
     for table in raw:
-        if table not in TOP_LEVEL_TABLES and table != "__error__":
-            problems.append(f"unknown table {table!r} — ignored")
+        if table in TOP_LEVEL_TABLES or table in TOP_LEVEL_KEYS or table == "__error__":
+            continue
+        kind = "key" if not isinstance(raw[table], dict) else "table"
+        problems.append(f"unknown {kind} {table!r} — ignored")
 
     for name, body in (raw.get("project") or {}).items():
         problem = _check(name, body)

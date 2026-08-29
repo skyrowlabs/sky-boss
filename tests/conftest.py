@@ -23,6 +23,14 @@ os.environ["SB_STATE"] = str(_ISOLATED)
 _ISOLATED_HOME = Path(tempfile.mkdtemp(prefix="sb-home-")) / "home"
 os.environ["SB_HOME"] = str(_ISOLATED_HOME)
 
+# And never the *agent-state* root, which is a third environment the suite must
+# not inherit. Unlike the two above it has no sky.boss-owned default to fall back
+# to — it is read straight from the operator's environment — so a suite run in a
+# shell that exports it would resolve real project directories and a suite run
+# without one would not. Cleared rather than redirected: an undeclared root is a
+# state the tests need to exercise, and each test that wants one sets it.
+os.environ.pop("SL_AGENT_LOGS", None)
+
 import pytest  # noqa: E402
 
 
