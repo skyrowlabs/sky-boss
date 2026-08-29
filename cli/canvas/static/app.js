@@ -102,6 +102,7 @@ const EMPTY_DRAFT = {
    * reused. `checks` is what an act gets instead of a trial run. */
   save: "",
   describe: "",
+  group: "",
   checks: [],
   nameProblem: null,
   block: null,
@@ -1448,6 +1449,7 @@ function App() {
         drop: "",
         save: "",
         describe: "",
+        group: "",
         nameProblem: null,
         block: null,
         saved: null,
@@ -1465,6 +1467,11 @@ function App() {
      * and an example is an argv — so every tool saved before [[tools]] round 4
      * has no description and a list of them is a list of argvs to decipher. */
     setDescribe: (describe) => setDraft((d) => ({ ...d, describe })),
+    /* Where the rail sorts it. Declared, never inferred — the bench does not
+     * read a prefix off the name and guess, for the reason the contract is not
+     * read off a trailing `--json`. Blank is ungrouped and writes no line at
+     * all, so clearing it here removes the field from the block. */
+    setGroup: (group) => setDraft((d) => ({ ...d, group })),
 
     /* Open an existing tool in the bench, decomposed back into the fields that
      * compose it. The inverse of `compose`, and deliberately partial: it reads
@@ -1498,6 +1505,7 @@ function App() {
         argv: rest.slice(i).join(" "),
         save: shortOf(tool),
         describe: tool.summary || "",
+        group: tool.group || "",
       }));
     },
 
@@ -1563,7 +1571,13 @@ function App() {
       if (!argv) return;
       setDraft((prev) => ({ ...prev, saving: true, saved: null }));
       api
-        .writeTool({ name: d.save, argv, refresh: 0, description: d.describe || "" })
+        .writeTool({
+          name: d.save,
+          argv,
+          refresh: 0,
+          description: d.describe || "",
+          group: d.group || "",
+        })
         .then((result) => {
           const ok = !result.error;
           setDraft((prev) => ({

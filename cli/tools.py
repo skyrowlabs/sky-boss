@@ -591,7 +591,13 @@ def _toml_string(value: str) -> str:
     return f'"{escaped}"'
 
 
-def block(name: str, argv: list[str], refresh: int = 0, description: str = "") -> str:
+def block(
+    name: str,
+    argv: list[str],
+    refresh: int = 0,
+    description: str = "",
+    group: str = "",
+) -> str:
     """The text appended to `tools.toml` for one saved tool.
 
     `description` since [[tools]] round 4: `--save` cannot supply one — it saves
@@ -603,6 +609,12 @@ def block(name: str, argv: list[str], refresh: int = 0, description: str = "") -
     lines = [f"[tool.{name}]"]
     if description:
         lines.append(f"description = {_toml_string(description)}")
+    # Above `argv` with `description`, because both say what this *is* and the
+    # argv says what it does. An empty group is ungrouped and writes no line at
+    # all, so clearing the bench's field removes it from the block rather than
+    # leaving `group = ""` behind. See [[tools]] round 5.
+    if group:
+        lines.append(f"group = {_toml_string(group)}")
     lines.append(f"argv = [{parts}]")
     if refresh:
         lines.append(f"refresh = {refresh}")
@@ -644,6 +656,7 @@ def write_problem(
     refresh: int = 0,
     home: Path | None = None,
     root=None,
+    group: str = "",
 ) -> str | None:
     """Why this tool cannot be written, or None.
 
@@ -670,6 +683,8 @@ def write_problem(
     body: dict = {"argv": list(argv)}
     if refresh:
         body["refresh"] = refresh
+    if group:
+        body["group"] = group
     return _check(name, body, commands, set(), resident)
 
 
@@ -755,6 +770,7 @@ def write_block(
     refresh: int = 0,
     description: str = "",
     home: Path | None = None,
+    group: str = "",
 ) -> dict:
     """Create or replace one tool. Returns what happened, and where the backup went.
 
@@ -763,7 +779,7 @@ def write_block(
     surface holds an opinion about the file's current contents that may be one
     tick out of date.
     """
-    problem = write_problem(name, argv, refresh, home)
+    problem = write_problem(name, argv, refresh, home, group=group)
     if problem:
         raise click.UsageError(problem)
 
@@ -771,7 +787,7 @@ def write_block(
     path.parent.mkdir(parents=True, exist_ok=True)
     text = path.read_text(encoding="utf-8") if path.exists() else ""
     kept = backup(home)
-    fresh = block(name, argv, refresh, description)
+    fresh = block(name, argv, refresh, description, group)
 
     span = block_range(text, name)
     if span is None:
@@ -796,6 +812,7 @@ def write_block(
         "action": action,
         "file": str(path),
         "runs": "sb " + shlex.join(argv),
+        **({"group": group} if group else {}),
         **({"refresh": refresh} if refresh else {}),
         **({"backup": str(kept)} if kept else {}),
     }

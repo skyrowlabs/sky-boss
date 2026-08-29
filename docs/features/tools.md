@@ -315,7 +315,7 @@ no longer exists is dropped on write rather than kept forever.
       `/api/prefs`, *not* `localStorage` — the check found the reason and it was not the one this
       line expected. See Notes. Unknown keys ignored on read and dropped on write; an unreadable
       store means everything open.
-- [ ] **The bench and the writer.** A group field on the bench beside description; `/api/tools`
+- [x] **The bench and the writer.** A group field on the bench beside description; `/api/tools`
       carries `group` through create/replace; the splice writes and removes the line within the
       block, so comments above it still survive (round 4's guarantee, now with one more line in
       the block). The shared validator gains the group check, so the writer still cannot accept a
@@ -631,6 +631,24 @@ its count. `localStorage` could not have passed that test in any configuration.
 this is the surface's own state rather than a second config file — round 4's line when it refused
 to let `/api/tools` become a config editor, applied one route over. It joins the guarded-route
 inventory test, which is what catches a route added later without the guard.
+
+**The bench's group field is declared, like everything else on that screen.** It does not read a
+prefix off the name and offer a guess, for the reason the contract is not read off a trailing
+`--json`. Blank is ungrouped and `block()` writes **no line at all**, so clearing the field removes
+`group` from the block rather than leaving `group = ""` behind — which would load identically and be
+one more line nobody wrote on purpose.
+
+Verified through the real route against a real file: `/api/tools` created a grouped tool, refused
+`group = "No Good"` with **the loader's own message** (`write_problem` calls `_check`, so there is
+still one opinion), and the operator's comment above the untouched block survived byte for byte.
+
+*Observed, not caused — and checked rather than assumed:* **the workbench overlaps itself at
+`--scale 2.4`** in a 1500×950 viewport, panels stacking over each other with the job strip's own
+fields clipped behind the save row. It looked exactly like the failure `CLAUDE.md` warns this round
+would cause, so the same shot was taken with this round's three frontend files stashed — and it is
+pixel-for-pixel the same overlap. Pre-existing, vertical, and worth a round in [[workbench]]; not
+this one's. At 1.8 the row wraps the group under the name and reads correctly, which is the
+behaviour `flex-wrap` was already there for.
 
 ### Round 1 — what shipped, and the claim that did not survive (2026-08-20)
 

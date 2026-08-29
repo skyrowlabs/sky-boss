@@ -114,8 +114,8 @@ export function unaccrue(session, window) {
  * now: that path can only ever append and can only ever refuse a name that
  * exists, because it is `--save`, and `--save` saves by example. Editing and
  * deleting need a door that is not an example. */
-export function writeTool({ name, argv, refresh, description }) {
-  return post("/api/tools", { name, argv, refresh, description });
+export function writeTool({ name, argv, refresh, description, group }) {
+  return post("/api/tools", { name, argv, refresh, description, group });
 }
 
 export function deleteTool(name) {

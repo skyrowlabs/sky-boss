@@ -462,6 +462,17 @@ function JobStrip({ draft, actions }) {
             placeholder="description — what it is for"
             onInput=${(e) => actions.setDescribe(e.target.value)}
           />
+          ${/* Declared, never inferred — the bench does not read a prefix off
+              the name and guess a group, for the same reason it does not read
+              a trailing --json and guess a contract. Blank is ungrouped.
+              See [[tools]] round 5. */
+          html`<input
+            class="job-group"
+            value=${draft.group || ""}
+            placeholder="group"
+            title="where the tools rail sorts it — blank is ungrouped"
+            onInput=${(e) => actions.setGroup(e.target.value)}
+          />`}
           ${/* **No cadence control, and it is absent rather than disabled.**
               The mockup drew one here and building it found why it cannot be:
               a cadence is saved by having a `--refresh` in force on the line
