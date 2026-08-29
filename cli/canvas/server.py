@@ -50,6 +50,7 @@ from starlette.staticfiles import StaticFiles
 from dataclasses import dataclass
 
 from cli import chrome as chrome_
+from cli.canvas import prefs
 from cli import highlight as highlight_
 from cli import stream as stream_
 from cli import tools as tools_
@@ -156,6 +157,43 @@ def build(canvas: Canvas | None = None) -> Starlette:
             "</svg>"
         )
         return Response(svg, media_type="image/svg+xml", headers={"cache-control": "no-cache"})
+
+    async def get_prefs(request: Request) -> Response:
+        """What the surface remembers about itself, between launches.
+
+        **Machine state, never operator content** — the `$SB_HOME` /
+        `$SB_STATE` line, which is why this is a file under the second and not
+        a key in `tools.toml`. A chevron click has no business writing the
+        operator's file or spending one of round 4's backups on it.
+
+        It is a route rather than `localStorage` because **the surface has no
+        stable origin**: `sb ui` binds an ephemeral port every launch, so the
+        page is served from `http://127.0.0.1:<different>/` every time and
+        per-origin browser storage is empty on arrival by construction. That is
+        true in all three shells and has nothing to do with the webview's
+        private mode. Measured, not assumed — see [[tools]] round 5.
+        """
+        if not canvas.authorised(request):
+            return _denied()
+        return JSONResponse(prefs.read())
+
+    async def post_prefs(request: Request) -> Response:
+        """Replace what the surface remembers. Guarded like every other route.
+
+        Strictly shaped rather than a free blob: this is a place for the
+        surface's own state and not a second config file, which is the line
+        round 4 drew when it refused to let `/api/tools` become a config
+        editor. An unknown key is dropped rather than stored.
+        """
+        if not canvas.authorised(request):
+            return _denied()
+        body = await request.json()
+        if not isinstance(body, dict):
+            return JSONResponse({"error": "prefs must be an object"}, status_code=400)
+        problem = prefs.write(body)
+        if problem:
+            return JSONResponse({"error": problem}, status_code=400)
+        return JSONResponse(prefs.read())
 
     async def post_tools(request: Request) -> Response:
         """Create, replace or delete one saved command.
@@ -570,6 +608,8 @@ def build(canvas: Canvas | None = None) -> Starlette:
             Route("/api/follow", post_follow, methods=["POST"]),
             Route("/api/accrue", post_accrue, methods=["POST"]),
             Route("/api/tools", post_tools, methods=["POST"]),
+            Route("/api/prefs", get_prefs),
+            Route("/api/prefs", post_prefs, methods=["POST"]),
             Route("/api/quit", post_quit, methods=["POST"]),
             Route("/api/stream", stream),
             Mount("/static", NoCacheStatic(directory=STATIC), name="static"),

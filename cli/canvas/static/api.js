@@ -122,6 +122,27 @@ export function deleteTool(name) {
   return post("/api/tools", { name, delete: true });
 }
 
+/* What the surface remembers about itself between launches — currently which
+ * tool groups are folded. A route rather than `localStorage` because `sb ui`
+ * binds an ephemeral port every launch, so the page has a different origin
+ * every time and per-origin storage is empty on arrival by construction. See
+ * [[tools]] round 5.
+ *
+ * Both directions swallow their failure: a preference that cannot be read or
+ * written costs the preference, never the rail. */
+export async function prefs() {
+  try {
+    const response = await fetch("/api/prefs", { headers: HEADERS() });
+    return response.ok ? await response.json() : {};
+  } catch {
+    return {};
+  }
+}
+
+export function savePrefs(body) {
+  return post("/api/prefs", body).catch(() => ({}));
+}
+
 /* Ends the whole surface. The window has no frame, so this is the close
  * button — and it is guarded like every other route, because ending your
  * session is a real effect and a page you did not open must not be able to

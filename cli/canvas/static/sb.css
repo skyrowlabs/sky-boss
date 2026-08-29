@@ -219,9 +219,20 @@ body {
  * name is read. The ungrouped bucket takes a rule instead of a heading and only
  * when something is above it — a divider at the top of a list divides nothing. */
 .tool-group {
+  display: flex; align-items: center; gap: 1rem; width: 100%;
   padding: 2rem 3rem 1rem; color: var(--sb-text-2);
   font-size: 2.5rem; font-weight: 700; letter-spacing: .12em;
   text-transform: uppercase;
+  background: none; border: none; cursor: pointer; font-family: inherit;
+  text-align: left;
+}
+.tool-group:hover { color: var(--sb-brand); }
+/* Fixed width so the names line up folded and unfolded — a heading that shifts
+ * sideways as you fold it reads as two different headings. */
+.tool-chevron { flex: none; width: 2.5rem; }
+.tool-group-name { flex: 1; min-width: 0; }
+.tool-count {
+  flex: none; color: var(--sb-text-3); font-weight: 400; letter-spacing: 0;
 }
 .tool-section:first-child .tool-group { padding-top: 0; }
 .tool-rule { margin: 2rem 3rem 1.5rem; border-top: var(--hair) solid var(--sb-hair); }
