@@ -68,11 +68,23 @@ replaced by a browser one the same day. What exists:
 | `sb ui` | Opens the surface: **the canvas**, a command palette over tiled and floating windows, and **the workbench**, where a command gets authored. See [[workbench]] |
 | `sb tools <name>` | Runs a saved command; `sb -t <name>` is the short spelling. See [[tools]] |
 
-**`--save NAME` on `read`, `data` and `follow`** saves the invocation as a tool and then runs it. It
-is the only thing in sky.boss that writes `tools.toml`, it only ever **appends** one block, and it
-refuses a name that already exists — editing and deleting stay `$EDITOR`'s. No surface writes: still
-no route, still no button. `run` does not take it, because `--save` saves by example and the example
-ran. See [[tools]].
+**`--save NAME` on `read`, `data` and `follow`** saves the invocation as a tool and then runs it,
+appending one block and refusing a name that exists — `--save` saves *by example*, and there is no
+example for a write you have not run, which is why `run` does not take it.
+
+**The surface writes too, as of [[tools]] round 4 (2026-08-28), and that reverses a rule stated
+twice here.** `POST /api/tools` creates, replaces and deletes; the bench's save button goes down it
+and the tools rail carries ✎ and ✕. Three things make it not the thing that was refused. A write
+**splices one block's line range** rather than round-tripping the document, so every other byte —
+including the operator's comments — is untouched by construction. Every mutating write **copies the
+file into `$SB_HOME/backups/` first**, last 20 kept. And `write_problem` runs the *loader's own*
+`_check`, so the writer cannot accept a tool the tree will then refuse.
+
+The security argument that had blocked it was against a false premise: it held that a hostile page
+past the guard "gets one command", where a write route would get every command from then on. A page
+past the guard gets `/api/run` and an arbitrary argv, which appends to `tools.toml` by itself.
+**Persistence was already on that side of the boundary**, so the route hands an attacker nothing.
+The guard is unchanged and is still the whole defence.
 
 `sb` and `sb --help` open with the mark — `docs/design/cli-header.png` drawn in half-blocks, see
 [[header]]. It refuses to draw on a narrow or non-terminal surface rather than wrapping.
@@ -289,9 +301,10 @@ check there first.
 | What | Where | Authored by | Versioned |
 |---|---|---|---|
 | Code, tests, docs | this repo | the project | here |
-| Saved commands (`tools.toml`) | `~/.sky-boss/` (`$SB_HOME`) | the operator, and `--save` | never |
+| Saved commands (`tools.toml`) | `~/.sky-boss/` (`$SB_HOME`) | the operator, `--save`, and the surface | never |
 | Capture formats and highlight rules (`formats.toml`) | `~/.sky-boss/` (`$SB_HOME`) | the operator | never |
 | Declared projects (`projects.toml`) | `~/.sky-boss/` (`$SB_HOME`) | the operator | never |
+| Backups of `tools.toml` | `~/.sky-boss/backups/` | sky.boss, before every write | never |
 | Browser profile for the canvas | `~/.local/state/sb/` (`$SB_STATE`) | the machine | never |
 
 **`$SB_HOME` is the operator content directory, and it is outside the repo with no fallback path

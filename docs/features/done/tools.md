@@ -1,7 +1,7 @@
 ---
-status: active
+status: complete
 created: 2026-08-20
-updated: 2026-08-22
+updated: 2026-08-28
 agent_value: 3
 key_files:
   - cli/tools.py
@@ -132,16 +132,31 @@ module.** A name in a skip-list is the beginning of the command table this desig
    the collision. Nothing operator-authored may shadow a sky.boss command — otherwise a stray
    `[tool.run]` silently redefines the one door that writes.
 
-4. **No *surface* writes this file, and sky.boss only ever appends to it.** *(Round 3, 2026-08-22,
-   narrowed this from "sky.boss never writes this file" — `--save` writes one appended block from
-   the terminal. The security argument below is unchanged and is what the narrowing was measured
-   against; the sentence it was protecting was broader than the argument.)* Creation and every edit
-   are `$EDITOR`'s. The canvas server is remote code execution bound to a port and is treated that
-   way; giving it a route that writes a file sky.boss will later *execute* would convert a transient
-   compromise into a persistent one. A hostile page that defeated the header-and-token guard today
-   gets one command; with a write route it would get every command from then on. That is not a trade
-   worth making for a save button, and the button can be added later against a design that has
-   thought about it.
+4. **~~No *surface* writes this file, and sky.boss only ever appends to it.~~ Reversed in round 4
+   (2026-08-28).** The surface creates, replaces and deletes; sky.boss splices one block and backs
+   the file up first. *The original, kept because its final clause named the condition for its own
+   reversal:*
+
+   > *(Round 3, 2026-08-22, narrowed this from "sky.boss never writes this file" — `--save` writes
+   > one appended block from the terminal. The security argument below is unchanged and is what the
+   > narrowing was measured against; the sentence it was protecting was broader than the argument.)*
+   > Creation and every edit are `$EDITOR`'s. The canvas server is remote code execution bound to a
+   > port and is treated that way; giving it a route that writes a file sky.boss will later
+   > *execute* would convert a transient compromise into a persistent one. A hostile page that
+   > defeated the header-and-token guard today gets one command; with a write route it would get
+   > every command from then on. That is not a trade worth making for a save button, **and the
+   > button can be added later against a design that has thought about it.**
+
+   **What was wrong with it: "gets one command".** A page past the guard gets `/api/run`, which runs
+   an arbitrary argv — and one arbitrary argv appends to `tools.toml`, or writes a crontab line, or
+   a shell profile. Persistence was already on the far side of that boundary the day `/api/run`
+   shipped, so the write route hands an attacker who is already executing as the operator exactly
+   nothing. The guard is the whole defence and is unchanged: loopback bind, the required header that
+   forces a preflight nothing answers, the per-launch token, the `Origin` check, and no CORS
+   allow-origin header anywhere.
+
+   The operator's case is the one that carried it: *"the user is going to want to edit commands
+   without jumping out of the UI."*
 
 `~` in an argv is expanded, since the whole point is that these are operator paths.
 
@@ -149,12 +164,14 @@ module.** A name in a skip-list is the beginning of the command table this desig
 
 **Does not do:**
 
-- **No writing, from anywhere.** No `sb tool add`, no `POST /api/tools`, no "save this window as a
-  tool" button. See rule 4. This is the round that proves the read half; the write half is a
+- **~~No writing, from anywhere.~~** No `sb tool add`, no `POST /api/tools`, no "save this window as
+  a tool" button. See rule 4. This is the round that proves the read half; the write half is a
   separate design with a security argument to make. *(Round 3 built exactly that separate design
   and kept two thirds of this line: there is still no route and still no button. What exists is
   `--save`, typed by the operator in their own terminal — the same trust level as `$EDITOR`,
-  reached the same way.)*
+  reached the same way. **Round 4, 2026-08-28, spent the last third: `POST /api/tools` exists, the
+  bench's button writes it, and the rail deletes. The security argument it was waiting for turned
+  out to be an argument against a premise that was false — see rule 4.**)*
 - **No arguments.** A tool is a *fixed* argv. `sb jam-pr-list 945` is refused rather than appended,
   because a tool that takes arguments is a shell function, and this is not a shell.
 - **No groups, no nesting.** Flat names at the top level. `sb jam-pr-list`, not `sb jam pr-list`.
@@ -248,7 +265,7 @@ start with a sky.boss command, a cadence is refused on a tool that acts or is re
       it writes it. The name check it already does becomes the create/replace decision.
 - [x] **The sidebar edits and deletes.** A tool row opens its argv in the bench; a delete asks
       once and says where the backup went.
-- [ ] **Docs**: rule 4 rewritten in place with the original kept and struck, `CLAUDE.md` § tools
+- [x] **Docs**: rule 4 rewritten in place with the original kept and struck, `CLAUDE.md` § tools
       and § Where things live updated, README's saving section.
 
 ### Round 1 — the tools read (2026-08-20)
@@ -600,3 +617,44 @@ better pairing than `.toolbox` wrapping `.tool` ever was.
 The cost is that this doc's slug, `[[tools]]`, now matches the concept as well as the command — the
 2026-08-22 entry chose it for the command precisely *because* the concept was called something
 else. The slug did not need to move a second time, which is the only piece of luck in the change.
+
+### Round 4 — executed (2026-08-28)
+
+**The reversal was the easy part; the premise it rested on was the interesting part.** Rule 4's
+security argument had one load-bearing clause — *"a hostile page that defeated the guard today gets
+one command"* — and that clause was false from the day `/api/run` shipped. A page past the guard
+gets an arbitrary argv, and one argv appends to `tools.toml` on its own. The rule was defending a
+boundary that had already moved, which is the most durable kind of wrong: nothing about it looked
+stale, because the sentence was still well-written and the guard it named was still real.
+
+**Splicing beat round-tripping and the reason is not aesthetic.** `tomlkit` would have preserved
+comments and re-serialised the whole document; a line-range splice leaves every other byte
+identical *by construction*, which is a claim a test can make cheaply and completely
+(`after[after.index("[tool.beta]"):] == before[...]`). The dependency was the smaller cost and
+still the wrong trade.
+
+**Two defects the first hand-exercise caught, both invisible to a passing test:**
+
+- Replacing a block **ate the blank line** separating it from its neighbour. The file still parsed
+  and the tool still ran; it just read as sky.boss having reformatted something nobody asked it to
+  touch — the exact thing splicing exists to avoid, reintroduced by the splice.
+- The fix for that then **doubled** the blank line, because the range was shrunk to exclude the
+  trailing blanks *and* those blanks were re-emitted. Both directions of the same off-by-one, found
+  by printing the file rather than by asserting on it.
+
+**`--save`'s split turned out to be a mechanism, not a design.** The bench had two save paths — a
+button for observes, a paste-this-block for acts — and the reason was that saving ran the argv again
+with `--save` in it, `--save` saves by example, and there is no example for a write you have not
+run. A route needs no example, so the split dissolved: one button, every contract. Worth recording
+because the doc had rationalised the asymmetry as principle for two rounds.
+
+**The catalog was shipping the wrong argv for this job, and only building against it showed that.**
+A saved command's `argv` is the path you *type* — `["tools", "drainer"]` — which is correct for
+running it and empty of information for editing it. The edit action was written against it and
+recovered the string `"drainer"` as the whole command line. `expansion` is now a separate field,
+which keeps `argv` meaning one thing.
+
+**Verified end to end against a scratch `$SB_HOME`** rather than the operator's real one: create an
+act from the bench, reopen it from the rail, replace it, delete it. The file returned **byte for
+byte** to its starting state with both comments intact, and three backups were written — one per
+write, which is the promise.
