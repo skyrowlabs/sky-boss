@@ -219,12 +219,28 @@ body {
   border-top: var(--hair) solid var(--sb-hair);
 }
 
+/* The row, since [[tools]] round 4: run it, edit it, delete it. The two verbs
+ * stay hidden until the row is hovered — a delete that is always visible in a
+ * list you click to *run* things is a misclick waiting to happen, and the row
+ * is one line tall. */
+.tool-row { display: flex; align-items: center; }
+.tool-row:hover { background: color-mix(in srgb, var(--sb-brand) 10%, transparent); }
+
 .tool {
-  display: flex; align-items: center; gap: 2rem; width: 100%;
-  padding: 1.5rem 3rem; background: none; border: none; cursor: pointer;
+  display: flex; align-items: center; gap: 2rem; flex: 1; min-width: 0;
+  padding: 1.5rem 0 1.5rem 3rem; background: none; border: none; cursor: pointer;
   color: var(--sb-text); font: inherit; text-align: left;
 }
-.tool:hover { background: color-mix(in srgb, var(--sb-brand) 10%, transparent); }
+
+.tool-edit, .tool-drop {
+  flex: none; opacity: 0; padding: 1.5rem 1.5rem; background: none; border: none;
+  cursor: pointer; color: var(--sb-text-3); font: inherit;
+}
+.tool-row:last-child .tool-drop { padding-right: 3rem; }
+.tool-drop { padding-right: 3rem; }
+.tool-row:hover .tool-edit, .tool-row:hover .tool-drop { opacity: 1; }
+.tool-edit:hover { color: var(--sb-brand); }
+.tool-drop:hover { color: var(--sb-warn); }
 .tool-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tool-refresh { flex: none; color: var(--sb-brand); }
 /* A tool that writes. It can never carry a cadence, and the marker is there so

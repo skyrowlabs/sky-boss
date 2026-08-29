@@ -103,6 +103,25 @@ export function unaccrue(session, window) {
   return post("/api/accrue", { session, window, stop: true });
 }
 
+/* Create, replace or delete one saved command ([[tools]] round 4).
+ *
+ * The route rule 4 said would never exist. It exists because the argument
+ * against it was wrong: a page past the guard already has `/api/run`, and one
+ * arbitrary argv appends to tools.toml by itself — persistence was never on
+ * this side of the boundary. What guards it is what guards everything here.
+ *
+ * Not `/api/run` with `--save` in the argv, which is what the bench did until
+ * now: that path can only ever append and can only ever refuse a name that
+ * exists, because it is `--save`, and `--save` saves by example. Editing and
+ * deleting need a door that is not an example. */
+export function writeTool({ name, argv, refresh, description }) {
+  return post("/api/tools", { name, argv, refresh, description });
+}
+
+export function deleteTool(name) {
+  return post("/api/tools", { name, delete: true });
+}
+
 /* Ends the whole surface. The window has no frame, so this is the close
  * button — and it is guarded like every other route, because ending your
  * session is a real effect and a page you did not open must not be able to

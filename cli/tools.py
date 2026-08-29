@@ -293,6 +293,11 @@ def make_command(tool: Tool) -> click.Command:
     # the catalog reads it to withhold the cadence control from stream
     # windows, saved or typed alike.
     command.sb_resident = tool.resident
+    # The sky.boss argv this keyword stands for. The catalog ships it so the
+    # bench can open a saved tool for editing; nothing else reads it, and a
+    # surface that re-derived it would be guessing at the file. See [[tools]]
+    # round 4.
+    command.sb_expansion = list(tool.argv)
 
     if not tool.acts and not tool.resident:
         # Only a snapshot observe may take a cadence; on a tool that acts —

@@ -244,9 +244,9 @@ start with a sky.boss command, a cadence is refused on a tool that acts or is re
 - [x] **`POST /api/tools`** — create/replace and delete, guarded like every route, with the refusal
       as a 400 carrying its reason. A test that it refuses an unauthenticated request, alongside
       the existing route inventory.
-- [ ] **The bench saves for real.** Its `--save` row currently prints a block for you to paste;
+- [x] **The bench saves for real.** Its `--save` row currently prints a block for you to paste;
       it writes it. The name check it already does becomes the create/replace decision.
-- [ ] **The sidebar edits and deletes.** A tool row opens its argv in the bench; a delete asks
+- [x] **The sidebar edits and deletes.** A tool row opens its argv in the bench; a delete asks
       once and says where the backup went.
 - [ ] **Docs**: rule 4 rewritten in place with the original kept and struck, `CLAUDE.md` § tools
       and § Where things live updated, README's saving section.

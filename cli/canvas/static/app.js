@@ -107,14 +107,6 @@ const EMPTY_DRAFT = {
 let nextId = 0;
 const newId = () => `w${++nextId}`;
 
-/* A failed `sb data --save` reports itself in the envelope rather than in the
- * exit status alone — `--save` refuses a duplicate name as a usage error, and
- * the reason is the useful half. */
-function firstWarning(envelope) {
-  const said = (envelope && envelope.warnings) || [];
-  return said.length ? said[0] : null;
-}
-
 function intervalLabel(seconds) {
   if (!seconds) return "⟳ manual";
   return seconds >= 60 ? `⟳ ${seconds / 60}m` : `⟳ ${seconds}s`;
@@ -289,7 +281,7 @@ function useNow() {
  * carries, so a tool that stops existing stops appearing here with no code
  * involved. See [[tools]].
  */
-function Tools({ commands, open }) {
+function Tools({ commands, open, edit, drop }) {
   const saved = commands.filter((c) => c.saved);
   return html`
     <div class="tools">
@@ -301,16 +293,31 @@ function Tools({ commands, open }) {
         </div>`}
         ${saved.map(
           (c) => html`
-            <button
-              key=${c.name}
-              class="tool"
-              title=${c.summary || c.name}
-              onClick=${() => open(c, shortOf(c), { interval: c.refresh })}
-            >
-              <span class="tool-name">${shortOf(c)}</span>
-              ${c.refresh > 0 && html`<span class="tool-refresh">${c.refresh}s</span>`}
-              ${c.acts && html`<span class="tool-acts" title="acts — never refreshed">!</span>`}
-            </button>
+            <div key=${c.name} class="tool-row">
+              <button
+                class="tool"
+                title=${c.summary || c.name}
+                onClick=${() => open(c, shortOf(c), { interval: c.refresh })}
+              >
+                <span class="tool-name">${shortOf(c)}</span>
+                ${c.refresh > 0 && html`<span class="tool-refresh">${c.refresh}s</span>`}
+                ${c.acts && html`<span class="tool-acts" title="acts — never refreshed">!</span>`}
+              </button>
+              <button
+                class="tool-edit"
+                title="open this tool in the workbench"
+                onClick=${() => edit(c)}
+              >
+                ✎
+              </button>
+              <button
+                class="tool-drop"
+                title="delete this tool"
+                onClick=${() => drop(c)}
+              >
+                ✕
+              </button>
+            </div>
           `
         )}
       </div>
@@ -1157,6 +1164,7 @@ function App() {
          * contract that is no longer selected, and `--save` on `run` is not a
          * flag at all — it saves by example, and the example ran. */
         save: "",
+        describe: "",
         nameProblem: null,
         block: null,
         saved: null,
@@ -1170,6 +1178,64 @@ function App() {
     /* The name. Judged by `cli.tools.name_problem` rather than here — a page
      * holding a copy of the rule would disagree the day the rule changed. */
     setSave: (save) => setDraft((d) => ({ ...d, save, saved: null })),
+    /* What the tool is *for*. `--save` could never ask — it saves by example
+     * and an example is an argv — so every tool saved before [[tools]] round 4
+     * has no description and a list of them is a list of argvs to decipher. */
+    setDescribe: (describe) => setDraft((d) => ({ ...d, describe })),
+
+    /* Open an existing tool in the bench, decomposed back into the fields that
+     * compose it. The inverse of `compose`, and deliberately partial: it reads
+     * the flags the bench itself can draw and leaves anything else in the argv
+     * text, where it is visible and editable rather than silently dropped on
+     * the next save. See [[tools]] round 4. */
+    edit: (tool) => {
+      /* `expansion`, not `argv`: the latter is the path you type to run it —
+       * `tools drainer` — which is no answer at all when the question is what
+       * the tool *is*. See [[tools]] round 4. */
+      const argv = [...(tool.expansion || [])];
+      const contract = argv[0] || null;
+      const rest = argv.slice(1);
+      const fields = { cwd: "", env: "" };
+      let i = 0;
+      for (; i < rest.length; i++) {
+        if (rest[i] === "--") { i += 1; break; }
+        if (rest[i] === "--cwd" && rest[i + 1] !== undefined) { fields.cwd = rest[++i]; continue; }
+        if (rest[i] === "--env" && rest[i + 1] !== undefined) {
+          fields.env = (fields.env ? fields.env + " " : "") + rest[++i];
+          continue;
+        }
+        break;
+      }
+      setScreen(WORKBENCH);
+      setDraft(() => ({
+        ...EMPTY_DRAFT,
+        contract,
+        cwd: fields.cwd,
+        env: fields.env,
+        argv: rest.slice(i).join(" "),
+        save: shortOf(tool),
+        describe: tool.summary || "",
+      }));
+    },
+
+    /* Delete, with one confirmation and the backup path in the answer. The
+     * confirmation is `confirm()` rather than a modal because this surface has
+     * no modal and inventing one to ask a yes/no question is the larger
+     * change. A delete is not undoable from here — the backup is the undo. */
+    drop: (tool) => {
+      const name = shortOf(tool);
+      if (!window.confirm(`Delete the tool "${name}"? Its file is backed up first.`)) return;
+      api
+        .deleteTool(name)
+        .then((result) => {
+          if (result.error) {
+            window.alert(`Could not delete ${name}: ${result.error}`);
+            return;
+          }
+          api.catalog().then((c) => setCommands(c.commands));
+        })
+        .catch((error) => window.alert(`Could not delete ${name}: ${error}`));
+    },
     /* The act's one button. Down `/api/run`, which is the route that runs
      * things — `/api/trial` refuses an act on purpose and asking it twice
      * would not change its mind. Labelled for what it does: there is no dry
@@ -1200,20 +1266,23 @@ function App() {
      * rather than `/api/trial` for the same reason — this is not a trial, and
      * a route called trial that writes would be lying about itself.
      *
-     * No route writes `tools.toml`. The subprocess does, through the one
-     * writer sky.boss has, so append-only and refuse-a-duplicate come free. */
+     * Since [[tools]] round 4 this writes through `/api/tools` rather than by
+     * running the argv again with `--save` in it. Two things change and both
+     * are the point: **saving no longer runs the command** — it was a second
+     * execution of a foreign tool to record a line of text, which for an
+     * observe was merely wasteful and was never available for a `run` at all —
+     * and a name that already exists is now a *replace* rather than a refusal,
+     * because `--save` saves by example and editing is not an example. */
     save: () => {
       const d = draftRef.current;
-      if (!d.save || d.nameProblem || d.saving) return;
+      if (!d.save || d.saving) return;
       const argv = compose({ ...d, saving: true });
       if (!argv) return;
-      const withSave = [argv[0], "--save", d.save, ...argv.slice(1)];
       setDraft((prev) => ({ ...prev, saving: true, saved: null }));
       api
-        .run(withSave)
+        .writeTool({ name: d.save, argv, refresh: 0, description: d.describe || "" })
         .then((result) => {
-          const envelope = result.envelope || {};
-          const ok = result.ok && envelope.ok !== false;
+          const ok = !result.error;
           setDraft((prev) => ({
             ...prev,
             saving: false,
@@ -1224,8 +1293,10 @@ function App() {
              * line they meant. */
             saved: {
               ok,
-              runs: (envelope.saved && envelope.saved.runs) || null,
-              error: ok ? null : result.error || firstWarning(envelope) || "save failed",
+              action: result.action || null,
+              backup: result.backup || null,
+              runs: result.runs || null,
+              error: ok ? null : result.error || "save failed",
             },
           }));
           /* Two things go stale the instant a save lands: the tools rail,
@@ -1411,7 +1482,12 @@ function App() {
         ? html`<${Bench} commands=${commands} draft=${draft} actions=${benchActions} />`
         : html`
             <div class="stage">
-              <${Tools} commands=${commands} open=${open} />
+              <${Tools}
+                commands=${commands}
+                open=${open}
+                edit=${benchActions.edit}
+                drop=${benchActions.drop}
+              />
               <div
                 class=${`canvas ${layout}`}
                 ref=${canvas}

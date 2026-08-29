@@ -135,6 +135,12 @@ def _leaf(command: click.Command, path: tuple[str, ...]) -> list[dict]:
             # A saved command may declare the cadence it wants to open on.
             # Zero for everything else, which is what a window starts at now.
             "refresh": getattr(command, "sb_refresh", 0),
+            # What a saved command *expands to*, for the surface that edits it.
+            # `argv` above is the path you type — `tools drainer` — which is
+            # the right answer for running it and no answer at all for opening
+            # it in the bench. Empty for everything that is not saved.
+            # See [[tools]] round 4.
+            "expansion": list(getattr(command, "sb_expansion", ()) or ()),
             # Resident by nature: no cadence control at all — a stream is not
             # refreshed, it is open. `follow` sets this; a saved command
             # inherits it from its expansion like everything else.
