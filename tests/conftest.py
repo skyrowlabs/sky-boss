@@ -10,6 +10,7 @@ it before collecting.
 """
 
 import os
+import re
 import tempfile
 from pathlib import Path
 
@@ -48,6 +49,12 @@ def sb_home():
     return _ISOLATED_HOME
 
 
+# Every escape sequence rich can emit, not only the colour ones: a strip that
+# knows about `\x1b[…m` and nothing else leaves a cursor move sitting in the
+# middle of a sentence, which is the same failure wearing a different code.
+_ESCAPES = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]")
+
+
 @pytest.fixture
 def said():
     """A CliRunner result's text, free of how rich-click drew it.
@@ -58,10 +65,21 @@ def said():
     about the terminal rather than about the message — seen failing at 40 and
     200 columns while passing at 80. This strips the drawing and normalises the
     whitespace, leaving what was actually said.
+
+    **Colour is part of the drawing, and leaving it in cost CI three days.**
+    rich reads `GITHUB_ACTIONS` and calls a runner a terminal — deliberately,
+    so an Actions log comes out coloured — so every option name in a usage
+    error arrives wrapped in escapes and `--ticks needs --refresh` stops being
+    a substring of itself. Nothing here has a terminal and the suite passed on
+    every developer machine; the runner is the only place the drawing happens.
+    That it reported *one* failure where this file reproduces three is the
+    width argument above restated: the codes land in different places at
+    different widths, so which assertion breaks is a coincidence and the class
+    is not.
     """
 
     def read(result) -> str:
-        text = result.output
+        text = _ESCAPES.sub("", result.output)
         for glyph in "│╭╮╰╯─┌┐└┘":
             text = text.replace(glyph, " ")
         return " ".join(text.split())

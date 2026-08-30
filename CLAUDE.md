@@ -572,6 +572,18 @@ actual `sb` wrapper with `PATH` pinned, so the wrapper must find `.venv/bin/pyth
 fail only on a runner. Verified against a clean tree with no GTK and no system site-packages —
 `pywebview` installs, `gi` does not, and nothing imports either until a window opens.
 
+**A runner draws in colour and a developer machine does not.** rich-click sets `force_terminal`
+from `FORCE_COLOR`, `PY_COLORS` or `GITHUB_ACTIONS`, so every usage error on CI arrives with its
+option names wrapped in escapes — and `--ticks needs --refresh` stops being a substring of itself.
+Three assertions broke that way and CI reported **one**, because the wrap width decides where the
+codes land: which assertion fails is a coincidence, the class is not. The `said` fixture strips
+escapes as well as box glyphs, since colour is part of *how it was drawn*, and the case is
+reproduced in the suite by forcing `HELP_CONFIG` rather than by setting the variable — a default
+factory reads the environment when the dataclass is **built**, at import, so a test setting it has
+already missed. This is the *fail-only-on-a-runner* shape the venv paragraph above is also about:
+**a test whose environment differs from CI's is a test about your machine**, and the remedy is to
+put CI's condition inside the test rather than leaving it to whoever is running.
+
 **Bound every wait.** Three tests hung rather than failed while the canvas was being built. A
 `TestClient` cannot open an endless stream at all — it collects the whole body first — so the
 session loop is driven directly instead. And a guard that stops after N frames bounds how many

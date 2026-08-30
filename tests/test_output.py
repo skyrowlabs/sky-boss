@@ -759,3 +759,34 @@ def test_every_role_the_highlighter_can_emit_resolves():
             console.get_style(role_style(role))
         except MissingStyle:  # pragma: no cover - the failure being prevented
             raise AssertionError(f"unresolvable role: {role!r}")
+
+
+# ---------------------------------------------------------------- said
+
+
+def test_said_recovers_a_sentence_drawn_in_colour(said, monkeypatch):
+    """A usage error rendered in colour must still read as one sentence.
+
+    rich-click decides `force_terminal` from `FORCE_COLOR`, `PY_COLORS` or
+    `GITHUB_ACTIONS`, so **every** run on a GitHub runner draws in colour and
+    nothing on a developer machine does. Each option name then arrives wrapped
+    in escapes and `--ticks needs --refresh` stops being a substring of itself.
+    The suite passed everywhere it was run by hand and failed only where nobody
+    was looking.
+
+    The lever here is `HELP_CONFIG` rather than the environment variable,
+    because the variable is read by a default factory when the dataclass is
+    *built* — at import — so setting it from inside a test is already too late.
+    Same drawing either way; this one is reachable.
+    """
+    from cli import HELP_CONFIG
+    from cli import cli as cli_
+
+    monkeypatch.setattr(HELP_CONFIG, "force_terminal", True)
+    result = CliRunner().invoke(cli_, ["data", "--ticks", "3", "--", "printf", "hi"])
+
+    assert result.exit_code == 2
+    # Without this the test is vacuous — an uncoloured render passes it while
+    # proving nothing about the strip. Count the looking, not only the finding.
+    assert "\x1b[" in result.output, "nothing was drawn in colour; the case is not reproduced"
+    assert "needs --refresh" in said(result)
