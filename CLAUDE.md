@@ -675,6 +675,19 @@ Shared with sibling CLIs so the family feels like one tool.
   but *the observer cannot know*. The remedy is also the same — count the looking, not only the
   finding, and when you cannot, say "no evidence" rather than "clear".
 
+  **The cross-session half of that has a sharper form, and it is the workspace's to keep:** *a peer
+  name addresses a conversation **lineage**, not a context.* One socket and one `from-name` belong
+  to the terminal and the project; the transcript behind them does not, and nothing on the wire
+  marks where one context ended and the next began. So a context that opens at a clear may source a
+  positive claim but not a negative one — *"I have no record of that"* is sayable, *"I never sent
+  that"* is not. Written up by the skyrow-workspace session at
+  `skyrow-workspace/strategy/seams/session-identity.md` after four messages under one name turned
+  out to be one continuous line of work across three contexts, the first of which had relayed an
+  owner ruling this repo then acted on. Linked rather than restated, per the rule that a doc lives
+  where it changes. What it costs *here* is one habit: **a peer's denial is evidence about its
+  context, not about the wire** — take it to the owner rather than settling it agent-to-agent, since
+  a provenance dispute between two agents has no resolver at that level.
+
   **None of the five was caught by a test suite.** All were found by running the thing and looking
   at what came out — three by this repo, two by a consumer. That distribution is the part worth
   taking seriously, and the two consumer-found ones are the two a suite *structurally could not*
