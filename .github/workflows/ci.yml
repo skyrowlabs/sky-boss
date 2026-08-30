@@ -1,7 +1,7 @@
 # The whole suite, on every push and every pull request.
 #
 # There is no cost gating here and that is deliberate. Gating exists to keep an
-# expensive suite off the pre-merge path; this one is 676 tests in under five
+# expensive suite off the pre-merge path; this one is 1,083 tests in under ten
 # seconds with no network, so deciding whether to run it would cost more than
 # running it. If that stops being true, the thing to add is a gate job — not a
 # `paths-ignore`, which makes a required check that never reports and blocks a
@@ -9,11 +9,28 @@
 
 name: CI
 
+# Both branches, on push and on pull request. `develop` is where work lands and
+# `main` is what has been released, so a change is gated twice — once entering
+# integration, once leaving it — and neither gate is the expensive kind.
+#
+# Running on a *direct push* to `develop` as well as on pull requests into it is
+# where this parts company with jam.sense, which runs neither and catches a bad
+# direct push with a nightly host job. That trade buys runner minutes, and this
+# repo has nothing to buy them with: five jobs, under a minute, free on a public
+# repo. The rule at the top of this file applies to the branch axis too — the
+# deciding would cost more than the running.
+#
+# `workflow_dispatch` so a branch with no new commits can still be given a run.
+# A freshly cut `develop` has none, and the portfolio site reads *the default
+# branch's* latest conclusion — so without this, cutting the branch would drop
+# the CI badge off the site until the next push, which reads exactly like a
+# project that has no CI rather than one that has not run yet.
 on:
   push:
-    branches: [main]
+    branches: [main, develop]
   pull_request:
-    branches: [main]
+    branches: [main, develop]
+  workflow_dispatch:
 
 # A public repo means pushes to a PR arrive from people who are not watching
 # the Actions tab. Superseded runs are cancelled rather than left to finish.

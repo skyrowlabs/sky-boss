@@ -644,6 +644,37 @@ that printed something else has failed its contract. See [[text-reads]].
 **Gotcha:** never `from cli.<mod> import <same_name>` in `cli/__init__.py` — it rebinds the package
 attribute from the module to the Command and shadows the module. Import under an alias.
 
+## Branches
+
+**`develop` is the default and the integration branch; `main` is what has been released.** Adopted
+2026-08-30, the day the repo went public, on the operator's ruling and modelled on jam.sense —
+which is the only sibling that had needed two branches, and had them for the reason this repo now
+does: an audience that is not the author.
+
+- **Cut from `develop`, open the pull request into `develop`.** A change reaches `main` only by
+  `develop` merging into it. A pull request targeting `main` is almost always a mistake.
+- **Both branches are protected**, with the same five checks — `eslint` and `pytest` on 3.11 to
+  3.14. `main` is not given a weaker gate than `develop` on the argument that it only ever receives
+  reviewed work: a release branch that trusts its input is a release branch with no gate.
+- **A merged branch is deleted automatically**, and merges are **merge commits** — squash and
+  rebase are both off. Squash is the one that would actually cost something: a branch here is *one
+  logical idea per commit*, and this repo's commit bodies carry the reasoning, so squashing throws
+  away the half that a `git log -S` is for. Same argument that rejected a squash of the whole
+  history.
+- **CI runs on a direct push to `develop`, not only on pull requests into it.** That is the one
+  place this parts company with jam.sense, which runs neither and catches a bad direct push with a
+  nightly host job. The trade there buys runner minutes; there is nothing to buy them with here —
+  five jobs, under a minute, free on a public repo. It is § CI's own rule on a new axis: deciding
+  would cost more than running.
+
+**A default-branch change moves what the portfolio site reports, silently.** `skyrowlabs.com`'s
+`scripts/badges.py` reads each project's CI conclusion from *the default branch*, so the site's
+`ci:` segment now describes `develop` rather than `main` — and a freshly cut branch has no runs, so
+the segment would have vanished entirely until the next push. A missing segment reads as *this
+project has no CI*, not as *this branch has not run yet*, which is **worked fine, told nobody**
+arriving through a repository setting rather than through code. `workflow_dispatch` on `ci.yml`
+exists so a branch with no new commits can still be given a conclusion to report.
+
 ## Conventions
 
 Shared with sibling CLIs so the family feels like one tool.

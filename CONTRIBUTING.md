@@ -81,8 +81,15 @@ One logical idea per commit, with all of its files. Conventional-commit subjects
 (`feat(scope):`, `fix:`, `docs:`, `ci:`) — the log already reads that way. There is no commit-msg
 hook, because a git hook is not cloned with the repository and could not reach you anyway.
 
-Open a pull request against `main`. Draft it while you iterate and mark it ready once you believe
-it is green; CI runs either way.
+**Cut your branch from `develop`, and open the pull request against `develop`.** `develop` is the
+integration branch and the default here; `main` is what has been released. A change reaches `main`
+only by `develop` merging into it, so a pull request targeting `main` is almost always a mistake —
+say so in the description if you meant it.
+
+Draft it while you iterate and mark it ready once you believe it is green; CI runs either way, on
+pushes to the branch and on the pull request. The branch is deleted automatically when the pull
+request merges. Merges are merge commits — squash and rebase are both off, because a branch here
+is *one logical idea per commit* and squashing throws away the half of that which is the reasoning.
 
 Say what you *ran* and what it *said*, not that it should work. If part of a change is unverified,
 say which part — that is more useful than a confident summary, and it is the same rule this
