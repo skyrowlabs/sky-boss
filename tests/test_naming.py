@@ -197,7 +197,12 @@ def offences(path: Path) -> list[int]:
 
 def _report(path: Path, mask: str, hits: list[int]) -> str:
     rel = path.relative_to(PROJECT_ROOT)
-    return ", ".join(f"{rel}:{mask.count('\n', 0, at) + 1}" for at in hits)
+    # The newline is bound outside the f-string on purpose. A backslash *inside*
+    # an f-string expression is PEP 701, which lands in 3.12, and `README.md`
+    # promises 3.11 — so this file failed to import there and took the whole
+    # suite's collection with it. Found by the CI matrix on its first run.
+    newline = "\n"
+    return ", ".join(f"{rel}:{mask.count(newline, 0, at) + 1}" for at in hits)
 
 
 @pytest.mark.parametrize(
