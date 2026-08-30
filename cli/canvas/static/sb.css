@@ -228,7 +228,27 @@ body.rail-dragging { user-select: none; cursor: col-resize; }
   flex: none; padding: 2.5rem 3rem; color: var(--sb-brand);
   font-weight: 700; letter-spacing: .16em; font-size: 2.75rem;
   border-bottom: var(--hair) solid var(--sb-hair);
+  /* Wraps, because the rail is a width the operator drags down to 18rem — 65px
+     at --sb-scale 0.9 — and the caption alone nearly fills that. Measured
+     before this line was here: the filter shrank to 11px and spilled outside
+     the rail entirely. Wrapping puts it on its own row instead of squeezing
+     it to nothing. */
+  display: flex; align-items: center; gap: 2rem; flex-wrap: wrap;
 }
+/* The rail's filter — [[tools]] round 8. `min-width: 0` so it shrinks with a
+   narrow rail instead of pushing the caption out: the rail is a width the
+   operator drags, and this has to survive the small end of that range. */
+.tools-filter {
+  /* A real `min-width`, not zero: zero lets it shrink to a sliver rather than
+     wrap, which is the failure this was measured into. */
+  flex: 1 1 12rem; min-width: 10rem; max-width: 100%;
+  font: inherit; font-size: 2.5rem; font-weight: 400; letter-spacing: 0;
+  background: var(--sb-surface-2); color: var(--sb-text-2);
+  border: var(--hair) solid var(--sb-hair); border-radius: var(--r-sm);
+  padding: 0.25rem 1.25rem; outline: 0;
+}
+.tools-filter:focus { border-color: var(--sb-edge); color: var(--sb-text); }
+.tools-filter::placeholder { color: var(--sb-text-3); letter-spacing: 0; }
 .tools-list { flex: 1; overflow: auto; padding: 1.5rem 0; }
 
 /* A section heading, since [[tools]] round 5. `--sb-text-2`, not `--sb-text-3`:
@@ -327,6 +347,9 @@ body.rail-dragging { user-select: none; cursor: col-resize; }
 /* A tool that writes. It can never carry a cadence, and the marker is there so
  * that is visible before you click rather than after. */
 .tool-acts { flex: none; color: var(--sb-warn); font-weight: 700; }
+/* What shape of window a tool opens. Dim on purpose: it is a label, where the
+   `!` beside it is a warning, and the two must not read as equals. */
+.tool-kind { flex: none; color: var(--sb-text-3); font-size: 2.25rem; }
 
 .canvas { flex: 1; overflow: auto; position: relative; padding: 2.5rem 0; }
 /* `--sb-cols` is set by app.js from the window count. `auto-fill` used to build
@@ -1070,6 +1093,9 @@ pre.stream.wrap .ln {
  * third of the row wraps the row at every scale rather than only the wide
  * ones. See [[tools]] round 5. */
 .job-group { flex: 1 1 26rem; max-width: 30rem; min-width: 18rem; }
+/* Wider than the group: one group fits in a word, and tags are several.
+   Same `rem` basis so it grows with --sb-scale like everything else. */
+.job-tags { flex: 1 1 34rem; max-width: 44rem; }
 .job-name:focus, .job-group:focus { border-color: var(--sb-edge); }
 .job-name::placeholder, .job-group::placeholder { color: var(--sb-text-3); }
 .job-arrow { flex: none; color: var(--sb-text-3); }

@@ -21,7 +21,7 @@
 import { html, render, useEffect, useRef, useState } from "./vendor/htm-preact.js";
 import * as api from "./api.js";
 import { Body, markedLine, summarise } from "./render.js";
-import { BENCH_WINDOW, Bench, RESIDENT, compose } from "./bench.js";
+import { BENCH_WINDOW, Bench, RESIDENT, compose, tagPool } from "./bench.js";
 
 const TILE = "tile";
 const FLOAT = "float";
@@ -108,6 +108,10 @@ const EMPTY_DRAFT = {
   save: "",
   describe: "",
   group: "",
+  /* Space-separated while being typed, split on save. A text box rather than a
+   * chip editor because a tag has a name's shape — no spaces are legal inside
+   * one, so the separator can never be ambiguous. See [[tools]] round 8. */
+  tags: "",
   checks: [],
   nameProblem: null,
   /* What this tool is *already called*, when the bench was opened from the
@@ -318,6 +322,47 @@ function useNow() {
  * to drop one to take it *out* of a group, which found itself the first time
  * the drag was tested end to end. The empty bucket appears only while
  * something is being dragged, so it costs nothing the rest of the time. */
+/* What kind of window a tool opens — [[tools]] round 8.
+ *
+ * **Derived, never declared.** `expansion[0]` *is* the contract, so a `type`
+ * field in `tools.toml` would be a second opinion about something the argv
+ * already settles — the mistake round 4 fixed for `acts`.
+ *
+ * `run` is deliberately absent: it already has `!`, which is a *warning* and
+ * not a label, and doubling it would dilute the one marker that stops
+ * something ([[canvas]] round 11). So this speaks only for the three reads,
+ * which is exactly what the `!` could not tell you apart. */
+function kindOf(entry) {
+  const contract = (entry.expansion || entry.argv || [])[0];
+  return contract === "run" ? "" : contract || "";
+}
+
+/* Does this tool match what was typed in the rail's filter?
+ *
+ * One text box over name, description, expansion and tags rather than a type
+ * selector. Type has four values and three of them are reads, so filtering by
+ * it barely narrows anything; a text box expresses those four *and* everything
+ * else — typing `follow` matches the expansion, `release` matches a tag — and
+ * adds no vocabulary the operator has to learn. See [[tools]] round 8.
+ *
+ * Every term must match, so terms narrow rather than widen: `jam release` is
+ * the jam tools about releases, which is what a second word is for. */
+function matches(entry, query) {
+  const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if (!terms.length) return true;
+  const hay = [
+    entry.name,
+    shortOf(entry),
+    entry.summary || "",
+    entry.group || "",
+    (entry.tags || []).join(" "),
+    (entry.expansion || []).join(" "),
+  ]
+    .join(" ")
+    .toLowerCase();
+  return terms.every((term) => hay.includes(term));
+}
+
 function sectionsOf(saved, groups, dragging) {
   const by = new Map();
   for (const c of saved) {
@@ -419,11 +464,20 @@ function useRailWidth() {
 const DRAG_TYPE = "application/x-sb-tool";
 
 function Tools({ commands, groups, open, edit, drop, addGroup, dropGroup, move }) {
-  const saved = commands.filter((c) => c.saved);
+  const [filter, setFilter] = useState("");
+  const all = commands.filter((c) => c.saved);
+  const saved = all.filter((c) => matches(c, filter));
   /* Whether something is in flight, so the ungrouped bucket can exist as a
    * target even when nothing is in it. */
   const [dragging, setDragging] = useState(false);
-  const sections = sectionsOf(saved, groups, dragging);
+  /* Filtering *before* sectioning, so a group with no match disappears rather
+   * than sitting there empty — an empty section under a filter reads as "this
+   * group has nothing in it", which is a different and false statement. The
+   * ungrouped bucket still appears while dragging, because it is a drop target
+   * and not a result. */
+  const sections = sectionsOf(saved, groups, dragging).filter(
+    ([, entries]) => !filter.trim() || entries.length > 0
+  );
   const [folded, setFolded] = useState(() => new Set());
   const grip = useRailWidth();
   /* The name being typed, or null when the control is closed. An empty string
@@ -466,11 +520,29 @@ function Tools({ commands, groups, open, edit, drop, addGroup, dropGroup, move }
         onPointerCancel=${grip.onPointerUp}
         title="drag to resize"
       ></div>
-      <div class="tools-head">TOOLS</div>
+      <div class="tools-head">
+        <span>TOOLS</span>
+        ${all.length > 0 &&
+        html`<input
+          class="tools-filter"
+          value=${filter}
+          placeholder="filter"
+          title="name, description, tag or expansion — every word must match"
+          onInput=${(e) => setFilter(e.target.value)}
+        />`}
+      </div>
       <div class="tools-list">
-        ${saved.length === 0 &&
+        ${all.length === 0 &&
         html`<div class="tools-empty">
           nothing saved yet — declare a tool in tools.toml
+        </div>`}
+        ${/* An empty *result* is a different sentence from an empty rail, and
+             saying the wrong one is how a filter reads as a tool that vanished.
+             See [[tools]] round 8. */
+        all.length > 0 &&
+        saved.length === 0 &&
+        html`<div class="tools-empty">
+          no tool matches “${filter}” — ${all.length} hidden
         </div>`}
         ${sections.map(
           ([group, items]) => html`
@@ -555,6 +627,15 @@ function Tools({ commands, groups, open, edit, drop, addGroup, dropGroup, move }
               >
                 <span class="tool-name">${shortOf(c)}</span>
                 ${c.refresh > 0 && html`<span class="tool-refresh">${c.refresh}s</span>`}
+                ${/* What shape of window this opens — a table, verbatim text,
+                     a live stream. A marker rather than a column, because the
+                     rail is a narrow list where the *name* is the thing that
+                     clips (see open.md item 19) and a column would compete
+                     with it. Absent for a `run`, which has `!`. */
+                kindOf(c) &&
+                html`<span class="tool-kind" title=${`opens ${kindOf(c)}`}>
+                  ${kindOf(c)}
+                </span>`}
                 ${c.acts && html`<span class="tool-acts" title="acts — never refreshed">!</span>`}
               </button>
               <button
@@ -1124,6 +1205,10 @@ function App() {
    * reason `windowsRef` exists: those handlers are registered once. */
   const pendingRef = useRef(null);
   pendingRef.current = pending;
+  /* The catalog, for handlers registered once — the tag vocabulary is read out
+   * of it and must not be a stale closure. Same escape hatch as `windowsRef`. */
+  const commandsRef = useRef([]);
+  commandsRef.current = commands;
   /* Same escape hatch as `windowsRef`, and needed for the same reason: the
    * stream handler is installed once, and a follow trial's frames arrive on it
    * long after this closure was made. */
@@ -1460,7 +1545,12 @@ function App() {
       chips: (entry.options || [])
         .filter((o) => o.is_flag)
         .map((o) => ({ flag: o.flag, help: o.help, on: false })),
-      tags: [],
+      /* Inherited from the tool, which is what makes a chip in the title bar
+       * mean something. Round 8 gave tags a home in `tools.toml`; before it
+       * these were five hardcoded words with no source. A tag added by hand
+       * still dies with the window — a window is transient by design, and
+       * *nothing survives the last window* is the rule that says so. */
+      tags: [...(entry.tags || [])],
       /* A tool may declare the cadence it opens on. Pinning it here rather
        * than leaving it to a click is the whole point of saving it: the
        * window you wanted is the window you get. Only a read can carry one —
@@ -1693,12 +1783,25 @@ function App() {
       execute(id, argvOf(next));
       reWatch(next);
     },
+    /* Add a tag by typing it. Until [[tools]] round 8 this cycled a hardcoded
+     * pool of five words and did nothing once they were used — there was no
+     * vocabulary anywhere for it to draw on, because a tool could not carry a
+     * tag. Now it can, so the suggestion list is every tag any tool declares.
+     *
+     * `prompt()` rather than an inline editor, and the trade is deliberate: a
+     * browser prompt blocks every later event, which `sb.css` already warns
+     * about for the `cwd` field, so it is wrong for anything the surface must
+     * stay live through. A title-bar tag is a one-shot on a window the operator
+     * is looking at, and building an inline chip editor is a larger change than
+     * this round is. Left as the cheap version on purpose, noted rather than
+     * hidden. */
     tag: (id) => {
-      const pool = ["jam", "review", "net", "ops", "release"];
-      patch(id, (w) => {
-        const next = pool.find((t) => !w.tags.includes(t));
-        return next ? { tags: [...w.tags, next] } : {};
-      });
+      const known = tagPool(commandsRef.current);
+      const hint = known.length ? ` (${known.join(", ")})` : "";
+      const typed = window.prompt(`tag this window${hint}`, "");
+      const tag = (typed || "").trim().toLowerCase();
+      if (!tag) return;
+      patch(id, (w) => (w.tags.includes(tag) ? {} : { tags: [...w.tags, tag] }));
     },
     untag: (id, tag) => patch(id, (w) => ({ tags: w.tags.filter((t) => t !== tag) })),
     drag: (id, event) => {
@@ -1872,6 +1975,7 @@ function App() {
      * read off a trailing `--json`. Blank is ungrouped and writes no line at
      * all, so clearing it here removes the field from the block. */
     setGroup: (group) => setDraft((d) => ({ ...d, group })),
+    setTags: (tags) => setDraft((d) => ({ ...d, tags })),
 
     /* Open an existing tool in the bench, decomposed back into the fields that
      * compose it. The inverse of `compose`, and deliberately partial: it reads
@@ -1918,6 +2022,7 @@ function App() {
         was: shortOf(tool),
         describe: tool.summary || "",
         group: tool.group || "",
+        tags: (tool.tags || []).join(" "),
         /* Seeded from the *field*, because the argv of a tool declaring
          * `highlight = "jam"` carries no `--highlight` to decompose — and
          * without this the bench opens with the control blank, composes a line
@@ -2064,6 +2169,9 @@ function App() {
            * server removes the old block after the new one lands, so a
            * changed name renames instead of copying. */
           was: d.was || "",
+          /* Split here rather than in the input, so what the operator is
+           * typing stays exactly what they typed until they save. */
+          tags: (d.tags || "").split(/\s+/).filter(Boolean),
         })
         .then((result) => {
           const ok = !result.error;

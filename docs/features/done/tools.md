@@ -1,7 +1,7 @@
 ---
 status: complete
 created: 2026-08-20
-updated: 2026-08-29
+updated: 2026-08-30
 agent_value: 3
 key_files:
   - cli/tools.py
@@ -196,6 +196,58 @@ module.** A name in a skip-list is the beginning of the command table this desig
   be one. That fallback is precisely how operator content ended up committed last time.
 
 ## Phases
+
+### Round 8 — a tool can be tagged (2026-08-30)
+
+Asked for by the operator, arriving as *"there is a tagging system in the header of the canvas
+monitor already… if we add a tagging input to the workbench it could feed off of that."*
+
+**There is no tagging system to feed off.** `actions.tag` cycles a hardcoded pool of five words in
+`app.js` and adds the next unused one; there is no input, nothing typed, and nothing persisted —
+`prefs.json` stores `folded` and `rail` and no more, so a window's tags die with the window. It is a
+renderer and a demo, not a vocabulary.
+
+**So the arrow reverses, and that is the whole round.** The workbench is not where tags are consumed;
+it is where they are *born*. A `tags` field in `tools.toml` is operator-authored, persisted because
+it is a file, and sits beside the fields the rail already draws from. The canvas becomes the
+consumer: a window inherits its tool's tags, and `＋tag` can finally offer a real vocabulary.
+
+**It also settles a question round 5 left open by accident.** Groups and tags stop being redundant
+because they answer different questions, and neither is doing the other's job:
+
+> **Group — where does this tool live?** One place, and it is the rail's sort order.
+> **Tag — what is this tool about?** Many, cross-cutting, and the axis worth filtering on.
+
+That is why the alternative considered here — *let a tool name more than one group* — is rejected.
+A group is the rail's ordering and an ordering cannot be many-valued without the rail having to draw
+the same tool twice. The many-to-many need is real; it just belongs to a second field rather than to
+a loosened first one.
+
+**Type is deliberately not made a field, and not made the filter.** `acts` and `resident` are
+already inherited from the argv's first word, and `expansion[0]` *is* the contract — a declared
+`type` would be a second opinion about something derivable, which is the rule [[tools]] round 4
+already fixed for `acts`. As a *filter* it is weak besides: four values, three of them reads, so
+"show me the reads" is three quarters of the rail. Tags are the operator's own words and select
+usefully; type is a label and is best drawn as a marker.
+
+**A tag has a name's shape** — lowercase, digits, hyphens, the same `_NAME` a tool and a group take
+— because it is a key in a filter and a chip in two surfaces, not prose. A duplicate is refused
+rather than quietly deduplicated: silently dropping one is how a declaration stops meaning what it
+says.
+
+**The blast radius is known and is the point of doing it carefully.** A new field on a tool touches
+the dataclass, `_check`, `block`, `write_block`, the catalog, and `writeTool`'s destructure — and
+failing any one of them is silent. Both traps have fired this week: `highlight` was dropped by
+`block` for a day in round 6, and `was` was dropped by `writeTool` this afternoon. The dataclass-field
+test from round 6 covers the serialiser; the rest is why this round has its own tests.
+
+- [x] `tags` on `Tool`, validated in `_check` and serialised by `block`.
+- [x] `write_block` and `POST /api/tools` carry it; `writeTool` forwards it.
+- [x] The catalog reports it, so both surfaces can read it without parsing a file.
+- [x] A tag input in the workbench, suggesting from every tag already declared.
+- [x] Tests for the shape rule, the duplicate refusal, and the round trip through a rewrite.
+- [x] The rail: a type marker and one text filter over name, description, tags and expansion.
+- [x] A window inherits its tool's tags; `＋tag` takes a typed word and offers the real vocabulary.
 
 ### Round 7 — the rail is a width you can set (2026-08-29)
 
@@ -1175,3 +1227,45 @@ code.
 68rem; at 2.4 the same gesture is 56rem, and one stored `46` renders 211.59px and 441.59px
 respectively. The px-per-rem is read from the document's computed `font-size` rather than
 recomputed as `4 x scale`, so there is one place for that formula rather than two.
+
+
+### 2026-08-30 — round 8, and the field-dropping test finally earning its keep
+
+**The dataclass-field test caught the serialiser on the first run**, which is the whole reason it
+exists. `block()` was updated last and the suite failed with
+`assert 'tags =' in '[tool.x]…'` before anything reached a browser. Round 6 wrote that test after
+`highlight` went missing for a day; this is the first time it has fired in anger, and it cost about
+four seconds instead of a day. The other five places a field can be dropped — `_check`, `write_block`,
+`write_problem`'s body, the catalog, `writeTool` — have no such guard, and are covered here by a
+round-trip test that *reads the value back off a loaded tool* rather than asserting the write
+returned 200.
+
+**Type is derived and is not a filter.** `kindOf` reads `expansion[0]`; nothing is declared. The
+marker deliberately says nothing for a `run`, which already has `!` — a **warning**, not a label,
+and round 11 of [[canvas]] just made it stop something, so diluting it into one of four equal type
+badges would cost more than it gained. What the marker adds is exactly the distinction `!` cannot
+draw: `read` from `data` from `follow`.
+
+**Filtering before sectioning, not after.** A group whose every tool is filtered out disappears
+rather than drawing empty, because an empty section under a filter reads as *this group has nothing
+in it* — a different and false statement. The ungrouped bucket still appears while dragging, since
+there it is a drop target rather than a result.
+
+**Two empty states, not one.** *"nothing saved yet"* and *"no tool matches X — 4 hidden"* are
+different sentences and the rail now picks between them. Showing the first under a filter is the
+surface reporting an empty file when the file is fine, which is the `quiet`-over-a-dead-stream
+mistake at a much smaller scale.
+
+**The scale sweep found the regression, again — the fourth round running.** The header was measured
+clean at 0.9, 1.6 and 2.4 and *still* broken, because the rail is also a width the operator drags:
+at its 18rem minimum the caption alone nearly fills 65px, the filter shrank to **11px** and spilled
+outside the rail. `min-width: 0` let it shrink instead of wrap. The lesson generalises past
+`--scale`: **this rail has two independent size axes and both have to be swept.** Nine combinations
+now — three scales by three rail widths — all clean, the tightest being 41px of filter at 0.9/18rem.
+
+**`＋tag` is `prompt()` and that is a knowing compromise.** `sb.css` already warns that a browser
+prompt blocks every later event, which is why the `cwd` control is an inline input; the difference
+is that a title-bar tag is a one-shot on a window you are looking at rather than something the
+surface must stay live through. An inline chip editor is a larger change than this round. Recorded
+as a compromise rather than left to be discovered — the same standing the `forget()` confirmation
+has.

@@ -1567,6 +1567,7 @@ def test_block_serialises_every_declared_field_of_a_tool():
         description="d",
         group="g",
         highlight="h",
+        tags=("a", "b"),
     )
     for field in declared:
         assert f"{field} =" in written, f"block() does not serialise {field!r}"
@@ -1657,3 +1658,54 @@ def test_a_malformed_name_is_a_problem_and_names_nothing_to_replace(tmp_path):
     problem, replaces = name_state("Not A Name", home=tmp_path)
     assert problem is not None and "cannot be a tool name" in problem
     assert replaces is None
+
+
+def test_a_tag_takes_a_names_shape_and_a_duplicate_is_refused(tmp_path):
+    """A tag is a key in a filter and a chip in two surfaces, not prose — so it
+    takes the shape a tool and a group take. A duplicate is refused rather than
+    deduplicated: dropping one silently is how a declaration stops meaning what
+    it says. See [[tools]] round 8."""
+    from cli import cli as root
+    from cli.tools import write_problem
+
+    argv = ["read", "--", "echo", "hi"]
+    assert write_problem("t", argv, home=tmp_path, root=root, tags=["ops", "release"]) is None
+
+    bad = write_problem("t", argv, home=tmp_path, root=root, tags=["Ops"])
+    assert bad is not None and "lowercase letters" in bad
+
+    twice = write_problem("t", argv, home=tmp_path, root=root, tags=["ops", "ops"])
+    assert twice is not None and "listed twice" in twice
+
+
+def test_tags_survive_a_write_and_come_back_off_the_tool(tmp_path):
+    """The round trip the field-dropping trap breaks. `highlight` was lost this
+    way for a day in round 6 and `was` was lost on the wire in [[workbench]]
+    round 5, both silently — so this asserts the value returns, not merely that
+    the write succeeded."""
+    from cli import cli as root
+    from cli.tools import load, write_block
+
+    write_block(
+        "tagged",
+        ["read", "--", "echo", "hi"],
+        home=tmp_path,
+        tags=["ops", "release"],
+    )
+    assert 'tags = ["ops", "release"]' in (tmp_path / "tools.toml").read_text()
+
+    from cli.tools import command_table
+
+    commands, resident = command_table(root)
+    tools, problems = load(commands, home=tmp_path, resident=resident)
+    assert problems == []
+    assert [t.tags for t in tools if t.name == "tagged"] == [("ops", "release")]
+
+
+def test_a_tool_with_no_tags_writes_no_tags_line(tmp_path):
+    """Empty writes nothing, the rule `group` already follows — so clearing the
+    bench's field removes the line instead of leaving `tags = []` behind."""
+    from cli.tools import write_block
+
+    write_block("plain", ["read", "--", "echo", "hi"], home=tmp_path)
+    assert "tags" not in (tmp_path / "tools.toml").read_text()

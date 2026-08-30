@@ -81,6 +81,12 @@ class Tool:
     # means ungrouped, which is where a tool goes when it says nothing.
     # See [[tools]] round 5.
     group: str = ""
+    # What this tool is *about*, as opposed to where it lives. Many, and
+    # cross-cutting: `group` is the rail's sort order and holds one value,
+    # `tags` is the axis the surfaces filter on and holds any number. A tuple
+    # rather than a list because this dataclass is frozen and a mutable default
+    # would need a factory to be safe at all. See [[tools]] round 8.
+    tags: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -170,6 +176,7 @@ def parse(
                 resident=argv[0] in resident,
                 highlight=str(body.get("highlight", "")),
                 group=str(body.get("group", "")),
+                tags=tuple(str(t) for t in body.get("tags", ())),
             )
         )
 
@@ -316,6 +323,24 @@ def _check(
         # look like one. The rail uppercases it, which is where the caption is.
         return "group must be lowercase letters, digits and hyphens"
 
+    tags = body.get("tags", [])
+    if not isinstance(tags, list) or not all(isinstance(t, str) for t in tags):
+        return "tags must be a list of strings"
+    seen_tags: set[str] = set()
+    for tag in tags:
+        if not _NAME.match(tag):
+            # A name's shape, for a name's reasons: a tag is a key in a filter
+            # and a chip in two surfaces, not prose. Free text makes `jam ` and
+            # `jam` two tags that look like one, which is the failure the group
+            # rule above already exists to prevent.
+            return f"tag {tag!r} must be lowercase letters, digits and hyphens"
+        if tag in seen_tags:
+            # Refused rather than quietly deduplicated. Dropping one silently is
+            # how a declaration stops meaning what it says, and the operator
+            # wrote it twice for a reason worth telling them about.
+            return f"tag {tag!r} is listed twice"
+        seen_tags.add(tag)
+
     if refresh not in INTERVALS:
         # Not pedantry: the surface cycles the interval through this list, and
         # a window starting on a value outside it would jump to 0 on the first
@@ -453,6 +478,10 @@ def make_command(tool: Tool) -> click.Command:
     # from the surface doing the restating — otherwise the writer accepts an
     # incomplete statement as a complete one. See [[tools]] round 6.
     command.sb_highlight = tool.highlight
+    # Read by the rail's filter and inherited by a window it opens. On the
+    # command object rather than a list in the catalog, the rule every other
+    # declared field follows. See [[tools]] round 8.
+    command.sb_tags = tuple(tool.tags)
     command.sb_argv = tuple(tool.argv)
     # Inherited, never declared. The catalog reads this rather than the command
     # path, because the path of `sb deploy-thing` says nothing about the `run`
@@ -735,6 +764,7 @@ def block(
     description: str = "",
     group: str = "",
     highlight: str = "",
+    tags: tuple[str, ...] | list[str] = (),
 ) -> str:
     """The text appended to `tools.toml` for one saved tool.
 
@@ -763,6 +793,11 @@ def block(
     # dataclass so the next field added cannot repeat it.
     if highlight:
         lines.append(f"highlight = {_toml_string(highlight)}")
+    # Empty writes no line, the same rule `group` follows: clearing the bench's
+    # field removes it from the block rather than leaving `tags = []` behind.
+    if tags:
+        joined = ", ".join(_toml_string(tag) for tag in tags)
+        lines.append(f"tags = [{joined}]")
     return "\n".join(lines) + "\n"
 
 
@@ -803,6 +838,7 @@ def write_problem(
     root=None,
     group: str = "",
     highlight: str = "",
+    tags: tuple[str, ...] | list[str] = (),
 ) -> str | None:
     """Why this tool cannot be written, or None.
 
@@ -833,6 +869,8 @@ def write_problem(
         body["group"] = group
     if highlight:
         body["highlight"] = highlight
+    if tags:
+        body["tags"] = list(tags)
     return _check(name, body, commands, set(), resident)
 
 
@@ -920,6 +958,7 @@ def write_block(
     home: Path | None = None,
     group: str = "",
     highlight: str = "",
+    tags: tuple[str, ...] | list[str] = (),
 ) -> dict:
     """Create or replace one tool. Returns what happened, and where the backup went.
 
@@ -928,7 +967,9 @@ def write_block(
     surface holds an opinion about the file's current contents that may be one
     tick out of date.
     """
-    problem = write_problem(name, argv, refresh, home, group=group, highlight=highlight)
+    problem = write_problem(
+        name, argv, refresh, home, group=group, highlight=highlight, tags=tags
+    )
     if problem:
         raise click.UsageError(problem)
 
@@ -936,7 +977,7 @@ def write_block(
     path.parent.mkdir(parents=True, exist_ok=True)
     text = path.read_text(encoding="utf-8") if path.exists() else ""
     kept = backup(home)
-    fresh = block(name, argv, refresh, description, group, highlight)
+    fresh = block(name, argv, refresh, description, group, highlight, tags)
 
     span = block_range(text, name)
     if span is None:

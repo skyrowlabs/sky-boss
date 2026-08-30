@@ -246,6 +246,7 @@ def build(canvas: Canvas | None = None) -> Starlette:
                     str(body.get("description") or ""),
                     group=str(body.get("group") or ""),
                     highlight=str(body.get("highlight") or ""),
+                    tags=[str(t) for t in (body.get("tags") or [])],
                 )
                 # A rename, when the bench says which tool it opened. Two
                 # writes rather than one, and the **order is the safety**: the
