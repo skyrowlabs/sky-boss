@@ -278,6 +278,35 @@ BUILTINS: tuple[tuple[str, str], ...] = (
 )
 
 
+def hang(text: str) -> int:
+    """Where a wrapped continuation of this line should start. See [[wrap]].
+
+    **The same matcher that dims the stamp, exposed rather than repeated.** A
+    wrapped log line beginning at column zero looks like a new record, so the
+    continuation is indented to the first character *after* the timestamp — and
+    that offset is one this module already computes, as a side effect of
+    deciding where the tag rule may start. Measuring the stamp again in the
+    frontend, or here, would be the second timestamp matcher the one-rule-set
+    design exists to prevent.
+
+    Zero when the line has no leading stamp, and a flush wrap is what zero
+    means — not a special case, the same rule with nothing to skip. Note that
+    the leading-space skip runs *only* behind a stamp: a line indented for its
+    own reasons is not silently given a hanging indent it never asked for.
+
+    Characters, not UTF-16 code units, and no conversion is owed: the stamp is
+    ASCII by construction, so the two counts cannot differ, and the consumer
+    is a CSS `ch` — a column count — rather than `String.slice`.
+    """
+    stamp = _TIMESTAMP.match(text)
+    if not stamp:
+        return 0
+    at = stamp.end()
+    while at < len(text) and text[at] == " ":
+        at += 1
+    return at
+
+
 def marks(text: str, ruleset: "Ruleset | None" = None) -> list[Mark]:
     """The line's lexical marks: sorted, non-overlapping, first match wins.
 

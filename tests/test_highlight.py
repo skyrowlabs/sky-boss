@@ -536,3 +536,49 @@ def test_an_unbalanced_bracket_is_prose():
     pair and a lone bracket in prose is left alone."""
     assert marks("smile :) or (not closed") == []
     assert marks("mismatched (foo] here") == []
+
+
+# ============================================================================
+# Round 6 — the hanging indent a wrapped line uses. See [[wrap]].
+# ============================================================================
+
+
+def test_the_hang_is_the_first_character_after_the_stamp():
+    """Not the stamp's end — the first *text* after it. A continuation that
+    began in the gap would sit under whitespace rather than under the words."""
+    from cli.highlight import hang
+
+    assert hang("2026-08-29 04:15:02 [agent-fix] a finding") == 20
+    assert hang("2026-08-29T04:15:02.123Z  double spaced") == 26
+
+
+def test_a_line_with_no_stamp_hangs_flush():
+    """Zero, and a flush wrap is what zero means — the same rule with nothing
+    to skip rather than a special case."""
+    from cli.highlight import hang
+
+    assert hang("no stamp here at all") == 0
+    assert hang("") == 0
+
+
+def test_an_indent_without_a_stamp_is_not_a_hang():
+    """The leading-space skip runs only *behind* a stamp. A line indented for
+    its own reasons must not be silently given a hanging indent it never asked
+    for — that would be inferring structure from whitespace, which is the one
+    thing this surface refuses."""
+    from cli.highlight import hang
+
+    assert hang("    indented but no stamp") == 0
+
+
+def test_the_hang_comes_from_the_matcher_that_dims_the_stamp():
+    """The property, not the number. Measuring the stamp a second time — here
+    or in the frontend — is the second timestamp matcher the one-rule-set
+    design exists to prevent, and it would drift the week it was written."""
+    from cli.highlight import hang
+
+    line = "2026-08-29 04:15:02 [agent-fix] starting"
+    stamp = next((e for s, e, role in marks(line) if s == 0 and role == "sb.muted"), None)
+    assert stamp is not None
+    assert hang(line) >= stamp
+    assert line[hang(line)] != " "

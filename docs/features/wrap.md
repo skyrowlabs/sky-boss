@@ -1,5 +1,5 @@
 ---
-status: draft
+status: active
 created: 2026-08-29
 updated: 2026-08-29
 agent_value: 2
