@@ -233,6 +233,18 @@ The rules that are not negotiable:
   so a 5s watcher would silently become a 60s one at the exact moment you stopped being able to see
   that it had. Nothing survives the last window, which is what makes this a scheduler and not a
   daemon.
+- **The session stream reconnects, and a window says so when it cannot.** Everything the surface
+  does — every watcher, every follow, live reload — rides one stream, so losing it freezes the whole
+  page; until [[canvas]] round 10 it froze permanently, because the stream was opened once and never
+  retried. Two rules came out of fixing it and both generalise. **A per-launch credential makes a
+  restart unrecoverable**: the token is written into the page, so a page outliving its server is
+  refused forever at any backoff, and *wait* and *reload* are opposite remedies that must be told
+  apart rather than shown as one "disconnected". And **a window has to carry its own doubt** — a
+  band reading `quiet` over a dead stream is not stale information but a false claim, since `quiet`
+  means a `stat` happened and nothing is being stated. A footer note is not where anyone is looking.
+  The same reasoning governs anything that resumes: a reconnect that silently re-pushed a backfilled
+  tail would duplicate lines, and one that dropped it would hide the gap, so the seam is announced
+  in the stream's own voice.
 - **The surface has no stable origin, so browser storage cannot hold anything across launches.**
   `sb ui` binds an *ephemeral* port unless told otherwise, so the page is served from
   `http://127.0.0.1:<different>/` every time and `localStorage` — which is keyed by origin — is

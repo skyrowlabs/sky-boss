@@ -1,7 +1,7 @@
 ---
 status: complete
 created: 2026-08-20
-updated: 2026-08-29
+updated: 2026-08-30
 agent_value: 3
 key_files:
   - cli/canvas/server.py
@@ -114,6 +114,55 @@ auto-refreshing a write is a scheduler nobody asked for.
   that reads as information. Round 5 ships the bar only for the one quantity actually known.
 
 ## Phases
+
+### Round 10 — a dropped session never came back (2026-08-30)
+
+Reported by the operator against `jam-agent-fix-log`: *"it looks like the monitor cut off after
+some time and stopped showing new data."* Filed as item 22 in [[open]].
+
+**The file cursor is not at fault.** Rotation, truncation and disappearance are all handled by
+`cli/filefollow.py` and none of them is what happened. The break is in the browser half:
+`stream()` opens the session stream **once**, calls `onDown()` when it ends, and never tries
+again — the effect that opened it has an empty dependency list, so it runs once per page load.
+
+Reproduced against a scratch server and a live follow window:
+
+```
+append while healthy    → arrives in ~1s
+server killed           → down flag set, footer says so
+append while down       → never arrives
+server back + append    → still down, still nothing        ← never recovers
+```
+
+**Two things make this worse than a hang.**
+
+The reconnect logic *already exists and is unreachable*. The `hello` branch re-registers every
+pinned watcher and re-follows every resident window, under a comment explaining why a reconnect
+needs it. Someone wrote the hard half and never wired the trivial half.
+
+And the window's own band goes on reading **`quiet`** — the cursor's verdict, meaning *the file was
+stated and nothing changed*. Nothing is being stated. So this is not a silent failure but an
+affirmative false one, which is *worked fine, told nobody* with an extra step. The only true signal
+is one line in the footer, at the bottom of the screen, nowhere near the window being watched.
+
+**A reconnect that resumed silently would be the same bug wearing the fix's clothes.** A fresh
+`FileCursor` backfills the tail on open, so re-following a file after a drop re-pushes lines the
+window is already showing. Neither silent duplication nor a silent truncation is acceptable: the
+gap is the fact the operator most needs. A resident window is therefore **cleared and resumed from
+the tail, with one voice line saying so** — the same channel the cursor's own rotation and
+truncation announcements use, for the same reason.
+
+**No pytest covers this round, and the doc says so rather than implying otherwise.** Nothing in
+Python changed; the defect and the fix are both in `static/`, which has no test runner. Verification
+is the headless-Chromium pass `CLAUDE.md` calls an obligation — kill the server, append, restart,
+append, read the DOM back.
+
+- [x] `stream()` retries with a bounded backoff, and an abort still ends it for good.
+- [x] A resident window is cleared on reconnect and says so in the stream's own voice.
+- [x] `streamLabel` reports the lost session instead of the cursor's stale verdict.
+- [x] A watcher's countdown does not animate toward a refresh that cannot fire.
+- [x] Verified headless: drop, append while down, restore, and confirm the window catches up.
+- [x] A launch that ended is told apart from a blip, because retrying cannot fix it.
 
 ### Round 9 — the URL it promised to print (2026-08-29)
 
@@ -735,3 +784,44 @@ them something, and the other two were sitting beside it.
 `serving_note` lives in `cli/output.py` next to `saved_note` because it is the same thing — status
 on stderr, before a resident command stops returning. Commands still never print; this is the band
 mechanism they already had.
+
+
+### 2026-08-30 — round 10, and the second failure hiding behind the first
+
+**The fix looked wrong before it looked right, and that is where the round earned its keep.** With
+the retry in place the test still would not recover: server killed, server restarted, page still
+dark. The retry was working perfectly and being refused every time.
+
+**The token is minted per launch and written into the page.** So a page whose server restarted holds
+a credential for a launch that no longer exists, and every reconnect it will ever attempt is a 403.
+No backoff fixes that, and the page cannot mint a new one — only a reload can, because the token
+arrives in the HTML. One symptom, *"it stopped showing new data"*, and two failures behind it with
+opposite remedies: **wait** for a blip, **reload** for an ended launch. Collapsing them would have
+left the second retrying forever under a message promising it was reconnecting — the same lie this
+round exists to remove, reintroduced by the fix. Hence three states, not two.
+
+**Chrome's offline emulation does not touch loopback**, which is worth writing down because it is
+the obvious way to test this and it silently does nothing. `Network.emulateNetworkConditions` with
+`offline: true` left the stream fully alive: lines kept arriving through it, and the run *looked*
+like a passing test of a reconnect that had never been exercised. The working method was a server
+built with a **pinned token** (`Canvas(token=…)`, which exists so a test can do exactly this), so
+that killing and restarting it is a dropped connection rather than a dead credential. That
+distinction is the whole apparatus and there is no shortcut to it.
+
+**A silent reconnect would have been the same bug in the fix's clothes.** A fresh `FileCursor`
+backfills the tail on open, so re-following after a drop re-pushes lines already on screen: keeping
+the old lines duplicates them, dropping the backfill hides that anything was missed. Clear, resume,
+and mark the seam in the cursor's own voice — verified as one voice line, `charlie` (written while
+down) recovered by the backfill, `delta` (written after) arriving live, and no duplicate of either.
+
+**The band was the half the operator would actually have seen.** Retry alone would have fixed the
+data and left the diagnosis wrong, because a window reading `quiet` over a dead stream is not stale
+information — it is a claim about a `stat` that is not happening. `no session` names the surface
+rather than the file, so it cannot be misread as another verdict about the log, and the countdown
+stops drawing for the same reason: a bar reaching zero and resetting looks like a refresh occurring.
+
+**No pytest was added and none should be inferred.** Nothing in Python changed. The whole defect and
+the whole fix are in `static/`, which has no test runner, so the evidence is the headless pass and
+nothing else — four states read back off the live DOM: healthy `quiet`, dropped `no session` +
+`reconnecting…`, recovered `quiet` with the seam line, and ended `session ended — reload to
+reconnect`.

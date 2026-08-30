@@ -773,8 +773,17 @@ function progressOf(win, now) {
  * the tag as a style, which is the tint a Rule will drive later. */
 /* The title label for a held-open stream. The attention word is the chrome's
  * verdict — quiet, absent and rotated come from a stat, dead from an exit —
- * and this only chooses the friendlier spelling of two of them. */
-function streamLabel(win) {
+ * and this only chooses the friendlier spelling of two of them.
+ *
+ * **A lost session outranks every one of them, and that is [[canvas]] round 10.**
+ * Those words are all claims about the *file*, earned by a stat that just
+ * happened. With the session gone nothing is being stated, so the last one to
+ * arrive is not stale information, it is a false claim — a window reading
+ * `quiet` over a dead stream says the log is fine. The replacement names what
+ * is actually wrong, and names the surface rather than the file so it cannot be
+ * read as another verdict about the log. */
+function streamLabel(win, down) {
+  if (down) return "no session";
   const c = win.chrome;
   if (!c) return win.streamLines.length ? "live" : "starting…";
   if (c.attention === "dead") return `dead · exited ${c.exit_code}`;
@@ -894,13 +903,17 @@ function ViewControls({ win, actions }) {
   `;
 }
 
-function Window({ win, now, layout, focused, actions, intervals }) {
+function Window({ win, now, layout, focused, actions, intervals, down }) {
   const age = win.ranAt ? Math.round((now - win.ranAt) / 1000) : null;
   const chrome = (win.result && win.result.chrome) || win.chrome;
   const failed = chrome
     ? chrome.attention === "failed" || chrome.attention === "dead"
     : win.result && (win.result.error || win.result.ok === false);
-  const countdown = progressOf(win, now);
+  /* The bar measures time to the next refresh. With the session down there is
+   * no next refresh, so an animating bar is the countdown lying in exactly the
+   * way `quiet` was — worse, because a bar reaching zero and resetting looks
+   * like a refresh happening. See [[canvas]] round 10. */
+  const countdown = down ? null : progressOf(win, now);
 
   const style =
     layout === FLOAT
@@ -917,9 +930,9 @@ function Window({ win, now, layout, focused, actions, intervals }) {
         <span class=${`dot ${failed ? "bad" : win.running ? "task" : ""}`}></span>
         <span class="num">#${win.num}</span>
         <span class="cmd">${win.label}</span>
-        <span class=${`age ${failed ? "bad" : ""}`}>
+        <span class=${`age ${failed ? "bad" : ""} ${down ? "stale" : ""}`}>
           ${win.resident
-            ? streamLabel(win)
+            ? streamLabel(win, down)
             : win.running
               ? "running…"
               : age === null
@@ -1101,9 +1114,45 @@ function App() {
     const stop = api.stream(
       (frame) => {
         if (frame.type === "hello") {
+          /* A second hello is a reconnect, not a launch — [[canvas]] round 10.
+           * The distinction has to be drawn here because everything below is
+           * *recovery*, and doing it on the first hello would announce a gap
+           * that never happened. */
+          const resumed = sessionRef.current !== null && sessionRef.current !== frame.session;
           sessionRef.current = frame.session;
           setSession(frame.session);
           setDown(false);
+          /* A resident window is cleared and resumed from the tail, and says so.
+           *
+           * A fresh cursor backfills on open, so a silent re-follow would
+           * re-push lines the window is already showing; keeping the old lines
+           * and appending the backfill duplicates them, and dropping the
+           * backfill hides that anything was missed. Both are the failure this
+           * round exists to fix, arriving through the fix. So: clear, resume,
+           * and mark the seam in the stream's own voice — the channel the
+           * cursor already uses to announce a rotation, for the same reason.
+           *
+           * `stderr` as well as `voice`, because that pair is what `markedLine`
+           * reads to draw the cursor's own announcements rather than the file's. */
+          if (resumed) {
+            setWindows((all) =>
+              all.map((w) =>
+                w.resident
+                  ? {
+                      ...w,
+                      streamLines: [
+                        {
+                          text: "— session dropped; reconnected and resumed from the tail —",
+                          stderr: true,
+                          voice: true,
+                        },
+                      ],
+                      chrome: null,
+                    }
+                  : w
+              )
+            );
+          }
           /* Re-register everything. A reconnect after a dropped stream would
            * otherwise leave every pinned window silently unwatched — still
            * saying PINNED, never refreshing again. */
@@ -1174,7 +1223,12 @@ function App() {
           );
         }
       },
-      () => setDown(true)
+      /* Three states, not two. `retry` is a blip the surface is working on;
+       * `stale` is a launch that ended, which no amount of retrying fixes and
+       * which the operator has to act on. Collapsing them would leave the
+       * second looking like the first forever — the same failure one level up.
+       * See [[canvas]] round 10. */
+      (info) => setDown(info && info.stale ? "stale" : "retry")
     );
     return stop;
   }, []);
@@ -2142,6 +2196,7 @@ function App() {
                     focused=${focus === win.id}
                     actions=${actions}
                     intervals=${intervals}
+                    down=${down}
                   />`
                 )}
               </div>
@@ -2160,9 +2215,11 @@ function App() {
               <span>⟳ refresh</span>
             `}
         <div class="spacer"></div>
-        ${down
-          ? html`<span class="disconnected">stream down — watchers paused</span>`
-          : html`<span>session ${session ? session.slice(0, 8) : "…"}</span>`}
+        ${down === "stale"
+          ? html`<span class="disconnected">session ended — reload to reconnect</span>`
+          : down
+            ? html`<span class="disconnected">stream down — reconnecting…</span>`
+            : html`<span>session ${session ? session.slice(0, 8) : "…"}</span>`}
       </div>
     </div>
   `;
