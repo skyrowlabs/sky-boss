@@ -311,8 +311,13 @@ def render_banner(out: Path, cell_w: int = 12, cell_h: int = 21) -> None:
     grid.insert(0, [(CHEVRON, _rgb(BRAND), None, True), (" ", _rgb(TEXT), None, False)]
                 + [(c, _rgb(TEXT), None, False) for c in "sb"])
 
-    img = Image.new("RGB", (max(len(r) for r in grid) * cell_w, len(grid) * cell_h),
-                    _rgb(BG))
+    _paint(grid, out, cell_w, cell_h)
+
+
+def _paint(grid, out: Path, cell_w: int, cell_h: int) -> None:
+    """A grid of cells onto a PNG. Shared, so two images cannot draw differently."""
+    img = Image.new("RGB", (max((len(r) for r in grid), default=1) * cell_w,
+                            len(grid) * cell_h), _rgb(BG))
     draw = ImageDraw.Draw(img)
     regular, heavy = _font(size=16), _font(bold=True, size=16)
     for y, row in enumerate(grid):
@@ -337,10 +342,70 @@ def render_banner(out: Path, cell_w: int = 12, cell_h: int = 21) -> None:
     print(f"wrote {out.relative_to(ROOT)} {img.width}x{img.height}")
 
 
+def render_session(out: Path, cols: int = 88, cell_w: int = 12, cell_h: int = 21) -> None:
+    """A real terminal session, captured and painted.
+
+    The banner above is a picture of `--help`, which shows the mark and says
+    nothing about what the tool *does*. This runs actual commands and paints
+    what actually came back — the band under a `run`, a shaped table with its
+    dimensions, and the tint, which is the one thing the README's console blocks
+    cannot carry as text.
+
+    **Isolated home and state, and a neutral path.** Same obligation
+    `render-canvas.mjs` states at length: a tool is an argv sky.boss will run, and
+    a checkout's path names whoever's home it sits in. The sample is copied out
+    of `sample/` to a temporary directory so the argv drawn on the prompt line
+    is one anybody could have typed.
+    """
+    import shutil
+    import tempfile
+
+    here = Path(__file__).resolve().parent
+    demo = Path(tempfile.gettempdir()) / "sb-demo"
+    shutil.rmtree(demo, ignore_errors=True)
+    demo.mkdir(parents=True)
+    for name in ("agent.log", "runs.jsonl"):
+        shutil.copy(here / "sample" / name, demo / name)
+
+    home = Path(tempfile.mkdtemp(prefix="sb-shot-home-"))
+    state = Path(tempfile.mkdtemp(prefix="sb-shot-state-"))
+    saved = {k: os.environ.get(k) for k in ("SB_HOME", "SB_STATE")}
+    os.environ["SB_HOME"] = str(home)
+    os.environ["SB_STATE"] = str(state)
+
+    commands = [
+        ["run", "--", "echo", "hello"],
+        ["data", "--from", "jsonl", str(demo / "runs.jsonl")],
+    ]
+
+    try:
+        grid: list = []
+        for argv in commands:
+            grid.append([(CHEVRON, _rgb(BRAND), None, True), (" ", _rgb(TEXT), None, False)]
+                        + [(c, _rgb(TEXT), None, False) for c in "sb " + " ".join(argv)])
+            rows = _cells(capture([str(ROOT / "sb"), *argv], cols=cols))
+            while rows and not any(ch.strip() for ch, *_ in rows[-1]):
+                rows.pop()   # the pty's trailing blanks are not part of the answer
+            grid.extend(rows)
+            grid.append([])
+        # The final blank row is kept, not popped: a 16px font in a 21px cell
+        # puts its descenders on the image's last pixel, and the bottom row came
+        # out shaved in half. Padding here rather than in `_paint`, which the
+        # mark and the banner share and are pixel-exact against.
+        _paint(grid, out, cell_w, cell_h)
+    finally:
+        for key, value in saved.items():
+            os.environ.pop(key, None) if value is None else os.environ.__setitem__(key, value)
+        shutil.rmtree(home, ignore_errors=True)
+        shutil.rmtree(state, ignore_errors=True)
+        shutil.rmtree(demo, ignore_errors=True)
+
+
 if __name__ == "__main__":
     here = Path(__file__).resolve().parent
     render_mark(here / "cli-header.png")
     render_banner(here / "readme-banner.png")
     render_icon(here / "app-icon.png")
+    render_session(here / "readme-session.png")
     if "--install" in sys.argv:
         install_icons()
