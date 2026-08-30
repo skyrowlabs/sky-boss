@@ -18,7 +18,7 @@
  * — a hidden page has its timers clamped. See cli/canvas/watch.py.
  */
 
-import { html, render, useEffect, useRef, useState } from "./vendor/htm-preact.js";
+import { html, useEffect, useRef, useState } from "./vendor/htm-preact.js";
 import * as api from "./api.js";
 import { Body, markedLine, summarise } from "./render.js";
 import { BENCH_WINDOW, Bench, RESIDENT, compose, tagPool } from "./bench.js";
@@ -332,8 +332,15 @@ function useNow() {
  * not a label, and doubling it would dilute the one marker that stops
  * something ([[canvas]] round 11). So this speaks only for the three reads,
  * which is exactly what the `!` could not tell you apart. */
-function kindOf(entry) {
-  const contract = (entry.expansion || entry.argv || [])[0];
+export function kindOf(entry) {
+  /* `.length`, not `||`: an **empty array is truthy**, so `expansion || argv`
+   * never once fell back — a catalog entry with `expansion: []` came out with
+   * no kind at all instead of reading its argv. Latent today, because the rail
+   * only draws saved commands and those always carry an expansion; found in the
+   * first minute of having a test runner, which is the argument for having one.
+   * See [[canvas]] round 12. */
+  const words = entry.expansion?.length ? entry.expansion : entry.argv || [];
+  const contract = words[0];
   return contract === "run" ? "" : contract || "";
 }
 
@@ -347,7 +354,7 @@ function kindOf(entry) {
  *
  * Every term must match, so terms narrow rather than widen: `jam release` is
  * the jam tools about releases, which is what a second word is for. */
-function matches(entry, query) {
+export function matches(entry, query) {
   const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
   if (!terms.length) return true;
   const hay = [
@@ -1011,17 +1018,13 @@ function ConfirmAct({ pending, onConfirm, onCancel }) {
   return html`
     <div class="scrim confirm-scrim" onMouseDown=${onCancel}></div>
     <div class="confirm" role="dialog" aria-modal="true">
-      <div class="confirm-head"><span class="acts-mark">!</span> this command acts</div>
-      <div class="confirm-note">
-        It changes something. Nothing has run yet.
-      </div>
-      <pre class="confirm-argv">${["sb", ...(pending.expansion || pending.argv)].join(" ")}</pre>
-      ${pending.expansion &&
-      html`<div class="confirm-cwd">saved as ${["sb", ...pending.argv].join(" ")}</div>`}
-      ${pending.cwd && html`<div class="confirm-cwd">in ${pending.cwd}</div>`}
+      <div class="confirm-head"><span class="acts-mark">!</span> ${pending.head}</div>
+      <div class="confirm-note">${pending.note}</div>
+      <pre class="confirm-argv">${pending.body}</pre>
+      ${(pending.under || []).map((line) => html`<div class="confirm-cwd" key=${line}>${line}</div>`)}
       <div class="confirm-buttons">
         <button class="sbtn" ref=${cancelRef} onClick=${onCancel}>cancel</button>
-        <button class="sbtn danger" onClick=${onConfirm}>run it</button>
+        <button class="sbtn danger" onClick=${onConfirm}>${pending.confirm}</button>
       </div>
     </div>
   `;
@@ -1403,13 +1406,16 @@ function App() {
       execute(win.id, argv, win.resident);
       return;
     }
+    const under = [];
+    if (win.expansion) under.push(`saved as ${["sb", ...argv].join(" ")}`);
+    if (win.cwd) under.push(`in ${win.cwd}`);
     setPending({
-      id: win.id,
-      argv,
-      resident: win.resident,
-      label: win.label,
-      cwd: win.cwd,
-      expansion: win.expansion,
+      head: "this command acts",
+      note: "It changes something. Nothing has run yet.",
+      body: ["sb", ...(win.expansion || argv)].join(" "),
+      under,
+      confirm: "run it",
+      go: () => execute(win.id, argv, win.resident),
     });
   }
 
@@ -2043,16 +2049,31 @@ function App() {
     /* Delete, with one confirmation and the backup path in the answer. A
      * delete is not undoable from here — the backup is the undo.
      *
-     * This still uses `confirm()`, and the reason it gave has expired: the
-     * surface *does* have a modal now ([[canvas]] round 11), so "inventing one
-     * to ask a yes/no question is the larger change" is no longer true. It is
-     * left as it is because moving it was not this round's ask, not because
-     * the argument still holds — the dialog is shaped around an argv and a
-     * working directory, which a tool deletion has neither of. Left recorded
-     * rather than quietly restated. */
+     * On the surface's own dialog as of [[canvas]] round 13, having been
+     * `window.confirm()` since round 4 of [[tools]]. The reason that gave —
+     * "this surface has no modal and inventing one to ask a yes/no question is
+     * the larger change" — expired the moment round 11 built one. A browser
+     * confirm also blocks every later event, which `sb.css` already warns about
+     * for the `cwd` field, and it cannot show the argv you are about to lose. */
     forget: (tool) => {
       const name = shortOf(tool);
-      if (!window.confirm(`Delete the tool "${name}"? Its file is backed up first.`)) return;
+      setPending({
+        head: "this deletes a saved command",
+        note: "tools.toml is copied into $SB_HOME/backups/ first — the backup is the undo.",
+        body: ["sb", ...(tool.expansion || tool.argv || [])].join(" "),
+        under: [`declared as ${name}`],
+        confirm: "delete it",
+        /* `benchActions`, not `actions` — `forget` lives in the *second* of the
+         * two action objects, and the first one exists, so writing `actions`
+         * here resolved to a real object with no such method and failed only at
+         * click time. See [[canvas]] round 13. */
+        go: () => benchActions.dropNow(name),
+      });
+    },
+
+    /* The half `forget` used to do inline, split out so the confirmation can
+     * hand it to the dialog as a thunk. See [[canvas]] round 13. */
+    dropNow: (name) => {
       api
         .deleteTool(name)
         .then((result) => {
@@ -2425,7 +2446,7 @@ function App() {
         onConfirm=${() => {
           const ask = pending;
           setPending(null);
-          execute(ask.id, ask.argv, ask.resident);
+          ask.go();
         }}
       />`}
 
@@ -2451,4 +2472,12 @@ function App() {
   `;
 }
 
-render(html`<${App} />`, document.getElementById("root"));
+/* The mount lives in `main.js`, not here — [[canvas]] round 12.
+ *
+ * One line, and it was the only thing in the whole frontend that could not be
+ * imported outside a browser: it touches `document` at module scope, so any
+ * `import` of this file threw `ReferenceError` before reaching a single
+ * function. Moving it made `matches`, `kindOf` and `shortOf` testable and cost
+ * nothing else. Anything that runs on import belongs there for the same reason.
+ */
+export { App };
