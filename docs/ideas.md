@@ -54,3 +54,35 @@ built — decided, but not decided how — live in `docs/open.md`.*
   *nothing is arriving* — the same distinction a follow's `quiet` band makes, and the same one a
   dropped session breaks today. A calm dock over a dead stream is the worst version of this
   surface's oldest failure. Whatever answers that for the band answers it here first.
+
+- a cheap model classifying a followed log — Haiku or similar watching a stream and tinting by what
+  a line *means* rather than what shape it has. **Two versions, and the rules already written
+  separate them.** *Inline* — a model in the render path, per line — loses three ways. It is a
+  judgment, and [[highlight]] round 3 settled whose judgment counts: sky.boss ships none, the
+  operator declares theirs in `formats.toml`, and a model is a third party that rule has no slot
+  for. `marks()` is pure because the frontend has no test runner and two renderers holding their
+  own opinions would drift; a model in there means the same line tints differently twice, and
+  `spans()` joining back to exactly the text stops being provable. And a round trip per line puts a
+  stalled API where a quiet log should be — *worked fine, told nobody*, byte for byte. Two further
+  costs are constitutional: sky.boss would hold a credential for the first time, against the rule
+  that keeps a future agent surface safe to expose, and a log is the likeliest place on the machine
+  for a token or an internal hostname, so every followed line becomes egress.
+
+  **The version worth building inverts the unit.** A log is repetitive — an hour of a chatty stream
+  is tens of thousands of lines and perhaps forty distinct shapes, so classifying line 30,000 pays
+  to re-derive an answer already bought. Sample the log once, have the model draft the
+  `[highlight.<name>]` block in the schema `check_rules()` already validates, write it through the
+  same spliced path the tools rail uses, and never call a model again. Deterministic at read time,
+  no per-line cost or latency, one sample leaves the machine instead of the whole stream, and the
+  operator reads and edits the block before it ever runs — so it is their opinion after all,
+  drafted rather than authored, which satisfies the round-3 rule instead of dodging it. Absent
+  model, key or network degrades to no ruleset, which is today. Costed 2026-08-30 against Haiku
+  4.5's $1/$5 per MTok: per line with a cached prefix is a few dollars an hour per followed log,
+  batched a hundred at a time is under one, and once-per-log is a rounding error — four orders of
+  magnitude, which is the whole argument. Use a stronger model for that one call; cost stops
+  mattering when it happens once.
+
+  **This is [[highlight]] round 5**, where round 3's declaration gets a drafting assistant. The
+  inline version belongs to [[open]] item 13 — the governor is already LLM narration over a log,
+  and already owes the same four answers: who calls it, on what cadence, against what budget, and
+  what it shows when the model cannot run
