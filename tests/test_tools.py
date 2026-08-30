@@ -976,6 +976,13 @@ def test_a_refused_cadence_writes_nothing(tmp_path, monkeypatch):
     Found by the workbench trying to save a cadence — which is what a surface
     that runs the real commands is for. A usage error belongs at the door,
     before any side effect.
+
+    **Retargeted at `read` in [[refresh]] round 4.** It was written against
+    `data`, which no longer refuses a piped or `--json` cadence — it streams
+    NDJSON instead. That does not weaken the property, it *retires the hazard
+    for that command*: with no refusal there is no refusal to fire late. `read`
+    still refuses, so `read` is where the ordering can still go wrong and where
+    it is worth guarding.
     """
     from click.testing import CliRunner
 
@@ -986,7 +993,7 @@ def test_a_refused_cadence_writes_nothing(tmp_path, monkeypatch):
     monkeypatch.setattr("cli.tools.SB_HOME", tmp_path)
 
     result = CliRunner().invoke(
-        cli, ["--json", "data", "--save", "prs", "--refresh", "30", "--", "printf", "[]"]
+        cli, ["--json", "read", "--save", "prs", "--refresh", "30", "--", "printf", "hi"]
     )
     assert result.exit_code == 2
     assert "refuse each other" in result.output

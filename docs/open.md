@@ -523,7 +523,11 @@ closes non-interactive use, the second makes `follow` a second data-producing co
 
 **~~`sb data --refresh` has the same bug, and the fix that closed it for `follow` did not touch it.~~**
 *Closed 2026-08-29 → [[refresh]] round 3, built as recommended below: `refuse_resident_pipe` in
-`cli/output.py` raises a usage error naming the fix. The precedent held — it asks `_out()` rather
+`cli/output.py` raises a usage error naming the fix.* **Reversed for `data` 2026-08-30 →
+[[refresh]] round 4, on the operator's ruling out of the morning review: off a terminal — or under
+`--json` — it emits one envelope per tick as NDJSON instead of refusing. The round-3 objection was
+answered rather than dismissed: a resident render has no *single* envelope, and a stream of
+envelopes is not one. `read` still refuses, having no envelope worth streaming.* *(round 3 text:)* The precedent held — it asks `_out()` rather
 than a fresh console, so the suite's redirection is what answers, and stdout specifically, because
 `reside` draws there and a terminal on stderr is no help.* The diagnosis is kept below because the
 argument for refusing rather than degrading is the transferable half.
