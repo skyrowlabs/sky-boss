@@ -14,11 +14,13 @@ import functools
 import io
 import json
 import os
+import sys
 import textwrap
 import threading
 import time
 from dataclasses import dataclass, field
-from typing import Any
+from datetime import datetime, timezone
+from typing import Any, Callable
 
 import click
 from rich.console import Console
@@ -1038,6 +1040,88 @@ def serving_note(url: str, mode: str) -> None:
             ("  ctrl-c to stop", "sb.muted"),
         ]
     )
+
+
+def ndjson_tick(result: Result, tick: int, at: float) -> None:
+    """One tick of a resident read, as a single NDJSON line on stdout.
+
+    **Each line is exactly what `sb --json <cmd>` would have printed for that
+    tick, plus `tick` and `at`.** That is the whole contract and it is chosen
+    over a slimmer per-tick record on purpose: every consumer that already
+    reads a single envelope reads one of these lines with no change, and a
+    second shape would be a second data contract to keep in step.
+
+    `at` is ISO 8601 UTC rather than a wall clock. The band draws `08:50:02`
+    for a human reading one screen; a machine consumer needs an unambiguous
+    instant, and a bare time-of-day is not one.
+
+    **Warnings stay in the envelope and are not repeated on stderr.** A one-shot
+    prints them both places because a human may be reading either; a stream
+    would reprint the same warning every tick forever, and nothing is lost —
+    `warnings` is a field on every line.
+
+    Compact and flushed per line, because the point is that a consumer sees
+    tick N before tick N+1 exists. See [[refresh]] round 4.
+    """
+    payload = {
+        "tick": tick,
+        "at": datetime.fromtimestamp(at, timezone.utc).isoformat(timespec="seconds"),
+        **result.to_dict(),
+    }
+    click.echo(json.dumps(payload, default=str))
+    with contextlib.suppress(ValueError, OSError):
+        sys.stdout.flush()
+
+
+def resident_ndjson(
+    run_once: Callable[[], Result],
+    interval: int,
+    *,
+    clock: Callable[[], float] = time.time,
+    sleep: Callable[[float], None] = time.sleep,
+    ticks: int | None = None,
+) -> None:
+    """Run a read on a cadence and emit one NDJSON line per tick.
+
+    The non-terminal half of `--refresh`. `resident.reside` owns the human
+    rendering; this owns the machine one, and they are separate functions
+    because they share nothing but the interval — one drives a `rich.Live` and
+    a keyboard, the other writes a line and sleeps.
+
+    Endless by nature, like every residency: Ctrl-C is how it ends. `ticks`
+    bounds it for the suite, which is the rule `CLAUDE.md` states as *bound
+    every wait* — and the clock and the sleep are injected for the reason the
+    watchdog's were, so proving a cadence costs no wall-clock.
+    """
+    tick = 0
+    while ticks is None or tick < ticks:
+        tick += 1
+        try:
+            ndjson_tick(run_once(), tick, clock())
+        except BrokenPipeError:
+            # `sb data --refresh 2 … | head -3` is a normal way to use this, and
+            # the consumer leaving is how it ends — not a failure to report. Left
+            # unhandled it surfaced as `✗ data failed` on stderr, which is the
+            # inverse of this repo's usual bug: telling the operator something
+            # broke when nothing did. Python also re-raises it at interpreter
+            # shutdown unless stdout is taken out of the way first.
+            with contextlib.suppress(OSError):
+                sys.stdout.close()
+            return
+        if ticks is not None and tick >= ticks:
+            return
+        sleep(interval)
+
+
+def stdout_is_terminal() -> bool:
+    """Whether the *resident renderer* has somewhere to draw.
+
+    stdout specifically, and asked through `_out()` rather than a fresh Console,
+    so the suite's redirection is what answers. Both were already true of
+    `refuse_resident_pipe`; this only names the question so `data` can branch on
+    it instead of raising. See [[refresh]] round 4.
+    """
+    return bool(_out().is_terminal)
 
 
 def refuse_resident_pipe(refresh: int | None) -> None:

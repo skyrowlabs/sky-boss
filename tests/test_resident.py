@@ -168,15 +168,34 @@ def test_read_and_data_offer_refresh_in_help():
         assert "--refresh" in help_text
 
 
-def test_refresh_and_json_refuse_each_other(said):
-    """An endless stream of envelopes on a pipe that expects one has no
-    consumer; a machine that wants a cadence is what the canvas API is for."""
-    for command in ("read", "data"):
-        result = CliRunner().invoke(cli, ["--json", command, "--refresh", "5", "--", "true"])
-        assert result.exit_code == 2
-        assert "refuse each other" in said(result)
-        # And nothing envelope-shaped leaked to stdout on the way out.
-        assert not said(result).strip().startswith("{")
+def test_refresh_and_json_still_refuse_each_other_on_read(said):
+    """`read` is verbatim by contract and has no envelope worth streaming, so
+    the round-3 refusal stands there. `data` was overruled — see below."""
+    result = CliRunner().invoke(cli, ["--json", "read", "--refresh", "5", "--", "true"])
+    assert result.exit_code == 2
+    assert "refuse each other" in said(result)
+    # And nothing envelope-shaped leaked to stdout on the way out.
+    assert not said(result).strip().startswith("{")
+
+
+def test_json_refresh_on_data_streams_instead_of_refusing(monkeypatch):
+    """[[refresh]] round 4, reversing round 3 on the operator's ruling.
+
+    `--json` is the flag that *means* machine output, so it was the one thing
+    that could not have a cadence. It now takes the same path a pipe does.
+
+    Asserted by intercepting the loop rather than running it: residency is
+    endless, and a test that invoked it for real would hang rather than fail —
+    which is exactly what happened when this change first landed.
+    """
+    seen = {}
+    monkeypatch.setattr(
+        "cli.output.resident_ndjson",
+        lambda once, interval, **kw: seen.update(interval=interval, once=once),
+    )
+    result = CliRunner().invoke(cli, ["--json", "data", "--refresh", "5", "--", "printf", "[]"])
+    assert result.exit_code == 0
+    assert seen["interval"] == 5
 
 
 def test_a_refresh_of_zero_is_a_usage_error_on_read_and_data():
@@ -439,23 +458,35 @@ def test_clipping_a_stream_does_not_repaint_the_body():
 # ============================================================================
 
 
-def test_a_piped_refresh_is_a_usage_error_not_a_silence():
-    """The defect this closes: `sb data --refresh 2 … | cat` rendered 0 bytes
-    and never exited, because `rich.Live` owns a cursor and a pipe has none.
-    Residency is endless, so the caller did not get a wrong answer — it hung.
-    A refusal is a sentence where a hang is not."""
-    for argv in (
-        ["data", "--refresh", "2", "--", "printf", "[]"],
-        ["read", "--refresh", "2", "--", "printf", "hi"],
-    ):
-        result = CliRunner().invoke(cli, argv)
-        assert result.exit_code == 2, argv
-        assert "needs a terminal" in result.output
+def test_a_piped_refresh_on_read_is_still_a_usage_error_not_a_silence():
+    """The defect round 3 closed: `--refresh … | cat` rendered 0 bytes and never
+    exited, because `rich.Live` owns a cursor and a pipe has none. Residency is
+    endless, so the caller did not get a wrong answer — it hung, and a refusal
+    is a sentence where a hang is not.
+
+    Still the answer for `read`, whose output is verbatim text. `data` answers
+    it a different way now — with a stream of envelopes. See round 4."""
+    result = CliRunner().invoke(cli, ["read", "--refresh", "2", "--", "printf", "hi"])
+    assert result.exit_code == 2
+    assert "needs a terminal" in result.output
 
 
 def test_the_refusal_names_the_fix():
-    result = CliRunner().invoke(cli, ["data", "--refresh", "2", "--", "printf", "[]"])
+    result = CliRunner().invoke(cli, ["read", "--refresh", "2", "--", "printf", "hi"])
     assert "drop it for a single read" in result.output
+
+
+def test_a_piped_refresh_on_data_streams_ndjson(monkeypatch):
+    """The reversal itself: off a terminal, `data --refresh` goes to the NDJSON
+    loop instead of raising. Intercepted, never run — endless by nature."""
+    seen = {}
+    monkeypatch.setattr(
+        "cli.output.resident_ndjson",
+        lambda once, interval, **kw: seen.update(interval=interval),
+    )
+    result = CliRunner().invoke(cli, ["data", "--refresh", "2", "--", "printf", "[]"])
+    assert result.exit_code == 0
+    assert seen["interval"] == 2
 
 
 def test_screen_does_not_exempt_it():
@@ -496,3 +527,101 @@ def test_a_terminal_still_goes_resident(at_a_terminal, monkeypatch):
     result = CliRunner().invoke(cli, ["read", "--refresh", "7", "--", "printf", "hi"])
     assert result.exit_code == 0
     assert reached == {"interval": 7}
+
+
+# ============================================================================
+# The stream a pipe gets — [[refresh]] round 4
+# ============================================================================
+
+
+def test_each_tick_is_one_line_and_carries_its_number(capsys):
+    """NDJSON: one object per line, in order, so a consumer sees tick N before
+    tick N+1 exists. Bounded by `ticks` and driven by an injected clock — the
+    rule `CLAUDE.md` states as *bound every wait* and *assert against the
+    mechanism, not the timing*."""
+    from cli.output import Result, resident_ndjson
+
+    made = []
+
+    def once():
+        made.append(1)
+        return Result(data={"rows": [{"n": len(made)}]})
+
+    resident_ndjson(once, 5, clock=lambda: 1756000000.0, sleep=lambda _: None, ticks=3)
+    lines = [ln for ln in capsys.readouterr().out.splitlines() if ln.strip()]
+    assert len(lines) == 3
+    assert [json.loads(ln)["tick"] for ln in lines] == [1, 2, 3]
+    assert [json.loads(ln)["data"]["rows"][0]["n"] for ln in lines] == [1, 2, 3]
+
+
+def test_a_tick_line_is_the_single_shot_envelope_plus_two_keys(capsys):
+    """The contract that makes this cheap to consume: each line is exactly what
+    `sb --json data` prints for that tick, plus `tick` and `at`. A slimmer
+    per-tick record would be a second data contract to keep in step."""
+    from cli.output import Result, resident_ndjson
+
+    result = Result(data={"rows": [{"a": 1}]}, warnings=["careful"])
+    resident_ndjson(lambda: result, 5, clock=lambda: 1756000000.0, sleep=lambda _: None, ticks=1)
+    line = json.loads(capsys.readouterr().out.strip())
+
+    assert set(line) - set(result.to_dict()) == {"tick", "at"}
+    for key, value in result.to_dict().items():
+        assert line[key] == value, key
+
+
+def test_the_tick_timestamp_is_an_instant_not_a_wall_clock(capsys):
+    """`08:50:02` is what a band draws for a human reading one screen. A machine
+    consumer needs an unambiguous instant, and a bare time-of-day is not one."""
+    from cli.output import Result, resident_ndjson
+
+    resident_ndjson(
+        lambda: Result(data={}), 5, clock=lambda: 1756000000.0, sleep=lambda _: None, ticks=1
+    )
+    at = json.loads(capsys.readouterr().out.strip())["at"]
+    assert at.startswith("2025-") or at.startswith("2026-")
+    assert at.endswith("+00:00") or at.endswith("Z")
+
+
+def test_a_warning_rides_the_line_and_is_not_reprinted_every_tick(capsys):
+    """A one-shot prints warnings to stderr as well, because a human may be
+    reading either. A stream would reprint the same warning forever, and nothing
+    is lost — `warnings` is a field on every line."""
+    from cli.output import Result, resident_ndjson
+
+    resident_ndjson(
+        lambda: Result(data={}, warnings=["careful"]),
+        5,
+        clock=lambda: 1756000000.0,
+        sleep=lambda _: None,
+        ticks=2,
+    )
+    captured = capsys.readouterr()
+    assert all(json.loads(ln)["warnings"] == ["careful"] for ln in captured.out.splitlines() if ln.strip())
+    assert "careful" not in captured.err
+
+
+def test_a_consumer_that_leaves_ends_the_stream_without_reporting_a_failure():
+    """`… --refresh 2 | head -3` is a normal way to use this, and the consumer
+    leaving is how it ends. Left unhandled the BrokenPipeError surfaced as
+    `✗ data failed` on stderr — the inverse of this repo's usual bug: telling
+    the operator something broke when nothing did."""
+    import contextlib
+    import io
+
+    from cli.output import Result, resident_ndjson
+
+    class Closed(io.StringIO):
+        def write(self, _):
+            raise BrokenPipeError(32, "Broken pipe")
+
+    ticks = []
+
+    def once():
+        ticks.append(1)
+        return Result(data={})
+
+    with contextlib.redirect_stdout(Closed()):
+        resident_ndjson(once, 5, clock=lambda: 1756000000.0, sleep=lambda _: None, ticks=9)
+
+    # Stopped at the first refused write rather than running to `ticks`.
+    assert ticks == [1]

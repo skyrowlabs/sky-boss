@@ -61,7 +61,8 @@ import rich_click as click
 
 from cli import capture as capture_
 from cli.helpers import child_env, parse_env
-from cli.output import Result, emit, refuse_resident_json, refuse_resident_pipe
+from cli import output
+from cli.output import Result, emit
 from cli.view import find_rows, shape, warnings_for
 
 
@@ -217,12 +218,10 @@ def data(
     if problem:
         raise click.UsageError(problem)
     env = parse_env(env_pairs)
-    # Before the write, not inside the resident path. `--save` writes first on
-    # purpose, so a refusal raised further down fires after the append — and
-    # this one used to, leaving a tool on disk under a name that could not be
-    # reused, then reporting a usage error. See [[workbench]] round 3.
-    refuse_resident_json(refresh)
-    refuse_resident_pipe(refresh)
+    # Both refusals are gone from `data` as of [[refresh]] round 4, on the
+    # operator's ruling: `--refresh` off a terminal emits NDJSON, one envelope
+    # per tick, rather than refusing. They still guard `read`, whose contract is
+    # verbatim text and which has no envelope worth streaming.
 
     # Saved *before* the run, so a resident invocation saves at all (it never
     # reaches its own exit) and a failing one still saves. You are saving an
@@ -260,17 +259,29 @@ def _reside(
     from cli import resident
 
     ctx = click.get_current_context()
-    # Belt and braces: the caller refuses this before `--save` writes, and this
-    # is the guard for any future path that reaches residency another way.
-    refuse_resident_json(refresh)
-    refuse_resident_pipe(refresh)
-    source = f"{ctx.info_name} -- {shlex.join(argv)}"
-    resident.reside(
-        source,
-        refresh,
-        lambda: _once(argv, timeout, cwd, cols, rows_path, drop, no_shape, from_, env),
-        screen=screen,
+    once = lambda: _once(  # noqa: E731 — one expression, named for both branches
+        argv, timeout, cwd, cols, rows_path, drop, no_shape, from_, env
     )
+
+    # **A terminal gets the live rendering; everything else gets NDJSON.**
+    # See [[refresh]] round 4. Round 3 refused both of these and the operator
+    # overruled it: a resident render has no *single* envelope, which is what
+    # `refuse_resident_json` correctly said — but a *stream* of envelopes is
+    # not a single envelope, and it is the thing `sb follow` already
+    # legitimises. Every tick is a whole read that stands alone ([[jsonl-reads]]
+    # round 2), so a tick is exactly the unit that is safe to emit by itself.
+    #
+    # `--json` takes the same path as a pipe rather than being refused: it is
+    # the flag that *means* machine output, so it was the one thing that could
+    # not have it. stdout specifically, for the reason round 3 gave — `reside`
+    # draws there, and a terminal on stderr is no help.
+    as_json = bool((ctx.find_root().obj or {}).get("as_json"))
+    if as_json or not output.stdout_is_terminal():
+        output.resident_ndjson(once, refresh)
+        raise click.exceptions.Exit(0)
+
+    source = f"{ctx.info_name} -- {shlex.join(argv)}"
+    resident.reside(source, refresh, once, screen=screen)
     raise click.exceptions.Exit(0)
 
 

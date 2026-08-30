@@ -1,7 +1,7 @@
 ---
 status: complete
 created: 2026-08-21
-updated: 2026-08-29
+updated: 2026-08-30
 agent_value: 3
 key_files:
   - cli/data.py
@@ -82,6 +82,51 @@ a confusion trap.
   a scheduler — a terminal residency is owned by its process, a canvas cadence by its stream.
 
 ## Phases
+
+### Round 4 — a cadence off a terminal streams NDJSON (2026-08-30)
+
+**This reverses round 3 for `data`, on the operator's ruling**, relayed through the
+skyrow-workspace session out of the morning review. Round 3 refused `sb data --refresh` down a pipe
+and under `--json`; the owner was shown that diagnosis and the argument for refusing and chose
+against it.
+
+```
+$ sb data --from jsonl --refresh 2 runs.jsonl | jq -c .
+{"tick":1,"at":"2026-08-30T14:02:21+00:00","ok":true,"data":[…],"warnings":[],"view":{…}}
+{"tick":2,"at":"2026-08-30T14:02:23+00:00","ok":true,"data":[…],"warnings":[],"view":{…}}
+```
+
+**The objection round 3 raised is answered by the form rather than dismissed.** It held that a
+resident render has no *single* envelope, which is true — and a **stream** of envelopes is not a
+single envelope. It is the thing `sb follow` already legitimises. [[jsonl-reads]] round 2 settled
+that every tick is a whole read that stands alone, so a tick is exactly the unit already known to be
+safe to emit by itself. The two alternatives were rejected on this repo's own stated grounds:
+render-once-and-ignore-`--refresh` is the *wrong but looks right* failure, and repeating a whole
+table into a pipe is not a document.
+
+**Each line is the single-shot envelope plus `tick` and `at`,** rather than a slimmer per-tick
+record. That is the choice that costs nothing to consume: every reader of `sb --json data` reads one
+of these lines unchanged, where a second shape would be a second data contract to keep in step. `at`
+is ISO 8601 UTC, not the band's `08:50:02` — a band is drawn for a human reading one screen, and a
+machine consumer needs an unambiguous instant.
+
+**`--json --refresh` takes the same path rather than staying refused**, which is the half round 3
+left to this round's judgement. `--json` is the flag that *means* machine output, so under the old
+rule it was the one thing that could not have a cadence. One path, not two.
+
+**`read` keeps both refusals and that is deliberate.** Its contract is verbatim text; it has no
+envelope worth streaming, and the owner ruled on `data`. `follow` is untouched — its own ruling
+(degrade to verbatim lines) already covers the same ground for a stream.
+
+**Warnings ride the line and are not reprinted on stderr.** A one-shot prints them both places
+because a human may be reading either; a stream would reprint the same warning every tick forever,
+and nothing is lost — `warnings` is a field on every line.
+
+- [x] `data --refresh` emits one NDJSON line per tick off a terminal, or under `--json`.
+- [x] Each line is the single-shot envelope plus `tick` and `at`, flushed per line.
+- [x] `read` still refuses; `follow` untouched.
+- [x] A consumer that leaves ends the stream without reporting a failure.
+- [x] Tests bounded by `ticks` with an injected clock — never by running the endless loop.
 
 ### Round 3 — a cadence needs a screen (2026-08-29)
 
@@ -318,3 +363,27 @@ suite's redirection be the thing that answers.
 without `--refresh` works off a terminal exactly as before, which is why this is a usage error on
 one flag rather than a mode. There is a test for that, because it is the regression a careless
 version of this fix would ship.
+
+
+### 2026-08-30 — round 4, and the refusal that was load-bearing for a *test*
+
+**Removing the refusal hung the suite twice**, and both hangs were the rule `CLAUDE.md` states as
+*bound every wait*, arriving from the product side rather than the test side. Four tests invoked
+`sb data --refresh` through `CliRunner` expecting exit 2; with the refusal gone they entered an
+endless stream and the suite stopped rather than failed. The fix is the one the repo already uses
+for `reside`: **assert the mechanism by intercepting it, never by running it.** A residency that a
+test can enter is a test that can only hang.
+
+**One of those tests was guarding something real, and the reversal retired it rather than weakening
+it.** `test_a_refused_cadence_writes_nothing` exists because `--save` writes *before* it runs, so a
+refusal raised further down fired after the append — a tool on disk under a name that could not be
+reused, then exit 2. With `data` no longer refusing, there is no refusal to fire late: the hazard is
+gone for that command rather than untested. Retargeted at `read`, which still refuses and where the
+ordering can still go wrong.
+
+**`✗ data failed` on a broken pipe was this repo's usual bug inverted.** `… --refresh 2 | head -3`
+is a normal way to use the feature, and the consumer leaving is how it ends — but the unhandled
+`BrokenPipeError` reported a failure that had not happened. Telling the operator something broke
+when nothing did is the mirror of *worked fine, told nobody*, and no less wrong. Caught by running
+the real thing down a real pipe, which is the only way it shows: the clean case has empty stderr and
+the suite never opened a pipe at all.

@@ -491,6 +491,17 @@ makes an exception safe is not which command it is, it is **who named the argv**
 `sb read` both run an argv the operator typed, and seeing its output is the feature. Any command
 that shells out on its own initiative still keeps that output out of `data`.
 
+**A cadence off a terminal is a stream of envelopes, not a refusal.** `sb data --refresh` down a
+pipe, or under `--json`, emits one NDJSON line per tick — the single-shot envelope plus `tick` and
+`at`, so every reader of `sb --json data` reads one of these lines unchanged. [[refresh]] round 3
+refused it and round 4 reversed that on the operator's ruling; the objection was *answered* rather
+than dropped, since a resident render has no **single** envelope and a stream of them is not one.
+`read` still refuses — verbatim text has no envelope worth streaming. Two consequences worth
+keeping: **a test may never enter a residency**, only intercept it (four did, and the suite hung
+rather than failed), and **a consumer leaving is a normal end** — an unhandled `BrokenPipeError`
+reported `✗ data failed` when nothing had, which is *worked fine, told nobody* inverted and no less
+wrong.
+
 **`sb data` is deliberately not an exception even so** — it carries parsed data only, and a tool
 that printed something else has failed its contract. See [[text-reads]].
 
