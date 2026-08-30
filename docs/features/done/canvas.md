@@ -110,10 +110,66 @@ auto-refreshing a write is a scheduler nobody asked for.
 - **The surface never writes a tool.** Round 5 renders the TOOLS sidebar and opens what is in it;
   it gains no route that creates or edits one. The server is remote code execution bound to a port,
   and a write route would turn a transient compromise into a persistent one. See [[tools]].
+- **No per-tool opt-out of the confirmation, and none in the terminal.** Round 11 asks about every
+  act the surface launches, with no `confirm = false` to switch it off: `acts` is already the
+  operator's own assertion, made when they chose `run` over `read`, and a per-tool escape would let
+  the one command worth asking about be the one that was silenced months earlier. `sb run` in a
+  shell is unaffected — that is something you typed, at a prompt, having already looked at it.
 - **No indeterminate progress bar.** A bar that animates without measuring something is decoration
   that reads as information. Round 5 ships the bar only for the one quantity actually known.
 
 ## Phases
+
+### Round 11 — confirm before an act (2026-08-30)
+
+Asked for by the operator: *"some of the commands can initiate commands that you may want
+confirmation on before executing to make sure it wasn't done accidentally… there is already a `!`
+indicator, lets make a popup modal confirm."* The occasion was `jam-release-train`, one keystroke
+away in the palette and one click away in the rail.
+
+**The surface already knows which commands these are.** `acts` is inherited from the argv's first
+word and is what the canvas reads to refuse a cadence; the rail draws `!` from it and the palette
+prints `acts` beside the name. Every one of those is a *label*. This round is the first time the
+flag stops the surface doing something.
+
+**One gate, because there is already one funnel.** `execute()` is where every launch converges —
+a palette entry, a click in the tools rail, a window's ⟳, and `chdir`'s re-run after a directory
+change. Gating there rather than at each call site is what makes this exhaustive by construction
+instead of by inventory. The bench needs nothing: `/api/trial` already refuses an act outright.
+
+**It is not a security control, and must never be described as one.** A page past the guard POSTs
+`/api/run` with any argv it likes and never sees this dialog. The defence is unchanged and is still
+loopback, the required header, the per-launch token and the `Origin` check. What this stops is *the
+operator's own hand* — a stray Enter on a highlighted palette row, a double-click in the rail.
+
+That is also why it is client-side only, which **looks** like it contradicts the rule that *a
+surface which declines to draw a button has not refused anything* — the rule that made `/api/trial`
+a route. It does not, and the distinction is worth keeping straight: that rule governs a
+**refusal**, which is a decision about what is permitted and therefore has to live where the
+permission does. Nothing is refused here. Every act stays permitted; it is merely asked about, and
+a question needs a human, which is the one thing the server does not have.
+
+**The confirm must not be reachable by the keystroke that opened it.** Enter is how a palette row
+launches, so a dialog that autofocused its Run button would be dismissed by a second Enter — held,
+repeated, or simply typed ahead — before anything had been read. A guard defeated by the exact
+gesture it exists to catch is worse than none, because it also buys false confidence. `Esc` and
+Cancel cancel, Cancel takes focus, and Run costs a deliberate click.
+
+**Cancelling leaves the window, unrun.** The window is the *address*; running is the act. Throwing
+it away on a cancel would mean retyping the argv to change your mind, and the ⟳ in the title bar is
+already exactly the "yes, actually" affordance. It also keeps the cancel cheap, which is what makes
+a guard something you use rather than route around.
+
+**One question at a time.** With a confirmation outstanding the palette will not open a second
+window — otherwise a second stray Enter opens a window *behind* the dialog answering for the first.
+
+- [x] A modal, gated in the one launch funnel, for `acts` windows only.
+- [x] It shows the argv that will actually run, expanded, and the working directory.
+- [x] `Esc` and Cancel cancel; Run is a click and never the focused default.
+- [x] Cancelling leaves the window in place and unrun.
+- [x] The palette opens nothing while a confirmation is outstanding.
+- [x] Verified headless, including that Enter twice does not run the command.
+- [x] Swept three scales by three viewport widths.
 
 ### Round 10 — a dropped session never came back (2026-08-30)
 
@@ -825,3 +881,37 @@ the whole fix are in `static/`, which has no test runner, so the evidence is the
 nothing else — four states read back off the live DOM: healthy `quiet`, dropped `no session` +
 `reconnecting…`, recovered `quiet` with the seam line, and ended `session ended — reload to
 reconnect`.
+
+
+### 2026-08-30 — round 11, and two things the measuring changed
+
+**The dialog had to be taught what actually runs.** First cut printed
+`pending.argv`, which for a saved tool is `sb tools jam-release-train` — the nickname, not the
+command. The round's own text said it should show the expansion and the first implementation did
+not, which is the value of writing the claim down before building to it. The window now carries
+`expansion` from the catalog entry and the dialog prefers it, showing the short form underneath as
+*saved as*.
+
+**The scale sweep found a real defect, again.** `min-width: 90rem` is 864px at `--sb-scale 2.4`, so
+in a 700px window the dialog measured 1292 wide and put its buttons past the right edge — the
+buttons, which are the only way out other than `Esc`. Both bounds are capped against the viewport
+now. Nine combinations checked (0.9 / 1.6 / 2.4 × 700 / 1100 / 1500) and all fit; the tightest is
+2.4 at 700px, which clears the bottom by five pixels. This is the third round to be caught by
+CLAUDE.md's rule that *a layout verified at one value of `--scale` has been verified once*, and the
+first where the consequence was an unreachable control rather than a cosmetic one.
+
+**The 2.4 body overflow is pre-existing and is not this.** Measured with no dialog open:
+`scrollWidth 2216` against a 1500 viewport. Same finding as [[wrap]]'s sweep; recorded again so the
+next person measuring here does not attribute it to the dialog.
+
+**A temporal-dead-zone slip cost a blank page.** `pendingRef.current = pending` was written above
+`const pendingRef = useRef(null)`, which throws inside `App` and renders nothing at all — the same
+symptom [[canvas]] round 8 recorded for the `htm` comment trap, from an unrelated cause. Worth
+pairing with it: *on this surface a blank page is the generic failure of anything that throws during
+render*, so the console is the first place to look and the DOM is worthless. Found in seconds by
+reading `Runtime.exceptionThrown`, which is now the thing to reach for before guessing.
+
+**Enter is the gesture that matters and it was tested as one.** Five consecutive Enters against an
+open dialog: nothing ran, and no second window opened behind it. That second half is the *one
+question at a time* guard doing its job — without it the palette would have opened four more
+windows while the first was still being asked about.

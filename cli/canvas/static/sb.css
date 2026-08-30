@@ -404,6 +404,43 @@ body.rail-dragging { user-select: none; cursor: col-resize; }
 }
 .sbtn.on { background: var(--sb-tint); border-color: var(--sb-edge); color: var(--sb-brand); }
 .sbtn.plain { border-color: transparent; padding: 0.25rem 1rem; }
+.sbtn.danger { color: var(--sb-danger); border-color: var(--sb-danger); }
+.sbtn.danger:hover { background: color-mix(in srgb, var(--sb-danger) 14%, transparent); }
+.sbtn:focus-visible { outline: var(--hair) solid var(--sb-edge); outline-offset: 0.5rem; }
+
+/* The confirmation for an act — [[canvas]] round 11.
+   Above the palette's own scrim, because a palette Enter is what opens it and
+   the two must never be stacked the other way round. */
+.confirm-scrim { z-index: 1000; }
+.confirm {
+  position: fixed; z-index: 1001; top: 28rem; left: 0; right: 0; margin: 0 auto;
+  /* Both bounds are capped against the viewport, not just the upper one. A
+     bare `min-width: 90rem` is 864px at --sb-scale 2.4, so a narrow window put
+     the buttons off the right edge — measured at 700px, where the dialog came
+     out 1292 wide. The scale rule in CLAUDE.md, met in the wild: every fixed
+     rem grows with the scale while the window does not. */
+  max-width: min(150rem, 92vw); width: max-content; min-width: min(90rem, 92vw);
+  background: var(--sb-surface); border: var(--hair) solid var(--sb-edge);
+  border-radius: var(--r-lg); box-shadow: var(--lift); padding: 3rem;
+  display: flex; flex-direction: column; gap: 2rem;
+}
+.confirm-head {
+  font-size: 3rem; color: var(--sb-text); letter-spacing: .08em;
+  display: flex; align-items: center; gap: 1.5rem;
+}
+.confirm-head .acts-mark { color: var(--sb-warn); font-weight: 700; }
+.confirm-note { font-size: 2.75rem; color: var(--sb-text-3); }
+/* The argv wraps rather than scrolling sideways: this is the one place the
+   whole of it has to be readable without a gesture, which is the entire
+   reason the dialog exists. */
+.confirm-argv {
+  font: inherit; font-size: 2.75rem; color: var(--sb-text-2);
+  background: var(--sb-surface-2); border: var(--hair) solid var(--sb-hair);
+  border-radius: var(--r-sm); padding: 1.5rem 2rem; margin: 0;
+  white-space: pre-wrap; overflow-wrap: anywhere; min-width: 0;
+}
+.confirm-cwd { font-size: 2.5rem; color: var(--sb-text-3); }
+.confirm-buttons { display: flex; gap: 1.5rem; justify-content: flex-end; }
 .sbtn.plain:hover { color: var(--sb-text); }
 
 .chips {
