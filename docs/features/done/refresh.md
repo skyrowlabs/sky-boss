@@ -118,6 +118,14 @@ rule it was the one thing that could not have a cadence. One path, not two.
 envelope worth streaming, and the owner ruled on `data`. `follow` is untouched — its own ruling
 (degrade to verbatim lines) already covers the same ground for a stream.
 
+**The stream is documented where a consumer looks, not only where it was decided.** The round shipped
+with the rule in three places a *producer* reads — a docstring, this doc, `CLAUDE.md` — and none a
+reader does: `sb data --help` still described the terminal redraw alone, and the README's envelope
+section said nothing about a cadence. Reported by the skyrow-workspace session after verifying the
+behaviour from outside, which is exactly the asymmetry they named: **the silence a consumer notices
+is the one the producer cannot.** Both now say it, and the README's example is executed by
+`tests/test_readme.py` rather than illustrated.
+
 **Warnings ride the line and are not reprinted on stderr.** A one-shot prints them both places
 because a human may be reading either; a stream would reprint the same warning every tick forever,
 and nothing is lost — `warnings` is a field on every line.

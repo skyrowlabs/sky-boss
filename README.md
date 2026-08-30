@@ -192,6 +192,23 @@ $ sb --json data -- printf '[{"host":"a"}]'
 **`view` describes how to present `data`; it never filters it.** Every field the tool returned is
 still there, so `| jq` keeps what the table chose to hide.
 
+**`data --refresh` off a terminal is a stream of those envelopes**, one NDJSON line per tick, rather
+than the live redraw you get in a shell. `--json` takes the same path. Each line is exactly the
+envelope above plus `tick` and `at`, so anything that reads one already reads these:
+
+```console
+$ sb data --refresh 1 -- printf '[{"host":"a"}]' | head -2 | jq -c '[.tick, (.data|length)]'
+[1,1]
+[2,1]
+```
+
+`at` is ISO 8601 with an offset — a stream needs an unambiguous instant, not a wall clock. **Warnings
+ride the line and are not repeated on stderr**, which a one-shot does: nothing is lost, since
+`warnings` is a field on every line, but a consumer watching stderr will see silence where a single
+read would have spoken. The stream ends when you leave, or when whatever is reading it does —
+`| head -3` gives three lines and exits clean. `sb read --refresh` still needs a terminal: verbatim
+text has no envelope worth streaming.
+
 Exit codes: `0` ok, `1` hard failure, `3` partial — not 2, which Click uses for usage errors.
 
 ## Following something
