@@ -51,4 +51,22 @@ export default [
     },
     rules: correctness,
   },
+  {
+    // The render scripts under `docs/design/`. Plain Node ES modules — they
+    // spawn `sb ui` and drive Chromium over the DevTools Protocol to
+    // photograph the surface, so they are Node and never the browser, even
+    // though what they operate is a page.
+    //
+    // Without this block they fall through to `js.configs.recommended` with no
+    // globals declared at all, and every `console`, `fetch`, `process` and
+    // `setTimeout` is a `no-undef` error. The lint stayed green while the
+    // directory was pictures only.
+    files: ['docs/design/**/*.mjs'],
+    languageOptions: {
+      ecmaVersion: 'latest',
+      sourceType: 'module',
+      globals: globals.node,
+    },
+    rules: correctness,
+  },
 ];

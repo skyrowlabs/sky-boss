@@ -1,0 +1,5 @@
+{"job": "nightly-backup", "started": "04:05", "ran": "6m 02s", "state": "ok", "wrote": 1042}
+{"job": "lease-audit", "started": "04:15", "ran": "1m 11s", "state": "ok", "wrote": 96}
+{"job": "agent-fix", "started": "04:15", "ran": "2m 48s", "state": "partial", "wrote": 3}
+{"job": "cam-health", "started": "05:00", "ran": "9s", "state": "failed", "wrote": 0}
+{"job": "firmware-sweep", "started": "05:30", "ran": "44s", "state": "ok", "wrote": 12}

@@ -2,6 +2,13 @@
   <img src="docs/design/readme-banner.png" alt="sky.boss — by SKYROW.LABS · sb --help" width="799">
 </p>
 
+<p align="center">
+  <a href="https://github.com/skyrowlabs/sky-boss/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/skyrowlabs/sky-boss/actions/workflows/ci.yml/badge.svg?branch=develop"></a>
+  <a href="https://github.com/skyrowlabs/sky-boss/tags"><img alt="Latest tag" src="https://img.shields.io/github/v/tag/skyrowlabs/sky-boss?label=version"></a>
+  <a href="https://github.com/skyrowlabs/sky-boss/actions/workflows/ci.yml"><img alt="Python 3.11 to 3.14" src="https://img.shields.io/badge/python-3.11%E2%80%933.14-blue"></a>
+  <a href="LICENSE"><img alt="MIT licence" src="https://img.shields.io/github/license/skyrowlabs/sky-boss"></a>
+</p>
+
 `sb` is one CLI for watching what other tools are doing — on this machine and across the projects
 you keep here.
 
@@ -15,6 +22,25 @@ Four ideas, and everything else follows from them:
 - **sky.boss never parses human output.** `sb data` takes JSON. `sb read` shows what a command
   printed, verbatim, and says that is what it is doing. There is no `--pretty` that guesses.
 - **sky.boss is never in the credential path.** External CLIs keep their own authentication.
+
+## What it looks like
+
+Two real commands and what came back — the band under a `run`, and a file of records shaped into a
+table. Both pictures on this page are *rendered from a live run*, never drawn by hand:
+`docs/design/render-mark.py` captures the terminal through a pty, and `docs/design/render-canvas.mjs`
+drives a real `sb ui` over the DevTools protocol. Re-run them after changing anything they show.
+
+<p align="center">
+  <img src="docs/design/readme-session.png" alt="A terminal session: sb run -- echo hello, then sb data --from jsonl over a file of records" width="800">
+</p>
+
+`sb ui` opens the same envelope on a canvas — here a followed log holding open on the left, tinted
+by *shape* rather than by anyone's severity vocabulary, and the same records shaped into a table on
+the right. Down the left are the commands you saved.
+
+<p align="center">
+  <img src="docs/design/readme-canvas.png" alt="The sky.boss canvas: a tools rail, a tinted follow window, and a shaped table" width="900">
+</p>
 
 ## Install
 
@@ -361,8 +387,9 @@ $ SB_HOME=/tmp/empty-sb sb roll-call
 sb ui
 ```
 
-Two screens. **The canvas** is a command palette over tiled and floating windows: every command
-opens a window, and a pinned window re-runs itself on a cadence. **Nothing keeps a command table**
+Two screens, and the canvas is [pictured above](#what-it-looks-like). **The canvas** is a command
+palette over tiled and floating windows: every command opens a window, and a pinned window re-runs
+itself on a cadence. **Nothing keeps a command table**
 — the palette walks the real Click tree, so it cannot offer a command that does not exist.
 
 The refresh clock lives in Python, keyed to the connection: a browser timer in a hidden tab is

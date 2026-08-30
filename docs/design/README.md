@@ -15,14 +15,30 @@ jam.sense's app tokens and every hue was wrong for a week.
 
 ---
 
-## The two PNGs, and `render-mark.py`
+## The renders
 
-**Neither PNG is a source.** `ART` in `cli/banner.py` is the picture; both files here are renders
-of it, produced by `render-mark.py` from the repo root:
+**No PNG here is a source.** Every one is produced by a script, from the thing it is a picture of:
 
 ```bash
-.venv/bin/python docs/design/render-mark.py
+.venv/bin/python docs/design/render-mark.py     # the mark, the banner, the icon, the session
+node docs/design/render-canvas.mjs              # the canvas
 ```
+
+| File | Rendered from | Byte-stable? |
+|---|---|---|
+| `cli-header.png` | `ART` in `cli/banner.py` | yes |
+| `readme-banner.png` | real `sb --help` through a pty | yes |
+| `app-icon.png` | `ART`, on a square | yes |
+| `readme-session.png` | real commands through a pty | **no** — the band carries a wall clock |
+| `readme-canvas.png` | a real `sb ui`, driven over CDP | **no** — port, session id, relative ages |
+
+**The last two change on every render, and that is worth knowing before you run the script.** The
+first three are byte-for-byte no-ops when their source has not moved, which is what makes *if in
+doubt, re-run it* safe advice for them. It is not safe advice for the screenshots: a band reading
+`ran 16:28:18` and a header reading `127.0.0.1:35855` differ every time, so re-rendering them
+produces a diff whether or not anything changed. **Re-render those two deliberately — when what
+they show has actually moved — not as a reflex.** Same reasoning that keeps `git describe` out of
+the banner, arriving as a constraint on when to run rather than on what to draw.
 
 This direction is new as of 2026-08-27 and it is the point. Round 1 of [[header]] measured `ART`
 *off* `cli-header.png` — 11.2px per column, 8.86px per row — which made the PNG the original and
@@ -62,4 +78,24 @@ commit**, which would make a regenerated design file a permanent diff. What is l
 `by SKYROW.LABS · sb --help`, cannot go stale — and re-running the script with `ART` unchanged is
 byte-for-byte a no-op, which is the property that makes "if in doubt, re-run it" safe advice.
 
-**If the mark changes, re-run the script. Do not edit either PNG.**
+### `readme-session.png` and `readme-canvas.png`
+
+The README's two screenshots, and the reason they are scripts rather than screen grabs: a hand-taken
+picture of a UI goes stale silently, and nothing can tell you it has.
+
+Both **isolate `$SB_HOME` and `$SB_STATE`** and seed the home from `tools.example.toml`. This is not
+tidiness. The first canvas capture was taken against the real home and came back with the operator's
+own saved tools drawn down the left — a private checkout's job names, in a picture bound for a public
+README. It is the obligation `tests/conftest.py` states for the suite, arriving somewhere no test can
+look: *inside a PNG*. Both also copy `sample/` to a neutral temporary directory rather than reading it
+in place, because the path is drawn in a window title and the path to a checkout names whoever's home
+it sits in.
+
+`render-canvas.mjs` drives a real `sb ui` over the Chrome DevTools Protocol, using the global
+`WebSocket` that node 22 ships — so it costs no dependency, the same argument that made `node --test`
+free. It types into the palette rather than screenshotting a blank canvas, because a surface whose
+whole point is that you type at it is not photographed empty. It fails loudly if no palette renders or
+no window opens: a blank page screenshots perfectly well, and a green run that wrote a picture of
+nothing is this repo's favourite failure wearing a new hat.
+
+**If the mark changes, re-run `render-mark.py`. Do not edit any PNG.**
