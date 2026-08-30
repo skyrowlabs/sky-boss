@@ -61,8 +61,20 @@ in this item was also wrong — 1.81:1, not 2.5:1.
 
 **5. History.** The mockup carries a `history` affordance with nothing behind it. Once a saved
 command has run more than once, *how did this go the last seven nights* is the obvious question,
-and the ring buffer plus the file of record already exist. Nobody owns it. *Blocked on evidence —
-needs jobs that have run twice.*
+and the ring buffer plus the file of record already exist. Nobody owns it. ~~*Blocked on evidence —
+needs jobs that have run twice.*~~
+
+**Unblocked 2026-08-29, and by something outside this repo.** The evidence arrived when jam.sense
+scaffolded its state into the agent-state root: `<root>/jam-sense/ledger/runs.jsonl` is **1,055
+rows** of exactly what this item was waiting for, plus `decisions`, `queue_deferrals` and
+`implement_ready_plans` beside it. [[jsonl-reads]] already reads them and [[state-root]] already
+addresses them, so *how did this go the last seven nights* is a question sky.boss can ask today with
+no new primitive — `sb data jam-sense:ledger/runs.jsonl --from jsonl`.
+
+What that does **not** supply is history of sky.boss's *own* runs, which is what the mockup's
+affordance was drawn against and which still needs item 6. So the item splits: reading a provider's
+ledger is unblocked and cheap; remembering what sky.boss itself did is still downstream of job
+identity. Worth deciding which one the affordance is for before either is built.
 
 **19. The tools rail does not scale past a handful.** Raised by the operator 2026-08-29,
 watching the live agent-fix run. The rail is a fixed-width column down the left of the canvas and a
@@ -96,7 +108,15 @@ Not urgent: four tools fit. It becomes real at roughly a dozen, or the first tim
 enough that two tools clip to the same string — which is the actual failure, since the rail is how
 you tell them apart.
 
-**20. Five tweaks to the followed line's tint.** *Partly closed 2026-08-29 → [[highlight]] round 5, which answered everything weight could answer — glyphs widened and emphasised, ALL CAPS split into an identifier and a shout, and the bench given a picker and a legend instead of a text box. What stays open is the half below that wants a hue: `#123` in a colour of its own, quoted text, and `()`/`{}`.*
+**20. Five tweaks to the followed line's tint.** *Closed 2026-08-29 → [[highlight]] rounds 5 and 6.* Round 5 answered everything **weight** could
+answer — glyphs widened and emphasised, ALL CAPS split into an identifier and a shout, and the
+bench given a picker and a legend instead of a text box. Round 6 then answered the rest with
+**ground** rather than deferring it: `#123` takes the brand on a wash of itself, and the
+delimiters of `()`/`{}`/`[]` dim so their contents stand out — the timestamp's argument applied to
+punctuation. **The hue question is closed rather than open**: the design system holds four hues and
+sky.boss spends all four, so a fifth is a decision for the brand and not for this tool.
+*Quoted text is the one ask nothing answered* — it wants to be distinct from `` `code` `` and a
+path, and those already share the literal role.*
 
  Raised by the operator 2026-08-29, reading the
 live agent-fix drain through `--highlight jam`. Verbatim: symbols emphasised or given a different
@@ -484,7 +504,14 @@ already used. Refusing loudly and streaming the `--json` envelope were both turn
 closes non-interactive use, the second makes `follow` a second data-producing command beside
 `sb data`.
 
-**`sb data --refresh` has the same bug, and the fix that closed it for `follow` did not touch it.**
+**~~`sb data --refresh` has the same bug, and the fix that closed it for `follow` did not touch it.~~**
+*Closed 2026-08-29 → [[refresh]] round 3, built as recommended below: `refuse_resident_pipe` in
+`cli/output.py` raises a usage error naming the fix. The precedent held — it asks `_out()` rather
+than a fresh console, so the suite's redirection is what answers, and stdout specifically, because
+`reside` draws there and a terminal on stderr is no help.* The diagnosis is kept below because the
+argument for refusing rather than degrading is the transferable half.
+
+**The bug, as it was.**
 Found 2026-08-29 by the skyrow-workspace session driving `sb` against a live job — reported as
 *probably a resident TUI declining to render to a pipe rather than a defect*, which was the right
 caution and the wrong conclusion. Measured:
