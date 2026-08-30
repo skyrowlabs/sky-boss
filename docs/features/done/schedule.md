@@ -1,7 +1,7 @@
 ---
-status: draft          # draft | active | complete — the directory follows this
+status: complete       # round 1 built 2026-08-30; round 2 not scheduled
 created: 2026-08-29
-updated: 2026-08-29
+updated: 2026-08-30
 agent_value: 3         # five dated decisions and a vocabulary, none of it built
 key_files: [cli/rollcall.py, cli/schedule.py, cli/view.py]
 ---
@@ -159,13 +159,13 @@ distinction to be accepted, where the one above only asks the existing sentence 
 
 ### Round 1 — what fires next (2026-08-29)
 
-- [ ] `[project.X.schedule]` parsed and validated in `cli/rollcall.py`, unknown keys named the way
+- [x] `[project.X.schedule]` parsed and validated in `cli/rollcall.py`, unknown keys named the way
       unknown project keys are, a malformed mapping skipped and reported rather than fatal.
-- [ ] `sb schedule` folds every declared project's rows into one table ordered by `next`.
-- [ ] Timestamps parsed to an instant for ordering; a naive one is a reported declaration error.
-- [ ] Provider strings drawn as written, offsets included.
-- [ ] Projects declaring no schedule are counted in a warning, never drawn as rows.
-- [ ] `--only NAMES`, matching [[roll-call]]'s flag rather than inventing a second spelling.
+- [x] `sb schedule` folds every declared project's rows into one table ordered by `next`.
+- [x] Timestamps parsed to an instant for ordering; a naive one is a reported declaration error.
+- [x] Provider strings drawn as written, offsets included.
+- [x] Projects declaring no schedule are counted in a warning, never drawn as rows.
+- [x] `--only NAMES`, matching [[roll-call]]'s flag rather than inventing a second spelling.
 
 ### Round 2 — the past tense (not scheduled)
 
@@ -244,6 +244,35 @@ late-state rendering — the same position items 1 and 5 were in before the ledg
 same answer: do not draw a state you have never seen.
 
 ## Notes
+
+### 2026-08-30 — round 1, executed
+
+**The doc was right that nothing new was needed from a sibling repo, and it understated by one
+step: the rows were being thrown away *twice*.** The operator's `cols = "job,result,last_age,overdue"`
+narrows the payload at the view layer, so `schedule` and `next_run` never survive `ask()`. The
+schedule view reads through the same reader with that one narrowing removed — `ask(replace(project,
+cols=""))` — rather than growing a second subprocess or a second `--from`. Same contract, same
+bytes, one fewer opinion applied.
+
+**The ordering test is the one that had to be constructed rather than observed.** The live payload's
+31 rows all share an offset, so a lexical sort agrees with an instant sort on every one of them —
+which means the fixture had to be built to disagree: `20:00-06:00` is `02:00Z` the *next day* and
+falls after `23:00+00:00`, while sorting before it as a string. Without that case the parse could
+have been deleted and the suite would still have been green. It is the same shape as [[table-views]]
+round 5's width bug — a test that passes only because the data happens to be uniform.
+
+**`name` is the only required field in the mapping**, and it is required for a reason the other
+three do not share: everything else has a word for its absence — no `next`, no `last`, no
+`schedule` are all states the view can draw honestly — but a row with nothing to call it cannot be
+drawn at all.
+
+**A row with no `next` sorts last, not first.** Both were defensible until it was written down: the
+undated rows have nowhere honest to sit among rows ordered by time, and putting them at the top
+makes the *least* certain thing look the most imminent.
+
+**What is deliberately not in round 1**, restated because it is easy to add by accident: nothing
+parses `schedule`, and nothing computes `next` from it. `manual-only` in the fixture has a `last`
+and no `next`, and draws exactly that.
 
 ### 2026-08-29 — where this came from, and what checking changed
 

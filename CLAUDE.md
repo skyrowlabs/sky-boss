@@ -65,6 +65,7 @@ replaced by a browser one the same day. What exists:
 | `sb follow -- <argv>` | Holds a command's stream open. Resident by nature; any exit is a visible death. Arrows and PgUp scroll back through the ring |
 | `sb follow <path>` | Follows a file with a native stat cursor, so quiet and dead are different words. `--due 15m` makes late a word too |
 | `sb roll-call` | Asks every declared project how it is and folds the answers. An observe. See [[roll-call]] |
+| `sb schedule` | What fires next, across projects, ordered by the parsed instant. An observe; it schedules nothing. See [[schedule]] |
 | `sb mcp` | Speaks MCP on stdio, offering the tools to an agent. A surface. See [[mcp]] |
 | `sb tools` | Lists the operator's saved commands, and any that failed to load, grouped |
 | `sb ui` | Opens the surface: **the canvas**, a command palette over tiled and floating windows, and **the workbench**, where a command gets authored. See [[workbench]] |
@@ -625,6 +626,14 @@ Shared with sibling CLIs so the family feels like one tool.
   are told. **The warnings a shaping is owed live there too** as of 2026-08-27 — *which columns went
   quiet* is the same kind of decision, and it stopped being inline in `cli/data.py` the moment the
   bench became a second caller. See [[table-views]].
+- **sky.boss may order; only a provider may judge.** The test that let [[schedule]] fold a row
+  across projects without breaking [[roll-call]]'s refusal of a common vocabulary. That refusal is
+  about producing a **judgment** sky.boss is not entitled to make — what another tool's word means,
+  whether one project's `red` outranks another's `degraded`. Ordering two timestamps is arithmetic
+  nobody invented; ranking two status words is an opinion and stays the provider's. Two refusals
+  fall out of it and both are `sb read`'s shape: a cron expression is **opaque and never parsed**,
+  and `next` is **provider-supplied or absent** — sky.boss never computes a fire time, because a
+  wrong one is worse than none, it looks like an answer.
 - **Degrade gracefully.** An unreachable host or absent config warns in yellow on **stderr** and
   continues. Keep stdout clean so `--json` stays parseable, and never collapse "reports clear" into
   "cannot see".
