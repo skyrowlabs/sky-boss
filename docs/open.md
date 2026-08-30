@@ -684,3 +684,51 @@ returning zero projects and zero problems — was closed on 2026-08-29 in `cli/r
 where the state root would have been swallowed next. That fix stands alone and is not a prerequisite
 for any of the above.
 
+
+---
+
+## Known defects
+
+**A hole the three lists left, and the smallest thing that fills it.** A defect that is known, not
+yet fixed, and not large enough to reopen a feature doc for had nowhere to live: it is not an idea
+(the *whether* is settled — it is broken), and it is not a fundamentals decision. It was landing in
+chat logs, which is the loss this file opens by naming. It goes here rather than in a fourth file
+because the question is unchanged — *we have decided this should work; how do we make it* — and a
+list cut by **kind** would be the first one not cut by a question, which stops composing the moment
+a defect also needs a design decision.
+
+The same exit rule applies: an entry leaves by naming where it went, and the pointer is the useful
+half.
+
+**22. A dropped session stream never comes back, and the window keeps saying `quiet`.** *Closed 2026-08-30 → [[canvas]] round 10, fixed the same day. The round found a second failure behind the same symptom: the token is minted per launch, so a page whose server restarted can never reconnect at any backoff, and **wait** and **reload** are opposite remedies that had to be told apart.* Reported by
+the operator 2026-08-30 — *"it looks like the monitor cut off after some time and stopped showing
+new data"* — against `jam-agent-fix-log`, which is `follow --highlight jam jam-sense:log/cron.log`.
+The file cursor is not at fault; rotation, truncation and disappearance are all handled and none of
+them is what happened.
+
+`stream()` in `cli/canvas/static/api.js` opens the session stream once and calls `onDown()` when it
+ends. `app.js` turns that into `setDown(true)` and **nothing else** — the effect that opened it has
+an empty dependency list, so it runs once per page load. Once the stream drops, for any reason, it
+is down until a manual reload.
+
+Reproduced end to end against a scratch server and a live follow window:
+
+```
+append while healthy    → arrives in ~1s
+server killed           → down flag set, footer says so
+append while down       → never arrives
+server back + append    → still down, still nothing        ← never recovers
+```
+
+**Two things make this worse than a hang.** The reconnect logic *already exists and is unreachable*:
+the `hello` branch re-registers every pinned watcher and re-follows every resident window, with a
+comment explaining why a reconnect needs it — someone wrote the hard half and never wired the
+trivial half. And the window's own band still reads **`quiet`**, which is the cursor's verdict
+meaning *the file was stated and nothing changed*. Nothing is being stated. So the surface does not
+merely fail silently, it renders the healthy word over a dead stream — *worked fine, told nobody*
+with the extra step of an affirmative false claim. The only true signal is one line in the footer,
+at the bottom of the screen, nowhere near what the operator is looking at.
+
+Whatever answers the band here answers the alert half of the docked-window idea in `docs/ideas.md`,
+which has the same shape and is strictly harder: a docked window is by definition the one nobody is
+watching.

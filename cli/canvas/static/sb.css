@@ -385,6 +385,11 @@ body.rail-dragging { user-select: none; cursor: col-resize; }
 .age { color: var(--sb-text-3); font-size: 2.75rem; white-space: nowrap; }
 .age.live { color: var(--sb-ok); }
 .age.bad { color: var(--sb-danger); }
+/* The session is gone, so this window is not reporting — see [[canvas]] round
+   10. Warn rather than danger: nothing failed, the surface just cannot see. It
+   wins over .live and .bad by order, which is the point — a stale verdict must
+   not keep its colour when the claim behind it has stopped being made. */
+.age.stale { color: var(--sb-warn); }
 
 .tag {
   color: var(--sb-brand); background: var(--sb-tint); border-radius: var(--r-sm);

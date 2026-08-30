@@ -195,39 +195,92 @@ export function quit() {
  *
  * `onFrame` is called per frame; the returned function ends the session, which
  * is also what ends every watcher in it.
+ *
+ * **It reconnects, and that is the whole of [[canvas]] round 10.** A stream can
+ * end for reasons that are none of the operator's doing — the server restarted,
+ * the machine slept, a socket died — and until this round the answer was to sit
+ * there forever. Nothing else in the surface recovers on its own either: the
+ * `hello` branch that re-registers every watcher and re-follows every stream was
+ * written for a reconnect that could not happen, because this function only ever
+ * connected once.
+ *
+ * The backoff is bounded and short. This is a loopback socket, so a retry costs
+ * nothing worth measuring, and the operator is waiting; the cap exists so a
+ * surface left open against a server that is gone for good settles into a slow
+ * poll rather than a spin.
  */
+const RETRY_FIRST_MS = 500;
+const RETRY_MAX_MS = 5000;
+
+function pause(ms, signal) {
+  return new Promise((resolve) => {
+    const timer = setTimeout(resolve, ms);
+    signal.addEventListener(
+      "abort",
+      () => {
+        clearTimeout(timer);
+        resolve();
+      },
+      { once: true }
+    );
+  });
+}
+
 export function stream(onFrame, onDown) {
   const controller = new AbortController();
 
   (async () => {
-    try {
-      const response = await fetch("/api/stream", {
-        headers: { "x-sb-token": window.SB_TOKEN },
-        signal: controller.signal,
-      });
-      if (!response.ok) throw new Error(`stream → ${response.status}`);
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-
-      for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        // A frame is a whole line. A chunk boundary lands mid-frame often
-        // enough that parsing per chunk would be a bug that only shows up on a
-        // large result.
-        let cut;
-        while ((cut = buffer.indexOf("\n")) >= 0) {
-          const line = buffer.slice(0, cut).trim();
-          buffer = buffer.slice(cut + 1);
-          if (line) onFrame(JSON.parse(line));
+    let attempt = 0;
+    for (;;) {
+      try {
+        const response = await fetch("/api/stream", {
+          headers: { "x-sb-token": window.SB_TOKEN },
+          signal: controller.signal,
+        });
+        /* 403 is not a blip and must not be retried as one. The token is
+         * minted per launch and written into the page, so a page whose server
+         * restarted holds a credential for a launch that no longer exists —
+         * it will be refused forever, at any backoff. The page cannot mint a
+         * new one; only reloading can, because the token arrives in the HTML.
+         * Saying so is the whole remedy. See [[canvas]] round 10. */
+        if (response.status === 403) {
+          onDown({ stale: true });
+          return;
         }
+        if (!response.ok) throw new Error(`stream → ${response.status}`);
+
+        // Reset only once a connection is actually established, not on the
+        // attempt: a server that accepts and immediately closes would
+        // otherwise reconnect at full speed forever.
+        attempt = 0;
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          // A frame is a whole line. A chunk boundary lands mid-frame often
+          // enough that parsing per chunk would be a bug that only shows up on a
+          // large result.
+          let cut;
+          while ((cut = buffer.indexOf("\n")) >= 0) {
+            const line = buffer.slice(0, cut).trim();
+            buffer = buffer.slice(cut + 1);
+            if (line) onFrame(JSON.parse(line));
+          }
+        }
+      } catch (error) {
+        if (error.name === "AbortError") return;
       }
+      // Aborting is the operator closing the surface, and it must not be
+      // reported as a session that went down under them.
+      if (controller.signal.aborted) return;
       onDown();
-    } catch (error) {
-      if (error.name !== "AbortError") onDown(error);
+      await pause(Math.min(RETRY_MAX_MS, RETRY_FIRST_MS * 2 ** attempt), controller.signal);
+      if (controller.signal.aborted) return;
+      attempt += 1;
     }
   })();
 
