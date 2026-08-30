@@ -1229,3 +1229,99 @@ pre.stream.wrap .ln {
 .pl-empty code {
   color: var(--sb-text);
 }
+
+/* --- round 5: controls, provenance, and the two charts ------------------- */
+.pl-controls {
+  display: flex;
+  align-items: center;
+  gap: 3rem;
+  flex-wrap: wrap;
+}
+/* Provenance sits between the heading and the rows, so the answer to "why
+ * these rows" is above the rows rather than under them. */
+.pl-source {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 2rem 3rem;
+  border-left: 2px solid var(--sb-hair);
+  font-size: 2.9rem;
+  color: var(--sb-text-2);
+}
+.pl-src-row { display: flex; gap: 3rem; }
+.pl-src-k {
+  flex: none;
+  width: 14rem;
+  color: var(--sb-text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.pl-src-v { min-width: 0; word-break: break-word; }
+.pl-src-v code { color: var(--sb-text); }
+
+.pl-chart { display: flex; flex-direction: column; gap: 1rem; }
+/* The axis and every lane share one left inset, so a mark at 0% and the `now`
+ * tick above it are the same x. Two different insets is how a chart ends up
+ * quietly off by the width of a label. */
+.pl-axis {
+  position: relative;
+  height: 4rem;
+  margin-left: 20rem;
+  margin-right: 12rem;
+  border-bottom: 1px solid var(--sb-hair);
+}
+.pl-tick {
+  position: absolute;
+  transform: translateX(-50%);
+  font-size: 2.6rem;
+  color: var(--sb-text-3);
+  white-space: nowrap;
+}
+.pl-now { color: var(--sb-brand); transform: none; }
+.pl-lane { display: flex; align-items: center; gap: 0; }
+.pl-lane-name {
+  flex: none;
+  width: 20rem;
+  font-size: 3rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pl-track {
+  position: relative;
+  flex: 1 1 auto;
+  height: 5rem;
+  border-bottom: 1px solid var(--sb-hair);
+}
+.pl-mark {
+  position: absolute;
+  top: 50%;
+  width: 2.5rem;
+  height: 2.5rem;
+  margin: -1.25rem 0 0 -1.25rem;
+  border-radius: 50%;
+  background: var(--sb-brand);
+}
+.pl-mark.pl-late { background: var(--sb-warn); }
+.pl-lane-when {
+  flex: none;
+  width: 12rem;
+  padding-left: 2rem;
+  font-size: 2.8rem;
+  color: var(--sb-text-3);
+}
+
+.pl-hours {
+  display: grid;
+  grid-template-columns: repeat(24, 1fr);
+  gap: 1rem;
+  align-items: end;
+  height: 40rem;
+}
+.pl-hour { display: flex; flex-direction: column; align-items: center; height: 100%; gap: 0.5rem; }
+/* The bar grows from the bottom of a full-height box, so an empty hour is a
+ * visible gap rather than a missing column. */
+.pl-bar-space { flex: 1 1 auto; width: 100%; display: flex; align-items: flex-end; }
+.pl-bar { width: 100%; background: var(--sb-brand); border-radius: var(--r-sm) var(--r-sm) 0 0; min-height: 0; }
+.pl-count { font-size: 2.6rem; color: var(--sb-text-2); height: 3rem; }
+.pl-hlabel { font-size: 2.4rem; color: var(--sb-text-3); }

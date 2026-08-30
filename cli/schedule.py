@@ -103,7 +103,14 @@ def elapsed(when: datetime | None, now: datetime) -> str:
 # still gets the provider's own string and offset, which round 1 made the point
 # of not normalising. A view describes; it never filters.
 INLINE = ("project", "name", "fires", "schedule", "ran")
-HIDDEN = ("next", "last")
+# `at` is the parsed instant as epoch seconds — the one field here that exists
+# for a *renderer* rather than a reader. A chart needs a position, and `fires`
+# is deliberately too coarse for one ("in 3h"). Shipping the epoch is what stops
+# the page parsing `next` a second time: Python already required an offset and
+# already refused the naive ones, and a second parse in JavaScript would guess a
+# zone for exactly the rows this one rejected. Empty when Python could not order
+# the row, which is the same signal `fires` carries. See [[schedule]] round 5.
+HIDDEN = ("next", "last", "at")
 
 
 def view_of(rows: list[dict]) -> dict:
@@ -253,6 +260,7 @@ def schedule(only: str | None) -> Result:
             "ran": elapsed(row["_last"], now),
             "next": row["next"],
             "last": row["last"],
+            "at": row["_at"].timestamp() if row["_at"] else "",
         }
         for row in order(rows)
     ]

@@ -61,3 +61,64 @@ test("readAge is chrome.ago's vocabulary, and never negative", () => {
   /* A clock that went backwards is not a negative age. */
   assert.equal(readAge(-5), "0s");
 });
+
+/* --- round 5: the charts ------------------------------------------------ */
+import { byHour, plottable, ticks, timeline } from "../../cli/canvas/static/schedule.js";
+
+const HOUR = 3600;
+const NOW_MS = 1756_000_000_000;
+const NOW_S = NOW_MS / 1000;
+
+test("plottable defers to Python about which rows are datable", () => {
+  const rows = [
+    { name: "ok", at: NOW_S + HOUR },
+    /* Empty is what cli/schedule.py writes when it could not parse an offset.
+     * Testing that rather than re-inspecting `next` is the whole point. */
+    { name: "naive", at: "" },
+    { name: "missing" },
+  ];
+  assert.deepEqual(plottable(rows).map((r) => r.name), ["ok"]);
+});
+
+test("timeline places a mark at its fraction of the span", () => {
+  const rows = [{ name: "half", at: NOW_S + 12 * HOUR, fires: "in 12h" }];
+  const { marks } = timeline(rows, NOW_MS, 24 * HOUR);
+  assert.equal(marks.length, 1);
+  assert.equal(Math.round(marks[0].percent), 50);
+});
+
+test("timeline counts what is beyond the window instead of pinning it", () => {
+  const rows = [
+    { name: "inside", at: NOW_S + HOUR, fires: "in 1h" },
+    { name: "outside", at: NOW_S + 80 * HOUR, fires: "in 3d" },
+  ];
+  const { marks, beyond } = timeline(rows, NOW_MS, 24 * HOUR);
+  /* A mark pinned to the right edge would read as "fires at the end of the
+   * window" — a different and false claim. */
+  assert.deepEqual(marks.map((m) => m.row.name), ["inside"]);
+  assert.equal(beyond, 1);
+});
+
+test("timeline clamps a late row to the left rather than off the axis", () => {
+  const rows = [{ name: "late", at: NOW_S - 5 * HOUR, fires: "late 5h" }];
+  const { marks, beyond } = timeline(rows, NOW_MS, 24 * HOUR);
+  assert.equal(marks[0].percent, 0);
+  assert.equal(beyond, 0);
+});
+
+test("ticks pick a round step that fits the wanted count", () => {
+  const day = ticks(NOW_MS, 24 * HOUR);
+  assert.ok(day.length <= 6 && day.length >= 3, `got ${day.length}`);
+  /* Derived from the span, so a span this file has not heard of still works. */
+  const week = ticks(NOW_MS, 7 * 86400);
+  assert.ok(week.length <= 6 && week.length >= 3, `got ${week.length}`);
+  assert.ok(day.every((t) => t.percent > 0 && t.percent <= 100));
+});
+
+test("byHour always has 24 buckets, including the empty ones", () => {
+  const at = new Date("2026-08-30T01:30:00").getTime() / 1000;
+  const buckets = byHour([{ name: "nightly", at }]);
+  assert.equal(buckets.length, 24);
+  assert.deepEqual(buckets[1].rows.map((r) => r.name), ["nightly"]);
+  assert.equal(buckets.reduce((n, b) => n + b.rows.length, 0), 1);
+});
