@@ -46,6 +46,17 @@ the tool could not be published without publishing the operator. Machine-specifi
 in `CLAUDE.local.md`, which is gitignored. **A host name in a tracked file is a bug to fix, not
 context to preserve.**
 
+**Half of that rule is a test now, and the split is the point.** It was enforced by a `grep` in the
+operator's gitignored notes, run by hand before publishing — which works exactly as long as the
+person publishing knows the grep exists, and a contributor does not. The names cannot move into a
+tracked test, because a list of real hosts *is* the thing being kept out. So `tests/test_publication.py`
+checks **shapes** — a home directory, a routable address, `CLAUDE.local.md` itself being committed —
+and the notes keep the **names**. Neither half subsumes the other: the grep catches `archdesk`, the
+test catches the `/home/<someone>` no name list has heard of. Both were needed. Four audits had
+called the tree clean and the shape patterns found five leaks on 2026-08-30, three of them in prose
+that **argued the rule correctly while breaking it** — [[state-root]] called a baked-in workspace
+layout "the same class of leak as a host name in a tracked file", two lines under one.
+
 **A real example is kept on purpose.** Feature docs work through `jam pr list --json` — a sibling
 CLI — rather than a placeholder, because the arguments are load-bearing on a *real* tool: why
 `--cwd` is needed at all, why fourteen columns is the wrong number, why a foreign CLI cannot hold

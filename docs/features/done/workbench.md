@@ -461,7 +461,7 @@ is what makes it a reload rather than an accumulation, so a tool deleted in `$ED
 
 **4. Two preflight requests raced.** `setCwd` then `setArgv` in the same tick both read the ref
 before the first `setDraft` landed, so the second request carried the old cwd and the checks
-described a line nobody had typed — the pane said `--cwd /home/jeston` while the block beside it
+described a line nobody had typed — the pane said `--cwd /home/you` while the block beside it
 said `/tmp`. One effect keyed on the fields that matter replaced per-setter firing; it sees the
 merged state by construction.
 

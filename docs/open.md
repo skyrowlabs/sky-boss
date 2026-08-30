@@ -618,15 +618,15 @@ whatever answers the above.
 
 *Closed 2026-08-29 → [[state-root]] round 1, built the same day.* Settled as proposed below, with one correction the doc records: the file level was argued here on the canvas — a launcher-started webview inherits no shell environment — and that is true in general but hypothetical on this machine, where no `.desktop` file exists. The reason that held is the one the precedence bullet below already gestures at: **a variable is a snapshot and a file is not**, so an env-only knob would be frozen at launch for every long-lived window, terminal-started ones included. The operator declared `state_root` on 2026-08-29; `SL_AGENT_LOGS` is set nowhere on this machine, so the file is what resolves.
 
-**Decided that it should; not decided how it is told.** `~/skyrow.labs/sl-agent-logs/<slug>/` is the
+**Decided that it should; not decided how it is told.** `~/src/sl-agent-logs/<slug>/` is the
 state root the sibling repos' automation writes to, and its layout was designed so a log path is
 derivable from a project sky.boss already knows: the directory under it is the project's **slug**,
 deliberately the same key `projects.toml` uses. See `skyrow-workspace/strategy/seams/agent-state.md`.
 
 That derivation does not work today, because sky.boss knows the slug and not the root, and
-`projects.toml` declares no root. The writers each carry a default — `Path.home() / "skyrow.labs" /
-"sl-agent-logs"` — and **sky.boss must not copy it.** A writer may hardcode that path because it
-lives there; sky.boss ships to machines with no such directory, and a workspace layout baked into a
+`projects.toml` declares no root. The writers each carry a default — a fixed path under `$HOME`, in
+whatever directory that operator keeps their checkouts in — and **sky.boss must not copy it.** A
+writer may hardcode that path because it lives there; sky.boss ships to machines with no such directory, and a workspace layout baked into a
 published tool is the same class of leak as a host name in a tracked file.
 
 The shape that fits the house pattern — `SB_HOME` and `SB_STATE` are both `environ.get(...) or

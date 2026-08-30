@@ -1982,7 +1982,7 @@ function App() {
    * yet, so the second request carried the *old* cwd and the checks described
    * a line nobody had typed. An effect keyed on the fields that matter sees
    * the merged state by construction. Measured — the pane reported `--cwd
-   * /home/jeston` while the block beside it said `/tmp`. */
+   * /home/you` while the block beside it said `/tmp`. */
   useEffect(() => {
     preflight(draftRef.current);
   }, [draft.contract, draft.cwd, draft.argv, draft.save, draft.rows, draft.from, draft.due, draft.highlight, draft.cols]);

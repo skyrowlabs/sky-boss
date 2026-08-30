@@ -290,7 +290,7 @@ BUILTINS: tuple[tuple[str, str], ...] = (
     ("a word that names a colour", "the light was red, then green"),
     ("markdown emphasis, as weight", "**the reason it recurs** nightly"),
     ("a shout — five capitals or more", "ERROR the grid is unreachable"),
-    ("delimiters dim, so contents stand out", "ran 'repo-report' on (node-01) at \"04:15\""),
+    ("delimiters dim, so contents stand out", "ran 'repo-report' on (host-2) at \"04:15\""),
 )
 
 

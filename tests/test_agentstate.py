@@ -37,7 +37,7 @@ def test_no_root_declared_is_not_an_error(home):
 
 
 def test_sky_boss_never_defaults_to_the_workspace_layout(home, monkeypatch):
-    """The writers each default to `~/skyrow.labs/sl-agent-logs`. Copying that
+    """The writers each default to `~/src/sl-agent-logs`. Copying that
     would bake one machine's layout into a published tool — the same class of
     leak as a host name in a tracked file."""
     monkeypatch.delenv("SL_AGENT_LOGS", raising=False)

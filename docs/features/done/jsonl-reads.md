@@ -12,7 +12,7 @@ key_files: [cli/data.py, cli/capture.py, cli/view.py, tests/test_data.py, tests/
 
 The richest artifact sky.boss can currently see is one it cannot read.
 
-`~/skyrow.labs/sl-agent-logs/<slug>/ledger/` holds the structured record of what a
+`~/src/sl-agent-logs/<slug>/ledger/` holds the structured record of what a
 project's automation did — for jam.sense, `runs.jsonl` is 1,042 rows and growing daily,
 one JSON object per line, already shaped exactly like a table:
 
@@ -250,7 +250,7 @@ the view's; that predates this work and is the intended split.
 
 ### 2026-08-29 — where this came from
 
-Raised by the sky.boss session as **S1** while auditing `~/skyrow.labs/sl-agent-logs/`,
+Raised by the sky.boss session as **S1** while auditing `~/src/sl-agent-logs/`,
 the day jam.sense migrated its reporting state out of its checkout. It was one of five
 suggestions and the only one on sky.boss's own side that it ranked first, having dropped
 two earlier candidates — a highlight rule for the `[job-name]` prefix, and status-line
