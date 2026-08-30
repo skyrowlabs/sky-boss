@@ -122,3 +122,70 @@ test("byHour always has 24 buckets, including the empty ones", () => {
   assert.deepEqual(buckets[1].rows.map((r) => r.name), ["nightly"]);
   assert.equal(buckets.reduce((n, b) => n + b.rows.length, 0), 1);
 });
+
+/* --- round 6: the card and the stack ------------------------------------ */
+import { clampCard, stackOf } from "../../cli/canvas/static/schedule.js";
+
+const VIEW = { width: 1000, height: 800 };
+const CARD = { width: 300, height: 200 };
+
+test("clampCard prefers below-right of the anchor", () => {
+  const at = clampCard({ left: 100, right: 140, top: 300, bottom: 320 }, CARD, VIEW);
+  assert.equal(at.left, 100);
+  assert.equal(at.top, 332);
+});
+
+test("clampCard pulls a card back inside the right edge", () => {
+  /* The failure this exists for: the confirm dialog hung off the right at
+   * scale 2.4, and a card is the same component shape. */
+  const at = clampCard({ left: 900, right: 940, top: 100, bottom: 120 }, CARD, VIEW);
+  assert.ok(at.left + CARD.width <= VIEW.width, `${at.left} + ${CARD.width} > ${VIEW.width}`);
+});
+
+test("clampCard flips above the anchor when below would overflow", () => {
+  const at = clampCard({ left: 10, right: 50, top: 700, bottom: 740 }, CARD, VIEW);
+  assert.ok(at.top + CARD.height <= VIEW.height, `${at.top} + ${CARD.height} > ${VIEW.height}`);
+  assert.ok(at.top < 700);
+});
+
+test("clampCard never positions off the top or left", () => {
+  const tall = { width: 300, height: 900 };
+  const at = clampCard({ left: -50, right: 10, top: 20, bottom: 40 }, tall, VIEW);
+  assert.ok(at.left >= 0 && at.top >= 0, JSON.stringify(at));
+});
+
+test("stackOf splits a bucket by project in a stable order", () => {
+  const rows = [
+    { project: "zeta", name: "a" },
+    { project: "alpha", name: "b" },
+    { project: "zeta", name: "c" },
+  ];
+  const parts = stackOf(rows);
+  /* Sorted by name, not by count: an order that followed size would make the
+   * same project a different band in every column, which is the one thing a
+   * stacked bar exists to let you read across. */
+  assert.deepEqual(parts.map((p) => p.project), ["alpha", "zeta"]);
+  assert.deepEqual(parts.map((p) => p.rows.length), [1, 2]);
+});
+
+test("stackOf of an empty bucket is empty, not a zero-height segment", () => {
+  assert.deepEqual(stackOf([]), []);
+});
+
+test("clampCard keeps the card inside even when the anchor is not", () => {
+  /* `.plan` scrolls, so a row can sit at y=1226 in a 1000px viewport — and
+   * *above* an off-screen anchor is still off-screen. Reachable by hovering a
+   * row and then scrolling. */
+  const at = clampCard({ left: 40, right: 90, top: 1226, bottom: 1260 }, CARD, VIEW);
+  assert.ok(at.top + CARD.height <= VIEW.height, `top ${at.top} + ${CARD.height} > ${VIEW.height}`);
+  const wide = clampCard({ left: 4000, right: 4100, top: 10, bottom: 40 }, CARD, VIEW);
+  assert.ok(wide.left + CARD.width <= VIEW.width, `left ${wide.left}`);
+});
+
+test("clampCard degrades to the corner when the card is larger than the window", () => {
+  /* Nothing fits; pinning to the top-left at least keeps the readable half on
+   * screen, and the card scrolls internally. */
+  const huge = { width: 2000, height: 2000 };
+  const at = clampCard({ left: 500, right: 540, top: 500, bottom: 540 }, huge, VIEW);
+  assert.deepEqual(at, { left: 12, top: 12 });
+});

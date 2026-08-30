@@ -1,5 +1,5 @@
 ---
-status: complete       # rounds 1, 3, 4 and 5 built; round 2 still not scheduled
+status: complete       # rounds 1, 3-6 built; round 2 still not scheduled
 created: 2026-08-29
 updated: 2026-08-30
 agent_value: 3         # five dated decisions and a vocabulary, none of it built
@@ -133,6 +133,12 @@ Three states that must not collapse into an empty cell, because each wants a dif
   item 5 and rides the ledger. Round 1 is the future tense only.
 - **Does not normalise time zones**, and does not have a clock of its own.
 - **Does not reach a machine.** Same boundary roll-call drew: local sources only.
+- **Does not colour-code a project** (round 6). The design system holds four hues and sky.boss
+  spends all four — `--sb-brand`, `--sb-ok`, `--sb-warn`, `--sb-danger`. A fifth is a brand
+  decision and not this tool's, so more than one project on one chart is told apart by *position*,
+  never by colour.
+- **Does not reveal anything the envelope is not already carrying** (round 6). Hover shows the
+  absolutes the chart had no room for; it does not fetch, compute, or enrich.
 
 ### The ruling — this is not the vocabulary roll-call refuses
 
@@ -280,6 +286,88 @@ The read-only half of the drawn flight plan, as a third nav entry. Named `schedu
 - [x] **An hour-of-day chart** — 24 buckets, for the shape of the grid rather than what is next.
 - [x] **`at` on the row** — the parsed instant as epoch seconds, so the page never parses a
       timestamp.
+
+### Round 6 — context on hover, and more than one schedule at a time (scoped 2026-08-30)
+
+**Scoped and built the same day**, with three amendments from the operator recorded below.
+
+#### Why this round
+
+Two things the first three views cannot do.
+
+**The charts hid the very fields they are drawn from.** A mark at 50% of a 24-hour axis says
+*roughly half a day*, and the exact instant, the cron expression and the last run are nowhere on
+that screen. They are on the row — `next`, `last` and `at` are hidden columns, not absent ones —
+so nothing needs fetching. What exists today is four native `title` attributes: delayed by about a
+second, unstyled, single-line, and invisible to a keyboard.
+
+**The selector is single-valued.** `all`, or exactly one project. The question that actually
+arises when several projects share one machine — *do these two grids collide?* — has no answer
+between "one project" and "all of them".
+
+#### Shape
+
+**A hover card, one component, all three views.** Anchored to the thing hovered, showing what the
+row already carries:
+
+```
+release · jam-sense
+fires    in 2h 41m        2026-08-30T15:20:00-05:00
+ran      1h ago           2026-08-30T16:20:01+00:00
+cron     20 3,7,11,15,19,23 * * *
+source   jam report status --json
+```
+
+- On a **table row** it adds the two hidden absolutes and the source.
+- On a **timeline mark** it adds everything — that view draws a name and a dot.
+- On an **hour bucket** it lists the jobs in that hour, which is the one thing the bar cannot say.
+- **Clamped to the viewport.** The confirm dialog fell off the right edge at scale 2.4 and that is
+  the specific failure to design against, so the card's position is measured against the window,
+  at more than one scale, before it is believed.
+- **Focus shows it too.** A hover-only affordance does not exist for a keyboard, and the card is
+  the only place some of these fields appear at all.
+
+**Multi-select projects.** Chips toggle rather than replace; *nothing selected* means all, which
+keeps the current default with no extra control.
+
+- **The timeline bands by project** — a labelled group of lanes each — because colour is not
+  available. This is the constraint worth stating loudly: the palette has four hues, sky.boss
+  spends four, and inventing a fifth is a brand decision. Position is free; hue is not.
+- **`sb schedule --only` already takes a list**, so the CLI needs nothing. This is a surface round.
+
+#### Two open questions, both answered by the operator
+
+1. **Does the selection survive a launch?** ~~Undecided.~~ **No** — *"skip remembering the state or
+   prefs till the UI is more complete."* `prefs.KEYS` is untouched, and the screen arrives with
+   everything open every time.
+2. **What does the hours chart do with two projects?** ~~Small multiples or a merged strip.~~
+   **Stacked segments** — *"they should stack rather than render on top of each other."* Which
+   settles the third amendment too, because a stack needs a colour per project, and that is what
+   the operator asked for next.
+
+#### The amendment this round turns on
+
+**Each project gets a colour when it is declared.** This round was scoped saying colour was *not
+available* — the design system holds four hues, sky.boss spends all four, and a fifth is a brand
+decision. The operator overruled the conclusion without touching the premise, and the resolution is
+that identity is drawn as **steps along the brand**, never as a new hue and never as a borrowed
+role. `ok` is green, `warn` is what a late job on this very screen already is, and `danger` is red:
+a project drawn in one of those would either read as broken or be indistinguishable from lateness.
+`color-mix` against an injected role is the tint mechanism the stylesheet already uses, so nothing
+outside `cli/theme.py` names a colour and `tests/test_theme.py` stays green.
+
+The step is assigned in `rollcall.parse`, **by declaration order**, and shipped by `/api/projects`
+so the CLI and the surface cannot disagree about which project is which colour. It is not a
+declarable key — `shade` is sky.boss's answer, and letting `projects.toml` set it would let the
+file argue with the assignment.
+
+#### Phases
+
+- [x] **The card.** One component, the three anchors, viewport clamping measured at 1.15 and 2.4,
+      and focus parity. Replaces all four `title` attributes.
+- [x] **Multi-select.** Toggle chips, empty-means-all, each carrying its project's swatch.
+- [x] **A colour per project**, assigned at declaration as a step along the brand.
+- [x] **Stacked hour buckets**, one segment per project, never overlaid.
 
 ## Notes
 
@@ -468,3 +556,35 @@ screen.
 - **The selector is built from declarations, not from rows.** One built from the rows could not
   offer the project that produced none — which is the one you go looking for when the screen is
   emptier than you expected.
+
+### 2026-08-30 — round 6, executed
+
+- **`display: contents` has no box, and that is how the card pinned itself to the corner.** Round 4
+  made every `.pl-row` one so a whole group could share a single grid — which is why the columns
+  align structurally rather than by coincidence — and an element with no box returns **zeros** from
+  `getBoundingClientRect`. No error, no warning: the card simply rendered at (12, 12) with correct
+  content, which is the failure mode this repo keeps naming. `boxOf` unions the children when the
+  node has no rect of its own. The same fact bites the stylesheet: `.pl-row:hover` cannot paint a
+  background either, so the highlight moved to the cells.
+- **Flipping is not clamping, and only one of them is the contract.** The card flipped above an
+  anchor near the bottom — and `.plan` scrolls, so an anchor can sit at y=1226 in a 1000px
+  viewport, where *above* is still off-screen. Preferring a side is a layout choice; staying inside
+  the window is the guarantee, and it is now enforced unconditionally rather than on the paths that
+  happened to need it. Reachable without contriving it: hover a row, then scroll.
+- **The suite caught two things the same afternoon, both worth having.** `test_theme.py` rejected an
+  `rgb(0 0 0 / 45%)` box-shadow — exactly the drift that scan exists for, and `var(--lift)` was
+  already there. And `test_rollcall.py` failed because `shade` became a dataclass field: the test
+  asserts `PROJECT_KEYS` covers every field a project can carry, so a *derived* field has to be
+  named as derived rather than quietly admitted as a declaration.
+- **Stacked, and sorted by name rather than by size.** A segment order that followed the count would
+  reshuffle every column and make the same project a different band in each one — which is the one
+  thing a stacked bar exists to let you read across.
+- **Two halves of one screen must describe the same set.** With two projects picked, the
+  "declares no schedule" panels were still drawn for projects that were *not* picked. Filtering them
+  by the same selection the rows use is the fix; the general form is that any second list on a
+  filtered screen inherits the filter or contradicts the first.
+- **Verified by rendering, at two scales.** All three anchors — table row, timeline lane, hour
+  bucket — measured inside the viewport at 1.15/1500x1000 and 2.4/2200x1300, the hour card listing
+  its 7 jobs, 14 stacked segments, and every selection state checked against what the group headings
+  actually said. No handler errors, with the `window.onerror` listener installed first, because a
+  silent no-op after a click is almost always a handler that threw.

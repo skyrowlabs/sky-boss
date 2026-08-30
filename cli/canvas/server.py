@@ -377,6 +377,11 @@ def build(canvas: Canvas | None = None) -> Starlette:
                         # that named nothing — and the screen says different
                         # words for them.
                         "schedule": project.schedule,
+                        # Which step of the surface's project ramp to draw this
+                        # one in. Assigned in `rollcall.parse` so the CLI and
+                        # the canvas cannot disagree about which project is
+                        # which colour. See [[schedule]] round 6.
+                        "shade": project.shade,
                     }
                     for project in projects
                 ],

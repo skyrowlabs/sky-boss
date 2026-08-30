@@ -16,7 +16,116 @@
  * Every decision about *which columns* still lives in Python — this renders
  * the authored view `sb schedule` hands it. See [[schedule]] round 4.
  */
-import { html } from "./vendor/htm-preact.js";
+import { html, useState } from "./vendor/htm-preact.js";
+
+/* ------------------------------------------------------------- the hover card
+ *
+ * **It reveals, it never enriches.** Every field is already on the row —
+ * `next`, `last` and `at` are *hidden* columns, not absent ones — so nothing
+ * here fetches, computes or infers. The card exists because the charts draw a
+ * name and a dot, and the instant the dot stands for was nowhere on screen.
+ *
+ * **Clamped to the viewport rather than trusted to fit.** The confirm dialog
+ * fell off the right edge at scale 2.4, which is the same failure in a
+ * different component, so the position is measured against the window instead
+ * of assumed. */
+const CARD_GAP = 12;
+
+export function clampCard(anchor, card, viewport) {
+  /* Prefer below-right of the anchor, flip when that would leave the window.
+   * Returned as plain numbers so the caller does the styling and this stays a
+   * function a test runner can reach. */
+  let left = anchor.left;
+  let top = anchor.bottom + CARD_GAP;
+  if (left + card.width > viewport.width - CARD_GAP) {
+    left = Math.max(CARD_GAP, viewport.width - card.width - CARD_GAP);
+  }
+  if (top + card.height > viewport.height - CARD_GAP) {
+    /* Above the anchor rather than below it. */
+    top = anchor.top - card.height - CARD_GAP;
+  }
+  /* **Then clamped unconditionally, because flipping is not enough.** The
+   * anchor itself can be outside the window — `.plan` scrolls, so a row can
+   * sit at y=1226 in a 1000px viewport, and *above* an off-screen anchor is
+   * still off-screen. Preferring a side is a layout choice; staying inside the
+   * window is the contract, and a contract enforced only on the paths that
+   * happen to need it is not enforced. Reachable in ordinary use: hover a row,
+   * then scroll. */
+  return {
+    left: Math.min(Math.max(CARD_GAP, left), Math.max(CARD_GAP, viewport.width - card.width - CARD_GAP)),
+    top: Math.min(Math.max(CARD_GAP, top), Math.max(CARD_GAP, viewport.height - card.height - CARD_GAP)),
+  };
+}
+
+function Card({ at, rows, declared, innerRef }) {
+  if (!at || !rows || rows.length === 0) return null;
+  const style = `left:${at.left}px; top:${at.top}px`;
+  return html`
+    <div class="pl-card" style=${style} ref=${innerRef}>
+      ${rows.map(
+        (row, i) => html`
+          <div class="pl-card-job" key=${i}>
+            <div class="pl-card-name">
+              <b>${row.name}</b>
+              <span class="v-dim"> · ${row.project}</span>
+            </div>
+            <div class="pl-card-grid">
+              <span class="pl-card-k">fires</span>
+              <span>${row.fires || "—"}</span>
+              <span class="pl-card-abs">${row.next || ""}</span>
+              <span class="pl-card-k">ran</span>
+              <span>${row.ran || "—"}</span>
+              <span class="pl-card-abs">${row.last || ""}</span>
+              <span class="pl-card-k">cron</span>
+              <span class="pl-card-abs pl-card-wide">${row.schedule || "—"}</span>
+            </div>
+          </div>
+        `
+      )}
+      ${declared &&
+      html`<div class="pl-card-src">${declared.source}</div>`}
+    </div>
+  `;
+}
+
+/* One handler shape for all three anchors, so a table row, a timeline mark and
+ * an hour bucket cannot grow three different ideas of what hovering means.
+ * Focus is wired to the same thing: a hover-only affordance does not exist for
+ * a keyboard, and this card is the only place some of these fields appear. */
+export function boxOf(node) {
+  /* **`display: contents` has no box.** Round 4 made every `.pl-row` one so
+   * the whole group could share a single grid and the columns would align
+   * structurally — and an element with no box returns zeros from
+   * `getBoundingClientRect`, which pinned the card to the corner of the window
+   * with no error anywhere. The union of the children is the row's real
+   * extent, and computing it here means the three anchors keep one handler.
+   *
+   * Falls back to the node's own rect, which is what the timeline lane and the
+   * hour bucket actually have. */
+  const own = node.getBoundingClientRect();
+  if (own.width > 0 || own.height > 0) {
+    return { left: own.left, right: own.right, top: own.top, bottom: own.bottom };
+  }
+  const kids = [...node.children].map((c) => c.getBoundingClientRect()).filter((r) => r.width || r.height);
+  if (kids.length === 0) return { left: 0, right: 0, top: 0, bottom: 0 };
+  return {
+    left: Math.min(...kids.map((r) => r.left)),
+    right: Math.max(...kids.map((r) => r.right)),
+    top: Math.min(...kids.map((r) => r.top)),
+    bottom: Math.max(...kids.map((r) => r.bottom)),
+  };
+}
+
+function hoverProps(show, hide, rows) {
+  const open = (event) => show(rows, boxOf(event.currentTarget));
+  return {
+    onMouseEnter: open,
+    onFocus: open,
+    onMouseLeave: hide,
+    onBlur: hide,
+    tabIndex: 0,
+  };
+}
 
 /* Rows for one project, in the order the command returned them.
  *
@@ -154,7 +263,22 @@ export function byHour(rows) {
   return buckets;
 }
 
-function Timeline({ rows, now, span }) {
+/* One bucket's rows split into per-project segments, in a stable order.
+ *
+ * **Sorted by project name, not by size.** A segment order that follows the
+ * count would reshuffle every column and make the same project a different
+ * band in each one, which is the thing a stacked bar exists to let you read
+ * across. */
+export function stackOf(rows) {
+  const by = new Map();
+  for (const row of rows || []) {
+    if (!by.has(row.project)) by.set(row.project, { project: row.project, rows: [] });
+    by.get(row.project).rows.push(row);
+  }
+  return [...by.values()].sort((a, b) => (a.project < b.project ? -1 : 1));
+}
+
+function Timeline({ rows, now, span, shadeOf, show, hide }) {
   const { marks, beyond } = timeline(rows, now, span.seconds);
   const axis = ticks(now, span.seconds);
   return html`
@@ -171,13 +295,16 @@ function Timeline({ rows, now, span }) {
       </div>
       ${marks.map(
         ({ row, percent }) => html`
-          <div class="pl-lane" key=${`${row.project}/${row.name}`}>
+          <div
+            class=${`pl-lane pl-s${shadeOf(row.project)}`}
+            key=${`${row.project}/${row.name}`}
+            ...${hoverProps(show, hide, [row])}
+          >
             <span class="pl-lane-name">${row.name}</span>
             <div class="pl-track">
               <span
                 class=${`pl-mark${row.fires.startsWith("late") ? " pl-late" : ""}`}
                 style=${`left:${percent}%`}
-                title=${`${row.name} · ${row.fires} · ${row.next}`}
               ></span>
             </div>
             <span class="pl-lane-when">${row.fires}</span>
@@ -195,7 +322,7 @@ function Timeline({ rows, now, span }) {
   `;
 }
 
-function Hours({ rows }) {
+function Hours({ rows, shadeOf, show, hide }) {
   const buckets = byHour(rows);
   const tallest = Math.max(1, ...buckets.map((b) => b.rows.length));
   return html`
@@ -203,13 +330,27 @@ function Hours({ rows }) {
       <div class="pl-hours">
         ${buckets.map(
           (b) => html`
-            <div class="pl-hour" key=${b.hour}>
+            <div
+              class="pl-hour"
+              key=${b.hour}
+              ...${hoverProps(show, hide, b.rows)}
+            >
               <div class="pl-bar-space">
-                <div
-                  class="pl-bar"
-                  style=${`height:${(b.rows.length / tallest) * 100}%`}
-                  title=${b.rows.map((r) => r.name).join(", ") || "nothing"}
-                ></div>
+                <div class="pl-stack" style=${`height:${(b.rows.length / tallest) * 100}%`}>
+                  ${/* **Stacked, not overlaid.** One segment per project, in
+                      * the ramp's own order so the same project is the same
+                      * band in every column. Overlaying would draw the tallest
+                      * project over the others and read as a single bar. */ ""}
+                  ${stackOf(b.rows).map(
+                    (part) => html`
+                      <div
+                        class=${`pl-seg pl-s${shadeOf(part.project)}`}
+                        key=${part.project}
+                        style=${`flex:${part.rows.length} 1 0`}
+                      ></div>
+                    `
+                  )}
+                </div>
               </div>
               <span class="pl-count">${b.rows.length || ""}</span>
               <span class="pl-hlabel">${String(b.hour).padStart(2, "0")}</span>
@@ -226,9 +367,9 @@ function Hours({ rows }) {
   `;
 }
 
-function Row({ row, columns }) {
+function Row({ row, columns, show, hide }) {
   return html`
-    <div class="pl-row">
+    <div class="pl-row" ...${hoverProps(show, hide, [row])}>
       ${columns.map(
         (c) => html`
           <span class=${c.key === "fires" ? fireClass(row.fires) : `pl-c pl-${c.key}`}>
@@ -305,6 +446,10 @@ export function Plan({ result, projects, readAt, now, onRefresh, ui, setUi }) {
 
   const envelope = result.envelope || {};
   const all = Array.isArray(envelope.data) ? envelope.data : [];
+  /* The card's whole state: what to draw and where. Held here rather than in
+   * each view so there is exactly one card in the DOM at a time — three views
+   * each owning one is three ways to leave a stale card behind. */
+  const [card, setCard] = useState(null);
   const warnings = envelope.warnings || [];
   const view = envelope.view || null;
   /* **`project` is dropped, and only here.** The rows are grouped under a
@@ -316,17 +461,43 @@ export function Plan({ result, projects, readAt, now, onRefresh, ui, setUi }) {
   const columns = ((view && view.columns) || []).filter((c) => c.key !== "project");
 
   const declared = new Map((projects || []).map((p) => [p.name, p]));
+  /* Which ramp step each project draws in. Assigned in `rollcall.parse` and
+   * shipped by `/api/projects`, so the CLI and the surface cannot disagree
+   * about which project is which colour. */
+  const shadeOf = (name) => (declared.get(name) || {}).shade || 0;
   const quiet = silentProjects(warnings);
   /* Every project sky.boss knows about, whether or not it produced a row. A
    * selector built from the rows alone could not offer the project that
    * declares nothing — which is the one you go looking for when the screen is
    * emptier than expected. */
   const names = [...new Set([...byProject(all).map((g) => g.project), ...quiet])];
-  const only = ui.project && names.includes(ui.project) ? ui.project : null;
-  const rows = only ? all.filter((r) => r.project === only) : all;
+  /* **Empty means all**, which keeps the default with no extra control and no
+   * state to get out of step with it. A name that has left `projects.toml`
+   * since it was picked is ignored rather than remembered — the chip it came
+   * from is not on screen any more, so honouring it would filter to something
+   * the operator cannot see or undo. */
+  const picked = (ui.projects || []).filter((n) => names.includes(n));
+  const rows = picked.length ? all.filter((r) => picked.includes(r.project)) : all;
+  /* One project selected — or one declared, filtered or not — is what makes a
+   * "declares nothing" panel the whole answer rather than a footnote. */
+  const only = picked.length === 1 ? picked[0] : null;
   const groups = byProject(rows);
   const soon = nextUp(rows);
   const span = SPANS.find((s) => s.key === ui.span) || SPANS[1];
+
+  /* Measured after paint, not guessed: the card's size depends on its text and
+   * on `--scale`, and a guessed width is how a panel ends up half off-screen at
+   * one scale and fine at another. Stored unclamped, then clamped in the same
+   * render once the node has a box. */
+  const show = (rows, anchor) => setCard({ rows, anchor });
+  const hide = () => setCard(null);
+
+  const toggle = (name) => {
+    const next = picked.includes(name)
+      ? picked.filter((n) => n !== name)
+      : [...picked, name];
+    setUi({ projects: next });
+  };
 
   const tab = (key, label) => html`
     <button class=${ui.mode === key ? "on" : ""} onClick=${() => setUi({ mode: key })}>
@@ -352,17 +523,20 @@ export function Plan({ result, projects, readAt, now, onRefresh, ui, setUi }) {
 
       <div class="pl-controls">
         <div class="seg">
-          <button class=${only === null ? "on" : ""} onClick=${() => setUi({ project: null })}>
+          <button
+            class=${picked.length === 0 ? "on" : ""}
+            onClick=${() => setUi({ projects: [] })}
+          >
             all
           </button>
           ${names.map(
             (n) => html`
               <button
                 key=${n}
-                class=${only === n ? "on" : ""}
-                onClick=${() => setUi({ project: n })}
+                class=${`pl-s${shadeOf(n)}${picked.includes(n) ? " on" : ""}`}
+                onClick=${() => toggle(n)}
               >
-                ${n}
+                <span class="pl-swatch"></span>${n}
               </button>
             `
           )}
@@ -397,9 +571,16 @@ export function Plan({ result, projects, readAt, now, onRefresh, ui, setUi }) {
             <${Source} declared=${declared.get(only)} />
           </div>`
         : ui.mode === "timeline"
-        ? html`<${Timeline} rows=${rows} now=${now} span=${span} />`
+        ? html`<${Timeline}
+            rows=${rows}
+            now=${now}
+            span=${span}
+            shadeOf=${shadeOf}
+            show=${show}
+            hide=${hide}
+          />`
         : ui.mode === "hours"
-          ? html`<${Hours} rows=${rows} />`
+          ? html`<${Hours} rows=${rows} shadeOf=${shadeOf} show=${show} hide=${hide} />`
           : groups.map(
               (g) => html`
                 <div class="pl-group" key=${g.project}>
@@ -412,16 +593,21 @@ export function Plan({ result, projects, readAt, now, onRefresh, ui, setUi }) {
                       ${columns.map((c) => html`<span class="pl-c">${c.label}</span>`)}
                     </div>
                     ${g.rows.map(
-                      (row, i) => html`<${Row} key=${i} row=${row} columns=${columns} />`
+                      (row, i) => html`<${Row} key=${i} row=${row} columns=${columns} show=${show} hide=${hide} />`
                     )}
                   </div>
                 </div>
               `
             )}
 
+      ${/* A project that declares nothing still deserves a panel when it is on
+          * screen — but only when it *is*. Filtering by the same selection the
+          * rows use is what keeps the two halves of the screen describing the
+          * same set. */ ""}
       ${ui.mode === "table" &&
       !only &&
       quiet
+        .filter((n) => picked.length === 0 || picked.includes(n))
         .map(
           (n) => html`
             <div class="pl-group" key=${n}>
@@ -431,6 +617,9 @@ export function Plan({ result, projects, readAt, now, onRefresh, ui, setUi }) {
           `
         )}
 
+      ${card &&
+      html`<${CardLayer} card=${card} declared=${declared.get(card.rows[0].project)} />`}
+
       ${rows.length === 0 &&
       ui.mode === "table" &&
       quiet.length === 0 &&
@@ -438,6 +627,39 @@ export function Plan({ result, projects, readAt, now, onRefresh, ui, setUi }) {
         no project declares a schedule — add a
         <code>[project.NAME.schedule]</code> table to projects.toml
       </div>`}
+    </div>
+  `;
+}
+
+/* Draws the card twice: once off-screen to learn its size, then clamped.
+ *
+ * **Measured rather than guessed.** The card's box depends on its text and on
+ * `--scale`, so a hardcoded width is how a panel fits at 1.15 and hangs off the
+ * edge at 2.4 — which is exactly what the confirm dialog did. The first paint
+ * is invisible and one frame long; every paint after it is positioned. */
+function CardLayer({ card, declared }) {
+  const [box, setBox] = useState(null);
+  const measure = (node) => {
+    if (!node) return;
+    const rect = node.getBoundingClientRect();
+    if (!box || Math.abs(box.width - rect.width) > 1 || Math.abs(box.height - rect.height) > 1) {
+      setBox({ width: rect.width, height: rect.height });
+    }
+  };
+  const at = box
+    ? clampCard(card.anchor, box, { width: window.innerWidth, height: window.innerHeight })
+    : null;
+  /* The ref goes on the card itself, not on a wrapper: the wrapper is a
+   * full-viewport layer, so measuring it would return the window and clamp
+   * against nothing. */
+  return html`
+    <div class="pl-card-layer" style=${at ? "" : "visibility:hidden"}>
+      <${Card}
+        at=${at || { left: 0, top: 0 }}
+        rows=${card.rows}
+        declared=${declared}
+        innerRef=${measure}
+      />
     </div>
   `;
 }
