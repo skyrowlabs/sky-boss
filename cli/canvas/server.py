@@ -1119,6 +1119,14 @@ def _frame_line(line, ruleset=None) -> dict:
     out = {"text": line.text, "stderr": line.stderr}
     if getattr(line, "voice", False):
         out["voice"] = True
+    # Where a wrapped continuation starts, when the window is wrapping. Sent
+    # unconditionally rather than on request: the frame is built once and read
+    # by every window on the session, which may disagree about wrapping. Omitted
+    # when zero, so an ordinary line's frame is byte-identical to one from
+    # before [[wrap]] existed — the same rule `view` follows.
+    indent = highlight_.hang(line.text)
+    if indent:
+        out["indent"] = indent
     if not line.stderr:
         # Offsets in UTF-16 code units, because the consumer is a browser.
         # See `highlight.utf16` — an emoji is one Python character and two
