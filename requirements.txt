@@ -1,11 +1,11 @@
-click>=8.1
-rich>=14
-rich-click>=1.8
-PyYAML>=6
-starlette>=0.47
-uvicorn>=0.35
+click>=8.5.0
+rich>=15.0.0
+rich-click>=1.9.8
+PyYAML>=6.0.3
+starlette>=1.6.0
+uvicorn>=0.52.4
 
 # The native window. GTK backend, so it uses the system WebKitGTK rather than
 # bundling a second Chromium — which is why .venv sets
 # include-system-site-packages: the bindings (`gi`) are system-owned.
-pywebview>=5
+pywebview>=6.2.1
