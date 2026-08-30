@@ -1,19 +1,23 @@
 #!/usr/bin/env python3
-"""Regenerate the two images of the mark from the mark itself.
+"""Regenerate the images of the mark from the mark itself.
 
-Run from the repo root: `.venv/bin/python docs/design/render-mark.py`
+Run from the repo root: `.venv/bin/python docs/design/render-mark.py`,
+adding `--install` to also write the icon into the XDG icon theme.
 
-**Neither PNG is a source.** `cli/banner.py`'s `ART` is the picture, and both
-files here are renders of it — which is the only arrangement in which they
-cannot disagree. They *did* disagree: the 2026-08-27 rename changed the word
-the CLI prints without changing the drawing beside it, so `sb --help` greeted
-you with a new name next to a picture of the old one for as long as that took
-to notice. See [[header]].
+**No PNG here is a source.** `cli/banner.py`'s `ART` is the picture, and every
+file this writes is a render of it — which is the only arrangement in which
+they cannot disagree. They *did* disagree: the 2026-08-27 rename changed the
+word the CLI prints without changing the drawing beside it, so `sb --help`
+greeted you with a new name next to a picture of the old one for as long as
+that took to notice. See [[header]].
 
 - `cli-header.png` — the mark alone, one square block per art pixel.
 - `readme-banner.png` — real `sb --help` captured through a pty and painted
   back, because the suite can prove the mechanism but cannot see whether the
   tower looks like a tower.
+- `app-icon.png` — the tower alone on a square, for a desktop launcher. Third
+  because the alternative was cropping it out of `cli-header.png`, and a crop
+  is a second copy of the drawing with nothing holding it to the first.
 
 Colours come from `cli/theme.py`. Nothing here names one, which is the same
 rule the hex scan enforces inside `cli/` — that scan does not reach this
@@ -98,6 +102,85 @@ def render_mark(out: Path, scale: int = 12) -> None:
 def _console():
     from rich.console import Console
     return Console()
+
+
+# ------------------------------------------------------------------ the icon
+
+# Every size a desktop is likely to ask for. Rendered rather than resampled,
+# so each is drawn at whole blocks instead of being a blurred copy of one.
+ICON_SIZES = (256, 128, 64, 48)
+
+
+def _tower() -> tuple[list[str], int, int]:
+    """The left-hand drawing, cropped to its own ink.
+
+    Found rather than measured: the tower is the first inked run of columns,
+    ending at the gutter before the lettering. A hardcoded column would slice
+    the mark in half the next time it is redrawn, which is the exact drift
+    this file exists to prevent.
+    """
+    width = len(banner.ART[0])
+    inked = [any(row[x] != "." for row in banner.ART) for x in range(width)]
+    left = inked.index(True)
+    right, gap = left, 0
+    for x in range(left, width):
+        if inked[x]:
+            right, gap = x, 0
+        else:
+            gap += 1
+            if gap >= 2:            # the gutter; the lettering starts past it
+                break
+    rows = [row[left:right + 1] for row in banner.ART]
+    return rows, right - left + 1, len(rows)
+
+
+def render_icon(out: Path, size: int = 256) -> None:
+    """The tower on a square, at one whole block per art pixel.
+
+    **The lettering is dropped on purpose.** It is unreadable below about
+    128px, and a launcher already carries the name in its label — an icon
+    keeping it would spend most of its pixels on a smear of the one thing
+    the desktop has already said.
+
+    The block is an integer, so the edges stay hard at 48px rather than
+    turning to grey fringe under a smooth resample.
+    """
+    rows, w, h = _tower()
+    margin = max(1, size // 16)
+    block = max(1, (size - 2 * margin) // h)
+    ox, oy = (size - w * block) // 2, (size - h * block) // 2
+
+    img = Image.new("RGB", (size, size), LOGO_BG)
+    draw = ImageDraw.Draw(img)
+    for y, row in enumerate(rows):
+        for x, ch in enumerate(row):
+            if ch == ".":
+                continue
+            px, py = ox + x * block, oy + y * block
+            draw.rectangle([px, py, px + block - 1, py + block - 1], fill=INK[ch])
+
+    img.save(out)
+    try:
+        where: Path | str = out.relative_to(ROOT)
+    except ValueError:
+        where = out                 # an installed icon lives outside the repo
+    print(f"wrote {where} {img.width}x{img.height}")
+
+
+def install_icons() -> None:
+    """Write the icon into the XDG icon theme, so a desktop entry can name it
+    as `sky-boss` instead of carrying a path.
+
+    Opt-in, because it is the only thing here that writes outside the
+    repository. The destination is the freedesktop standard one — a
+    convention, not a machine — which is what keeps it sayable in a tracked
+    file at all.
+    """
+    data = Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local/share")
+    for size in ICON_SIZES:
+        into = data / f"icons/hicolor/{size}x{size}/apps"
+        into.mkdir(parents=True, exist_ok=True)
+        render_icon(into / "sky-boss.png", size)
 
 
 
@@ -258,3 +341,6 @@ if __name__ == "__main__":
     here = Path(__file__).resolve().parent
     render_mark(here / "cli-header.png")
     render_banner(here / "readme-banner.png")
+    render_icon(here / "app-icon.png")
+    if "--install" in sys.argv:
+        install_icons()

@@ -1,13 +1,15 @@
 ---
 status: complete
 created: 2026-08-22
-updated: 2026-08-22
-agent_value: 2
+updated: 2026-08-30
+agent_value: 3
 key_files:
   - cli/banner.py
   - cli/theme.py
   - cli/__init__.py
   - docs/design/cli-header.png
+  - docs/design/app-icon.png
+  - docs/design/render-mark.py
   - tests/test_banner.py
 ---
 
@@ -102,6 +104,15 @@ out when the envelope was asked for.
 - [x] **Verified against a real terminal**, not only the suite — rendered through a pty and
       rasterised to compare against the PNG side by side.
 
+### Round 3 — the tower as an app icon (2026-08-30)
+
+- [x] **A third render.** `render_icon` writes `docs/design/app-icon.png`, the tower alone on a
+      square, at whole blocks so the edges stay hard at 48px.
+- [x] **Crop by finding the ink, not by naming a column.** `_tower` walks to the gutter before
+      the lettering, so redrawing the mark cannot leave the icon slicing it in half.
+- [x] **`--install`** writes the size set into the XDG icon theme, opt-in because it is the only
+      thing here that writes outside the repository.
+
 ## Notes
 
 ### Round 1 — executed (2026-08-22)
@@ -168,3 +179,36 @@ PNGs from it. The measured-grid paragraph above is kept as round 1's record, not
   *and* the old command descriptions. Regenerating it is now one command. The chevron and the
   half-block are both **drawn rather than typed** — `fc-match monospace` is not guaranteed to carry
   U+276F, and the first regeneration put tofu in the top-left corner.
+
+### Round 3 — executed (2026-08-30)
+
+**The icon existed before this round did, which is the whole reason for the round.** A desktop
+launcher needed one, and the first version was a throwaway script that cropped the left 14 columns
+of `ART` — correct output, and a fourth copy of the drawing with nothing holding it to the other
+three. That is round 1's mistake exactly: the PNG was the source and the tuple a transcription,
+until the rename moved one and not the other. So the icon is a *render*, in the file whose entire
+job is that no image here can drift from the drawing.
+
+- **The crop is derived, and the throwaway's was lucky.** `ART` is 14 rows and the tower's ink runs
+  columns 1–12, so `row[:14]` produced a square only because 14 happens to be both the row count and
+  a column past the tower. `_tower` walks to the first two-column gap instead and returns the ink's
+  own box — 12x14, centred on the square with symmetric margins. The lucky version was fractionally
+  off-centre and nobody would have seen it; the next redraw of the mark is what it would have cost.
+- **Each size is drawn, not resampled.** `margin = size // 16` then an integer block leaves 48px at
+  three whole pixels per art pixel. A single 256px PNG scaled down by the icon theme is grey fringe
+  at that size, and a mark that only looks right large is the same failure as one that only looks
+  right on a light terminal.
+- **The lettering is dropped, and that is a judgment worth recording.** It is unreadable below about
+  128px, and a launcher already prints the name underneath — an icon keeping it spends most of its
+  pixels restating the one thing the desktop has already said.
+- **Re-running the script found `readme-banner.png` two rows stale.** It is a screenshot of
+  `sb --help`, and `sb schedule` shipped on 2026-08-29 with a summary that wraps to two lines. So
+  the banner in the README showed a command list missing a command, for a day, with nothing to
+  report it — the same shape as round 2's drift and caught the same way, by regenerating rather than
+  by looking. **No test can see this**: the render is an image, and what makes it wrong is a fact
+  about a different file. Regenerating is one command and belongs in the habit of anyone who adds a
+  command.
+- **The desktop entries that wanted the icon are not in this repo**, and none of this puts them
+  there. An `Exec=` line is an absolute path and a `.desktop` is machine context — the rule that
+  keeps a host name out of a tracked file keeps these out too. What the repo owns is the *image*;
+  where a desktop looks for it is the operator's.
