@@ -136,7 +136,14 @@ commands. If groups come back, group them that way and be slower to add one.
   judgment wearing a regex's clothes and sky.boss does not ship one; the operator declares their own
   words under `[highlight.<name>]` in `formats.toml` and names it with `--highlight`. Those rules
   run **after** sky.boss's and claim only unclaimed text, so a declaration can never repaint a
-  timestamp. See [[highlight]].
+  timestamp. A rule may also carry `weight = "bold"` — the only weight the palette has — and it
+  rides the same `loud` range a built-in emphasis does rather than becoming a `"bold sb.warn"` role,
+  so `_merge` unions it and nothing downstream learns a second shape. **A quote is a delimiter**:
+  `"…"` and `'…'` dim their own marks and leave the contents to whatever claimed them, which is
+  round 6's answer for brackets and which disposes of the collision with an operator's own quote
+  rule — the delimiter pass claims single characters and runs last. The single-quote form is guarded
+  against the apostrophe in `don't`, measured on the live log rather than reasoned about. See
+  [[highlight]].
 - **Parsing a tool's human output into rows** — *narrowed 2026-08-22 by [[capture]]: **declared**
   capture is in; inference stays out.* `sb read` shows it verbatim and says that is what it is
   doing; inferring columns from whitespace is the "silently wrong" failure, and a tool with real

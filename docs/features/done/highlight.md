@@ -1,7 +1,7 @@
 ---
 status: complete
 created: 2026-08-22
-updated: 2026-08-29
+updated: 2026-08-30
 agent_value: 3
 key_files:
   - cli/highlight.py
@@ -370,6 +370,71 @@ both renderers. Emphasis is what was asked for. Emphasis is free. This round spe
   than a sentence you have to trust — and it is how an operator discovers that **a declared pattern
   may be a glyph**, which is the finding in Notes they most need.
 
+### Round 7 — the two asks nothing answered (2026-08-30)
+
+Both were named inside [[open]] item 20 as *unanswered* while the item itself was closed: a declared
+rule can name a colour and never a weight, and quoted text is *"the one ask nothing answered"*. They
+are one round because they turn out to be the same shape — **neither needs a hue, and both reuse a
+mechanism this doc already has.**
+
+**A declared rule may ask for weight, and it rides `loud` rather than a composite role.** Round 5
+established that bold is a *weight, not a colour*, so it composes instead of competing for the role
+slot — and the machinery for that is already end to end: `marks()` collects a `loud` range per
+built-in rule that asks for one, `_emphasise` folds it in, `role_style` resolves `"bold sb.warn"`
+for Rich, and the canvas splits it into two classes. What was missing was a spelling for the
+operator:
+
+```toml
+[[highlight.jam.rules]]
+pattern = "escalat(e|ed|es|ing|ion|ions)"
+role = "warn"
+weight = "bold"
+```
+
+**Adding the span to `loud` rather than writing `"bold sb.warn"` into the role.** A composite role
+string would have to survive `mk-${role}` on the canvas, where it becomes two class names in one
+attribute, and it would double up when `_emphasise` ran over it — `bold bold sb.warn`. Going through
+the existing range list means a declared weight and a built-in one are the same thing by
+construction, `_merge` already handles their overlap, and nothing downstream learns a new shape.
+`weight` takes one value, `"bold"`, because that is the only weight the palette has; a second is a
+design-system decision, exactly as a ninth hue is.
+
+**Quoted text is answered as a delimiter, not as a colour.** The ask was that it be *"differentiated"*,
+and item 20's own analysis is why that cannot be a hue: the design system holds four and sky.boss
+spends all four. Round 6 already answered this shape once — `()`, `[]` and `{}` dim their
+**delimiters** so the contents stand out — and a quote is a delimiter. So `"…"` and `'…'` join
+`_WRAPPED`, dimming the marks and leaving whatever is inside them alone.
+
+**That also disposes of the collision the item warned about**, rather than losing to it. The
+operator's `handing to '…'` rule claims a quoted string, and built-ins run first, so a built-in rule
+over the *contents* would have stolen it. The delimiter pass claims **single characters** and runs
+**last**, after the operator's rules — so their colour lands on the words and the quotes dim around
+it. Both asks are answered on the same line.
+
+**The apostrophe hazard is real and is measured, not reasoned about.** Item 20 names it precisely: a
+naive `'…'` matches from the apostrophe in `don't` and runs to the next one. Against the live 140-line
+log, `'[^'\n]{1,200}'` produces **15** spans and two are exactly that failure — one running 100+
+characters from `checkout's` to `didn't`. The guarded form
+`(?<![\w'])'[^'\n]{1,200}'(?!\w)` produces **13** and neither. Double quotes need no guard and
+produce 8.
+
+**Does not do:**
+
+- **No `weight` values but `bold`**, and no `dim` — dimming is what the delimiter pass does, and a
+  rule that could dim its own match would be a second way to say one thing.
+- **No colour for quoted contents.** The ask is answered by the surround; a role for the inside
+  would be the ninth hue this doc has now refused three times.
+- **No multi-line quotes.** Every rule here is per line, and a quote that opens and never closes on
+  the same line is prose about a quote far more often than it is a quote.
+
+### Round 7 phases
+
+- [x] `weight = "bold"` on a declared rule, validated with the roles and refused otherwise.
+- [x] A declared weight rides `loud`, so it is the same object a built-in emphasis is.
+- [x] `"…"` and `'…'` dim their delimiters, the single-quote form guarded against the apostrophe.
+- [x] Measured against the live log rather than a fixture: the guard's two false matches are gone.
+- [x] The bench's legend shows a quoted example, since it renders through the real `marks()`.
+
 ### Round 6 — ground, not hue (2026-08-29)
 
 **Round 5 answered everything weight could answer and left three asks needing a colour.** The
@@ -654,3 +719,40 @@ vocabulary, two surfaces* has an exception nobody wrote down, and
 `test_the_two_renderings_cover_the_same_hues` cannot see it: it checks that the tokens ship
 undarkened, not that every role has a token behind it. Left alone because it is a palette decision
 and this round was already carrying two unrelated repairs.
+
+### 2026-08-30 — round 7, and two asks that both turned out to be delimiters
+
+**Neither ask needed anything new, and that is the round.** The weight machinery has been end to end
+since round 5 — `loud` to `_emphasise` to `role_style` for Rich, split classes for the canvas — and
+the only missing piece was a word an operator could write. The quoted-text ask had been answered in
+round 6 without anyone noticing: dimming the delimiters of `()`/`[]`/`{}` so their contents stand out
+is exactly what quoted text wanted, and a quote is a delimiter.
+
+**A declared weight joins `loud` rather than becoming a composite role**, for a concrete reason
+rather than a tidy one. Writing `"bold sb.warn"` into `ruleset.rules` would hit two things:
+`mk-${role}` on the canvas turns it into two class names inside one attribute by accident rather
+than by design, and `_emphasise` running afterwards would produce `bold bold sb.warn`. Through
+`loud` a declared weight *is* the object a built-in emphasis is — `_merge` already unions it, and a
+test asserts the doubling cannot come back.
+
+**The collision item 20 warned about disposes of itself once quotes are delimiters.** The worry was
+that a built-in quote rule would steal `handing to '...'` from the operator's ruleset, since
+built-ins run first. The delimiter pass claims **single characters** and runs **last** — so their
+colour lands on the words and the quotes dim around it. Both asks are answered on one line, and the
+test asserts exactly that: with the operator's rule in force there is nothing left for the pass to
+dim.
+
+**The guard is measured, not argued.** Against the live 140-line log a naive single-quote rule
+produces 15 spans and two are the documented failure — one running from `checkout's` a hundred
+characters to `didn't`. The guarded form produces 13 and neither. Double quotes need no guard and
+produce 8. The suite carries one line of each; the number that decided the design came from the real
+file.
+
+**The rendered proof was better than the assertion.** The legend row draws through the real
+`marks()`, and in the DOM the quoted example comes out with `04:15` keeping its own `mk-num`
+*inside* the dimmed quotes — the whole design visible in one line. A declared weight renders
+`mk-bold mk-warn` on one span, two classes from one rule.
+
+**One thing about the harness.** The legend is collapsed by default and exists only once the
+`follow` contract is picked, so two headless passes found nothing before either was a bug. Worth
+knowing before the next person concludes the legend is broken.

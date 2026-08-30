@@ -7,7 +7,7 @@ no marks, and every rule is shape — no severity vocabulary anywhere.
 
 import time
 
-from cli.highlight import marks, spans
+from cli.highlight import load_rulesets, marks, resolve, spans
 
 LINE = "2026-08-22T14:03:11 [jam-pr-report] fetched https://api.github.com/repos rows=14"
 
@@ -582,3 +582,80 @@ def test_the_hang_comes_from_the_matcher_that_dims_the_stamp():
     assert stamp is not None
     assert hang(line) >= stamp
     assert line[hang(line)] != " "
+
+
+# ============================================================================
+# Round 7 — a declared weight, and quotes as delimiters
+# ============================================================================
+
+
+def test_a_declared_rule_may_ask_for_weight(tmp_path):
+    """The gap [[open]] item 20 named: a declared rule could name a colour and
+    never a weight, so `escalate` could be tinted and not emphasised and there
+    was no spelling an operator could write to ask."""
+    (tmp_path / "formats.toml").write_text(
+        '[highlight.j]\n'
+        '[[highlight.j.rules]]\npattern = "escalate"\nrole = "warn"\nweight = "bold"\n'
+    )
+    ruleset, problem = resolve("j", tmp_path)
+    assert problem is None
+    assert marks("we escalate now", ruleset) == [(3, 11, "bold sb.warn")]
+
+
+def test_a_declared_weight_is_the_same_object_a_builtin_one_is(tmp_path):
+    """It rides `loud` rather than becoming a `"bold sb.warn"` role string, so
+    `_merge` handles overlap and `_emphasise` folds it once. The proof is that
+    it composes with markdown emphasis instead of doubling."""
+    (tmp_path / "formats.toml").write_text(
+        '[highlight.j]\n'
+        '[[highlight.j.rules]]\npattern = "escalate"\nrole = "warn"\nweight = "bold"\n'
+    )
+    ruleset, _ = resolve("j", tmp_path)
+    for _start, _end, role in marks("**we escalate now**", ruleset):
+        assert "bold bold" not in role
+
+
+def test_a_weight_that_is_not_bold_is_refused(tmp_path):
+    """One value, because bold is the only weight the palette has. A second is
+    a design-system decision exactly as a ninth hue is."""
+    (tmp_path / "formats.toml").write_text(
+        '[highlight.j]\n'
+        '[[highlight.j.rules]]\npattern = "x"\nrole = "warn"\nweight = "italic"\n'
+    )
+    _ruleset, problems = load_rulesets(tmp_path)
+    assert any("weight must be 'bold'" in p for p in problems)
+
+
+def test_quotes_dim_their_delimiters_and_leave_the_contents_alone():
+    """The ask was that quoted text be *differentiated*, and the palette has no
+    hue left. Round 6 answered this shape for brackets; a quote is a delimiter.
+    Only the marks are claimed — single characters — so the contents keep
+    whatever else claimed them."""
+    line = "ran 'repo-report' and said \"all clear\""
+    found = marks(line)
+    assert all(end - start == 1 for start, end, _ in found)
+    assert all(role == "sb.muted" for _s, _e, role in found)
+    assert {line[s] for s, _e, _r in found} == {"'", '"'}
+
+
+def test_an_apostrophe_does_not_open_a_quote():
+    """[[open]] item 20's named hazard, and the reason the single-quote form is
+    guarded: a naive rule starts at the apostrophe in `don't` and runs to the
+    next one. Measured against the live log it produced two such spans, one
+    over a hundred characters long."""
+    assert marks("the checkout's develop is behind and I didn't push") == []
+
+
+def test_a_quoted_string_the_operator_claimed_keeps_its_colour(tmp_path):
+    """The collision item 20 warned about, disposed of rather than lost to. The
+    delimiter pass claims single characters and runs *last*, after the
+    operator's rules — so their colour lands on the words and the quotes dim
+    around it."""
+    (tmp_path / "formats.toml").write_text(
+        "[highlight.j]\n"
+        "[[highlight.j.rules]]\npattern = \"'[a-z-]+'\"\nrole = \"ok\"\n"
+    )
+    ruleset, _ = resolve("j", tmp_path)
+    found = marks("ran 'repo-report' now", ruleset)
+    assert (4, 17, "sb.ok") in found, "the operator's rule claimed the whole quoted span"
+    assert not any(role == "sb.muted" for _s, _e, role in found), "nothing left to dim"

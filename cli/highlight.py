@@ -183,8 +183,23 @@ _SHOUT = re.compile(r"(?<![\w-])[A-Z][A-Z0-9]{4,}(?![\w-])")
 # not a pair. No nesting and no newline; bounded, like every rule here.
 # **The brace matters most and is the reason this is worth having**: an agent
 # log carries JSON, so `{…}` is where the eye loses the line.
+# A pair of delimiters on one line, whose *marks* dim so the contents stand
+# out. Quotes joined the brackets in round 7: the ask was that quoted text be
+# differentiated, the palette has no hue left to differentiate it with, and
+# round 6 had already answered this exact shape for `()`/`[]`/`{}`.
+#
+# **The single-quote form is guarded and the guard is the whole rule.** A naive
+# `'…'` starts at the apostrophe in `don't` and runs to the next one: measured
+# against the live 140-line log it produced 15 spans, two of them that failure,
+# one running 100+ characters from `checkout's` to `didn't`. Requiring a
+# non-word character before the opening quote and after the closing one leaves
+# 13 and neither. Double quotes carry no such hazard and need no guard.
 _WRAPPED = re.compile(
-    r"\([^()\n]{1,200}\)|\[[^\[\]\n]{1,200}\]|\{[^{}\n]{1,200}\}"
+    r"\([^()\n]{1,200}\)"
+    r"|\[[^\[\]\n]{1,200}\]"
+    r"|\{[^{}\n]{1,200}\}"
+    r"|\"[^\"\n]{1,200}\""
+    r"|(?<![\w'])'[^'\n]{1,200}'(?!\w)"
 )
 
 # A word that names a colour, in that colour. Standalone only — `\b` on both
@@ -275,6 +290,7 @@ BUILTINS: tuple[tuple[str, str], ...] = (
     ("a word that names a colour", "the light was red, then green"),
     ("markdown emphasis, as weight", "**the reason it recurs** nightly"),
     ("a shout — five capitals or more", "ERROR the grid is unreachable"),
+    ("delimiters dim, so contents stand out", "ran 'repo-report' on (host-2) at \"04:15\""),
 )
 
 
@@ -365,7 +381,7 @@ def marks(text: str, ruleset: "Ruleset | None" = None) -> list[Mark]:
         found.append((start, end, _COLOUR_WORDS[match.group(0).lower()]))
 
     if ruleset is not None:
-        for pattern, role in ruleset.rules:
+        for pattern, role, emphasise in ruleset.rules:
             for match in pattern.finditer(text):
                 start, end = match.start(), match.end()
                 if end <= start:
@@ -373,6 +389,13 @@ def marks(text: str, ruleset: "Ruleset | None" = None) -> list[Mark]:
                 if any(start < e and s < end for s, e, _ in found):
                     continue
                 found.append((start, end, role))
+                # **A declared weight is the same object a built-in one is.**
+                # It joins `loud` rather than becoming a `"bold sb.warn"` role
+                # string, so `_merge` handles its overlap, `_emphasise` folds it
+                # once, and nothing downstream learns a second shape. See
+                # [[highlight]] round 7.
+                if emphasise:
+                    loud.append((start, end))
                 if len(found) >= MAX_MARKS:
                     break
 
@@ -579,7 +602,13 @@ def parse_rulesets(raw: dict) -> tuple[list[Ruleset], list[str]]:
             if problem:
                 problems.append(f"highlight {name!r} rule {index + 1}: {problem}")
                 continue
-            compiled.append((re.compile(rule["pattern"]), roles[rule["role"]]))
+            compiled.append(
+                (
+                    re.compile(rule["pattern"]),
+                    roles[rule["role"]],
+                    rule.get("weight", "") == "bold",
+                )
+            )
 
         if compiled:
             found.append(
@@ -608,6 +637,12 @@ def _check_rule(rule, roles: dict[str, str]) -> str | None:
         # catches is someone writing a colour, and the fix is to say which
         # words the palette answers to.
         return f"role must be one of {', '.join(sorted(roles))} — not {role!r}"
+    weight = rule.get("weight", "")
+    if weight not in ("", "bold"):
+        # One value, because `bold` is the only weight the palette has. A
+        # second is a design-system decision exactly as a ninth hue is, and
+        # this is not the place it gets made. See [[highlight]] round 7.
+        return f"weight must be 'bold' if given — not {weight!r}"
     try:
         re.compile(pattern)
     except re.error as exc:

@@ -121,8 +121,13 @@ bench given a picker and a legend instead of a text box. Round 6 then answered t
 delimiters of `()`/`{}`/`[]` dim so their contents stand out — the timestamp's argument applied to
 punctuation. **The hue question is closed rather than open**: the design system holds four hues and
 sky.boss spends all four, so a fifth is a decision for the brand and not for this tool.
-*Quoted text is the one ask nothing answered* — it wants to be distinct from `` `code` `` and a
-path, and those already share the literal role.*
+*~~Quoted text is the one ask nothing answered.~~ **Closed 2026-08-30 → [[highlight]] round 7**,
+along with the `weight` key this item called the smallest change on the list. Neither needed a
+hue: a quote is a **delimiter**, so it takes round 6's answer — the marks dim and the contents
+keep whatever claimed them — and the collision this item warned about disposes of itself, since
+the delimiter pass claims single characters and runs last, after the operator's rules. The
+apostrophe hazard was measured rather than reasoned about: 15 spans naive against the live log,
+two of them the documented failure, 13 guarded and neither.*
 
  Raised by the operator 2026-08-29, reading the
 live agent-fix drain through `--highlight jam`. Verbatim: symbols emphasised or given a different
@@ -130,7 +135,9 @@ colour; quoted text differentiated; `#123` in a unique colour; text wrapped in `
 a different colour; and *escalate* emphasised. Owned by [[highlight]] when it reopens — this is
 round 5's raw material, not a design.
 
-**Check the first one before designing anything.** `escalat(e|ed|es|ing|ion|ions)` is already in the
+**~~Check the first one before designing anything.~~** *Done, and it was right: the gap was weight,
+not colour. `weight = "bold"` on a declared rule as of [[highlight]] round 7 — it rides the same
+`loud` range a built-in emphasis does, so it composes rather than doubling.* `escalat(e|ed|es|ing|ion|ions)` is already in the
 operator's own `[highlight.jam]` ruleset at `role = "warn"`, and the tool being watched names
 `--highlight jam`, so the word *is* tinted. If the ask is that it stand out **more**, the gap is not
 a colour: **a declared rule may name a colour and never a weight.** `_emphasise` grants bold only to
