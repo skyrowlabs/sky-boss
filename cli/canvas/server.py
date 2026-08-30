@@ -333,6 +333,59 @@ def build(canvas: Canvas | None = None) -> Starlette:
 
         return JSONResponse(vocabulary())
 
+    async def get_projects(request: Request) -> Response:
+        """Where each project's schedule comes from. Runs nothing.
+
+        **Provenance, not data.** `sb schedule` answers *what fires next*; this
+        answers *why these rows and not others* — which argv produced them, in
+        which directory, and which field of the payload became which column.
+        The question it exists for is the one the screen could not answer:
+        jam-sense has 31 rows and breeze-brain has none, and the difference is
+        six lines in a file the operator owns and sky.boss never writes.
+
+        A separate route rather than a key on the envelope, for two reasons.
+        `sb schedule`'s `data` is a bare list and stays one — wrapping it to
+        carry provenance would change the payload every existing consumer
+        reads, including its own authored view. And this is a fact about the
+        *declaration*, which is true whether or not the command has been run.
+
+        Introspection, like `/api/catalog` and `/api/vocabulary`: it reads one
+        file and runs nothing, so it stays in-process and on the reads-in side
+        of *reads in, execution out*. Read at request rather than cached, for
+        the reason the catalog is — editing `projects.toml` under an open
+        surface is the REPL.
+        """
+        if not canvas.authorised(request):
+            return _denied()
+        from cli.rollcall import load
+
+        projects, problems = load()
+        return JSONResponse(
+            {
+                "projects": [
+                    {
+                        "name": project.name,
+                        "description": project.description,
+                        # One source or the other, never both — the file already
+                        # refuses a project declaring an argv *and* a path, so
+                        # there is nothing to disambiguate here.
+                        "kind": "path" if project.path else "argv",
+                        "source": project.path or " ".join(project.argv),
+                        "cwd": project.cwd,
+                        # The mapping as declared, or None. `None` and `{}` are
+                        # different answers — no table at all, versus a table
+                        # that named nothing — and the screen says different
+                        # words for them.
+                        "schedule": project.schedule,
+                    }
+                    for project in projects
+                ],
+                # The same problems `sb schedule` warns about, on the surface
+                # that can show them next to the project they are about.
+                "problems": problems,
+            }
+        )
+
     async def get_catalog(request: Request) -> Response:
         if not canvas.authorised(request):
             return _denied()
@@ -709,6 +762,7 @@ def build(canvas: Canvas | None = None) -> Starlette:
             Route("/", index),
             Route("/favicon.svg", favicon),
             Route("/api/catalog", get_catalog),
+            Route("/api/projects", get_projects),
             Route("/api/vocabulary", get_vocabulary),
             Route("/api/run", post_run, methods=["POST"]),
             Route("/api/trial", post_trial, methods=["POST"]),

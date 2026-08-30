@@ -1195,6 +1195,14 @@ function App() {
    * loop that iterates windows for reasons none of which apply to it. */
   const [plan, setPlan] = useState(null);
   const [planAt, setPlanAt] = useState(0);
+  /* Where each project's rows come from — the declaration, not the data.
+   * Fetched beside the reading rather than folded into it, because it is true
+   * whether or not the command has run and its envelope is a bare list that
+   * stays one. See [[schedule]] round 5. */
+  const [planSources, setPlanSources] = useState([]);
+  /* Which project, which view, which span. One object so a new control is one
+   * key rather than a fourth `useState` and a fourth setter to forget. */
+  const [planUi, setPlanUi] = useState({ mode: "table", project: null, span: "24h" });
   const [draft, setDraft] = useState(EMPTY_DRAFT);
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState(0);
@@ -1730,6 +1738,13 @@ function App() {
    * stopped being able to see it. The screen states its own age instead, which
    * is honest at any rate including none. See [[canvas]] on the refresh clock. */
   const readPlan = () => {
+    /* Two calls, deliberately not chained: the provenance is introspection and
+     * cannot fail because a foreign CLI did, so a schedule that comes back
+     * partial still gets its sources drawn beside it. */
+    api
+      .projects()
+      .then((body) => setPlanSources(body.projects || []))
+      .catch(() => setPlanSources([]));
     api
       .run(["schedule"])
       .then((body) => {
@@ -2457,9 +2472,12 @@ function App() {
       ${screen === SCHEDULE
         ? html`<${Plan}
             result=${plan}
+            projects=${planSources}
             readAt=${planAt}
             now=${now}
             onRefresh=${readPlan}
+            ui=${planUi}
+            setUi=${(patch) => setPlanUi((u) => ({ ...u, ...patch }))}
           />`
         : screen === WORKBENCH
         ? html`<${Bench}
@@ -2519,7 +2537,7 @@ function App() {
         ${screen === SCHEDULE
           ? html`
               <span>⟳ re-read</span>
-              <span>sky.boss orders; the provider judges</span>
+              <span>one mark per job — never a recurrence</span>
             `
           : screen === WORKBENCH
           ? html`

@@ -37,6 +37,7 @@ def auth(extra=None):
 GUARDED = [
     ("/api/catalog", "get"),
     ("/api/vocabulary", "get"),
+    ("/api/projects", "get"),
     ("/api/run", "post"),
     ("/api/trial", "post"),
     ("/api/shape", "post"),
@@ -358,6 +359,33 @@ def test_shaping_reports_what_this_shaping_hid(client):
     data = [{"a": 1, "gone": None}]
     body = client.post("/api/shape", headers=auth(), json={"data": data}).json()
     assert any("1 column hidden: gone" in w for w in body["warnings"])
+
+
+def test_projects_reports_where_a_schedule_comes_from(monkeypatch, client):
+    """Provenance: which argv produced these rows, and which field became which
+    column. The question the screen could not answer was why one project has 31
+    rows and another none. See [[schedule]] round 5."""
+    from cli import rollcall
+
+    declared = rollcall.Project(
+        name="jam-sense",
+        description="the grid",
+        argv=["jam", "report", "status", "--json"],
+        cwd="/somewhere/jam-sense",
+        schedule={"rows": "jobs", "name": "job", "next": "next_run"},
+    )
+    bare = rollcall.Project(name="quiet", argv=["./x", "--json"])
+    monkeypatch.setattr(rollcall, "load", lambda: ([declared, bare], ["a problem"]))
+
+    body = client.get("/api/projects", headers=auth()).json()
+    first, second = body["projects"]
+    assert first["source"] == "jam report status --json"
+    assert first["kind"] == "argv"
+    assert first["schedule"]["next"] == "next_run"
+    # None, not {} — no table at all is a different answer from a table that
+    # named nothing, and the screen says different words for them.
+    assert second["schedule"] is None
+    assert body["problems"] == ["a problem"]
 
 
 def test_shaping_leaves_an_authored_view_alone(client):

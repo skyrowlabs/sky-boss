@@ -75,6 +75,14 @@ export function shape(data, { cols, drop, rows, view } = {}) {
  * act gets instead of a trial run, whether the `--save` name is free, and the
  * `[tool.NAME]` block `run` cannot save by example. Runs nothing.
  * See [[workbench]] round 3. */
+/* Where each declared project's schedule comes from. Introspection: it reads
+ * `projects.toml` and runs nothing, like `catalog`. See [[schedule]] round 5. */
+export async function projects() {
+  const response = await fetch("/api/projects", { headers: HEADERS() });
+  if (!response.ok) throw new Error(`projects → ${response.status}`);
+  return response.json();
+}
+
 export function preflight(argv, { name, refresh } = {}) {
   return post("/api/preflight", { argv, name, refresh });
 }

@@ -1,5 +1,5 @@
 ---
-status: complete       # rounds 1, 3 and 4 built; round 2 still not scheduled
+status: complete       # rounds 1, 3, 4 and 5 built; round 2 still not scheduled
 created: 2026-08-29
 updated: 2026-08-30
 agent_value: 3         # five dated decisions and a vocabulary, none of it built
@@ -270,6 +270,17 @@ The read-only half of the drawn flight plan, as a third nav entry. Named `schedu
 - [x] **Projects declaring no schedule are named**, not silently absent.
 - [x] **The screen states its own age** — no browser-timer cadence.
 
+### Round 5 — a source, a project, and two charts (2026-08-30)
+
+- [x] **Provenance on the screen** — `/api/projects`, an introspection route: which argv, in which
+      directory, and which payload field became which column.
+- [x] **One project at a time** — a selector that offers every declared project, including the one
+      that produced no rows.
+- [x] **A timeline** — one lane per job on a real time axis, span 6h / 24h / 7d.
+- [x] **An hour-of-day chart** — 24 buckets, for the shape of the grid rather than what is next.
+- [x] **`at` on the row** — the parsed instant as epoch seconds, so the page never parses a
+      timestamp.
+
 ## Notes
 
 ### 2026-08-30 — round 1, executed
@@ -420,3 +431,40 @@ screen.
   2176 to 2357. Left alone — it is a pre-existing property of running 2.4 in a window too small for
   it, the schedule entry is visible from about 1900px up, and shrinking the bar's controls is the
   thing that rule exists to prevent.
+
+### 2026-08-30 — round 5, executed
+
+- **Shipping `at` is what keeps this file out of the timestamp business.** The charts need a
+  position and `fires` is deliberately too coarse for one, so the obvious move was `Date.parse` on
+  `next` in the browser. That would have been a second opinion about the one thing round 1 exists to
+  keep single: Python **requires** an offset and refuses the naive rows, where `Date.parse` silently
+  assumes local for exactly those. The epoch ships instead, empty when Python could not order the
+  row — so `plottable` defers to the parse that already happened rather than re-litigating it.
+- **The two sides agreeing was checked, not assumed.** Python's hour histogram of `next_run` is
+  `{0:7, 1:6, 2:1, 3:1, 5:2, 6:3, 7:3, …}` and the rendered `hours` chart read back
+  `7 6 1 1 . 2 3 3 …`. Same for the timeline: 14 lanes and 17 beyond at 24h, against Python's
+  *within 24h: 14, beyond: 17*. Two independent paths over one field, compared — which is the seam
+  rule from the workspace guide applied inside one repo.
+- **Neither chart shows recurrence, and the screen says so.** A bar repeating every four hours is
+  the cron parse round 1 refused, arriving as a picture. One job, one mark: the next occurrence its
+  provider published. The `hours` view carries the sharper caveat in its own footer — it puts a
+  weekly job in the same column as a nightly one, which is honest about it being a picture of
+  *shape* rather than of *what happens next*.
+- **Beyond the window is counted, never clamped.** A mark pinned to the right edge reads as "fires
+  at the end of the window", which is a different and false claim. `17 jobs fire beyond 24 hours —
+  not drawn rather than pinned to the edge` is round 1's *counted, never drawn* applied to an axis.
+  A *late* row is the one thing clamped, to 0% — it has already fired, so the left edge is where it
+  belongs rather than off the chart.
+- **Provenance is a route, not a key on the envelope.** `sb schedule`'s `data` is a bare list and
+  stays one — wrapping it would change the payload every existing consumer reads, its own authored
+  view included. And provenance is a fact about the *declaration*: true whether or not the command
+  has been run, which is why it survives a partial answer. The two fetches are deliberately not
+  chained for that reason.
+- **A correct sentence that misleads is the same failure as a wrong one.** Filtered to breeze-brain,
+  the timeline said *"nothing fires within 24 hours"* — true, and it implies there are jobs that
+  fire later. A project that declares nothing now says so in all three views. This is the *worked
+  fine, told nobody* family with the polarity flipped: the words were right and the reader would
+  still have concluded something false.
+- **The selector is built from declarations, not from rows.** One built from the rows could not
+  offer the project that produced none — which is the one you go looking for when the screen is
+  emptier than you expected.

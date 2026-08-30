@@ -214,6 +214,27 @@ What would have broken the rule is naming the entry `plan`, since the rest of th
 entry that names the whole of a thing while showing a tenth of it is the same over-promise in a
 smaller font.** Both remaining screens are drawn in `docs/design/`. See `docs/open.md`.
 
+**A derived instant ships from Python; the page never parses a timestamp.** The schedule charts
+need a *position*, and the obvious move is `Date.parse` on the provider's `next` in the browser.
+That is a second opinion about the thing [[schedule]] round 1 exists to keep single: Python
+**requires** a UTC offset and refuses the naive rows, where `Date.parse` silently assumes local for
+exactly those. So the row carries `at` — the parsed instant as epoch seconds, empty when Python
+could not order it — and the chart filters on that rather than re-inspecting the string. The two
+paths were then **compared rather than assumed**: Python's hour histogram of `next_run` and the
+rendered chart's buckets were read back and matched value for value.
+
+**A chart may not draw what the data does not contain.** Neither schedule chart shows recurrence,
+because sky.boss does not parse cron and a bar repeating every four hours is that refusal broken in
+a picture. One job, one mark: the next occurrence its provider published. And what falls outside the
+window is **counted, never clamped** — a mark pinned to the right edge reads as *fires at the end of
+the window*, a different and false claim, so the count says how many are out of frame instead.
+
+**A correct sentence that misleads is the same failure as a wrong one.** Filtered to a project that
+declares no schedule, the timeline said *"nothing fires within 24 hours"* — true, and it implies
+there are jobs firing later. This is *worked fine, told nobody* with the polarity flipped: the words
+were right and the reader would still have concluded something false. Ask what a reader concludes,
+not whether the sentence is defensible.
+
 **A screen with no cadence owes a visible age.** Every relative string the schedule screen draws was
 computed in Python at read time and does not move afterwards, so without one they rot silently while
 looking exactly like fresh ones. A browser timer is not the fix and was rejected for the reason the

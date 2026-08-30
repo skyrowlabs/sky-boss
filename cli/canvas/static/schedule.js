@@ -83,6 +83,149 @@ export function readAge(seconds) {
   return `${Math.floor(s / 86400)}d`;
 }
 
+/* ------------------------------------------------------------------ charts
+ *
+ * **Both charts plot `at`, and only `at`.** That is the epoch Python parsed
+ * from the provider's `next`, and using it is what keeps this file out of the
+ * timestamp business: Python required an offset, refused the naive rows, and
+ * ordered what was left. A `Date.parse` here would guess a zone for exactly
+ * the rows that were rejected, and would be a second opinion about the one
+ * thing round 1 was written to keep single.
+ *
+ * **Neither chart shows recurrence, and neither pretends to.** sky.boss does
+ * not parse cron — a bar repeating every four hours would be this tool
+ * inventing a fire time, which round 1 refused because a wrong one looks like
+ * an answer. One job, one mark: the next occurrence its provider published.
+ */
+
+export function plottable(rows) {
+  /* `at` is empty exactly when Python could not order the row. Deferring to
+   * that rather than testing the string again is what stops the two halves
+   * disagreeing about which rows are datable. */
+  return (rows || []).filter((r) => typeof r.at === "number");
+}
+
+/* One lane per job on a linear time axis, as a fraction of the span.
+ *
+ * Rows beyond the window are **counted, not clamped**. A mark pinned to the
+ * right edge would read as "fires at the end of the window", which is a
+ * different and false claim; the count says how many are out of frame, which
+ * is round 1's *counted, never drawn* applied to an axis. */
+export function timeline(rows, now, spanSeconds) {
+  const marks = [];
+  let beyond = 0;
+  for (const row of plottable(rows)) {
+    const delta = row.at - now / 1000;
+    if (delta > spanSeconds) {
+      beyond += 1;
+      continue;
+    }
+    marks.push({ row, percent: Math.max(0, Math.min(100, (delta / spanSeconds) * 100)) });
+  }
+  return { marks, beyond };
+}
+
+/* Ticks for the axis, at a round interval that yields a readable number of
+ * them. Derived from the span rather than hardcoded per span, so a span this
+ * file has not heard of still gets sensible ticks. */
+export function ticks(now, spanSeconds, want = 6) {
+  const STEPS = [900, 1800, 3600, 10800, 21600, 43200, 86400, 172800, 604800];
+  const step = STEPS.find((s) => spanSeconds / s <= want) || STEPS[STEPS.length - 1];
+  const out = [];
+  for (let t = step; t <= spanSeconds; t += step) {
+    out.push({ percent: (t / spanSeconds) * 100, at: now + t * 1000 });
+  }
+  return out;
+}
+
+/* Twenty-four buckets by the local hour a job fires.
+ *
+ * **The honest caveat, stated here because the screen states it too:** this
+ * collapses "tomorrow at 01:00" and "next Monday at 01:00" into one column. It
+ * is a picture of *what shape the grid is*, not of what happens next — which is
+ * why it is a second view rather than a replacement for the first. The hour
+ * itself is not inferred: it is the hour of the instant the provider published,
+ * which for a recurring job is the hour it recurs at. */
+export function byHour(rows) {
+  const buckets = Array.from({ length: 24 }, (_, hour) => ({ hour, rows: [] }));
+  for (const row of plottable(rows)) {
+    buckets[new Date(row.at * 1000).getHours()].rows.push(row);
+  }
+  return buckets;
+}
+
+function Timeline({ rows, now, span }) {
+  const { marks, beyond } = timeline(rows, now, span.seconds);
+  const axis = ticks(now, span.seconds);
+  return html`
+    <div class="pl-chart">
+      <div class="pl-axis">
+        <span class="pl-tick pl-now" style="left:0%">now</span>
+        ${axis.map(
+          (t) => html`
+            <span class="pl-tick" style=${`left:${t.percent}%`}>
+              ${new Date(t.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+            </span>
+          `
+        )}
+      </div>
+      ${marks.map(
+        ({ row, percent }) => html`
+          <div class="pl-lane" key=${`${row.project}/${row.name}`}>
+            <span class="pl-lane-name">${row.name}</span>
+            <div class="pl-track">
+              <span
+                class=${`pl-mark${row.fires.startsWith("late") ? " pl-late" : ""}`}
+                style=${`left:${percent}%`}
+                title=${`${row.name} · ${row.fires} · ${row.next}`}
+              ></span>
+            </div>
+            <span class="pl-lane-when">${row.fires}</span>
+          </div>
+        `
+      )}
+      ${beyond > 0 &&
+      html`<div class="pl-quiet">
+        ${beyond} ${beyond === 1 ? "job fires" : "jobs fire"} beyond ${span.label} — not drawn
+        rather than pinned to the edge
+      </div>`}
+      ${marks.length === 0 &&
+      html`<div class="pl-empty">nothing fires within ${span.label}</div>`}
+    </div>
+  `;
+}
+
+function Hours({ rows }) {
+  const buckets = byHour(rows);
+  const tallest = Math.max(1, ...buckets.map((b) => b.rows.length));
+  return html`
+    <div class="pl-chart">
+      <div class="pl-hours">
+        ${buckets.map(
+          (b) => html`
+            <div class="pl-hour" key=${b.hour}>
+              <div class="pl-bar-space">
+                <div
+                  class="pl-bar"
+                  style=${`height:${(b.rows.length / tallest) * 100}%`}
+                  title=${b.rows.map((r) => r.name).join(", ") || "nothing"}
+                ></div>
+              </div>
+              <span class="pl-count">${b.rows.length || ""}</span>
+              <span class="pl-hlabel">${String(b.hour).padStart(2, "0")}</span>
+            </div>
+          `
+        )}
+      </div>
+      <div class="pl-quiet">
+        by the local hour each job next fires. One mark per job, never a
+        recurrence — sky.boss does not parse cron. A weekly job sits in the same
+        column as a nightly one.
+      </div>
+    </div>
+  `;
+}
+
 function Row({ row, columns }) {
   return html`
     <div class="pl-row">
@@ -104,17 +247,66 @@ function fireClass(fires) {
   return `pl-c pl-fires${fires && fires.startsWith("late") ? " pl-late" : ""}`;
 }
 
-export function Plan({ result, readAt, now, onRefresh }) {
+const SPANS = [
+  { key: "6h", label: "6 hours", seconds: 6 * 3600 },
+  { key: "24h", label: "24 hours", seconds: 24 * 3600 },
+  { key: "7d", label: "7 days", seconds: 7 * 86400 },
+];
+
+/* Where a project's rows came from. Provenance, not data.
+ *
+ * The mapping is drawn as `payload field → column` in the command's own
+ * direction, because that is the direction the operator wrote it in and the
+ * direction a mistake is made in. `rows` is shown apart from the four field
+ * mappings since it names the *list*, not a column. */
+function Source({ declared }) {
+  if (!declared) return null;
+  const map = declared.schedule;
+  return html`
+    <div class="pl-source">
+      <div class="pl-src-row">
+        <span class="pl-src-k">source</span>
+        <span class="pl-src-v">${declared.source}</span>
+      </div>
+      ${declared.cwd &&
+      html`<div class="pl-src-row">
+        <span class="pl-src-k">in</span><span class="pl-src-v">${declared.cwd}</span>
+      </div>`}
+      ${map
+        ? html`
+            <div class="pl-src-row">
+              <span class="pl-src-k">rows</span>
+              <span class="pl-src-v">${map.rows || "the payload itself"}</span>
+            </div>
+            <div class="pl-src-row">
+              <span class="pl-src-k">maps</span>
+              <span class="pl-src-v">
+                ${["name", "schedule", "next", "last"]
+                  .filter((f) => map[f])
+                  .map((f) => `${map[f]} → ${f}`)
+                  .join("   ")}
+              </span>
+            </div>
+          `
+        : html`<div class="pl-src-row">
+            <span class="pl-src-k">schedule</span>
+            <span class="pl-src-v v-dim">
+              no <code>[project.${declared.name}.schedule]</code> table — sky.boss
+              never writes this file
+            </span>
+          </div>`}
+    </div>
+  `;
+}
+
+export function Plan({ result, projects, readAt, now, onRefresh, ui, setUi }) {
   if (!result) return html`<div class="plan"><div class="spin">…</div></div>`;
   if (result.error) return html`<div class="plan"><div class="fail">${result.error}</div></div>`;
 
   const envelope = result.envelope || {};
-  const rows = Array.isArray(envelope.data) ? envelope.data : [];
+  const all = Array.isArray(envelope.data) ? envelope.data : [];
   const warnings = envelope.warnings || [];
   const view = envelope.view || null;
-  /* The authored view or nothing. No fallback to every key: this screen exists
-   * to draw the five columns the command chose, and a silent widening to seven
-   * is the bug round 3 spent its afternoon on. */
   /* **`project` is dropped, and only here.** The rows are grouped under a
    * heading that already names it, so drawing it again spends the narrowest
    * column on a constant. This is a *drawing* decision about a screen whose
@@ -122,9 +314,25 @@ export function Plan({ result, readAt, now, onRefresh }) {
    * still draws it, and nothing about the view changed. A view describes; the
    * grouping is what makes this one redundant. */
   const columns = ((view && view.columns) || []).filter((c) => c.key !== "project");
-  const soon = nextUp(rows);
+
+  const declared = new Map((projects || []).map((p) => [p.name, p]));
   const quiet = silentProjects(warnings);
+  /* Every project sky.boss knows about, whether or not it produced a row. A
+   * selector built from the rows alone could not offer the project that
+   * declares nothing — which is the one you go looking for when the screen is
+   * emptier than expected. */
+  const names = [...new Set([...byProject(all).map((g) => g.project), ...quiet])];
+  const only = ui.project && names.includes(ui.project) ? ui.project : null;
+  const rows = only ? all.filter((r) => r.project === only) : all;
   const groups = byProject(rows);
+  const soon = nextUp(rows);
+  const span = SPANS.find((s) => s.key === ui.span) || SPANS[1];
+
+  const tab = (key, label) => html`
+    <button class=${ui.mode === key ? "on" : ""} onClick=${() => setUi({ mode: key })}>
+      ${label}
+    </button>
+  `;
 
   return html`
     <div class="plan">
@@ -139,33 +347,93 @@ export function Plan({ result, readAt, now, onRefresh }) {
         <span class="pl-age" title=${`read at ${new Date(readAt).toLocaleTimeString()}`}>
           read ${readAge((now - readAt) / 1000)} ago
         </span>
-        <button class="sbtn plain" onClick=${onRefresh}>⟳</button>
+        <button class="sbtn plain" onClick=${onRefresh} title="re-read">⟳</button>
       </div>
 
-      ${groups.map(
-        (g) => html`
-          <div class="pl-group" key=${g.project}>
-            <div class="pl-gname">
-              ${g.project}<span class="v-dim"> · ${g.rows.length} jobs</span>
-            </div>
-            <div class="pl-rows">
-              <div class="pl-row pl-hrow">
-                ${columns.map((c) => html`<span class="pl-c">${c.label}</span>`)}
-              </div>
-              ${g.rows.map(
-                (row, i) => html`<${Row} key=${i} row=${row} columns=${columns} />`
-              )}
-            </div>
-          </div>
-        `
-      )}
+      <div class="pl-controls">
+        <div class="seg">
+          <button class=${only === null ? "on" : ""} onClick=${() => setUi({ project: null })}>
+            all
+          </button>
+          ${names.map(
+            (n) => html`
+              <button
+                key=${n}
+                class=${only === n ? "on" : ""}
+                onClick=${() => setUi({ project: n })}
+              >
+                ${n}
+              </button>
+            `
+          )}
+        </div>
+        <div class="spacer"></div>
+        <div class="seg">
+          ${tab("table", "table")} ${tab("timeline", "timeline")} ${tab("hours", "hours")}
+        </div>
+        ${ui.mode === "timeline" &&
+        html`<div class="seg">
+          ${SPANS.map(
+            (s) => html`
+              <button
+                key=${s.key}
+                class=${span.key === s.key ? "on" : ""}
+                onClick=${() => setUi({ span: s.key })}
+              >
+                ${s.key}
+              </button>
+            `
+          )}
+        </div>`}
+      </div>
 
-      ${quiet.length > 0 &&
-      html`<div class="pl-quiet">
-        declares no schedule: ${quiet.join(", ")}
-      </div>`}
+      ${/* A project that declares nothing says so in every view. "Nothing fires
+          * within 24 hours" is true of breeze-brain and implies it has jobs
+          * that fire later — a sentence that is correct and misleads is the
+          * same failure as one that is wrong. */ ""}
+      ${only && quiet.includes(only)
+        ? html`<div class="pl-group">
+            <div class="pl-gname">${only}<span class="v-dim"> · declares no schedule</span></div>
+            <${Source} declared=${declared.get(only)} />
+          </div>`
+        : ui.mode === "timeline"
+        ? html`<${Timeline} rows=${rows} now=${now} span=${span} />`
+        : ui.mode === "hours"
+          ? html`<${Hours} rows=${rows} />`
+          : groups.map(
+              (g) => html`
+                <div class="pl-group" key=${g.project}>
+                  <div class="pl-gname">
+                    ${g.project}<span class="v-dim"> · ${g.rows.length} jobs</span>
+                  </div>
+                  <${Source} declared=${declared.get(g.project)} />
+                  <div class="pl-rows">
+                    <div class="pl-row pl-hrow">
+                      ${columns.map((c) => html`<span class="pl-c">${c.label}</span>`)}
+                    </div>
+                    ${g.rows.map(
+                      (row, i) => html`<${Row} key=${i} row=${row} columns=${columns} />`
+                    )}
+                  </div>
+                </div>
+              `
+            )}
+
+      ${ui.mode === "table" &&
+      !only &&
+      quiet
+        .map(
+          (n) => html`
+            <div class="pl-group" key=${n}>
+              <div class="pl-gname">${n}<span class="v-dim"> · declares no schedule</span></div>
+              <${Source} declared=${declared.get(n)} />
+            </div>
+          `
+        )}
 
       ${rows.length === 0 &&
+      ui.mode === "table" &&
+      quiet.length === 0 &&
       html`<div class="pl-empty">
         no project declares a schedule — add a
         <code>[project.NAME.schedule]</code> table to projects.toml
