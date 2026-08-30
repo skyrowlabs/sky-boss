@@ -110,6 +110,14 @@ const EMPTY_DRAFT = {
   group: "",
   checks: [],
   nameProblem: null,
+  /* What this tool is *already called*, when the bench was opened from the
+   * rail's ✎. Null for a fresh draft. Changing `save` away from it is a
+   * rename, and without this the bench could not tell one from a new tool —
+   * so every rename was a copy. See [[workbench]] round 5. */
+  was: null,
+  /* What saving would overwrite, rendered. Not a problem: a taken name is a
+   * replace, which is [[tools]] round 4's whole point. */
+  replaces: null,
   block: null,
   saving: false,
   saved: null,
@@ -1784,6 +1792,7 @@ function App() {
           ...d,
           checks: body.checks || [],
           nameProblem: body.name && !body.name.ok ? body.name.reason : null,
+          replaces: (body.name && body.name.replaces) || null,
           block: body.block || null,
         }))
       )
@@ -1906,6 +1915,7 @@ function App() {
         env: fields.env,
         argv: rest.slice(i).join(" "),
         save: shortOf(tool),
+        was: shortOf(tool),
         describe: tool.summary || "",
         group: tool.group || "",
         /* Seeded from the *field*, because the argv of a tool declaring
@@ -2050,6 +2060,10 @@ function App() {
           refresh: 0,
           description: d.describe || "",
           group: d.group || "",
+          /* Sent only when the bench was opened on an existing tool. The
+           * server removes the old block after the new one lands, so a
+           * changed name renames instead of copying. */
+          was: d.was || "",
         })
         .then((result) => {
           const ok = !result.error;
@@ -2063,11 +2077,16 @@ function App() {
              * line they meant. */
             saved: {
               ok,
-              action: result.action || null,
+              action: result.renamed_from ? `renamed from ${result.renamed_from}` : result.action || null,
               backup: result.backup || null,
               runs: result.runs || null,
               error: ok ? null : result.error || "save failed",
             },
+            /* The tool is now called this. Without the update a second save
+             * would send the *old* `was` and delete a block that is no longer
+             * there — or worse, one the operator has since recreated under
+             * that name. See [[workbench]] round 5. */
+            was: ok ? d.save : prev.was,
           }));
           /* Two things go stale the instant a save lands: the tools rail,
            * and the name — which is now taken, and taken because the file says

@@ -247,6 +247,17 @@ def build(canvas: Canvas | None = None) -> Starlette:
                     group=str(body.get("group") or ""),
                     highlight=str(body.get("highlight") or ""),
                 )
+                # A rename, when the bench says which tool it opened. Two
+                # writes rather than one, and the **order is the safety**: the
+                # new block lands first, so a failure between them leaves a
+                # duplicate — visible in the rail and removable — where
+                # removing first could lose the tool outright. Until
+                # [[workbench]] round 5 the bench sent no `was` and a rename
+                # silently became a copy.
+                was = str(body.get("was") or "")
+                if was and was != name:
+                    await asyncio.to_thread(tools_.remove_block, was)
+                    out["renamed_from"] = was
         except click.UsageError as exc:
             return JSONResponse({"error": exc.format_message()}, status_code=400)
         except OSError as exc:
@@ -503,8 +514,16 @@ def build(canvas: Canvas | None = None) -> Starlette:
         if name:
             from cli import tools as tools_
 
-            problem = tools_.name_problem(name)
+            # `name_state`, not `name_problem`: this route serves the bench,
+            # which *replaces*, and a taken name there is information rather
+            # than a refusal. `name_problem` keeps `--save`'s answer, which is
+            # a genuine refusal because `--save` appends. See [[workbench]]
+            # round 5 — the bench spent two rounds telling the operator to go
+            # and edit a file for something it could do itself.
+            problem, replaces = tools_.name_state(name)
             out["name"] = {"ok": problem is None, "reason": problem}
+            if replaces is not None:
+                out["name"]["replaces"] = replaces
             # The block `run` cannot save by example. Rendered by the same
             # function `--save` appends with, so what you paste and what sky.boss
             # would have written are the same bytes.

@@ -1,7 +1,7 @@
 ---
 status: done
 created: 2026-08-26
-updated: 2026-08-28
+updated: 2026-08-30
 agent_value: 3
 key_files:
   - cli/canvas/server.py
@@ -115,6 +115,52 @@ carries the contract's own *acts* or *observes* badge, because a rail that lists
   get made.
 
 ## Phases
+
+### Round 5 — a rename that copied, under a refusal that had been repealed (2026-08-30)
+
+Reported by the operator: *"i tried editing the tool name in the workbench and it failed and
+directed me to a file."* Two defects, and the second is the one that made the first look like a
+failure.
+
+**A rename is a copy.** Open a tool with ✎, change the name, save: the new name is written and
+**the old tool is still there.** Measured against an isolated `$SB_HOME` — one `demo-read` in,
+`demo-read` *and* `demo-renamed` out, byte-identical bodies. The bench has no idea it is editing
+anything; it only ever knew the name currently in the box, so every save is a create-or-replace of
+whatever that box says.
+
+**And the bench announces a refusal that [[tools]] round 4 removed.** Opening *any* existing tool
+immediately draws, in the problem style:
+
+> `'jam-pr-text' is already a tool — it runs \`sb read …\`. Edit the file to change it.`
+
+Round 4 made create and replace one call precisely because they are one intent; `write_problem`
+says so in as many words, and `JobStrip` already stopped gating the button on it. What nobody
+changed was the **sentence**, which still describes the old world and sends the operator to
+`tools.toml` for something the surface does. `cli.tools.name_problem` is one function answering for
+two callers whose rules have diverged: `--save` genuinely still refuses a duplicate — it saves *by
+example*, and there is no example for an edit — while the bench replaces.
+
+**The compounding failure is that success and failure print the same red sentence.** Save a rename
+and the message comes straight back, now naming the *new* tool, because the new name exists — it
+was just written. There is no state in which the bench says the save worked. That is this repo's
+own *worked fine, told nobody* inverted: **told nobody it worked**, which costs more, because the
+operator's next move is to go and do by hand what already happened.
+
+**The fix separates the two questions rather than softening one answer.** A name that is taken is
+not a problem, it is a *replace*, and the preflight says which. `--save` keeps its refusal and loses
+only the stale half of its wording — the escape hatch is the workbench, not an editor.
+
+**A rename needs the bench to remember what it opened**, which it currently does not. `edit()` seeds
+the draft with the tool's fields and keeps no identity, so the round adds one and the write removes
+the old block after the new one lands. **Write first, then remove**: a failure between them leaves a
+duplicate, which is visible and recoverable, where the other order can lose the tool outright.
+
+- [x] `name_state` splits *taken* from *malformed*; `name_problem` keeps `--save`'s refusal.
+- [x] The bench draws a replace as information, not as a problem, and never says "edit the file".
+- [x] A save reports that it worked, distinctly from the replace note.
+- [x] The bench remembers the tool it opened, and a changed name renames rather than copies.
+- [x] Verified against an isolated `$SB_HOME`: one tool in, one tool out, under the new name.
+- [x] Six tests: the split, the wording, the rename, the edit-in-place, and the preflight.
 
 ### Round 4 — the last step fell off the bottom (2026-08-28)
 
@@ -476,3 +522,41 @@ recording because the diagnosis nearly went the other way: the obvious reading w
 act asymmetry had left `run` with no save path, which would have been a design argument. It was a
 `min-height`. **A feature you cannot see and a feature that is not there produce the same bug
 report**, and the difference is only visible by measuring.
+
+
+### 2026-08-30 — round 5, and the same field-dropping trap one layer out
+
+**The bug had already been half-fixed twice, which is why it survived.**
+`write_problem` stopped refusing a taken name in [[tools]] round 4 and says so in its docstring;
+`JobStrip` stopped gating the save button on `nameProblem` in the same round and says so in a
+comment. Both changed the *behaviour*. Neither changed the **sentence**, so for two rounds the bench
+performed a replace while announcing a refusal — and the refusal named a remedy, `tools.toml`, that
+the operator had no reason to doubt. A message is part of the behaviour; changing one without the
+other leaves the surface arguing with itself, and the operator believes the words.
+
+**Success and failure printed the same red line, which is what turned a working save into a report.**
+Saving under a new name re-runs the preflight, the new name now exists — it was just written — and
+the identical sentence comes back naming the new tool. There was no state in which the bench said it
+had worked. *Worked fine, told nobody* is the failure this repo names; this is the inverse and it
+costs more, because the operator's next action is to go and do by hand what already happened.
+
+**The threading trap from `block()` reappeared in `writeTool`.** `was` was added to the draft, to
+`edit()`, to the save action and to the route — and dropped on the wire, because
+`writeTool({name, argv, refresh, description, group})` destructures a fixed list and silently
+discards anything else. The symptom was exact: the rename ran as a *create*, the old tool stayed,
+and nothing anywhere reported a problem. CLAUDE.md already records this for `block()` — *a rewrite
+has to know every field* — and the lesson generalises past serialisers to **any fixed destructure on
+a payload path**. Caught only because the acceptance test read the file rather than the response.
+
+**The order of the two writes is the safety property, not an implementation detail.** The new block
+lands first and the old is removed after, so a failure between them leaves a duplicate — visible in
+the rail, removable with ✕ — where removing first could lose the tool with no copy but the backup.
+
+**`was` has to be updated after a successful save**, which is easy to miss because nothing fails
+immediately. A second save would otherwise send the *old* name and delete a block that is either
+gone already or, worse, one the operator has since recreated under that name.
+
+**Found in the operator's own file.** `~/.sky-boss/tools.toml` held both `jam-release-train` and
+`jam-release-train-readiness` — the same argv, different group — which is exactly this defect caught
+in the act. Left in place: which one they want is theirs to say, and the tools file is operator
+content that sky.boss does not tidy on its own initiative.

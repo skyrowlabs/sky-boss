@@ -564,3 +564,65 @@ def test_ui_refuses_json_rather_than_promising_an_envelope_it_never_sends():
     result = CliRunner().invoke(cli, ["--json", "ui", "--no-browser"])
     assert result.exit_code == 2
     assert "no meaning here" in result.output
+
+
+# --- [[workbench]] round 5: a rename that renames ----------------------------
+
+
+def test_a_rename_removes_the_old_block_rather_than_copying_it(client, tmp_path, monkeypatch):
+    """The operator's report: editing a tool's name left two tools.
+
+    The bench never told the route *which* tool it had opened, so every save
+    was a create-or-replace of whatever the name box said. `was` is that
+    missing identity. One tool in, one tool out.
+    """
+    monkeypatch.setenv("SB_HOME", str(tmp_path))
+    monkeypatch.setattr("cli.helpers.SB_HOME", tmp_path)
+    monkeypatch.setattr("cli.tools.SB_HOME", tmp_path)
+
+    body = {"name": "before", "argv": ["read", "--", "echo", "hi"], "description": "d"}
+    assert client.post("/api/tools", json=body, headers=auth()).status_code == 200
+
+    renamed = dict(body, name="after", was="before")
+    out = client.post("/api/tools", json=renamed, headers=auth()).json()
+    assert out["renamed_from"] == "before"
+    assert out["problems"] == []
+
+    text = (tmp_path / "tools.toml").read_text()
+    assert "[tool.after]" in text
+    assert "[tool.before]" not in text, "the old name must not survive a rename"
+
+
+def test_a_save_that_does_not_rename_leaves_the_old_name_alone(client, tmp_path, monkeypatch):
+    """`was` equal to the name is an edit in place, not a rename — and must not
+    delete the block that was just written."""
+    monkeypatch.setenv("SB_HOME", str(tmp_path))
+    monkeypatch.setattr("cli.helpers.SB_HOME", tmp_path)
+    monkeypatch.setattr("cli.tools.SB_HOME", tmp_path)
+
+    body = {"name": "same", "argv": ["read", "--", "echo", "hi"], "description": "d"}
+    assert client.post("/api/tools", json=body, headers=auth()).status_code == 200
+    out = client.post("/api/tools", json=dict(body, was="same"), headers=auth()).json()
+    assert "renamed_from" not in out
+    assert "[tool.same]" in (tmp_path / "tools.toml").read_text()
+
+
+def test_the_preflight_calls_a_taken_name_a_replace_not_a_problem(client, tmp_path, monkeypatch):
+    """The bench's question, not `--save`'s. Reporting this as `ok: false` is
+    what drew a refusal in the problem style over an edit that would have
+    worked — and told the operator to go and edit a file."""
+    monkeypatch.setenv("SB_HOME", str(tmp_path))
+    monkeypatch.setattr("cli.helpers.SB_HOME", tmp_path)
+    monkeypatch.setattr("cli.tools.SB_HOME", tmp_path)
+
+    body = {"name": "taken", "argv": ["read", "--", "echo", "hi"], "description": "d"}
+    assert client.post("/api/tools", json=body, headers=auth()).status_code == 200
+
+    out = client.post(
+        "/api/preflight",
+        json={"argv": ["read", "--", "echo", "hi"], "name": "taken"},
+        headers=auth(),
+    ).json()
+    assert out["name"]["ok"] is True
+    assert out["name"]["reason"] is None
+    assert out["name"]["replaces"] == "read -- echo hi"

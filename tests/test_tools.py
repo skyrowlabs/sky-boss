@@ -1614,3 +1614,46 @@ def test_a_file_that_does_not_parse_is_never_spliced(tmp_path):
 
     (tmp_path / "tools.toml").write_text("[tool.broken\nargv = nope")
     assert "fix the file" in (write_problem("x", ["read", "--", "y"], home=tmp_path) or "")
+
+
+def test_a_taken_name_is_a_replace_to_the_bench_and_a_refusal_to_save(tmp_path):
+    """One name, two questions — [[workbench]] round 5.
+
+    `--save` appends, so a duplicate is a genuine refusal there. The bench
+    *replaces*, which [[tools]] round 4 made one intent with create, so the
+    same name is information rather than a problem. One function answering both
+    is what made the bench announce a refusal it no longer performs.
+    """
+    from cli.tools import name_problem, name_state, save
+
+    save("prs", ["data", "--", "jam", "pr", "list"], home=tmp_path)
+
+    problem, replaces = name_state("prs", home=tmp_path)
+    assert problem is None, "a taken name is not a problem to a caller that replaces"
+    assert replaces == "data -- jam pr list", "and it says what it would overwrite"
+
+    refusal = name_problem("prs", home=tmp_path)
+    assert refusal is not None and "already a tool" in refusal
+
+
+def test_the_duplicate_refusal_points_at_the_bench_not_at_a_file(tmp_path):
+    """The stale half of the wording. The surface can edit a tool since
+    [[tools]] round 4, so sending the operator to `$EDITOR` for it describes a
+    world that no longer exists — which is what the round-5 report actually
+    hit."""
+    from cli.tools import name_problem, save
+
+    save("prs", ["data", "--", "x"], home=tmp_path)
+    refusal = name_problem("prs", home=tmp_path)
+    assert "workbench" in refusal
+    assert "Edit the file" not in refusal
+
+
+def test_a_malformed_name_is_a_problem_and_names_nothing_to_replace(tmp_path):
+    """The other half of the split stays a problem, and carries no `replaces`
+    — there is nothing to overwrite under a name that cannot exist."""
+    from cli.tools import name_state
+
+    problem, replaces = name_state("Not A Name", home=tmp_path)
+    assert problem is not None and "cannot be a tool name" in problem
+    assert replaces is None

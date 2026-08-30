@@ -1101,3 +1101,7 @@ pre.stream.wrap .ln {
 .job-result.bad { color: var(--sb-danger); }
 .job-note { color: var(--sb-text-2); font-size: 2.5rem; line-height: 1.5; }
 .job-note b { color: var(--sb-text); }
+/* A replace or a rename — information, deliberately not the problem style.
+   Drawing it red is what made an edit read as a failure. [[workbench]] r5. */
+.job-note.replaces { color: var(--sb-text-3); }
+.job-note.replaces code { color: var(--sb-text-2); font: inherit; }

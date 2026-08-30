@@ -130,8 +130,17 @@ export function unaccrue(session, window) {
 /* `highlight` is deliberately absent: the bench composes `--highlight` into
  * the argv, so sending the field as well would apply the ruleset twice. The
  * route accepts it for a caller that wants the field form. */
-export function writeTool({ name, argv, refresh, description, group }) {
-  return post("/api/tools", { name, argv, refresh, description, group });
+/* `was` is the tool's *current* name when the bench opened it, which is what
+ * makes a changed name a rename rather than a copy. See [[workbench]] round 5.
+ *
+ * Note the shape of this function, because it is the trap CLAUDE.md already
+ * records for `block()` one layer down: **a fixed destructure silently drops a
+ * field it has not heard of.** `was` was threaded through the draft, the save
+ * action and the route, and vanished here — the rename ran as a create and the
+ * old tool stayed, with nothing to read anywhere. Anything added to the payload
+ * has to be added here too. */
+export function writeTool({ name, argv, refresh, description, group, was }) {
+  return post("/api/tools", { name, argv, refresh, description, group, was });
 }
 
 export function deleteTool(name) {
