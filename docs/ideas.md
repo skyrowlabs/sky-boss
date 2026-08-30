@@ -38,4 +38,19 @@ built — decided, but not decided how — live in `docs/open.md`.*
 - ~~two table tests inherit the ambient terminal width instead of pinning one~~ — fixed as
   [[table-views]] round 5. The suite is now clean from 40 to 300 columns; it had passed only at 80
   since it was written
+- **a dock for a canvas window** — a toggle in the window's header bar collapses it to a small
+  rectangle near the top of the canvas: the last full message, a little activity stat, and a
+  visual alert when something changes. Untoggle puts it back. Raised 2026-08-30, from watching a
+  follow window that only mattered when it moved.
 
+  Two things worth knowing before this is spec'd. **The canvas has no window state between open
+  and closed** — a header carries `＋tag`, `WRAP`, `⟳`, `✕` and nothing else — so a dock is the
+  first one, and the question it really asks is whether that state belongs to the *window* or to a
+  new strip that owns docked things. (The "keeps running while minimized" comment in `app.js` is
+  about the page being hidden, not a window; it is not precedent.)
+
+  **The alert is the hard half, and it is not a rendering problem.** A docked window is by
+  definition the one nobody is looking at, so "no alert" has to mean *nothing happened* and never
+  *nothing is arriving* — the same distinction a follow's `quiet` band makes, and the same one a
+  dropped session breaks today. A calm dock over a dead stream is the worst version of this
+  surface's oldest failure. Whatever answers that for the band answers it here first.
