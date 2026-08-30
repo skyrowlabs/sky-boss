@@ -241,7 +241,7 @@ def follow_file(
 
     from cli import chrome as chrome_
     from cli import resident
-    from cli.output import THEME, band_text
+    from cli.output import THEME, band_text, late_note
 
     out = console or Console(theme=THEME, highlight=False)
     cursor = FileCursor(path, limit=limit, fs=fs, clock=clock)
@@ -281,10 +281,40 @@ def follow_file(
         )
 
     since = 0
+    # Whether the last look said `late`, so the sentence is said once per lapse
+    # rather than once per second. A line every second is the noise that makes
+    # an operator stop reading stderr, which is the failure this is preventing.
+    spoke_late = False
 
     def spill() -> Iterable[str]:
-        nonlocal since
+        """The lines for stdout, and — off a terminal — the one thing the band
+        would have said and cannot.
+
+        **The word comes from `chrome_.cursor`, not from a second computation.**
+        Asking the same function the frame asks is what makes the piped sentence
+        and the drawn band structurally unable to disagree; a private
+        reimplementation here would be a rival opinion about lateness, which is
+        the thing `--due` exists to keep in one place. See [[unwatched]].
+        """
+        nonlocal since, spoke_late
         new, since = cursor.fresh(since)
+        if due:
+            facts = chrome_.cursor(
+                path,
+                state=cursor.state,
+                last_write_at=cursor.last_write_at,
+                due=due,
+                now=clock(),
+            )
+            late = facts.attention == "late"
+            if late and not spoke_late:
+                # stderr, so stdout stays verbatim log output byte for byte and
+                # a consumer piping it is unaffected — the split that already
+                # keeps warnings off stdout. See [[follow]]'s non-TTY ruling.
+                late_note(path, cursor.last_write_at, due, clock())
+            # Reset on recovery, so a second lapse after a quiet spell speaks
+            # again rather than being swallowed by the first.
+            spoke_late = late
         return [line.text for line in new]
 
     resident.hold(

@@ -1018,6 +1018,37 @@ def refuse_resident_json(refresh: int | None) -> None:
         raise click.UsageError("--refresh and --json refuse each other")
 
 
+def late_note(path: str, last_write_at: float | None, due: int, now: float) -> None:
+    """Say that a followed file has passed the `--due` the operator declared.
+
+    **The one thing the band says that a pipe could not hear.** `--due` exists
+    so *quiet* and *dead* are different words; off a terminal there is no band,
+    so the flag whose whole purpose is to break a silence was itself silent.
+    See [[unwatched]].
+
+    stderr, for `saved_note`'s reason and [[follow]]'s: stdout stays verbatim
+    log output byte for byte, so a consumer piping it is unaffected, and this
+    lands on the channel that already carries everything sky.boss says *about*
+    a stream rather than *from* it.
+
+    **Not a judgment sky.boss invented.** `--due 15m` is a number the operator
+    wrote; reporting that it has elapsed is arithmetic on their own
+    declaration. There is no default and none is proposed.
+    """
+    from cli import chrome as chrome_
+
+    quiet = chrome_.ago(now - last_write_at) if last_write_at else "ever"
+    # `soft_wrap` so a long path stays one line. Off a terminal Rich wraps to
+    # its 80-column default, which broke the path across three lines — legible
+    # nowhere and uncopyable in a log. This is a sentence about a stream, not a
+    # rendering, and the one thing it must carry intact is the path.
+    _err().print(
+        f"[sb.warn]⚠️  late: no write to {path} in {quiet} (--due {chrome_.ago(due)})[/sb.warn]",
+        highlight=False,
+        soft_wrap=True,
+    )
+
+
 def serving_note(url: str, mode: str) -> None:
     """Say where the surface is, on stderr, **before** the server blocks.
 
@@ -1080,6 +1111,7 @@ def resident_ndjson(
     clock: Callable[[], float] = time.time,
     sleep: Callable[[float], None] = time.sleep,
     ticks: int | None = None,
+    runs: int | None = None,
 ) -> None:
     """Run a read on a cadence and emit one NDJSON line per tick.
 
@@ -1093,6 +1125,13 @@ def resident_ndjson(
     every wait* — and the clock and the sleep are injected for the reason the
     watchdog's were, so proving a cadence costs no wall-clock.
     """
+    # `runs` and `ticks` are the same number here and deliberately both
+    # accepted: one snapshot *is* one turn of this loop, where `resident.loop`
+    # polls once a second and runs only when due. The operator's `--ticks`
+    # arrives as `runs` on both paths so the flag means the same N whichever
+    # one answers; `ticks` stays the suite's bound. See [[unwatched]].
+    bound = runs if runs is not None else ticks
+    ticks = bound
     tick = 0
     while ticks is None or tick < ticks:
         tick += 1

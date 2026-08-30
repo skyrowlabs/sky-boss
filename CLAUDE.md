@@ -508,6 +508,21 @@ makes an exception safe is not which command it is, it is **who named the argv**
 `sb read` both run an argv the operator typed, and seeing its output is the feature. Any command
 that shells out on its own initiative still keeps that output out of `data`.
 
+**`--ticks N` bounds a cadence, and it counts refreshes on every path.** The word already meant two
+things: `keys.TICK` is one *second*, so `resident.loop` and `resident._turn` count seconds while the
+NDJSON loop counts snapshots. Shipping it unsettled would have made `sb data --refresh 30 --ticks 3`
+mean three seconds on a terminal and three refreshes in a pipe — one flag, one command, two answers.
+`loop` carries a separate `runs` bound, and the equivalence of the two paths is asserted directly
+because that equivalence is the only thing making the flag safe to ship. `follow` refuses it and
+says why: it has no refresh to count. See [[unwatched]].
+
+**A lapsed `--due` says one line on stderr, once, and asks `chrome_.cursor` for the word.** Going
+through the same function the band calls is what makes the piped sentence and the drawn band unable
+to disagree; a private reimplementation would be a rival opinion about lateness. **Once per lapse and
+reset on recovery** — a line per second is the noise that stops anyone reading stderr, and a flag
+that never resets swallows the *second* lapse, which is this feature's own bug reintroduced by the
+fix for its noise. Not a judgment sky.boss invented: `--due` is a number the operator wrote.
+
 **A cadence off a terminal is a stream of envelopes, not a refusal.** `sb data --refresh` down a
 pipe, or under `--json`, emits one NDJSON line per tick — the single-shot envelope plus `tick` and
 `at`, so every reader of `sb --json data` reads one of these lines unchanged. [[refresh]] round 3

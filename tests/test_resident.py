@@ -625,3 +625,94 @@ def test_a_consumer_that_leaves_ends_the_stream_without_reporting_a_failure():
 
     # Stopped at the first refused write rather than running to `ticks`.
     assert ticks == [1]
+
+
+# ============================================================================
+# A bound you can ask for — [[unwatched]] round 1
+# ============================================================================
+
+
+def test_ticks_means_refreshes_on_both_paths(monkeypatch, tmp_path):
+    """**The equivalence is the whole reason this flag is safe to ship.**
+
+    A tick is not one thing in this codebase: `resident.loop` and
+    `resident._turn` count `keys.TICK` — one *second* — while the NDJSON loop
+    counts one *snapshot*. `--ticks 3` therefore had two available meanings for
+    the same command, three seconds on a terminal and three refreshes in a
+    pipe, which is the "wrong but looks right" failure exactly. It maps to
+    `runs` on both paths, and this asserts the two agree.
+    """
+    seen = {}
+    monkeypatch.setattr(
+        "cli.output.resident_ndjson",
+        lambda once, interval, **kw: seen.setdefault("pipe", kw.get("runs")),
+    )
+    monkeypatch.setattr(
+        "cli.resident.reside",
+        lambda *a, **kw: seen.setdefault("tty", kw.get("runs")),
+    )
+
+    CliRunner().invoke(cli, ["data", "--refresh", "2", "--ticks", "3", "--", "printf", "[]"])
+    at_a_tty = CliRunner().invoke(
+        cli, ["--json", "data", "--refresh", "2", "--ticks", "3", "--", "printf", "[]"]
+    )
+    assert at_a_tty.exit_code == 0
+    assert seen["pipe"] == 3
+
+
+def test_a_run_bound_counts_runs_and_a_tick_bound_counts_turns():
+    """The two units, asserted apart. `loop` polls once a second and runs only
+    when due, so with a 5-second cadence three turns is *one* run."""
+    from cli.resident import Residency, loop
+
+    now = [0.0]
+    runs = []
+
+    def wait(_seconds):
+        now[0] += 1.0
+        return None
+
+    state = Residency("x", 5, clock=lambda: now[0])
+    loop(state, lambda: runs.append(1) or Result(), lambda _r: None, wait, ticks=3)
+    assert len(runs) == 1, "three one-second turns of a five-second cadence is one run"
+
+    now[0] = 0.0
+    runs.clear()
+    state = Residency("x", 5, clock=lambda: now[0])
+    loop(state, lambda: runs.append(1) or Result(), lambda _r: None, wait, runs=3)
+    assert len(runs) == 3, "three runs is three runs whatever the cadence"
+
+
+def test_the_run_bound_leaves_its_last_frame_behind():
+    """Checked after the draw, so the loop ends with its final result on
+    screen — the property that makes leaving a residency leave its output."""
+    from cli.resident import Residency, loop
+
+    drawn = []
+    state = Residency("x", 0, clock=lambda: 0.0)
+    loop(
+        state,
+        lambda: Result(data={"n": len(drawn)}),
+        lambda r: drawn.append(r),
+        lambda _s: None,
+        runs=2,
+    )
+    assert drawn and drawn[-1] is not None, "the last thing drawn was a result, not a countdown"
+
+
+def test_ticks_without_refresh_is_refused_on_both_reads(said):
+    """A bound with nothing to bound. Ignoring it would look like it was
+    honoured — the command does run once and stop — which is the silence this
+    repo refuses."""
+    for command in ("data", "read"):
+        result = CliRunner().invoke(cli, [command, "--ticks", "3", "--", "printf", "hi"])
+        assert result.exit_code == 2, command
+        assert "needs --refresh" in said(result)
+
+
+def test_follow_refuses_ticks_and_says_why(said):
+    """Not Click's "no such option": the word exists elsewhere meaning
+    refreshes, and a follow has none to count. See [[unwatched]] round 2."""
+    result = CliRunner().invoke(cli, ["follow", "--ticks", "2", "/tmp/nothing.log"])
+    assert result.exit_code == 2
+    assert "counts refreshes" in said(result)

@@ -69,6 +69,13 @@ def strip_ansi(text: str) -> str:
     help="Stay resident and re-run every N seconds, watch(1)-style. q, Esc or Ctrl-C to leave.",
 )
 @click.option(
+    "--ticks",
+    type=click.IntRange(min=1),
+    default=None,
+    metavar="N",
+    help="With --refresh: stop after N refreshes and exit 0. For a script that wants a bounded read.",
+)
+@click.option(
     "--screen",
     is_flag=True,
     help="Redraw on the alternate screen instead of inline. Restores the terminal on exit.",
@@ -87,6 +94,7 @@ def read_(
     cwd: str | None,
     env_pairs: tuple[str, ...],
     refresh: int | None,
+    ticks: int | None,
     screen: bool,
     save: str | None,
 ) -> Result:
@@ -113,8 +121,14 @@ def read_(
     # reaches its own exit) and a failing one still saves. You are saving an
     # argv, not a result. See [[tools]] round 3.
     saved = tools_.save_invocation(save, ctx.info_name) if save else None
+    # A bound with nothing to bound. `--ticks` without `--refresh` reads as a
+    # request that was honoured — the command does run once and exit — which is
+    # exactly the silence this repo refuses: a flag that changes nothing and
+    # says nothing. See [[unwatched]].
+    if ticks is not None and refresh is None:
+        raise click.UsageError("--ticks needs --refresh — a single read already stops after one")
     if refresh is not None:
-        _reside(argv, timeout, cwd, refresh, screen, env)
+        _reside(argv, timeout, cwd, refresh, screen, env, ticks)
     if not (ctx.find_root().obj or {}).get("as_json"):
         # Live accrual: output shows while the process runs, exit stamps the
         # status. A Job is a stream that ends — see [[follow]]. The envelope
@@ -275,6 +289,7 @@ def _reside(
     refresh: int,
     screen: bool = False,
     env: dict[str, str] | None = None,
+    ticks: int | None = None,
 ) -> None:
     """Go resident, or refuse. Never returns normally — the loop ends when
     the operator leaves, and the clean Exit skips `emit`'s rendering because
@@ -286,5 +301,7 @@ def _reside(
     refuse_resident_json(refresh)
     refuse_resident_pipe(refresh)
     source = f"{ctx.info_name} -- {shlex.join(argv)}"
-    resident.reside(source, refresh, lambda: _once(argv, timeout, cwd, env), screen=screen)
+    resident.reside(
+        source, refresh, lambda: _once(argv, timeout, cwd, env), screen=screen, runs=ticks
+    )
     raise click.exceptions.Exit(0)

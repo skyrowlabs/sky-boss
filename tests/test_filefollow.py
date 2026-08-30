@@ -322,3 +322,91 @@ def test_the_cursors_own_voice_stays_loud_when_stderr_goes_grey():
     styles = {body.plain[s.start : s.end].strip(): str(s.style) for s in body.spans}
     assert styles["tool progress"] == "sb.label"
     assert styles["— rotated —"] == "sb.warn"
+
+
+# ============================================================================
+# The lapse a pipe can hear — [[unwatched]] round 1
+# ============================================================================
+
+
+def test_a_lapsed_due_speaks_once_not_once_per_tick(capsys):
+    """`--due` exists so *quiet* and *dead* are different words, and off a
+    terminal the band that said which is suppressed — so the flag whose whole
+    purpose is to break a silence was itself silent.
+
+    Once per lapse, not once per tick: a line every second is the noise that
+    makes an operator stop reading stderr.
+    """
+    from rich.console import Console
+
+    fs = FakeFs()
+    fs.put("x.log", "line-a\n", mtime=100.0)
+    follow_file(
+        "x.log",
+        clock=lambda: 8000.0,  # 2h11m stale against a 15-minute --due
+        wait=lambda s: None,
+        console=Console(width=200),  # not a terminal: the verbatim path
+        ticks=4,
+        fs=fs,
+        due=900,
+    )
+    assert capsys.readouterr().err.count("late:") == 1, "four ticks, one sentence"
+
+
+def test_the_lapse_line_names_the_file_and_the_threshold(capsys):
+    """It has to be actionable from a log with nothing else in it — which file,
+    how long, and against what the operator declared."""
+    from rich.console import Console
+
+    fs = FakeFs()
+    fs.put("x.log", "line-a\n", mtime=100.0)
+    follow_file(
+        "x.log",
+        clock=lambda: 8000.0,
+        wait=lambda s: None,
+        console=Console(width=200),
+        ticks=1,
+        fs=fs,
+        due=900,
+    )
+    said = capsys.readouterr().err
+    assert "x.log" in said and "--due" in said
+
+
+def test_no_due_means_no_lapse_line_at_all(capsys):
+    """There is no default and none is proposed. Lateness sky.boss invented
+    would be exactly the judgment the verbatim rule exists to avoid."""
+    from rich.console import Console
+
+    fs = FakeFs()
+    fs.put("x.log", "line-a\n", mtime=100.0)
+    follow_file(
+        "x.log",
+        clock=lambda: 8000.0,
+        wait=lambda s: None,
+        console=Console(width=200),
+        ticks=3,
+        fs=fs,
+    )
+    assert "late:" not in capsys.readouterr().err
+
+
+def test_stdout_stays_verbatim_while_the_lapse_lands_on_stderr(capsys):
+    """The objection [[follow]]'s non-TTY ruling raised, disposed of by the
+    channel: a consumer piping stdout gets exactly the file's lines."""
+    from rich.console import Console
+
+    fs = FakeFs()
+    fs.put("x.log", "line-a\nline-b\n", mtime=100.0)
+    follow_file(
+        "x.log",
+        clock=lambda: 8000.0,
+        wait=lambda s: None,
+        console=Console(width=200),
+        ticks=2,
+        fs=fs,
+        due=900,
+    )
+    out = capsys.readouterr()
+    assert [ln for ln in out.out.splitlines() if ln.strip()] == ["line-a", "line-b"]
+    assert "late:" in out.err

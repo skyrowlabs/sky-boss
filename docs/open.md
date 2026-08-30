@@ -587,10 +587,19 @@ The two arguments as they stood, kept because the second is the one that had to 
   process case, and a file's silence is genuinely a different question. Note the ruling narrows it:
   once stderr is established as where sky.boss speaks about a stream, "would this be a judgment"
   is the only objection left, and `--due` is a threshold the operator declared rather than one
-  sky.boss chose.
+  sky.boss chose. *Closed 2026-08-30 → [[unwatched]] round 1: one line on stderr, once per
+  lapse, computed by asking `chrome_.cursor` rather than a second implementation — so the piped
+  sentence and the drawn band cannot disagree about the same file. The judgment objection is
+  answered as this note anticipated: `--due 15m` is a number the operator wrote, and saying it
+  has elapsed is arithmetic on their own declaration.*
 - And **when does it return?** Resident-by-nature has no natural end off a terminal. Today it runs
   until killed, which is right for `tail -f` and wrong for a script that wants the backfill and
-  out. `--ticks` exists in the suite; nothing exposes it.
+  out. *Closed 2026-08-30 → [[unwatched]] round 1: `--ticks N` on `data` and `read`, meaning N
+  refreshes, refused without `--refresh`. The round found `ticks` already meant two things — one
+  second in `resident.loop`, one snapshot in the NDJSON loop — so the flag maps to a new `runs`
+  bound and a test asserts the two paths agree. `follow` refuses it and names why: it has no
+  refresh to count, and "the backfill and out" is one pass rather than N of anything, which is
+  round 2 there.*
 
 **Worth keeping from the diagnosis:** `cli/follow.py:219` already asked `console.is_terminal` and
 used the answer to pick a display width, throwing the rest away. `cli/banner.py:151` asked the same
