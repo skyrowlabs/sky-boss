@@ -1,7 +1,7 @@
 ---
-status: complete
+status: active
 created: 2026-08-22
-updated: 2026-08-22
+updated: 2026-08-29
 agent_value: 3
 key_files:
   - cli/highlight.py
@@ -89,6 +89,18 @@ outside `cli/theme.py` in any language.
 - **No marks on `run`/`read` accrual output.** Those lines go to a possibly-piped stdout as
   the tool printed them; tinting belongs to the resident surfaces, where the ring is the
   display. If a real want appears for tinted accrual, argue it as its own round.
+- **No ninth colour, and no per-rule colour override** (round 5). Every ask this round could not
+  answer wanted a hue the design system does not have, and adding one is an edit to the vendored
+  `colors_and_type.css` — not a sky.boss decision. This module records the last attempt: a violet
+  for code spans, prototyped, good-looking, rejected as *exactly how a second palette starts*.
+  Held open as `docs/open.md` item 20 rather than settled here.
+- **No conventional glyphs** (round 5). 🤝 🌙 🙋 👉 🔎 all appear in the live log and every one
+  means something to *that grid* and nothing anywhere else. They are the operator's vocabulary, and
+  round 3 already ships the way to say so — **a declared pattern may be a glyph**, which nobody had
+  noticed because nothing in the surface shows it.
+- **No editing of `formats.toml` from the bench** (round 5). `tools.toml` writes are safe because
+  they splice one block's line range and back the file up first; `formats.toml` has neither, and
+  building both is a larger round than this one.
 
 ## Phases
 
@@ -299,6 +311,56 @@ means something in one grid and nothing anywhere else — so it is declared, not
 - [x] **The operator's own vocabulary declared**, proving round 3 carries the half sky.boss refuses
       to guess.
 
+### Round 5 — weight instead of hue (2026-08-29)
+
+**The operator asked for emphasis six times in one sitting and the palette has no room for another
+colour.** Raised while reading the live agent-fix drain: symbols should stand out, quoted text
+should differ, `#123` should be unique, brackets should differ, *escalate* should be emphasised,
+and — added mid-round — so should ALL CAPS. Four of those want a hue, and `STYLES` has eight roles
+with every one already spoken for. `docs/open.md` item 20 holds that question open.
+
+**The answer was already in the module.** Round 4 established that **bold is a weight, not a
+colour**, so it composes with whatever colour a mark already carries instead of competing for the
+slot — and `_emphasise` is the machinery, already written, already tested, already understood by
+both renderers. Emphasis is what was asked for. Emphasis is free. This round spends weight.
+
+- [x] **The verdict glyphs, widened by a rule rather than a list.** The test round 4 used — *is the
+  meaning in dispute* — does not decide the operator's examples on its own. The one that does:
+  **a glyph qualifies when carrying the verdict is its whole job.** Strip the verdict from
+  ✓ ✗ 👍 👎 ⚠ 🚨 ⛔ and there is no glyph left. 🎉 🚀 🔥 🤝 🌙 all *correlate* with a verdict in
+  agent prose and denote something else — a party, a rocket, a fire, a handshake, night. Tinting
+  those reads a convention, which is the judgment this module has refused since round 1.
+
+  Adds thumbs (👍👎), alerts (🚨 ❗ ❕ ‼), refusals (❎ 🛑) and info (ℹ️) to the round-4 set.
+- [x] **Every glyph becomes an emphasis range, not a louder colour.** A glyph is one character
+  wide, and hue at one character is the weakest signal this palette has. Weight is the strongest
+  and it costs no role.
+- [x] **ALL CAPS is a shape, and the corpus says it is two shapes.** `FOO_BAR` with an underscore
+  is an **identifier** and takes `sb.path`, the role round 2 already gave a literal. A bare
+  capitalised word of five characters or more is a **shout** and takes weight alone. The threshold
+  is measured, not chosen — see Notes.
+- [x] **The caps rule runs as emphasis, which is what makes it composable.** A colour rule claiming
+  `ERROR` would *block* the operator's own `error → fail` from ever reaching it, because a declared
+  rule takes only unclaimed text. As an emphasis range it does the opposite: their colour lands
+  first and the shout adds weight to it. This is the argument for the whole round in one case.
+- [x] **Overlapping emphasis ranges merge before they fill.** Four sources of range where there was
+  one, so `**ERROR**` is a shout inside a markdown emphasis. Union them first; the existing filler
+  walks a range assuming nothing else covers it.
+- [ ] **The bench stops asking you to remember.** `--highlight` is a text box whose placeholder
+  says *"a ruleset in `formats.toml`"*, and **the surface has never read that file** — nor has
+  `--from` beside it. So the one control this round is about is the one that cannot show its own
+  options, and a mistyped name yields an untinted stream with no reason given: the silent path and
+  the healthy path are the same bytes.
+
+  `/api/vocabulary` — introspection beside `/api/catalog` and `/api/shape`, in-process, running
+  nothing — returns the declared rulesets and formats **with their problems**, because one that
+  failed to compile must appear refused rather than absent. `sb tools` already groups both this way.
+- [ ] **A legend, because the declared half is the small half.** Thirteen built-in rules do most of
+  the tinting and none is visible anywhere in the surface. Drawn in their real roles, the legend
+  makes *"runs after sky.boss's own and claims only unclaimed text"* something you can see rather
+  than a sentence you have to trust — and it is how an operator discovers that **a declared pattern
+  may be a glyph**, which is the finding in Notes they most need.
+
 ## Notes
 
 ### Round 1 — drafted, awaiting the word (2026-08-22)
@@ -402,3 +464,49 @@ shape/vocabulary split holds up under a real request rather than only in the spe
 that needed a genuinely new decision was stderr, and it went the same way for the same reason: a
 second channel is not a severity.
 
+### Round 5 — the rules half, executed (2026-08-29)
+
+**Both reversals in this round came from the corpus, not from the argument.** The 251 KB `cron.log`
+being read when it was raised was measured before a rule was written, and it said no twice.
+
+**"ALL CAPS should be emphasised" is two rules.** Of 150 all-caps runs at five characters or more,
+the clear majority are configuration identifiers — `JAM_KUMA_FORCE_PING` ×22, `MAX_PER_RUN` ×10,
+`ALLOWED_HOSTS` ×7, `GEOIP_ASN_DB_PATH` — and the rest are genuine shouts: `ERROR` ×12,
+`PREFLIGHT` ×8, `FAILED`, `REFUSED`, `DRIFT`. Emphasising both identically would have shouted an
+env-var name twenty-two times. An underscore separates them, and the identifier takes the role
+round 2 already gave a literal.
+
+**Five characters, measured rather than chosen.** Below it the corpus is acronyms in ordinary
+prose: `PR` ×122, `CI` ×52, plus a bare `I` ×46 and `A` ×10 — **349 occurrences of pure noise at
+one to three characters against roughly 30 real shouts at five and up.** Four is the interesting
+boundary and it loses: it buys `TODO` (12) at the price of `HEAD` (23) and `HTTP` (10). `TODO`
+going untinted is the known cost of the line, and it is the right trade at this ratio.
+
+**The diff against the live log, old rules versus new, 1,897 lines:** 98 marks gained, 121 roles
+changed, **nothing lost**. Every gain is a config identifier or a shout; every change is a glyph
+picking up weight. No false positive in the whole file — which is the bar round 2 set when a rule
+that looked fine in a unit test turned out to be tinting `8 issue` and `104 archive`.
+
+**What the census also found, and it belongs to the operator rather than to this round.** The log
+carries 🤝 ×15, 🌙 ×10, 🙋 ×3, 👉, 🔎 — jam's own vocabulary, correctly excluded by the round's
+rule. They are already declarable today, because **a declared pattern is a regex and a regex may be
+a glyph**. Nobody had noticed. That is not a gap in round 3; it is a gap in the surface, and it is
+why the bench half of this round exists.
+
+**One test had to be narrowed to be kept honest.** `test_no_severity_vocabulary_anywhere` asserted
+`marks("ERROR …") == []`, which the shout rule breaks. Read as a boundary that would have blocked
+a rule that judges nothing — the shout knows only that someone capitalised a word, and bolds
+`VACUUM` with exactly the same enthusiasm as `ERROR`. The property that actually matters is
+narrower and stronger, and is what it asserts now: **no word earns a verdict colour.** `sb.fail`
+and `sb.warn` are what a severity vocabulary would reach for, and no built-in rule hands either to
+a word. Weight carries no verdict — which is the whole argument for spending it here.
+
+**And one test passed for the wrong reason before it was fixed.** The acronym case asserted
+`marks("the PR is green and CI agrees") == []` and failed on `green`, which round 4's colour-word
+rule had claimed a year of commits ago. The assertion wanted *no shout*, not *no marks*; an empty
+list would have been testing something else and happening to be right.
+
+**Thumbs are the one addition with no corpus evidence at all** — zero occurrences of 👍 or 👎 in
+the file. They went in on the rule rather than the measurement, which is the correct order, and is
+recorded here so the next reader knows which parts of this round were verified against real bytes
+and which were reasoned.
