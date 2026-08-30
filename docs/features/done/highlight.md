@@ -102,6 +102,11 @@ outside `cli/theme.py` in any language.
   means something to *that grid* and nothing anywhere else. They are the operator's vocabulary, and
   round 3 already ships the way to say so — **a declared pattern may be a glyph**, which nobody had
   noticed because nothing in the surface shows it.
+- **No ninth hue, and the question is closed rather than deferred** (round 6). The design system
+  has four and sky.boss spends four; adding one is an edit to the vendored `colors_and_type.css`
+  and a decision for the brand, not for this tool. What replaced it is the **ground** axis, which
+  costs nothing. Quoted text is the one ask still unanswered — it wants to be distinct from
+  `` `code` `` and a path, and those already share the literal role.
 - **No editing of `formats.toml` from the bench** (round 5). `tools.toml` writes are safe because
   they splice one block's line range and back the file up first; `formats.toml` has neither, and
   building both is a larger round than this one.
@@ -365,6 +370,42 @@ both renderers. Emphasis is what was asked for. Emphasis is free. This round spe
   than a sentence you have to trust — and it is how an operator discovers that **a declared pattern
   may be a glyph**, which is the finding in Notes they most need.
 
+### Round 6 — ground, not hue (2026-08-29)
+
+**Round 5 answered everything weight could answer and left three asks needing a colour.** The
+operator then asked the obvious next question — *can you pick colours from the skyrow theme* — and
+the answer is **no, and the reason is worth writing down once**: the vendored system holds exactly
+four hues and sky.boss spends all four. `--brand`/`--js` is one colour, `--bb` **is** `--ok`, `--mh`
+**is** `--warn`, `--danger` is the fourth. The per-project tokens look like extra palette and are
+aliases.
+
+**What the system does still hold is a token that is not a hue.** `--text-on-accent` is its own
+answer to *louder than a colour can be*: put the hue in the **background**. So the axis after
+weight is **ground**, and it costs nothing. A painted ground is also outside the CLI's two-sided
+contrast floor, by the mark's own argument — every other role is darkened because the terminal's
+background is unknown, and a role that supplies its own removes the unknown.
+
+- [x] **`#123` gets a ground rather than a hue.** `sb.ref` is the brand on a wash of itself: the
+  same colour, a different *object*, so round 2's rule holds (a value looks like its kind on both
+  surfaces) and it stops being indistinguishable from every other number. The CLI fills at
+  `--brand-ring`'s 22% and the canvas at `--brand-dim`'s 12% inside a 22% ring — a mapping rather
+  than a taste, since the system draws a chip as a fill inside a ring and a terminal cell has no
+  edge to draw, so it spends the ring's weight on the fill.
+- [x] **A painted role is checked against the ground it paints**, not exempted. The text floor
+  applies to its text on its own ground; the *ground* is judged by perceptual distance from either
+  terminal, with the threshold taken from the system — `--bg` to `--surface` is the smallest step
+  it treats as a visible change of surface. Skipping them would have let a role into `STYLES` that
+  nothing checked at all.
+- [x] **A delimiter dims and what it wraps does not.** The ask was for `()`, `{}` and `[]` in a
+  colour of their own; there is none to give. The answer that needs none is the leading timestamp's,
+  turned on punctuation — `--text-3` is defined by the system as *"structure, not reading text"*,
+  which is what a delimiter is. Dimming the two characters makes the contents stand out by taking
+  noise away. The brace is the one that earns it: an agent log carries JSON.
+- [x] **A composite role resolves in the terminal.** Not this round's subject; found by rendering
+  one line and reading the escape codes. See Notes.
+- [x] **A mark role paints on the canvas**, and the stylesheet is enumerated off the Python rules
+  so the next one cannot ship unpainted. Also not this round's subject, and worse. See Notes.
+
 ## Notes
 
 ### Round 1 — drafted, awaiting the word (2026-08-22)
@@ -561,3 +602,55 @@ is what will run.
 their log carries 🤝 ×15, 🌙 ×10, 🙋 ×3 — jam's own vocabulary, correctly outside sky.boss's
 built-in set — and **a declared pattern is a regex, so it may be a glyph.** Nobody had noticed,
 because until this round nothing in the surface showed what a declared rule even was.
+
+### Round 6 — executed, and two older bugs fell out of it (2026-08-29)
+
+**Neither of the two worst things found in this round was in this round's subject, and both were
+the same shape: a mark that landed and was never painted.**
+
+**Composite roles have rendered unstyled in the terminal since round 4.** Rich cannot resolve a
+theme name inside a compound style string: `get_style("sb.ok")` finds the theme entry, and
+`get_style("bold sb.ok")` falls through to `Style.parse`, which tries to read `sb.ok` as a *colour*,
+fails, and raises `MissingStyle` — which the render path swallows. CLAUDE.md recorded that *"Rich
+reads `bold sb.path` directly"*, which was never true. Round 4 made it a handful of bold phrases;
+**round 5 made every glyph composite**, so every ✓, ✗ and ⚠ in the log rendered plain. `role_style`
+in `cli/output.py` resolves each word against the theme and parses only what the theme has no entry
+for. Found by rendering one line and looking at the escape codes.
+
+**And the canvas never had a rule for `.mk-ok`, `.mk-fail` or `.mk-warn` at all.** Round 4's verdict
+roles and its colour words shipped their classes with nothing to paint them, so the same glyphs
+rendered in plain body text there too — for a week, in the opposite surface from the bug above.
+Both were wrong, differently, about the same characters.
+
+**Three separate checks had passed over this and could not see it**, which is the part worth
+keeping. The suite compares marks to marks. The round-5 headless pass read `element.className`,
+which is *present* whether or not a rule matches it. And the natural question — *did the mark land*
+— is answerable without ever asking what colour came out. The failure is visible only in a computed
+style. `test_every_mark_role_the_highlighter_can_emit_has_a_rule_in_the_stylesheet` now enumerates
+the roles off `_RULES` rather than spot-checking, the way the API route list is.
+
+**A third, smaller one from the same family:** the mark classes were scoped `pre.stream .mk-*`,
+which covered every marked line until round 5's legend drew one inside `pre.raw.legend-eg`. The
+classes landed, the paint did not, and my own verification of that legend had read class names.
+Unscoped now — a mark is a mark wherever it is drawn, and `pre.stream` was only buying them a
+margin.
+
+**On the delimiters, measured before believing it.** Over the same 1,897 lines: 832 paren pairs, 9
+bracket pairs, and the braces. That is a lot of new marks — roughly one pair every other line — so
+the safety properties were re-checked over the whole file rather than over a fixture: spans still
+join back to the text on every line, no line has overlapping or unsorted marks, and no line comes
+near the 64-mark cap. 579 refs took the new ground.
+
+**The `== []` assertion caught a third test out.** `test_a_digit_inside_an_identifier_is_not_a_number`
+asserted `marks("new commits: 7d9d878 (first run)") == []`, which now fails on the dimmed parens —
+the same failure as round 5's `green` case and round 3's before it. An empty list passes for reasons
+the test's name never mentions, and the fix is always to assert the property the name claims. Three
+times in this file now; worth reading as a rule rather than three accidents.
+
+**One thing was found and deliberately not fixed.** `CLI_PATH = "#698bab"` is the only CLI role that
+derives from no token — every other line says *from BRAND*, *from OK* — and the canvas draws that
+same role as `--text-2` plus an underline, a different colour entirely. So the module's *one value
+vocabulary, two surfaces* has an exception nobody wrote down, and
+`test_the_two_renderings_cover_the_same_hues` cannot see it: it checks that the tokens ship
+undarkened, not that every role has a token behind it. Left alone because it is a palette decision
+and this round was already carrying two unrelated repairs.

@@ -115,6 +115,37 @@ CLI_FAINT = "#6b7787"  # 4.55 / 4.39 — the most even split available
 CLI_PATH = "#698bab"  # a steel blue at the same floor   3.57 / 5.59
 
 # ============================================================================
+# Ground, not hue
+# ============================================================================
+#
+# **The system has four hues and sky.boss spends all four**, so the next thing
+# asked to stand out cannot have one: `--brand`/`--js` is one colour, `--bb`
+# *is* `--ok`, `--mh` *is* `--warn`, and `--danger` is the fourth. The
+# per-project tokens look like extra palette and are aliases.
+#
+# What the system does still hold is a token that is not a hue at all —
+# `--text-on-accent`, its own answer to *louder than a colour can be*: put the
+# hue in the **background**. So the axis after weight ([[highlight]] round 5)
+# is **ground**, and it costs no new colour.
+#
+# **A painted ground is outside the two-sided floor, by the mark's own
+# argument.** Every other role here is darkened because sky.boss renders into a
+# terminal whose background nobody knows; a role that paints its own removes
+# the unknown, which is exactly why `LOGO_*` above take their tokens at full
+# strength. So the foreground here is `BRAND` undarkened — 6.37 on this
+# ground — and it is the *ground* that must clear the floor against the
+# terminal, which it does in both directions (1.46 on the void, 13.66 on
+# white).
+#
+# The alpha is the design system's `--brand-ring` (0.22) rather than its
+# `--brand-dim` (0.12), and that is a mapping rather than a taste: the system
+# draws a chip as a 12% fill *inside* a 22% ring, and a terminal cell has no
+# edge to draw. It spends the ring's weight on the fill instead. The canvas,
+# which can draw an edge, uses both — see `sb.css`.
+CLI_REF_BG = "#103141"  # BRAND at 0.22 over BG  —  1.46 / 13.66 vs the two
+CLI_REF = BRAND  # undarkened: it sits on a ground this file chose
+
+# ============================================================================
 # Style roles
 # ============================================================================
 #
@@ -130,7 +161,16 @@ STYLES: dict[str, str] = {
     "sb.warn": CLI_WARN,
     "sb.num": CLI_BRAND,
     "sb.path": CLI_PATH,
+    # The one role that paints its own ground. See § Ground, not hue.
+    "sb.ref": f"{CLI_REF} on {CLI_REF_BG}",
 }
+
+# Roles that paint their own background, and are therefore exempt from the
+# unknown-terminal floor that governs every other one — the exemption the mark
+# already has, stated as data so the contrast test can check the right thing
+# rather than skip them. What a painted role owes instead is a *ground* that
+# clears the floor and a foreground legible on that ground; both are asserted.
+PAINTED: frozenset[str] = frozenset({"sb.ref"})
 
 
 # ============================================================================

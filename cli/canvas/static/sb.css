@@ -508,16 +508,49 @@ pre.stream .err { color: var(--sb-text-2); }
 pre.stream .voice { color: var(--sb-warn); }
 /* Lexical tint — role classes fed by marks from [[highlight]]. The path role
    underlines instead of taking a hue of its own: links look like destinations
-   without this file growing a colour the palette does not have. */
-pre.stream .mk-muted { color: var(--sb-text-3); }
-pre.stream .mk-accent { color: var(--sb-brand); }
-pre.stream .mk-path { color: var(--sb-text-2); text-decoration: underline; }
+   without this file growing a colour the palette does not have.
+
+   **Unscoped, as of round 6, and that was a real bug rather than tidying.**
+   These were `pre.stream .mk-*`, which is every place a marked line was drawn
+   until the bench grew a legend inside `pre.raw.legend-eg`. The classes landed,
+   the paint did not, and the legend rendered in plain body text — invisible to
+   a check that reads class names instead of computed styles, which is exactly
+   the check that missed it. A mark is a mark wherever it is drawn; the only
+   thing `pre.stream` was buying these was a margin. */
+.mk-muted { color: var(--sb-text-3); }
+.mk-accent { color: var(--sb-brand); }
+.mk-path { color: var(--sb-text-2); text-decoration: underline; }
 /* Round 2's value kinds. `mk-num` is the brand token because a number wears
  * the brand in a table cell too — one value vocabulary, two surfaces. `mk-bold`
  * is a weight and composes with any of the above, which is why a mark's role
  * may carry two class names. See [[highlight]]. */
-pre.stream .mk-num { color: var(--sb-brand); }
-pre.stream .mk-bold { font-weight: 700; }
+.mk-num { color: var(--sb-brand); }
+/* The verdict roles. **Missing since round 4** — the glyph rules and the
+   colour words landed their classes and nothing painted them, so every ✓, ✗,
+   ⚠ and every `red`/`green` on the canvas rendered in plain body text while
+   the terminal coloured them. Two surfaces, one vocabulary, and only one of
+   them was drawing it. `test_every_mark_role_has_a_rule` is enumerated off
+   the Python rules now, so the next role added cannot ship unpainted. */
+.mk-ok { color: var(--sb-ok); }
+.mk-fail { color: var(--sb-danger); }
+.mk-warn { color: var(--sb-warn); }
+/* Round 6: a ground rather than a hue, because the design system has four and
+   sky.boss spends all four. The fill is `--brand-dim`'s 12% and the ring is
+   `--brand-ring`'s 22% — the system's own way of drawing a chip, rebuilt with
+   `color-mix` because a stylesheet may not name a colour.
+
+   **No padding, and that is not an oversight.** Marks tint characters and
+   never alter them; horizontal padding inside a `<pre>` would shift every
+   character after it and put the rendered line out of step with the bytes it
+   came from. `box-shadow` draws the ring without touching layout, which is
+   why it is a shadow and not a border. */
+.mk-ref {
+  color: var(--sb-brand);
+  background: color-mix(in oklab, var(--sb-brand) 12%, transparent);
+  box-shadow: inset 0 0 0 0.25rem color-mix(in oklab, var(--sb-brand) 22%, transparent);
+  border-radius: 1rem;
+}
+.mk-bold { font-weight: 700; }
 .dead-band {
   display: flex; align-items: center; gap: 2.5rem;
   padding: 1.5rem 2.25rem; color: var(--sb-danger);

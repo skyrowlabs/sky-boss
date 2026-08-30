@@ -700,3 +700,62 @@ def test_a_wrapped_payload_states_its_size_beside_the_key(capsys):
     out = capsys.readouterr().out
     assert "jobs" in out
     assert "1 row · 1 column" in out
+
+
+def _console():
+    from rich.console import Console
+
+    from cli.output import THEME
+
+    return Console(theme=THEME, force_terminal=True, color_system="truecolor")
+
+
+def test_a_composite_role_resolves_instead_of_silently_rendering_plain():
+    """**Rich cannot resolve a theme name inside a compound style string, and
+    it fails silently.** `get_style("sb.ok")` finds the theme entry;
+    `get_style("bold sb.ok")` falls through to `Style.parse`, which tries to
+    read `sb.ok` as a colour and raises — and the render path swallows it, so
+    the span comes out unstyled rather than erroring.
+
+    [[highlight]] round 4 began emitting composites and CLAUDE.md recorded that
+    "Rich reads `bold sb.path` directly", which was never true. Round 5 made
+    every glyph composite and turned a handful of bold phrases into every ✓, ✗
+    and ⚠ in the log rendering plain. The canvas was correct throughout, so the
+    two surfaces disagreed and only the terminal was wrong.
+
+    Asserted on the resolved Style rather than on a rendered string: what broke
+    was resolution, and a snapshot of escape codes would fail for a colour
+    change too.
+    """
+    from rich.style import Style
+
+    from cli.output import role_style
+
+    style = role_style("bold sb.ok")
+    assert isinstance(style, Style)
+    assert style.bold is True
+    assert style.color is not None, "the composite lost its colour"
+    from cli.output import THEME
+
+    assert style.color.triplet == THEME.styles["sb.ok"].color.triplet
+
+
+def test_every_role_the_highlighter_can_emit_resolves():
+    """Enumerated from the rules rather than spot-checked, the same way the API
+    route list is. A role added to `cli/highlight.py` that Rich cannot resolve
+    would render plain and say nothing."""
+    from rich.errors import MissingStyle
+
+    from cli import highlight as highlight_
+    from cli.output import role_style
+
+    roles = {role for _, role, _, _ in highlight_._RULES}
+    roles |= set(highlight_._COLOUR_WORDS.values())
+    roles |= {"sb.muted", "sb.accent"}
+    roles |= {f"bold {role}" for role in list(roles)} | {"bold"}
+    console = _console()
+    for role in roles:
+        try:
+            console.get_style(role_style(role))
+        except MissingStyle:  # pragma: no cover - the failure being prevented
+            raise AssertionError(f"unresolvable role: {role!r}")

@@ -79,7 +79,16 @@ _DATE = re.compile(r"\b\d{4}-\d{2}-\d{2}\b")
 _TIME = re.compile(r"\b\d{1,2}:\d{2}(?::\d{2})?\b")
 
 # `#925` — an issue or PR reference, and the single most scanned token in a
-# queue-working log. It is a number; it gets the number's role.
+# queue-working log.
+#
+# **Round 6 gives it a ground rather than a hue, because there was no hue to
+# give.** It read as a number, which it is, and looked like every other number
+# on the line, which the operator asked it not to. The design system has four
+# hues and all four are spent, so the ask could not be answered in colour at
+# all — see `cli/theme.py` § Ground, not hue. `sb.ref` is the brand on a wash
+# of itself: the same colour, a different *object*. It is still the number's
+# hue, which keeps round 2's rule intact — a value looks like its kind on both
+# surfaces — and adds the one axis the system had left.
 _REF = re.compile(r"#\d+")
 
 # A number, with an attached `%` or short unit — `8%`, `90m`, `10.2`, `20000`.
@@ -160,6 +169,24 @@ _SCREAMING = re.compile(r"(?<![\w-])[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+(?![\w-])")
 # (10). `TODO` going untinted is the known cost of this line.
 _SHOUT = re.compile(r"(?<![\w-])[A-Z][A-Z0-9]{4,}(?![\w-])")
 
+# ---------------------------------------------------------------- round 6
+#
+# **A bracket is structure, so the delimiters dim and the contents are left
+# alone.** The operator asked for `()`, `{}` and `[]` to stand out in a colour
+# of their own, and there is no colour of their own to give. The answer that
+# needs none is the leading timestamp's, turned on punctuation: `--text-3` is
+# defined by the design system as *"structure, not reading text"*, which is
+# exactly what a delimiter is. Dimming the two characters makes what they wrap
+# stand out by taking noise away rather than adding it.
+#
+# Three separate alternatives rather than one character class, so `(foo]` is
+# not a pair. No nesting and no newline; bounded, like every rule here.
+# **The brace matters most and is the reason this is worth having**: an agent
+# log carries JSON, so `{…}` is where the eye loses the line.
+_WRAPPED = re.compile(
+    r"\([^()\n]{1,200}\)|\[[^\[\]\n]{1,200}\]|\{[^{}\n]{1,200}\}"
+)
+
 # A word that names a colour, in that colour. Standalone only — `\b` on both
 # sides, so `reported` is not `red`.
 _COLOUR_WORDS = {
@@ -213,7 +240,7 @@ _RULES: tuple[tuple[re.Pattern, str, bool, bool], ...] = (
     (_SCREAMING, "sb.path", False, False),
     (_DATE, "sb.num", False, False),
     (_TIME, "sb.num", False, False),
-    (_REF, "sb.num", False, False),
+    (_REF, "sb.ref", False, False),
     (_NUMBER, "sb.num", True, False),
 )
 
@@ -319,6 +346,16 @@ def marks(text: str, ruleset: "Ruleset | None" = None) -> list[Mark]:
                 found.append((start, end, role))
                 if len(found) >= MAX_MARKS:
                     break
+
+    # Delimiters last, after the operator's rules — a dimmed bracket is the
+    # least important mark on any line, so it takes only what nothing else
+    # wanted. That ordering is what keeps a leading `[tag]` whole: the
+    # positional rule claimed it long before this ran.
+    for match in _WRAPPED.finditer(text):
+        for at in (match.start(), match.end() - 1):
+            if any(at < e and s <= at for s, e, _ in found):
+                continue
+            found.append((at, at + 1, "sb.muted"))
 
     return _emphasise(text, sorted(found), loud)[:MAX_MARKS]
 

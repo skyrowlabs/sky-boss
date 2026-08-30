@@ -501,6 +501,26 @@ Shared with sibling CLIs so the family feels like one tool.
   canvas undarkened. The contrast floor is measured rather than eyeballed: two grey roles missed it
   by a hair while looking perfectly fine.
 
+  **A role may also paint its own ground, and that is the second escape clause.** `sb.ref` — the
+  `#123` chip — fills with the brand at the design system's own ring alpha and draws the brand
+  undarkened on top, because a role that supplies its own background removes the unknown the floor
+  exists for. It is checked rather than exempted: the text floor applies to its text on its own
+  ground, and the ground is judged by perceptual distance from either terminal against the system's
+  smallest deliberate surface step. **This is the only axis left** — the system holds four hues
+  (`--bb` *is* `--ok`, `--mh` *is* `--warn`) and sky.boss spends all four, so a fifth is a brand
+  decision and not this tool's. See [[highlight]] round 6.
+
+  **A composite role has to be resolved by hand.** `bold sb.ok` is not something Rich can read:
+  `get_style` finds a theme entry for the whole string or falls through to `Style.parse`, which
+  tries to read `sb.ok` as a colour, fails, and raises — and the render path *swallows it*, so the
+  span comes out unstyled with no error anywhere. An earlier version of this file said Rich reads
+  it directly; it never did, and every ✓ ✗ ⚠ in a followed line rendered plain for a week.
+  `role_style` in `cli/output.py` is the resolver. **And the canvas half is the same rule from the
+  other side**: a `mk-<role>` class lands whether or not the stylesheet has a rule for it, so
+  `.mk-ok`, `.mk-fail` and `.mk-warn` were unpainted for the same week. A test enumerates the roles
+  off `_RULES` now. *Both bugs were invisible to a check that asks whether the mark landed — the
+  answer is yes in both, and the colour is the thing that has to be read.*
+
   **The mark is the one thing outside that floor**, and the escape clause is the canvas's own:
   it *paints its own background*, so it takes the tokens at full strength. Not a convenience —
   its hues fail in opposite directions (the light handle on white, the dark slate on black), so

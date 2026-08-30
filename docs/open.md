@@ -145,6 +145,36 @@ cheap one; if it is that the existing glyphs should read stronger, it is the sam
 answer as *escalate*. Worth asking which rather than guessing, since the two cost very different
 amounts.
 
+**21. A wrap toggle in the canvas header, with a hanging indent under the timestamp.** Asked for
+by the operator 2026-08-29, reading the live agent-fix drain. A window's body scrolls sideways
+today ([[chrome]]: *"it scrolls sideways instead, the way the table does"*), and a long agent line
+is then half off-screen. The ask is a header control that wraps to the window instead — **and one
+special case that is the whole point of the item**: a line beginning with a timestamp should wrap
+**indented to the first character after the stamp**, so the continuation sits under the text rather
+than under the clock, and the timestamp column stays a clean column. The stamp is not repeated on
+the wrapped rows.
+
+*Not yet designed. What is already known and would shape it:*
+
+- **The indent is derivable and must not be guessed.** `cli/highlight.py`'s `_TIMESTAMP` already
+  matches a leading stamp and returns its end offset — the same number a hanging indent needs. So
+  this is `text-indent`/`padding-inline-start` computed from a mark sky.boss already produces, not
+  a new parse. A line with no stamp wraps flush, by the same rule and with no special case.
+- **Wrap is a property of a window, not of the surface.** Two windows on one canvas may want
+  different answers — a wide table wants the scroll, a prose log wants the wrap — so this is
+  per-window state like `pinned` is, and the header is where a window's own controls live. Whether
+  it also has a default that persists in `$SB_STATE` is the same question `rail` answered in
+  [[tools]] round 7.
+- **Marks are offsets into the text and wrapping does not move them.** Wrapping is a CSS decision
+  about a `<pre>`; the payload is unchanged and `markedLine` needs no opinion. Anything that
+  reflowed the *text* would break that and is the wrong implementation.
+- **The terminal is a separate question and probably a no.** `sb follow`'s ring is a fixed-height
+  frame and a wrapped line changes how many rows a record occupies, which is what the ring counts.
+  Do not assume this crosses over.
+- **Check it at more than one `--scale`.** A hanging indent is a length derived from a character
+  count, and a character is a different width at 1.15 and at 2.4. `ch` units are the obvious answer
+  and the obvious answer is what has to be measured.
+
 ## Primitives the plan and the tower need, none of which exist
 
 These four are why [[workbench]] is buildable now and the other two screens are not. Each is
