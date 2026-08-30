@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/skyrowlabs/sky-boss/security/advisories/new
+    about: Report privately. A public issue is a disclosure — see SECURITY.md.

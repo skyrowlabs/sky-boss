@@ -407,18 +407,36 @@ hazard is a formatter's bug with authority behind it. **Config lives at the root
 break. **Vendored code is exempt**, the same rule the hex scan uses. The Electron files are not
 split by process: `preload.js` bridges both by design, so a strict split would flag correct code.
 
-**15. Which of skeletor's governance the second contributor actually needs.** Deliberately not
-answered on the day, because the honest answer depends on whether a second contributor arrives.
-The ones whose *justification changes* the moment one does — each was declined on 2026-08-27 on
-single-contributor grounds, and that ground is going away:
+**15. Which of skeletor's governance the second contributor actually needs.** *Closed 2026-08-30,
+on the operator's ruling, in the pass that flipped the repo public.* Deliberately not answered on
+2026-08-27, because the honest answer depended on whether a second contributor arrives — and
+"preparing for additional contributors" is that question answered. What each row became is in the
+last column; the reasoning that declined them is left standing beside it.
 
-| From skeletor | What it is for | Why it was declined |
-|---|---|---|
-| PR + issue templates, `CODEOWNERS` | Shaping an outside contribution into something actionable | Nobody outside to shape |
-| Draft-PR discipline, the CI gate job | Keeping Actions minutes off abandoned iterations | One person, one branch, a 5s suite |
-| `dependabot.yml` | Bumps that run the suite before auto-merge | No PR flow to run in |
-| Conventional-commit hook | The log already reads this way — a hook makes it hold for someone new | Habit sufficed |
-| Coverage / skip ratchets | Catching a suite that quietly stopped testing | Nobody to catch |
+The ones whose *justification changes* the moment a contributor arrives — each declined on
+2026-08-27 on single-contributor grounds, and that ground is now gone:
+
+| From skeletor | What it is for | Why it was declined | Ruling |
+|---|---|---|---|
+| PR + issue templates, `CODEOWNERS` | Shaping an outside contribution into something actionable | Nobody outside to shape | **Adopted.** `CODEOWNERS` auto-requests a review; it gates nothing, because the branch protection does |
+| Draft-PR discipline, the CI gate job | Keeping Actions minutes off abandoned iterations | One person, one branch, a 5s suite | **Split.** Drafts are a sentence in `CONTRIBUTING.md`; the gate job is **declined again**, on a new ground — runners are free on a public repo, so the cost it saved does not exist |
+| `dependabot.yml` | Bumps that run the suite before auto-merge | No PR flow to run in | **Adopted**, grouped one PR per ecosystem. Review cost is per-PR, not per-bump |
+| Conventional-commit hook | The log already reads this way — a hook makes it hold for someone new | Habit sufficed | **Declined**, and the original reasoning was beside the point: **a git hook is not cloned with the repository**, so it could never have reached the contributor it was for. Documented in `CONTRIBUTING.md` instead |
+| Coverage / skip ratchets | Catching a suite that quietly stopped testing | Nobody to catch | **Declined.** *Test the decisions, not the ceremony* — a coverage number over 1,083 tests measures lines, and what this suite is for is the silent failures |
+
+**Three things were adopted that this table never listed, and one of them matters more than
+anything on it.** `SECURITY.md`: `sb ui` is remote code execution bound to a port, and a public
+repo shipping that owes a private disclosure route rather than an issue tracker where a report *is*
+a disclosure. Branch protection on `main`, which is what actually gates — everything went straight
+to `main` until today. And a **CI matrix over 3.11–3.14**, because `README.md` promised a range CI
+did not test; it found a real break on its first run, and the break was a PEP 701 f-string in
+`tests/test_naming.py` — a file that had been checked against 3.11 with `ast.parse(feature_version=…)`
+and passed, because that argument cannot see a tokenizer change. **A syntax check is not a run.**
+
+`CONTRIBUTING.md` is sky.boss's own rather than skeletor's, and that was forced rather than
+preferred: skeletor's names `check pre-push`, the `docs/TODO/` ↔ `docs/implementations/` move and
+Release Please, none of which exist here. Copying it would have documented a workflow the repo does
+not have — the palette's rule (*never offer a screen that is not there*) arriving in a text file.
 
 **Not on that list, and still declined for reasons a contributor count does not touch:** the docs
 lifecycle machinery — generated indexes, `TODO/` ↔ `implementations/`, frontmatter, merge drivers.
