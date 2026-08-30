@@ -1202,7 +1202,7 @@ function App() {
   const [planSources, setPlanSources] = useState([]);
   /* Which project, which view, which span. One object so a new control is one
    * key rather than a fourth `useState` and a fourth setter to forget. */
-  const [planUi, setPlanUi] = useState({ mode: "table", project: null, span: "24h" });
+  const [planUi, setPlanUi] = useState({ mode: "table", projects: [], span: "24h" });
   const [draft, setDraft] = useState(EMPTY_DRAFT);
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState(0);

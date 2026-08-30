@@ -78,6 +78,9 @@ class Project:
     # case and is not an error** — it is counted and named by the view rather
     # than drawn as a blank row. See [[schedule]].
     schedule: dict[str, str] | None = None
+    # Which slot on the surface's project ramp this one draws in — assigned at
+    # declaration, stable for the life of the file. See `SHADES` below.
+    shade: int = 0
 
     @property
     def source(self) -> str:
@@ -163,7 +166,30 @@ def parse(raw: dict) -> tuple[list[Project], list[str]]:
             )
         )
 
+    for slot, project in enumerate(projects):
+        project.shade = slot % SHADES
+
     return projects, problems
+
+
+# How many distinguishable steps the surface can draw a project in.
+#
+# **Not a palette, and not four roles.** The design system holds four hues and
+# sky.boss spends all four, so inventing a fifth is a brand decision and not
+# this tool's — but the three that are free here carry *meaning*: `ok` is green,
+# `warn` is what this very screen already uses for a late job, and `danger` is
+# red. A project coloured `warn` would be indistinguishable from a job that has
+# missed its window, and a project coloured `danger` would read as broken. So
+# identity is drawn as steps along the brand rather than as borrowed roles: no
+# new hue, no stolen meaning, and the semantic colours stay semantic.
+#
+# **Assigned by declaration order, not by name.** A hash of the name would be
+# stable too and would scatter neighbouring projects across the ramp for no
+# reason; order means the first two projects are always the two furthest apart,
+# which is the case that matters. Adding a project to the middle of the file
+# reshuffles the ones after it — accepted, because the alternative is a colour
+# nobody can predict from reading the file.
+SHADES = 6
 
 
 def _unknown_keys(body: dict) -> list[str]:

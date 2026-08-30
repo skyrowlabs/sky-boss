@@ -140,18 +140,23 @@ describtion = "no source, and a typo besides"
 
 def test_the_known_keys_cover_every_field_a_project_can_carry():
     """The set is spelled out rather than derived, so this is what stops a new
-    field becoming a declaration sky.boss silently ignores. Two fields are not
-    keys: `name` is the table's own, and `from_` clears the keyword."""
+    field becoming a declaration sky.boss silently ignores. Three fields are not
+    keys: `name` is the table's own, `from_` clears the keyword, and `shade` is
+    *assigned* rather than declared — it is sky.boss's own answer about which
+    ramp step a project draws in, so accepting it as a key would let the file
+    argue with the assignment. See [[schedule]] round 6."""
     from dataclasses import fields
 
     from cli.rollcall import PROJECT_KEYS, Project
 
+    derived = {"name", "shade"}
     expected = {
         "from" if f.name == "from_" else f.name
         for f in fields(Project)
-        if f.name != "name"
+        if f.name not in derived
     }
     assert expected == set(PROJECT_KEYS)
+    assert "shade" not in PROJECT_KEYS
 
 
 def test_parse_reads_no_file():

@@ -214,6 +214,32 @@ What would have broken the rule is naming the entry `plan`, since the rest of th
 entry that names the whole of a thing while showing a tenth of it is the same over-promise in a
 smaller font.** Both remaining screens are drawn in `docs/design/`. See `docs/open.md`.
 
+**`display: contents` has no box, so it has no rect and no background.** The schedule screen's rows
+are one — that is what lets a whole group share a single grid and align structurally rather than by
+coincidence — and `getBoundingClientRect` on such an element returns **zeros**, silently. A hover
+card anchored to one pinned itself to the corner of the window with correct content and no error.
+Union the children when a node has no rect, and paint hover state on the children too. See
+[[schedule]] round 6.
+
+**Preferring a side is a layout choice; staying inside the window is a contract.** A floating panel
+that flips above its anchor when below would overflow is still off-screen when the *anchor* is —
+and any scrolling container makes that reachable by hovering and then scrolling. Clamp
+unconditionally at the end, rather than only on the paths that happened to need it.
+
+**A project's colour is a step along the brand, never a new hue and never a borrowed role.** The
+design system holds four hues and sky.boss spends all four, so identity colour cannot come from a
+fifth. It also must not come from the three that are free: `ok` is green, `warn` is what a *late*
+job already is on the same screen, and `danger` is red — a project drawn in one would read as broken
+or be indistinguishable from lateness. `color-mix` against an injected role is the tint mechanism
+the stylesheet already has, so nothing outside `cli/theme.py` names a colour. The step is assigned
+in `rollcall.parse` by declaration order and shipped by `/api/projects`, so the CLI and the surface
+cannot disagree; it is **not** a declarable key, because a file that could set it could argue with
+the assignment.
+
+**A second list on a filtered screen inherits the filter or contradicts the first.** Two halves of
+one screen must describe the same set — the schedule's "declares no schedule" panels were drawn for
+projects the selection had excluded.
+
 **A derived instant ships from Python; the page never parses a timestamp.** The schedule charts
 need a *position*, and the obvious move is `Date.parse` on the provider's `next` in the browser.
 That is a second opinion about the thing [[schedule]] round 1 exists to keep single: Python

@@ -1325,3 +1325,86 @@ pre.stream.wrap .ln {
 .pl-bar { width: 100%; background: var(--sb-brand); border-radius: var(--r-sm) var(--r-sm) 0 0; min-height: 0; }
 .pl-count { font-size: 2.6rem; color: var(--sb-text-2); height: 3rem; }
 .pl-hlabel { font-size: 2.4rem; color: var(--sb-text-3); }
+
+/* --- round 6: a colour per project ---------------------------------------
+ * Steps along the brand, never a new hue and never a borrowed role. The three
+ * free roles all carry meaning — `ok` is green, `warn` is what a late job on
+ * this very screen already is, `danger` is red — so a project drawn in one of
+ * them would either read as broken or be indistinguishable from lateness.
+ * `color-mix` against an injected role is the tint mechanism the stylesheet
+ * already uses, so no file outside cli/theme.py names a colour. */
+.pl-s0 { --pl-ink: var(--sb-brand); }
+.pl-s1 { --pl-ink: color-mix(in oklab, var(--sb-brand) 62%, var(--sb-text)); }
+.pl-s2 { --pl-ink: color-mix(in oklab, var(--sb-brand) 46%, var(--sb-surface-2)); }
+.pl-s3 { --pl-ink: color-mix(in oklab, var(--sb-brand) 78%, var(--sb-ok)); }
+.pl-s4 { --pl-ink: color-mix(in oklab, var(--sb-brand) 34%, var(--sb-text)); }
+.pl-s5 { --pl-ink: color-mix(in oklab, var(--sb-brand) 55%, var(--sb-ok)); }
+.pl-swatch {
+  display: inline-block;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 50%;
+  background: var(--pl-ink, var(--sb-brand));
+  vertical-align: baseline;
+}
+
+/* --- round 6: the hover card --------------------------------------------- */
+.pl-card-layer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 60;
+}
+.pl-card {
+  position: fixed;
+  max-width: min(160rem, 90vw);
+  padding: 2.5rem 3rem;
+  border: 1px solid var(--sb-border);
+  border-radius: var(--r-md);
+  background: var(--sb-surface);
+  box-shadow: var(--lift);
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+  font-size: 2.9rem;
+}
+.pl-card-job { display: flex; flex-direction: column; gap: 1rem; }
+.pl-card-name { font-size: 3.2rem; }
+/* Three tracks: the label, the relative word, and the provider's own string.
+ * The absolute is last because it is the widest and the least scanned. */
+.pl-card-grid {
+  display: grid;
+  grid-template-columns: max-content max-content minmax(0, 1fr);
+  column-gap: 3rem;
+  row-gap: 0.75rem;
+  align-items: baseline;
+}
+.pl-card-k {
+  color: var(--sb-text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 2.5rem;
+}
+.pl-card-abs { color: var(--sb-text-2); }
+.pl-card-wide { grid-column: 2 / -1; }
+.pl-card-src { color: var(--sb-text-3); border-top: 1px solid var(--sb-hair); padding-top: 1.5rem; }
+/* More than a handful of jobs in one hour has to scroll inside the card
+ * rather than make a card taller than the window. */
+.pl-card { max-height: min(120rem, 80vh); overflow-y: auto; }
+
+/* Stacked segments, one per project — never overlaid. */
+.pl-stack { width: 100%; display: flex; flex-direction: column-reverse; border-radius: var(--r-sm) var(--r-sm) 0 0; overflow: hidden; }
+.pl-seg { width: 100%; background: var(--pl-ink, var(--sb-brand)); min-height: 2px; }
+.pl-lane .pl-mark { background: var(--pl-ink, var(--sb-brand)); }
+.pl-lane .pl-mark.pl-late { background: var(--sb-warn); }
+/* A `display: contents` row has no box to paint, so the highlight goes on the
+ * cells — the same reason `boxOf` has to union them to find the row's extent. */
+.pl-row:hover .pl-c,
+.pl-row:focus-visible .pl-c { background: var(--sb-surface-2); }
+.pl-row:focus-visible .pl-c { box-shadow: inset 0 -2px 0 var(--sb-brand); }
+.pl-lane:hover, .pl-hour:hover { background: var(--sb-surface-2); }
+.pl-lane:focus-visible, .pl-hour:focus-visible {
+  outline: 2px solid var(--sb-brand);
+  outline-offset: -2px;
+}
+.pl-controls .seg button .pl-swatch { margin-right: 1.5rem; }
