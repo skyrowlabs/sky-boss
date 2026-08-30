@@ -388,6 +388,23 @@ budget-limiting function accurately.
 
 ## Going public, and stopping being one person
 
+*Closed 2026-08-30: the repo is public.* Both items below are answered, and what the flip itself
+needed — a green suite, a first tag, a machine-neutral tree, a disclosure route, branch protection —
+is done and recorded where each belongs. Two lessons are worth carrying past this section, because
+neither is about publishing:
+
+- **A pre-flight audit that lives outside the repo is not a pre-flight audit for anyone but its
+  author.** The half that could become a test did: `tests/test_publication.py`, checking shapes
+  rather than names, for the reason its docstring gives. Four hand-run audits had called the tree
+  clean; the shape patterns found five leaks in a minute, three of them in prose that argued the
+  rule correctly while breaking it in the same paragraph.
+- **Order the irreversible step first.** Adopting `dependabot.yml` before rewriting history meant
+  three bot pull requests opened against the old history within a minute, and a pull-request ref is
+  permanent — nothing a later force-push does can reach it. The rewrite still ran and every branch
+  and tag carries it; what it could not reach was ruled acceptable by the operator. The general
+  form: **when one step of a plan cannot be undone, it goes before every step that can create a
+  reference to what it is undoing.**
+
 Opened 2026-08-27, when the repo's audience changed from *the operator* to *whoever clones it*.
 Several decisions in `CLAUDE.md` were made against a one-contributor repo and were correct for it;
 they are not automatically correct for a public one, and this is where that gets argued rather
