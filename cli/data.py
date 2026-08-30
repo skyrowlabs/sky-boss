@@ -139,7 +139,11 @@ def is_file_form(argv: tuple[str, ...]) -> bool:
     type=click.IntRange(min=1),
     default=None,
     metavar="SECONDS",
-    help="Stay resident and re-run every N seconds, watch(1)-style. q, Esc or Ctrl-C to leave.",
+    help=(
+        "Stay resident and re-run every N seconds, watch(1)-style. q, Esc or Ctrl-C to leave. "
+        "Off a terminal — or under --json — it emits one envelope per tick as NDJSON instead of "
+        "drawing."
+    ),
 )
 @click.option(
     "--screen",
