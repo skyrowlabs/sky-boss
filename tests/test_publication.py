@@ -15,9 +15,17 @@ out. So the two halves split by what they can safely say:
 - this keeps the **shapes** — a home directory, a routable address — which
   identify no one and belong in the repo.
 
-Neither half subsumes the other. The grep catches `a-host-name`; this catches the
-`/home/<someone>` that a name list has never heard of. Both were needed: this
-file's patterns found five leaks on 2026-08-30 that four previous audits had
+Neither half subsumes the other. The grep catches a host it was told about;
+this catches the `/home/<someone>` that a name list has never heard of.
+
+The first draft of this file demonstrated its own subject: it quoted a real
+host name as the example of what the grep catches, in the paragraph explaining
+why names must not be written here. The shape patterns below cannot see that —
+a name is exactly what they do not check — and it survived into two commits
+before a scan of every blob in history turned it up. **The half that is not a
+test stays not-a-test**, and that is the cost of the split, stated plainly.
+
+Both halves were needed: this file's patterns found five leaks on 2026-08-30 that four previous audits had
 walked past, in prose that *argued the rule correctly while breaking it* —
 `docs/features/done/state-root.md` called a baked-in workspace layout "the same
 class of leak as a host name in a tracked file", two lines under one.
@@ -98,10 +106,15 @@ def test_the_listing_is_not_empty():
 
 
 def test_no_home_directory_in_a_tracked_file():
-    """A home directory names the person who has one. `/home/you` shipped in
-    a code comment and a feature doc for three days, both quoting a real
-    workbench bug where two panes disagreed about a path — the evidence was
-    *that they disagreed*, and never which path it was."""
+    """A home directory names the person who has one. One shipped in a code
+    comment and a feature doc for three days, both quoting a real workbench bug
+    where two panes disagreed about a path — the evidence was *that they
+    disagreed*, and never which path it was.
+
+    This docstring named it, in its first draft, while explaining why not to.
+    The exemption below is what let that through: a file that scans every
+    tracked file has to skip itself, or its own patterns are its own first
+    failure — so **nothing checks this file but a reader.**"""
     found = []
     for name, text in _tracked():
         if name == "tests/test_publication.py":

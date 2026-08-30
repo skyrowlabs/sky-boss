@@ -51,8 +51,8 @@ operator's gitignored notes, run by hand before publishing — which works exact
 person publishing knows the grep exists, and a contributor does not. The names cannot move into a
 tracked test, because a list of real hosts *is* the thing being kept out. So `tests/test_publication.py`
 checks **shapes** — a home directory, a routable address, `CLAUDE.local.md` itself being committed —
-and the notes keep the **names**. Neither half subsumes the other: the grep catches `a-host-name`, the
-test catches the `/home/<someone>` no name list has heard of. Both were needed. Four audits had
+and the notes keep the **names**. Neither half subsumes the other: the grep catches a host it was
+told about, the test catches the `/home/<someone>` no name list has heard of. Both were needed. Four audits had
 called the tree clean and the shape patterns found five leaks on 2026-08-30, three of them in prose
 that **argued the rule correctly while breaking it** — [[state-root]] called a baked-in workspace
 layout "the same class of leak as a host name in a tracked file", two lines under one.
