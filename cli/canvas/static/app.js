@@ -22,15 +22,23 @@ import { html, useEffect, useRef, useState } from "./vendor/htm-preact.js";
 import * as api from "./api.js";
 import { Body, markedLine, summarise } from "./render.js";
 import { BENCH_WINDOW, Bench, RESIDENT, compose, tagPool } from "./bench.js";
+import { Plan } from "./schedule.js";
 
 const TILE = "tile";
 const FLOAT = "float";
 
-/* Two screens, because there are two screens. The design pass drew three —
- * workbench, flight plan, control tower — and the other two need four
- * primitives that do not exist yet. A nav offering a screen that is not there
- * is the palette's own failure wearing different clothes: it has already told
- * you the thing exists. See [[workbench]] and docs/open.md.
+/* Three screens as of [[schedule]] round 4. The design pass drew four —
+ * workbench, flight plan, control tower — and the rule here used to be that a
+ * nav offering a screen that is not there is the palette's own failure wearing
+ * different clothes: it has already told you the thing exists.
+ *
+ * **The rule stands; its condition changed.** The objection was to *offering*
+ * something absent, so the schedule screen answers it by existing rather than
+ * by overriding it — and it is called `schedule`, not `plan`, because the rest
+ * of the drawn flight plan still needs job identity, a claim vocabulary and a
+ * clock source. A nav entry reading `plan` above a table of fire times would
+ * be the same over-promise in a smaller font. The control tower is still not
+ * offered. See [[workbench]] and docs/open.md.
  */
 const CANVAS = "canvas";
 
@@ -42,6 +50,7 @@ function tileColumns(count) {
   return Math.max(1, Math.ceil(Math.sqrt(count)));
 }
 const WORKBENCH = "workbench";
+const SCHEDULE = "schedule";
 
 /* The view flags a saved tool may carry in its argv, and the draft field each
  * belongs in. Named here rather than in the loop so adding a fourth is one
@@ -1179,6 +1188,13 @@ function App() {
   const [windows, setWindows] = useState([]);
   const [layout, setLayout] = useState(TILE);
   const [screen, setScreen] = useState(CANVAS);
+  /* The schedule screen's own reading, and when it was taken.
+   *
+   * Kept beside the screen rather than as a window: it is not draggable, not
+   * pinnable and not closeable, so giving it a window id would put it in every
+   * loop that iterates windows for reasons none of which apply to it. */
+  const [plan, setPlan] = useState(null);
+  const [planAt, setPlanAt] = useState(0);
   const [draft, setDraft] = useState(EMPTY_DRAFT);
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState(0);
@@ -1704,6 +1720,32 @@ function App() {
         .catch(() => patch(win.id, (w) => ({ viewFor: w.result })));
     }
   }, [windows]);
+
+  /* Re-read the schedule. One funnel, like everything else that runs: this is
+   * `/api/run` with the same argv the palette would send, not a private route.
+   *
+   * **Read on entering the screen, and on demand — never on a browser timer.**
+   * A hidden page has its timers clamped to about one fire a minute, so a
+   * cadence here would silently become a different cadence exactly when you
+   * stopped being able to see it. The screen states its own age instead, which
+   * is honest at any rate including none. See [[canvas]] on the refresh clock. */
+  const readPlan = () => {
+    api
+      .run(["schedule"])
+      .then((body) => {
+        setPlan(body);
+        setPlanAt(Date.now());
+      })
+      .catch((error) => {
+        setPlan({ error: String(error) });
+        setPlanAt(Date.now());
+      });
+  };
+
+  useEffect(() => {
+    if (screen !== SCHEDULE) return;
+    readPlan();
+  }, [screen]);
 
   const actions = {
     focus: (id) => {
@@ -2361,6 +2403,12 @@ function App() {
           >
             workbench
           </button>
+          <button
+            class=${screen === SCHEDULE ? "on" : ""}
+            onClick=${() => setScreen(SCHEDULE)}
+          >
+            schedule
+          </button>
         </div>
         <${BarPalette}
           commands=${commands}
@@ -2406,7 +2454,14 @@ function App() {
         />
       `}
 
-      ${screen === WORKBENCH
+      ${screen === SCHEDULE
+        ? html`<${Plan}
+            result=${plan}
+            readAt=${planAt}
+            now=${now}
+            onRefresh=${readPlan}
+          />`
+        : screen === WORKBENCH
         ? html`<${Bench}
             commands=${commands}
             groups=${groups}
@@ -2461,7 +2516,12 @@ function App() {
       />`}
 
       <div class="foot-bar">
-        ${screen === WORKBENCH
+        ${screen === SCHEDULE
+          ? html`
+              <span>⟳ re-read</span>
+              <span>sky.boss orders; the provider judges</span>
+            `
+          : screen === WORKBENCH
           ? html`
               <span>⏎ trial run</span>
               <span>the contract is the assertion</span>
