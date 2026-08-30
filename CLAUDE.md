@@ -233,6 +233,16 @@ The rules that are not negotiable:
   so a 5s watcher would silently become a 60s one at the exact moment you stopped being able to see
   that it had. Nothing survives the last window, which is what makes this a scheduler and not a
   daemon.
+- **An act is confirmed before it runs, and that is not a security control.** `acts` labelled things
+  until [[canvas]] round 11; it now stops one. Every launch converges on one funnel, so the dialog
+  sits there rather than at each call site. Three parts are load-bearing. It is **client-side on
+  purpose** and does not contradict the rule that *a surface which declines to draw a button has not
+  refused anything* — that rule governs a **refusal**, which must live where the permission does;
+  nothing is refused here, an act is merely asked about, and a question needs a human, which the
+  server has not got. The confirm is **never the focused default and never answers to Enter**, since
+  Enter is how a palette row launches and a guard defeated by the gesture it exists to catch is
+  worse than none. And it **shows the expansion, not the nickname** — a saved tool is a short name in
+  the rail, and the argv is what happens.
 - **The session stream reconnects, and a window says so when it cannot.** Everything the surface
   does — every watcher, every follow, live reload — rides one stream, so losing it freezes the whole
   page; until [[canvas]] round 10 it froze permanently, because the stream was opened once and never

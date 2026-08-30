@@ -903,6 +903,41 @@ function ViewControls({ win, actions }) {
   `;
 }
 
+/* The confirmation for an act. See [[canvas]] round 11.
+ *
+ * **Run is never the focused default and never answers to Enter.** Enter is
+ * how a palette row launches, so a dialog that focused Run would be dismissed
+ * by a second Enter — held, repeated, or typed ahead — before anything had been
+ * read, and a guard defeated by the gesture it exists to catch is worse than
+ * none. Cancel takes focus; Run costs a deliberate click.
+ *
+ * It shows the argv it will actually run, expanded, because "make sure it was
+ * not accidental" is a question about *what*, not merely whether — a saved
+ * tool is a short name in the rail and the argv is the thing that happens. */
+function ConfirmAct({ pending, onConfirm, onCancel }) {
+  const cancelRef = useRef(null);
+  useEffect(() => {
+    if (cancelRef.current) cancelRef.current.focus();
+  }, []);
+  return html`
+    <div class="scrim confirm-scrim" onMouseDown=${onCancel}></div>
+    <div class="confirm" role="dialog" aria-modal="true">
+      <div class="confirm-head"><span class="acts-mark">!</span> this command acts</div>
+      <div class="confirm-note">
+        It changes something. Nothing has run yet.
+      </div>
+      <pre class="confirm-argv">${["sb", ...(pending.expansion || pending.argv)].join(" ")}</pre>
+      ${pending.expansion &&
+      html`<div class="confirm-cwd">saved as ${["sb", ...pending.argv].join(" ")}</div>`}
+      ${pending.cwd && html`<div class="confirm-cwd">in ${pending.cwd}</div>`}
+      <div class="confirm-buttons">
+        <button class="sbtn" ref=${cancelRef} onClick=${onCancel}>cancel</button>
+        <button class="sbtn danger" onClick=${onConfirm}>run it</button>
+      </div>
+    </div>
+  `;
+}
+
 function Window({ win, now, layout, focused, actions, intervals, down }) {
   const age = win.ranAt ? Math.round((now - win.ranAt) / 1000) : null;
   const chrome = (win.result && win.result.chrome) || win.chrome;
@@ -1059,6 +1094,10 @@ function App() {
   const [focus, setFocus] = useState(null);
   const [session, setSession] = useState(null);
   const [down, setDown] = useState(false);
+  /* The act awaiting a yes. Null when nothing is being asked. See [[canvas]]
+   * round 11 — this is the only thing on the surface that reads `acts` to stop
+   * an action rather than to label one. */
+  const [pending, setPending] = useState(null);
   /* What the operator declared about output. Null until the bench is opened
    * for the first time — the canvas never needs it, since the palette *runs*
    * saved tools and only the bench *authors* one. */
@@ -1072,6 +1111,11 @@ function App() {
   const windowsRef = useRef(windows);
   windowsRef.current = windows;
   const sessionRef = useRef(null);
+  /* Read by handlers that must not fire behind an open dialog — the palette's
+   * Enter above all. A ref rather than a closure over `pending`, for the same
+   * reason `windowsRef` exists: those handlers are registered once. */
+  const pendingRef = useRef(null);
+  pendingRef.current = pending;
   /* Same escape hatch as `windowsRef`, and needed for the same reason: the
    * stream handler is installed once, and a follow trial's frames arrive on it
    * long after this closure was made. */
@@ -1239,12 +1283,42 @@ function App() {
         event.preventDefault();
         setFloating((f) => !f);
       } else if (event.key === "Escape") {
+        /* The dialog first: Escape is the cheap way out of a confirmation, and
+         * making the cancel cheap is what keeps the guard from being routed
+         * around. See [[canvas]] round 11. */
+        setPending(null);
         setFloating(false);
       }
     }
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, []);
+
+  /* The one gate in front of the one funnel. See [[canvas]] round 11.
+   *
+   * Every launch converges on `execute` — a palette entry, a click in the
+   * tools rail, a window's ⟳, `chdir`'s re-run — so asking here is exhaustive
+   * by construction rather than by remembering the call sites. It takes the
+   * *window object* rather than an id because `open()` has not landed its
+   * window in `windowsRef` yet, and `acts` is the whole question.
+   *
+   * Not a security control: a page past the guard POSTs /api/run and never
+   * sees this. It stops the operator's own stray Enter, which is what was
+   * asked for. */
+  function launch(win, argv) {
+    if (!win.acts) {
+      execute(win.id, argv, win.resident);
+      return;
+    }
+    setPending({
+      id: win.id,
+      argv,
+      resident: win.resident,
+      label: win.label,
+      cwd: win.cwd,
+      expansion: win.expansion,
+    });
+  }
 
   function execute(id, argv, resident = null) {
     /* `resident` is passed explicitly from open(), because the state update
@@ -1324,6 +1398,9 @@ function App() {
   }
 
   function open(entry, typed, initial) {
+    /* One question at a time. Without this a second stray Enter opens a window
+     * *behind* the dialog, answering for the first. See [[canvas]] round 11. */
+    if (pendingRef.current) return;
     /* Anything typed past the command name is argv. `run -- jam pr list --json`
      * has to reach the server whole; splitting it here would be a second
      * parser, and sky.boss's own is the one that decides what an argv means. */
@@ -1364,6 +1441,11 @@ function App() {
       stream: Boolean(entry.resident),
       streamLines: [],
       chrome: null,
+      /* What a saved name actually expands to, kept so the confirmation can
+       * show the command rather than the nickname. The rail draws a short name
+       * and `sb tools jam-release-train` is not what happens — see [[canvas]]
+       * round 11. Null for anything that is already its own expansion. */
+      expansion: entry.expansion || null,
       raw: Boolean(entry.raw),
       rawWords: entry.rawWords || null,
       cwd: entry.cwd || null,
@@ -1413,7 +1495,7 @@ function App() {
     setSelected(0);
     setFloating(false);
     setFocus(id);
-    execute(id, argvOf(win), win.resident);
+    launch(win, argvOf(win));
     /* Registered now rather than on the next session frame, so a tool that
      * opens pinned starts its clock immediately instead of on the next tick. */
     if (win.pinned) reWatch(win);
@@ -1561,7 +1643,7 @@ function App() {
     },
     refresh: (id) => {
       const win = windowsRef.current.find((w) => w.id === id);
-      if (win) execute(id, argvOf(win));
+      if (win) launch(win, argvOf(win));
     },
     /* Re-runs at once. A directory that changed but left the old output on
      * screen is a window claiming to show something it is not. */
@@ -1571,7 +1653,7 @@ function App() {
       const next = { ...win, cwd };
       patch(id, () => ({ cwd }));
       reWatch(next);
-      execute(id, argvOf(next));
+      launch(next, argvOf(next));
     },
     pin: (id) => {
       const win = windowsRef.current.find((w) => w.id === id);
@@ -1843,10 +1925,16 @@ function App() {
       }));
     },
 
-    /* Delete, with one confirmation and the backup path in the answer. The
-     * confirmation is `confirm()` rather than a modal because this surface has
-     * no modal and inventing one to ask a yes/no question is the larger
-     * change. A delete is not undoable from here — the backup is the undo. */
+    /* Delete, with one confirmation and the backup path in the answer. A
+     * delete is not undoable from here — the backup is the undo.
+     *
+     * This still uses `confirm()`, and the reason it gave has expired: the
+     * surface *does* have a modal now ([[canvas]] round 11), so "inventing one
+     * to ask a yes/no question is the larger change" is no longer true. It is
+     * left as it is because moving it was not this round's ask, not because
+     * the argument still holds — the dialog is shaped around an argv and a
+     * working directory, which a tool deletion has neither of. Left recorded
+     * rather than quietly restated. */
     forget: (tool) => {
       const name = shortOf(tool);
       if (!window.confirm(`Delete the tool "${name}"? Its file is backed up first.`)) return;
@@ -2202,6 +2290,17 @@ function App() {
               </div>
             </div>
           `}
+
+      ${pending &&
+      html`<${ConfirmAct}
+        pending=${pending}
+        onCancel=${() => setPending(null)}
+        onConfirm=${() => {
+          const ask = pending;
+          setPending(null);
+          execute(ask.id, ask.argv, ask.resident);
+        }}
+      />`}
 
       <div class="foot-bar">
         ${screen === WORKBENCH
