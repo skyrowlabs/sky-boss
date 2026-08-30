@@ -463,6 +463,19 @@ def build(canvas: Canvas | None = None) -> Starlette:
         drop = [str(c) for c in (body.get("drop") or [])]
         rows_path = str(body.get("rows") or "") or None
 
+        # **An authored view is not re-derivable.** `shape` infers from the
+        # rows, and a command that chose its own columns made a decision the
+        # rows do not contain — re-inferring it silently replaces five columns
+        # with seven. So an authored view passes through untouched until the
+        # operator asks for something else, and asking is what `cols` is.
+        # The checklist still comes from the view itself, which carries every
+        # key: `offered` is columns + details + hidden either way.
+        authored = body.get("view") if isinstance(body.get("view"), dict) else None
+        if authored and authored.get("authored") and not cols and not drop:
+            return JSONResponse(
+                {"view": authored, "offered": view_.offered(authored), "warnings": []}
+            )
+
         found = view_.find_rows(data, rows_path)
         view = view_.shape(data, cols=cols, drop=drop, rows_path=rows_path)
         # The full checklist, from the same payload with nothing asked of it.

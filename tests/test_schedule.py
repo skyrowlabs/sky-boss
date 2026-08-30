@@ -7,10 +7,11 @@ here parses a cron expression or computes a fire time.
 """
 
 import json
+from datetime import datetime
 
 from click.testing import CliRunner
 
-from cli import cli
+from cli import cli, schedule
 from cli.schedule import order, parse_instant, rows_of
 from cli.rollcall import Project
 
@@ -165,3 +166,63 @@ def test_schedule_is_an_observe_so_a_window_may_pin_it():
     from cli.schedule import schedule as cmd
 
     assert not getattr(cmd, "sb_acts", False)
+
+
+# ---------------------------------------------------------------- round 3
+
+
+def _at(text: str) -> datetime:
+    return datetime.fromisoformat(text)
+
+
+def test_relative_reads_forward_and_backward():
+    """Arithmetic on two instants, in the vocabulary the bands already use."""
+    now = _at("2026-08-30T12:00:00+00:00")
+    assert schedule.relative(_at("2026-08-30T12:26:00+00:00"), now) == "in 26m"
+    assert schedule.relative(_at("2026-08-31T12:00:00+00:00"), now) == "in 1d"
+    # `late`, not a negative duration: the word is chrome's, so the two
+    # surfaces cannot grow separate vocabularies for one idea.
+    assert schedule.relative(_at("2026-08-30T11:46:00+00:00"), now) == "late 14m"
+    assert schedule.relative(None, now) == ""
+
+
+def test_relative_is_offset_correct_not_lexical():
+    """The trap round 1 measured, now reaching the drawn column.
+
+    `-05:00` and `+00:00` sort one way as strings and the other as instants.
+    A row 5 minutes away must not read as 5 hours away because of its offset.
+    """
+    now = _at("2026-08-30T17:00:00+00:00")
+    assert schedule.relative(_at("2026-08-30T12:05:00-05:00"), now) == "in 5m"
+
+
+def test_elapsed_reads_behind():
+    now = _at("2026-08-30T12:00:00+00:00")
+    assert schedule.elapsed(_at("2026-08-30T09:00:00+00:00"), now) == "3h ago"
+    assert schedule.elapsed(None, now) == ""
+
+
+def test_view_is_authored_and_hides_the_absolutes():
+    """The five drawn columns are sky.boss's own, and the two it keeps are the
+    provider's untouched strings — a view describes, it never filters."""
+    rows = [{"project": "p", "name": "j", "fires": "in 1h", "schedule": "0 * * * *",
+             "ran": "2h ago", "next": "2026-08-30T13:00:00+00:00",
+             "last": "2026-08-30T10:00:00+00:00"}]
+    v = schedule.view_of(rows)
+    assert [c["key"] for c in v["columns"]] == list(schedule.INLINE)
+    assert v["hidden"] == list(schedule.HIDDEN)
+    # Widths come from cli/view.py, not from a second opinion here.
+    assert all("flex" in c and "min" in c for c in v["columns"])
+
+
+def test_band_says_drawn_of_arrived():
+    """Five under the word seven is the confusion; the band answers it."""
+    from cli.output import _dimensions
+    rows = [{k: "x" for k in ("a", "b", "c")}]
+    view = {"columns": [{"key": "a"}], "details": [], "hidden": ["b", "c"]}
+    assert _dimensions(rows, view) == "table · 1 row · 1 of 3 columns"
+    # Unchanged when nothing is hidden, so every envelope written before this
+    # round reads exactly as it did.
+    whole = {"columns": [{"key": k} for k in ("a", "b", "c")], "details": [], "hidden": []}
+    assert _dimensions(rows, whole) == "table · 1 row · 3 columns"
+    assert _dimensions(rows, None) == "table · 1 row · 3 columns"

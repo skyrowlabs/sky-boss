@@ -30,12 +30,14 @@ is an opinion, and it stays the provider's. See [[schedule]].
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 import rich_click as click
 
+from cli.chrome import ago
 from cli.output import Result, emit
 from cli.rollcall import Project, ask, home_file, load
+from cli.view import describe
 
 
 def parse_instant(value: str) -> tuple[datetime | None, str | None]:
@@ -58,6 +60,73 @@ def parse_instant(value: str) -> tuple[datetime | None, str | None]:
     if when.tzinfo is None:
         return None, f"{value!r} has no UTC offset — sky.boss will not guess one"
     return when, None
+
+
+def now_utc() -> datetime:
+    """The instant every row is measured against.
+
+    Called **once per invocation**, not once per row: a per-row clock would let
+    the top of a 31-row table disagree with the bottom, and the disagreement
+    would be largest exactly when the table was slowest to build.
+    """
+    return datetime.now(timezone.utc)
+
+
+def relative(when: datetime | None, now: datetime) -> str:
+    """A provider's instant as a distance from now — `in 26m`, `late 14m`.
+
+    **This is arithmetic, not judgment**, and the distinction is the one round 1
+    settled: sky.boss may order, only a provider may judge. Subtracting two
+    instants invents nothing. It is still *not* a fire time computed from a cron
+    expression — that stays refused, because it would be sky.boss's own opinion
+    about when something runs rather than a restatement of the provider's.
+
+    **`late` is borrowed, not coined.** It is the word `chrome.cursor` already
+    uses for a lapsed `--due`, so the two surfaces cannot end up with separate
+    vocabularies for one idea.
+    """
+    if when is None:
+        return ""
+    delta = (when - now).total_seconds()
+    return f"in {ago(delta)}" if delta >= 0 else f"late {ago(-delta)}"
+
+
+def elapsed(when: datetime | None, now: datetime) -> str:
+    """A provider's instant as a distance behind now — `14h ago`."""
+    if when is None:
+        return ""
+    return f"{ago((now - when).total_seconds())} ago"
+
+
+# What the table draws, in order, and what it keeps but does not draw. The
+# absolutes are **hidden rather than dropped**: a machine reading the envelope
+# still gets the provider's own string and offset, which round 1 made the point
+# of not normalising. A view describes; it never filters.
+INLINE = ("project", "name", "fires", "schedule", "ran")
+HIDDEN = ("next", "last")
+
+
+def view_of(rows: list[dict]) -> dict:
+    """The view this command authors for its own rows.
+
+    **Authored, not inferred.** `shape` is for `sb data`, where the columns are
+    a foreign tool's and nobody here chose them. These five keys are sky.boss's
+    own vocabulary — round 1 named them — so there is nothing to infer, only an
+    order to state and two columns to keep out of the way. The widths still come
+    from `cli/view.py`, because a second opinion about flex would drift.
+    """
+    return {
+        "columns": [describe(key, rows) for key in INLINE],
+        "details": [],
+        "hidden": list(HIDDEN),
+        # **The flag exists because the canvas re-shapes.** Every window posts
+        # its payload back to `/api/shape` and installs what comes back, which
+        # for an inferred view is the same view again and for an authored one
+        # was five columns replaced by seven. Inference cannot reconstruct a
+        # choice that was never in the rows, so the view says it was chosen and
+        # the route leaves it alone until the operator asks for something else.
+        "authored": True,
+    }
 
 
 def rows_of(project: Project, payload) -> tuple[list[dict], list[str]]:
@@ -92,6 +161,14 @@ def rows_of(project: Project, payload) -> tuple[list[dict], list[str]]:
         if problem:
             problems.append(f"{project.name}/{row['name']}: {problem}")
         row["_at"] = when
+        # `last` is parsed under exactly the same rule, and its failures are
+        # reported the same way. A naive `last_run` beside an offset-carrying
+        # `next_run` is the trap round 1 measured, and reporting only half of
+        # it would leave the quieter half to be found by being wrong.
+        was, problem = parse_instant(row["last"])
+        if problem:
+            problems.append(f"{project.name}/{row['name']}: {problem}")
+        row["_last"] = was
         out.append(row)
     return out, problems
 
@@ -166,7 +243,21 @@ def schedule(only: str | None) -> Result:
             result.warn(problem)
         rows.extend(found)
 
-    result.data = [{k: v for k, v in row.items() if k != "_at"} for row in order(rows)]
+    now = now_utc()
+    result.data = [
+        {
+            "project": row["project"],
+            "name": row["name"],
+            "fires": relative(row["_at"], now),
+            "schedule": row["schedule"],
+            "ran": elapsed(row["_last"], now),
+            "next": row["next"],
+            "last": row["last"],
+        }
+        for row in order(rows)
+    ]
+    if result.data:
+        result.view = view_of(result.data)
     return result
 
 

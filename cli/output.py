@@ -223,8 +223,19 @@ def _dimensions(rows: list[dict], view: dict | None = None) -> str:
     first and terminal convention reads it as columns first, so a bare pair is
     ambiguous in exactly the place this is trying to remove doubt. See
     [[table-views]] round 4.
+
+    **`5 of 7` when the view draws fewer than arrived.** The count above cites
+    the hidden-columns warning as where the difference gets reported, and that
+    was true while `sb data` was the only command with a view. A command that
+    *authors* one has no such warning to lean on — and could not borrow that one
+    anyway, since it ends "use --cols to choose" and `sb schedule` has no
+    `--cols`. So the band says it instead, which is where someone counting five
+    columns under the word seven is already looking. See [[schedule]] round 3.
     """
     count = len(columns_of(rows)) if rows else 0
+    drawn = len((view or {}).get("columns") or []) + len((view or {}).get("details") or [])
+    if view and 0 < drawn < count:
+        return f"table · {_plural(len(rows), 'row')} · {drawn} of {_plural(count, 'column')}"
     return f"table · {_plural(len(rows), 'row')} · {_plural(count, 'column')}"
 
 

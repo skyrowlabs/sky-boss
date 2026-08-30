@@ -235,6 +235,22 @@ function plural(n, word) {
   return `${n} ${word}${n === 1 ? "" : "s"}`;
 }
 
+/* `_dimensions` in cli/output.py, mirrored for the same reason `plural` is:
+ * it is arithmetic over a view Python already decided, not a second opinion
+ * about which columns to draw. `5 of 7` when the view draws fewer than
+ * arrived — a command that authors its own view has no hidden-columns warning
+ * to lean on, so the band is where the difference gets said.
+ *
+ * Both call sites go through here. They each had their own copy of the string,
+ * and the terminal grew the `of` form while these two silently kept the old
+ * one — which a headless render caught and no test could have. */
+export function dimensions(rows, view) {
+  const count = columnsOf(rows).length;
+  const drawn = ((view && view.columns) || []).length + ((view && view.details) || []).length;
+  const columns = view && drawn > 0 && drawn < count ? `${drawn} of ${plural(count, "column")}` : plural(count, "column");
+  return `table · ${plural(rows.length, "row")} · ${columns}`;
+}
+
 /* The view describing one nested key, or null. A single payload names the one
  * list it shaped (`rows`); a fold carries a view per block under `blocks`,
  * because six independent payloads cannot share one column list. Mirrors
@@ -269,7 +285,7 @@ function Mapping({ value, view }) {
       ${Object.entries(value).map(([key, item]) => {
         const sub = viewFor(view, key);
         if (Array.isArray(item) && item.length && item.every((r) => r && typeof r === "object")) {
-          const dims = `table · ${plural(item.length, "row")} · ${plural(columnsOf(item).length, "column")}`;
+          const dims = dimensions(item, sub);
           return html`<div class="rec" key=${key}>
             <div class="row">
               <span class="v-label">${key}</span>
@@ -416,10 +432,12 @@ export function summarise(result) {
         ? view.value
         : null;
   if (rows && rows.length) {
-    return `table · ${plural(rows.length, "row")} · ${plural(
-      columnsOf(rows).length,
-      "column"
-    )}`;
+    /* Wrapped stdout has no view — the envelope's belongs to `run`, not to the
+     * foreign JSON inside it. A bare `data` array is described by the
+     * envelope's view directly, the same way Python hands it straight to
+     * `_render_sequence` when there is no key to look up. */
+    const shape = view.kind === "rows" ? null : (result.envelope || {}).view || null;
+    return dimensions(rows, shape);
   }
   const envelope = result.envelope || {};
   if (envelope.partial) return "partial";

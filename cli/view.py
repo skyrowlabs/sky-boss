@@ -312,6 +312,18 @@ def view_for(view: dict | None, key: str) -> dict | None:
     return None
 
 
+def describe(key: str, rows: list[dict]) -> dict:
+    """One column, measured — the public spelling of `_describe`.
+
+    For a command that **authors** its own view instead of having one inferred.
+    `shape` is the inference path and stays reserved for `sb data`; a command
+    that already knows its columns still wants this module's arithmetic about
+    how wide they should be, or it grows a second opinion about flex. See
+    [[schedule]] round 3.
+    """
+    return _describe(key, rows)
+
+
 def _describe(key: str, rows: list[dict], *, dotted: bool = False) -> dict:
     """One column, measured against every row."""
     values = [resolve(row, key) for row in rows] if dotted else _values(rows, key)

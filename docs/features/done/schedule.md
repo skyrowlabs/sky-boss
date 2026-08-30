@@ -1,9 +1,10 @@
 ---
-status: complete       # round 1 built 2026-08-30; round 2 not scheduled
+status: complete       # rounds 1 and 3 built; round 2 still not scheduled
 created: 2026-08-29
 updated: 2026-08-30
 agent_value: 3         # five dated decisions and a vocabulary, none of it built
-key_files: [cli/rollcall.py, cli/schedule.py, cli/view.py]
+key_files: [cli/rollcall.py, cli/schedule.py, cli/view.py, cli/output.py,
+            cli/canvas/server.py, cli/canvas/static/render.js, cli/canvas/static/app.js]
 ---
 
 # The schedule view
@@ -243,6 +244,19 @@ that is a judgment. `overdue` is `False` for all 31 jobs today, so there is **no
 late-state rendering — the same position items 1 and 5 were in before the ledger landed, and the
 same answer: do not draw a state you have never seen.
 
+### Round 3 — the relative view (2026-08-30)
+
+**Numbered after round 2 and built before it.** Round 2 is a ledger view that was specified and
+never scheduled; renumbering it to keep the rounds in date order would edit a plan to flatter a
+sequence. It stays where it is.
+
+- [x] **`fires` and `ran`** — the provider's instant as a distance from now, `in 26m` / `late 14m`
+      / `14h ago`, computed once per invocation so a 31-row table is measured against one moment.
+- [x] **An authored view** — five columns drawn, the two absolutes kept and not drawn.
+- [x] **The band says `5 of 7`** when a view draws fewer than arrived, in both renderers.
+- [x] **`/api/shape` leaves an authored view alone**, and the window remembers it so clearing a
+      choice restores it rather than falling back to inference.
+
 ## Notes
 
 ### 2026-08-30 — round 1, executed
@@ -306,3 +320,48 @@ job is ordering across projects would have been the thing that broke it.
 because it has never run; breeze-brain declares no scheduler at all; and a provider with no
 `next_run` is the one sky.boss could paper over. Three different fixes, and one empty cell would
 have described all three.
+
+### 2026-08-30 — round 3, executed
+
+**The complaint was "I do not see the scheduler in the UI" and the command was already there.**
+`sb schedule` sets no `sb_surface`, so the palette had been offering it since round 1. It drew
+nothing because the operator's `projects.toml` declared no `[project.X.schedule]` table — six lines
+sky.boss will not write. Worth recording as the shape of the report rather than as a defect: *a
+correct command over an undeclared source is indistinguishable from a missing feature*, and the
+existing warning (`0 of 2 projects declare a schedule`) said exactly the right thing to someone
+reading stderr, which nobody does in a window.
+
+- **Relative time is arithmetic, and the line held.** Round 1 refused to compute a fire time from a
+  cron expression and that refusal is untouched — subtracting two instants invents nothing, where
+  parsing `15 5 * * *` would be sky.boss's own opinion about when something runs. `late` is
+  borrowed from `chrome.cursor`'s lapsed-`--due` vocabulary rather than coined, so the surfaces
+  cannot end up with two words for one idea.
+- **A command may author a view; only `data` may have one inferred.** `CLAUDE.md` said *only `data`
+  sets one*, and that was **already false** — [[roll-call]] has set a `blocks` view since it
+  shipped. The true rule is the narrower one: `shape` is inference and stays `sb data`'s, while a
+  command that already knows its columns states them. The widths still come from `cli/view.py`
+  through a new public `describe`, because a second opinion about flex would drift.
+- **The canvas destroyed the authored view, and the reason generalises.** Every window posts its
+  payload to `/api/shape` and installs what comes back — which for an inferred view is the same view
+  again, and for an authored one was five columns silently replaced by seven. **A round trip through
+  an inference is lossy for anything the inference cannot see.** The fix marks the view `authored`
+  and the route passes it through untouched until `cols` is asked for; the window remembers it so
+  *clear* restores five rather than widening to seven. Authored is a default, not a lock — the
+  operator asking outranks the command's choice.
+- **Three renderers of one sentence, and two of them stayed behind.** `_dimensions` grew the
+  `5 of 7` form; `render.js` had the string inline at **two** call sites and kept saying `7`. Both
+  now go through one `dimensions()`, mirrored deliberately the way `plural` is. Nothing in either
+  suite could see this — the Python test asserted Python, the JS tests did not exist for it — and it
+  took rendering the page and reading the band back.
+- **The band had to say it because the warning could not.** `_dimensions` justified counting every
+  arrived column by pointing at the hidden-columns warning as where the difference gets reported.
+  That warning ends *"use --cols to choose"*, and `sb schedule` has no `--cols`. A message naming a
+  flag that does not exist is the [[workbench]] round 5 failure exactly — behaviour changed, message
+  did not — so the count moved into the band instead of the wrong sentence being reused.
+- **Four false starts in the headless pass, all mine, all worth the time.** A selector taking the
+  *last* element containing "columns" read an ancestor rather than the footer; `document
+  .querySelector('input')` found the palette and not the rail because a home with no tools draws no
+  filter; and — the one that cost the most — **the server was not restarted after a Python change**,
+  so two rounds of "still seven columns" were measuring the old process. `sb ui` hot-reloads
+  `static/` and deliberately does not hot-reload Python. The habit that survives: when a headless
+  result contradicts a unit that passes, check which process is answering before changing code.

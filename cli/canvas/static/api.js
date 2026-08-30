@@ -67,8 +67,8 @@ export function trial(argv, timeout) {
  * are drawn is a question about the drawing — answering it by re-fetching
  * would also make every chip click compare against a different dataset.
  * See [[workbench]] round 2. */
-export function shape(data, { cols, drop, rows } = {}) {
-  return post("/api/shape", { data, cols, drop, rows });
+export function shape(data, { cols, drop, rows, view } = {}) {
+  return post("/api/shape", { data, cols, drop, rows, view });
 }
 
 /* Everything the bench can say about an argv without running it: the checks an
