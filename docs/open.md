@@ -96,7 +96,9 @@ Not urgent: four tools fit. It becomes real at roughly a dozen, or the first tim
 enough that two tools clip to the same string — which is the actual failure, since the rail is how
 you tell them apart.
 
-**20. Five tweaks to the followed line's tint.** Raised by the operator 2026-08-29, reading the
+**20. Five tweaks to the followed line's tint.** *Partly closed 2026-08-29 → [[highlight]] round 5, which answered everything weight could answer — glyphs widened and emphasised, ALL CAPS split into an identifier and a shout, and the bench given a picker and a legend instead of a text box. What stays open is the half below that wants a hue: `#123` in a colour of its own, quoted text, and `()`/`{}`.*
+
+ Raised by the operator 2026-08-29, reading the
 live agent-fix drain through `--highlight jam`. Verbatim: symbols emphasised or given a different
 colour; quoted text differentiated; `#123` in a unique colour; text wrapped in `[]`, `()` or `{}` in
 a different colour; and *escalate* emphasised. Owned by [[highlight]] when it reopens — this is

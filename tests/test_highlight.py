@@ -449,3 +449,36 @@ def test_overlapping_emphasis_ranges_merge_into_one():
         for (_, e1, _), (s2, _, _) in zip(got, got[1:]):
             assert e1 <= s2, line
         assert "".join(text for text, _ in spans(line)) == line, line
+
+
+def test_marks_for_the_wire_are_in_the_units_a_browser_slices_by():
+    """**Python counts code points; JavaScript counts UTF-16 code units.**
+    Every mark shipped to the canvas crosses that boundary, and an astral
+    character — 🔴, 🟢, 👍 — is one Python character and two JS ones. Without
+    conversion `text.slice(start, end)` cut a surrogate pair in half and
+    shifted every offset after it on the line.
+
+    Shipped in round 4 and invisible for a week: both sides were internally
+    consistent, the suite compared marks to marks and never sliced, and the
+    live log's most common glyph (`✅`, U+2705) is inside the BMP and behaves.
+    Only drawing it in a real browser showed it. Asserted here the way the
+    page does it — by slicing UTF-16 — because comparing offsets is exactly
+    the check that missed it.
+    """
+    from cli.highlight import utf16
+
+    text = "🟢 up  🔴 down 👍"
+    wire = utf16(text, marks(text))
+    units = text.encode("utf-16-le")
+    got = [units[2 * s : 2 * e].decode("utf-16-le") for s, e, _ in wire]
+    assert got == ["🟢", "🔴", "👍"]
+
+
+def test_a_line_with_no_astral_character_is_returned_unchanged():
+    """The conversion is identity for almost every line there is, so it costs
+    nothing on the common path and cannot introduce a difference there."""
+    from cli.highlight import utf16
+
+    text = "2026-08-29 04:15:02 [agent-fix] ✓ 8 done"
+    found = marks(text)
+    assert utf16(text, found) is found

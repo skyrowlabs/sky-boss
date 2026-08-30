@@ -307,6 +307,20 @@ def build(canvas: Canvas | None = None) -> Starlette:
         canvas.quitting.set()
         return JSONResponse({"quitting": True})
 
+    async def get_vocabulary(request: Request) -> Response:
+        """What the operator declared about output, and what sky.boss does
+        already. Introspection, like `/api/catalog` and `/api/shape` — it reads
+        two files and runs nothing, so it stays in-process.
+
+        Read at request rather than cached, like the formats and rulesets
+        themselves: editing `formats.toml` under an open bench is the REPL.
+        """
+        if not canvas.authorised(request):
+            return _denied()
+        from cli.canvas.catalog import vocabulary
+
+        return JSONResponse(vocabulary())
+
     async def get_catalog(request: Request) -> Response:
         if not canvas.authorised(request):
             return _denied()
@@ -662,6 +676,7 @@ def build(canvas: Canvas | None = None) -> Starlette:
             Route("/", index),
             Route("/favicon.svg", favicon),
             Route("/api/catalog", get_catalog),
+            Route("/api/vocabulary", get_vocabulary),
             Route("/api/run", post_run, methods=["POST"]),
             Route("/api/trial", post_trial, methods=["POST"]),
             Route("/api/shape", post_shape, methods=["POST"]),
@@ -1105,7 +1120,10 @@ def _frame_line(line, ruleset=None) -> dict:
     if getattr(line, "voice", False):
         out["voice"] = True
     if not line.stderr:
-        found = highlight_.marks(line.text, ruleset)
+        # Offsets in UTF-16 code units, because the consumer is a browser.
+        # See `highlight.utf16` — an emoji is one Python character and two
+        # JavaScript ones, and the page slices by the second.
+        found = highlight_.utf16(line.text, highlight_.marks(line.text, ruleset))
         if found:
             out["marks"] = found
     return out

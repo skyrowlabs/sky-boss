@@ -1,5 +1,5 @@
 ---
-status: active
+status: complete
 created: 2026-08-22
 updated: 2026-08-29
 agent_value: 3
@@ -10,8 +10,12 @@ key_files:
   - cli/follow.py
   - cli/filefollow.py
   - cli/canvas/server.py
+  - cli/canvas/catalog.py
+  - cli/canvas/static/api.js
   - cli/canvas/static/app.js
+  - cli/canvas/static/bench.js
   - cli/canvas/static/sb.css
+  - tests/test_canvas_catalog.py
   - tests/test_highlight.py
 ---
 
@@ -346,7 +350,7 @@ both renderers. Emphasis is what was asked for. Emphasis is free. This round spe
 - [x] **Overlapping emphasis ranges merge before they fill.** Four sources of range where there was
   one, so `**ERROR**` is a shout inside a markdown emphasis. Union them first; the existing filler
   walks a range assuming nothing else covers it.
-- [ ] **The bench stops asking you to remember.** `--highlight` is a text box whose placeholder
+- [x] **The bench stops asking you to remember.** `--highlight` is a text box whose placeholder
   says *"a ruleset in `formats.toml`"*, and **the surface has never read that file** — nor has
   `--from` beside it. So the one control this round is about is the one that cannot show its own
   options, and a mistyped name yields an untinted stream with no reason given: the silent path and
@@ -355,7 +359,7 @@ both renderers. Emphasis is what was asked for. Emphasis is free. This round spe
   `/api/vocabulary` — introspection beside `/api/catalog` and `/api/shape`, in-process, running
   nothing — returns the declared rulesets and formats **with their problems**, because one that
   failed to compile must appear refused rather than absent. `sb tools` already groups both this way.
-- [ ] **A legend, because the declared half is the small half.** Thirteen built-in rules do most of
+- [x] **A legend, because the declared half is the small half.** Thirteen built-in rules do most of
   the tinting and none is visible anywhere in the surface. Drawn in their real roles, the legend
   makes *"runs after sky.boss's own and claims only unclaimed text"* something you can see rather
   than a sentence you have to trust — and it is how an operator discovers that **a declared pattern
@@ -510,3 +514,50 @@ list would have been testing something else and happening to be right.
 the file. They went in on the rule rather than the measurement, which is the correct order, and is
 recorded here so the next reader knows which parts of this round were verified against real bytes
 and which were reasoned.
+
+### Round 5 — the bench half, executed (2026-08-29)
+
+**Rendering it found three things the suite could not, which is the third time that has happened
+this week and the reason CLAUDE.md calls that pass an obligation.**
+
+**A shipped bug, a week old, in the thing this round is about.** Marks are computed in Python,
+which counts **code points**, and applied by JavaScript's `slice`, which counts **UTF-16 code
+units**. Every astral character — 🔴 🟢 🟡 👍, every emoji above U+FFFF — is one on one side and
+two on the other, so the page cut a surrogate pair in half and every offset after it on the line
+was wrong. The operator's live log carries 🔴 ×7, 🟢 ×5, 🟡 ×3.
+
+It survived round 4 because **both sides were self-consistent**: the terminal applies these offsets
+to the same Python string that produced them and is right; the suite compares marks to marks and
+never slices; and the log's most common glyph, `✅` (U+2705), is inside the BMP and behaves. It took
+drawing a row of status lights in a real browser to see one come out as half of itself. Converted at
+the wire in `highlight.utf16`, because the offsets exist to be handed to `String.prototype.slice`
+and should be in that function's units by the time it sees them. The new test slices UTF-16 rather
+than comparing offsets — comparing offsets is exactly the check that missed it.
+
+**A silent TypeError froze the whole panel.** The legend shipped its example as `example` while
+`markedLine` reads `text`, so `l.text.slice(...)` threw inside preact's render. The component
+mounted, re-rendered, logged the new state — and the DOM never changed, with **no console error and
+no failing test**. Diagnosing it took a mount/render probe, because every ordinary signal said the
+component was healthy. The field is `text` now and the name is load-bearing: a legend row is shaped
+exactly like a followed line, which is what lets one applier draw both. A test asserts the whole
+shape, not just the marks.
+
+**The 62rem label overflowed at 2.4.** `flex: none; width: 62rem` is 285px at scale 1.15 and 595px
+at 2.4, inside a pane that does not grow with it — the row overflowed the body by 500px, which is
+the failure CLAUDE.md says the workbench lost a step to for three rounds. Now the row wraps: the
+label keeps its width so the column still aligns, and the example takes its own line when there is
+no room beside it. Checked at both. *(The bench still overflows at 2.4 in a 1440px viewport for
+reasons that predate this round — the canvas screen does it before the bench is opened, and the
+widest element is the top bar's quit button. Not touched here.)*
+
+**And the panel was disagreeing with the line beside it.** `--save` writes `--highlight` into a
+tool's *argv*, and the bench's decomposer lifted only `--cwd` and `--env` out — so opening the
+operator's own `jam-agent-fix-log` showed the picker at `none` while the composed line carried
+`--highlight jam`. `--from` and `--due` had the identical defect and were fixed with it; they are
+three lines and one table. The argv wins over the declared field when both exist, because the argv
+is what will run.
+
+**The finding worth passing to the operator** came out of the glyph census rather than the code:
+their log carries 🤝 ×15, 🌙 ×10, 🙋 ×3 — jam's own vocabulary, correctly outside sky.boss's
+built-in set — and **a declared pattern is a regex, so it may be a glyph.** Nobody had noticed,
+because until this round nothing in the surface showed what a declared rule even was.

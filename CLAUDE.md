@@ -246,6 +246,15 @@ The rules that are not negotiable:
   Commands run in a *subprocess*, because a thread cannot be cancelled and a watcher fires
   unattended — one hung `git fetch` would strand a thread forever. `sb --json` already prints the
   envelope, so nothing parses human output.
+- **An offset that crosses to the browser is in the wrong units until it is converted.** Python
+  counts code points and JavaScript's `slice` counts UTF-16 code units, so every astral character —
+  🔴, 🟢, 👍, every emoji above U+FFFF — is one on one side and two on the other. Highlight marks
+  shipped raw for a week and cut surrogate pairs in half, shifting every offset after them on the
+  line. **Both halves were self-consistent, which is why nothing caught it**: the terminal applies
+  the same offsets to the same Python string, the suite compares marks to marks and never slices,
+  and the most common glyph in the live log is inside the BMP. Converted at the wire in
+  `highlight.utf16`. Any future offset shipped to the page owes the same conversion, and its test
+  owes an actual slice rather than a comparison. See [[highlight]] round 5.
 - **No single result may render unbounded.** The terminal surface froze for exactly this, and a
   120k-line result kills a browser tab as dead as it killed a `RichLog`. The substrate changed; the
   rule did not. See `MAX_ROWS` and `MAX_CHARS` in `cli/canvas/static/render.js`.

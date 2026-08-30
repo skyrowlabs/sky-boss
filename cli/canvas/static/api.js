@@ -38,6 +38,19 @@ export async function catalog() {
   return response.json();
 }
 
+/* What the operator declared about output, and what sky.boss already does with it.
+ *
+ * Fetched once when the bench opens rather than with the catalog, because the
+ * canvas never needs it: the palette runs saved tools, and only the bench
+ * *authors* one. Re-fetched on each open so editing `formats.toml` under a
+ * running surface is the REPL, the same way the rules themselves are read at
+ * use rather than cached. */
+export async function vocabulary() {
+  const response = await fetch("/api/vocabulary", { headers: HEADERS() });
+  if (!response.ok) throw new Error(`vocabulary → ${response.status}`);
+  return response.json();
+}
+
 export function run(argv, timeout) {
   return post("/api/run", { argv, timeout });
 }

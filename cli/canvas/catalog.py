@@ -187,3 +187,70 @@ def entry_for(argv: list[str], entries: list[dict] | None = None) -> dict | None
         if argv[: len(entry["argv"])] == entry["argv"]:
             return entry
     return None
+
+
+def vocabulary(home=None) -> dict:
+    """What the operator has declared about output, and what sky.boss already
+    does with it. Introspection — reads two files and runs nothing.
+
+    **The bench asked you to remember a name and the surface had never read
+    the file it lives in.** `--highlight` and `--from` were text boxes whose
+    placeholders named `formats.toml`; nothing anywhere in the canvas had
+    opened it. A mistyped name then produced an untinted stream with no reason
+    given, which is the silent path and the healthy path being the same bytes.
+    See [[highlight]] round 5.
+
+    Three properties worth keeping if this moves:
+
+    - **A refused declaration appears, refused.** `load_formats` and
+      `load_rulesets` both return what worked *and* why the rest did not, and
+      `sb tools` already shows both grouped. A bench that listed only the
+      working ones would answer "why is my ruleset not there" with silence.
+    - **The legend is rendered, not written.** Each example is passed through
+      the real `marks()`, so the payload carries offsets rather than prose and
+      the frontend applies them with the same dumb applier a stream line uses.
+      Nothing here can drift from the rules it documents.
+    - **Counts, not patterns.** A ruleset's rules are the operator's regexes;
+      how many there are is enough to tell two rulesets apart, and shipping
+      the patterns themselves would put a file the bench cannot edit into a
+      payload that looks editable.
+    """
+    from cli import capture as capture_
+    from cli import highlight as highlight_
+
+    formats, format_problems = capture_.load_formats(home)
+    rulesets, highlight_problems = highlight_.load_rulesets(home)
+    return {
+        "highlights": [
+            {
+                "name": r.name,
+                "description": r.description,
+                "rules": len(r.rules),
+            }
+            for r in sorted(rulesets, key=lambda r: r.name)
+        ],
+        "formats": [
+            {"name": f.name, "kind": f.kind, "description": f.description}
+            for f in sorted(formats, key=lambda f: f.name)
+        ],
+        # The kinds that need no declaration. `--from json` and `--from jsonl`
+        # are always available and are not in anybody's file, so a picker built
+        # from the declared list alone would hide the two most common answers.
+        "builtin_formats": list(capture_.KINDS),
+        # `text` rather than `example`, and the name is load-bearing: a legend
+        # row is shaped exactly like a followed line, which is what lets the
+        # bench draw it with `markedLine` — the same dumb applier a stream uses,
+        # not a second one written for a legend. Shipping it as `example` cost
+        # a silent TypeError inside preact's render that froze the panel with
+        # no console error and no failing test, because the suite compared the
+        # marks and never drew them.
+        "legend": [
+            {
+                "what": what,
+                "text": text,
+                "marks": highlight_.utf16(text, highlight_.marks(text)),
+            }
+            for what, text in highlight_.BUILTINS
+        ],
+        "problems": [*format_problems, *highlight_problems],
+    }

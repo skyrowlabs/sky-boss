@@ -43,6 +43,11 @@ function tileColumns(count) {
 }
 const WORKBENCH = "workbench";
 
+/* The view flags a saved tool may carry in its argv, and the draft field each
+ * belongs in. Named here rather than in the loop so adding a fourth is one
+ * line and cannot be half-done. See [[highlight]] round 5. */
+const VIEW_FLAGS = { "--highlight": "highlight", "--from": "from", "--due": "due" };
+
 /* What the bench opens on. Decided before the screen existed rather than
  * after, which is what round 1 asked for.
  *
@@ -1033,6 +1038,10 @@ function App() {
   const [focus, setFocus] = useState(null);
   const [session, setSession] = useState(null);
   const [down, setDown] = useState(false);
+  /* What the operator declared about output. Null until the bench is opened
+   * for the first time — the canvas never needs it, since the palette *runs*
+   * saved tools and only the bench *authors* one. */
+  const [vocab, setVocab] = useState(null);
   const now = useNow();
 
   const zTop = useRef(1);
@@ -1056,6 +1065,16 @@ function App() {
       setCommands(c.commands);
       setGroups(c.groups || []);
     });
+
+  /* Re-fetched every time the bench opens, not once at boot. The rulesets
+   * and formats are read at use rather than cached server-side, precisely so
+   * that editing `formats.toml` under a running surface is the REPL; a
+   * fetch-once here would put that back and the operator would be looking at
+   * a list from an hour ago while the stream tinted by the new one. */
+  useEffect(() => {
+    if (screen !== WORKBENCH) return;
+    api.vocabulary().then(setVocab).catch(() => {});
+  }, [screen]);
 
   useEffect(() => {
     api.catalog().then((body) => {
@@ -1688,13 +1707,24 @@ function App() {
       const argv = [...(tool.expansion || [])];
       const contract = argv[0] || null;
       const rest = argv.slice(1);
-      const fields = { cwd: "", env: "" };
+      const fields = { cwd: "", env: "", highlight: "", from: "", due: "" };
       let i = 0;
       for (; i < rest.length; i++) {
         if (rest[i] === "--") { i += 1; break; }
         if (rest[i] === "--cwd" && rest[i + 1] !== undefined) { fields.cwd = rest[++i]; continue; }
         if (rest[i] === "--env" && rest[i + 1] !== undefined) {
           fields.env = (fields.env ? fields.env + " " : "") + rest[++i];
+          continue;
+        }
+        /* The view flags, lifted out of the argv into the controls that own
+         * them. Without this the panel said `none` while the line beside it
+         * said `--highlight jam` — the surface disagreeing with itself about
+         * one flag, and the exact tool the operator actually saved, since
+         * `--save` writes the flag into the argv rather than into a field.
+         * `compose` puts each back, so the round trip is unchanged. A flag
+         * after the argv still stays in the argv, as it always has. */
+        if (VIEW_FLAGS[rest[i]] && rest[i + 1] !== undefined) {
+          fields[VIEW_FLAGS[rest[i]]] = rest[++i];
           continue;
         }
         break;
@@ -1717,7 +1747,12 @@ function App() {
          * lands back in the argv rather than the field, which is a change of
          * representation the operator can see in the line the bench shows
          * before it saves. */
-        highlight: tool.highlight || "",
+        /* The argv wins when it carries one, because that is what will run;
+         * the declared field is the fallback for a tool that has no
+         * `--highlight` to decompose. */
+        highlight: fields.highlight || tool.highlight || "",
+        from: fields.from,
+        due: fields.due,
       }));
     },
 
@@ -2044,6 +2079,7 @@ function App() {
             groups=${groups}
             draft=${draft}
             actions=${benchActions}
+            vocab=${vocab}
           />`
         : html`
             <div class="stage">
