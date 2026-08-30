@@ -794,8 +794,8 @@ function StreamBody({ win, actions }) {
   const dead = win.resident && win.chrome && win.chrome.attention === "dead";
   return html`
     <div class="body" ref=${bodyRef}>
-      <pre class="raw stream">
-${win.streamLines.map(markedLine)}</pre
+      <pre class=${`raw stream ${win.wrap ? "wrap" : ""}`}>
+${win.streamLines.map((l) => markedLine(l))}</pre
       >
       ${dead &&
       html`<div class="dead-band">
@@ -944,6 +944,14 @@ function Window({ win, now, layout, focused, actions, intervals }) {
             ${intervalLabel(win.interval)}
           </button>`}
         `}
+        ${win.stream &&
+        html`<button
+          class=${`sbtn ${win.wrap ? "on" : ""}`}
+          title="wrap long lines to the window, indented under the timestamp"
+          onClick=${() => actions.wrap(win.id)}
+        >
+          WRAP
+        </button>`}
         <button class="sbtn plain" title="refresh now" onClick=${() => actions.refresh(win.id)}>⟳</button>
         <button class="sbtn plain" title="close" onClick=${() => actions.close(win.id)}>✕</button>
       </div>
@@ -1313,6 +1321,11 @@ function App() {
        * than leaving it to a click is the whole point of saving it: the
        * window you wanted is the window you get. Only a read can carry one —
        * `refresh` is refused at load on a tool that acts. */
+      /* Per window, not per surface: a table wants the sideways scroll it
+       * was given and a prose log wants the wrap, and both can be open on one
+       * canvas. Every window opens unwrapped — whether a *default* belongs in
+       * `$SB_STATE` is [[wrap]] round 2 and does not block this. */
+      wrap: false,
       pinned: Boolean(initial && initial.interval),
       interval: (initial && initial.interval) || 0,
       result: null,
@@ -1498,6 +1511,11 @@ function App() {
       patch(id, () => ({ pinned: next.pinned, interval: next.interval }));
       reWatch(next);
     },
+    /* Nothing to re-run and nothing to re-watch: wrapping is a decision about
+     * the box the lines are drawn in, and the lines are unchanged. That is the
+     * whole reason it can be a per-window toggle rather than a flag on the
+     * argv — see [[wrap]]. */
+    wrap: (id) => patch(id, (win) => ({ wrap: !win.wrap })),
     cycle: (id, list) => {
       const win = windowsRef.current.find((w) => w.id === id);
       if (!win) return;

@@ -437,9 +437,24 @@ export function summarise(result) {
  * can see which words `--highlight` claimed. Two copies of a slicer would
  * be the same drift this function exists to prevent, one level up. */
 export function markedLine(l) {
+  /* Each line is a *block*, and carries its own hanging indent as a custom
+   * property. See [[wrap]].
+   *
+   * It used to be an inline span ending in a literal "\n", which is the same
+   * thing to look at and cannot take an indent: `text-indent` applies to a
+   * block container, and a span in a `<pre>` is not one. Making the line a
+   * block means the newline has to go — a block *and* a trailing newline is
+   * two line boxes, so every line would have drawn double-spaced.
+   *
+   * `--hang` is a number rather than a length so the stylesheet decides the
+   * unit, and the unit is `ch`: the indent is a column count, and a column is
+   * a different number of pixels at every `--scale`. */
+  const hang = l.indent ? `--hang:${l.indent}` : undefined;
   if (l.stderr || !l.marks || !l.marks.length)
-    return html`<span class=${l.voice ? "voice" : l.stderr ? "err" : ""}
-      >${l.text + "\n"}</span
+    return html`<span
+      class=${`ln ${l.voice ? "voice" : l.stderr ? "err" : ""}`}
+      style=${hang}
+      >${l.text}</span
     >`;
   const parts = [];
   let cursor = 0;
@@ -455,6 +470,6 @@ export function markedLine(l) {
     parts.push(html`<span class=${classes}>${l.text.slice(start, end)}</span>`);
     cursor = end;
   }
-  parts.push(l.text.slice(cursor) + "\n");
-  return html`<span>${parts}</span>`;
+  parts.push(l.text.slice(cursor));
+  return html`<span class="ln" style=${hang}>${parts}</span>`;
 }

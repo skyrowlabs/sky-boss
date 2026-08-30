@@ -255,6 +255,14 @@ The rules that are not negotiable:
   and the most common glyph in the live log is inside the BMP. Converted at the wire in
   `highlight.utf16`. Any future offset shipped to the page owes the same conversion, and its test
   owes an actual slice rather than a comparison. See [[highlight]] round 5.
+- **A rendered line is a block, not a span plus a newline.** `markedLine` emits one `<span class="ln">`
+  per line with no trailing `"\n"`, because `text-indent` applies to a block container and an inline
+  span inside a `<pre>` cannot take one — which [[wrap]]'s hanging indent needs. Two things follow and
+  both are load-bearing: a block *and* a newline is two line boxes, so re-adding the newline
+  double-spaces every window; and an empty block has no line box, so a blank line needs
+  `min-height`, or the gaps an agent writes between findings close up. Also note `pre.raw` sets
+  `min-width: min-content` — that is what makes a wide result scroll sideways, and wrapping without
+  clearing it wraps the text inside a box too wide to see it in.
 - **No single result may render unbounded.** The terminal surface froze for exactly this, and a
   120k-line result kills a browser tab as dead as it killed a `RichLog`. The substrate changed; the
   rule did not. See `MAX_ROWS` and `MAX_CHARS` in `cli/canvas/static/render.js`.

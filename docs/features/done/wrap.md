@@ -1,5 +1,5 @@
 ---
-status: active
+status: complete
 created: 2026-08-29
 updated: 2026-08-29
 agent_value: 2
@@ -68,13 +68,13 @@ hanging-indent idiom and both halves are in the same unit as the glyphs.
 
 ### Round 1 — the toggle and the hanging indent (2026-08-29)
 
-- [ ] The stamp's end offset reaches the frame line. Confirm whether it already does via `marks`
-      and read it there rather than adding a field, if so.
-- [ ] `wrap` as per-window state, with a header control beside the existing ones.
-- [ ] CSS: `pre-wrap` plus a `ch`-based hanging indent, applied only when wrap is on.
-- [ ] Verified by rendering, at **more than one `--scale`** — the indent is the thing most likely to
+- [x] The stamp's end offset reaches the frame line. *It did not, and reading it off `marks` was
+      the wrong answer — see Notes. `highlight.hang` exposes it and the frame carries `indent`.*
+- [x] `wrap` as per-window state, with a header control beside the existing ones.
+- [x] CSS: `pre-wrap` plus a `ch`-based hanging indent, applied only when wrap is on.
+- [x] Verified by rendering, at **more than one `--scale`** — the indent is the thing most likely to
       drift, and CLAUDE.md is explicit that a layout verified at one scale has been verified once.
-- [ ] A line with no leading stamp wraps flush, and a line whose stamp is longer than the window is
+- [x] A line with no leading stamp wraps flush, and a line whose stamp is longer than the window is
       not an infinite indent.
 
 ### Round 2 — whether it is remembered (not scheduled)
@@ -95,3 +95,45 @@ implementation is to measure the timestamp, which means writing a second timesta
 `cli/highlight.py`'s — a rule this repo has broken before and named for it (*one rule set, applied
 everywhere a followed line renders*). `_TIMESTAMP` produces the offset as a side effect of tinting,
 and the indent is that number. Anything that re-derives it has built the second implementation.
+
+### Round 1 — executed (2026-08-29)
+
+**The doc's first phase said "read it off `marks` rather than adding a field, if so", and the
+answer was no.** The timestamp's mark is a `sb.muted` span starting at zero, and so is a dimmed
+opening bracket on a line that begins with one ([[highlight]] round 6, the same week). Reading
+*which mark is the stamp* out of a list of marks is inference — a 1ch indent on `(foo) bar` is
+harmless and it is still the surface guessing at structure. So `hang` exposes the offset from the
+matcher that already computes it, and the frame carries it as a field. That is not the second
+timestamp matcher the note warned about: it is the same `_TIMESTAMP`, and `marks` derives the same
+number one line away.
+
+**A line had to stop being a span-plus-newline and become a block.** `text-indent` applies to a
+block container and an inline span inside a `<pre>` is not one, so the hanging indent was
+impossible in the markup as it stood. Making the line a block means the trailing `"\n"` has to go —
+a block *and* a newline is two line boxes, so every line in every window would have drawn
+double-spaced. Consequences, all verified rather than assumed:
+
+- **A blank line needs `min-height`.** With the newline gone an empty block has no line box, and
+  the run of blank lines an agent writes between findings would have closed up. `1lh` holds it.
+- **The legend got shorter by accident and correctly.** Its rows were 40px — one line of content
+  and one of trailing newline — and are 20px now. Nobody had noticed.
+- **All three consumers of `markedLine` were checked**: the canvas stream, the bench's trial tail,
+  and the legend. It is one function drawing three things and the change was structural.
+
+**`min-width` was the half most likely to be forgotten.** `pre.raw` sets `min-content`, which is
+what makes a wide result scroll sideways. Setting `pre-wrap` without clearing it wraps the text
+inside a box that is still too wide to see it in — the wrap would have looked broken while being
+correct.
+
+**The cap is measured, not defensive.** The last phase asked whether a stamp wider than the window
+produces an infinite indent, and it does: at scale 2.4 in a 900px viewport, one record laid out as
+**101 visual lines and 4217px tall**, one character per row, and the body started scrolling
+sideways again — which is the thing wrapping was turned on to stop. `min(…, 40%)` fixes it (23
+lines). Below that the canvas window itself measures 16px and then 4px, which is the
+scale-is-a-geometry limit and predates this round; nothing there is wrap's to fix.
+
+**Verified at both scales, and the `ch` unit did exactly its job.** At 1.15 one column is 8.27px and
+the indent measured 19.95ch; at 2.4 it is 17.28px and the indent measured 20.02ch. The pixel indent
+doubled, the column count did not, and the strong property held at both: the continuation's left
+edge equals the left edge of the character at index `hang` on the first line — *directly under the
+first text after the timestamp*, which is what was asked for rather than an approximation of it.
