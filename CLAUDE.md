@@ -641,10 +641,30 @@ Shared with sibling CLIs so the family feels like one tool.
   `0` ok, `1` hard failure, `3` partial — **not 2**, which Click uses for usage errors. The surface
   is a second consumer of that envelope — a command that prints prose has to be written twice.
 
-  **A `view` describes how to present `data`; it never filters it.** Only `data` sets one, because
-  only `data` carries fields nobody here chose — sky.boss's own commands picked theirs deliberately
-  and auto-dropping one would be a bug wearing a feature's clothes. The key is *omitted* rather than
+  **A `view` describes how to present `data`; it never filters it.** ~~Only `data` sets one~~ —
+  **a command may *author* a view; only `data` may have one *inferred*.** The old wording was
+  already false when it was written: [[roll-call]] has set a `blocks` view since it shipped. What is
+  actually reserved is `cli/view.shape`, the inference — it reads fields nobody here chose, and
+  auto-dropping one of sky.boss's own would be a bug wearing a feature's clothes. A command that
+  already knows its columns states them and takes its widths from `describe`, so there is still one
+  opinion about flex. The key is *omitted* rather than
   null when absent, so an unshaped envelope stays byte-identical to one from before views existed.
+
+  **An authored view carries `authored: true`, and it has to.** Every canvas window posts its
+  payload to `/api/shape` and installs what comes back — which for an inferred view is the same view
+  again, and for an authored one was five columns silently replaced by seven. **A round trip through
+  an inference is lossy for whatever the inference cannot see**, and a chosen column set is exactly
+  that. The route passes an authored view through untouched until `cols` is asked for, and the
+  window remembers it so *clear* restores the authored columns rather than widening to the inferred
+  ones. Authored is a default, not a lock: the operator asking outranks the command's choice. See
+  [[schedule]] round 3.
+
+  **The band says `5 of 7` when a view draws fewer columns than arrived.** `_dimensions` used to
+  count only what arrived and point at the hidden-columns warning as where the difference gets
+  reported — but that warning ends *"use --cols to choose"*, and a command that authors its own view
+  has no such flag. A message naming a flag that does not exist is worse than none. Both renderers
+  go through one function for it; `render.js` had the string inline at **two** call sites and both
+  kept saying `7` after the terminal changed, which only a headless render caught.
   The rules live in `cli/view.py` and not in `render.js`, because the frontend has no test runner:
   that puts the deciding half where pytest reaches it and leaves both renderers drawing what they
   are told. **The warnings a shaping is owed live there too** as of 2026-08-27 — *which columns went

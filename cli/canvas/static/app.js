@@ -1645,11 +1645,20 @@ function App() {
       if (win.viewFor === result) continue;
 
       const cols = win.viewCols || [];
+      /* The authored view, remembered the first time it arrives.
+       *
+       * Two things need it. The shaping route has to be *told* the view is
+       * authored, and after the first pass `envelope.view` is whatever came
+       * back rather than what the command sent. And clearing a choice has to
+       * restore the authored columns — inference cannot rebuild them, so
+       * without this, unticking everything would silently widen the table
+       * from five columns to seven and look like it had worked. */
+      const authored = win.viewAuthored || (view && view.authored ? view : null);
       /* The rows path is remembered too, for the same reason: it lives on the
        * view, and the view is a thing the operator can remove. */
       const rowsPath = (view && view.rows) || win.viewRows;
       api
-        .shape(envelope.data, { cols, rows: rowsPath })
+        .shape(envelope.data, { cols, rows: rowsPath, view: authored })
         .then((body) =>
           patch(win.id, (w) => {
             /* `everything` needs no view at all: with none, the renderer
@@ -1680,6 +1689,7 @@ function App() {
              * every time. */
             return {
               result: next,
+              viewAuthored: authored,
               viewOffered: body.offered || [],
               viewRows: (body.view && body.view.rows) || w.viewRows,
               /* The banner is about *this* shaping, not the one the run came

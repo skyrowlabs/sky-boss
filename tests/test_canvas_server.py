@@ -359,6 +359,45 @@ def test_shaping_reports_what_this_shaping_hid(client):
     assert any("1 column hidden: gone" in w for w in body["warnings"])
 
 
+def test_shaping_leaves_an_authored_view_alone(client):
+    """An authored view is not re-derivable, so the route must not try.
+
+    `shape` infers from the rows. A command that chose its own columns made a
+    decision the rows do not contain — inference put all seven back, which is
+    how a five-column schedule window drew seven and said so. See [[schedule]]
+    round 3.
+    """
+    data = [{"project": "p", "name": "j", "fires": "in 1h", "schedule": "0 * * * *",
+             "ran": "2h ago", "next": "2026-08-30T13:00:00+00:00", "last": ""}]
+    authored = {
+        "columns": [{"key": k} for k in ("project", "name", "fires", "schedule", "ran")],
+        "details": [],
+        "hidden": ["next", "last"],
+        "authored": True,
+    }
+    body = client.post(
+        "/api/shape", headers=auth(), json={"data": data, "view": authored}
+    ).json()
+    assert body["view"] == authored
+    # Every key stays tickable, so the two it kept can be asked back on.
+    assert body["offered"] == ["project", "name", "fires", "schedule", "ran", "next", "last"]
+    # No "2 columns hidden — use --cols" here: the command has no --cols, and a
+    # message naming a flag that does not exist is worse than none.
+    assert body["warnings"] == []
+
+
+def test_asking_for_columns_overrides_an_authored_view(client):
+    """Authored is a default, not a lock. The operator asking is the one thing
+    that outranks the command's own choice."""
+    data = [{"a": 1, "b": 2, "c": 3}]
+    authored = {"columns": [{"key": "a"}], "details": [], "hidden": ["b", "c"],
+                "authored": True}
+    body = client.post(
+        "/api/shape", headers=auth(), json={"data": data, "view": authored, "cols": ["b"]}
+    ).json()
+    assert [c["key"] for c in body["view"]["columns"]] == ["b"]
+
+
 def test_shaping_a_payload_with_no_rows_says_why(client):
     """A named `--rows` that finds nothing is the operator's assertion being
     wrong, and saying so is the whole point of the flag."""
