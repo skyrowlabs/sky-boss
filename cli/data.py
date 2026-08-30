@@ -146,6 +146,13 @@ def is_file_form(argv: tuple[str, ...]) -> bool:
     ),
 )
 @click.option(
+    "--ticks",
+    type=click.IntRange(min=1),
+    default=None,
+    metavar="N",
+    help="With --refresh: stop after N refreshes and exit 0. For a script that wants a bounded read.",
+)
+@click.option(
     "--screen",
     is_flag=True,
     help="Redraw on the alternate screen instead of inline. Restores the terminal on exit.",
@@ -169,6 +176,7 @@ def data(
     no_shape: bool,
     from_: str,
     refresh: int | None,
+    ticks: int | None,
     screen: bool,
     save: str | None,
 ) -> Result:
@@ -235,9 +243,14 @@ def data(
         from cli import tools as tools_
 
         saved = tools_.save_invocation(save, click.get_current_context().info_name)
+    # A bound with nothing to bound — see [[unwatched]]. Refused rather than
+    # ignored, because a flag that changes nothing and says nothing is the
+    # silence this repo keeps naming.
+    if ticks is not None and refresh is None:
+        raise click.UsageError("--ticks needs --refresh — a single read already stops after one")
     if refresh is not None:
         _reside(
-            argv, timeout, cwd, cols, rows_path, drop, no_shape, from_, refresh, screen, env
+            argv, timeout, cwd, cols, rows_path, drop, no_shape, from_, refresh, screen, env, ticks
         )
     result = _once(argv, timeout, cwd, cols, rows_path, drop, no_shape, from_, env)
     result.saved = saved
@@ -256,6 +269,7 @@ def _reside(
     refresh: int,
     screen: bool = False,
     env: dict[str, str] | None = None,
+    ticks: int | None = None,
 ) -> None:
     """Go resident, or refuse. Same contract as `read`'s: never returns
     normally, ends when the operator leaves, and the clean Exit skips
@@ -281,11 +295,11 @@ def _reside(
     # draws there, and a terminal on stderr is no help.
     as_json = bool((ctx.find_root().obj or {}).get("as_json"))
     if as_json or not output.stdout_is_terminal():
-        output.resident_ndjson(once, refresh)
+        output.resident_ndjson(once, refresh, runs=ticks)
         raise click.exceptions.Exit(0)
 
     source = f"{ctx.info_name} -- {shlex.join(argv)}"
-    resident.reside(source, refresh, once, screen=screen)
+    resident.reside(source, refresh, once, screen=screen, runs=ticks)
     raise click.exceptions.Exit(0)
 
 

@@ -101,6 +101,14 @@ def is_file_form(argv: tuple[str, ...]) -> bool:
     help="You expect a line at least this often: 15m, 2h, 90s. Past it, the band says late.",
 )
 @click.option(
+    "--ticks",
+    "ticks",
+    type=click.IntRange(min=1),
+    default=None,
+    hidden=True,
+    help="Not supported on follow — see [[unwatched]] round 2.",
+)
+@click.option(
     "--highlight",
     "highlight",
     metavar="NAME",
@@ -116,6 +124,7 @@ def follow(
     save: str | None,
     due: str | None,
     highlight: str | None,
+    ticks: int | None,
 ) -> None:
     """Follow a command that streams, or a file that grows. An observe,
     resident by nature:
@@ -157,6 +166,18 @@ def follow(
         # A stream has no single envelope to emit. The canvas API is the
         # machine path; --json here would be a promise nothing can keep.
         raise click.UsageError("follow is resident and emits no envelope — --json has no meaning here")
+
+    # Refused with the reason, rather than left to Click's "no such option".
+    # `--ticks` on `data` and `read` counts *refreshes*, and a follow has none
+    # to count — its internal tick is one second, so the same flag here would
+    # mean seconds while meaning refreshes one command over. What a script
+    # actually wants from a follow is one pass over what is already there,
+    # which is a different feature. See [[unwatched]] round 2.
+    if ticks is not None:
+        raise click.UsageError(
+            "--ticks counts refreshes and a follow has none — it is not a bounded read. "
+            "For a snapshot of a file, use `sb data <path>`"
+        )
 
     # Saved before the stream opens, which is the only order available here: a
     # follow is resident by nature and never reaches its own exit. Announced

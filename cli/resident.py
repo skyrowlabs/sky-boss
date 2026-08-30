@@ -105,6 +105,7 @@ def loop(
     wait: Callable[[float], str | None],
     *,
     ticks: int | None = None,
+    runs: int | None = None,
 ) -> None:
     """Run when due, redraw every tick, until the operator leaves.
 
@@ -120,6 +121,7 @@ def loop(
     and what a non-terminal gets. See [[refresh]] round 2.
     """
     count = 0
+    done = 0
     while ticks is None or count < ticks:
         if state.due():
             state.begin()
@@ -127,6 +129,19 @@ def loop(
             result = run_once()
             state.finish(result)
             draw(result)
+            done += 1
+            # **`runs` counts completed runs; `ticks` counts poll turns**, and
+            # they are different units that a single name would hide. A tick is
+            # `keys.TICK` — one second — so `ticks=3` is three seconds and
+            # `runs=3` is three refreshes. Only `runs` is exposed, as
+            # `--ticks`, because refreshes are the thing an operator asked for
+            # a cadence of; the poll bound stays the suite's. See [[unwatched]].
+            #
+            # Checked *after* the draw, so the last frame is on screen before
+            # the loop leaves — the same property that makes leaving a
+            # residency leave its output behind.
+            if runs is not None and done >= runs:
+                return
         else:
             draw(None)
         if keys.leaves(wait(keys.TICK)):
@@ -421,6 +436,7 @@ def reside(
     console: Console | None = None,
     screen: bool = False,
     ticks: int | None = None,
+    runs: int | None = None,
 ) -> None:
     """The whole resident rendering: bands, body, and a way out.
 
@@ -463,7 +479,7 @@ def reside(
                 out.print(frame_for(result))
 
             with out.screen():
-                loop(state, run_once, draw, wait_for, ticks=ticks)
+                loop(state, run_once, draw, wait_for, ticks=ticks, runs=runs)
             return
 
         # Live owns the cursor and the in-place repaint. `transient=False` is
@@ -476,6 +492,7 @@ def reside(
                 lambda result: live.update(frame_for(result), refresh=True),
                 wait_for,
                 ticks=ticks,
+                runs=runs,
             )
 
     try:
