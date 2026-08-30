@@ -167,7 +167,7 @@ cheap one; if it is that the existing glyphs should read stronger, it is the sam
 answer as *escalate*. Worth asking which rather than guessing, since the two cost very different
 amounts.
 
-**21. A wrap toggle in the canvas header, with a hanging indent under the timestamp.** *Specced 2026-08-29 → [[wrap]], round 1 drafted and not built.* Asked for
+**21. A wrap toggle in the canvas header, with a hanging indent under the timestamp.** *Closed 2026-08-29 → [[wrap]] round 1, built the same day.* Built as specced, with one correction the doc records: the offset could not be read off `marks` as phase 1 proposed — a `sb.muted` mark at offset zero is a timestamp *or* a dimmed opening bracket, so picking one is inference. `highlight.hang` exposes it instead. Asked for
 by the operator 2026-08-29, reading the live agent-fix drain. A window's body scrolls sideways
 today ([[chrome]]: *"it scrolls sideways instead, the way the table does"*), and a long agent line
 is then half off-screen. The ask is a header control that wraps to the window instead — **and one

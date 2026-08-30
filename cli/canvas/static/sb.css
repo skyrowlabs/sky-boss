@@ -561,6 +561,31 @@ pre.raw {
   white-space: pre; color: var(--sb-text-2); font: inherit;
   min-width: min-content;
 }
+/* One line of a marked body. A block rather than a span-plus-newline, because
+   only a block can take an indent — see `markedLine`. `min-height` keeps a
+   blank line a line: with the newline gone, an empty block has no line box and
+   the run of blank lines an agent writes between findings would close up. */
+.ln { display: block; min-height: 1lh; }
+/* Wrapping, per window. `min-width` is the half that is easy to miss: `pre.raw`
+   sets `min-content` so a wide line makes the body scroll, and leaving it there
+   means the text wraps and the box is still too wide to see it in.
+
+   The hanging indent is `text-indent` negative against a matching padding —
+   the standard idiom — and both halves are in `ch`, the unit the text itself is
+   measured in. A `rem` computed from a column count would drift from the glyphs
+   it is meant to line up under at every scale but the one it was checked at. */
+pre.stream.wrap { white-space: pre-wrap; min-width: 0; overflow-wrap: anywhere; }
+pre.stream.wrap .ln {
+  /* Capped, and the cap is not defensive tidiness — measured. A 20ch hang in a
+     window narrower than 20ch leaves a content box of zero, and the browser
+     lays the line out one character per row: one record became 101 visual
+     lines and 4217px of height, and the body started scrolling sideways again,
+     which is the thing wrapping was turned on to stop. 40% leaves the text the
+     majority of the box at every width. */
+  --pad: min(calc(var(--hang, 0) * 1ch), 40%);
+  text-indent: calc(var(--pad) * -1);
+  padding-inline-start: var(--pad);
+}
 .truncated { color: var(--sb-warn); padding-top: 1.5rem; }
 .fail { color: var(--sb-danger); }
 .warn { color: var(--sb-warn); }
