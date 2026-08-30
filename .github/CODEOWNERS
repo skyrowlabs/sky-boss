@@ -1,0 +1,4 @@
+# Every path, one owner. This exists to auto-request a review on an outside
+# pull request, not to gate anything — the branch protection on `main` is what
+# gates. A CODEOWNERS naming people who are not there would be worse than none.
+*       @JestonBlu

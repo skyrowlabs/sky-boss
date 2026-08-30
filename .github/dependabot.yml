@@ -1,0 +1,43 @@
+# Weekly, and grouped. Three ecosystems live here: the Python project, the
+# eslint/test tooling at the root, and the Electron shell's own package.json.
+#
+# Grouped into one PR per ecosystem on purpose. Ungrouped, a quiet week is five
+# pull requests against a repo whose whole suite runs in ten seconds — the
+# review cost is per-PR, not per-bump, so the grouping is where the saving is.
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      python:
+        patterns: ['*']
+
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      tooling:
+        patterns: ['*']
+
+  # The native window. Separate because it is a separate lockfile, not because
+  # it wants a different cadence.
+  - package-ecosystem: npm
+    directory: /shell
+    schedule:
+      interval: weekly
+    groups:
+      shell:
+        patterns: ['*']
+
+  # The one nobody remembers. A pinned action goes stale silently and a
+  # deprecated runner image is how a green suite stops running at all.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ['*']
