@@ -1323,9 +1323,24 @@ function App() {
        * `refresh` is refused at load on a tool that acts. */
       /* Per window, not per surface: a table wants the sideways scroll it
        * was given and a prose log wants the wrap, and both can be open on one
-       * canvas. Every window opens unwrapped — whether a *default* belongs in
-       * `$SB_STATE` is [[wrap]] round 2 and does not block this. */
-      wrap: false,
+       * canvas.
+       *
+       * **A follow opens wrapped and everything else does not** ([[wrap]]
+       * round 2). A follow is a log by contract, which is the case wrapping
+       * was built for and the one the operator tested. `read` is *verbatim by
+       * contract* — sky.boss will not infer whether that output has structure,
+       * which is why it refuses to make columns out of it, and defaulting it
+       * to wrap would be the same inference arriving through the rendering.
+       * The palette's raw-command fallback makes this concrete rather than
+       * theoretical: anything typed that is not a sky.boss command opens as
+       * `sb read`, so `git log --graph` and `docker ps` are the common case,
+       * and reflowing either destroys the only structure they have.
+       *
+       * `resident` rather than `stream` for the same reason the two exist
+       * separately: `stream` is not true yet for a run or a read at the moment
+       * a window opens, and it becomes true later without meaning the output
+       * turned into prose. */
+      wrap: Boolean(entry.resident),
       pinned: Boolean(initial && initial.interval),
       interval: (initial && initial.interval) || 0,
       result: null,
