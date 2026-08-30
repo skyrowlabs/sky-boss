@@ -233,6 +233,16 @@ The rules that are not negotiable:
   so a 5s watcher would silently become a 60s one at the exact moment you stopped being able to see
   that it had. Nothing survives the last window, which is what makes this a scheduler and not a
   daemon.
+- **Changing behaviour without changing the message leaves the surface arguing with itself.**
+  [[tools]] round 4 made a taken name a *replace*; two places recorded that in code and neither
+  touched the sentence, so for two rounds the bench performed the replace while announcing a
+  refusal and sending the operator to `tools.toml` by hand ([[workbench]] round 5). Two rules come
+  out of it. **A message is part of the behaviour** — a refusal that no longer happens is a
+  false claim, not stale prose, and the operator has no reason to doubt the words. And **a
+  fixed destructure on a payload path drops a field it has not heard of**, which is the `block()`
+  trap generalised: `writeTool({name, argv, …})` swallowed the `was` that made a rename a rename,
+  so the rename ran as a create with nothing reported anywhere. Caught only by a test that read the
+  file rather than the response.
 - **An act is confirmed before it runs, and that is not a security control.** `acts` labelled things
   until [[canvas]] round 11; it now stops one. Every launch converges on one funnel, so the dialog
   sits there rather than at each call site. Three parts are load-bearing. It is **client-side on

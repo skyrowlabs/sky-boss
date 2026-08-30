@@ -616,7 +616,26 @@ function JobStrip({ draft, actions, groups }) {
           </span>`}
         </div>
 
-        ${draft.nameProblem && html`<div class="job-problem">${draft.nameProblem}</div>`}
+        ${/* A real problem — a malformed name, or a file that will not parse.
+             **A taken name is not one of these.** It draws below as a note
+             instead: replacing is what the bench is *for*, and rendering it in
+             the problem style told the operator their edit had failed when it
+             had not. See [[workbench]] round 5. */
+        draft.nameProblem && html`<div class="job-problem">${draft.nameProblem}</div>`}
+        ${!draft.nameProblem &&
+        draft.replaces &&
+        html`<div class="job-note replaces">
+          ${draft.was === draft.save
+            ? html`editing <b>${draft.save}</b> — saving replaces <code>sb ${draft.replaces}</code>`
+            : html`<b>${draft.save}</b> already exists and will be overwritten:${" "}
+                <code>sb ${draft.replaces}</code>`}
+        </div>`}
+        ${draft.was &&
+        draft.save &&
+        draft.was !== draft.save &&
+        html`<div class="job-note replaces">
+          renaming <b>${draft.was}</b> → <b>${draft.save}</b> — the old name is removed
+        </div>`}
 
         <div class="job-line block">${draft.block || "name it to see the block"}</div>
 

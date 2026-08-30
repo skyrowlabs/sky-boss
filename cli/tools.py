@@ -1162,32 +1162,59 @@ def _plural(count: int) -> str:
     return "1 command" if count == 1 else f"{count} commands"
 
 
+def name_state(name: str, home: Path | None = None) -> tuple[str | None, str | None]:
+    """`(problem, replaces)` — what is wrong with this name, and what it would
+    overwrite.
+
+    **A name that is already taken is not a problem**, and separating the two
+    is the whole of [[workbench]] round 5. [[tools]] round 4 made create and
+    replace one call because they are one intent, so for anything that
+    *replaces* — the bench, `/api/tools` — a taken name is information to show,
+    not a refusal to raise. `name_problem` is the other caller and keeps the
+    refusal, because `--save` appends.
+
+    `replaces` is the existing argv, rendered, so a caller can say what is
+    about to be overwritten rather than merely that something is.
+    """
+    if not _NAME.match(name or ""):
+        return (
+            f"{name!r} cannot be a tool name — lowercase letters, digits and hyphens",
+            None,
+        )
+
+    existing = read(home)
+    if "__error__" in existing:
+        # Writing into a file sky.boss cannot parse would bury the operator's
+        # real problem under a second one.
+        return f"{existing['__error__']} — fix the file before saving into it", None
+    declared = (existing.get("tool") or {}).get(name)
+    if declared is None:
+        return None, None
+    return None, " ".join(str(part) for part in (declared.get("argv") or []))
+
+
 def name_problem(name: str, home: Path | None = None) -> str | None:
-    """Why this name cannot be saved, or None.
+    """Why this name cannot be **appended**, or None. `--save`'s question.
 
     Split out of `save` for the workbench, which has to answer the question
     *before* offering the button rather than after the write. That ordering is
     not cosmetic: **`--save` writes before it runs** ([[tools]] round 3), so a
-    refusal discovered afterwards is a refusal discovered too late — and the
-    name cannot be reused, because a duplicate is refused and editing stays
-    `$EDITOR`'s. See [[workbench]] round 3.
+    refusal discovered afterwards is a refusal discovered too late.
 
-    One implementation, asked twice. A surface holding its own copy of the name
-    rule would be a second opinion about what sky.boss will accept, and the two would
-    disagree the day the rule changed.
+    A duplicate is still refused **here**, and only here: `--save` saves *by
+    example*, and an edit is not an example. What changed in [[workbench]]
+    round 5 is the second sentence — the way out is the bench, which can edit a
+    tool in place, and was being told to go and edit the file by hand for
+    something the surface does.
     """
-    if not _NAME.match(name or ""):
-        return f"{name!r} cannot be a tool name — lowercase letters, digits and hyphens"
-
-    existing = read(home)
-    if "__error__" in existing:
-        # Appending to a file sky.boss cannot parse would bury the operator's real
-        # problem under a second one.
-        return f"{existing['__error__']} — fix the file before saving into it"
-    declared = (existing.get("tool") or {}).get(name)
-    if declared is not None:
-        runs = " ".join(str(part) for part in (declared.get("argv") or []))
-        return f"{name!r} is already a tool — it runs `sb {runs}`. Edit the file to change it."
+    problem, replaces = name_state(name, home)
+    if problem:
+        return problem
+    if replaces is not None:
+        return (
+            f"{name!r} is already a tool — it runs `sb {replaces}`. "
+            "Save it under another name, or edit it in the workbench."
+        )
     return None
 
 
