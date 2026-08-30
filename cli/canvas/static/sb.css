@@ -841,6 +841,62 @@ pre.raw {
 /* Reading text, so TEXT_2 — the same rule the reference rail follows. */
 .vc-note { flex-basis: 100%; margin-left: 24rem; color: var(--sb-text-2); font-size: 2.5rem; }
 .vc-note.wide { margin-left: 0; line-height: 1.5; }
+.vc-note.bad { color: var(--sb-warn); }
+
+/* A flag whose values the server knows. The chips wrap under the label rather
+ * than beside it: a ruleset name is the operator's and can be any length, and
+ * a row that grew sideways would push the note off the panel — which at 2.4
+ * scale is most of the pane. See [[highlight]] round 5. */
+.vc-field.wide { align-items: flex-start; }
+.vc-field.wide > .vc-chips { flex: 1; min-width: 0; }
+.vc-count {
+  margin-left: 1rem;
+  padding: 0 1rem;
+  border-radius: 1rem;
+  background: var(--sb-tint);
+  color: var(--sb-text-2);
+  font-size: 2.25rem;
+}
+/* Declared and unusable. Drawn rather than omitted, because a list of only
+   what loaded answers "why is mine not here" with silence — the same failure
+   the picker exists to fix, one level down. Not a button: there is nothing to
+   choose, and the reason is in the title. */
+.vc-chip.refused {
+  border-color: color-mix(in oklab, var(--sb-warn) 45%, transparent);
+  color: var(--sb-warn);
+  text-decoration: line-through;
+  cursor: help;
+}
+
+/* The legend — what sb tints before a declared rule gets a turn. */
+.legend { display: flex; flex-direction: column; gap: 2rem; min-width: 0; }
+.legend-head {
+  align-self: flex-start;
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--sb-text-2);
+  font: inherit;
+  font-size: 2.5rem;
+  cursor: pointer;
+}
+.legend-head:hover { color: var(--sb-brand); }
+.legend-body { display: flex; flex-direction: column; gap: 1.5rem; min-width: 0; }
+/* **Wraps rather than fixing a width, because `--scale` is a geometry.** The
+   label was `flex: none; width: 62rem`, which is 285px at 1.15 and 595px at
+   2.4 — inside a pane that does not grow with it. Measured at both: the row
+   overflowed the body by 500px at the larger one, which is the failure
+   CLAUDE.md says the workbench lost a step to for three rounds. The label
+   keeps its width so the column still aligns, and the example takes its own
+   line when there is no room beside it. */
+.legend-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2rem; min-width: 0; }
+.legend-what {
+  flex: 0 0 62rem;
+  max-width: 100%;
+  color: var(--sb-text-2);
+  font-size: 2.5rem;
+}
+.legend-eg { flex: 1 1 40rem; min-width: 0; margin: 0; overflow-x: auto; }
 
 /* ------------------------------------------------------- the act, and the job */
 

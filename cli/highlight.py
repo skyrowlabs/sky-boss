@@ -218,6 +218,39 @@ _RULES: tuple[tuple[re.Pattern, str, bool, bool], ...] = (
 )
 
 
+# ============================================================================
+# The legend — what the built-in rules are, shown rather than described
+# ============================================================================
+#
+# **The declared half is the small half, and it was the only half any surface
+# showed.** A bench offering `--highlight` and nothing else says, by omission,
+# that a ruleset is where tint comes from; thirteen rules here do most of it
+# and none of them was visible anywhere. See [[highlight]] round 5.
+#
+# **These are examples, not descriptions, and that is the whole design.** Each
+# one is rendered by running `marks()` over it — the same function the stream
+# uses, no second opinion — so the legend cannot drift from the rules it
+# documents. A rule that stops matching stops being tinted in its own legend
+# entry, which is a louder failure than a stale sentence and needs no test to
+# notice it. What a test *does* guard is coverage: every pattern in `_RULES`
+# has an entry here.
+BUILTINS: tuple[tuple[str, str], ...] = (
+    ("a leading timestamp, dimmed", "2026-08-29 04:15:02 grid woke"),
+    ("the job tag after it", "2026-08-29 04:15:02 [agent-fix] starting"),
+    ("inline code and a path", "`jam report` wrote docs/plan.md:75"),
+    ("a SCREAMING_SNAKE name", "MAX_PER_RUN was already set"),
+    ("a URL", "opened https://example.com/pull/1050"),
+    ("an issue or PR reference", "closed #1050 after review"),
+    ("a number, with its unit attached", "8% of 20000 in 90m"),
+    ("a date or a clock inside the line", "due 2026-09-01 at 04:15"),
+    ("a verdict glyph, coloured and weighted", "✓ done ✗ failed ⚠ late 👍 ok"),
+    ("a status light", "🟢 up  🔴 down  🟡 slow  ℹ️ note"),
+    ("a word that names a colour", "the light was red, then green"),
+    ("markdown emphasis, as weight", "**the reason it recurs** nightly"),
+    ("a shout — five capitals or more", "ERROR the grid is unreachable"),
+)
+
+
 def marks(text: str, ruleset: "Ruleset | None" = None) -> list[Mark]:
     """The line's lexical marks: sorted, non-overlapping, first match wins.
 
@@ -364,6 +397,41 @@ def _emphasise(
             out.append((cursor, end, "bold"))
 
     return sorted(out)
+
+
+def utf16(text: str, found: list[Mark]) -> list[Mark]:
+    """The same marks, with offsets a browser can slice by.
+
+    **Python counts code points and JavaScript counts UTF-16 code units, and
+    every mark shipped to the canvas crosses that boundary.** An astral
+    character — 🔴, 🟢, 👍, every emoji above U+FFFF — is one Python character
+    and *two* JS ones, so `text.slice(start, end)` cut a surrogate pair in half
+    and shifted every offset after it on the line. The page rendered a lone
+    high surrogate and then tinted the wrong words for the rest of the line.
+
+    Shipped in round 4 and invisible for a week, because both sides were
+    self-consistent: the terminal applies these offsets to the same Python
+    string that produced them and is correct, the suite compares marks to
+    marks and never slices, and the live log's most common glyph (`✅`, U+2705)
+    is inside the BMP and behaves. It took drawing the legend in a real browser
+    to see a status light come out as half of itself. See [[highlight]] round 5.
+
+    Converted here, at the wire, rather than by teaching the page to index by
+    code point: the offsets exist to be applied by `String.prototype.slice`, so
+    they should be in that function's units by the time it sees them. The
+    terminal path keeps using `marks()` and is untouched.
+    """
+    if not found:
+        return found
+    # Cumulative extra code units before each code point. Only computed when
+    # the line actually holds an astral character, which is the rare case.
+    wide = [i for i, ch in enumerate(text) if ord(ch) > 0xFFFF]
+    if not wide:
+        return found
+    def shift(at: int) -> int:
+        return at + sum(1 for i in wide if i < at)
+
+    return [(shift(s), shift(e), role) for s, e, role in found]
 
 
 def spans(text: str, ruleset: "Ruleset | None" = None) -> list[tuple[str, str | None]]:

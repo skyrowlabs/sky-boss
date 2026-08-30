@@ -8,7 +8,7 @@ exists, with a description of what it used to do.
 
 import rich_click as click
 
-from cli.canvas.catalog import catalog, walk
+from cli.canvas.catalog import catalog, walk, vocabulary
 
 
 def _tree():
@@ -167,3 +167,86 @@ def test_the_real_run_does_not_offer_its_refusal_flag():
 
     entry = next(e for e in catalog(root) if e["name"] == "run")
     assert "--refresh" not in [o["flag"] for o in entry["options"]]
+
+
+# ============================================================================
+# The vocabulary — what the operator declared, and what sky.boss does already.
+# See [[highlight]] round 5.
+# ============================================================================
+
+
+def _home(tmp_path, body):
+    (tmp_path / "formats.toml").write_text(body)
+    return tmp_path
+
+
+def test_a_declared_ruleset_is_listed_with_its_size(tmp_path):
+    """The bench used to ask for this name from memory, out of a text box
+    whose placeholder named a file the surface had never opened."""
+    home = _home(
+        tmp_path,
+        '[highlight.jam]\n'
+        'description = "jam\'s vocabulary"\n'
+        'rules = [\n'
+        '  { pattern = "\\\\bESCALATE\\\\b", role = "warn" },\n'
+        '  { pattern = "\\\\bdone\\\\b", role = "ok" },\n'
+        ']\n',
+    )
+    body = vocabulary(home)
+    assert body["highlights"] == [
+        {"name": "jam", "description": "jam's vocabulary", "rules": 2}
+    ]
+    assert body["problems"] == []
+
+
+def test_a_refused_ruleset_appears_refused_rather_than_missing(tmp_path):
+    """Listing only what loaded would answer *why is my ruleset not in the
+    list* with silence — the same failure the picker exists to fix, one level
+    down. The reason travels with it."""
+    home = _home(
+        tmp_path,
+        '[highlight.broken]\nrules = [{ pattern = "(", role = "warn" }]\n',
+    )
+    body = vocabulary(home)
+    assert body["highlights"] == []
+    assert any("broken" in p and "compile" in p for p in body["problems"])
+
+
+def test_the_builtin_kinds_are_offered_even_with_nothing_declared(tmp_path):
+    """`json` and `jsonl` are in nobody's file. A picker built from the
+    declared list alone would hide the two most common answers."""
+    body = vocabulary(tmp_path)
+    assert "json" in body["builtin_formats"]
+    assert "jsonl" in body["builtin_formats"]
+
+
+def test_the_legend_is_rendered_by_the_real_rules(tmp_path):
+    """**Shown, not described.** Every example is passed through the same
+    `marks()` the stream uses, so the legend cannot drift from what it
+    documents: a rule that stops matching stops being tinted in its own entry.
+    """
+    from cli.highlight import marks, utf16
+
+    legend = vocabulary(tmp_path)["legend"]
+    assert legend
+    for row in legend:
+        assert row["marks"], row["what"]
+        # Converted to UTF-16 offsets for the browser that slices them — a
+        # legend row of status lights was the thing that exposed that bug.
+        assert row["marks"] == utf16(row["text"], marks(row["text"]))
+        # Shaped like a followed line, which is what lets the bench draw it
+        # with the applier a stream already uses. Named `example`, it threw
+        # inside preact's render and froze the panel — silently, with the
+        # marks still matching. Asserted here because only rendering caught it.
+        assert set(row) == {"what", "text", "marks"}
+
+
+def test_every_built_in_rule_has_a_legend_entry(tmp_path):
+    """Coverage, checked rather than remembered. A rule added without an
+    example is one the operator has no way to discover — which is the whole
+    complaint this round answers, arriving again by the back door."""
+    from cli.highlight import _RULES
+
+    examples = [row["text"] for row in vocabulary(tmp_path)["legend"]]
+    for pattern, role, _, _ in _RULES:
+        assert any(pattern.search(text) for text in examples), pattern.pattern

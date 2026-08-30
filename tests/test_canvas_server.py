@@ -36,6 +36,7 @@ def auth(extra=None):
 
 GUARDED = [
     ("/api/catalog", "get"),
+    ("/api/vocabulary", "get"),
     ("/api/run", "post"),
     ("/api/trial", "post"),
     ("/api/shape", "post"),

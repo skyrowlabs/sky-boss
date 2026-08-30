@@ -22,7 +22,7 @@
  * See [[workbench]].
  */
 
-import { html, useEffect, useRef } from "./vendor/htm-preact.js";
+import { html, useEffect, useRef, useState } from "./vendor/htm-preact.js";
 import { Body, markedLine, summarise } from "./render.js";
 
 /* The four entry points, split by the one bit that matters. Named here rather
@@ -274,6 +274,97 @@ function Field({ label, value, placeholder, note, onChange }) {
   `;
 }
 
+/* One flag whose legal values the server knows, drawn as chips instead of
+ * asked for from memory.
+ *
+ * **This replaces a text box whose placeholder named a file the surface had
+ * never opened.** `--highlight` said "a ruleset in formats.toml" and `--from`
+ * said "json, or a format you declared", and nothing in the canvas had read
+ * that file — so the only way to answer either was to go and look, and a
+ * typo came back as an untinted stream with no reason given. See
+ * [[highlight]] round 5.
+ *
+ * A refused declaration is drawn *refused*, not omitted. Listing only what
+ * loaded would answer "why is my ruleset not in the list" with silence, which
+ * is the same failure one level down. */
+function Picker({ label, value, options, refused, note, onChange }) {
+  const known = options.some((o) => o.name === value);
+  return html`
+    <div class="vc-field wide">
+      <span class="vc-label">${label}</span>
+      <div class="vc-chips">
+        <button
+          class=${`vc-chip ${value ? "" : "on"}`}
+          onClick=${() => onChange("")}
+        >
+          none
+        </button>
+        ${options.map(
+          (o) => html`<button
+            key=${o.name}
+            class=${`vc-chip ${value === o.name ? "on" : ""}`}
+            title=${o.detail || ""}
+            onClick=${() => onChange(o.name)}
+          >
+            ${o.name}${o.count !== undefined &&
+            html`<span class="vc-count">${o.count}</span>`}
+          </button>`
+        )}
+        ${(refused || []).map(
+          (r, i) => html`<span class="vc-chip refused" key=${i} title=${r}>
+            ${r.split(":")[0]}
+          </span>`
+        )}
+      </div>
+      ${/* A name typed before the list arrived, or one that has since gone out
+          of the file. Saying so is the whole reason this stopped being a text
+          box — the stream it produces is untinted either way. */
+      value &&
+      !known &&
+      html`<span class="vc-note bad">
+        nothing declared answers to ${value} — the stream will run untinted
+      </span>`}
+      ${note && html`<span class="vc-note">${note}</span>`}
+    </div>
+  `;
+}
+
+/* What sky.boss already tints, shown by tinting it.
+ *
+ * **The declared half is the small half, and it was the only half on screen.**
+ * A panel offering `--highlight` and nothing else says by omission that a
+ * ruleset is where tint comes from; twelve built-in rules do most of it and
+ * none of them was visible anywhere in the surface.
+ *
+ * Every row is a real example passed through the real `marks()` server-side
+ * and applied here with `markedLine` — the same dumb applier a stream line
+ * uses. So this cannot drift from the rules it documents: a rule that stops
+ * matching stops being tinted in its own legend entry. */
+function Legend({ legend }) {
+  const [open, setOpen] = useState(false);
+  if (!legend || legend.length === 0) return null;
+  return html`
+    <div class="legend">
+      <button class="legend-head" onClick=${() => setOpen(!open)}>
+        ${open ? "▾" : "▸"} what sky.boss tints before your rules run
+      </button>
+      ${open &&
+      html`<div class="legend-body">
+        ${legend.map(
+          (row, i) => html`<div class="legend-row" key=${i}>
+            <span class="legend-what">${row.what}</span>
+            <pre class="raw legend-eg">${markedLine(row)}</pre>
+          </div>`
+        )}
+        <span class="vc-note wide">
+          Your rules run <b>after</b> these and claim only text none of them
+          claimed — so a timestamp stays a timestamp whatever you declare.
+        </span>
+      </div>`}
+    </div>
+  `;
+}
+
 /* The view controls, per contract, because a view describes rows and not every
  * contract returns any.
  *
@@ -282,7 +373,7 @@ function Field({ label, value, placeholder, note, onChange }) {
  * legible. `read` gets neither and is told why — a view describes rows, and
  * verbatim output has none to describe. `run` returns an exit code.
  */
-function ViewControls({ draft, actions }) {
+function ViewControls({ draft, actions, vocab }) {
   const contract = draft.contract;
 
   if (contract === "run") {
@@ -328,17 +419,27 @@ function ViewControls({ draft, actions }) {
             note="what makes late a word this window can say"
             onChange=${(v) => actions.set("due", v)}
           />
-          <${Field}
+          <${Picker}
             label="--highlight"
             value=${draft.highlight}
-            placeholder="a ruleset in formats.toml"
-            note="runs after sb's own and claims only unclaimed text"
+            options=${(vocab?.highlights || []).map((h) => ({
+              name: h.name,
+              count: h.rules,
+              detail: h.description,
+            }))}
+            refused=${(vocab?.problems || []).filter((p) =>
+              p.startsWith("highlight ")
+            )}
+            note=${vocab && (vocab.highlights || []).length === 0
+              ? "none declared — a [highlight.name] table in formats.toml adds one"
+              : "runs after sb's own and claims only unclaimed text"}
             onChange=${(v) => actions.set("highlight", v)}
           />
           <span class="vc-note wide">
             Both open the stream, so they take effect on the next trial run — and
             the tint you then see is the answer to which words your rules claimed.
           </span>
+          <${Legend} legend=${vocab?.legend} />
         </div>
       </div>
     `;
@@ -410,10 +511,25 @@ function ViewControls({ draft, actions }) {
             placeholder="where the rows are, if the payload wraps them"
             onChange=${(v) => actions.setRows(v)}
           />
-          <${Field}
+          <${Picker}
             label="--from"
             value=${draft.from}
-            placeholder="json, or a format you declared"
+            options=${[
+              /* The two that need no declaration come first and are not in
+               * anybody's file. A picker built from the declared list alone
+               * would hide the two most common answers. */
+              ...(vocab?.builtin_formats || []).map((k) => ({
+                name: k,
+                detail: "built in — no declaration needed",
+              })),
+              ...(vocab?.formats || []).map((f) => ({
+                name: f.name,
+                detail: f.description || `declared, ${f.kind}`,
+              })),
+            ]}
+            refused=${(vocab?.problems || []).filter((p) =>
+              p.startsWith("format ")
+            )}
             note="changes how the bytes are read — next trial run"
             onChange=${(v) => actions.set("from", v)}
           />
@@ -574,7 +690,7 @@ function Reference({ entry, name }) {
 
 /* ------------------------------------------------------------------- screen */
 
-export function Bench({ commands, groups, draft, actions }) {
+export function Bench({ commands, groups, draft, actions, vocab }) {
   const byName = {};
   for (const c of commands) byName[c.name] = c;
 
@@ -712,7 +828,7 @@ export function Bench({ commands, groups, draft, actions }) {
                 />
               </div>
 
-              <${ViewControls} draft=${draft} actions=${actions} />
+              <${ViewControls} draft=${draft} actions=${actions} vocab=${vocab} />
               </div>
               <${JobStrip} draft=${draft} actions=${actions} groups=${groups} />
             `}
