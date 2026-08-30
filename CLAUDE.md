@@ -664,6 +664,17 @@ Shared with sibling CLIs so the family feels like one tool.
   is "the same thing they'd conclude if it never ran", say something. Refusing is a legitimate way
   to say it — a refusal is a sentence where a hang is not. See [[open]] § Where a follow ends.
 
+  **The same rule turned on an observer rather than a producer: a null result must be able to
+  distinguish *looked and saw nothing* from *could not see*.** A detector that counts what it caught
+  and never counts how often it looked reports `0` for both, and the two want opposite conclusions.
+  Stated on 2026-08-30, when it arrived twice in one day from opposite directions — a torn-record
+  detector whose `torn: 0` could not tell an observed clean write from a write it never overlapped,
+  and, an hour later, a peer session asserting a message had never been sent **from a context that
+  began at a `/clear`**, which is absence of evidence in a window whose edges it could not see. Both
+  are the same shape as the bug this section is about, moved one seat: not *the output cannot say*,
+  but *the observer cannot know*. The remedy is also the same — count the looking, not only the
+  finding, and when you cannot, say "no evidence" rather than "clear".
+
   **None of the five was caught by a test suite.** All were found by running the thing and looking
   at what came out — three by this repo, two by a consumer. That distribution is the part worth
   taking seriously, and the two consumer-found ones are the two a suite *structurally could not*
