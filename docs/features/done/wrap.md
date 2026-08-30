@@ -32,6 +32,12 @@ per surface: two windows on one canvas can want different answers — a `sb data
 scroll it was given, a `sb follow` on an agent log wants the wrap — and the header is where a
 window's own state lives, the way `pinned` does.
 
+**A follow opens wrapped; nothing else does** (round 2, reversing round 1's *every window opens
+unwrapped* — see Notes). The default follows the contract rather than the window: a follow is a log
+by declaration, and `read` is **verbatim** by declaration, which is the same refusal to infer
+structure that stops sky.boss making columns out of it. Wrapping a `read` by default would be that
+inference arriving through the rendering instead of through a parser.
+
 **The indent is derived from a mark sky.boss already produces, never guessed.**
 `cli/highlight.py`'s `_TIMESTAMP` matches a leading ISO stamp and its mark already carries the end
 offset. That number *is* the hanging indent. Two consequences worth stating because they are what
@@ -77,11 +83,23 @@ hanging-indent idiom and both halves are in the same unit as the glyphs.
 - [x] A line with no leading stamp wraps flush, and a line whose stamp is longer than the window is
       not an infinite indent.
 
-### Round 2 — whether it is remembered (not scheduled)
+### Round 2 — on by default, where the contract says log (2026-08-29)
+
+- [x] A follow opens wrapped. `resident` rather than `stream`, because `stream` is not yet true for
+      a run or a read when its window opens and becomes true later without the output having turned
+      into prose.
+- [x] Everything else opens as it did, with the toggle one click away.
+
+### Round 3 — whether it is remembered (not scheduled)
 
 `rail` went into `$SB_STATE` through `/api/prefs` ([[tools]] round 7) because the surface has no
-stable origin. Whether a *default* for wrap belongs there is the same question and does not block
-round 1, which can open every window unwrapped.
+stable origin. Whether a *remembered* default belongs there is the same question, and round 2 did
+**not** answer it: a hardcoded default per contract is not a preference that survives a launch. It
+becomes worth asking the first time someone wants a follow to open *unwrapped* and has to say so
+every time.
+
+*(Renumbered from round 2 when the default landed. It was never scheduled and nothing pointed at
+it by number.)*
 
 ## Notes
 
@@ -137,3 +155,30 @@ the indent measured 19.95ch; at 2.4 it is 17.28px and the indent measured 20.02c
 doubled, the column count did not, and the strong property held at both: the continuation's left
 edge equals the left edge of the character at index `hang` on the first line — *directly under the
 first text after the timestamp*, which is what was asked for rather than an approximation of it.
+
+### Round 2 — executed (2026-08-29)
+
+**The operator tested round 1, liked it, and asked for it to be the default.** Round 1 had said
+*every window opens unwrapped*, on the reasoning that a default is a preference and preferences are
+`$SB_STATE`'s question. That reasoning was fine and answered a question nobody asked: a **hardcoded
+default per contract** is not a remembered preference, and the two do not need each other.
+
+**What the ask did not settle is which windows.** Taken literally it is every window with a stream
+body, and that includes an accruing `run` or `read` — and the doc's own *Why* is symmetric. It
+argues that a prose log inherits a table's answer wrongly; a text table inherits a log's answer
+just as wrongly, and reflowing one destroys the only structure it has.
+
+So the default follows the **contract**, which is the distinction the surface already trusts
+everywhere else. `read` is *verbatim by declaration* — sky.boss refuses to infer whether that
+output has structure, which is the whole reason it will not make columns out of it — and defaulting
+it to wrap is that same inference arriving through the rendering rather than through a parser. The
+palette makes it concrete rather than theoretical: **anything typed that is not a sky.boss command opens
+as `sb read`**, so `git log --graph` and `docker ps` are the common case, not the corner.
+
+**`resident`, not `stream`**, and the code had already drawn that line for its own reasons: `stream`
+is false for a run or a read at the moment its window opens and becomes true when the server agrees
+to accrue it — which is a fact about where the body comes from, not about whether the body is
+prose. Reading one as the other is what [[follow]] round 4 named as the reason an act could not be
+watched.
+
+One click still turns it on for a `read`, and the toggle is unchanged.
