@@ -257,7 +257,7 @@ Two consequences of `--save` writing *before* it runs became round-3 items there
 them found a third: a usage error raised *below* the write left a tool on disk under a name that
 could not be reused, then reported a failure. Fixed in `cli/output.py`.
 
-**18. A schedule viewer, over schedules sky.boss did not write.** Raised by the operator
+**18. A schedule viewer, over schedules sky.boss did not write.** *Closed 2026-08-30 → [[schedule]] round 1: `sb schedule` folds every declared project's rows into one table ordered by the parsed instant. The ruling that licensed it — **sky.boss may order; only a provider may judge** — is the test to apply to the next case, and it disposes of the clock-selector half of item 9: sky.boss picks no clock, it reads the one each provider stamped.* Raised by the operator
 2026-08-29. **The boundary half needs no decision** — it is item 11 answered in the direction it was
 always leaning, and `CLAUDE.local.md` already binds it: sky.boss never manages, generates or edits
 another project's cron entries, and that rule was written to bind *whatever scheduler sky.boss grows

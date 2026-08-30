@@ -184,9 +184,11 @@ cli.add_command(read_cmd)
 from cli.follow import follow as follow_cmd  # noqa: E402
 from cli.mcp import mcp as mcp_cmd  # noqa: E402
 from cli.rollcall import roll_call as roll_call_cmd  # noqa: E402
+from cli.schedule import schedule as schedule_cmd  # noqa: E402
 
 cli.add_command(follow_cmd)
 cli.add_command(roll_call_cmd)
+cli.add_command(schedule_cmd)
 cli.add_command(mcp_cmd)
 
 # A surface, not a verb. It renders the same envelope every command returns

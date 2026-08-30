@@ -43,8 +43,15 @@ PROJECTS_FILE = "projects.toml"
 # dataclass against this set, so a field added without a key here fails there
 # rather than becoming a declaration sky.boss silently ignores.
 PROJECT_KEYS = frozenset(
-    {"argv", "path", "cwd", "from", "rows", "cols", "timeout", "description"}
+    {"argv", "path", "cwd", "from", "rows", "cols", "timeout", "description", "schedule"}
 )
+
+# The keys a `[project.X.schedule]` table may declare. `name` is the only one
+# without a sensible absence: a row with nothing to call it cannot be drawn.
+# The rest are optional because a provider that supplies no `next` is a state
+# the view has a word for, and inventing one would be sky.boss computing a
+# fire time from a cron expression — the thing [[schedule]] exists to refuse.
+SCHEDULE_KEYS = frozenset({"rows", "name", "schedule", "next", "last"})
 TOP_LEVEL_TABLES = frozenset({"project"})
 
 # Top-level keys that are not tables. `state_root` is read by cli/agentstate.py
@@ -66,6 +73,11 @@ class Project:
     cols: str = ""
     timeout: int = 60
     description: str = ""
+    # The mapping from this project's payload onto the four schedule fields, or
+    # None when it declares none. **A project with no schedule is the common
+    # case and is not an error** — it is counted and named by the view rather
+    # than drawn as a blank row. See [[schedule]].
+    schedule: dict[str, str] | None = None
 
     @property
     def source(self) -> str:
@@ -130,6 +142,8 @@ def parse(raw: dict) -> tuple[list[Project], list[str]]:
         # loading is reported once for that rather than twice.
         for key in _unknown_keys(body):
             problems.append(f"project {name!r}: unknown key {key!r} — ignored")
+        for key in _unknown_schedule_keys(body):
+            problems.append(f"project {name!r}: schedule has unknown key {key!r} — ignored")
         projects.append(
             Project(
                 name=name,
@@ -141,6 +155,11 @@ def parse(raw: dict) -> tuple[list[Project], list[str]]:
                 cols=str(body.get("cols", "")),
                 timeout=int(body.get("timeout", 60)),
                 description=str(body.get("description", "")),
+                schedule=(
+                    {k: str(v) for k, v in body["schedule"].items()}
+                    if isinstance(body.get("schedule"), dict)
+                    else None
+                ),
             )
         )
 
@@ -156,6 +175,16 @@ def _unknown_keys(body: dict) -> list[str]:
     that rejects a file it merely does not understand yet.
     """
     return [key for key in body if key not in PROJECT_KEYS]
+
+
+def _unknown_schedule_keys(body: dict) -> list[str]:
+    """Same contract as `_unknown_keys`, one table down: reported and ignored,
+    never fatal, so an older sky.boss reading a newer file is not the thing that
+    rejects it."""
+    table = body.get("schedule")
+    if not isinstance(table, dict):
+        return []
+    return [key for key in table if key not in SCHEDULE_KEYS]
 
 
 def _check(name: str, body) -> str | None:
@@ -176,6 +205,16 @@ def _check(name: str, body) -> str | None:
             return "argv must be a list of strings"
     if "timeout" in body and not isinstance(body["timeout"], int):
         return "timeout must be a whole number of seconds"
+    if "schedule" in body:
+        table = body["schedule"]
+        if not isinstance(table, dict):
+            return "schedule must be a table"
+        if not all(isinstance(v, str) for v in table.values()):
+            return "every schedule mapping must be a field name"
+        # `name` is the one field a row cannot do without: everything else has a
+        # word for its absence, and a row with nothing to call it has none.
+        if not table.get("name"):
+            return "schedule must name the field its rows are called by"
     return None
 
 
