@@ -352,13 +352,29 @@ The rules that are not negotiable:
   It does not throw and the element still renders — the children just quietly vanish. Put comments
   above the `html\`` block or inside a `${…}` expression. One in a `<div>` opening tag removed an
   `<input>` from the DOM entirely, and only rendering the page found it.
-- **The frontend has no automated tests.** There is no JS test runner and adding one means npm. The
-  pure parts — `unwrap`, `suggest`, `roleFor` — are what a runner would be for. Verified by
-  rendering headless Chromium against the live server and reading the DOM back, which is not the
-  same thing and caught two real bugs. **Treat that pass as an obligation, not a formality**: it is
-  what found `dead · exited undefined` — `Chrome.to_dict` dropped every falsy value, so a clean exit
-  never reached the page, in the one state that rendering exists to draw. The suite could not see it
+- **The frontend's pure half has a test runner; its rendered half still has none.**
+  `npm test` is `node --test`, built into node 22, so it costs no dependency — the npm bill was
+  already paid for eslint on 2026-08-27. It reaches every module because **`main.js` owns the mount
+  and nothing else touches the DOM at import**; keep it that way, or the next file to run something
+  at module scope takes the whole frontend out of reach again. It earned itself in forty
+  milliseconds: `expansion || argv` had never once fallen back, because *an empty array is truthy*.
+  See [[canvas]] round 12.
+
+  **It does not retire the headless pass, and the distinction is worth holding.** A runner sees
+  branches; it cannot see an unpainted `.mk-ok`, an `htm` comment eating an element's children, a
+  dialog whose buttons fall off the right edge at scale 2.4, or a filter shrunk to 11px in a narrow
+  rail — which is every frontend defect this repo has actually found. **Treat rendering headless
+  Chromium and reading the DOM back as an obligation, not a formality**: it is what found
+  `dead · exited undefined` — `Chrome.to_dict` dropped every falsy value, so a clean exit never
+  reached the page, in the one state that rendering exists to draw. The suite could not see it
   because the terminal band reads the dataclass rather than the dict.
+
+  **A silent no-op after a click is almost always a handler that threw.** An error inside a DOM
+  event handler reaches `window.onerror`, *not* `Runtime.exceptionThrown` as read by a CDP drain,
+  and a `try/catch` around `.click()` catches nothing because the handler runs inside the dispatch.
+  Install `addEventListener("error", …)` before the click. That is what surfaced
+  `actions.dropNow is not a function` — a method written onto the wrong one of two action objects,
+  which existed, so it failed at click time rather than at definition.
 
 ## CLI setup
 

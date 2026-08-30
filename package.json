@@ -2,11 +2,13 @@
   "name": "sky-boss",
   "private": true,
   "type": "module",
-  "description": "Lint config for the canvas and the Electron shell. The project is Python; this exists only so the JavaScript is checked.",
+  "description": "Lint and unit-test config for the canvas and the Electron shell. The project is Python; this exists so the JavaScript is checked and its pure logic is tested.",
   "scripts": {
-    "//lint:check": "The --max-warnings number is a RATCHET. It may only go down. Never raise it to make a commit pass — fix the warning, or suppress it inline with a written reason.",
+    "//lint:check": "The --max-warnings number is a RATCHET. It may only go down. Never raise it to make a commit pass \u2014 fix the warning, or suppress it inline with a written reason.",
     "lint:check": "eslint . --max-warnings=0",
-    "lint:fix": "eslint . --fix"
+    "lint:fix": "eslint . --fix",
+    "//test": "node --test, built into node 22 \u2014 no dependency. It covers the PURE half only; it cannot see an unpainted mark, an htm comment eating an element's children, or a dialog off the edge at scale 2.4. The headless pass in CLAUDE.md is not retired by this.",
+    "test": "node --test \"tests/js/*.test.js\""
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",

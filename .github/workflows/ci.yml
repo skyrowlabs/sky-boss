@@ -80,3 +80,9 @@ jobs:
       # was clean the day lint arrived. It may only go down. Raising it to make
       # a commit pass is the one edit this job exists to prevent.
       - run: npm run lint:check
+
+      # The pure half of the frontend — [[canvas]] round 12. `node --test` is
+      # built into node 22, so this costs no dependency. It does not replace the
+      # headless render CLAUDE.md calls an obligation: a runner cannot see an
+      # unpainted mark or a control off the edge of the screen.
+      - run: npm test

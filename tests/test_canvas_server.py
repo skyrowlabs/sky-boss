@@ -196,6 +196,7 @@ def test_the_static_directory_ships_only_what_the_page_needs():
     expected = {
         "index.html",
         "sb.css",
+        "main.js",
         "app.js",
         "api.js",
         "bench.js",

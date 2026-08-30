@@ -120,6 +120,60 @@ auto-refreshing a write is a scheduler nobody asked for.
 
 ## Phases
 
+### Round 13 — one way of asking (2026-08-30)
+
+Round 11 built a dialog and left `window.confirm()` in place for deleting a tool, with a comment
+saying the reason for it had expired. This finishes that: **the delete goes through the surface's
+own dialog**, and the dialog stops being about an argv.
+
+`ConfirmAct` now renders what it is handed — a head, a note, a body, some lines under it, a button
+label — and runs a thunk. That is what lets one component ask two unrelated questions without
+either learning about the other, and it is why the act path stopped passing `id`/`argv`/`resident`
+and started passing `go`.
+
+**A browser confirm was worse than a missing feature here.** It blocks every later event — the same
+hazard `sb.css` already records for the `cwd` field — and it cannot show you the argv you are about
+to lose, which is the one thing worth reading before deleting a saved command.
+
+**`+tag`'s `prompt()` is deliberately not part of this.** A yes/no is what this dialog is; asking
+for a *word* needs an input, focus handling and a submit path, which is a bigger change than either
+round 11 or this one. Left as the cheap version and recorded, not hidden.
+
+- [x] The dialog takes its content and its action from the caller.
+- [x] Deleting a tool asks through it, showing the argv that is about to go.
+- [x] Cancel and `Esc` leave the tool alone; confirm deletes and the rail refreshes.
+
+### Round 12 — the frontend gets a test runner (2026-08-30)
+
+**The objection that kept this out has already expired.** `CLAUDE.md` records that the frontend has
+no automated tests because *"adding one means npm"*, and names `unwrap`, `suggest` and `roleFor` as
+what a runner would be for. npm arrived on 2026-08-27 for eslint: `package.json` and
+`eslint.config.js` are in the tree and CI already runs `actions/setup-node@v5`, `npm ci` and
+`npm run lint:check` on node 22. Node 22 ships `node --test`, so this adds **no dependency at all**.
+
+**What made it worth doing now rather than in principle.** Rounds 8 and 11 and [[tools]] round 8
+added `matches`, `kindOf` and `tagPool` — real branching logic — and the only thing behind them is a
+person driving headless Chromium by hand. That caught things, and it is neither repeatable nor run
+by CI. The Python half of the same work was caught in four seconds by a test that already existed;
+the asymmetry is now the largest untested surface in the repo and it is the half that changes most.
+
+**The cost is one line, measured rather than assumed.** `render.js`, `bench.js` and `api.js` already
+import cleanly under node — preact and htm load fine. Only `app.js` fails, on
+`ReferenceError: document is not defined`, from its very last line: the mount. Moving that into a
+two-line `main.js` makes the whole frontend importable.
+
+**This does not retire the headless pass.** A runner covers the pure half; it cannot see a mark that
+lands without a stylesheet rule, an `htm` comment eating an element's children, or a dialog whose
+buttons fall off the right edge at scale 2.4 — every defect this repo has actually found in the
+frontend was one of those. The obligation `CLAUDE.md` states stands unchanged; what changes is that
+the pure half stops depending on someone remembering to look.
+
+- [x] `main.js` owns the mount; `app.js` becomes importable and exports what it renders.
+- [x] `node --test` wired as `npm test`, with no new dependency.
+- [x] Tests for the pure functions the surfaces actually branch on.
+- [x] CI runs it beside the linter.
+- [x] The `static/` inventory test knows about the new file.
+
 ### Round 11 — confirm before an act (2026-08-30)
 
 Asked for by the operator: *"some of the commands can initiate commands that you may want
@@ -915,3 +969,33 @@ reading `Runtime.exceptionThrown`, which is now the thing to reach for before gu
 open dialog: nothing ran, and no second window opened behind it. That second half is the *one
 question at a time* guard doing its job — without it the palette would have opened four more
 windows while the first was still being asked about.
+
+
+### 2026-08-30 — rounds 12 and 13
+
+**The runner found a real bug in its first forty milliseconds.** `kindOf` read
+`(entry.expansion || entry.argv || [])[0]`, and **an empty array is truthy**, so the fallback to
+`argv` had never once fired — an entry with `expansion: []` came out with no kind rather than
+reading its argv. Latent, because the rail only draws saved commands and those always carry an
+expansion. It is exactly the class a headless render cannot find and a unit test finds immediately:
+no visual symptom, no thrown error, just a branch that was never taken.
+
+**One test was wrong rather than the code**, and that is worth recording too: `unwrap` returns a
+tagged union (`{kind, rows|value|text}`), not rows, and the first test asserted the shape it wished
+for. Fixed the test. A runner is only worth having if a failure is read before it is "fixed".
+
+**Round 13's bug is the day's recurring shape, one more time.** `go: () => actions.dropNow(name)` —
+and `forget` lives in `benchActions`, the *second* of the two action objects. `actions` exists, so
+this was not a `ReferenceError` at definition; it was a real object with no such method, failing
+only when the button was clicked. The tell was that the dialog closed and nothing else happened,
+with an empty console until `window.onerror` was captured explicitly. **`Runtime.exceptionThrown`
+did not surface it** — an error thrown inside a DOM event handler reaches `window.onerror`, and a
+`try/catch` around `.click()` catches nothing, because the handler runs inside the dispatch. Worth
+keeping beside round 11's temporal-dead-zone note: *on this surface, a silent no-op after a click is
+almost always a handler that threw*, and the way to see it is `addEventListener('error', ...)`
+before the click.
+
+**What the runner does not buy.** Every frontend defect this repo has actually found — an unpainted
+`.mk-ok`, an `htm` comment eating an element's children, a dialog off the right edge at scale 2.4, a
+filter shrunk to 11px in a narrow rail — is invisible to `node --test`. The headless obligation in
+`CLAUDE.md` is unchanged. What changed is that the pure half stops depending on someone remembering.
