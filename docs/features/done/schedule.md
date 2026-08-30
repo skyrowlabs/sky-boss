@@ -1,10 +1,11 @@
 ---
-status: complete       # rounds 1 and 3 built; round 2 still not scheduled
+status: complete       # rounds 1, 3 and 4 built; round 2 still not scheduled
 created: 2026-08-29
 updated: 2026-08-30
 agent_value: 3         # five dated decisions and a vocabulary, none of it built
 key_files: [cli/rollcall.py, cli/schedule.py, cli/view.py, cli/output.py,
-            cli/canvas/server.py, cli/canvas/static/render.js, cli/canvas/static/app.js]
+            cli/canvas/server.py, cli/canvas/static/render.js, cli/canvas/static/app.js,
+            cli/canvas/static/schedule.js, cli/canvas/static/sb.css]
 ---
 
 # The schedule view
@@ -257,6 +258,18 @@ sequence. It stays where it is.
 - [x] **`/api/shape` leaves an authored view alone**, and the window remembers it so clearing a
       choice restores it rather than falling back to inference.
 
+### Round 4 — the screen (2026-08-30)
+
+The read-only half of the drawn flight plan, as a third nav entry. Named `schedule` and not
+`plan`, because the rest of that mockup — CLAIMS, CLOCK SOURCE, IN FLIGHT, LIMITS — still needs
+[[open]] items 6, 7 and 9.
+
+- [x] **A nav entry beside canvas and workbench**, and the rule that forbade one answered rather
+      than overridden.
+- [x] **Grouped by project**, in the order the command returned, with a `next up` band.
+- [x] **Projects declaring no schedule are named**, not silently absent.
+- [x] **The screen states its own age** — no browser-timer cadence.
+
 ## Notes
 
 ### 2026-08-30 — round 1, executed
@@ -365,3 +378,45 @@ reading stderr, which nobody does in a window.
   so two rounds of "still seven columns" were measuring the old process. `sb ui` hot-reloads
   `static/` and deliberately does not hot-reload Python. The habit that survives: when a headless
   result contradicts a unit that passes, check which process is answering before changing code.
+
+### 2026-08-30 — round 4, executed
+
+**"I do not see a visible schedule button next to workbench" is the report round 3 should have
+anticipated.** Round 3 made `sb schedule` render well in a window; the operator had approved *both,
+in that order*, and a window is not a button. Worth keeping as a phrasing lesson rather than a
+defect: *"it works in the palette"* answers a question nobody asked when what was approved was a
+screen.
+
+- **The no-nav-entry rule was answered, not overridden.** It held that a nav offering a screen that
+  is not there is the palette's own failure wearing different clothes — *it has already told you the
+  thing exists*. The objection was to **offering something absent**, so building the screen
+  discharges it. What would have broken the rule is calling the entry `plan`: the drawn flight plan
+  is mostly blocked, and a nav entry reading `plan` above a table of fire times is the same
+  over-promise in a smaller font. The control tower is still not offered.
+- **`display: contents` is what makes the columns align.** Each `.pl-row` was its own grid, so the
+  columns lined up only because every row carried an identical fixed template — and a fixed track
+  clips a cron expression, which has no bound. The rows share the group's grid now: three columns
+  size to their own widest cell, `schedule` takes the remainder, and the alignment is structural
+  instead of coincidental. Measured at three scales: nothing clipped, and header and row cells share
+  the same four x-offsets to the pixel.
+- **The fixed widths were wrong at every scale and looked right at one.** `minmax(0, 26rem)` for the
+  cron truncated it at 2560px, which is the *original complaint* reintroduced by the fix for it — and
+  `in 3h` and `33m ago` were clipped in 8rem and 9rem tracks the whole time. Guessed numbers in a
+  `rem` grid are the trap `--scale` exists to warn about; content sizing has no number to be wrong.
+- **The screen has no cadence, and says so instead.** Every relative string on it was computed by
+  Python at read time and does not move; without a visible age they would rot silently while looking
+  identical to fresh ones. A browser timer was **rejected rather than skipped**: a hidden page has
+  its timers clamped to roughly one fire a minute, so a cadence would quietly become a different
+  cadence exactly when you stopped being able to see it. `read 4s ago` is honest at any rate,
+  including none. A Python-side clock keyed to the connection is what a real cadence would need, and
+  that machinery is keyed to a *window* — the screen is deliberately not one.
+- **`project` is dropped from the rows, and only on this screen.** The grouping heading already
+  names it, so drawing it again spends the narrowest column on a constant. This is a decision about
+  *drawing*, not a view: the envelope still carries the field, the window form still draws it, and
+  round 3's authored view is untouched.
+- **The bar already overflows at scale 2.4 in a small window, and the third button did not cause
+  it.** Measured by hiding buttons: 1830px minimum with *zero* nav buttons against a 900px viewport,
+  because `.bar > *:not(.spacer):not(.barpal)` is `flex: none` on purpose. My button takes it from
+  2176 to 2357. Left alone — it is a pre-existing property of running 2.4 in a window too small for
+  it, the schedule entry is visible from about 1900px up, and shrinking the bar's controls is the
+  thing that rule exists to prevent.

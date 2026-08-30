@@ -1131,3 +1131,101 @@ pre.stream.wrap .ln {
    Drawing it red is what made an edit read as a failure. [[workbench]] r5. */
 .job-note.replaces { color: var(--sb-text-3); }
 .job-note.replaces code { color: var(--sb-text-2); font: inherit; }
+
+/* ---------------------------------------------------------- the schedule screen
+ * Every size in rem, where 1rem is four scaled pixels — no px, so the whole
+ * screen grows with --scale rather than one half of it doing. See [[schedule]]
+ * round 4. */
+.plan {
+  flex: 1 1 auto;
+  overflow: auto;
+  padding: 4rem 5rem 6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 4rem;
+}
+.pl-head {
+  display: flex;
+  align-items: baseline;
+  gap: 3rem;
+  flex-wrap: wrap;
+  padding-bottom: 3rem;
+  border-bottom: 1px solid var(--sb-hair);
+}
+.pl-title {
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 3rem;
+  color: var(--sb-text-3);
+}
+.pl-soon {
+  font-size: 4.5rem;
+}
+.pl-age {
+  font-size: 3rem;
+  color: var(--sb-text-3);
+}
+.pl-group {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+.pl-gname {
+  font-size: 3.25rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--sb-text);
+}
+.pl-rows {
+  display: flex;
+  flex-direction: column;
+}
+/* **One grid for the whole group, not one per row.** Each `.pl-row` used to be
+ * its own grid, so the columns lined up only because every row happened to
+ * carry the same fixed template — and a fixed track clips a cron expression,
+ * which has no bound. The rows are `display: contents` instead, so all of them
+ * share the group's grid: the three bounded columns size to their own widest
+ * cell and SCHEDULE takes the remainder. Nothing is a magic number, and the
+ * alignment is structural rather than coincidental.
+ *
+ * `display: contents` removes the row's own box, so the rule that separates
+ * rows lives on the cells. */
+.pl-rows {
+  display: grid;
+  grid-template-columns:
+    minmax(0, max-content) minmax(0, max-content) minmax(0, 1fr) minmax(0, max-content);
+  column-gap: 4rem;
+}
+.pl-row {
+  display: contents;
+}
+.pl-c {
+  padding: 1.25rem 0;
+  font-size: 3.25rem;
+  border-bottom: 1px solid var(--sb-hair);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pl-hrow .pl-c {
+  color: var(--sb-text-3);
+  font-size: 2.75rem;
+  letter-spacing: 0.1em;
+}
+.pl-fires {
+  color: var(--sb-brand);
+}
+/* The one emphasis on the screen, and it restates a provider's fact rather
+ * than judging: it published a next-run time that has passed. */
+.pl-late {
+  color: var(--sb-warn);
+  font-weight: 700;
+}
+.pl-quiet,
+.pl-empty {
+  font-size: 3rem;
+  color: var(--sb-text-3);
+}
+.pl-empty code {
+  color: var(--sb-text);
+}

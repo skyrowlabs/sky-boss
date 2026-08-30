@@ -202,10 +202,24 @@ Two rules there are the canvas's own, arriving on a new screen:
   returns only what was named and `hidden` is empty — a checklist built from that would lose a
   column the instant you unticked it.
 
-**There is deliberately no nav entry for the plan or the tower.** They are drawn in
-`docs/design/` and need four primitives that do not exist. A nav offering a screen that is not
-there is the palette's own failure wearing different clothes — it has already told you the thing
-exists. See `docs/open.md`.
+**A nav entry may only name a screen that is there**, and that is the rule — not a fixed count of
+screens. A nav offering a screen that is not there is the palette's own failure wearing different
+clothes: it has already told you the thing exists.
+
+**The tower is still not offered.** The plan is, in half, as of [[schedule]] round 4 — a third entry
+reading **`schedule`**, drawing what `sb schedule` returns. That discharges the rule rather than
+overriding it: the objection was to *offering something absent*, and building the screen answers it.
+What would have broken the rule is naming the entry `plan`, since the rest of the drawn flight plan
+— CLAIMS, CLOCK SOURCE, IN FLIGHT, LIMITS — still needs `docs/open.md` items 6, 7 and 9. **A nav
+entry that names the whole of a thing while showing a tenth of it is the same over-promise in a
+smaller font.** Both remaining screens are drawn in `docs/design/`. See `docs/open.md`.
+
+**A screen with no cadence owes a visible age.** Every relative string the schedule screen draws was
+computed in Python at read time and does not move afterwards, so without one they rot silently while
+looking exactly like fresh ones. A browser timer is not the fix and was rejected for the reason the
+refresh clock lives in Python at all: a hidden page has its timers clamped to about one fire a
+minute, so a cadence becomes a different cadence at the moment you stop being able to see it. The
+Python-side clock is keyed to a *window*, and a screen is deliberately not one.
 
 The rules that are not negotiable:
 

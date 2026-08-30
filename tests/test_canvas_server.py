@@ -201,6 +201,7 @@ def test_the_static_directory_ships_only_what_the_page_needs():
         "api.js",
         "bench.js",
         "render.js",
+        "schedule.js",
         "vendor/preact.mjs",
         "vendor/hooks.mjs",
         "vendor/htm.mjs",
