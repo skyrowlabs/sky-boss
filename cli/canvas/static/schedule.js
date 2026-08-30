@@ -116,6 +116,20 @@ export function boxOf(node) {
   };
 }
 
+export function cardState(rows, anchor) {
+  /* **An empty hour has nothing to say, and asking it crashed the app.** Ten of
+   * the twenty-four buckets are empty in an ordinary grid; hovering one showed
+   * a card built from `rows[0]`, which is `undefined`. That threw *inside
+   * Preact's render*, so the tree stopped updating and every control on the
+   * screen went dead while still being drawn.
+   *
+   * Returning null rather than an empty card is deliberate: moving from a full
+   * bucket to an empty one should *close* the card, not leave the previous
+   * one standing over a bucket it does not describe. */
+  if (!rows || rows.length === 0) return null;
+  return { rows, anchor };
+}
+
 function hoverProps(show, hide, rows) {
   const open = (event) => show(rows, boxOf(event.currentTarget));
   return {
@@ -123,7 +137,9 @@ function hoverProps(show, hide, rows) {
     onFocus: open,
     onMouseLeave: hide,
     onBlur: hide,
-    tabIndex: 0,
+    /* Nothing to reveal, nothing to stop on: ten empty tab stops that open
+     * nothing are worse than none. */
+    tabIndex: rows && rows.length ? 0 : -1,
   };
 }
 
@@ -489,7 +505,7 @@ export function Plan({ result, projects, readAt, now, onRefresh, ui, setUi }) {
    * on `--scale`, and a guessed width is how a panel ends up half off-screen at
    * one scale and fine at another. Stored unclamped, then clamped in the same
    * render once the node has a box. */
-  const show = (rows, anchor) => setCard({ rows, anchor });
+  const show = (rows, anchor) => setCard(cardState(rows, anchor));
   const hide = () => setCard(null);
 
   const toggle = (name) => {
@@ -617,8 +633,12 @@ export function Plan({ result, projects, readAt, now, onRefresh, ui, setUi }) {
           `
         )}
 
+      ${/* `?.` is a second guard behind `cardState`, kept on purpose: this
+          * expression is evaluated during *render*, where a throw takes the
+          * whole tree down rather than one component, and the cost of the
+          * guard is one character. */ ""}
       ${card &&
-      html`<${CardLayer} card=${card} declared=${declared.get(card.rows[0].project)} />`}
+      html`<${CardLayer} card=${card} declared=${declared.get(card.rows[0]?.project)} />`}
 
       ${rows.length === 0 &&
       ui.mode === "table" &&
