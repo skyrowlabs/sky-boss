@@ -24,6 +24,7 @@ import click
 from rich.console import Console
 from rich.padding import Padding
 from rich.table import Table
+from rich.style import Style
 from rich.text import Text
 from rich.theme import Theme
 
@@ -902,13 +903,44 @@ def _cell(value: Any) -> str:
 # ============================================================================
 
 
+def role_style(role):
+    """One role name, resolved — including a composite like `bold sb.ok`.
+
+    **Rich cannot resolve a theme name inside a compound style string, and the
+    failure is silent.** `get_style("sb.ok")` finds the theme entry;
+    `get_style("bold sb.ok")` falls through to `Style.parse`, which tries to
+    read `sb.ok` as a *colour*, fails, and raises `MissingStyle` — which the
+    render path swallows, so the span comes out with no style at all rather
+    than with an error anybody could read.
+
+    That is not hypothetical and it was not new. [[highlight]] round 4 began
+    emitting composites for markdown emphasis and CLAUDE.md recorded that
+    "Rich reads `bold sb.path` directly", which was never true; round 5 made
+    *every glyph* composite and turned a handful of bold phrases into every ✓,
+    ✗ and ⚠ in the log rendering plain. The canvas was right the whole time —
+    it splits a composite into two classes — so the two surfaces disagreed and
+    only the terminal was wrong. Found by rendering a line and looking at the
+    escape codes. See [[highlight]] round 6.
+
+    Each word is resolved against the theme first and parsed only if the theme
+    has no entry, which is the order that makes `bold` and `sb.ok` both work
+    in one string.
+    """
+    if not role or " " not in role:
+        return role
+    style = Style.null()
+    for word in role.split():
+        style += THEME.styles.get(word) or Style.parse(word)
+    return style
+
+
 def band_text(spans) -> Text:
     """Chrome band spans assembled into styled Text. The roles were decided
     in cli/chrome.py; this only applies them — neither renderer grows an
     opinion. See [[chrome]]."""
     text = Text()
     for chunk, role in spans:
-        text.append(chunk, style=role)
+        text.append(chunk, style=role_style(role))
     return text
 
 

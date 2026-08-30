@@ -159,12 +159,25 @@ def test_a_spaced_word_after_a_number_is_prose_not_a_unit():
 
 def test_a_digit_inside_an_identifier_is_not_a_number():
     """`7d9d878` is a git SHA. Tinting its leading digit reads as a rendering
-    fault, not a highlight — found by running the rules over a real log."""
-    assert marks("new commits: 7d9d878 (first run)") == []
+    fault, not a highlight — found by running the rules over a real log.
+
+    Asserts the property rather than an empty list: round 6 dims the brackets
+    in `(first run)`, and an `== []` here would have read as a boundary about
+    SHAs while actually being a claim about the whole line. The third time this
+    file has made that mistake, and the tell is the same each time — an empty
+    list passes for reasons the test's name never mentions.
+    """
+    line = "new commits: 7d9d878 (first run)"
+    assert not [m for m in marks(line) if line[m[0] : m[1]].strip("()")]
 
 
-def test_an_issue_reference_is_a_number():
-    assert role_of("#925 model-health's stage wraps", "#925") == "sb.num"
+def test_an_issue_reference_wears_a_ground_of_its_own():
+    """Round 6. It was `sb.num` — correct, and indistinguishable from every
+    other number on the line, which is what the operator asked it not to be.
+    There was no ninth hue to give it: the design system holds four and
+    sky.boss spends all four. `sb.ref` is the number's own hue on a wash of
+    itself — the same colour, a different object."""
+    assert role_of("#925 model-health's stage wraps", "#925") == "sb.ref"
 
 
 def test_a_mid_line_date_and_clock_time_are_values():
@@ -482,3 +495,44 @@ def test_a_line_with_no_astral_character_is_returned_unchanged():
     text = "2026-08-29 04:15:02 [agent-fix] ✓ 8 done"
     found = marks(text)
     assert utf16(text, found) is found
+
+
+# ============================================================================
+# Round 6 — ground, not hue
+# ============================================================================
+
+
+def test_a_delimiter_dims_and_what_it_wraps_does_not():
+    """**The inverse of what was asked, and it is the timestamp's argument
+    applied to punctuation.** The ask was for bracketed text in a colour of its
+    own; there is no colour of its own to give. `--text-3` is defined by the
+    design system as *structure, not reading text*, which is what a delimiter
+    is — so dimming the two characters makes what they wrap stand out by taking
+    noise away instead of adding it."""
+    line = "retry (attempt 3 of 5) after {timeout: 90m}"
+    dimmed = [line[s:e] for s, e, role in marks(line) if role == "sb.muted"]
+    assert dimmed == ["(", ")", "{", "}"]
+    # The contents keep whatever they already were, and nothing else moved.
+    assert ("3", "sb.num") in _tinted(line)
+
+
+def test_a_leading_tag_keeps_its_brackets():
+    """The delimiter pass runs last, so a bracket another rule already claimed
+    is never re-tagged. A `[job]` tinted whole and then half-dimmed would be
+    two rules disagreeing in public."""
+    line = "2026-08-29 04:15:02 [agent-fix] starting"
+    assert ("[agent-fix]", "sb.accent") in _tinted(line)
+    assert "sb.muted" not in {r for _, r in _tinted(line) if _ in ("[", "]")}
+
+
+def test_a_bracket_inside_a_code_span_is_code():
+    """Same ordering, one level in. First match wins and the code span is the
+    outer shape."""
+    assert _tinted("`(not this)` stays code") == [("`(not this)`", "sb.path")]
+
+
+def test_an_unbalanced_bracket_is_prose():
+    """Three alternatives rather than one character class, so `(foo]` is not a
+    pair and a lone bracket in prose is left alone."""
+    assert marks("smile :) or (not closed") == []
+    assert marks("mismatched (foo] here") == []

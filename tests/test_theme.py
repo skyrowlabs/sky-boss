@@ -7,11 +7,12 @@ config, and the TUI's stylesheet — agreeing only because they were typed the
 same afternoon.
 """
 
+import math
 import re
 
 from cli.helpers import PROJECT_ROOT
 from cli.output import THEME
-from cli.theme import BG, BRAND, DANGER, OK, STYLES, TEXT_2, TEXT_3, WARN, css_variables
+from cli.theme import BG, BRAND, DANGER, OK, PAINTED, STYLES, TEXT_2, TEXT_3, WARN, css_variables
 
 HEX = re.compile(r"#[0-9a-fA-F]{6}\b")
 
@@ -154,6 +155,36 @@ def _luminance(hex_colour: str) -> float:
     return 0.2126 * red + 0.7152 * green + 0.0722 * blue
 
 
+def _oklab(colour: str) -> tuple[float, float, float]:
+    """OKLab, for judging whether two *surfaces* differ — which is not a
+    question the WCAG contrast ratio answers. See the painted-role test."""
+    raw = colour.lstrip("#")
+    red, green, blue = (
+        (value / 12.92 if value <= 0.04045 else ((value + 0.055) / 1.055) ** 2.4)
+        for value in (int(raw[i : i + 2], 16) / 255 for i in (0, 2, 4))
+    )
+    long = (0.4122214708 * red + 0.5363325363 * green + 0.0514459929 * blue) ** (1 / 3)
+    med = (0.2119034982 * red + 0.6806995451 * green + 0.1073969566 * blue) ** (1 / 3)
+    short = (0.0883024619 * red + 0.2817188376 * green + 0.6299787005 * blue) ** (1 / 3)
+    return (
+        0.2104542553 * long + 0.7936177850 * med - 0.0040720468 * short,
+        1.9779984951 * long - 2.4285922050 * med + 0.4505937099 * short,
+        0.0259040371 * long + 0.7827717662 * med - 0.8086757660 * short,
+    )
+
+
+def _oklab_distance(a: str, b: str) -> float:
+    first, second = _oklab(a), _oklab(b)
+    return math.sqrt(sum((first[i] - second[i]) ** 2 for i in range(3)))
+
+
+#: The design system's own smallest deliberate surface step — `--bg` to
+#: `--surface`, which is how every card on the site is separated from the void.
+#: Used as the floor for a painted ground so the number is the system's rather
+#: than one picked to make a value pass.
+SURFACE_STEP = 0.03
+
+
 def _contrast(a: str, b: str) -> float:
     high, low = sorted((_luminance(a), _luminance(b)), reverse=True)
     return (high + 0.05) / (low + 0.05)
@@ -191,12 +222,51 @@ def test_every_cli_role_survives_an_unknown_terminal_background():
     """
     failures = {}
     for name in STYLES:
+        if name in PAINTED:
+            continue  # checked by the test below, on the right backgrounds
         colour = THEME.styles[name].color.get_truecolor().hex
         for background in (WHITE, BG):
             ratio = _contrast(colour, background)
             if ratio < FLOOR:
                 failures[f"{name} on {background}"] = round(ratio, 2)
     assert not failures, f"unreadable CLI roles: {failures}"
+
+
+def test_a_painted_role_is_checked_against_the_ground_it_paints():
+    """**A role that paints its own background is outside the floor above, and
+    that is the mark's argument rather than a new one.** Every other role is
+    darkened because sky.boss renders into a terminal whose background nobody
+    knows; a role that supplies its own removes the unknown.
+
+    So it is exempt from the wrong check and held to the right two: the
+    **ground** must be visible against either terminal, and the foreground must
+    be legible on that ground. Skipping them outright would have let a role
+    into `STYLES` that nothing checked at all, which is how the exemption for
+    the mark could have quietly become an exemption for anything.
+    """
+    assert PAINTED, "the exemption exists; something should be using it"
+    failures = {}
+    for name in PAINTED:
+        style = THEME.styles[name]
+        ground = style.bgcolor.get_truecolor().hex
+        colour = style.color.get_truecolor().hex
+        # The text is text, so the text floor applies to it — on the ground it
+        # actually sits on rather than on a terminal it never touches.
+        ratio = _contrast(colour, ground)
+        if ratio < FLOOR:
+            failures[f"{name} text on its own ground"] = round(ratio, 2)
+        # The ground is not text, and the text floor is the wrong instrument
+        # for it: a chip on a dark terminal is visible by *hue*, and this one
+        # measures 1.46 there against 13.66 on white. Judged by perceptual
+        # distance instead, with a threshold taken from the design system
+        # rather than invented — `--bg` to `--surface` is the smallest step it
+        # treats as a visible change of surface, and every card on the site is
+        # drawn with it.
+        for background in (WHITE, BG):
+            distance = _oklab_distance(ground, background)
+            if distance < SURFACE_STEP:
+                failures[f"{name} ground vs {background}"] = round(distance, 4)
+    assert not failures, f"indistinct painted roles: {failures}"
 
 
 def test_the_canvas_shows_the_brand_at_full_strength():
@@ -241,3 +311,31 @@ def test_the_tokens_still_match_the_design_system():
         if getattr(theme, name).lower() != (declared.get(token) or "").lower()
     }
     assert not drifted, f"theme.py has drifted from the design system: {drifted}"
+
+
+def test_every_mark_role_the_highlighter_can_emit_has_a_rule_in_the_stylesheet():
+    """**Enumerated off the rules, because spot-checking is what missed it.**
+
+    `cli/highlight.py` emits role names and `render.js` turns each into an
+    `mk-<role>` class, applied dumbly. Nothing connected that to the stylesheet
+    — so round 4's verdict roles (`ok`, `fail`, `warn`) shipped their classes
+    with no rule to paint them, and every ✓, ✗, ⚠ and colour word on the canvas
+    rendered in plain body text for a week while the terminal coloured them
+    correctly. One vocabulary, two surfaces, and only one drawing it.
+
+    It survived because the natural check is *did the mark land*, which reads
+    class names and passes. The failure is only visible in a computed style.
+    """
+    from cli import highlight as highlight_
+
+    roles = {role for _, role, _, _ in highlight_._RULES}
+    roles |= set(highlight_._COLOUR_WORDS.values())
+    # The positional rules, which are not in `_RULES`.
+    roles |= {"sb.muted", "sb.accent"}
+    css = (PROJECT_ROOT / "cli/canvas/static/sb.css").read_text()
+    missing = sorted(
+        role for role in roles if f".mk-{role.removeprefix('sb.')}" not in css
+    )
+    assert not missing, f"roles with no rule to paint them: {missing}"
+    # `bold` is not a role but a weight, and composes with all of them.
+    assert ".mk-bold" in css
