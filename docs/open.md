@@ -64,6 +64,8 @@ command has run more than once, *how did this go the last seven nights* is the o
 and the ring buffer plus the file of record already exist. Nobody owns it. ~~*Blocked on evidence —
 needs jobs that have run twice.*~~
 
+*Specced 2026-08-29 → [[history]], round 1 drafted and not built — the provider half only, with the sky.boss half named as round 3 so nothing mistakes one for the other.*
+
 **Unblocked 2026-08-29, and by something outside this repo.** The evidence arrived when jam.sense
 scaffolded its state into the agent-state root: `<root>/jam-sense/ledger/runs.jsonl` is **1,055
 rows** of exactly what this item was waiting for, plus `decisions`, `queue_deferrals` and
@@ -165,7 +167,7 @@ cheap one; if it is that the existing glyphs should read stronger, it is the sam
 answer as *escalate*. Worth asking which rather than guessing, since the two cost very different
 amounts.
 
-**21. A wrap toggle in the canvas header, with a hanging indent under the timestamp.** Asked for
+**21. A wrap toggle in the canvas header, with a hanging indent under the timestamp.** *Specced 2026-08-29 → [[wrap]], round 1 drafted and not built.* Asked for
 by the operator 2026-08-29, reading the live agent-fix drain. A window's body scrolls sideways
 today ([[chrome]]: *"it scrolls sideways instead, the way the table does"*), and a long agent line
 is then half off-screen. The ask is a header control that wraps to the window instead — **and one
@@ -209,10 +211,19 @@ vocabulary in sb. The mockup renders it as a glyph and a contested band; what it
 label, or something that actually blocks a departure — is undecided, and those are very different
 features.
 
-**8. The budget.** A wall-clock ceiling on a run. The mockup puts `--budget` on `follow`, which is
-a contradiction — follow observes, and a budget that kills the child makes it act. The mockup's own
-header line resolves it (sky.boss follows a foreign supervisor that owns the budget); confirm that
-is the intent, or move the budget to `run`.
+**8. The budget.** ~~A wall-clock ceiling on a run.~~ **Answered 2026-08-29: the supervisor owns
+it and sky.boss displays it.** The mockup put `--budget` on `follow`, which is a contradiction —
+follow observes, and a budget that kills the child makes it act — and the mockup's own header line
+already resolved it. The operator confirmed that reading.
+
+So there is **no new act**, the observe/act split is untouched, and the budget is a *fact read from
+a foreign supervisor* like every other fact on a followed stream. That makes it the same class of
+work as [[agent-sessions]] rather than a change to `run`, and it inherits that doc's rule: a
+provider's field is drawn as the provider wrote it and never recomputed.
+
+What is *not* settled and does not need to be yet: whether sky.boss ever grows a ceiling on a child
+it spawned itself. `run --budget` would be a coherent feature and a different one; it does nothing
+for the jobs the operator actually watches, which are the ones sky.boss did not start.
 
 **9. The clock source.** sky.boss clock / crontab / systemd timer, chosen per job. Two open halves:
 whether to cross the line at all (below), and **read-back drift** — every cron/systemd manager rots
@@ -417,6 +428,8 @@ window nobody can see the bottom of. That is the tower's subject arriving early,
 
 **16. The tower shows live agent sessions.** An observe, in the tower, listing what is running now.
 
+*Specced 2026-08-29 → [[agent-sessions]], round 1 drafted and not built.* Items 16 and 17 became one doc: the seam and its first adapter are the same decision, and splitting them would have described an interface with nothing behind it.
+
 The mechanism exists and was verified on this machine rather than assumed: `~/.claude/sessions/`
 holds one JSON file per live session, `<pid>.json`, written by the session itself and carrying
 `sessionId`, `cwd`, `name`, `status` (`busy` / `idle`), `kind`, `entrypoint`, `startedAt`,
@@ -455,7 +468,7 @@ the tree: [[roll-call]] asks every declared project how it is and folds the answ
 every provider who is running and folds the answers. Same fold, different population. **Do not name
 it `fleet`** — that word is bbrain's rental fleet and the collision has already cost clarity once.
 
-**17. Providers, modularly — Claude first, and only Claude verified.** The operator's ask is that
+**17. Providers, modularly — Claude first, and only Claude verified.** *Specced with item 16 → [[agent-sessions]]. The row-shape half is ruled there: **thin common record, no extras bag**, on the argument that a common vocabulary with an escape hatch will not survive its second provider. Where the adapter list lives is round 2 there and still open.* The operator's ask is that
 this not be Anthropic-shaped in its bones, and the honest position is that only one registry has
 been read. So: one adapter interface, one adapter written against a format that was actually
 inspected, and no speculative adapters for tools whose on-disk state nobody here has opened. A
@@ -545,14 +558,28 @@ five instances of.
 about rendering. On a terminal, a dead stream keeps drawing: "a corpse on screen is information."
 A pipe has no screen to keep it on, so the question is what the *last bytes* are.
 
+**Answered 2026-08-29: one line, naming the death, on stderr.** [[follow]] round 4 is emphatic
+that any exit is a death including zero, and silence makes a death indistinguishable from a stream
+that has merely gone quiet — which is the exact failure `--due` exists to prevent, arriving through
+the one door that had no band to say it. **stderr is what disposes of the objection below**: stdout
+stays verbatim log output byte for byte, so a consumer piping it is unaffected, and the sentence
+lands on the channel that already carries every other thing sky.boss says about a stream. The same
+split that keeps warnings off stdout.
+
+The two arguments as they stood, kept because the second is the one that had to be answered:
+
 - A **process** that exits has an exit code, and [[follow]] round 4 is emphatic that a follow's
-  exit — zero included — is a **death**, not an answer. Saying so costs one line. But a line that
+  exit — zero included — is a **death**, not an answer. Saying so costs one line. ~~But a line that
   is not log output, on a stream that promised verbatim log output, is the parsing problem this
-  whole ruling avoided.
+  whole ruling avoided.~~ *Not once it is on stderr.*
 - A **file** has no exit code at all. It stops growing, which is not an event; it is the absence of
   one, and the `--due` clock exists because "quiet" and "dead" are different words. Off a terminal
   there is no band to say which. Does `--due` print a line when it lapses? That is a judgment, and
-  the verbatim rule was chosen partly to have none.
+  the verbatim rule was chosen partly to have none. **Still open** — the ruling above answers the
+  process case, and a file's silence is genuinely a different question. Note the ruling narrows it:
+  once stderr is established as where sky.boss speaks about a stream, "would this be a judgment"
+  is the only objection left, and `--due` is a threshold the operator declared rather than one
+  sky.boss chose.
 - And **when does it return?** Resident-by-nature has no natural end off a terminal. Today it runs
   until killed, which is right for `tail -f` and wrong for a script that wants the backfill and
   out. `--ticks` exists in the suite; nothing exposes it.
