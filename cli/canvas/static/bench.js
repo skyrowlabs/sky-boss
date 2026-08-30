@@ -552,7 +552,7 @@ function ViewControls({ draft, actions, vocab }) {
  * anything else. What is still refused is a *cadence* on one, which is the
  * act/observe split and was never about saving.
  */
-function JobStrip({ draft, actions, groups }) {
+function JobStrip({ draft, actions, groups, tagPool }) {
   const composed = compose(draft);
   /* `nameProblem` no longer gates the button: an existing name is a *replace*,
    * which is the whole of round 4. It is still shown, because "this is already
@@ -601,6 +601,24 @@ function JobStrip({ draft, actions, groups }) {
             ${(groups || []).map(
               (g) => html`<option key=${g.name} value=${g.name}>${g.description}</option>`
             )}
+          </datalist>
+          ${/* **Tags are what this is about; the group is where it lives.**
+              One value there, any number here, and the rail filters on these.
+              A plain text box rather than a chip editor: a tag has a name's
+              shape, so no space is legal *inside* one and space can never be
+              an ambiguous separator. The datalist offers what is already
+              declared without preventing a new word — the same trade the group
+              field makes, and for the same reason. See [[tools]] round 8. */
+          html`<input
+            class="job-group job-tags"
+            list="sb-tags"
+            value=${draft.tags || ""}
+            placeholder="tags"
+            title="what it is about — space separated, and what the rail filters on"
+            onInput=${(e) => actions.setTags(e.target.value)}
+          />`}
+          <datalist id="sb-tags">
+            ${(tagPool || []).map((t) => html`<option key=${t} value=${t}></option>`)}
           </datalist>
           ${/* **No cadence control, and it is absent rather than disabled.**
               The mockup drew one here and building it found why it cannot be:
@@ -708,6 +726,18 @@ function Reference({ entry, name }) {
 }
 
 /* ------------------------------------------------------------------- screen */
+
+/* Every tag any saved command declares, sorted and deduplicated.
+ *
+ * Derived from the catalog rather than declared anywhere, for the reason the
+ * palette is: a second list of tags would be a list that drifts. It is also
+ * why the vocabulary can only grow by someone tagging a tool — there is no
+ * registry to add one to, and none is wanted. See [[tools]] round 8. */
+export function tagPool(commands) {
+  const all = new Set();
+  for (const c of commands || []) for (const t of c.tags || []) all.add(t);
+  return [...all].sort();
+}
 
 export function Bench({ commands, groups, draft, actions, vocab }) {
   const byName = {};
@@ -849,7 +879,12 @@ export function Bench({ commands, groups, draft, actions, vocab }) {
 
               <${ViewControls} draft=${draft} actions=${actions} vocab=${vocab} />
               </div>
-              <${JobStrip} draft=${draft} actions=${actions} groups=${groups} />
+              <${JobStrip}
+                draft=${draft}
+                actions=${actions}
+                groups=${groups}
+                tagPool=${tagPool(commands)}
+              />
             `}
       </div>
 

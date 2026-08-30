@@ -139,8 +139,8 @@ export function unaccrue(session, window) {
  * action and the route, and vanished here — the rename ran as a create and the
  * old tool stayed, with nothing to read anywhere. Anything added to the payload
  * has to be added here too. */
-export function writeTool({ name, argv, refresh, description, group, was }) {
-  return post("/api/tools", { name, argv, refresh, description, group, was });
+export function writeTool({ name, argv, refresh, description, group, was, tags }) {
+  return post("/api/tools", { name, argv, refresh, description, group, was, tags });
 }
 
 export function deleteTool(name) {

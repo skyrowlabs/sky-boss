@@ -233,6 +233,17 @@ The rules that are not negotiable:
   so a 5s watcher would silently become a 60s one at the exact moment you stopped being able to see
   that it had. Nothing survives the last window, which is what makes this a scheduler and not a
   daemon.
+- **A tool's `group` is where it lives; its `tags` are what it is about.** One value against many,
+  and they stopped being redundant the moment both existed ([[tools]] round 8) — the group is the
+  rail's sort order, the tags are the axis it filters on. The rejected alternative was letting a
+  tool name several groups: an ordering cannot be many-valued without the rail drawing the same tool
+  twice. **Type is derived and is not a filter** — `expansion[0]` *is* the contract, so a declared
+  `type` would be a second opinion about something the argv settles, and as a filter it has four
+  values of which three are reads. It is drawn as a marker, absent for a `run`, whose `!` is a
+  warning rather than a label and must not be diluted into one of four equal badges. **The rail has
+  two independent size axes** — `--scale` and the width the operator drags — and a layout is swept
+  across both or it is not swept: measured clean at three scales while the filter shrank to 11px and
+  spilled outside the rail at its 18rem minimum.
 - **Changing behaviour without changing the message leaves the surface arguing with itself.**
   [[tools]] round 4 made a taken name a *replace*; two places recorded that in code and neither
   touched the sentence, so for two rounds the bench performed the replace while announcing a

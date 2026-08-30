@@ -84,7 +84,11 @@ tool name longer than it gets clipped — `jam-agent-fix-log` renders as `jam-ag
 tools today, so it reads as cosmetic; it is the shape of the problem rather than its size.
 
 *Half-answered 2026-08-29 → [[tools]] round 7: the rail is a width you can drag, clamped 18–160rem
-and remembered in `$SB_STATE`.* That is the first of the two candidates below, taken because it was
+and remembered in `$SB_STATE`.* *The second half answered 2026-08-30 → [[tools]] round 8: a text
+filter over name, description, tags and expansion, with tags as a new declared field. That is the
+"different listing" candidate below, taken in its cheapest form — the rail stops being the complete
+index without becoming a second surface. What is left open is only the **expandable** candidate,
+and a filter may have removed the need for it.* That is the first of the two candidates below, taken because it was
 small. The second is untouched and is still probably right — dragging lets you see a long name, it
 does not stop the rail from being the complete index.
 
