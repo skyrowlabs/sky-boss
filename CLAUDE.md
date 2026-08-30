@@ -440,6 +440,17 @@ The rules that are not negotiable:
   reached the page, in the one state that rendering exists to draw. The suite could not see it
   because the terminal band reads the dataclass rather than the dict.
 
+  **A render-time throw is invisible to both, and takes the whole app with it.** A state setter
+  schedules the re-render in a **microtask**, so an exception during render arrives as an
+  **`unhandledrejection`** — not an `error`, and not a `Runtime.exceptionThrown`. The component tree
+  then stops updating while every control stays drawn, which is indistinguishable from a freeze. A
+  full sweep of the schedule's hour buckets came back reporting no errors *while the app was already
+  dead*. So **listen for `unhandledrejection` as well as `error`, and stop treating "nothing was
+  reported" as evidence of life**: the assertion that catches this is *does the app still update* —
+  click a control afterwards and read the DOM back. Prefer real pointer input to synthetic events
+  too; a `dispatchEvent` sweep only ever visits the elements a query already found interesting, and
+  this bug lived in the ten empty buckets it never touched. See [[schedule]] round 7.
+
   **A silent no-op after a click is almost always a handler that threw.** An error inside a DOM
   event handler reaches `window.onerror`, *not* `Runtime.exceptionThrown` as read by a CDP drain,
   and a `try/catch` around `.click()` catches nothing because the handler runs inside the dispatch.

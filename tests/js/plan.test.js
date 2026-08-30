@@ -124,7 +124,7 @@ test("byHour always has 24 buckets, including the empty ones", () => {
 });
 
 /* --- round 6: the card and the stack ------------------------------------ */
-import { clampCard, stackOf } from "../../cli/canvas/static/schedule.js";
+import { cardState, clampCard, stackOf } from "../../cli/canvas/static/schedule.js";
 
 const VIEW = { width: 1000, height: 800 };
 const CARD = { width: 300, height: 200 };
@@ -188,4 +188,19 @@ test("clampCard degrades to the corner when the card is larger than the window",
   const huge = { width: 2000, height: 2000 };
   const at = clampCard({ left: 500, right: 540, top: 500, bottom: 540 }, huge, VIEW);
   assert.deepEqual(at, { left: 12, top: 12 });
+});
+
+test("cardState refuses to build a card for an empty bucket", () => {
+  /* Ten of twenty-four hour buckets are empty in an ordinary grid. Hovering
+   * one built a card from `rows[0]` — undefined — and the throw landed inside
+   * Preact's render, so the tree stopped updating and every control went dead
+   * while still being drawn. */
+  assert.equal(cardState([], { left: 0 }), null);
+  assert.equal(cardState(null, { left: 0 }), null);
+  assert.equal(cardState(undefined, { left: 0 }), null);
+});
+
+test("cardState passes a non-empty bucket through", () => {
+  const rows = [{ project: "p", name: "j" }];
+  assert.deepEqual(cardState(rows, { left: 4 }), { rows, anchor: { left: 4 } });
 });

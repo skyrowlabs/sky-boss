@@ -1,5 +1,5 @@
 ---
-status: complete       # rounds 1, 3-6 built; round 2 still not scheduled
+status: complete       # rounds 1, 3-7 built; round 2 still not scheduled
 created: 2026-08-29
 updated: 2026-08-30
 agent_value: 3         # five dated decisions and a vocabulary, none of it built
@@ -369,6 +369,11 @@ file argue with the assignment.
 - [x] **A colour per project**, assigned at declaration as a step along the brand.
 - [x] **Stacked hour buckets**, one segment per project, never overlaid.
 
+### Round 7 — the empty bucket (2026-08-30)
+
+- [x] **An empty hour opens no card**, and stops being a tab stop.
+- [x] **The render-time lookup is guarded too**, because a throw there takes the whole tree.
+
 ## Notes
 
 ### 2026-08-30 — round 1, executed
@@ -588,3 +593,30 @@ screen.
   its 7 jobs, 14 stacked segments, and every selection state checked against what the group headings
   actually said. No handler errors, with the `window.onerror` listener installed first, because a
   silent no-op after a click is almost always a handler that threw.
+
+### 2026-08-30 — round 7, executed
+
+Reported as *"the schedule hours display locked up the controls and the app became
+unresponsive."* Exactly that, and reproduced in a minute once the right thing was asked.
+
+- **Ten of twenty-four buckets are empty, and hovering one killed the app.** `cardState` did not
+  exist; `show` stored `{rows: [], anchor}` and `Plan` then read `card.rows[0].project` to look up
+  the source. `rows[0]` is `undefined`. The throw landed **inside Preact's render**, so the
+  component tree stopped updating — every control stayed drawn and none of them did anything, which
+  is precisely what "locked up" looks like from the outside.
+- **`addEventListener("error", …)` did not see it, and that is the lesson worth more than the fix.**
+  `CLAUDE.md` already records installing that listener before a click, because a handler error does
+  not reach a CDP exception drain. This one did not reach the listener either: `setCard` schedules
+  the re-render in a **microtask**, so a throw during render surfaces as an **`unhandledrejection`**,
+  not an `error`. The first sweep across the buckets came back clean and the app was already dead.
+- **So the assertion had to change, not just the listener.** *No error was reported* is not evidence
+  the app is alive. The check that actually catches this is **does the app still update** — click a
+  control afterwards and read the DOM back. That found it immediately: `table` clicked, tab still
+  `hours`, `rows = 0`.
+- **Returning `null` rather than an empty card is the behaviour, not just the guard.** Moving from a
+  full bucket to an empty one should *close* the card; leaving the previous one standing over a
+  bucket it does not describe is a smaller version of the same lie.
+- **Verified with real pointer input this time**, not synthetic events: 236 mouse moves across the
+  hour buckets, 88 down the timeline lanes, controls still live and nothing thrown. The synthetic
+  `dispatchEvent` sweep in round 6 had passed while the bug was there — it never crossed an empty
+  bucket, because it only visited elements the query had already found interesting.
