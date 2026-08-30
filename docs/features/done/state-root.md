@@ -19,8 +19,8 @@ from a project sky.boss already knows: the directory under the root is the same 
 uses for the project.
 
 **sky.boss cannot derive it, because it knows the slug and not the root.** The writers each carry a
-default — `Path.home() / "skyrow.labs" / "sl-agent-logs"` — and sky.boss must not copy it. A writer
-may hardcode that path because it lives there; sky.boss ships to machines with no such directory,
+default — a fixed path under `$HOME`, in whatever directory that operator keeps their checkouts
+in — and sky.boss must not copy it. A writer may hardcode that path because it lives there; sky.boss ships to machines with no such directory,
 and a workspace layout baked into a published tool is the same class of leak as a host name in a
 tracked file.
 

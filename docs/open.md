@@ -624,9 +624,9 @@ derivable from a project sky.boss already knows: the directory under it is the p
 deliberately the same key `projects.toml` uses. See `skyrow-workspace/strategy/seams/agent-state.md`.
 
 That derivation does not work today, because sky.boss knows the slug and not the root, and
-`projects.toml` declares no root. The writers each carry a default — `Path.home() / "skyrow.labs" /
-"sl-agent-logs"` — and **sky.boss must not copy it.** A writer may hardcode that path because it
-lives there; sky.boss ships to machines with no such directory, and a workspace layout baked into a
+`projects.toml` declares no root. The writers each carry a default — a fixed path under `$HOME`, in
+whatever directory that operator keeps their checkouts in — and **sky.boss must not copy it.** A
+writer may hardcode that path because it lives there; sky.boss ships to machines with no such directory, and a workspace layout baked into a
 published tool is the same class of leak as a host name in a tracked file.
 
 The shape that fits the house pattern — `SB_HOME` and `SB_STATE` are both `environ.get(...) or
