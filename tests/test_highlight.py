@@ -104,9 +104,26 @@ def test_a_pathological_line_returns_in_bounded_time():
 def test_no_severity_vocabulary_anywhere():
     """A word list is a judgment wearing a regex's clothes. ERROR in prose is
     prose — the Rule branch owns judgments, later, with the operator holding
-    the pen."""
-    assert marks("ERROR everything is on fire") == []
-    assert marks("WARN disk almost full") == []
+    the pen.
+
+    **Round 5 made this assertion narrower and, in doing so, stronger.** It
+    used to demand that `ERROR` produce nothing at all, which the shout rule
+    now breaks: a capitalised word of five characters or more is emphasised.
+    That is not the boundary this test exists to hold, and reading it as one
+    would have blocked a rule that never judges anything — the shout knows
+    only that someone capitalised a word, and bolds `VACUUM` and `PREFLIGHT`
+    with exactly the same enthusiasm.
+
+    The property that actually matters, and the one asserted here: **no word
+    earns a verdict colour.** `sb.fail` and `sb.warn` are the two roles a
+    severity vocabulary would reach for, and no built-in rule hands either to
+    a word. Weight carries no verdict — that is the whole argument for
+    spending it in round 5 rather than a hue.
+    """
+    for line in ("ERROR everything is on fire", "WARN disk almost full",
+                 "FAILED to reach the host", "CRITICAL outage"):
+        roles = {role for _, _, role in marks(line)}
+        assert roles <= {"bold"}, line
 
 
 # ============================================================================
@@ -233,7 +250,11 @@ def test_a_declared_rule_tints_a_word_sb_would_never_judge():
     rules, problems = _ruleset({"pattern": r"\bESCALATE\b", "role": "warn"})
     assert problems == []
     line = "the finding was ESCALATE today"
-    assert [(t, r) for t, r in _tinted(line, rules)] == [("ESCALATE", "sb.warn")]
+    assert [(t, r) for t, r in _tinted(line, rules)] == [("ESCALATE", "bold sb.warn")]
+    # The colour is theirs and the weight is the shout's — round 5's central
+    # claim, that emphasis composes where a ninth colour would have had to
+    # displace one. A colour rule claiming ESCALATE would have locked this
+    # declaration out of its own word.
 
 
 def test_a_declared_rule_cannot_repaint_a_timestamp_or_a_tag():
@@ -306,20 +327,20 @@ def test_a_check_is_green_and_a_cross_is_red():
     """Not sky.boss judging a line: `sb data` already renders a true boolean as a
     green ✓ and a false one as a red ✗. One value vocabulary, two surfaces."""
     for glyph in ("✓", "✔", "✅"):
-        assert role_of(f"{glyph} ok · 0s", glyph) == "sb.ok", glyph
+        assert role_of(f"{glyph} ok · 0s", glyph) == "bold sb.ok", glyph
     for glyph in ("✗", "✖", "❌"):
-        assert role_of(f"{glyph} failed", glyph) == "sb.fail", glyph
+        assert role_of(f"{glyph} failed", glyph) == "bold sb.fail", glyph
 
 
 def test_a_warning_sign_is_warn_even_with_its_variation_selector():
     """`⚠️` is two codepoints — the sign plus U+FE0F. Matching only the first
     would tint half a glyph and leave the selector bare."""
-    assert role_of("⚠️  19 diff(s) truncated", "⚠️") == "sb.warn"
+    assert role_of("⚠️  19 diff(s) truncated", "⚠️") == "bold sb.warn"
 
 
 def test_a_coloured_circle_shows_its_own_colour():
-    assert role_of("status 🔴 down", "🔴") == "sb.fail"
-    assert role_of("status 🟢 up", "🟢") == "sb.ok"
+    assert role_of("status 🔴 down", "🔴") == "bold sb.fail"
+    assert role_of("status 🟢 up", "🟢") == "bold sb.ok"
 
 
 def test_a_word_that_names_a_colour_is_shown_in_it():
@@ -340,3 +361,91 @@ def test_a_colour_word_inside_another_word_is_not_one():
 
 def test_a_glyph_inside_a_code_span_stays_code():
     assert [t for t, _ in _tinted("run `check ✔ thing` now")] == ["`check ✔ thing`"]
+
+
+# ============================================================================
+# Round 5 — weight instead of hue
+# ============================================================================
+
+
+def test_a_thumb_carries_the_verdict_its_direction_names():
+    """The operator's own example, and the rule round 5 sharpened for it:
+    a glyph qualifies when carrying the verdict is its *whole job*. Strip the
+    verdict from 👍 and there is no glyph left."""
+    assert role_of("👍 approved by the reviewer", "👍") == "bold sb.ok"
+    assert role_of("👎 rejected on sight", "👎") == "bold sb.fail"
+    assert role_of("🚨 the grid is down", "🚨") == "bold sb.warn"
+
+
+def test_a_conventional_glyph_stays_untinted():
+    """The other half of the same rule, and the half that keeps this module
+    honest. Every one of these appears in the live log it was measured
+    against — 🤝 fifteen times, 🌙 ten — and every one means something to
+    *that* grid and nothing anywhere else. They denote a handshake, night, a
+    party, a rocket; the verdict is a convention laid over them, and reading a
+    convention is the judgment this module has refused since round 1.
+
+    The operator is not left without them: a declared pattern may be a glyph.
+    """
+    for glyph in ("🤝", "🌙", "🎉", "🚀", "🔥", "🙋"):
+        assert marks(f"{glyph} handing off") == [], glyph
+
+
+def test_a_glyph_is_emphasised_as_well_as_coloured():
+    """A glyph is one character wide, and hue at one character is the weakest
+    signal this palette has. Weight is the strongest and costs no role."""
+    for _, _, role in marks("✓ done"):
+        assert role.startswith("bold ")
+
+
+def test_a_screaming_snake_name_is_a_literal_not_a_shout():
+    """The corpus split one rule into two: of the all-caps runs in the log this
+    was measured against, the majority are configuration identifiers. An
+    underscore decides it, and an identifier takes the role round 2 already
+    gave a literal — the same one a code span and a filename take."""
+    assert role_of("set JAM_KUMA_FORCE_PING to 1", "JAM_KUMA_FORCE_PING") == "sb.path"
+    assert role_of("MAX_PER_RUN reached", "MAX_PER_RUN") == "sb.path"
+
+
+def test_a_shout_carries_weight_and_no_colour():
+    """Which is what makes it not a severity vocabulary. The rule knows only
+    that someone capitalised a word, and treats VACUUM exactly like ERROR."""
+    for word in ("ERROR", "PREFLIGHT", "VACUUM", "DEVELOPMENT"):
+        assert marks(f"{word} in the log") == [(0, len(word), "bold")], word
+
+
+def test_an_acronym_in_prose_is_not_a_shout():
+    """Five characters, measured rather than chosen: below it the corpus is
+    acronyms in ordinary prose — `PR` 122 times, `CI` 52, plus a bare `I` and
+    `A`. Four would buy TODO at the price of HEAD and HTTP."""
+    for line in ("the PR is green and CI agrees, I think",
+                 "SHA and LFS and API and HEAD"):
+        # No *shout* — `green` is still a colour word, which is round 4's and
+        # not this rule's. Asserting an empty list here would have tested the
+        # wrong thing and passed for the wrong reason.
+        assert not any("bold" in role for _, _, role in marks(line)), line
+
+
+def test_a_declared_colour_composes_with_a_shout():
+    """**The round's central claim, in the one case that proves it.** A colour
+    rule claiming ERROR would block the operator's own `error → fail` from
+    ever reaching it, because a declared rule takes only unclaimed text. As an
+    emphasis range it does the opposite: their colour lands first and the
+    shout adds weight to it. That is why emphasis was spent here and not hue.
+    """
+    rules, problems = _ruleset({"pattern": r"\bESCALATE\b", "role": "warn"})
+    assert problems == []
+    assert marks("ESCALATE now", rules) == [(0, 8, "bold sb.warn")]
+
+
+def test_overlapping_emphasis_ranges_merge_into_one():
+    """Round 4 had one source of range and could skip merging. Round 5 has
+    four, and they overlap in the most ordinary line there is. Unmerged, the
+    filler emitted two marks for one stretch — which the frontend applies
+    dumbly and by construction cannot notice."""
+    for line in ("**ERROR**", "# PREFLIGHT ✓ done", "**✓ SHIPPED**", "**a ✗ b** ERROR"):
+        got = marks(line)
+        assert got == sorted(got), line
+        for (_, e1, _), (s2, _, _) in zip(got, got[1:]):
+            assert e1 <= s2, line
+        assert "".join(text for text, _ in spans(line)) == line, line

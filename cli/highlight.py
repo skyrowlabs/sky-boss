@@ -111,11 +111,54 @@ _NUMBER = re.compile(r"(?<![\w-])\d[\d,_]*(?:\.\d+)?(?:%|[a-zA-Z]{1,3})?(?![\w-]
 # `red` is the same claim in its strongest form: the word denotes the colour.
 # There is no inference between "the text says red" and "show it red", which
 # is exactly what separates this from "the text says ERROR, so it is bad".
-_OK_GLYPH = re.compile(r"[\u2713\u2714\u2705\u2611]\uFE0F?")
-_FAIL_GLYPH = re.compile(r"[\u2716\u2717\u2718\u274C\u2612]\uFE0F?|\U0001F534")
-_WARN_GLYPH = re.compile(r"[\u26A0\u26D4]\uFE0F?|\U0001F7E1")
+#
+# **Round 5 widens the set by sharpening the test, not by lengthening a list.**
+# Round 4 asked whether a glyph's meaning was *in dispute*, which does not
+# decide the cases the operator actually named. The test that does: **a glyph
+# qualifies when carrying the verdict is its whole job.** Strip the verdict
+# from ✓ 👍 ⚠ 🚨 ⛔ and there is no glyph left. 🎉 🚀 🔥 🤝 🌙 all *correlate*
+# with a verdict in agent prose and denote something else — a party, a rocket,
+# a fire, a handshake, night — so tinting them reads a convention, which is the
+# judgment this module has refused since round 1.
+#
+# That line was drawn against a real log rather than from the armchair. The
+# 251 KB `cron.log` this was raised over carries 🤝 fifteen times, 🌙 ten, 🙋
+# three: every one of them means something to *that grid* and nothing anywhere
+# else. They are the operator's vocabulary, and round 3 already ships the way to
+# say so — **a declared pattern may be a glyph.** See [[highlight]] round 5.
+_OK_GLYPH = re.compile(r"[\u2713\u2714\u2705\u2611]\uFE0F?|\U0001F44D")
+_FAIL_GLYPH = re.compile(
+    r"[\u2716\u2717\u2718\u274C\u274E\u2612]\uFE0F?|\U0001F534|\U0001F44E"
+)
+_WARN_GLYPH = re.compile(
+    r"[\u26A0\u26D4\u2757\u2755\u203C]\uFE0F?|\U0001F7E1|\U0001F6A8|\U0001F6D1"
+)
 _OK_EMOJI = re.compile(r"\U0001F7E2|\U0001F7E9")
-_INFO_GLYPH = re.compile(r"\U0001F535|\U0001F7E6")
+_INFO_GLYPH = re.compile(r"\U0001F535|\U0001F7E6|\u2139\uFE0F?")
+
+# ---------------------------------------------------------------- round 5
+#
+# **Two shapes wearing one costume, and the corpus is what told them apart.**
+# "ALL CAPS should be emphasised" reads as one rule and measured as two. Of the
+# 150 all-caps runs of five characters or more in that same log, the clear
+# majority are configuration identifiers — `JAM_KUMA_FORCE_PING` twenty-two
+# times, `MAX_PER_RUN`, `ALLOWED_HOSTS`, `GEOIP_ASN_DB_PATH` — and the rest are
+# genuine shouts: `ERROR`, `FAILED`, `REFUSED`, `SKIPPED`, `PREFLIGHT`.
+#
+# So an underscore decides it. A SCREAMING_SNAKE name is a **literal**, which
+# round 2 already ruled takes the path role — the same role a code span and a
+# filename take, for the same reason. A bare capitalised word is a **shout**,
+# and a shout is a weight rather than a colour; it is handled in `_emphasise`
+# below, not here.
+_SCREAMING = re.compile(r"(?<![\w-])[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+(?![\w-])")
+
+# **Five characters, and the number is measured rather than chosen.** Below it
+# the corpus is acronyms in ordinary prose: `PR` 122 times, `CI` 52, plus `I`
+# and `A` — 349 occurrences of pure noise at one to three characters, against
+# roughly 40 real shouts at five and up. Four is the interesting boundary and
+# it loses: it would buy `TODO` (12) at the price of `HEAD` (23) and `HTTP`
+# (10). `TODO` going untinted is the known cost of this line.
+_SHOUT = re.compile(r"(?<![\w-])[A-Z][A-Z0-9]{4,}(?![\w-])")
 
 # A word that names a colour, in that colour. Standalone only — `\b` on both
 # sides, so `reported` is not `red`.
@@ -152,19 +195,26 @@ MAX_MARKS = 64
 # In priority order after the timestamp and tag, which are positional. First
 # match wins and nothing nests, so a number inside a code span or a `:75`
 # inside a path is claimed once, by the outer shape.
-_RULES: tuple[tuple[re.Pattern, str, bool], ...] = (
-    (_CODE, "sb.path", False),
-    (_URL, "sb.path", True),
-    (_OK_GLYPH, "sb.ok", False),
-    (_OK_EMOJI, "sb.ok", False),
-    (_FAIL_GLYPH, "sb.fail", False),
-    (_WARN_GLYPH, "sb.warn", False),
-    (_INFO_GLYPH, "sb.accent", False),
-    (_PATH, "sb.path", True),
-    (_DATE, "sb.num", False),
-    (_TIME, "sb.num", False),
-    (_REF, "sb.num", False),
-    (_NUMBER, "sb.num", True),
+#
+# The fourth field is round 5's: **this match is also an emphasis range.** A
+# glyph is one character wide, and hue at one character is the weakest signal
+# this palette has — weight is the strongest, and it costs no role, because
+# round 4 already established that bold composes rather than competing. So a
+# glyph keeps the colour its kind already has *and* reads at a glance.
+_RULES: tuple[tuple[re.Pattern, str, bool, bool], ...] = (
+    (_CODE, "sb.path", False, False),
+    (_URL, "sb.path", True, False),
+    (_OK_GLYPH, "sb.ok", False, True),
+    (_OK_EMOJI, "sb.ok", False, True),
+    (_FAIL_GLYPH, "sb.fail", False, True),
+    (_WARN_GLYPH, "sb.warn", False, True),
+    (_INFO_GLYPH, "sb.accent", False, True),
+    (_PATH, "sb.path", True, False),
+    (_SCREAMING, "sb.path", False, False),
+    (_DATE, "sb.num", False, False),
+    (_TIME, "sb.num", False, False),
+    (_REF, "sb.num", False, False),
+    (_NUMBER, "sb.num", True, False),
 )
 
 
@@ -197,7 +247,12 @@ def marks(text: str, ruleset: "Ruleset | None" = None) -> list[Mark]:
     if tag:
         found.append((tag.start(), tag.end(), "sb.accent"))
 
-    for pattern, role, trim in _RULES:
+    # Ranges this line's matches ask to be *emphasised* as well as coloured.
+    # Collected here rather than re-derived in `_emphasise`, so the weight
+    # lands on exactly the span the colour did — one match, one decision.
+    loud: list[tuple[int, int]] = []
+
+    for pattern, role, trim, emphasise in _RULES:
         for match in pattern.finditer(text):
             start, end = match.start(), match.end()
             if trim:
@@ -209,6 +264,8 @@ def marks(text: str, ruleset: "Ruleset | None" = None) -> list[Mark]:
             if any(start < e and s < end for s, e, _ in found):
                 continue  # first match wins, no nesting
             found.append((start, end, role))
+            if emphasise:
+                loud.append((start, end))
 
     # A colour word takes the colour it names. Its role comes from the word
     # itself rather than from the rule, which is why it cannot ride `_RULES`.
@@ -230,11 +287,32 @@ def marks(text: str, ruleset: "Ruleset | None" = None) -> list[Mark]:
                 if len(found) >= MAX_MARKS:
                     break
 
-    return _emphasise(text, sorted(found))[:MAX_MARKS]
+    return _emphasise(text, sorted(found), loud)[:MAX_MARKS]
 
 
-def _emphasise(text: str, coloured: list[Mark]) -> list[Mark]:
-    """Fold markdown emphasis into the colour marks as a *weight*.
+def _merge(ranges: list[tuple[int, int]]) -> list[tuple[int, int]]:
+    """Overlapping emphasis ranges, unioned into disjoint ones.
+
+    Round 4 had exactly one source of range and could skip this. Round 5 has
+    four — markdown, a heading, a shout, a glyph — and they overlap in the most
+    ordinary line there is: `**ERROR**` is a shout inside an emphasis. The
+    filler below walks a range assuming nothing else covers it, so overlapping
+    input made it emit two marks for one stretch, which the frontend applies
+    dumbly and by construction cannot notice.
+    """
+    out: list[tuple[int, int]] = []
+    for start, end in sorted(ranges):
+        if out and start <= out[-1][1]:
+            out[-1] = (out[-1][0], max(out[-1][1], end))
+        else:
+            out.append((start, end))
+    return out
+
+
+def _emphasise(
+    text: str, coloured: list[Mark], loud: list[tuple[int, int]] = []
+) -> list[Mark]:
+    """Fold emphasis into the colour marks as a *weight*.
 
     Bold is the one attribute here that is not a colour, so it does not
     compete for the slot: a mark inside an emphasised range keeps its role and
@@ -242,22 +320,41 @@ def _emphasise(text: str, coloured: list[Mark]) -> list[Mark]:
     their own. Rich reads `"bold sb.path"` directly; the canvas splits it into
     two classes. Nothing overlaps and the list stays flat, which is what lets
     the frontend keep applying marks dumbly.
+
+    **Round 5 makes this the round's whole argument rather than a detail.** The
+    operator asked for six things emphasised and the palette has no ninth
+    colour to give any of them, so emphasis is spent instead of hue. That works
+    only because this pass *composes*, and the case that proves it is the
+    shout: a colour rule claiming `ERROR` would block the operator's own
+    `error → fail` from ever reaching it, since a declared rule takes only
+    unclaimed text. As a range it does the opposite — their colour lands first
+    and the shout adds weight to it.
+
+    `loud` is the ranges the colour rules themselves asked for (the glyphs).
+    A shout and a heading are found here because neither carries a colour of
+    its own; a glyph's range comes in because it does.
     """
     ranges = [(m.start(), m.end()) for m in _BOLD.finditer(text)]
+    ranges += [(m.start(), m.end()) for m in _SHOUT.finditer(text)]
+    ranges += loud
     if _HEADING.match(text):
         ranges.append((0, len(text)))
     if not ranges:
         return coloured
 
+    ranges = _merge(ranges)
     out: list[Mark] = []
     for start, end, role in coloured:
         inside = any(s <= start and end <= e for s, e in ranges)
         out.append((start, end, f"bold {role}" if inside else role))
 
     # The stretches an emphasised range covers that no colour mark claimed.
+    # Read off `coloured` rather than off `out`, which the loop is appending
+    # to: the ranges are disjoint now, so no fill can be inside another one.
+    base = sorted(out)
     for start, end in ranges:
         cursor = start
-        for s, e, _ in sorted(out):
+        for s, e, _ in base:
             if e <= cursor or s >= end:
                 continue
             if s > cursor:
