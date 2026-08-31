@@ -227,6 +227,29 @@ _COLOUR_WORD = re.compile(
 _BOLD = re.compile(r"\*\*(?=\S)[^\n]{1,300}?\*\*")
 _HEADING = re.compile(r"\A#{1,6} +\S")
 
+# ---------------------------------------------------------------- round 8
+#
+# **A count is not a path, and it was being drawn as one.** `308/693 fixes`,
+# `12/15 green`, `1/3 of the batch` — every one came out `sb.path`, the literal
+# role a filename and a code span take, because `_PATH`'s interior-slash
+# alternative matches two digits either side of a slash and it runs first.
+# Round 2's rule is that a value looks like its *kind* on both surfaces; a
+# fraction's kind is a number, and it was wearing a filename's.
+#
+# Found by rendering a real log rather than by adding a rule. The ask was that
+# `#/#` stand out; it was already standing out, as the wrong thing — which is
+# the failure `_NUMBER`'s own note describes, invisible in a unit test and
+# unmissable on screen. **The corpus settles the trade**: the 591-line grid log
+# carries fourteen of these and no numeric path at all, so nothing is given up.
+#
+# The lookarounds are the whole rule. A `/`, a `.` or a word character on
+# either side means this is a path segment rather than a fraction, so `1/2/3`,
+# `v1/2` and `docs/12/13` stay with `_PATH` where they belong. A date written
+# `2026/08/29` is a path by that test and is left alone; a date written `12/13`
+# is claimed here, and the ambiguity has only one answer either way — `_DATE`
+# and `_TIME` already take `sb.num`.
+_FRACTION = re.compile(r"(?<![\w./-])\d[\d,_]*/\d[\d,_]*(?![\w./-])")
+
 # What one line may carry. Every mark rides to the canvas inside the frame, and
 # round 2 turned three rules into ten — a dense numeric line can now produce
 # dozens where it used to produce three. The tail is dropped rather than the
@@ -251,6 +274,7 @@ _RULES: tuple[tuple[re.Pattern, str, bool, bool], ...] = (
     (_FAIL_GLYPH, "sb.fail", False, True),
     (_WARN_GLYPH, "sb.warn", False, True),
     (_INFO_GLYPH, "sb.accent", False, True),
+    (_FRACTION, "sb.num", False, False),
     (_PATH, "sb.path", True, False),
     (_SCREAMING, "sb.path", False, False),
     (_DATE, "sb.num", False, False),
@@ -284,6 +308,7 @@ BUILTINS: tuple[tuple[str, str], ...] = (
     ("a URL", "opened https://example.com/pull/1050"),
     ("an issue or PR reference", "closed #1050 after review"),
     ("a number, with its unit attached", "8% of 20000 in 90m"),
+    ("a count, which is a number and not a path", "308/693 fixes, 12/15 green"),
     ("a date or a clock inside the line", "due 2026-09-01 at 04:15"),
     ("a verdict glyph, coloured and weighted", "✓ done ✗ failed ⚠ late 👍 ok"),
     ("a status light", "🟢 up  🔴 down  🟡 slow  ℹ️ note"),

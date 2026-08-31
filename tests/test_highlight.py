@@ -659,3 +659,29 @@ def test_a_quoted_string_the_operator_claimed_keeps_its_colour(tmp_path):
     found = marks("ran 'repo-report' now", ruleset)
     assert (4, 17, "sb.ok") in found, "the operator's rule claimed the whole quoted span"
     assert not any(role == "sb.muted" for _s, _e, role in found), "nothing left to dim"
+
+
+def test_a_count_is_a_number_and_not_a_path():
+    """Round 8. `308/693 fixes` came out `sb.path` — the literal role a
+    filename takes — because `_PATH`'s interior-slash alternative matches two
+    digits either side of a slash and runs first. Round 2's rule is that a
+    value looks like its *kind* on both surfaces, and a count's kind is a
+    number. Found by rendering a real log; a unit test comparing marks to
+    marks would have agreed with the bug."""
+    assert role_of("308/693 fixes (44.4%) shipped", "308/693") == "sb.num"
+    assert role_of("[overnight] 12/15 green", "12/15") == "sb.num"
+    assert role_of("ran 1/3 of the batch", "1/3") == "sb.num"
+
+
+def test_a_path_segment_that_looks_like_a_fraction_stays_a_path():
+    """The lookarounds are the whole rule, and this is what they buy. A slash,
+    a dot or a word character on either side means the digits are a path
+    segment — so a dated directory and a versioned one are untouched, and the
+    fraction rule can never eat a real path."""
+    for text, snippet in (
+        ("1/2/3 is a path", "1/2/3"),
+        ("v1/2 is a path", "v1/2"),
+        ("docs/12/13 is a path", "docs/12/13"),
+        ("2026/08/29/report.md is a path", "2026/08/29/report.md"),
+    ):
+        assert role_of(text, snippet) == "sb.path", snippet

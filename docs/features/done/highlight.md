@@ -756,3 +756,44 @@ file.
 **One thing about the harness.** The legend is collapsed by default and exists only once the
 `follow` contract is picked, so two headless passes found nothing before either was a bug. Worth
 knowing before the next person concludes the legend is broken.
+
+### 2026-08-31 — round 8, in which an ask turned out to be a defect
+
+**The ask was that `#/#` stand out. It already stood out, as the wrong thing.** `308/693 fixes`,
+`12/15 green` and `1/3 of the batch` were all coming out `sb.path` — the literal role a filename and
+a code span take — because `_PATH`'s interior-slash alternative matches two digits either side of a
+slash and runs before `_NUMBER`. Round 2's rule is that a value looks like its *kind* on both
+surfaces, and a count's kind is a number. So this round adds no capability: it moves fourteen tokens
+off the wrong colour.
+
+**Which is the round's actual content.** Four of the five things the operator listed were already
+answered — paths of the form `xxx/xxx/xxx.xx` since round 2, five-character shouts since round 5,
+and *merge* and *PR* are vocabulary, which has been declarable since round 3 and is not this
+module's to hold. Only one of the five was a change here, and it was not the one that looked like a
+gap. **Reading a rendered log is what tells an absence from a miscolouring**; a list of asks read
+from the armchair would have produced a rule for each.
+
+**The lookarounds are the whole rule and they were free.** A `/`, a `.` or a word character on
+either side means the digits are a path segment rather than a fraction, so `1/2/3`, `v1/2`,
+`docs/12/13` and `2026/08/29/report.md` all stay with `_PATH`. The corpus settles the trade rather
+than an argument about it: the 591-line grid log carries fourteen counts and no numeric path at all,
+so nothing is given up. A date written `12/13` is claimed as a number, and the ambiguity has only
+one answer either way — `_DATE` and `_TIME` already take `sb.num`.
+
+**The floor on short shouts stays at five, and the operator overruled it in their own file rather
+than here.** `PR` is 60 of the 134 sub-five capital runs in this log; the other side of that count is
+`XP`, `RMS`, `WAV`, `SHA`, `F401`, `E402` — domain nouns and lint codes, roughly 45 of them, which is
+the noise round 5 measured and declined. Lowering the floor buys the 60 at the price of the 45 for
+*everyone*; a declared rule buys it for the one operator who wants it. That is the round 5 split
+doing its job, and it is worth recording that the answer to "sky.boss will not tint my word" is
+usually a line in `formats.toml` and not a line here.
+
+**Two things about writing that line that only showed up against the real file.** `\b` is the wrong
+boundary for a word people hyphenate: `\bmerg` fires after the hyphen in `non-merge` — which means
+the opposite of what it would be painted as — and inside the `--merge` flag, where it paints half a
+token and reads as a rendering fault, the same complaint `_NUMBER`'s lookarounds already exist for.
+And `auto-merge` is 15 of the 41 real merge events, so the compound is named explicitly and claimed
+whole rather than swept out with the other two. **A declared rule can also only take what is left**:
+`PR #1200` renders as two `sb.ref` chips because `_REF` claims the number first, and one span across
+both is not available at any price. That is the ordering working as designed, but it is a shape the
+operator has to see before choosing the role.
