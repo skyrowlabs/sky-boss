@@ -562,3 +562,29 @@ def test_cols_and_the_view_work_unchanged_against_a_file(tmp_path):
     path.write_text('{"job": "a", "rc": 0, "note": "x"}\n{"job": "b", "rc": 1, "note": "y"}\n')
     _, envelope = invoke(["--from", "jsonl", "--cols", "job,rc", str(path)])
     assert [c["key"] for c in envelope["view"]["columns"]] == ["job", "rc"]
+
+
+def test_a_torn_tail_is_reported_on_every_read_not_once_per_file(tmp_path):
+    """Per-read reporting, pinned deliberately rather than inherited from
+    process lifetime.
+
+    jam.sense's reader dedupes its equivalent warning on a module-level set
+    keyed by path, so one process warns once per file and goes quiet about
+    every later tear. That is right for a short-lived job and wrong for a
+    resident consumer: `sb data --refresh` re-enters `_once` every tick, and a
+    warning that fired only on tick 1 would tell a watcher the ledger had gone
+    clean. sky.boss is on the right side of this today because nothing in the
+    read path holds state — which is exactly the property that quietly changes
+    when someone makes a reader long-lived for performance.
+
+    Both invocations run in one process, so a `_WARNED` set of our own would
+    survive between them and fail this. See [[jsonl-reads]] round 4."""
+    path = tmp_path / "runs.jsonl"
+    path.write_text('{"job": "a"}\n{"job": "b", "sta')  # cut mid-record
+
+    for read in (1, 2, 3):
+        _, envelope = invoke(["--from", "jsonl", str(path)])
+        assert envelope["data"] == [{"job": "a"}], f"read {read}"
+        assert any("1 of 2 lines not a JSON object" in w for w in envelope["warnings"]), (
+            f"read {read} went quiet about the torn tail"
+        )

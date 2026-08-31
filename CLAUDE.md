@@ -845,6 +845,21 @@ Shared with sibling CLIs so the family feels like one tool.
   but *the observer cannot know*. The remedy is also the same — count the looking, not only the
   finding, and when you cannot, say "no evidence" rather than "clear".
 
+  **When you cannot count the looking, a positive control is what makes a null readable — and the
+  torn-record half of that pair is now closed by one.** Two nights of sampling the live ledger
+  returned `torn: 0`, and the second night's added counter returned `partials: 0` too, which was
+  correctly reported as *no evidence*. It was worse than that: at a measured **0.80 µs** of torn
+  state per append against a 500 Hz sampler, the run expected **0.036** catches and would have had
+  to run about 26 nights to expect one. **A measurement that cannot fail is not a weak measurement,
+  it is not one** — and the way out was never more of it. Fixing the record size made every
+  observation classifiable, and running a second arm whose writer tears *on purpose* proved the
+  reader could see a tear at all; the real arm then tore just as often, so the null became a result
+  instead of a silence. Both halves are portable: **make the thing you are looking for identifiable
+  when you find it, and prove your instrument can see one before you believe it saw none.** The
+  finding itself was that a single 8 KB `write` tears against a concurrent reader exactly as readily
+  as a deliberately split one, that sky.boss already counts and reports the truncated line, and that
+  a settle-and-retry would install this section's own failure on purpose. See [[jsonl-reads]] round 4.
+
   **The cross-session half of that has a sharper form, and it is the workspace's to keep:** *a peer
   name addresses a conversation **lineage**, not a context.* One socket and one `from-name` belong
   to the terminal and the project; the transcript behind them does not, and nothing on the wire

@@ -179,6 +179,118 @@ a tick can afford, the answer is a bound on rows read — `MAX_ROWS` has a prece
 
 ## Notes
 
+### 2026-08-31 — round 4: the torn-read ruling, and why the overnight run could not have answered
+
+**A concurrent append does tear, routinely, and sky.boss already reports it. No change here.**
+
+The question was whether `sb data --from jsonl` can read a ledger while jam.sense is appending to
+it and get a truncated final line. Two overnight detectors were run against the live ledger — 46
+appends on 2026-08-29, then 91 more across 22h48m ending 2026-08-31 — and both returned `torn: 0`.
+The second was built to fix the first's defect (it counted how often it *caught* the file
+mid-record, not just how often it looked) and returned `partials: 0` as well. The carry-over had
+pre-committed to reading that as *no evidence* rather than *safe*, and that was right — but it
+under-stated the problem. **The run was not merely inconclusive; it was structurally incapable of
+concluding anything**, and the arithmetic below says by how much.
+
+**What settled it was a forcing test with a positive control**, not more sampling. Two changes make
+a null readable. Records are a **fixed** length, so any observed size that is not a multiple of it
+is proof the reader caught a write in flight — with real variable-length records, a size that is
+not a record boundary is unrecognisable, which is why the overnight detector could not count its
+own looking. And a **control arm** writes torn on purpose — the record in one `write`, the newline
+in a second — so a zero from the real arm becomes evidence that the mechanism is atomic rather than
+evidence that the reader is too slow to see it. Both arms ran on the same filesystem as the state
+root, at 8,209 bytes per record, straddling the 8,227-byte maximum append actually measured on
+`decisions.jsonl`.
+
+The real arm writes byte-for-byte what jam.sense writes — `open("a")` then one `write` of
+`json.dumps(entry) + "\n"`. Twenty seconds each:
+
+| Arm | appends | caught mid-write | unparseable tail |
+|---|---|---|---|
+| control — torn on purpose, two `write` calls | 22,469 | 25,164 | **4,803** |
+| real — one buffered `write`, as the ledger does | 22,649 | 23,251 | **4,833** |
+
+**The two arms are indistinguishable.** A single `write(2)` of 8 KB tears exactly as readily as a
+deliberately split one: the kernel makes the file grow in sub-record steps and a reader between
+them sees a truncated JSON line. The one tearing mode that *was* ruled out is a second syscall —
+the buffer is 128 KiB here, confirmed by checking the on-disk size before the handle closes, so
+everything under that goes out in one call. It does not help, and that is the finding.
+
+**The odds the overnight run was up against.** The torn state persists **0.80 µs per append**
+(measured as a duty cycle: 24,447 of 26,954,633 stats landed off a record boundary). Against a
+500 Hz sampler that is a 1-in-2,500 chance per append. Round 2 saw 91 appends, so its expected
+catch count was **0.036** — it would have had to run about **26 nights** at that append rate to
+expect a single one. Both nights together expected 0.055. `partials: 0` was overdetermined, and no
+amount of the same measurement would ever have moved it.
+
+**What sky.boss does with a torn line, verified by running it rather than by reading it.** A file
+whose last line is cut mid-record:
+
+```
+● data  table · 4 rows · 3 columns
+⚠️  1 of 5 lines not a JSON object — first: '{"job": "j4", "status": "ok", "at": "2'
+```
+
+The row is counted, sampled and warned about, the warning rides the envelope, and the exit is 0.
+That is `parse_jsonl` behaving exactly as its docstring argues it must — a dropped ledger row *"does
+not read as corruption, it reads as that job never ran"* — and the argument was written against a
+hypothetical. It is not hypothetical.
+
+**A settle-and-retry is rejected**, and it is the change someone will propose. It would convert a
+counted, sampled, visible warning into a silent success, which is *worked fine, told nobody*
+installed deliberately: sky.boss cannot tell a line that is 0.8 µs from complete from one that is
+corrupt, and the two want opposite conclusions. The warning also costs nothing in practice — at
+this duty cycle a real ledger read hits one about once in 27,000 nights.
+
+**`sb follow` answers the same bytes differently, and both are right.** `cli/filefollow.py` holds a
+partial final line until its newline arrives and never emits half. The asymmetry is the contract,
+not an inconsistency: a follow's next read is guaranteed to come, so waiting costs nothing, while a
+`data` read *is* the answer and has nothing to wait for. See [[file-follow]].
+
+**Nothing is owed to jam.sense either**, and this is worth saying so nobody fixes it. Its writer is
+already the right shape; an `os.write` on an `O_APPEND` descriptor would not help, since a single
+syscall is what was just measured tearing. The only remedy that works is write-to-temp-and-rename —
+which `decision_ledger` already does for its trim — and buying it for every append would cost the
+producer real work to spare the consumer a warning the consumer wants.
+
+**Confirmed independently from the other end, which is the part that makes it a seam result.**
+jam.sense had installed warn-and-skip in its own reader before this test existed — `read_jsonl`
+returning `(entries, skipped)` with one definition imported rather than copied, and a `warn_skipped`
+on stderr — reasoning from the producer side while this reasoned from the consumer side. Neither was
+reading the other. What the measurement added, in their words: they knew a bad last line was
+*possible* and had it filed as tolerable-but-notable; the numbers establish it is the **normal** case
+at these record sizes, which upgrades the warning from *something odd happened* to *you read this
+ledger while a job was appending*. They reject the writer-side remedy for a reason of their own that
+is better than the one above — no write in `decision_ledger` may raise, because it instruments the
+agent stage itself.
+
+**Their dedupe is right for them and would be wrong here, so the difference is now a test rather
+than an accident.** `warn_skipped` keys a module-level set on the path, so a process warns once per
+file and goes quiet about every later tear — correct for a short-lived job, and incorrect for a
+resident consumer, where a warning that fired only on tick 1 would tell a watcher the ledger had
+gone clean. sky.boss is on the right side of it today only because nothing in the read path holds
+state: `_once` builds a fresh `Result` per tick, verified on both residency paths — three NDJSON
+envelopes down a pipe each carried the warning, and the terminal render redrew it every tick.
+**That is inherited from process lifetime, which is exactly the kind of property that changes when
+someone makes a reader long-lived for performance**, so `test_a_torn_tail_is_reported_on_every_read_not_once_per_file`
+pins it: both reads run in one process, so a `_WARNED` set of ours would survive between them.
+
+**Whether the producer also warns is not knowable from the file, so the account is never redundant
+by design.** Where a producing reader warns, sky.boss's count duplicates it; where it does not,
+sky.boss's count is the whole account — and which of those holds flips per file, from the
+producer's own routing, with nothing in the bytes to say which. That is the case `parse_jsonl`
+sharing `Captured`'s account was built for, and it does not depend on any particular producer's
+state.
+
+*This paragraph first named three of jam.sense's ledgers as skipping silently —
+`queue_deferrals.jsonl`, `implement_ready_plans.jsonl` and tree_lock's `history.jsonl`. They closed
+all three in `02c598fc7` about an hour later (five readers now share `read_jsonl` +
+`warn_skipped`), so the sentence was false within the hour and never shipped. Left visible because
+the correction is the more useful half: **the instances were the staleable part and the property was
+not**, which is § Feature workflow's own rule about linking rather than copying, arriving from the
+direction of a fact instead of a doc.*
+
+
 ### 2026-08-29 — three rounds, and two things the suite decided
 
 **The file-form rule is not `follow`'s, and the suite is what said so.** Reusing
