@@ -391,9 +391,14 @@ def test_the_structure_colour_is_never_used_as_text():
     list would have pinned sixteen and stayed silent on the fifty on the other
     two. The role keeps its value; what is forbidden is spending it on type.
     """
-    css = (PROJECT_ROOT / "cli/canvas/static/sb.css").read_text()
-    offenders = re.findall(r"color:\s*var\(--sb-text-3\)", css)
+    offenders = {}
+    for path in sorted(PROJECT_ROOT.rglob("*.css")):
+        if "vendor" in path.parts or ".venv" in path.parts or "node_modules" in path.parts:
+            continue
+        found = re.findall(r"color:\s*var\(--sb-text-3\)", path.read_text())
+        if found:
+            offenders[str(path.relative_to(PROJECT_ROOT))] = len(found)
     assert not offenders, (
-        f"{len(offenders)} rule(s) paint text with the structure colour — "
+        f"rules painting text with the structure colour: {offenders} — "
         "use --sb-text-2 for text a reader reads"
     )

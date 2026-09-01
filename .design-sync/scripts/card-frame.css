@@ -17,12 +17,12 @@ body { overflow: visible; padding: 5rem 6rem; }
   margin-bottom: 4rem;
 }
 .sp-cap {
-  color: var(--sb-text-3);
+  color: var(--sb-text-2);
   font-size: 2.5rem;
   letter-spacing: .1em;
   text-transform: uppercase;
 }
-.sp-note { color: var(--sb-text-3); font-size: 2.5rem; margin-top: 4rem; line-height: 1.6; }
+.sp-note { color: var(--sb-text-2); font-size: 2.5rem; margin-top: 4rem; line-height: 1.6; }
 .sp-row { display: flex; gap: 3rem; align-items: center; flex-wrap: wrap; }
 .sp-col { display: flex; flex-direction: column; gap: 2rem; }
 .sp-grid { display: grid; gap: 3rem; }
