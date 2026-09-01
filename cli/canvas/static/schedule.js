@@ -230,24 +230,71 @@ export function plottable(rows) {
   return (rows || []).filter((r) => typeof r.at === "number");
 }
 
-/* One lane per job on a linear time axis, as a fraction of the span.
+/* What the span keeps, what it removed, and what it could not judge.
  *
- * Rows beyond the window are **counted, not clamped**. A mark pinned to the
- * right edge would read as "fires at the end of the window", which is a
- * different and false claim; the count says how many are out of frame, which
- * is round 1's *counted, never drawn* applied to an axis. */
-export function timeline(rows, now, spanSeconds) {
-  const marks = [];
+ * Round 8 filtered only the timeline; round 9 filters the whole screen, so
+ * this decides which rows exist rather than which get a mark. Three outcomes,
+ * and collapsing any two of them loses something round 1 paid for:
+ *
+ * - **Beyond the window: counted, never drawn.** A mark pinned to the right
+ *   edge would read as "fires at the end of the window", a different and false
+ *   claim. The count is what says the rows are there.
+ * - **Late: never excluded.** It has already fired, so it is not *beyond*
+ *   anything. Hiding an overdue job because the operator picked `6h` is the
+ *   worst thing this screen could do, and `late` is the one word on it that
+ *   already carries emphasis.
+ * - **Undated: never excluded either.** `at` is empty exactly where Python
+ *   refused to order the row. A time filter cannot exclude a row that has no
+ *   time to compare, and excluding it would be sky.boss deciding a row falls
+ *   outside a window it was unable to place it in. It is kept, and its lane
+ *   says why it is empty rather than being blank — *absence has more than one
+ *   word*, and a blank lane says the wrong one. */
+export function spanFilter(rows, now, spanSeconds) {
+  const kept = [];
   let beyond = 0;
-  for (const row of plottable(rows)) {
-    const delta = row.at - now / 1000;
-    if (delta > spanSeconds) {
+  let undated = 0;
+  for (const row of rows || []) {
+    if (typeof row.at !== "number") {
+      undated += 1;
+      kept.push(row);
+      continue;
+    }
+    if (row.at - now / 1000 > spanSeconds) {
       beyond += 1;
       continue;
     }
-    marks.push({ row, percent: Math.max(0, Math.min(100, (delta / spanSeconds) * 100)) });
+    kept.push(row);
   }
-  return { marks, beyond };
+  return { rows: kept, beyond, undated };
+}
+
+/* Where a row's mark sits on the axis, as a percentage — or `null` for a row
+ * that has no instant to place.
+ *
+ * `null` and `0` are deliberately different: a row Python could not order is
+ * not a row that fires now. Clamped at both ends, which only ever bites a late
+ * row: it belongs at the left edge because it has already fired, and off the
+ * axis is not a place. */
+export function percentOf(row, now, spanSeconds) {
+  if (typeof row.at !== "number" || !(spanSeconds > 0)) return null;
+  const delta = row.at - now / 1000;
+  return Math.max(0, Math.min(100, (delta / spanSeconds) * 100));
+}
+
+/* The `all` span is **derived from the data, never a fourth hardcoded number.**
+ * It runs from now to the furthest job the rows actually contain, so it is the
+ * one span that cannot have anything beyond it — which is the whole reason it
+ * exists once the span started filtering the table.
+ *
+ * A set whose every row is late (or undated) has no forward extent at all, and
+ * a zero span is a division by zero dressed as an axis. It falls back to the
+ * default window rather than drawing a chart of nothing. */
+export function derivedSpan(rows, now, fallbackSeconds) {
+  let furthest = 0;
+  for (const row of plottable(rows)) {
+    furthest = Math.max(furthest, row.at - now / 1000);
+  }
+  return furthest > 0 ? furthest : fallbackSeconds;
 }
 
 /* Ticks for the axis, at a round interval that yields a readable number of
@@ -294,47 +341,59 @@ export function stackOf(rows) {
   return [...by.values()].sort((a, b) => (a.project < b.project ? -1 : 1));
 }
 
-function Timeline({ rows, now, span, shadeOf, show, hide }) {
-  const { marks, beyond } = timeline(rows, now, span.seconds);
-  const axis = ticks(now, span.seconds);
+/* The axis is the header row's **lane cell**, not a bar with its own inset.
+ *
+ * Round 5 gave it `margin-left`/`margin-right` matched by hand to the lane
+ * label widths, and round 8 made those two numbers one variable each because
+ * they had to agree. Living in the same grid track as every lane means there is
+ * no number: a mark at 0% and the `now` tick are the same x by construction,
+ * which is round 4's argument about columns applied to a chart. */
+function Axis({ now, spanSeconds }) {
   return html`
-    <div class="pl-chart">
-      <div class="pl-axis">
-        <span class="pl-tick pl-now" style="left:0%">now</span>
-        ${axis.map(
-          (t) => html`
-            <span class="pl-tick" style=${`left:${t.percent}%`}>
-              ${new Date(t.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-            </span>
-          `
-        )}
-      </div>
-      ${marks.map(
-        ({ row, percent }) => html`
-          <div
-            class=${`pl-lane pl-s${shadeOf(row.project)}`}
-            key=${`${row.project}/${row.name}`}
-            ...${hoverProps(show, hide, [row])}
+    <div class="pl-axis">
+      <span class="pl-tick pl-now" style="left:0%">now</span>
+      ${/* **The label shifts; the tick does not.** A tick sits at an exact
+          * percentage of the axis and is centred on it, so the last one hangs
+          * half its width past the right edge and gets clipped — `02:28 PM`
+          * read as `02:28 PI`. Padding the axis would fix the label by moving
+          * the axis, which would put every mark out of step with the ticks
+          * above it. Only the text box moves: the tick stays where the time
+          * actually is. */ ""}
+      ${ticks(now, spanSeconds).map(
+        (t) => html`
+          <span
+            class=${`pl-tick${t.percent > 92 ? " pl-tick-end" : ""}`}
+            style=${`left:${t.percent}%`}
           >
-            <span class="pl-lane-name">${row.name}</span>
-            <div class="pl-track">
-              <span
-                class=${`pl-mark${row.fires.startsWith("late") ? " pl-late" : ""}`}
-                style=${`left:${percent}%`}
-              ></span>
-            </div>
-            <span class="pl-lane-when">${row.fires}</span>
-          </div>
+            ${new Date(t.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+          </span>
         `
       )}
-      ${beyond > 0 &&
-      html`<div class="pl-quiet">
-        ${beyond} ${beyond === 1 ? "job fires" : "jobs fire"} beyond ${span.label} — not drawn
-        rather than pinned to the edge
-      </div>`}
-      ${marks.length === 0 &&
-      html`<div class="pl-empty">nothing fires within ${span.label}</div>`}
     </div>
+  `;
+}
+
+/* A job's lane: the trailing cell of its own row.
+ *
+ * **An undated row says so rather than drawing nothing.** `at` is empty exactly
+ * where Python refused to order the row, and an empty lane would read as
+ * *nothing in this window* — which is a different fact, and one that is false.
+ * Round 1 spent a section on absence having more than one word; this is the
+ * cell where two of them would otherwise collapse. */
+function Lane({ row, now, spanSeconds }) {
+  const percent = percentOf(row, now, spanSeconds);
+  if (percent === null) {
+    return html`<span class="pl-lane-cell pl-undated"><span class="pl-nodate">no fire time</span></span>`;
+  }
+  return html`
+    <span class=${`pl-lane-cell pl-s${row.shade || 0}`}>
+      <span class="pl-track">
+        <span
+          class=${`pl-mark${row.fires && row.fires.startsWith("late") ? " pl-late" : ""}`}
+          style=${`left:${percent}%`}
+        ></span>
+      </span>
+    </span>
   `;
 }
 
@@ -375,15 +434,22 @@ function Hours({ rows, shadeOf, show, hide }) {
         )}
       </div>
       <div class="pl-quiet">
-        by the local hour each job next fires. One mark per job, never a
-        recurrence — sky.boss does not parse cron. A weekly job sits in the same
-        column as a nightly one.
+        by the local hour each job next fires — <b>within the selected span
+        only</b>, so a job further out is absent rather than short. One mark per
+        job, never a recurrence: sky.boss does not parse cron, and a weekly job
+        sits in the same column as a nightly one.
       </div>
     </div>
   `;
 }
 
-function Row({ row, columns, show, hide }) {
+/* One job, one row, one anchor — across both halves of the grid.
+ *
+ * Until round 9 a job had a table row *and* a lane, each its own hover target
+ * and each redrawing the other's name. They are one `display: contents` row
+ * now, so hovering anywhere along it opens the one card, and `boxOf` unions the
+ * cells to find its extent exactly as it has since round 6. */
+function Row({ row, columns, now, spanSeconds, show, hide }) {
   return html`
     <div class="pl-row" ...${hoverProps(show, hide, [row])}>
       ${columns.map(
@@ -393,6 +459,7 @@ function Row({ row, columns, show, hide }) {
           </span>
         `
       )}
+      <${Lane} row=${row} now=${now} spanSeconds=${spanSeconds} />
     </div>
   `;
 }
@@ -404,10 +471,16 @@ function fireClass(fires) {
   return `pl-c pl-fires${fires && fires.startsWith("late") ? " pl-late" : ""}`;
 }
 
+/* **`all` is derived, not a fourth number.** Once the span started filtering the
+ * table, a way back to the whole set stopped being optional — and `7d` is not
+ * it: that it happens to hold every row today is a fact about today's data.
+ * `all`'s axis runs to the furthest job the rows contain, so it is the one span
+ * with nothing beyond it. */
 const SPANS = [
   { key: "6h", label: "6 hours", seconds: 6 * 3600 },
   { key: "24h", label: "24 hours", seconds: 24 * 3600 },
   { key: "7d", label: "7 days", seconds: 7 * 86400 },
+  { key: "all", label: "everything", seconds: null },
 ];
 
 /* Where a project's rows came from. Provenance, not data.
@@ -500,9 +573,21 @@ export function Plan({ result, projects, readAt, now, onRefresh, ui, setUi }) {
    * declaration panels underneath real rows; with three panels on one screen
    * the question that matters is whether any row survived the selection at
    * all, which `rows` already answers. See [[schedule]] round 8. */
-  const groups = byProject(rows);
+  /* **`next up` is not span-filtered, and that is deliberate.** It is a fact
+   * about the schedule, not about the window: filtering it would let a `6h`
+   * screen announce *nothing scheduled* while the answer sat one button away.
+   * The project selection does apply — that one is a question about which
+   * schedule you are looking at. */
   const soon = nextUp(rows);
   const span = SPANS.find((s) => s.key === ui.span) || SPANS[1];
+  /* `all` has no fixed length; it runs to the furthest row there is. */
+  const spanSeconds = span.seconds ?? derivedSpan(rows, now, SPANS[1].seconds);
+  const { rows: shown, beyond, undated } = spanFilter(rows, now, spanSeconds);
+  const groups = byProject(shown);
+  /* Per project, so a group heading can say `3 of 31` rather than making the
+   * reader subtract the screen-wide count from a number that is not there. */
+  const total = new Map();
+  for (const row of rows) total.set(row.project, (total.get(row.project) || 0) + 1);
 
   /* Measured after paint, not guessed: the card's size depends on its text and
    * on `--scale`, and a guessed width is how a panel ends up half off-screen at
@@ -523,7 +608,7 @@ export function Plan({ result, projects, readAt, now, onRefresh, ui, setUi }) {
    * one command, one result, one drawing. The question this screen answers is
    * a comparison, and a comparison needs two of them at once. The tab labels
    * survive as headings; the buttons do not. See [[schedule]] round 8. */
-  const anyRows = rows.length > 0;
+  const anyRows = shown.length > 0;
 
   return html`
     <div class="plan">
@@ -542,6 +627,14 @@ export function Plan({ result, projects, readAt, now, onRefresh, ui, setUi }) {
       </div>
 
       <div class="pl-controls">
+        ${/* **Both groups are named, because both contain a button reading
+            * `all`.** One means every project and the other means every job
+            * ever, they sit at opposite ends of one line, and the ambiguity is
+            * not hypothetical: it took the round 9 verification probe on its
+            * first run, which selected a control by its label and got the
+            * wrong segment. If a selector cannot tell them apart, neither can
+            * a reader. */ ""}
+        <span class="pl-clabel">projects</span>
         <div class="seg">
           <button
             class=${picked.length === 0 ? "on" : ""}
@@ -562,6 +655,7 @@ export function Plan({ result, projects, readAt, now, onRefresh, ui, setUi }) {
           )}
         </div>
         <div class="spacer"></div>
+        <span class="pl-clabel">span</span>
         ${/* Always drawn, because the timeline is always drawn. This was
             * conditional on `ui.mode === "timeline"`, and that condition no
             * longer names anything. */ ""}
@@ -580,89 +674,110 @@ export function Plan({ result, projects, readAt, now, onRefresh, ui, setUi }) {
         </div>
       </div>
 
-      ${/* **The charts are drawn only when there are rows to draw.** Round 5
-          * established that "nothing fires within 24 hours" is a correct
-          * sentence that misleads when the project declares no schedule at
-          * all. On one screen that trap has a wider mouth: an empty timeline
-          * beside an empty hour chart beside a "declares no schedule" panel is
-          * the same misleading sentence said three times. With no rows the
-          * declaration panels are the whole answer. */ ""}
-      ${anyRows &&
-      html`<div class="pl-panel pl-wide">
-        <div class="pl-pname">hours</div>
-        <${Hours} rows=${rows} shadeOf=${shadeOf} show=${show} hide=${hide} />
+      ${/* **The exclusion, at the top, in the screen's own voice.** Round 5
+          * counted what fell beyond the timeline's window in a chart footer,
+          * which was the right altitude while the span filtered one panel. It
+          * now filters all three: at `6h` on live data 28 of 31 jobs are gone,
+          * and a reader who sees three rows and three bars concludes the
+          * operator has three jobs. Every sentence on that screen is true. This
+          * is *worked fine, told nobody* with the polarity round 5 flagged, and
+          * the answer is to ask what a reader concludes rather than whether the
+          * sentence is defensible. */ ""}
+      ${(beyond > 0 || undated > 0) &&
+      html`<div class="pl-excluded">
+        showing <b>${shown.length}</b> of ${rows.length} jobs
+        ${beyond > 0 &&
+        html`<span class="pl-x-sep">·</span>
+          <b>${beyond}</b> ${beyond === 1 ? "fires" : "fire"} beyond ${span.label}`}
+        ${/* **Shown but unplaceable, which is a third thing.** An undated row
+            * is not excluded and is not on the axis either; counting it here
+            * stops `showing 31 of 31` from implying every one of them has a
+            * mark. */ ""}
+        ${undated > 0 &&
+        html`<span class="pl-x-sep">·</span>
+          <b>${undated}</b> ${undated === 1 ? "has" : "have"} no fire time`}
+        ${beyond > 0 &&
+        html`<button class="pl-x-all" onClick=${() => setUi({ span: "all" })}>
+          show everything
+        </button>`}
       </div>`}
 
-      <div class="pl-split">
-        <div class="pl-panel">
-          ${/* **A heading tells two panels apart, so a lone panel needs none.**
-              * With no rows the charts are not drawn and this is the only panel
-              * on the screen — a `table` label over a "declares no schedule"
-              * statement names a table that is not there. */ ""}
-          ${anyRows && html`<div class="pl-pname">table</div>`}
-          ${groups.map(
-            (g) => html`
-              <div class="pl-group" key=${g.project}>
-                <div class="pl-gname">
-                  ${g.project}<span class="v-dim"> · ${g.rows.length} jobs</span>
-                </div>
-                <${Source} declared=${declared.get(g.project)} />
-                <div class="pl-rows">
-                  <div class="pl-row pl-hrow">
-                    ${columns.map((c) => html`<span class="pl-c">${c.label}</span>`)}
-                  </div>
-                  ${g.rows.map(
-                    (row, i) => html`<${Row} key=${i} row=${row} columns=${columns} show=${show} hide=${hide} />`
-                  )}
-                </div>
-              </div>
-            `
-          )}
+      ${anyRows &&
+      html`<div class="pl-panel">
+        <div class="pl-pname">hours<span class="v-dim"> · within ${span.label}</span></div>
+        <${Hours} rows=${shown} shadeOf=${shadeOf} show=${show} hide=${hide} />
+      </div>`}
 
-          ${/* A project that declares nothing still deserves a panel when it
-              * is on screen — but only when it *is*. Filtering by the same
-              * selection the rows use is what keeps the two halves of the
-              * screen describing the same set. It lives in the table panel
-              * because it is a statement about a declaration, which is what
-              * this panel is already full of. */ ""}
-          ${quiet
-            .filter((n) => picked.length === 0 || picked.includes(n))
-            .map(
-              (n) => html`
-                <div class="pl-group" key=${n}>
-                  <div class="pl-gname">${n}<span class="v-dim"> · declares no schedule</span></div>
-                  <${Source} declared=${declared.get(n)} />
-                </div>
-              `
-            )}
-
-          ${rows.length === 0 &&
-          quiet.length === 0 &&
-          html`<div class="pl-empty">
-            no project declares a schedule — add a
-            <code>[project.NAME.schedule]</code> table to projects.toml
-          </div>`}
+      ${/* **One grid for the whole sheet.** Round 4 made each group a grid so
+          * the columns aligned structurally rather than by every row carrying
+          * an identical fixed template; this takes it one level up, because a
+          * per-group grid would give each project its own axis. Group headings
+          * and provenance blocks span every track; a job's row is
+          * `display: contents` across all five. */ ""}
+      ${anyRows &&
+      html`<div class="pl-sheet">
+        <div class="pl-row pl-hrow">
+          ${columns.map((c) => html`<span class="pl-c">${c.label}</span>`)}
+          <${Axis} now=${now} spanSeconds=${spanSeconds} />
         </div>
+        ${groups.map(
+          (g) => html`
+            <div class="pl-band" key=${`h/${g.project}`}>
+              ${g.project}<span class="v-dim">
+                ${" · "}${g.rows.length === total.get(g.project)
+                  ? `${g.rows.length} jobs`
+                  : `${g.rows.length} of ${total.get(g.project)} jobs`}</span
+              >
+            </div>
+            <div class="pl-band pl-srcband" key=${`s/${g.project}`}>
+              <${Source} declared=${declared.get(g.project)} />
+            </div>
+            ${g.rows.map(
+              (row, i) => html`<${Row}
+                key=${`${g.project}/${i}`}
+                row=${{ ...row, shade: shadeOf(row.project) }}
+                columns=${columns}
+                now=${now}
+                spanSeconds=${spanSeconds}
+                show=${show}
+                hide=${hide}
+              />`
+            )}
+          `
+        )}
+      </div>`}
 
-        ${/* **The heading carries the span.** The hour chart plots every
-            * datable row and the timeline plots only what falls inside the
-            * window, so on one screen their two counts are visible together
-            * and could reasonably read as a disagreement. Naming the scope in
-            * the heading makes the difference a label rather than an
-            * inference. */ ""}
-        ${anyRows &&
-        html`<div class="pl-panel">
-          <div class="pl-pname">timeline<span class="v-dim"> · ${span.label}</span></div>
-          <${Timeline}
-            rows=${rows}
-            now=${now}
-            span=${span}
-            shadeOf=${shadeOf}
-            show=${show}
-            hide=${hide}
-          />
-        </div>`}
-      </div>
+      ${/* A project that declares nothing still deserves a panel when it is on
+          * screen — but only when it *is*. Filtering by the same selection the
+          * rows use is what keeps the two halves of the screen describing the
+          * same set. */ ""}
+      ${quiet
+        .filter((n) => picked.length === 0 || picked.includes(n))
+        .map(
+          (n) => html`
+            <div class="pl-group" key=${n}>
+              <div class="pl-gname">${n}<span class="v-dim"> · declares no schedule</span></div>
+              <${Source} declared=${declared.get(n)} />
+            </div>
+          `
+        )}
+
+      ${/* **Nothing survived the span, and that is not the same as nothing
+          * existing.** Without this the screen would be the declaration panels
+          * alone, which describes a completely different situation. */ ""}
+      ${!anyRows &&
+      rows.length > 0 &&
+      html`<div class="pl-empty">
+        none of ${rows.length} ${rows.length === 1 ? "job fires" : "jobs fire"} within
+        ${" "}${span.label} — every one of them is further out
+      </div>`}
+
+      ${rows.length === 0 &&
+      quiet.length === 0 &&
+      html`<div class="pl-empty">
+        no project declares a schedule — add a
+        <code>[project.NAME.schedule]</code> table to projects.toml
+      </div>`}
 
       ${/* `?.` is a second guard behind `cardState`, kept on purpose: this
           * expression is evaluated during *render*, where a throw takes the
