@@ -1,5 +1,5 @@
 ---
-status: complete       # rounds 1, 3-8 built; round 2 still not scheduled
+status: active         # round 9 open; rounds 1, 3-8 built; round 2 still not scheduled
 created: 2026-08-29
 updated: 2026-09-01
 agent_value: 3         # eight rounds; the CLI contract, the screen, and five reversals with
@@ -289,7 +289,9 @@ The read-only half of the drawn flight plan, as a third nav entry. Named `schedu
 - [x] **One project at a time** — a selector that offers every declared project, including the one
       that produced no rows.
 - [x] **A timeline** — one lane per job on a real time axis, span 6h / 24h / 7d.
-- [x] **An hour-of-day chart** — 24 buckets, for the shape of the grid rather than what is next.
+- [x] **An hour-of-day chart** — 24 buckets, ~~for the shape of the grid rather than what is
+      next~~ — **reversed in round 9**: the span now filters it, so it draws the shape of *what the
+      window contains*. The original reasoning, and what it cost, are in Notes.
 - [x] **`at` on the row** — the parsed instant as epoch seconds, so the page never parses a
       timestamp.
 
@@ -453,6 +455,90 @@ TABLE                              |  TIMELINE · 24 hours
       charts are not drawn, and the quiet panels still inherit the selection.
 - [x] **Verified by rendering**, with both `error` and `unhandledrejection` installed first, real
       pointer input across all three anchors, and the app proved still live by clicking afterwards.
+
+### Round 9 — one row per job, and a span that means it (2026-09-01)
+
+**Asked for by the operator**, verbatim: *"I'd like the timeline and the table to be in sync so
+their rows match up and we don't need to repeat the row names in both tables. The time selector
+should connect to the table and the hours chart as well."*
+
+#### Why this round
+
+**Round 8 put the table and the timeline side by side, and left them describing the same jobs
+twice.** A lane carried `pl-lane-name` and `pl-lane-when`, which are the `NAME` and `FIRES` columns
+already drawn a few centimetres to the left. Two panels agreeing about 31 jobs is two panels that
+*can disagree* — they were sorted the same way by coincidence of both reading `rows`, and nothing
+structural held a job's row opposite its own mark.
+
+**And the span control only reached one of the three panels.** Picking `6h` narrowed the timeline
+while the table went on showing 31 rows and the hour chart went on drawing all 24 buckets, so the
+screen answered one question in three different scopes at once.
+
+#### Shape
+
+**One grid for the whole sheet, with the timeline as its last column.** Round 4 made each *group* a
+grid so the columns aligned structurally rather than by every row carrying the same fixed template;
+round 9 takes that one level up. The sheet is one grid, group headings and provenance blocks span
+all of it, and a job's row is `display: contents` across five tracks — the four view columns and
+its lane.
+
+- **The axis is the header row's lane cell.** Not a separately-inset bar that has to be kept in
+  step with the lanes: it is in the same grid track, so a mark at 0% and the `now` tick are the
+  same x by construction. This retires `--pl-lane-w` / `--pl-when-w` entirely — round 8 made them
+  one variable each precisely because two numbers had to agree, and the grid means there is no
+  number.
+- **`pl-lane-name` and `pl-lane-when` are deleted.** They were the duplication the operator asked
+  to remove, and they are exactly what the grid makes unnecessary.
+- **The cron gets its natural width back.** With the lane taking the remainder, `SCHEDULE` is
+  `max-content` again rather than round 8's half-panel ellipsis. Round 4's complaint is fully
+  answered rather than merely survivable — see Notes.
+- **One row is one hover anchor.** The lane stops being a second anchor, which keeps round 6's
+  *exactly one card in the DOM* true and makes it true for a simpler reason: there is one thing to
+  hover per job.
+
+**The span filters every panel**, and the count of what it removed is promoted from a chart footnote
+to a statement about the screen.
+
+- **`all` joins `6h` / `24h` / `7d`.** With the span filtering the table, a way back to the whole
+  set stops being optional. Its axis runs from now to the furthest job the data actually contains
+  — derived, never a fourth hardcoded number.
+- **A late row is never filtered out.** It has already fired, so it is not *beyond* any window;
+  hiding an overdue job because the operator picked `6h` would be the worst thing this screen could
+  do.
+- **A row with no instant is never filtered out either, and its lane says why.** `plottable` drops
+  rows Python refused to order; those have a row and no mark. Round 1's *absence has more than one
+  word* governs: a blank lane meaning *we could not place this* is indistinguishable from one
+  meaning *nothing here*, so the cell carries the absence in words rather than leaving it empty. A
+  time filter cannot exclude a row that has no time to compare — doing so would be sky.boss
+  deciding a row falls outside a window it was unable to place it in.
+- **The exclusion is stated three times, at three altitudes**, because a filtered screen being
+  mistaken for a complete one is this repo's own *worked fine, told nobody* with every sentence on
+  it true: a band under the controls (*showing 3 of 31 jobs · 28 fire beyond 6 hours*), the group
+  heading (*jam-sense · 3 of 31 jobs*), and the hour chart's own footer. **Ask what a reader
+  concludes, not whether the sentence is defensible** — at `6h` on live data, 28 of 31 jobs are
+  gone, and a reader who sees three rows and three bars concludes the operator has three jobs.
+- **`next up` is deliberately *not* span-filtered.** It is a fact about the schedule, not about the
+  window. Filtering it would let a screen say *nothing scheduled* while the answer sat one span
+  button away.
+
+**Does not do:**
+
+- **Does not sort or order anything new** (round 9). One grid means one row order, and it is still
+  `cli/schedule.py`'s. The lane's *position* is arithmetic on an instant Python already parsed; its
+  *place in the list* is not this file's opinion.
+
+#### Phases
+
+- [ ] **One grid.** Table and timeline become one sheet, the axis becomes the header's lane cell,
+      the duplicated name and when columns are deleted, and one row is one anchor.
+- [ ] **The span filters every panel**, with `all` added, late and undated rows never excluded, and
+      an undated lane that says why it is empty.
+- [ ] **The exclusion is prominent at three altitudes**, and cannot be mistaken for a complete
+      screen.
+- [ ] **Pure functions, with tests** — span filtering, mark position, and the derived `all` span
+      are all pure and belong in `tests/js/`.
+- [ ] **Verified by rendering**, swept across scales, with the wrap boundary re-measured as a grid
+      reflow and every row asserted to be one height across both halves of the grid.
 
 ## Notes
 
