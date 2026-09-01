@@ -1200,9 +1200,12 @@ function App() {
    * whether or not the command has run and its envelope is a bare list that
    * stays one. See [[schedule]] round 5. */
   const [planSources, setPlanSources] = useState([]);
-  /* Which project, which view, which span. One object so a new control is one
-   * key rather than a fourth `useState` and a fourth setter to forget. */
-  const [planUi, setPlanUi] = useState({ mode: "table", projects: [], span: "24h" });
+  /* Which projects and which span. One object so a new control is one key
+   * rather than a third `useState` and a third setter to forget.
+   *
+   * `mode` went with the tab bar in [[schedule]] round 8: all three panels are
+   * drawn, so nothing chooses between them. */
+  const [planUi, setPlanUi] = useState({ projects: [], span: "24h" });
   const [draft, setDraft] = useState(EMPTY_DRAFT);
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState(0);

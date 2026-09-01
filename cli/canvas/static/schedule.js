@@ -494,9 +494,12 @@ export function Plan({ result, projects, readAt, now, onRefresh, ui, setUi }) {
    * the operator cannot see or undo. */
   const picked = (ui.projects || []).filter((n) => names.includes(n));
   const rows = picked.length ? all.filter((r) => picked.includes(r.project)) : all;
-  /* One project selected — or one declared, filtered or not — is what makes a
-   * "declares nothing" panel the whole answer rather than a footnote. */
-  const only = picked.length === 1 ? picked[0] : null;
+  /* **A "declares nothing" panel is the whole answer when there is nothing
+   * else**, and that used to be spelled as *exactly one project selected*.
+   * Rounds 4-7 needed the narrower test because the table view drew the
+   * declaration panels underneath real rows; with three panels on one screen
+   * the question that matters is whether any row survived the selection at
+   * all, which `rows` already answers. See [[schedule]] round 8. */
   const groups = byProject(rows);
   const soon = nextUp(rows);
   const span = SPANS.find((s) => s.key === ui.span) || SPANS[1];
@@ -515,11 +518,12 @@ export function Plan({ result, projects, readAt, now, onRefresh, ui, setUi }) {
     setUi({ projects: next });
   };
 
-  const tab = (key, label) => html`
-    <button class=${ui.mode === key ? "on" : ""} onClick=${() => setUi({ mode: key })}>
-      ${label}
-    </button>
-  `;
+  /* **Every panel is drawn, so nothing decides which one.** Rounds 4 and 5
+   * made these three a `ui.mode` switch, which is the shape a *window* has —
+   * one command, one result, one drawing. The question this screen answers is
+   * a comparison, and a comparison needs two of them at once. The tab labels
+   * survive as headings; the buttons do not. See [[schedule]] round 8. */
+  const anyRows = rows.length > 0;
 
   return html`
     <div class="plan">
@@ -558,11 +562,10 @@ export function Plan({ result, projects, readAt, now, onRefresh, ui, setUi }) {
           )}
         </div>
         <div class="spacer"></div>
+        ${/* Always drawn, because the timeline is always drawn. This was
+            * conditional on `ui.mode === "timeline"`, and that condition no
+            * longer names anything. */ ""}
         <div class="seg">
-          ${tab("table", "table")} ${tab("timeline", "timeline")} ${tab("hours", "hours")}
-        </div>
-        ${ui.mode === "timeline" &&
-        html`<div class="seg">
           ${SPANS.map(
             (s) => html`
               <button
@@ -574,64 +577,88 @@ export function Plan({ result, projects, readAt, now, onRefresh, ui, setUi }) {
               </button>
             `
           )}
-        </div>`}
+        </div>
       </div>
 
-      ${/* A project that declares nothing says so in every view. "Nothing fires
-          * within 24 hours" is true of breeze-brain and implies it has jobs
-          * that fire later — a sentence that is correct and misleads is the
-          * same failure as one that is wrong. */ ""}
-      ${only && quiet.includes(only)
-        ? html`<div class="pl-group">
-            <div class="pl-gname">${only}<span class="v-dim"> · declares no schedule</span></div>
-            <${Source} declared=${declared.get(only)} />
-          </div>`
-        : ui.mode === "timeline"
-        ? html`<${Timeline}
+      ${/* **The charts are drawn only when there are rows to draw.** Round 5
+          * established that "nothing fires within 24 hours" is a correct
+          * sentence that misleads when the project declares no schedule at
+          * all. On one screen that trap has a wider mouth: an empty timeline
+          * beside an empty hour chart beside a "declares no schedule" panel is
+          * the same misleading sentence said three times. With no rows the
+          * declaration panels are the whole answer. */ ""}
+      ${anyRows &&
+      html`<div class="pl-panel pl-wide">
+        <div class="pl-pname">hours</div>
+        <${Hours} rows=${rows} shadeOf=${shadeOf} show=${show} hide=${hide} />
+      </div>`}
+
+      <div class="pl-split">
+        <div class="pl-panel">
+          <div class="pl-pname">table</div>
+          ${groups.map(
+            (g) => html`
+              <div class="pl-group" key=${g.project}>
+                <div class="pl-gname">
+                  ${g.project}<span class="v-dim"> · ${g.rows.length} jobs</span>
+                </div>
+                <${Source} declared=${declared.get(g.project)} />
+                <div class="pl-rows">
+                  <div class="pl-row pl-hrow">
+                    ${columns.map((c) => html`<span class="pl-c">${c.label}</span>`)}
+                  </div>
+                  ${g.rows.map(
+                    (row, i) => html`<${Row} key=${i} row=${row} columns=${columns} show=${show} hide=${hide} />`
+                  )}
+                </div>
+              </div>
+            `
+          )}
+
+          ${/* A project that declares nothing still deserves a panel when it
+              * is on screen — but only when it *is*. Filtering by the same
+              * selection the rows use is what keeps the two halves of the
+              * screen describing the same set. It lives in the table panel
+              * because it is a statement about a declaration, which is what
+              * this panel is already full of. */ ""}
+          ${quiet
+            .filter((n) => picked.length === 0 || picked.includes(n))
+            .map(
+              (n) => html`
+                <div class="pl-group" key=${n}>
+                  <div class="pl-gname">${n}<span class="v-dim"> · declares no schedule</span></div>
+                  <${Source} declared=${declared.get(n)} />
+                </div>
+              `
+            )}
+
+          ${rows.length === 0 &&
+          quiet.length === 0 &&
+          html`<div class="pl-empty">
+            no project declares a schedule — add a
+            <code>[project.NAME.schedule]</code> table to projects.toml
+          </div>`}
+        </div>
+
+        ${/* **The heading carries the span.** The hour chart plots every
+            * datable row and the timeline plots only what falls inside the
+            * window, so on one screen their two counts are visible together
+            * and could reasonably read as a disagreement. Naming the scope in
+            * the heading makes the difference a label rather than an
+            * inference. */ ""}
+        ${anyRows &&
+        html`<div class="pl-panel">
+          <div class="pl-pname">timeline<span class="v-dim"> · ${span.label}</span></div>
+          <${Timeline}
             rows=${rows}
             now=${now}
             span=${span}
             shadeOf=${shadeOf}
             show=${show}
             hide=${hide}
-          />`
-        : ui.mode === "hours"
-          ? html`<${Hours} rows=${rows} shadeOf=${shadeOf} show=${show} hide=${hide} />`
-          : groups.map(
-              (g) => html`
-                <div class="pl-group" key=${g.project}>
-                  <div class="pl-gname">
-                    ${g.project}<span class="v-dim"> · ${g.rows.length} jobs</span>
-                  </div>
-                  <${Source} declared=${declared.get(g.project)} />
-                  <div class="pl-rows">
-                    <div class="pl-row pl-hrow">
-                      ${columns.map((c) => html`<span class="pl-c">${c.label}</span>`)}
-                    </div>
-                    ${g.rows.map(
-                      (row, i) => html`<${Row} key=${i} row=${row} columns=${columns} show=${show} hide=${hide} />`
-                    )}
-                  </div>
-                </div>
-              `
-            )}
-
-      ${/* A project that declares nothing still deserves a panel when it is on
-          * screen — but only when it *is*. Filtering by the same selection the
-          * rows use is what keeps the two halves of the screen describing the
-          * same set. */ ""}
-      ${ui.mode === "table" &&
-      !only &&
-      quiet
-        .filter((n) => picked.length === 0 || picked.includes(n))
-        .map(
-          (n) => html`
-            <div class="pl-group" key=${n}>
-              <div class="pl-gname">${n}<span class="v-dim"> · declares no schedule</span></div>
-              <${Source} declared=${declared.get(n)} />
-            </div>
-          `
-        )}
+          />
+        </div>`}
+      </div>
 
       ${/* `?.` is a second guard behind `cardState`, kept on purpose: this
           * expression is evaluated during *render*, where a throw takes the
@@ -639,14 +666,6 @@ export function Plan({ result, projects, readAt, now, onRefresh, ui, setUi }) {
           * guard is one character. */ ""}
       ${card &&
       html`<${CardLayer} card=${card} declared=${declared.get(card.rows[0]?.project)} />`}
-
-      ${rows.length === 0 &&
-      ui.mode === "table" &&
-      quiet.length === 0 &&
-      html`<div class="pl-empty">
-        no project declares a schedule — add a
-        <code>[project.NAME.schedule]</code> table to projects.toml
-      </div>`}
     </div>
   `;
 }

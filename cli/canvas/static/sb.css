@@ -1259,15 +1259,26 @@ pre.stream.wrap .ln {
 .pl-src-v { min-width: 0; word-break: break-word; }
 .pl-src-v code { color: var(--sb-text); }
 
-.pl-chart { display: flex; flex-direction: column; gap: 1rem; }
+/* The axis inset and the lane label width are **one number, named once.** The
+ * comment below has always said they must match; until round 8 they were two
+ * independent literals that happened to. A half-width timeline wants both
+ * narrower, and changing one of two matching numbers is exactly the drift the
+ * rule warns about. */
+.pl-chart {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  --pl-lane-w: 20rem;
+  --pl-when-w: 12rem;
+}
 /* The axis and every lane share one left inset, so a mark at 0% and the `now`
  * tick above it are the same x. Two different insets is how a chart ends up
  * quietly off by the width of a label. */
 .pl-axis {
   position: relative;
   height: 4rem;
-  margin-left: 20rem;
-  margin-right: 12rem;
+  margin-left: var(--pl-lane-w);
+  margin-right: var(--pl-when-w);
   border-bottom: 1px solid var(--sb-hair);
 }
 .pl-tick {
@@ -1281,7 +1292,7 @@ pre.stream.wrap .ln {
 .pl-lane { display: flex; align-items: center; gap: 0; }
 .pl-lane-name {
   flex: none;
-  width: 20rem;
+  width: var(--pl-lane-w);
   font-size: 3rem;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1305,7 +1316,7 @@ pre.stream.wrap .ln {
 .pl-mark.pl-late { background: var(--sb-warn); }
 .pl-lane-when {
   flex: none;
-  width: 12rem;
+  width: var(--pl-when-w);
   padding-left: 2rem;
   font-size: 2.8rem;
   color: var(--sb-text-3);
@@ -1408,3 +1419,60 @@ pre.stream.wrap .ln {
   outline-offset: -2px;
 }
 .pl-controls .seg button .pl-swatch { margin-right: 1.5rem; }
+
+/* --- round 8: one screen, three panels -----------------------------------
+ * The tabs are gone. Hours across the top, table and timeline side by side
+ * beneath it — the arrangement the operator asked for, and the one that lets
+ * the screen answer the comparison it exists for: does what fires next collide
+ * with the shape of the grid.
+ *
+ * **The wrap threshold is a `rem` basis, never a media query.** A breakpoint in
+ * `px` puts the threshold at the same viewport width at every `--scale`, which
+ * is precisely the class of bug `--scale` exists to warn about — a layout
+ * verified at one scale has been verified once. A `rem` basis means *narrower
+ * than a panel is legible at this scale*, so the point at which the two panels
+ * stop sitting side by side grows with the scale by construction. It is the one
+ * number here that had to be chosen, and it is a floor rather than a size:
+ * nothing is laid out at 110rem, the panels merely stop sharing a row below it.
+ *
+ * They split what is left **evenly**. Neither has a claim to more — the table
+ * ellipsises and the timeline is fractional, so both degrade legibly — and an
+ * uneven split would be a guessed ratio doing the work a measurement should.
+ * See [[schedule]] round 8. */
+.pl-split {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: start;
+  gap: 6rem 6rem;
+}
+.pl-split > .pl-panel {
+  flex: 1 1 110rem;
+}
+.pl-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 3rem;
+  /* Without this a flex item refuses to shrink below its content, and a long
+   * cron expression pushes the timeline off the screen instead of ellipsising
+   * — the failure `min-width: 0` exists for, on the axis this round adds. */
+  min-width: 0;
+}
+/* The tab labels, as headings. A control that hides two of three panels on a
+ * screen built to show three is the thing this round removed, wearing a new
+ * name — but the words were the right words, and a panel with no name is a
+ * chart the reader has to identify. */
+.pl-pname {
+  font-size: 2.75rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--sb-text-3);
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--sb-hair);
+}
+/* A half-width timeline has no room for a 20rem label and a 12rem trailing
+ * column *and* a track worth reading. Overriding the two named insets together
+ * is the whole reason they became one variable each. */
+.pl-split .pl-chart {
+  --pl-lane-w: 16rem;
+  --pl-when-w: 10rem;
+}
