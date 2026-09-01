@@ -7,9 +7,13 @@
 // prevent, and a sky-boss test fails on a hex outside it.
 import { writeFileSync, copyFileSync, mkdirSync, readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
-import { join } from 'node:path';
+import { join, dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const REPO = '/home/jeston/skyrow.labs/sky-boss';
+// Derived, never written down: this file lives at .design-sync/scripts/, so the
+// repo is two levels up. A literal path here would name a machine, which is the
+// leak tests/test_publication.py exists to catch — and did.
+const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const OUT = process.argv[2];
 mkdirSync(OUT, { recursive: true });
 

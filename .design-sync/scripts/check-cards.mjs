@@ -5,7 +5,7 @@ import { join } from 'node:path';
 
 const OUT = process.argv[2], DIR = join(OUT, 'preview');
 mkdirSync(join(OUT, '../cards'), { recursive: true });
-const browser = await chromium.launch({ executablePath: '/usr/bin/chromium' });
+const browser = await chromium.launch(process.env.SB_CHROMIUM ? { executablePath: process.env.SB_CHROMIUM } : {});
 const results = [];
 
 // A signature of how every element actually renders. Comparing it with the
