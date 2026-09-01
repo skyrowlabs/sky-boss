@@ -1269,7 +1269,7 @@ pre.stream.wrap .ln {
   flex-direction: column;
   gap: 1rem;
   --pl-lane-w: 20rem;
-  --pl-when-w: 12rem;
+  --pl-when-w: 16rem;
 }
 /* The axis and every lane share one left inset, so a mark at 0% and the `now`
  * tick above it are the same x. Two different insets is how a chart ends up
@@ -1320,6 +1320,11 @@ pre.stream.wrap .ln {
   padding-left: 2rem;
   font-size: 2.8rem;
   color: var(--sb-text-3);
+  /* **Never wraps.** A wrapped `in 1h` makes that one lane two lines tall and
+   * pulls every mark below it out of line with the axis — which measures as a
+   * correct track width and reads as a broken chart. Found by looking at the
+   * render, not by measuring it. [[schedule]] round 8. */
+  white-space: nowrap;
 }
 
 .pl-hours {
@@ -1474,5 +1479,4 @@ pre.stream.wrap .ln {
  * is the whole reason they became one variable each. */
 .pl-split .pl-chart {
   --pl-lane-w: 16rem;
-  --pl-when-w: 10rem;
 }

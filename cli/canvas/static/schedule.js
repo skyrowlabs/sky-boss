@@ -595,7 +595,11 @@ export function Plan({ result, projects, readAt, now, onRefresh, ui, setUi }) {
 
       <div class="pl-split">
         <div class="pl-panel">
-          <div class="pl-pname">table</div>
+          ${/* **A heading tells two panels apart, so a lone panel needs none.**
+              * With no rows the charts are not drawn and this is the only panel
+              * on the screen — a `table` label over a "declares no schedule"
+              * statement names a table that is not there. */ ""}
+          ${anyRows && html`<div class="pl-pname">table</div>`}
           ${groups.map(
             (g) => html`
               <div class="pl-group" key=${g.project}>

@@ -445,12 +445,12 @@ TABLE                              |  TIMELINE · 24 hours
 
 #### Phases
 
-- [ ] **One screen.** Hours full width on top, table and timeline side by side beneath, tabs
+- [x] **One screen.** Hours full width on top, table and timeline side by side beneath, tabs
       removed and `ui.mode` with them.
-- [ ] **The split wraps rather than starves** — `rem` basis, no media query, swept across scales.
-- [ ] **The screen stays coherent with no rows** — declaration panels are the whole answer, the
+- [x] **The split wraps rather than starves** — `rem` basis, no media query, swept across scales.
+- [x] **The screen stays coherent with no rows** — declaration panels are the whole answer, the
       charts are not drawn, and the quiet panels still inherit the selection.
-- [ ] **Verified by rendering**, with both `error` and `unhandledrejection` installed first, real
+- [x] **Verified by rendering**, with both `error` and `unhandledrejection` installed first, real
       pointer input across all three anchors, and the app proved still live by clicking afterwards.
 
 ## Notes
