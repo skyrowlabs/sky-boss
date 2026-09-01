@@ -1176,26 +1176,40 @@ pre.stream.wrap .ln {
   text-transform: uppercase;
   color: var(--sb-text);
 }
-.pl-rows {
-  display: flex;
-  flex-direction: column;
-}
-/* **One grid for the whole group, not one per row.** Each `.pl-row` used to be
- * its own grid, so the columns lined up only because every row happened to
- * carry the same fixed template — and a fixed track clips a cron expression,
- * which has no bound. The rows are `display: contents` instead, so all of them
- * share the group's grid: the three bounded columns size to their own widest
- * cell and SCHEDULE takes the remainder. Nothing is a magic number, and the
- * alignment is structural rather than coincidental.
+/* **One grid for the whole sheet, not one per group.** Round 4 made each
+ * `.pl-row` share its *group's* grid, so the columns lined up structurally
+ * rather than because every row carried an identical fixed template. Round 9
+ * takes that one level up, because a per-group grid gives each project its own
+ * axis — and the timeline is now the last column of this grid, so every lane
+ * and the axis above them must be one track.
+ *
+ * The four view columns size to their own content; SCHEDULE gets its natural
+ * width back (round 8 had it ellipsis at half a panel) and the lane takes the
+ * remainder, with a floor so a very long cron can never collapse the chart to
+ * nothing. Nothing here is a magic number except that floor, and a floor is
+ * the one number a chart genuinely needs.
  *
  * `display: contents` removes the row's own box, so the rule that separates
  * rows lives on the cells. */
-.pl-rows {
+.pl-sheet {
   display: grid;
   grid-template-columns:
-    minmax(0, max-content) minmax(0, max-content) minmax(0, 1fr) minmax(0, max-content);
+    minmax(0, max-content) minmax(0, max-content) minmax(0, max-content)
+    minmax(0, max-content) minmax(24rem, 1fr);
   column-gap: 4rem;
+  align-items: stretch;
 }
+/* A heading or a provenance block is a row of the sheet that spans every
+ * track — which is what lets the axis stay one column across projects. */
+.pl-band {
+  grid-column: 1 / -1;
+  font-size: 3.25rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--sb-text);
+  padding: 3rem 0 1rem;
+}
+.pl-srcband { padding: 0 0 1.5rem; text-transform: none; letter-spacing: normal; }
 .pl-row {
   display: contents;
 }
@@ -1259,15 +1273,21 @@ pre.stream.wrap .ln {
 .pl-src-v { min-width: 0; word-break: break-word; }
 .pl-src-v code { color: var(--sb-text); }
 
+/* The axis inset and the lane label width are **one number, named once.** The
+ * comment below has always said they must match; until round 8 they were two
+ * independent literals that happened to. A half-width timeline wants both
+ * narrower, and changing one of two matching numbers is exactly the drift the
+ * rule warns about. */
 .pl-chart { display: flex; flex-direction: column; gap: 1rem; }
-/* The axis and every lane share one left inset, so a mark at 0% and the `now`
- * tick above it are the same x. Two different insets is how a chart ends up
- * quietly off by the width of a label. */
+/* **The axis is the header row's lane cell**, so it needs no inset at all.
+ * Round 5 matched a `margin-left` to the lane label width by hand and round 8
+ * made the pair one variable each because they had to agree; sharing a grid
+ * track means there is no number to agree about, and a mark at 0% and the `now`
+ * tick are the same x by construction. */
 .pl-axis {
   position: relative;
+  align-self: end;
   height: 4rem;
-  margin-left: 20rem;
-  margin-right: 12rem;
   border-bottom: 1px solid var(--sb-hair);
 }
 .pl-tick {
@@ -1278,20 +1298,22 @@ pre.stream.wrap .ln {
   white-space: nowrap;
 }
 .pl-now { color: var(--sb-brand); transform: none; }
-.pl-lane { display: flex; align-items: center; gap: 0; }
-.pl-lane-name {
-  flex: none;
-  width: 20rem;
-  font-size: 3rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+/* Right-aligned against the end of the axis rather than centred past it. */
+.pl-tick-end { transform: translateX(-100%); }
+/* `.pl-lane`, `.pl-lane-name` and `.pl-lane-when` are gone as of round 9: they
+ * redrew the NAME and FIRES columns a few centimetres to their left, which is
+ * the duplication the operator asked to remove. What is left is the cell. */
+.pl-lane-cell {
+  display: flex;
+  align-items: center;
+  padding: 1.25rem 0;
+  border-bottom: 1px solid var(--sb-hair);
+  min-width: 0;
 }
 .pl-track {
   position: relative;
   flex: 1 1 auto;
-  height: 5rem;
-  border-bottom: 1px solid var(--sb-hair);
+  height: 3rem;
 }
 .pl-mark {
   position: absolute;
@@ -1303,12 +1325,20 @@ pre.stream.wrap .ln {
   background: var(--sb-brand);
 }
 .pl-mark.pl-late { background: var(--sb-warn); }
-.pl-lane-when {
-  flex: none;
-  width: 12rem;
-  padding-left: 2rem;
-  font-size: 2.8rem;
+/* **An undated lane says its absence rather than being empty.** `at` is empty
+ * exactly where Python refused to order the row, and a blank cell would read as
+ * *nothing in this window* — a different fact, and a false one. Round 1 spent a
+ * section on absence having more than one word; this is where two of them would
+ * otherwise collapse into one empty cell.
+ *
+ * Never wraps, for round 8's reason: a wrapped cell makes that one row taller
+ * and pulls every mark below it out of line with the axis, which measures as
+ * correct and reads as a broken chart. */
+.pl-nodate {
+  font-size: 2.6rem;
   color: var(--sb-text-3);
+  font-style: italic;
+  white-space: nowrap;
 }
 
 .pl-hours {
@@ -1395,16 +1425,117 @@ pre.stream.wrap .ln {
 /* Stacked segments, one per project — never overlaid. */
 .pl-stack { width: 100%; display: flex; flex-direction: column-reverse; border-radius: var(--r-sm) var(--r-sm) 0 0; overflow: hidden; }
 .pl-seg { width: 100%; background: var(--pl-ink, var(--sb-brand)); min-height: 2px; }
-.pl-lane .pl-mark { background: var(--pl-ink, var(--sb-brand)); }
-.pl-lane .pl-mark.pl-late { background: var(--sb-warn); }
 /* A `display: contents` row has no box to paint, so the highlight goes on the
  * cells — the same reason `boxOf` has to union them to find the row's extent. */
 .pl-row:hover .pl-c,
 .pl-row:focus-visible .pl-c { background: var(--sb-surface-2); }
 .pl-row:focus-visible .pl-c { box-shadow: inset 0 -2px 0 var(--sb-brand); }
-.pl-lane:hover, .pl-hour:hover { background: var(--sb-surface-2); }
-.pl-lane:focus-visible, .pl-hour:focus-visible {
+.pl-hour:hover { background: var(--sb-surface-2); }
+.pl-hour:focus-visible {
   outline: 2px solid var(--sb-brand);
   outline-offset: -2px;
 }
 .pl-controls .seg button .pl-swatch { margin-right: 1.5rem; }
+
+/* --- round 8: one screen, three panels -----------------------------------
+ * The tabs are gone. Hours across the top, table and timeline side by side
+ * beneath it — the arrangement the operator asked for, and the one that lets
+ * the screen answer the comparison it exists for: does what fires next collide
+ * with the shape of the grid.
+ *
+ * **The wrap threshold is a `rem` basis, never a media query.** A breakpoint in
+ * `px` puts the threshold at the same viewport width at every `--scale`, which
+ * is precisely the class of bug `--scale` exists to warn about — a layout
+ * verified at one scale has been verified once. A `rem` basis means *narrower
+ * than a panel is legible at this scale*, so the point at which the two panels
+ * stop sitting side by side grows with the scale by construction. It is the one
+ * number here that had to be chosen, and it is a floor rather than a size:
+ * nothing is laid out at 110rem, the panels merely stop sharing a row below it.
+ *
+ * They split what is left **evenly**. Neither has a claim to more — the table
+ * ellipsises and the timeline is fractional, so both degrade legibly — and an
+ * uneven split would be a guessed ratio doing the work a measurement should.
+ * See [[schedule]] round 8. */
+/* **`.pl-split` is gone in round 9.** Two panels that had to agree about 31
+ * jobs became one grid in which a job's row and its mark are the same row, so
+ * there is nothing left to lay out side by side. The wrap threshold it needed
+ * goes with it — and the rule it was written to demonstrate does not: a
+ * threshold, when there is one, is a `rem` basis and never a `px` media query.
+ * The stylesheet still has no media query at all. */
+.pl-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 3rem;
+  /* Without this a flex item refuses to shrink below its content, and a long
+   * cron expression pushes the timeline off the screen instead of ellipsising
+   * — the failure `min-width: 0` exists for, on the axis this round adds. */
+  min-width: 0;
+}
+/* The tab labels, as headings. A control that hides two of three panels on a
+ * screen built to show three is the thing this round removed, wearing a new
+ * name — but the words were the right words, and a panel with no name is a
+ * chart the reader has to identify. */
+.pl-pname {
+  font-size: 2.75rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--sb-text-3);
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--sb-hair);
+}
+/* --- round 9: the excluded band, and the mark in its cell ------------------
+ *
+ * **Prominent because the screen is now a filtered one.** Round 5 put the
+ * beyond-the-window count in a chart footer, which was the right altitude while
+ * the span filtered one panel of three. It filters all three now: at `6h` on
+ * live data 28 of 31 jobs are gone, every sentence on the screen is true, and a
+ * reader who sees three rows and three bars concludes the operator has three
+ * jobs. It reads as information rather than as a problem — no `danger`, no
+ * `warn`: nothing has gone wrong, the operator asked for a window. */
+/* Names a control group. Two of them read `all` — every project, and every
+   job ever — and an unlabelled pair on one line is ambiguous to a reader for
+   the same reason it was ambiguous to a query selector. */
+.pl-clabel {
+  font-size: 2.6rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--sb-text-3);
+}
+
+.pl-excluded {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 2rem;
+  padding: 2rem 3rem;
+  border-left: 2px solid var(--sb-brand);
+  background: color-mix(in oklab, var(--sb-brand) 8%, transparent);
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+  font-size: 3rem;
+  color: var(--sb-text-2);
+}
+.pl-excluded b { color: var(--sb-text); }
+.pl-x-sep { color: var(--sb-text-3); }
+/* The way out of the filter, beside the statement of it — a count that tells
+ * you rows are missing and not where to find them is half a sentence. */
+.pl-x-all {
+  margin-left: auto;
+  padding: 0.75rem 2rem;
+  font: inherit;
+  font-size: 2.8rem;
+  color: var(--sb-brand);
+  background: transparent;
+  border: 1px solid var(--sb-border);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+.pl-x-all:hover { background: var(--sb-surface-2); }
+.pl-x-all:focus-visible { outline: 2px solid var(--sb-brand); outline-offset: 2px; }
+/* The mark keeps its project's step; the cell carries the row's tint so the
+ * lane and the swatch in the selector cannot disagree. */
+.pl-lane-cell .pl-mark { background: var(--pl-ink, var(--sb-brand)); }
+.pl-lane-cell .pl-mark.pl-late { background: var(--sb-warn); }
+/* One row is one hover target across both halves of the grid now, so the
+ * highlight has to reach the lane cell as well as the text cells. */
+.pl-row:hover .pl-lane-cell,
+.pl-row:focus-visible .pl-lane-cell { background: var(--sb-surface-2); }

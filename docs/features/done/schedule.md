@@ -1,9 +1,10 @@
 ---
-status: complete       # rounds 1, 3-7 built; round 2 still not scheduled
+status: complete       # rounds 1, 3-9 built; round 2 still not scheduled
 created: 2026-08-29
-updated: 2026-08-30
-agent_value: 3         # five dated decisions and a vocabulary, none of it built
-key_files: [cli/rollcall.py, cli/schedule.py, cli/view.py, cli/output.py,
+updated: 2026-09-01
+agent_value: 3         # nine rounds; the CLI contract, the screen, and six reversals with
+                       # their original reasoning left standing beside them
+key_files: [cli/rollcall.py, cli/schedule.py, cli/view.py, cli/output.py, tests/js/plan.test.js,
             cli/canvas/server.py, cli/canvas/static/render.js, cli/canvas/static/app.js,
             cli/canvas/static/schedule.js, cli/canvas/static/sb.css]
 ---
@@ -139,6 +140,11 @@ Three states that must not collapse into an empty cell, because each wants a dif
   never by colour.
 - **Does not reveal anything the envelope is not already carrying** (round 6). Hover shows the
   absolutes the chart had no room for; it does not fetch, compute, or enrich.
+- **Does not let the screen be rearranged** (round 8). The three panels have one arrangement, and
+  it is the one the operator asked for. A draggable or collapsible layout needs somewhere to
+  remember itself, and remembering anything about this screen is deliberately deferred — round 6's
+  first open question, answered *"skip remembering the state or prefs till the UI is more
+  complete."* A control that hides a panel is the tab bar this round removed.
 
 ### The ruling — this is not the vocabulary roll-call refuses
 
@@ -283,7 +289,9 @@ The read-only half of the drawn flight plan, as a third nav entry. Named `schedu
 - [x] **One project at a time** — a selector that offers every declared project, including the one
       that produced no rows.
 - [x] **A timeline** — one lane per job on a real time axis, span 6h / 24h / 7d.
-- [x] **An hour-of-day chart** — 24 buckets, for the shape of the grid rather than what is next.
+- [x] **An hour-of-day chart** — 24 buckets, ~~for the shape of the grid rather than what is
+      next~~ — **reversed in round 9**: the span now filters it, so it draws the shape of *what the
+      window contains*. The original reasoning, and what it cost, are in Notes.
 - [x] **`at` on the row** — the parsed instant as epoch seconds, so the page never parses a
       timestamp.
 
@@ -373,6 +381,164 @@ file argue with the assignment.
 
 - [x] **An empty hour opens no card**, and stops being a tab stop.
 - [x] **The render-time lookup is guarded too**, because a throw there takes the whole tree.
+
+### Round 8 — one screen (2026-09-01)
+
+**Asked for by the operator**, verbatim: *"I would like to combine the UI schedule into a single
+view. The hours bar chart I would like to display up top like it already does. And then I'd like to
+have the table and the timeline graph side by side."*
+
+#### Why this round
+
+**Three views of one grid, and you could only ever hold one of them.** Rounds 4 and 5 built the
+table, the timeline and the hour chart as mutually-exclusive tabs, which is the shape a *window*
+has — one command, one result, one drawing. A screen is not a window, and the question this screen
+exists to answer is a comparison: *does what fires in the next few hours collide with the shape of
+the grid?* That question needs two of the three drawn at once, and the tab switcher made it a
+memory exercise.
+
+**The tab bar was the only reason to hide anything, and it was never a space argument.** Nothing
+about the three views competes for the same pixels — the hour chart is 24 short columns and wants
+width more than height, the table is a list, the timeline is a list. They were exclusive because
+`ui.mode` was a single string, not because the screen was full.
+
+#### Shape
+
+One screen, in the operator's stated order:
+
+```
+next up · read 4s ago · ⟳
+projects: [all] [jam-sense] [breeze-brain]        span: [6h] [24h] [7d]
+------------------------------------------------------------------------
+HOURS      ▁▃█▆▂ … 24 buckets, full width, exactly as it drew before
+------------------------------------------------------------------------
+TABLE                              |  TIMELINE · 24 hours
+  jam-sense · 31 jobs              |    release      ──●────────
+    NAME  FIRES  RAN  SCHEDULE     |    sentinel     ────●──────
+    …                              |    …
+  breeze-brain · declares none     |    17 jobs fire beyond 24 hours
+```
+
+- **The tabs are gone, and their words survive as panel headings.** A control that hides two of
+  three panels on a screen built to show three is the thing being removed, wearing a new name.
+  Keeping them as a *focus* control was considered and rejected on the same ground — see the
+  reversal in Notes.
+- **The two panels split the remaining width evenly, and wrap rather than starve.** `flex-wrap`
+  with a `rem` basis, **not a media query**: a breakpoint in `px` puts the threshold at the same
+  viewport width at every `--scale`, which is precisely the class of bug `--scale` exists to warn
+  about. A `rem` basis means *narrower than a panel is legible at this scale*, and the threshold
+  grows with the scale by construction. Below it the panels stack, in the same order.
+- **Truncating the cron expression is acceptable now and was not in round 4.** Round 4 fought for
+  an unbounded `SCHEDULE` track because the cron was clipped *and nowhere else on the screen*.
+  Round 6 put it on the hover card. The constraint was discharged by a later round rather than
+  overridden by this one — which is the only reason a half-width table is allowed to ellipsis.
+- **The span selector is always drawn**, because the timeline is always drawn. It was conditional
+  on `ui.mode === "timeline"`, and that condition no longer names anything.
+- **The charts are drawn only when there are rows to draw.** Round 5 established that *nothing
+  fires within 24 hours* is a correct sentence that misleads when the project declares no schedule
+  at all. With three views on one screen the same trap has a wider mouth — an empty timeline beside
+  an empty hour chart beside a "declares no schedule" panel is the sentence said three times. When
+  the selection yields no rows, the declaration panels are the whole answer and neither chart is
+  drawn.
+- **The two charts describe different sets, and the screen says which.** The hour chart plots every
+  datable row; the timeline plots only what falls inside the span. On one screen those two counts
+  are visible together and a reader could reasonably conclude they disagree. The timeline panel
+  heading carries its span (`timeline · 24 hours`) so the difference in scope is a label rather
+  than an inference.
+
+#### Phases
+
+- [x] **One screen.** Hours full width on top, table and timeline side by side beneath, tabs
+      removed and `ui.mode` with them.
+- [x] **The split wraps rather than starves** — `rem` basis, no media query, swept across scales.
+- [x] **The screen stays coherent with no rows** — declaration panels are the whole answer, the
+      charts are not drawn, and the quiet panels still inherit the selection.
+- [x] **Verified by rendering**, with both `error` and `unhandledrejection` installed first, real
+      pointer input across all three anchors, and the app proved still live by clicking afterwards.
+
+### Round 9 — one row per job, and a span that means it (2026-09-01)
+
+**Asked for by the operator**, verbatim: *"I'd like the timeline and the table to be in sync so
+their rows match up and we don't need to repeat the row names in both tables. The time selector
+should connect to the table and the hours chart as well."*
+
+#### Why this round
+
+**Round 8 put the table and the timeline side by side, and left them describing the same jobs
+twice.** A lane carried `pl-lane-name` and `pl-lane-when`, which are the `NAME` and `FIRES` columns
+already drawn a few centimetres to the left. Two panels agreeing about 31 jobs is two panels that
+*can disagree* — they were sorted the same way by coincidence of both reading `rows`, and nothing
+structural held a job's row opposite its own mark.
+
+**And the span control only reached one of the three panels.** Picking `6h` narrowed the timeline
+while the table went on showing 31 rows and the hour chart went on drawing all 24 buckets, so the
+screen answered one question in three different scopes at once.
+
+#### Shape
+
+**One grid for the whole sheet, with the timeline as its last column.** Round 4 made each *group* a
+grid so the columns aligned structurally rather than by every row carrying the same fixed template;
+round 9 takes that one level up. The sheet is one grid, group headings and provenance blocks span
+all of it, and a job's row is `display: contents` across five tracks — the four view columns and
+its lane.
+
+- **The axis is the header row's lane cell.** Not a separately-inset bar that has to be kept in
+  step with the lanes: it is in the same grid track, so a mark at 0% and the `now` tick are the
+  same x by construction. This retires `--pl-lane-w` / `--pl-when-w` entirely — round 8 made them
+  one variable each precisely because two numbers had to agree, and the grid means there is no
+  number.
+- **`pl-lane-name` and `pl-lane-when` are deleted.** They were the duplication the operator asked
+  to remove, and they are exactly what the grid makes unnecessary.
+- **The cron gets its natural width back.** With the lane taking the remainder, `SCHEDULE` is
+  `max-content` again rather than round 8's half-panel ellipsis. Round 4's complaint is fully
+  answered rather than merely survivable — see Notes.
+- **One row is one hover anchor.** The lane stops being a second anchor, which keeps round 6's
+  *exactly one card in the DOM* true and makes it true for a simpler reason: there is one thing to
+  hover per job.
+
+**The span filters every panel**, and the count of what it removed is promoted from a chart footnote
+to a statement about the screen.
+
+- **`all` joins `6h` / `24h` / `7d`.** With the span filtering the table, a way back to the whole
+  set stops being optional. Its axis runs from now to the furthest job the data actually contains
+  — derived, never a fourth hardcoded number.
+- **A late row is never filtered out.** It has already fired, so it is not *beyond* any window;
+  hiding an overdue job because the operator picked `6h` would be the worst thing this screen could
+  do.
+- **A row with no instant is never filtered out either, and its lane says why.** `plottable` drops
+  rows Python refused to order; those have a row and no mark. Round 1's *absence has more than one
+  word* governs: a blank lane meaning *we could not place this* is indistinguishable from one
+  meaning *nothing here*, so the cell carries the absence in words rather than leaving it empty. A
+  time filter cannot exclude a row that has no time to compare — doing so would be sky.boss
+  deciding a row falls outside a window it was unable to place it in.
+- **The exclusion is stated three times, at three altitudes**, because a filtered screen being
+  mistaken for a complete one is this repo's own *worked fine, told nobody* with every sentence on
+  it true: a band under the controls (*showing 3 of 31 jobs · 28 fire beyond 6 hours*), the group
+  heading (*jam-sense · 3 of 31 jobs*), and the hour chart's own footer. **Ask what a reader
+  concludes, not whether the sentence is defensible** — at `6h` on live data, 28 of 31 jobs are
+  gone, and a reader who sees three rows and three bars concludes the operator has three jobs.
+- **`next up` is deliberately *not* span-filtered.** It is a fact about the schedule, not about the
+  window. Filtering it would let a screen say *nothing scheduled* while the answer sat one span
+  button away.
+
+**Does not do:**
+
+- **Does not sort or order anything new** (round 9). One grid means one row order, and it is still
+  `cli/schedule.py`'s. The lane's *position* is arithmetic on an instant Python already parsed; its
+  *place in the list* is not this file's opinion.
+
+#### Phases
+
+- [x] **One grid.** Table and timeline become one sheet, the axis becomes the header's lane cell,
+      the duplicated name and when columns are deleted, and one row is one anchor.
+- [x] **The span filters every panel**, with `all` added, late and undated rows never excluded, and
+      an undated lane that says why it is empty.
+- [x] **The exclusion is prominent at three altitudes**, and cannot be mistaken for a complete
+      screen.
+- [x] **Pure functions, with tests** — span filtering, mark position, and the derived `all` span
+      are all pure and belong in `tests/js/`.
+- [x] **Verified by rendering**, swept across scales, with the wrap boundary re-measured as a grid
+      reflow and every row asserted to be one height across both halves of the grid.
 
 ## Notes
 
@@ -620,3 +786,184 @@ unresponsive."* Exactly that, and reproduced in a minute once the right thing wa
   hour buckets, 88 down the timeline lanes, controls still live and nothing thrown. The synthetic
   `dispatchEvent` sweep in round 6 had passed while the bug was there — it never crossed an empty
   bucket, because it only visited elements the query had already found interesting.
+
+### 2026-09-01 — round 8, executed
+
+**The tab bar was a reversal, and the reasoning it reverses is worth keeping.** Rounds 4-7 built
+these as three exclusive views and never argued for the exclusivity — it arrived because `ui.mode`
+was a single string and a *window* is a thing that draws one result. The nearest thing to an
+argument is round 5's own framing of the hour chart as *"a second view rather than a replacement
+for the first"*, which is true and does not imply you may only hold one at a time. Nothing about
+the three competes for the same pixels: the hour chart is 24 short columns wanting width, and the
+other two are lists. They were exclusive by accident of state, not by design.
+
+**Keeping the tabs as a *focus* control was considered and rejected.** It is the same control with
+a kinder name — on a screen built to show three panels, a button that hides two of them is the
+thing being removed. And it would need somewhere to remember which panel you had focused, which is
+round 6's first open question answered the other way.
+
+**A wrap threshold belongs in `rem`; a media query would have been the `--scale` bug in its purest
+form.** A `px` breakpoint puts the point at which two panels stop fitting at the same viewport
+width whether the surface is drawn at 0.9 or 2.4 — so at high scale it would keep them side by side
+in a window where neither is legible, and at low scale it would stack them with room to spare. A
+`rem` basis makes the threshold *"narrower than a panel is legible at this scale"*. Measured rather
+than argued: at 2.4 the panels stack in a 2200px window and sit side by side in a 2900px one, and
+at 1.15 they sit side by side in 1500px. The stylesheet has **no media query at all** and this
+round deliberately did not introduce the first one.
+
+**Round 4's unbounded cron track was discharged by round 6, not overridden by round 8.** Round 4
+fought hard for a `SCHEDULE` column with no fixed width, because a clipped cron expression was the
+original complaint and the string was nowhere else on the screen. Round 6 put the full expression
+on the hover card. That is the only reason a half-width table is allowed to ellipsis, and it is
+worth stating as a shape: **a constraint can be retired by a later round giving its content another
+home, and that is different from deciding it no longer matters.** In practice it barely bites — one
+cell of 31 clipped, at one of the five scales swept.
+
+**The numbers were right and the picture was wrong, which is a sharper thing than it sounds.** The
+sweep reported a correct track width, correct panel widths, correct column alignment and zero
+errors at every scale. The render showed `in 1h` wrapped onto two lines in the narrowed timeline:
+that lane became two lines tall and pulled every mark below it out of line with the axis. **A
+container measuring correctly says nothing about the text inside it wrapping** — `getBoundingClientRect`
+on the lane returns the height the wrap *caused*, so the measurement agrees with the bug. Nothing
+in the probe would have caught it; looking at the screenshot did, in one glance. The fix is
+`white-space: nowrap`, so a too-narrow value can only ever **clip** — which is visible as wrong —
+rather than wrap, which reads as a broken chart with no clue where the fault is. The probe now
+asserts the property directly: every lane is one height, and no `when` cell is clipped.
+
+**The axis inset and the lane label width were two numbers that had to be equal, and now are one.**
+The comment above them has said since round 5 that *"two different insets is how a chart ends up
+quietly off by the width of a label"* — and they were two independent literals that happened to
+match. A half-width timeline wants both narrower, which is exactly the edit that would have broken
+them apart. `--pl-lane-w` and `--pl-when-w` are the same rule as [[tools]] round 6's `set_field`:
+if two places must agree, make them one place rather than trusting an edit to touch both.
+
+**"Nothing fires within 24 hours" gets worse on a combined screen, and had to be answered again.**
+Round 5 found that sentence misleads for a project declaring no schedule — correct, and it implies
+there are jobs firing later. With three panels drawn at once the same falsehood would be stated
+three times side by side: an empty timeline, an empty hour chart, and a "declares no schedule"
+panel. The rule is now simply that **the charts are drawn only when a row survived the selection**,
+which is more general than the `only && quiet.includes(only)` test it replaces — that one asked
+whether *exactly one* project was picked, where the question is whether anything was found.
+Verified across five selection states: `breeze-brain` alone draws one panel and no charts,
+`jam-sense` alone drops the quiet panel, and both together draw everything.
+
+**Two charts over different sets, with their counts side by side.** The hour chart plots every
+datable row; the timeline plots only the window. Nothing was wrong with either, but on one screen
+`17 jobs fire beyond 24 hours` sits a few centimetres from a chart showing all 31, and a reader can
+reasonably read that as a disagreement. The timeline heading carries its span — `timeline · 24
+hours` — so the difference in scope is a label rather than something to work out. This is the
+*correct sentence that misleads* family again, arriving from a third direction: neither sentence
+changed, only what sits next to it.
+
+**Verified by rendering, at five scales, with both listeners installed first.** 0.9/1500x1000,
+1.15/1500x1000, 1.6/1800x1200, 2.0/2000x1300, 2.4/2200x1300, plus 2.4/2900x1400 for the wrap
+boundary. Read back: header and row cells sharing four x offsets exactly at every scale (round 4's
+`display: contents` grid survives being halved), exactly one `.pl-card` in the DOM and inside the
+viewport for all three anchors, an empty hour bucket closing the card rather than leaving a stale
+one, no document or panel horizontal overflow, and zero `error` or `unhandledrejection` events. The
+app was proved **alive** rather than merely quiet — clicking `6h` afterwards and reading the DOM
+back showed the heading change to `timeline · 6 hours` and the lanes drop from 14 to 3, which is
+round 7's assertion and the only one that would have caught round 7's bug.
+
+**The probe read the rows and got zeros, which is round 6's trap on the tooling side.** The first
+alignment check indexed the children of `.pl-rows` — the `.pl-row` elements — every one of which is
+`display: contents` and returns a zero rect. The check reported four identical zeros and *passed*.
+A verification that cannot fail is not a weak verification, it is not one; the probe descends to
+`.pl-c` now. Worth recording because the bug was in the instrument, not the code, and the failure
+mode was a green result.
+
+**No new test in `tests/js/`, deliberately, and this is the honest version of that.** Round 8 added
+no pure function — it is a layout round, and `rows.length > 0` extracted into an exported predicate
+would be ceremony rather than coverage. The runner still passes 41 and the Python suite 1087; what
+actually verified this round is the headless pass above, which is the division `CLAUDE.md` already
+draws between the two.
+
+### 2026-09-01 — round 9, executed
+
+**One grid, and the axis stopped being a number.** Round 5 gave the axis `margin-left: 20rem` to
+clear the lane labels and matched it by hand; round 8 made that pair one variable each on the
+grounds that two numbers which must agree should be one. Round 9 deletes the question: the axis is
+the header row's lane cell, so it is the *same grid track* as every mark below it. Measured rather
+than asserted — the axis box and every one of the lane cells report an identical `left` and
+`width` at all five scales, as single-element sets. **When two things must line up, the strongest
+fix is not a shared constant but a shared container.**
+
+**Round 4's unbounded cron track came all the way back.** Round 8 conceded the `SCHEDULE` column to
+ellipsis at half a panel, arguing the concession was affordable because round 6 had put the full
+string on the hover card. With the lane taking the remainder of one full-width grid, `SCHEDULE` is
+`max-content` again and **zero of 31 cells clip at any of the five scales**. Worth recording as a
+shape: *a concession made under one layout is not a decision, and it should be revisited when the
+layout changes rather than inherited.*
+
+**One row is one anchor, which made round 6's invariant true for a simpler reason.** A job used to
+have a table row and a lane, two hover targets that each redrew the other's name. Hovering the text
+half and the lane half of the same row now both open the one card — asserted directly, because
+"exactly one card in the DOM" was previously a property maintained by `Plan` owning the state and
+is now a property of there being one thing to hover.
+
+**The span reaching all three panels is a reversal of round 5, and it costs something real.** Round
+5's argument for the hour chart was that it is *"a picture of what shape the grid is, not of what
+happens next — which is why it is a second view rather than a replacement for the first."* That
+argument was correct and the operator's request overrides its conclusion, not its premise. At `24h`
+the chart still shows the nightly grid (7 jobs at 00, 6 at 01). At `6h` it shows **three bars, all
+of height one, in three of twenty-four columns**, and a histogram whose only variable is constant
+has stopped being a histogram. The `FIRES` column says the same three facts more precisely and the
+timeline beside it says them on a real axis.
+
+**So: built as asked, and the honest verdict is that the filtered hour chart is a worse instrument
+at short spans** — noticeably worse at `6h`, roughly neutral at `24h`, unchanged at `7d` and `all`.
+It is not *misleading*, which was the thing that would have justified refusing: the panel heading
+reads `hours · within 6 hours` and the footer says a job further out is absent rather than short.
+It is simply weak there. Recorded rather than quietly redesigned, because substituting a different
+control for the one that was asked for is a worse failure than shipping a weak one and saying so.
+
+**The exclusion is stated three times because one reader in three would otherwise stop early.** At
+`6h`, 28 of 31 jobs are gone and every sentence on the screen is true — this is *worked fine, told
+nobody* with the polarity round 5 flagged, and it is much sharper now that the span empties the
+table rather than one chart. A band under the controls (*showing 3 of 31 jobs · 28 fire beyond 6
+hours*), the group heading (*jam-sense · 3 of 31 jobs*) and the hour chart's own footer each catch
+a different reader. The band also carries the way *out* — **a count that says rows are missing
+without saying where to find them is half a sentence** — and `all` exists as a span for that reason,
+derived from the furthest row rather than added as a fourth hardcoded number.
+
+**Three absences, three words, and live data can produce none of them.** `beyond the window`,
+`late`, and `no fire time` are different facts wanting different fixes, which is round 1's
+*absence has more than one word* arriving where two of them would have collapsed into one empty
+lane cell. The operator's payload has 31 rows, all dated, none overdue — so **every one of these
+paths was unreachable on live data, and a green render proved nothing about them.** A synthetic
+`SB_HOME` with a `path` source supplied the missing shapes: a job with no `next_run`, a job with a
+naive timestamp Python refuses to order, and an overdue one. It drew `late 1h` clamped to the left
+edge in `warn`, two lanes reading *no fire time*, and the band reading `showing 4 of 5 jobs · 1
+fires beyond 24 hours · 2 have no fire time`. This is [[jsonl-reads]] round 4's positive control on
+a new axis: **prove the instrument can see the thing before believing a run that did not see one.**
+
+**Two buttons said `all`, and it caught the verification probe before it could catch a reader.**
+The projects selector and the span selector each grew an `all`, at opposite ends of one line, and
+the round 9 probe selected a control by its label and clicked the wrong segment — which is why
+`span: all` appeared to do nothing for one run. The bug was in the instrument, but the *ambiguity*
+was in the screen: **if a query selector cannot tell two controls apart by what they say, neither
+can a reader.** Both groups are named now (`PROJECTS`, `SPAN`). Round 3's notes recorded the same
+class from the other side, where a selector took an ancestor; the lesson that generalises is to
+treat a confused probe as a report about the UI before assuming it is only a bad query.
+
+**The last axis tick was clipped, and the fix had to move the label rather than the axis.** Ticks
+are centred on an exact percentage, so the one at 100% hung half its width past the edge and
+`02:28 PM` rendered as `02:28 PI`. Padding the axis would have fixed the label by moving the axis —
+putting every mark out of step with the ticks above it, which is the exact failure the shared grid
+track was adopted to make impossible. Only the text box shifts; the tick stays where the time is.
+
+**The wrap boundary round 8 measured no longer exists**, and that is the right kind of deletion.
+`.pl-split` and its `rem` flex basis are gone because two panels that had to agree became one grid.
+The *rule* survives its only user — a threshold, when there is one, is a `rem` basis and never a
+`px` media query — and the stylesheet still contains no media query at all. Zero horizontal
+overflow at all five scales, so the grid reflows without one.
+
+**Verified by rendering, five scales, both listeners installed first.** 0.9/1500x1000,
+1.15/1500x1000, 1.6/1800x1200, 2.0/2000x1300, 2.4/2200x1300, each at `6h`, `24h` and `all`. Every
+row exactly one height with zero spread between its cells **across both halves of the grid** —
+round 8 asserted that over the lanes alone, and a row is now text cells *and* a lane cell, either of
+which can wrap. Every row's cells share a top to the pixel; header and row share five x offsets;
+axis and lane cells share one `left` and one `width`; no tick clipped or out of view; no cron
+clipped; no horizontal overflow. The app was proved **alive** by clicking through `6h` → `all` and
+the band's own *show everything*, reading 3 → 31 rows back out of the DOM each time. No `error` and
+no `unhandledrejection` in any run.
