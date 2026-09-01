@@ -69,4 +69,20 @@ export default [
     },
     rules: correctness,
   },
+  {
+    // The design-sync scripts. They build the upload bundle for
+    // claude.ai/design and verify it by rendering: Node drives Playwright, but
+    // the callbacks handed to `page.evaluate` are serialised and run *in the
+    // page*, so `document` and `getComputedStyle` are as real here as
+    // `process` is. That is why this block declares both worlds where
+    // `docs/design/**` next door declares only Node — those scripts speak CDP
+    // and never close over a browser global.
+    files: ['.design-sync/scripts/**/*.mjs'],
+    languageOptions: {
+      ecmaVersion: 'latest',
+      sourceType: 'module',
+      globals: { ...globals.node, ...globals.browser },
+    },
+    rules: correctness,
+  },
 ];

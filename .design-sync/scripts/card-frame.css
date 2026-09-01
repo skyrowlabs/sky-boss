@@ -1,0 +1,34 @@
+/* Shared framing for sky.boss preview cards.
+ *
+ * Each card links ONLY this file; it imports the real system. Nothing here
+ * restyles the surface. sb.css is written for a full-window application, so
+ * two of its body rules are undone for a card viewport — height and the
+ * overflow the canvas manages itself. Colours, sizes and type are untouched.
+ */
+@import url('../styles.css');
+
+html, body { height: auto; }
+body { overflow: visible; padding: 5rem 6rem; }
+
+.sp-title {
+  color: var(--sb-text);
+  font-size: 3.5rem;
+  letter-spacing: .04em;
+  margin-bottom: 4rem;
+}
+.sp-cap {
+  color: var(--sb-text-3);
+  font-size: 2.5rem;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+.sp-note { color: var(--sb-text-3); font-size: 2.5rem; margin-top: 4rem; line-height: 1.6; }
+.sp-row { display: flex; gap: 3rem; align-items: center; flex-wrap: wrap; }
+.sp-col { display: flex; flex-direction: column; gap: 2rem; }
+.sp-grid { display: grid; gap: 3rem; }
+.sp-sw { height: 11rem; border-radius: var(--r-sm); border: var(--hair) solid var(--sb-hair); }
+
+/* The top bar is built for a full application window and compresses to
+   illegibility in a card viewport. Give it a realistic width and let the card
+   scroll sideways rather than shrinking the surface it is documenting. */
+.sp-wide { min-width: 300rem; }
