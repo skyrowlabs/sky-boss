@@ -1,7 +1,7 @@
 ---
-status: complete       # rounds 1, 3-7 built; round 2 still not scheduled
+status: active         # round 8 open; rounds 1, 3-7 built; round 2 still not scheduled
 created: 2026-08-29
-updated: 2026-08-30
+updated: 2026-09-01
 agent_value: 3         # five dated decisions and a vocabulary, none of it built
 key_files: [cli/rollcall.py, cli/schedule.py, cli/view.py, cli/output.py,
             cli/canvas/server.py, cli/canvas/static/render.js, cli/canvas/static/app.js,
@@ -139,6 +139,11 @@ Three states that must not collapse into an empty cell, because each wants a dif
   never by colour.
 - **Does not reveal anything the envelope is not already carrying** (round 6). Hover shows the
   absolutes the chart had no room for; it does not fetch, compute, or enrich.
+- **Does not let the screen be rearranged** (round 8). The three panels have one arrangement, and
+  it is the one the operator asked for. A draggable or collapsible layout needs somewhere to
+  remember itself, and remembering anything about this screen is deliberately deferred — round 6's
+  first open question, answered *"skip remembering the state or prefs till the UI is more
+  complete."* A control that hides a panel is the tab bar this round removed.
 
 ### The ruling — this is not the vocabulary roll-call refuses
 
@@ -373,6 +378,80 @@ file argue with the assignment.
 
 - [x] **An empty hour opens no card**, and stops being a tab stop.
 - [x] **The render-time lookup is guarded too**, because a throw there takes the whole tree.
+
+### Round 8 — one screen (2026-09-01)
+
+**Asked for by the operator**, verbatim: *"I would like to combine the UI schedule into a single
+view. The hours bar chart I would like to display up top like it already does. And then I'd like to
+have the table and the timeline graph side by side."*
+
+#### Why this round
+
+**Three views of one grid, and you could only ever hold one of them.** Rounds 4 and 5 built the
+table, the timeline and the hour chart as mutually-exclusive tabs, which is the shape a *window*
+has — one command, one result, one drawing. A screen is not a window, and the question this screen
+exists to answer is a comparison: *does what fires in the next few hours collide with the shape of
+the grid?* That question needs two of the three drawn at once, and the tab switcher made it a
+memory exercise.
+
+**The tab bar was the only reason to hide anything, and it was never a space argument.** Nothing
+about the three views competes for the same pixels — the hour chart is 24 short columns and wants
+width more than height, the table is a list, the timeline is a list. They were exclusive because
+`ui.mode` was a single string, not because the screen was full.
+
+#### Shape
+
+One screen, in the operator's stated order:
+
+```
+next up · read 4s ago · ⟳
+projects: [all] [jam-sense] [breeze-brain]        span: [6h] [24h] [7d]
+------------------------------------------------------------------------
+HOURS      ▁▃█▆▂ … 24 buckets, full width, exactly as it drew before
+------------------------------------------------------------------------
+TABLE                              |  TIMELINE · 24 hours
+  jam-sense · 31 jobs              |    release      ──●────────
+    NAME  FIRES  RAN  SCHEDULE     |    sentinel     ────●──────
+    …                              |    …
+  breeze-brain · declares none     |    17 jobs fire beyond 24 hours
+```
+
+- **The tabs are gone, and their words survive as panel headings.** A control that hides two of
+  three panels on a screen built to show three is the thing being removed, wearing a new name.
+  Keeping them as a *focus* control was considered and rejected on the same ground — see the
+  reversal in Notes.
+- **The two panels split the remaining width evenly, and wrap rather than starve.** `flex-wrap`
+  with a `rem` basis, **not a media query**: a breakpoint in `px` puts the threshold at the same
+  viewport width at every `--scale`, which is precisely the class of bug `--scale` exists to warn
+  about. A `rem` basis means *narrower than a panel is legible at this scale*, and the threshold
+  grows with the scale by construction. Below it the panels stack, in the same order.
+- **Truncating the cron expression is acceptable now and was not in round 4.** Round 4 fought for
+  an unbounded `SCHEDULE` track because the cron was clipped *and nowhere else on the screen*.
+  Round 6 put it on the hover card. The constraint was discharged by a later round rather than
+  overridden by this one — which is the only reason a half-width table is allowed to ellipsis.
+- **The span selector is always drawn**, because the timeline is always drawn. It was conditional
+  on `ui.mode === "timeline"`, and that condition no longer names anything.
+- **The charts are drawn only when there are rows to draw.** Round 5 established that *nothing
+  fires within 24 hours* is a correct sentence that misleads when the project declares no schedule
+  at all. With three views on one screen the same trap has a wider mouth — an empty timeline beside
+  an empty hour chart beside a "declares no schedule" panel is the sentence said three times. When
+  the selection yields no rows, the declaration panels are the whole answer and neither chart is
+  drawn.
+- **The two charts describe different sets, and the screen says which.** The hour chart plots every
+  datable row; the timeline plots only what falls inside the span. On one screen those two counts
+  are visible together and a reader could reasonably conclude they disagree. The timeline panel
+  heading carries its span (`timeline · 24 hours`) so the difference in scope is a label rather
+  than an inference.
+
+#### Phases
+
+- [ ] **One screen.** Hours full width on top, table and timeline side by side beneath, tabs
+      removed and `ui.mode` with them.
+- [ ] **The split wraps rather than starves** — `rem` basis, no media query, swept across scales.
+- [ ] **The screen stays coherent with no rows** — declaration panels are the whole answer, the
+      charts are not drawn, and the quiet panels still inherit the selection.
+- [ ] **Verified by rendering**, with both `error` and `unhandledrejection` installed first, real
+      pointer input across all three anchors, and the app proved still live by clicking afterwards.
 
 ## Notes
 
