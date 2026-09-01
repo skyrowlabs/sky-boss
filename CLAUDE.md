@@ -405,7 +405,12 @@ The rules that are not negotiable:
   — every fixed `rem` width and height grows with the scale while the window does not, so a panel
   that fits at 1.15 can starve its neighbour at 2.4. The workbench lost its last step this way and
   nobody saw it for three rounds. Check a layout change at more than one scale; `[[workbench]]`
-  round 4 sweeps five. CSS `zoom` was rejected
+  round 4 sweeps five. **A wrap threshold is a `rem` basis, never a `px` media query** — a
+  breakpoint puts the point at which two panels stop fitting at the same viewport width whether the
+  surface draws at 0.9 or 2.4, so it keeps them side by side where neither is legible and stacks
+  them where there was room. A `rem` basis means *narrower than a panel is legible at this scale*.
+  The stylesheet has no media query at all and [[schedule]] round 8 declined to add the first.
+  CSS `zoom` was rejected
   because it breaks dragging — `clientX` is unzoomed and `left` is zoomed — and
   `--force-device-scale-factor` because it *overrides* display scaling rather than multiplying it.
 - **The shell is a native webview** (`cli/canvas/shell.py`), because three things the operator asked
@@ -461,6 +466,15 @@ The rules that are not negotiable:
   click a control afterwards and read the DOM back. Prefer real pointer input to synthetic events
   too; a `dispatchEvent` sweep only ever visits the elements a query already found interesting, and
   this bug lived in the ten empty buckets it never touched. See [[schedule]] round 7.
+
+  **A container measuring correctly says nothing about the text inside it wrapping.** A sweep of
+  [[schedule]] round 8's side-by-side panels read back correct panel widths, a correct track width,
+  correct column alignment and zero errors at five scales — while `in 1h` was wrapping to two lines
+  in the narrowed timeline, making that lane two lines tall and pulling every mark below it out of
+  line with the axis. `getBoundingClientRect` returns the height the wrap *caused*, so the
+  measurement agrees with the bug. **Look at the render, not only at numbers read off it**, and
+  prefer `white-space: nowrap` where a value must fit: a clipped cell is visible as wrong, where a
+  wrapped one reads as a broken chart with no clue where the fault is.
 
   **A silent no-op after a click is almost always a handler that threw.** An error inside a DOM
   event handler reaches `window.onerror`, *not* `Runtime.exceptionThrown` as read by a CDP drain,

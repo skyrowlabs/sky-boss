@@ -1,8 +1,9 @@
 ---
-status: active         # round 8 open; rounds 1, 3-7 built; round 2 still not scheduled
+status: complete       # rounds 1, 3-8 built; round 2 still not scheduled
 created: 2026-08-29
 updated: 2026-09-01
-agent_value: 3         # five dated decisions and a vocabulary, none of it built
+agent_value: 3         # eight rounds; the CLI contract, the screen, and five reversals with
+                       # their original reasoning left standing beside them
 key_files: [cli/rollcall.py, cli/schedule.py, cli/view.py, cli/output.py,
             cli/canvas/server.py, cli/canvas/static/render.js, cli/canvas/static/app.js,
             cli/canvas/static/schedule.js, cli/canvas/static/sb.css]
@@ -699,3 +700,94 @@ unresponsive."* Exactly that, and reproduced in a minute once the right thing wa
   hour buckets, 88 down the timeline lanes, controls still live and nothing thrown. The synthetic
   `dispatchEvent` sweep in round 6 had passed while the bug was there — it never crossed an empty
   bucket, because it only visited elements the query had already found interesting.
+
+### 2026-09-01 — round 8, executed
+
+**The tab bar was a reversal, and the reasoning it reverses is worth keeping.** Rounds 4-7 built
+these as three exclusive views and never argued for the exclusivity — it arrived because `ui.mode`
+was a single string and a *window* is a thing that draws one result. The nearest thing to an
+argument is round 5's own framing of the hour chart as *"a second view rather than a replacement
+for the first"*, which is true and does not imply you may only hold one at a time. Nothing about
+the three competes for the same pixels: the hour chart is 24 short columns wanting width, and the
+other two are lists. They were exclusive by accident of state, not by design.
+
+**Keeping the tabs as a *focus* control was considered and rejected.** It is the same control with
+a kinder name — on a screen built to show three panels, a button that hides two of them is the
+thing being removed. And it would need somewhere to remember which panel you had focused, which is
+round 6's first open question answered the other way.
+
+**A wrap threshold belongs in `rem`; a media query would have been the `--scale` bug in its purest
+form.** A `px` breakpoint puts the point at which two panels stop fitting at the same viewport
+width whether the surface is drawn at 0.9 or 2.4 — so at high scale it would keep them side by side
+in a window where neither is legible, and at low scale it would stack them with room to spare. A
+`rem` basis makes the threshold *"narrower than a panel is legible at this scale"*. Measured rather
+than argued: at 2.4 the panels stack in a 2200px window and sit side by side in a 2900px one, and
+at 1.15 they sit side by side in 1500px. The stylesheet has **no media query at all** and this
+round deliberately did not introduce the first one.
+
+**Round 4's unbounded cron track was discharged by round 6, not overridden by round 8.** Round 4
+fought hard for a `SCHEDULE` column with no fixed width, because a clipped cron expression was the
+original complaint and the string was nowhere else on the screen. Round 6 put the full expression
+on the hover card. That is the only reason a half-width table is allowed to ellipsis, and it is
+worth stating as a shape: **a constraint can be retired by a later round giving its content another
+home, and that is different from deciding it no longer matters.** In practice it barely bites — one
+cell of 31 clipped, at one of the five scales swept.
+
+**The numbers were right and the picture was wrong, which is a sharper thing than it sounds.** The
+sweep reported a correct track width, correct panel widths, correct column alignment and zero
+errors at every scale. The render showed `in 1h` wrapped onto two lines in the narrowed timeline:
+that lane became two lines tall and pulled every mark below it out of line with the axis. **A
+container measuring correctly says nothing about the text inside it wrapping** — `getBoundingClientRect`
+on the lane returns the height the wrap *caused*, so the measurement agrees with the bug. Nothing
+in the probe would have caught it; looking at the screenshot did, in one glance. The fix is
+`white-space: nowrap`, so a too-narrow value can only ever **clip** — which is visible as wrong —
+rather than wrap, which reads as a broken chart with no clue where the fault is. The probe now
+asserts the property directly: every lane is one height, and no `when` cell is clipped.
+
+**The axis inset and the lane label width were two numbers that had to be equal, and now are one.**
+The comment above them has said since round 5 that *"two different insets is how a chart ends up
+quietly off by the width of a label"* — and they were two independent literals that happened to
+match. A half-width timeline wants both narrower, which is exactly the edit that would have broken
+them apart. `--pl-lane-w` and `--pl-when-w` are the same rule as [[tools]] round 6's `set_field`:
+if two places must agree, make them one place rather than trusting an edit to touch both.
+
+**"Nothing fires within 24 hours" gets worse on a combined screen, and had to be answered again.**
+Round 5 found that sentence misleads for a project declaring no schedule — correct, and it implies
+there are jobs firing later. With three panels drawn at once the same falsehood would be stated
+three times side by side: an empty timeline, an empty hour chart, and a "declares no schedule"
+panel. The rule is now simply that **the charts are drawn only when a row survived the selection**,
+which is more general than the `only && quiet.includes(only)` test it replaces — that one asked
+whether *exactly one* project was picked, where the question is whether anything was found.
+Verified across five selection states: `breeze-brain` alone draws one panel and no charts,
+`jam-sense` alone drops the quiet panel, and both together draw everything.
+
+**Two charts over different sets, with their counts side by side.** The hour chart plots every
+datable row; the timeline plots only the window. Nothing was wrong with either, but on one screen
+`17 jobs fire beyond 24 hours` sits a few centimetres from a chart showing all 31, and a reader can
+reasonably read that as a disagreement. The timeline heading carries its span — `timeline · 24
+hours` — so the difference in scope is a label rather than something to work out. This is the
+*correct sentence that misleads* family again, arriving from a third direction: neither sentence
+changed, only what sits next to it.
+
+**Verified by rendering, at five scales, with both listeners installed first.** 0.9/1500x1000,
+1.15/1500x1000, 1.6/1800x1200, 2.0/2000x1300, 2.4/2200x1300, plus 2.4/2900x1400 for the wrap
+boundary. Read back: header and row cells sharing four x offsets exactly at every scale (round 4's
+`display: contents` grid survives being halved), exactly one `.pl-card` in the DOM and inside the
+viewport for all three anchors, an empty hour bucket closing the card rather than leaving a stale
+one, no document or panel horizontal overflow, and zero `error` or `unhandledrejection` events. The
+app was proved **alive** rather than merely quiet — clicking `6h` afterwards and reading the DOM
+back showed the heading change to `timeline · 6 hours` and the lanes drop from 14 to 3, which is
+round 7's assertion and the only one that would have caught round 7's bug.
+
+**The probe read the rows and got zeros, which is round 6's trap on the tooling side.** The first
+alignment check indexed the children of `.pl-rows` — the `.pl-row` elements — every one of which is
+`display: contents` and returns a zero rect. The check reported four identical zeros and *passed*.
+A verification that cannot fail is not a weak verification, it is not one; the probe descends to
+`.pl-c` now. Worth recording because the bug was in the instrument, not the code, and the failure
+mode was a green result.
+
+**No new test in `tests/js/`, deliberately, and this is the honest version of that.** Round 8 added
+no pure function — it is a layout round, and `rows.length > 0` extracted into an exported predicate
+would be ceremony rather than coverage. The runner still passes 41 and the Python suite 1087; what
+actually verified this round is the headless pass above, which is the division `CLAUDE.md` already
+draws between the two.
