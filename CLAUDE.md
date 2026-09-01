@@ -237,6 +237,29 @@ that flips above its anchor when below would overflow is still off-screen when t
 and any scrolling container makes that reachable by hovering and then scrolling. Clamp
 unconditionally at the end, rather than only on the paths that happened to need it.
 
+**A filter that reaches every panel owes its exclusion at every altitude a reader stops at.** The
+schedule's span selector narrowed one chart until [[schedule]] round 9 and now narrows the whole
+screen: at `6h` on live data 28 of 31 jobs are gone, and every sentence left on the page is true. A
+chart footer was the right altitude for a filtered chart and is the wrong one for a filtered screen
+— so the count is stated three times, in a band under the control, in the group heading (`3 of 31
+jobs`), and in the chart's own footer, because a reader who stops at any one of them must not
+conclude the operator has three jobs. **And a count that says rows are missing without saying where
+to find them is half a sentence**: the band carries the way out.
+
+**If a query selector cannot tell two controls apart by what they say, neither can a reader.** The
+schedule grew an `all` in its project selector and an `all` in its span selector, at opposite ends
+of one line; the round 9 verification probe picked a control by its label, clicked the wrong
+segment, and reported that the span did nothing. The bug was in the instrument and the *ambiguity*
+was in the screen. Treat a confused probe as a report about the UI before assuming it is only a bad
+query.
+
+**When two things must line up, prefer a shared container to a shared constant.** The schedule's
+axis had a `margin-left` matched by hand to its lane labels, then — one round later — a shared
+custom property, on the grounds that two numbers which must agree should be one. Round 9 made the
+axis the header row's own grid cell, and the question disappeared rather than being managed: it is
+the same track as every mark below it, so they cannot disagree. A constant keeps two things equal;
+a container makes them one thing.
+
 **A project's colour is a step along the brand, never a new hue and never a borrowed role.** The
 design system holds four hues and sky.boss spends all four, so identity colour cannot come from a
 fifth. It also must not come from the three that are free: `ok` is green, `warn` is what a *late*
@@ -873,6 +896,14 @@ Shared with sibling CLIs so the family feels like one tool.
   finding itself was that a single 8 KB `write` tears against a concurrent reader exactly as readily
   as a deliberately split one, that sky.boss already counts and reports the truncated line, and that
   a settle-and-retry would install this section's own failure on purpose. See [[jsonl-reads]] round 4.
+
+  **Used again, on a UI, by [[schedule]] round 9.** Three absences that must stay distinct — a job
+  beyond the window, an overdue one, and one with no fire time at all — and the operator's live
+  payload contains **none** of the last two, so a green render said nothing whatever about those
+  paths. A synthetic `SB_HOME` with a `path` source supplied the missing shapes and the screen drew
+  all three in different words. The practice generalises past ledgers: **when the live data cannot
+  produce the case, a render that did not show it is not evidence, and the fix is to manufacture
+  the case rather than to look harder.**
 
   **The cross-session half of that has a sharper form, and it is the workspace's to keep:** *a peer
   name addresses a conversation **lineage**, not a context.* One socket and one `from-name` belong
