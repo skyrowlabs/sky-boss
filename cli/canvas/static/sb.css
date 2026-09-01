@@ -92,7 +92,7 @@ body {
 .spacer { flex: 1; }
 
 .stat {
-  color: var(--sb-text-3); letter-spacing: .1em; font-size: 2.75rem;
+  color: var(--sb-text-2); letter-spacing: .1em; font-size: 2.75rem;
   white-space: nowrap;
 }
 .stat b { color: var(--sb-text-2); font-weight: 400; margin-left: 1.25rem; }
@@ -105,7 +105,7 @@ body {
 }
 .seg button {
   font: inherit; border: 0; padding: 0.5rem 2.25rem; cursor: pointer;
-  background: transparent; color: var(--sb-text-3); white-space: nowrap;
+  background: transparent; color: var(--sb-text-2); white-space: nowrap;
 }
 .seg button.on { background: var(--sb-brand); color: var(--sb-bg); }
 
@@ -113,7 +113,7 @@ body {
 .quit {
   font: inherit; cursor: pointer; background: transparent;
   border: var(--hair) solid var(--sb-hair); border-radius: var(--r-sm);
-  color: var(--sb-text-3); padding: 0.5rem 2.25rem; line-height: 1;
+  color: var(--sb-text-2); padding: 0.5rem 2.25rem; line-height: 1;
 }
 .quit:hover { color: var(--sb-danger); border-color: var(--sb-danger); }
 
@@ -148,7 +148,7 @@ body {
   flex: 1; min-width: 0; background: transparent; border: 0; outline: 0;
   font: inherit; color: var(--sb-text);
 }
-.barpal input::placeholder { color: var(--sb-text-3); }
+.barpal input::placeholder { color: var(--sb-text-2); }
 /* Only while the input has focus — a list that is always open is a menu, and
  * this is a prompt. Wide enough to read a description in, whatever the input
  * is bounded to. */
@@ -166,8 +166,8 @@ body {
   flex: 1; background: transparent; border: 0; outline: 0;
   font: inherit; color: var(--sb-text);
 }
-.prompt input::placeholder { color: var(--sb-text-3); }
-.hint { color: var(--sb-text-3); font-size: 2.75rem; }
+.prompt input::placeholder { color: var(--sb-text-2); }
+.hint { color: var(--sb-text-2); font-size: 2.75rem; }
 
 .suggestions { border-top: var(--hair) solid var(--sb-hair); max-height: 40vh; overflow: auto; }
 .suggestion {
@@ -180,10 +180,10 @@ body {
   border: var(--hair) solid var(--sb-hair); border-radius: 1rem; padding: 0 1.5rem;
 }
 .suggestion .desc {
-  color: var(--sb-text-3); flex: 1; overflow: hidden;
+  color: var(--sb-text-2); flex: 1; overflow: hidden;
   white-space: nowrap; text-overflow: ellipsis;
 }
-.suggestion .meta { color: var(--sb-text-3); font-size: 2.75rem; }
+.suggestion .meta { color: var(--sb-text-2); font-size: 2.75rem; }
 .suggestion.sel { background: var(--sb-tint); }
 .suggestion.sel .name { color: var(--sb-text); }
 
@@ -248,7 +248,7 @@ body.rail-dragging { user-select: none; cursor: col-resize; }
   padding: 0.25rem 1.25rem; outline: 0;
 }
 .tools-filter:focus { border-color: var(--sb-edge); color: var(--sb-text); }
-.tools-filter::placeholder { color: var(--sb-text-3); letter-spacing: 0; }
+.tools-filter::placeholder { color: var(--sb-text-2); letter-spacing: 0; }
 .tools-list { flex: 1; overflow: auto; padding: 1.5rem 0; }
 
 /* A section heading, since [[tools]] round 5. `--sb-text-2`, not `--sb-text-3`:
@@ -269,7 +269,7 @@ body.rail-dragging { user-select: none; cursor: col-resize; }
 .tool-chevron { flex: none; width: 2.5rem; }
 .tool-group-name { flex: 1; min-width: 0; }
 .tool-count {
-  flex: none; color: var(--sb-text-3); font-weight: 400; letter-spacing: 0;
+  flex: none; color: var(--sb-text-2); font-weight: 400; letter-spacing: 0;
 }
 
 /* The ✕ on an empty group, and the + that makes one. Both stay quiet until the
@@ -289,7 +289,7 @@ body.rail-dragging { user-select: none; cursor: col-resize; }
 .tool-group-drop {
   flex: none; opacity: 0; padding: 2rem 3rem 1rem 1rem;
   background: none; border: none; cursor: pointer;
-  color: var(--sb-text-3); font: inherit;
+  color: var(--sb-text-2); font: inherit;
 }
 .tool-group-row:hover .tool-group-drop { opacity: 1; }
 .tool-group-drop:hover { color: var(--sb-danger); }
@@ -297,7 +297,7 @@ body.rail-dragging { user-select: none; cursor: col-resize; }
 .tools-add {
   flex: none; padding: 1.5rem 3rem; background: none; border: none;
   border-top: var(--hair) solid var(--sb-hair);
-  cursor: pointer; color: var(--sb-text-3); font: inherit; text-align: left;
+  cursor: pointer; color: var(--sb-text-2); font: inherit; text-align: left;
 }
 .tools-add:hover { color: var(--sb-brand); }
 .tools-add-form { flex: none; border-top: var(--hair) solid var(--sb-hair); }
@@ -305,7 +305,7 @@ body.rail-dragging { user-select: none; cursor: col-resize; }
   width: 100%; font: inherit; color: var(--sb-text); background: transparent;
   border: none; outline: 0; padding: 1.5rem 3rem;
 }
-.tools-add-name::placeholder { color: var(--sb-text-3); }
+.tools-add-name::placeholder { color: var(--sb-text-2); }
 .tool-section:first-child .tool-group { padding-top: 0; }
 .tool-rule { margin: 2rem 3rem 1.5rem; border-top: var(--hair) solid var(--sb-hair); }
 /* Only drawn while a drag is in flight and the bucket is empty — an unlabelled
@@ -314,9 +314,9 @@ body.rail-dragging { user-select: none; cursor: col-resize; }
   display: block; padding-top: 1rem; color: var(--sb-text-2);
   font-size: 2.5rem; letter-spacing: .12em; text-transform: uppercase;
 }
-.tools-empty { padding: 1.5rem 3rem; color: var(--sb-text-3); line-height: 1.5; }
+.tools-empty { padding: 1.5rem 3rem; color: var(--sb-text-2); line-height: 1.5; }
 .tools-foot {
-  flex: none; padding: 2.5rem 3rem; color: var(--sb-text-3);
+  flex: none; padding: 2.5rem 3rem; color: var(--sb-text-2);
   border-top: var(--hair) solid var(--sb-hair);
 }
 
@@ -335,7 +335,7 @@ body.rail-dragging { user-select: none; cursor: col-resize; }
 
 .tool-edit, .tool-drop {
   flex: none; opacity: 0; padding: 1.5rem 1.5rem; background: none; border: none;
-  cursor: pointer; color: var(--sb-text-3); font: inherit;
+  cursor: pointer; color: var(--sb-text-2); font: inherit;
 }
 .tool-row:last-child .tool-drop { padding-right: 3rem; }
 .tool-drop { padding-right: 3rem; }
@@ -349,7 +349,7 @@ body.rail-dragging { user-select: none; cursor: col-resize; }
 .tool-acts { flex: none; color: var(--sb-warn); font-weight: 700; }
 /* What shape of window a tool opens. Dim on purpose: it is a label, where the
    `!` beside it is a warning, and the two must not read as equals. */
-.tool-kind { flex: none; color: var(--sb-text-3); font-size: 2.25rem; }
+.tool-kind { flex: none; color: var(--sb-text-2); font-size: 2.25rem; }
 
 .canvas { flex: 1; overflow: auto; position: relative; padding: 2.5rem 0; }
 /* `--sb-cols` is set by app.js from the window count. `auto-fill` used to build
@@ -373,7 +373,7 @@ body.rail-dragging { user-select: none; cursor: col-resize; }
 
 .empty {
   position: absolute; inset: 0; display: grid; place-items: center;
-  color: var(--sb-text-3); pointer-events: none;
+  color: var(--sb-text-2); pointer-events: none;
 }
 
 /* ------------------------------------------------------------------ windows */
@@ -398,14 +398,14 @@ body.rail-dragging { user-select: none; cursor: col-resize; }
 .dot { width: 1.5rem; height: 1.5rem; border-radius: 50%; background: var(--sb-ok); flex: none; }
 .dot.task { background: var(--sb-warn); }
 .dot.bad { background: var(--sb-danger); }
-.num { color: var(--sb-text-3); }
+.num { color: var(--sb-text-2); }
 /* The title stays one line. A long argv wrapped to three lines and pushed the
  * controls out of reach, on the window most likely to have a long argv. */
 .cmd {
   color: var(--sb-text); min-width: 0; flex: 0 1 auto;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.age { color: var(--sb-text-3); font-size: 2.75rem; white-space: nowrap; }
+.age { color: var(--sb-text-2); font-size: 2.75rem; white-space: nowrap; }
 .age.live { color: var(--sb-ok); }
 .age.bad { color: var(--sb-danger); }
 /* The session is gone, so this window is not reporting — see [[canvas]] round
@@ -418,12 +418,12 @@ body.rail-dragging { user-select: none; cursor: col-resize; }
   color: var(--sb-brand); background: var(--sb-tint); border-radius: var(--r-sm);
   padding: 0 1.25rem; font-size: 2.75rem; cursor: pointer;
 }
-.addtag { color: var(--sb-text-3); font-size: 2.75rem; cursor: pointer; }
+.addtag { color: var(--sb-text-2); font-size: 2.75rem; cursor: pointer; }
 
 .sbtn {
   font: inherit; font-size: 2.75rem; cursor: pointer; border-radius: var(--r-sm);
   padding: 0.25rem 1.75rem; background: transparent;
-  border: var(--hair) solid var(--sb-hair); color: var(--sb-text-3);
+  border: var(--hair) solid var(--sb-hair); color: var(--sb-text-2);
 }
 .sbtn.on { background: var(--sb-tint); border-color: var(--sb-edge); color: var(--sb-brand); }
 .sbtn.plain { border-color: transparent; padding: 0.25rem 1rem; }
@@ -452,7 +452,7 @@ body.rail-dragging { user-select: none; cursor: col-resize; }
   display: flex; align-items: center; gap: 1.5rem;
 }
 .confirm-head .acts-mark { color: var(--sb-warn); font-weight: 700; }
-.confirm-note { font-size: 2.75rem; color: var(--sb-text-3); }
+.confirm-note { font-size: 2.75rem; color: var(--sb-text-2); }
 /* The argv wraps rather than scrolling sideways: this is the one place the
    whole of it has to be readable without a gesture, which is the entire
    reason the dialog exists. */
@@ -462,7 +462,7 @@ body.rail-dragging { user-select: none; cursor: col-resize; }
   border-radius: var(--r-sm); padding: 1.5rem 2rem; margin: 0;
   white-space: pre-wrap; overflow-wrap: anywhere; min-width: 0;
 }
-.confirm-cwd { font-size: 2.5rem; color: var(--sb-text-3); }
+.confirm-cwd { font-size: 2.5rem; color: var(--sb-text-2); }
 .confirm-buttons { display: flex; gap: 1.5rem; justify-content: flex-end; }
 .sbtn.plain:hover { color: var(--sb-text); }
 
@@ -470,7 +470,7 @@ body.rail-dragging { user-select: none; cursor: col-resize; }
   display: flex; align-items: center; gap: 1.5rem; flex-wrap: wrap; flex: none;
   padding: 1.25rem 2.25rem; border-bottom: var(--hair) solid var(--sb-hair);
 }
-.chips .label { color: var(--sb-text-3); font-size: 2.5rem; letter-spacing: .1em; }
+.chips .label { color: var(--sb-text-2); font-size: 2.5rem; letter-spacing: .1em; }
 /* A raw window's working directory. An input rather than a dialog: the shell
  * has no modal for this either, and a browser prompt() blocks every later
  * event the surface depends on. */
@@ -497,7 +497,7 @@ body.rail-dragging { user-select: none; cursor: col-resize; }
   vertical-align: top;
 }
 .row.head > span {
-  color: var(--sb-text-3); font-size: 2.5rem; letter-spacing: .1em;
+  color: var(--sb-text-2); font-size: 2.5rem; letter-spacing: .1em;
   position: sticky; top: -1.75rem; background: var(--sb-surface);
 }
 .row .wrap { white-space: normal; width: 100%; }
@@ -550,13 +550,13 @@ body.rail-dragging { user-select: none; cursor: col-resize; }
   text-overflow: clip; padding-top: 0;
 }
 .grid.shaped .row.detail .gut { flex-shrink: 0; }
-.row.sub > span { color: var(--sb-text-3); padding-bottom: 1rem; }
+.row.sub > span { color: var(--sb-text-2); padding-bottom: 1rem; }
 
 .v-num { color: var(--sb-brand); text-align: right; }
 .v-ok { color: var(--sb-ok); }
 .v-bad { color: var(--sb-danger); }
 .v-warn { color: var(--sb-warn); }
-.v-dim { color: var(--sb-text-3); }
+.v-dim { color: var(--sb-text-2); }
 .v-label { color: var(--sb-text-2); }
 
 /* `pre`, not `pre-wrap`. Command output is column-aligned by spaces, and
@@ -582,7 +582,7 @@ pre.stream .voice { color: var(--sb-warn); }
    a check that reads class names instead of computed styles, which is exactly
    the check that missed it. A mark is a mark wherever it is drawn; the only
    thing `pre.stream` was buying these was a margin. */
-.mk-muted { color: var(--sb-text-3); }
+.mk-muted { color: var(--sb-text-2); }
 .mk-accent { color: var(--sb-brand); }
 .mk-path { color: var(--sb-text-2); text-decoration: underline; }
 /* Round 2's value kinds. `mk-num` is the brand token because a number wears
@@ -654,7 +654,7 @@ pre.stream.wrap .ln {
 .truncated { color: var(--sb-warn); padding-top: 1.5rem; }
 .fail { color: var(--sb-danger); }
 .warn { color: var(--sb-warn); }
-.spin { color: var(--sb-text-3); }
+.spin { color: var(--sb-text-2); }
 
 .foot {
   display: flex; align-items: center; gap: 2.5rem; flex: none;
@@ -662,7 +662,7 @@ pre.stream.wrap .ln {
   color: var(--sb-text-2); font-size: 2.75rem;
 }
 /* The right half is the quieter one, as the mockup draws it. */
-.foot .hint { color: var(--sb-text-3); }
+.foot .hint { color: var(--sb-text-2); }
 /* A hidden column was named, or a source degraded — the chrome carries the
  * count and the count deserves the warn role, not the muted one. */
 .foot-warn { color: var(--sb-warn); }
@@ -681,7 +681,7 @@ pre.stream.wrap .ln {
   position: absolute; left: 0; top: 0; bottom: 0;
   background: var(--sb-brand); border-radius: 100px;
 }
-.progress .until { flex: none; color: var(--sb-text-3); font-size: 2.75rem; white-space: nowrap; }
+.progress .until { flex: none; color: var(--sb-text-2); font-size: 2.75rem; white-space: nowrap; }
 
 .resize {
   position: absolute; right: 0; bottom: 0; width: 3.5rem; height: 3.5rem;
@@ -695,7 +695,7 @@ pre.stream.wrap .ln {
   padding: 0 3.5rem; height: 7rem;
   border: var(--hair) solid var(--sb-hair); border-radius: var(--r-md);
   background: var(--sb-surface);
-  color: var(--sb-text-3); font-size: 2.75rem; user-select: none;
+  color: var(--sb-text-2); font-size: 2.75rem; user-select: none;
 }
 .foot-bar .disconnected { color: var(--sb-danger); }
 
@@ -765,7 +765,7 @@ pre.stream.wrap .ln {
 .bench-pick {
   font: inherit; cursor: pointer; background: transparent;
   border: var(--hair) solid var(--sb-hair); border-radius: var(--r-sm);
-  color: var(--sb-text-3); padding: 0.75rem 3rem;
+  color: var(--sb-text-2); padding: 0.75rem 3rem;
 }
 .bench-pick:hover { color: var(--sb-text-2); }
 .bench-pick.on { background: var(--sb-tint); border-color: var(--sb-edge); color: var(--sb-brand); }
@@ -775,7 +775,7 @@ pre.stream.wrap .ln {
   color: var(--sb-danger);
 }
 .bench-note {
-  color: var(--sb-text-3); font-size: 2.75rem; margin-left: auto;
+  color: var(--sb-text-2); font-size: 2.75rem; margin-left: auto;
   flex: 0 1 auto; min-width: 0;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
@@ -785,12 +785,12 @@ pre.stream.wrap .ln {
 .bench-open { flex: none; padding: 4rem; color: var(--sb-text-2); }
 .bench-open b { color: var(--sb-text); }
 .bench-open p { margin-top: 2rem; max-width: 190rem; }
-.bench-open .dim, .dim { color: var(--sb-text-3); }
+.bench-open .dim, .dim { color: var(--sb-text-2); }
 
 .bench-draft { flex: none; padding: 3rem 3.5rem; display: flex; flex-direction: column; gap: 2rem; }
 .draft-row { display: flex; align-items: center; gap: 2.5rem; }
 .draft-label {
-  flex: none; width: 14rem; color: var(--sb-text-3);
+  flex: none; width: 14rem; color: var(--sb-text-2);
   font-size: 2.75rem; letter-spacing: .08em;
 }
 .draft-row input {
@@ -800,7 +800,7 @@ pre.stream.wrap .ln {
   padding: 1rem 2rem;
 }
 .draft-row input:focus { border-color: var(--sb-edge); }
-.draft-row input::placeholder { color: var(--sb-text-3); }
+.draft-row input::placeholder { color: var(--sb-text-2); }
 .draft-trial {
   flex: none; font: inherit; cursor: pointer; padding: 1rem 3.5rem;
   border-radius: var(--r-sm);
@@ -809,7 +809,7 @@ pre.stream.wrap .ln {
 }
 .draft-trial:disabled {
   cursor: default; background: transparent;
-  border-color: var(--sb-hair); color: var(--sb-text-3);
+  border-color: var(--sb-hair); color: var(--sb-text-2);
 }
 /* What will run, shown before it runs. The whitespace split this composes from
  * is a real limitation, and a visible line is what keeps it from being a
@@ -841,7 +841,7 @@ pre.stream.wrap .ln {
  * which is the case the terminal grew the bands for in the first place. */
 .band {
   flex: none; display: flex; align-items: center; gap: 2.5rem;
-  padding: 2rem 3rem; color: var(--sb-text-3); font-size: 2.75rem;
+  padding: 2rem 3rem; color: var(--sb-text-2); font-size: 2.75rem;
 }
 .band.top { border-bottom: var(--hair) solid var(--sb-hair); }
 .band.foot { border-top: var(--hair) solid var(--sb-hair); }
@@ -849,7 +849,7 @@ pre.stream.wrap .ln {
 .band-att { color: var(--sb-ok); }
 .band-att.bad { color: var(--sb-danger); }
 .band-warn { color: var(--sb-warn); }
-.band-hint { color: var(--sb-text-3); white-space: nowrap; }
+.band-hint { color: var(--sb-text-2); white-space: nowrap; }
 
 /* Reading text takes TEXT_2. TEXT_3 is *structure* — it is what BORDER is —
  * and using it for a paragraph is the token-role error [[fundamentals]] ruled
@@ -871,7 +871,7 @@ pre.stream.wrap .ln {
 }
 .ref-list { flex: 1; overflow: auto; padding: 2rem 0; }
 .ref-foot {
-  flex: none; padding: 2.5rem 3rem; color: var(--sb-text-3); font-size: 2.75rem;
+  flex: none; padding: 2.5rem 3rem; color: var(--sb-text-2); font-size: 2.75rem;
   border-top: var(--hair) solid var(--sb-hair);
 }
 .ref-entry { padding: 1.5rem 3rem 3rem; }
@@ -909,7 +909,7 @@ pre.stream.wrap .ln {
  * you can choose from does not change as you choose. */
 .vc-chip {
   font: inherit; font-size: 2.75rem; cursor: pointer;
-  background: transparent; color: var(--sb-text-3);
+  background: transparent; color: var(--sb-text-2);
   border: var(--hair) solid var(--sb-hair); border-radius: var(--r-sm);
   padding: 0.5rem 2rem;
 }
@@ -921,7 +921,7 @@ pre.stream.wrap .ln {
 .vc-every {
   flex: none; padding: 1rem 2rem; background: none; cursor: pointer;
   border: var(--hair) solid var(--sb-hair); border-radius: 1.5rem;
-  color: var(--sb-text-3); font: inherit; font-size: 2.75rem;
+  color: var(--sb-text-2); font: inherit; font-size: 2.75rem;
 }
 .vc-every.on { background: var(--sb-tint); border-color: var(--sb-edge); color: var(--sb-brand); }
 
@@ -932,7 +932,7 @@ pre.stream.wrap .ln {
 .vw-open {
   flex: none; align-self: flex-start; margin: 0 3rem 1rem; padding: 0.5rem 0;
   background: none; border: none; cursor: pointer;
-  color: var(--sb-text-3); font: inherit; font-size: 2.75rem;
+  color: var(--sb-text-2); font: inherit; font-size: 2.75rem;
 }
 .vw-open:hover { color: var(--sb-brand); }
 .vw {
@@ -944,10 +944,10 @@ pre.stream.wrap .ln {
 .vw-clear {
   flex: none; padding: 1rem 2rem; background: none; cursor: pointer;
   border: var(--hair) solid var(--sb-hair); border-radius: 1.5rem;
-  color: var(--sb-text-3); font: inherit; font-size: 2.75rem;
+  color: var(--sb-text-2); font: inherit; font-size: 2.75rem;
 }
 .vw-clear:disabled { opacity: 0.4; cursor: default; }
-.vw-note { color: var(--sb-text-3); font-size: 2.75rem; min-width: 0; }
+.vw-note { color: var(--sb-text-2); font-size: 2.75rem; min-width: 0; }
 
 .vc-row { display: flex; gap: 3.5rem; }
 .vc-row > * { flex: 1; min-width: 0; }
@@ -960,7 +960,7 @@ pre.stream.wrap .ln {
   padding: 0.75rem 1.5rem;
 }
 .vc-field input:focus { border-color: var(--sb-edge); }
-.vc-field input::placeholder { color: var(--sb-text-3); }
+.vc-field input::placeholder { color: var(--sb-text-2); }
 /* Reading text, so TEXT_2 — the same rule the reference rail follows. */
 .vc-note { flex-basis: 100%; margin-left: 24rem; color: var(--sb-text-2); font-size: 2.5rem; }
 .vc-note.wide { margin-left: 0; line-height: 1.5; }
@@ -1050,7 +1050,7 @@ pre.stream.wrap .ln {
 }
 .draft-real:disabled {
   cursor: default; background: transparent;
-  border-color: var(--sb-hair); color: var(--sb-text-3);
+  border-color: var(--sb-hair); color: var(--sb-text-2);
 }
 
 /* Pinned to the bottom, capped, and scrolling inside — all three, because the
@@ -1097,8 +1097,8 @@ pre.stream.wrap .ln {
    Same `rem` basis so it grows with --sb-scale like everything else. */
 .job-tags { flex: 1 1 34rem; max-width: 44rem; }
 .job-name:focus, .job-group:focus { border-color: var(--sb-edge); }
-.job-name::placeholder, .job-group::placeholder { color: var(--sb-text-3); }
-.job-arrow { flex: none; color: var(--sb-text-3); }
+.job-name::placeholder, .job-group::placeholder { color: var(--sb-text-2); }
+.job-arrow { flex: none; color: var(--sb-text-2); }
 /* Scoped to the row, because `.job-body` is a *column* and `flex-basis` is
  * whichever axis you are on: the same rule unscoped set the trailing note's
  * **height** to 70rem and made it 322px of empty paragraph. */
@@ -1119,7 +1119,7 @@ pre.stream.wrap .ln {
 }
 .job-save:disabled {
   cursor: default; background: transparent;
-  border-color: var(--sb-hair); color: var(--sb-text-3);
+  border-color: var(--sb-hair); color: var(--sb-text-2);
 }
 /* Said before the button is offered, never after the write. */
 .job-problem { color: var(--sb-warn); }
@@ -1129,7 +1129,7 @@ pre.stream.wrap .ln {
 .job-note b { color: var(--sb-text); }
 /* A replace or a rename — information, deliberately not the problem style.
    Drawing it red is what made an edit read as a failure. [[workbench]] r5. */
-.job-note.replaces { color: var(--sb-text-3); }
+.job-note.replaces { color: var(--sb-text-2); }
 .job-note.replaces code { color: var(--sb-text-2); font: inherit; }
 
 /* ---------------------------------------------------------- the schedule screen
@@ -1156,14 +1156,14 @@ pre.stream.wrap .ln {
   text-transform: uppercase;
   letter-spacing: 0.12em;
   font-size: 3rem;
-  color: var(--sb-text-3);
+  color: var(--sb-text-2);
 }
 .pl-soon {
   font-size: 4.5rem;
 }
 .pl-age {
   font-size: 3rem;
-  color: var(--sb-text-3);
+  color: var(--sb-text-2);
 }
 .pl-group {
   display: flex;
@@ -1222,7 +1222,7 @@ pre.stream.wrap .ln {
   white-space: nowrap;
 }
 .pl-hrow .pl-c {
-  color: var(--sb-text-3);
+  color: var(--sb-text-2);
   font-size: 2.75rem;
   letter-spacing: 0.1em;
 }
@@ -1238,7 +1238,7 @@ pre.stream.wrap .ln {
 .pl-quiet,
 .pl-empty {
   font-size: 3rem;
-  color: var(--sb-text-3);
+  color: var(--sb-text-2);
 }
 .pl-empty code {
   color: var(--sb-text);
@@ -1266,7 +1266,7 @@ pre.stream.wrap .ln {
 .pl-src-k {
   flex: none;
   width: 14rem;
-  color: var(--sb-text-3);
+  color: var(--sb-text-2);
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
@@ -1294,7 +1294,7 @@ pre.stream.wrap .ln {
   position: absolute;
   transform: translateX(-50%);
   font-size: 2.6rem;
-  color: var(--sb-text-3);
+  color: var(--sb-text-2);
   white-space: nowrap;
 }
 .pl-now { color: var(--sb-brand); transform: none; }
@@ -1336,7 +1336,7 @@ pre.stream.wrap .ln {
  * correct and reads as a broken chart. */
 .pl-nodate {
   font-size: 2.6rem;
-  color: var(--sb-text-3);
+  color: var(--sb-text-2);
   font-style: italic;
   white-space: nowrap;
 }
@@ -1354,7 +1354,7 @@ pre.stream.wrap .ln {
 .pl-bar-space { flex: 1 1 auto; width: 100%; display: flex; align-items: flex-end; }
 .pl-bar { width: 100%; background: var(--sb-brand); border-radius: var(--r-sm) var(--r-sm) 0 0; min-height: 0; }
 .pl-count { font-size: 2.6rem; color: var(--sb-text-2); height: 3rem; }
-.pl-hlabel { font-size: 2.4rem; color: var(--sb-text-3); }
+.pl-hlabel { font-size: 2.4rem; color: var(--sb-text-2); }
 
 /* --- round 6: a colour per project ---------------------------------------
  * Steps along the brand, never a new hue and never a borrowed role. The three
@@ -1410,14 +1410,14 @@ pre.stream.wrap .ln {
   align-items: baseline;
 }
 .pl-card-k {
-  color: var(--sb-text-3);
+  color: var(--sb-text-2);
   text-transform: uppercase;
   letter-spacing: 0.08em;
   font-size: 2.5rem;
 }
 .pl-card-abs { color: var(--sb-text-2); }
 .pl-card-wide { grid-column: 2 / -1; }
-.pl-card-src { color: var(--sb-text-3); border-top: 1px solid var(--sb-hair); padding-top: 1.5rem; }
+.pl-card-src { color: var(--sb-text-2); border-top: 1px solid var(--sb-hair); padding-top: 1.5rem; }
 /* More than a handful of jobs in one hour has to scroll inside the card
  * rather than make a card taller than the window. */
 .pl-card { max-height: min(120rem, 80vh); overflow-y: auto; }
@@ -1479,7 +1479,7 @@ pre.stream.wrap .ln {
   font-size: 2.75rem;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--sb-text-3);
+  color: var(--sb-text-2);
   padding-bottom: 1rem;
   border-bottom: 1px solid var(--sb-hair);
 }
@@ -1499,7 +1499,7 @@ pre.stream.wrap .ln {
   font-size: 2.6rem;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--sb-text-3);
+  color: var(--sb-text-2);
 }
 
 .pl-excluded {
@@ -1515,7 +1515,7 @@ pre.stream.wrap .ln {
   color: var(--sb-text-2);
 }
 .pl-excluded b { color: var(--sb-text); }
-.pl-x-sep { color: var(--sb-text-3); }
+.pl-x-sep { color: var(--sb-text-2); }
 /* The way out of the filter, beside the statement of it — a count that tells
  * you rows are missing and not where to find them is half a sentence. */
 .pl-x-all {

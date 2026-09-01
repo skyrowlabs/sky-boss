@@ -1,7 +1,7 @@
 ---
 status: complete
 created: 2026-08-20
-updated: 2026-08-30
+updated: 2026-09-01
 agent_value: 3
 key_files:
   - cli/canvas/server.py
@@ -15,6 +15,7 @@ key_files:
   - cli/canvas/static/sb.css
   - cli/data.py
   - cli/theme.py
+  - tests/test_theme.py
 ---
 
 # The canvas — a command palette over a window canvas
@@ -115,10 +116,57 @@ auto-refreshing a write is a scheduler nobody asked for.
   operator's own assertion, made when they chose `run` over `read`, and a per-tool escape would let
   the one command worth asking about be the one that was silenced months earlier. `sb run` in a
   shell is unaffected — that is something you typed, at a prompt, having already looked at it.
+- **A role used as reading text owes a contrast floor, and the canvas's is one-sided.** The CLI
+  darkens every role because the terminal's background is unknown, so [[header]]'s floor is
+  two-sided — 3.5:1 against white *and* the void. The canvas paints its own background, so its
+  floor is a single ground and can be the real one: **4.5:1, WCAG AA, against `--sb-bg`,
+  `--sb-surface` and `--sb-surface-2`.** Round 14 found the surface had never been held to it.
+- **The surface has two text tiers, not three.** `--text-3` is the design system's structure
+  colour and this repo copies the system verbatim, so it is not a tier sky.boss may spend on type.
+  Quiet-but-read text is `--sb-text-2`; `--text-3` is what a border is made of. The apparent third
+  tier was never legible and its absence costs nothing a reader could see.
+
 - **No indeterminate progress bar.** A bar that animates without measuring something is decoration
   that reads as information. Round 5 ships the bar only for the one quantity actually known.
 
 ## Phases
+
+### Round 14 — a text role nobody could read (2026-09-01)
+
+Reported by the operator as *"some of the UI I find difficult to see"*, and it measured worse than
+it sounded. On a live canvas with one window open, **16 of 31 distinct text styles fail WCAG AA**,
+every one of them at 1.70:1 (on `--sb-surface`) or 1.81:1 (on `--sb-bg`) against a 4.5:1
+requirement. The window controls (`PIN`, `WRAP`, `⟳`, `✕`), `.num`, `.age`, `.addtag`, the four
+`.stat` readouts, `.quit`, `.tool-kind`, `.tool-edit`, `.tool-drop`, `.tools-add`, `.tools-foot`,
+`.chips .label`, `.hint`, and the inactive nav buttons.
+
+They are one colour. **`--sb-text-3` is used for text 66 times in `sb.css` and for nothing else** —
+not one border, not one background — so this is not a structure colour leaking into type. It is a
+text role that cannot be read anywhere it is used, and it has been since the surface was built.
+
+**The token is not moving because it drifted; it is moving because it was never checked.**
+`theme.py` calls it *"very dim — structure, not reading text"*, which is an accurate description of
+the value and a poor description of its job. The 66 sites are all text a reader is expected to read.
+
+**What makes this a token change and not a sweep** is that all 66 want the same thing. Editing the
+selectors would fix the sixteen that were measured and leave the fifty on the workbench and
+schedule screens exactly as dim.
+
+**Two aliases have to break first, and they are the whole design of this round.** `BORDER = TEXT_3`
+and `LOGO_DARK = TEXT_3` are aliases in `theme.py`, so moving `TEXT_3` would silently lighten every
+hairline on the surface and repaint the mark's dark slate. Neither should move: a border is
+structure and genuinely wants a value below the text floor, and the mark is deliberately outside
+the floor altogether ([[header]]). They take the literal they already had; `TEXT_3` moves alone.
+**Three things sharing a value is not the same as three things having one**, and the alias hid the
+difference until something forced it.
+
+- [x] The 66 `color: var(--sb-text-3)` rules in `sb.css` become `--sb-text-2`. The token does not
+      move — see the reversal in Notes.
+- [x] A test forbids `color: var(--sb-text-3)` in `sb.css`, checked against the stylesheet rather
+      than against the styles that happened to be measured.
+- [x] A second test states the canvas floor for the roles that do carry reading text.
+- [x] The mark and every border are untouched, because the token is.
+- [x] The workbench and schedule screens are measured too. Only the canvas was.
 
 ### Round 13 — one way of asking (2026-08-30)
 
@@ -474,6 +522,57 @@ tasks / windows / watchers / attention counters. This round is the remainder.
       tags, and the status bar counts.
 
 ## Notes
+
+### Round 14 — the fix that was already written down (2026-09-01)
+
+Found by measuring, after the operator said the surface was hard to see. Sixteen of thirty-one
+distinct text styles on the canvas failed WCAG AA, all at 1.70:1 or 1.81:1. Afterwards: canvas
+0 of 31, workbench 0 of 25, schedule 0 of 42.
+
+**The first attempt was wrong, and the suite caught it.** The measurement said `--sb-text-3` was
+unreadable on every ground, so the obvious move was to lighten it — one token, 66 sites, hierarchy
+preserved. `test_the_tokens_still_match_the_design_system` failed immediately:
+`theme.py` copies the Skyrow system verbatim and `--text-3` is **not sky.boss's value to change.**
+That is the same rule that keeps a fifth hue out ([[highlight]] round 6) arriving from a new
+direction — *a legibility problem in this tool is not a licence to edit the brand.*
+
+The reversal made the fix smaller and more obviously right. The design system already says what
+`--text-3` is for: *"very dim — structure, not reading text."* The token was never the defect. The
+defect was 66 rules spending it on type, and the answer is to stop rather than to relitigate the
+value.
+
+**The rule had already been written down, applied once, and not swept.** `sb.css` carries a comment
+from [[tools]] round 5 on `.tool-group`: *"`--sb-text-2`, not `--sb-text-3`: fundamentals ruled
+TEXT_3 is structure rather than reading text, and a group name is read."* One element was fixed on
+exactly this reasoning; sixty-six were left. This is `CLAUDE.md`'s *nobody looked* rather than *the
+suite cannot see it* — the two want different remedies, and this one is answered by looking. A
+note in a doc had already been tried here and was not enough, which is why the round ends in a
+test.
+
+**The gate is checked against the stylesheet, not against what was measured.** Only the canvas
+screen was audited when the fix was written; a test listing those sixteen styles would have pinned
+them and stayed silent on the fifty on the workbench and schedule. Forbidding
+`color: var(--sb-text-3)` outright is a rule about the whole file, so it covers screens nobody has
+measured yet and screens nobody has written yet. Same shape as the ledger-read gate `CLAUDE.md`
+records: recompute the offending set, never enumerate it.
+
+**Two aliases nearly turned a text fix into a repaint**, and they are worth knowing about even
+though the reversal made them moot. `BORDER = TEXT_3` and `LOGO_DARK = TEXT_3` are aliases, so the
+first attempt would have lightened every hairline on the surface and repainted the mark's dark
+slate as a silent side effect — the mark being the one thing deliberately outside every floor
+([[header]]). **Three things sharing a value is not the same as three things having one**, and an
+alias hides which it is until something forces the question.
+
+**The canvas's floor is the CLI's minus an unknown.** [[header]] darkens each CLI role until it
+clears 3.5:1 against both white and the void, because a terminal's background belongs to whoever
+runs it. The canvas paints its own, so there is no unknown to hedge against and the floor can be
+the real one — 4.5:1 against the three grounds it actually uses. That the surface had never been
+held to any floor is the finding; 3.5 was a compromise the canvas never needed to make.
+
+**What this does not fix.** Size. `.tool-kind` renders at 10.3px and `.chips .label` at 11.5px at
+the default `--scale 1.15`, and contrast does not make 10px type comfortable. `sb ui --scale`
+already answers it per-operator and costs nothing, so no default moved here — but a legibility
+complaint that survives this round is probably about size, not colour.
 
 ### Round 1 — choosing the medium (2026-08-20)
 

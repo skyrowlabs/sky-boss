@@ -12,7 +12,7 @@ import re
 
 from cli.helpers import PROJECT_ROOT
 from cli.output import THEME
-from cli.theme import BG, BRAND, DANGER, OK, PAINTED, STYLES, TEXT_2, TEXT_3, WARN, css_variables
+from cli.theme import BG, BRAND, DANGER, OK, PAINTED, STYLES, TEXT, TEXT_2, TEXT_3, WARN, css_variables
 
 HEX = re.compile(r"#[0-9a-fA-F]{6}\b")
 
@@ -339,3 +339,61 @@ def test_every_mark_role_the_highlighter_can_emit_has_a_rule_in_the_stylesheet()
     assert not missing, f"roles with no rule to paint them: {missing}"
     # `bold` is not a role but a weight, and composes with all of them.
     assert ".mk-bold" in css
+
+
+# ------------------------------------------------- the canvas's own floor
+
+CANVAS_FLOOR = 4.5  # WCAG AA for body text, which is what these roles carry
+
+#: Every ground the canvas paints text on. `--sb-surface-2` is the worst of the
+#: three, so it is the one a role has to survive.
+CANVAS_GROUNDS = ("sb-bg", "sb-surface", "sb-surface-2")
+
+
+def test_every_canvas_reading_role_clears_the_floor_on_every_ground():
+    """The canvas's floor is the CLI's, minus the unknown that made it 3.5.
+
+    Each CLI role is darkened until it clears 3.5:1 against *both* white and the
+    void, because a terminal's background belongs to whoever runs it. The canvas
+    paints its own, so there is no unknown to hedge against and the floor can be
+    the real one: WCAG AA against the three grounds it actually uses.
+
+    `--text-3` is deliberately absent. The design system calls it "structure, not
+    reading text" and this file copies it verbatim, so it is not a role that owes
+    a text floor — it is a role that owes not being used as text, which the test
+    below is about.
+    """
+    tokens = css_variables()
+    grounds = {name: tokens[name] for name in CANVAS_GROUNDS}
+    reading = {"sb-text": TEXT, "sb-text-2": TEXT_2}
+    too_dim = {}
+    for role, colour in sorted(reading.items()):
+        for ground, backdrop in grounds.items():
+            ratio = _contrast(colour, backdrop)
+            if ratio < CANVAS_FLOOR:
+                too_dim[f"{role} on {ground}"] = round(ratio, 2)
+    assert not too_dim, f"below the canvas floor of {CANVAS_FLOOR}:1: {too_dim}"
+
+
+def test_the_structure_colour_is_never_used_as_text():
+    """`--sb-text-3` is a border, not a tier of type.
+
+    The design system says so — "very dim — structure, not reading text" — and
+    `[[tools]]` round 5 acted on it for one element, leaving a comment in
+    `sb.css` explaining that a group name is read and so takes `--text-2`. The
+    other **66** `color:` uses stayed, and measured 1.70:1 on `--sb-surface` and
+    1.81:1 on `--sb-bg` against a 4.5:1 requirement: the window controls, the
+    stat readouts, the tool kind, the footer hints. Reported by the operator as
+    the surface being hard to see. See [[canvas]] round 14.
+
+    This is checked against the stylesheet rather than against a list of the
+    styles that were measured, because only one of the three screens was — a
+    list would have pinned sixteen and stayed silent on the fifty on the other
+    two. The role keeps its value; what is forbidden is spending it on type.
+    """
+    css = (PROJECT_ROOT / "cli/canvas/static/sb.css").read_text()
+    offenders = re.findall(r"color:\s*var\(--sb-text-3\)", css)
+    assert not offenders, (
+        f"{len(offenders)} rule(s) paint text with the structure colour — "
+        "use --sb-text-2 for text a reader reads"
+    )

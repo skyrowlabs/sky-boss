@@ -767,6 +767,32 @@ Shared with sibling CLIs so the family feels like one tool.
   canvas undarkened. The contrast floor is measured rather than eyeballed: two grey roles missed it
   by a hair while looking perfectly fine.
 
+  **The canvas has a floor of its own, and it is the CLI's minus an unknown.** The CLI darkens
+  because a terminal's background belongs to whoever runs it, which is what makes 3.5:1 a
+  compromise; the canvas paints its own ground, so its floor is the real one — **4.5:1, WCAG AA,
+  against `--sb-bg`, `--sb-surface` and `--sb-surface-2`**. The surface had never been held to any
+  floor until [[canvas]] round 14, when the operator reported it was hard to see and a measurement
+  found **16 of 31 distinct text styles below AA**, every one of them the same colour.
+
+  **`--text-3` is a border, not a tier of type, and the design system says so** — *"very dim —
+  structure, not reading text."* `sb.css` had spent it on `color:` 66 times and on nothing else.
+  The fix is not to lighten it: `theme.py` copies the system verbatim and **a legibility problem in
+  this tool is not a licence to edit the brand**, which is the same rule that keeps a fifth hue out,
+  arriving from a new direction. Quiet-but-read text is `--sb-text-2`. A test forbids
+  `color: var(--sb-text-3)` in the stylesheet rather than listing the styles that were measured —
+  only one of three screens had been, and a list would have pinned sixteen and stayed silent on the
+  fifty on the other two.
+
+  **The rule had already been written down, applied once, and not swept.** A comment on
+  `.tool-group` from [[tools]] round 5 makes exactly this argument for exactly this reason. That is
+  *nobody looked*, not *the suite cannot see it* — the two want different remedies, and a note in a
+  doc had already been tried here, which is why the round ends in a test.
+
+  **An alias hides whether three things share a value or have one.** `BORDER` and `LOGO_DARK` are
+  aliases of `TEXT_3`, so the first attempt at round 14 — lightening the token — would have
+  lightened every hairline and repainted the mark's dark slate as a silent side effect, the mark
+  being the one thing deliberately outside every floor.
+
   **A role may also paint its own ground, and that is the second escape clause.** `sb.ref` — the
   `#123` chip — fills with the brand at the design system's own ring alpha and draws the brand
   undarkened on top, because a role that supplies its own background removes the unknown the floor
