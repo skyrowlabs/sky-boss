@@ -331,9 +331,19 @@ crosses it deliberately and, as drawn, honestly: per job, explicit, with the con
 under each option. It still needs a dated fundamentals decision, not just a radio button in a
 mockup.
 
-**11. jam.sense keeps its own scheduler.** `CLAUDE.local.md` says sky.boss never manages, generates
-or edits its cron entries — and the mockup's original cast *was* that scheduler. The cast has since
-been mixed on purpose ([[workbench]] Notes), but the underlying question is untouched: does
+**11. jam.sense keeps its own scheduler.** *Answered 2026-09-01 → [[jobs]] and [[fundamentals]]
+§ sky.boss may issue a schedule: **both, and the boundary does not move.*** sky.boss observes those
+entries and never writes them — not a line, not a reorder, not a removal — **and** it may issue a
+schedule of its own beside them. An entry crosses from one side to the other only when the
+operator deactivates it in cron and declares it in `jobs.toml`, which is a handover they perform.
+So the rule `CLAUDE.local.md` states is untouched: what changed is that sky.boss now has a second
+side for a job to be moved *to*.
+
+The question this leaves is not a boundary question but a safety one, and it is why [[jobs]] round
+1 carries drift detection: the handover has a window in which a job exists on **both** sides, and
+that window is opened by design.
+
+The original wording, kept because it framed this as an either/or and it was neither: does
 sky.boss **observe** those entries, or does the boundary move? Defensible either way; currently
 unstated, which is the one thing it should not be.
 

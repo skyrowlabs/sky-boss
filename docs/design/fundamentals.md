@@ -355,6 +355,50 @@ federation does not obviously reach it, since sky.boss is the authority for what
 `prefs.json` and `tools.toml` mean *stateless* is already a narrower claim than the word. Left
 undecided until something wants it, rather than pre-answered here.
 
+*Answered the same day by the decision below — something wanted it within hours. Nothing above is
+withdrawn: this decision was about **what the tower requires**, and the tower still requires
+neither line moved. What follows is a separate decision to build something the tower never needed.*
+
+### 2026-09-01 — sky.boss may issue a schedule, and systemd is still the daemon
+
+Asked for by the operator, hours after the decision above: a schedule sky.boss **owns**, layered
+beside the ones it reads. Ruled yes, and the crossing is deliberate rather than incidental — which
+is the condition § Cadence attaches to it.
+
+**Execution is crossed. An installed job fires with no window open.** That is the sentence in
+§ Cadence and there is no reading of this feature that avoids it. Recorded here so it is a decision
+with a date rather than a drift.
+
+**sky.boss does not become a daemon, and that distinction is the whole design.** systemd is the
+daemon. sky.boss generates units and reads them back; it holds no clock, stays resident for
+nothing, and supervises nobody — the relationship breeze.brain has to Docker. *Nothing of
+sky.boss's own survives the last window* remains literally true. What survives is a `.timer` file,
+owned by an init system that was already running.
+
+**§ Cadence keeps its force and gains its missing half.** The rule that only a read may be given a
+cadence was never *a repeating write is forbidden* — it is **a window is the wrong owner for one**.
+A window is attention-keyed, pauses when you close it, and would make a scheduler out of something
+you opened to look at. A job is the right owner: declared in a file, installed one at a time,
+deliberately. The canvas's refusal is unchanged and now has a reason it can point at instead of a
+prohibition.
+
+**Federation is crossed narrowly, and the argument for it was already written.** `cli/rollcall.py`
+keeps no ledger because a copy of *another project's* state goes stale without announcing it. A
+record of what sky.boss itself ran is not a copy of anyone's state — sky.boss is its authority.
+That is exactly the reasoning left standing above, applied on the day something wanted it.
+
+**Two refusals do not move, and they are what keep this honest.** sky.boss **never writes anyone's
+crontab** — the operator deactivates their own entries, and cron is read as opaque busy windows.
+And sky.boss **never parses a calendar syntax** in either direction: `OnCalendar` is validated by
+`systemd-analyze calendar`, and a fire time is read back from `systemctl --user list-timers` rather
+than computed. [[schedule]]'s refusal to parse cron was never about reading; it was about not owning
+semantics that belong to something else, and that is unchanged on the writing side.
+
+**The riskiest part is not the scheduler.** It is the window in which a job exists on both sides,
+which this design *opens on purpose* by leaving the handover to the operator. So drift read back
+from systemd, and an `install` that refuses a collision and names it, are load-bearing rather than
+polish. See [[jobs]].
+
 ## Open questions
 
 One held deliberately; the concept is otherwise closed and further detail belongs in feature
