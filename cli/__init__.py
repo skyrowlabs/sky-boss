@@ -184,6 +184,7 @@ cli.add_command(read_cmd)
 from cli.agents import agents as agents_cmd  # noqa: E402
 from cli.follow import follow as follow_cmd  # noqa: E402
 from cli.history import history as history_cmd  # noqa: E402
+from cli.jobs import job as job_cmd  # noqa: E402
 from cli.mcp import mcp as mcp_cmd  # noqa: E402
 from cli.rollcall import roll_call as roll_call_cmd  # noqa: E402
 from cli.schedule import schedule as schedule_cmd  # noqa: E402
@@ -197,6 +198,9 @@ cli.add_command(agents_cmd)
 # The only observe here that answers a question about the past, and it answers
 # it about a *provider* — sky.boss's own runs are still anonymous. See [[history]].
 cli.add_command(history_cmd)
+# The one group that *issues* a schedule rather than reading one. systemd is the
+# daemon; this generates units and reads them back. See [[jobs]].
+cli.add_command(job_cmd)
 cli.add_command(mcp_cmd)
 
 # A surface, not a verb. It renders the same envelope every command returns
