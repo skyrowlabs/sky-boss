@@ -698,8 +698,15 @@ does: an audience that is not the author.
   **`develop` stopped requiring a pull request on 2026-09-01, and `main` still does.** The checks
   are untouched on both — that sentence above is about the *checks*, and they are what gates. What
   went was a requirement that a pull request **exist**, configured with zero required approvals and
-  no code-owner review, so for a single maintainer it gated nothing and only ever printed
-  `Bypassed rule violations` on a direct push. It was ceremony that produced a message.
+  no code-owner review: for a single maintainer it gated nothing.
+
+  **It did not silence the notice, and predicting that it would was wrong.** A direct push now
+  reports one bypassed rule instead of two — the pull-request line is gone and
+  `5 of 5 required status checks are expected` remains, because required status checks apply to a
+  direct push and a fresh commit has none yet. **That line is not removable while the checks are
+  required**, and the checks are the only thing on `develop` that actually gates anyone. So the
+  message is the price of keeping the gate that works, and the remaining half is worth reading as
+  *the gate fired and you are exempt* rather than as noise.
 
   **The gate for anyone else survives it**, which is the reason this is not a weakening: required
   status checks apply to a direct push too, and a fresh push has no passing checks yet, so a
