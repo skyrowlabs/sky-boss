@@ -694,6 +694,26 @@ does: an audience that is not the author.
 - **Both branches are protected**, with the same five checks — `eslint` and `pytest` on 3.11 to
   3.14. `main` is not given a weaker gate than `develop` on the argument that it only ever receives
   reviewed work: a release branch that trusts its input is a release branch with no gate.
+
+  **`develop` stopped requiring a pull request on 2026-09-01, and `main` still does.** The checks
+  are untouched on both — that sentence above is about the *checks*, and they are what gates. What
+  went was a requirement that a pull request **exist**, configured with zero required approvals and
+  no code-owner review, so for a single maintainer it gated nothing and only ever printed
+  `Bypassed rule violations` on a direct push. It was ceremony that produced a message.
+
+  **The gate for anyone else survives it**, which is the reason this is not a weakening: required
+  status checks apply to a direct push too, and a fresh push has no passing checks yet, so a
+  non-admin still cannot land on `develop` except through a pull request. Nothing about the
+  contributor path in `CONTRIBUTING.md` changes.
+
+  **What this did *not* do is grant anything, and the distinction is worth keeping.** Classic branch
+  protection has **no per-user allowlist** — `enforce_admins` is the only knob and it was already
+  `false` on both branches, which is why every direct push had been succeeding. The message was a
+  notice that the bypass had been used, not a refusal. Removing the rule removed the thing being
+  bypassed. If a second contributor ever arrives, the honest restoration is one API call
+  (`PUT …/protection/required_pull_request_reviews`), and `enforce_admins` on `main` is the
+  separate question this left alone: today it is `false`, so `main` does not gate its own
+  maintainer either.
 - **A merged branch is deleted automatically**, and merges are **merge commits** — squash and
   rebase are both off. Squash is the one that would actually cost something: a branch here is *one
   logical idea per commit*, and this repo's commit bodies carry the reasoning, so squashing throws
