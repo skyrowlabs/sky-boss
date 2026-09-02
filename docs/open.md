@@ -64,7 +64,7 @@ command has run more than once, *how did this go the last seven nights* is the o
 and the ring buffer plus the file of record already exist. Nobody owns it. ~~*Blocked on evidence —
 needs jobs that have run twice.*~~
 
-*Specced 2026-08-29 → [[history]], round 1 drafted and not built — the provider half only, with the sky.boss half named as round 3 so nothing mistakes one for the other.*
+*Specced 2026-08-29 → [[history]]; **round 1 built 2026-09-01** as `sb history <project>`. The provider half only, with the sky.boss half named as round 3 so nothing mistakes one for the other. Building it closed the fourth of the tower's five bands: `COMPLETED` now has a command behind it, after [[fundamentals]] § the tower is an observatory ruled that every band reads a provider. What is left with no source at all is `LOADED PLANS`.*
 
 **Unblocked 2026-08-29, and by something outside this repo.** The evidence arrived when jam.sense
 scaffolded its state into the agent-state root: `<root>/jam-sense/ledger/runs.jsonl` is **1,055

@@ -183,6 +183,7 @@ cli.add_command(read_cmd)
 # process stream. Resident by nature, so it takes no cadence. See [[follow]].
 from cli.agents import agents as agents_cmd  # noqa: E402
 from cli.follow import follow as follow_cmd  # noqa: E402
+from cli.history import history as history_cmd  # noqa: E402
 from cli.mcp import mcp as mcp_cmd  # noqa: E402
 from cli.rollcall import roll_call as roll_call_cmd  # noqa: E402
 from cli.schedule import schedule as schedule_cmd  # noqa: E402
@@ -193,6 +194,9 @@ cli.add_command(schedule_cmd)
 # The same fold as roll-call over a different population: who is running, rather
 # than how each project is. See [[agent-sessions]].
 cli.add_command(agents_cmd)
+# The only observe here that answers a question about the past, and it answers
+# it about a *provider* — sky.boss's own runs are still anonymous. See [[history]].
+cli.add_command(history_cmd)
 cli.add_command(mcp_cmd)
 
 # A surface, not a verb. It renders the same envelope every command returns

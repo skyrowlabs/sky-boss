@@ -1,9 +1,9 @@
 ---
-status: draft
+status: complete
 created: 2026-08-29
-updated: 2026-08-29
+updated: 2026-09-01
 agent_value: 2
-key_files: [cli/data.py, cli/agentstate.py, cli/view.py]
+key_files: [cli/history.py, tests/test_history.py, cli/rollcall.py, cli/__init__.py]
 ---
 
 # History — how did this go the last seven nights
@@ -47,7 +47,7 @@ not infer them.
 [project.jam-sense.history]
 path = "ledger/runs.jsonl"     # resolved under the state root, as an address
 from = "jsonl"
-when = "started_at"
+when = "started"        # the live ledger says `started`, not `started_at`
 name = "job"
 outcome = "status"
 ```
@@ -79,13 +79,15 @@ sky.boss draws the declared field and does not reconcile two.
 
 ### Round 1 — a project's ledger, addressable and legible (2026-08-29)
 
-- [ ] `[project.X.history]` parsed and validated in `cli/rollcall.py`, unknown keys named the way
-      the schedule block's are.
-- [ ] `sb history <project>` reads the declared path under the state root and returns the envelope,
+- [x] `[project.X.history]` parsed and validated in `cli/rollcall.py`, unknown keys named the way
+      the schedule block's are. Three keys are **required** — `path`, `when`, `name` — each because
+      its absence has no honest word; `from` defaults to `jsonl` and `outcome` is optional.
+- [x] `sb history <project>` reads the declared path under the state root and returns the envelope,
       newest first.
-- [ ] `--last N` — the only reason to read a 1,055-row file is to look at the tail of it.
-- [ ] A project declaring no history is counted in a warning, never drawn as an empty table.
-- [ ] Timestamps parsed to an instant for ordering and drawn as the provider wrote them, including
+- [x] `--last N` — the only reason to read a 1,186-row file is to look at the tail of it. Default
+      20, `--last 0` for all, and a truncation is **always** announced.
+- [x] A project declaring no history is counted in a warning, never drawn as an empty table.
+- [x] Timestamps parsed to an instant for ordering and drawn as the provider wrote them, including
       the offset — the [[schedule]] ruling, which is the same file and the same trap.
 
 ### Round 2 — more than one project (not scheduled)
@@ -111,3 +113,62 @@ The two measurements that shaped the *Does not do* list were taken against the l
 words: the file has more structure than it has *consistent* structure, and every tempting
 derivation over it — a join, a verdict, a reconciliation of `rc` against `status` — is wrong often
 enough to mislead and right often enough to be trusted.
+
+### Round 1 — built (2026-09-01)
+
+**The spec's example TOML named a field that does not exist.** It declared `when = "started_at"`;
+the live ledger's field is `started`. Corrected in place, because the block is written to be pasted
+and a mapping that resolves to nothing produces an empty column rather than an error — the failure
+this doc is otherwise careful about, sitting in its own worked example. The record is `job`,
+`started`, `finished`, `duration_s`, `rc`, `status` on all 1,186 rows, plus `run_id` on 135 and
+three fields on fewer than four.
+
+**Going through `sb data`'s reader whole is the load-bearing decision, and the reason is narrower
+than *consistency*.** A history is read from a file that is being **appended to while it is read**,
+so its last line can be half-written — and `parse_text` is where a torn line is counted and
+reported. A private `splitlines` loop here would have dropped it in silence, which is exactly the
+class [[jsonl-reads]] round 4 closed. Proved with a positive control rather than asserted: a clean
+ledger warns nothing, and the same ledger with twenty bytes of a second record warns
+*1 of 2 lines not a JSON object*. A test that only checked *warnings is non-empty* would have passed
+either way.
+
+**Reuse paid a second time, unplanned.** Declaring `from = "json"` by mistake produces *"not JSON,
+but each of its 1186 lines parses alone — that is JSONL: add --from jsonl"* — a sentence this
+command did not write and could not have written. That is the argument for the default too: `from`
+defaults to `jsonl` because a history is a file of records, and a **wrong** default fails loudly
+here rather than producing a plausible wrong table. A default that fails loudly is a default; one
+that fails quietly is an inference.
+
+**Three keys are required, and each for the same reason.** Without `path` there is no file. Without
+`name` a row has nothing to call what ran. Without `when` the rows could only be ordered by their
+position in the file — which is sky.boss inferring that an append-only ledger is chronological, and
+the whole point of parsing the instant is to not do that. `outcome` is optional because a ledger
+recording only what ran and when is a legitimate ledger and an empty cell says so.
+
+**It sorts the opposite way from [[schedule]] and the trap is identical.** The interesting end of
+the future is the near one and the interesting end of the past is the recent one, so this is
+`reverse=True` over the same parsed instant. The lexical-sort trap survives the reversal unchanged:
+`20:00-06:00` is `02:00Z` the next day, so it is the *later* instant while being the *earlier*
+string. Tested on that pair.
+
+**`--last` defaults to 20 and never truncates quietly.** A history that silently showed 20 of 1,186
+rows would read as the whole history, which is the one thing a history must not do — *no silent
+caps*, and the reason it is not merely tidiness is that here the silence would be a false answer to
+the question the command exists for. `--last 0` draws all of them and says nothing, because nothing
+was dropped.
+
+**It deliberately shows less than `sb data` does.** Four columns from a ten-field record, because
+the mapping is the vocabulary round 2 folds across projects and `duration_s` has no place in it
+yet. That is a real loss and the docstring names the way out — `sb data <project>:<path> --from
+jsonl` for the whole record. If a `duration` key is wanted it is round 2's business; adding it here
+would have been widening the vocabulary to avoid writing this paragraph.
+
+**Not offered over MCP**, the same call [[agent-sessions]] made and left for the operator. It takes
+no argv from its caller and reads only what was declared, so it passes the test `roll-call` and
+`schedule` pass — but two commands adopting a surface in one day, neither spec having asked, is a
+decision worth taking once and on purpose.
+
+**`_at` never reaches the envelope.** The parsed instant rides on the row for ordering and is
+stripped before emitting, because a `datetime` in the envelope is one `default=str` away from being
+a string nobody declared. A test walks the drawn row for any private key, and a second asserts the
+view describes every key the row carries and invents none.

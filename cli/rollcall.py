@@ -43,7 +43,7 @@ PROJECTS_FILE = "projects.toml"
 # dataclass against this set, so a field added without a key here fails there
 # rather than becoming a declaration sky.boss silently ignores.
 PROJECT_KEYS = frozenset(
-    {"argv", "path", "cwd", "from", "rows", "cols", "timeout", "description", "schedule"}
+    {"argv", "path", "cwd", "from", "rows", "cols", "timeout", "description", "schedule", "history"}
 )
 
 # The keys a `[project.X.schedule]` table may declare. `name` is the only one
@@ -52,6 +52,19 @@ PROJECT_KEYS = frozenset(
 # the view has a word for, and inventing one would be sky.boss computing a
 # fire time from a cron expression — the thing [[schedule]] exists to refuse.
 SCHEDULE_KEYS = frozenset({"rows", "name", "schedule", "next", "last"})
+
+# The keys a `[project.X.history]` table may declare. Three are required and the
+# reason is the same each time — there is no honest word for their absence.
+# Without `path` there is no file; without `when` the rows can only be ordered by
+# their position in the file, which is sky.boss inferring that an append-only
+# ledger is chronological; without `name` a row has nothing to call what ran.
+#
+# `from` defaults to `jsonl` rather than being required, and that is a default
+# and not an inference: a history is a file of records, `jsonl` is what that
+# means, and a wrong guess fails **loudly** in `parse_text` — *no line is a JSON
+# object* — rather than producing a plausible wrong table. See [[history]].
+HISTORY_KEYS = frozenset({"path", "from", "when", "name", "outcome"})
+HISTORY_REQUIRED = ("path", "when", "name")
 TOP_LEVEL_TABLES = frozenset({"project"})
 
 # Top-level keys that are not tables. `state_root` is read by cli/agentstate.py
@@ -78,6 +91,11 @@ class Project:
     # case and is not an error** — it is counted and named by the view rather
     # than drawn as a blank row. See [[schedule]].
     schedule: dict[str, str] | None = None
+    # Where this project's run ledger is and what its fields are called, or None
+    # when it publishes none. A project with no history is the common case and
+    # is counted rather than drawn, exactly as one with no schedule is.
+    # See [[history]].
+    history: dict[str, str] | None = None
     # Which slot on the surface's project ramp this one draws in — assigned at
     # declaration, stable for the life of the file. See `SHADES` below.
     shade: int = 0
@@ -147,6 +165,8 @@ def parse(raw: dict) -> tuple[list[Project], list[str]]:
             problems.append(f"project {name!r}: unknown key {key!r} — ignored")
         for key in _unknown_schedule_keys(body):
             problems.append(f"project {name!r}: schedule has unknown key {key!r} — ignored")
+        for key in _unknown_table_keys(body, "history", HISTORY_KEYS):
+            problems.append(f"project {name!r}: history has unknown key {key!r} — ignored")
         projects.append(
             Project(
                 name=name,
@@ -161,6 +181,11 @@ def parse(raw: dict) -> tuple[list[Project], list[str]]:
                 schedule=(
                     {k: str(v) for k, v in body["schedule"].items()}
                     if isinstance(body.get("schedule"), dict)
+                    else None
+                ),
+                history=(
+                    {k: str(v) for k, v in body["history"].items()}
+                    if isinstance(body.get("history"), dict)
                     else None
                 ),
             )
@@ -207,10 +232,17 @@ def _unknown_schedule_keys(body: dict) -> list[str]:
     """Same contract as `_unknown_keys`, one table down: reported and ignored,
     never fatal, so an older sky.boss reading a newer file is not the thing that
     rejects it."""
-    table = body.get("schedule")
-    if not isinstance(table, dict):
+    return _unknown_table_keys(body, "schedule", SCHEDULE_KEYS)
+
+
+def _unknown_table_keys(body: dict, table: str, allowed: frozenset) -> list[str]:
+    """The same check for any sub-table, so the second one cannot drift from the
+    first. Written when `history` arrived and `schedule` had been alone: two
+    copies of one rule is how the wording of the two reports comes apart."""
+    found = body.get(table)
+    if not isinstance(found, dict):
         return []
-    return [key for key in table if key not in SCHEDULE_KEYS]
+    return [key for key in found if key not in allowed]
 
 
 def _check(name: str, body) -> str | None:
@@ -241,6 +273,15 @@ def _check(name: str, body) -> str | None:
         # word for its absence, and a row with nothing to call it has none.
         if not table.get("name"):
             return "schedule must name the field its rows are called by"
+    if "history" in body:
+        table = body["history"]
+        if not isinstance(table, dict):
+            return "history must be a table"
+        if not all(isinstance(v, str) for v in table.values()):
+            return "every history mapping must be a field name"
+        missing = [key for key in HISTORY_REQUIRED if not table.get(key)]
+        if missing:
+            return f"history must declare {', '.join(missing)}"
     return None
 
 

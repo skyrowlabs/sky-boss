@@ -65,6 +65,7 @@ Needs Python 3.11+. Shell completion for fish:
 | `sb roll-call` | Asks every declared project how it is, and folds the answers |
 | `sb schedule` | What fires next, across every project that declares a schedule |
 | `sb agents` | Which agent sessions are running right now, across every provider |
+| `sb history <project>` | A project's own run ledger, newest first |
 | `sb tools` | The commands you saved |
 | `sb ui` | Opens the surface — a canvas of windows, and a workbench for authoring a command |
 | `sb mcp` | Speaks MCP on stdio, offering your saved commands to an agent |
