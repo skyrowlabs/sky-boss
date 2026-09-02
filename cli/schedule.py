@@ -34,6 +34,7 @@ from datetime import datetime, timezone
 
 import rich_click as click
 
+from cli import jobs as jobs_
 from cli.chrome import ago
 from cli.output import Result, emit
 from cli.rollcall import Project, ask, home_file, load
@@ -102,7 +103,11 @@ def elapsed(when: datetime | None, now: datetime) -> str:
 # absolutes are **hidden rather than dropped**: a machine reading the envelope
 # still gets the provider's own string and offset, which round 1 made the point
 # of not normalising. A view describes; it never filters.
-INLINE = ("project", "name", "fires", "schedule", "ran")
+# `clock` is round 10's column and it is not decoration. Once sky.boss issues
+# schedules of its own, a row it will **fire** and a row it merely **watches**
+# are two different claims arriving in one table, and a reader cannot tell them
+# apart from a time. See [[schedule]] round 10 and [[jobs]].
+INLINE = ("project", "name", "clock", "fires", "schedule", "ran")
 # `at` is the parsed instant as epoch seconds — the one field here that exists
 # for a *renderer* rather than a reader. A chart needs a position, and `fires`
 # is deliberately too coarse for one ("in 3h"). Shipping the epoch is what stops
@@ -117,9 +122,9 @@ def view_of(rows: list[dict]) -> dict:
     """The view this command authors for its own rows.
 
     **Authored, not inferred.** `shape` is for `sb data`, where the columns are
-    a foreign tool's and nobody here chose them. These five keys are sky.boss's
+    a foreign tool's and nobody here chose them. These six keys are sky.boss's
     own vocabulary — round 1 named them — so there is nothing to infer, only an
-    order to state and two columns to keep out of the way. The widths still come
+    order to state and three columns to keep out of the way. The widths still come
     from `cli/view.py`, because a second opinion about flex would drift.
     """
     return {
@@ -160,7 +165,13 @@ def rows_of(project: Project, payload) -> tuple[list[dict], list[str]]:
     for item in source:
         if not isinstance(item, dict):
             continue
-        row = {"project": project.name, "name": str(item.get(mapping["name"], "") or "")}
+        row = {
+            "project": project.name,
+            "name": str(item.get(mapping["name"], "") or ""),
+            # A provider fires its own jobs; sky.boss is reading. The word does
+            # not name their mechanism because sky.boss does not know it.
+            "clock": "watched",
+        }
         for field in ("schedule", "next", "last"):
             key = mapping.get(field)
             row[field] = str(item.get(key, "") or "") if key else ""
@@ -190,8 +201,55 @@ def order(rows: list[dict]) -> list[dict]:
     return dated + undated
 
 
+def _own_as_rows(own: list[dict], result: Result):
+    """sky.boss's own rows through the same instant parse the providers get.
+
+    Deliberately not a shortcut: `systemctl` prints `Wed 2026-09-02 06:00:00
+    CDT`, which is a *different* string shape from a provider's ISO stamp, and
+    the one thing that must not differ is how the two are ordered. Anything
+    unparseable reports and sorts last, exactly as a provider's would.
+    """
+    for row in own:
+        when, problem = parse_instant(row["next"]) if "T" in row["next"] else (None, None)
+        if when is None:
+            when = _systemd_instant(row["next"])
+        if row["next"] and when is None:
+            result.warn(f"{row['name']}: {row['next']!r} is not a timestamp sky.boss can order")
+        was, _ = parse_instant(row["last"])
+        yield {**row, "_at": when, "_last": was}
+
+
+def _systemd_instant(value: str) -> datetime | None:
+    """`Wed 2026-09-02 06:00:00 CDT` as an instant, or None.
+
+    **The abbreviation is dropped rather than resolved**, and the local zone is
+    used instead. `CDT` is ambiguous across the world's timezone databases and
+    guessing is how a view is confidently six hours wrong — the same reason a
+    naive provider timestamp is refused. Here it is safe where it would not be
+    there: systemd printed this for *this* machine, in *this* machine's zone, so
+    the local zone is the one fact that is not a guess.
+    """
+    if not value or value.strip() in ("n/a", "-"):
+        return None
+    parts = value.split()
+    # Drop a leading weekday and a trailing zone abbreviation.
+    if parts and not parts[0][:1].isdigit():
+        parts = parts[1:]
+    if len(parts) > 2:
+        parts = parts[:2]
+    try:
+        naive = datetime.strptime(" ".join(parts), "%Y-%m-%d %H:%M:%S")
+    except ValueError:
+        return None
+    return naive.astimezone()
+
+
 @click.command(name="schedule")
-@click.option("--only", metavar="NAMES", help="Ask only these projects, comma-separated.")
+@click.option(
+    "--only",
+    metavar="NAMES",
+    help="Ask only these, comma-separated. `sb` selects sky.boss's own jobs.",
+)
 @emit
 def schedule(only: str | None) -> Result:
     """What fires next, across every project that declares a schedule.
@@ -201,23 +259,56 @@ def schedule(only: str | None) -> Result:
 
     An observe — a window may pin it and refresh it on a cadence. It reads what
     each project publishes and never schedules, generates, or edits one.
+
+    Two populations, told apart by the `clock` column: `watched` is a row
+    somebody else fires, `sb` is one sky.boss fires. `--only sb` narrows to the
+    second. A sky.boss job appears only once its timer is **enabled**, because
+    only then does it fire.
     """
     result = Result()
     projects, problems = load()
     for problem in problems:
         result.warn(problem)
 
+    # **`sb` is a name the filter accepts, always**, and not only when a job
+    # happens to be enabled. `--only sb` on a machine with nothing armed has to
+    # answer *nothing of mine fires* rather than *no such thing as mine* — the
+    # two are different facts and the second is never true.
     wanted = {n.strip() for n in only.split(",")} if only else None
     if wanted:
-        missing = wanted - {p.name for p in projects}
+        missing = wanted - {p.name for p in projects} - {jobs_.SB_CLOCK}
         if missing:
             raise click.UsageError(f"no such project: {', '.join(sorted(missing))}")
         projects = [p for p in projects if p.name in wanted]
 
+    # sky.boss's own rows, gathered before the early returns: a machine with no
+    # projects declared may still have jobs installed, and a table that said
+    # "no projects declared" while three timers were armed would be the one
+    # sentence this whole feature exists to prevent.
+    own, own_problems, withheld = jobs_.schedule_rows()
+    if wanted and jobs_.SB_CLOCK not in wanted:
+        own, withheld = [], 0
+    for problem in own_problems:
+        result.warn(problem)
+    if withheld:
+        # Counted, never drawn — the answer this doc already gives a project
+        # that declares no schedule, applied to a job that does not fire.
+        result.warn(
+            f"{withheld} sky.boss job(s) not drawn — declared or installed, but not enabled"
+        )
+    if own and any(p.name == jobs_.SB_CLOCK for p in projects):  # noqa: SIM102
+        result.warn(
+            f"a declared project is also called {jobs_.SB_CLOCK!r} — "
+            "read the `clock` column, not the project name"
+        )
+
     declared = [p for p in projects if p.schedule]
-    if not projects:
+    if not projects and not own:
         result.data = []
-        if not problems:
+        # Silent when the operator asked only for sky.boss's own: they did not
+        # ask about projects, and answering a question nobody put is the noise
+        # an absent `$SB_HOME` already declines to make.
+        if not problems and not (wanted and jobs_.SB_CLOCK in wanted):
             result.warn(f"no projects declared — see {home_file()}")
         return result
 
@@ -229,11 +320,11 @@ def schedule(only: str | None) -> Result:
             f"{len(declared)} of {len(projects)} projects declare a schedule — "
             f"no schedule for {', '.join(sorted(p.name for p in projects if not p.schedule))}"
         )
-    if not declared:
+    if not declared and not own:
         result.data = []
         return result
 
-    rows: list[dict] = []
+    rows: list[dict] = list(_own_as_rows(own, result))
     for project in declared:
         answer = ask_schedule(project)
         if not answer.ok:
@@ -255,6 +346,7 @@ def schedule(only: str | None) -> Result:
         {
             "project": row["project"],
             "name": row["name"],
+            "clock": row["clock"],
             "fires": relative(row["_at"], now),
             "schedule": row["schedule"],
             "ran": elapsed(row["_last"], now),

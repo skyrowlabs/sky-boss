@@ -81,7 +81,7 @@ replaced by a browser one the same day. What exists:
 | `sb agents` | Which agent sessions are running right now, across every provider. An observe. See [[agent-sessions]] |
 | `sb history <project>` | A project's own run ledger, newest first. An observe, and the only one that looks backwards. See [[history]] |
 | `sb job` | Jobs sky.boss **issues**. `list` observes; `run`, `install` and `uninstall` act. systemd is the daemon. See [[jobs]] |
-| `sb schedule` | What fires next, across projects, ordered by the parsed instant. An observe; it schedules nothing. See [[schedule]] |
+| `sb schedule` | What fires next, across projects **and sky.boss's own jobs**, ordered by the parsed instant. `clock` says which fires it. An observe; it schedules nothing. See [[schedule]] |
 | `sb mcp` | Speaks MCP on stdio, offering the tools to an agent. A surface. See [[mcp]] |
 | `sb tools` | Lists the operator's saved commands, and any that failed to load, grouped |
 | `sb ui` | Opens the surface: **the canvas**, a command palette over tiled and floating windows, and **the workbench**, where a command gets authored. See [[workbench]] |

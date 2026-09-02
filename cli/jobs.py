@@ -860,6 +860,83 @@ def job_uninstall(name: str) -> Result:
     return result
 
 
+
+# ============================================================================
+# What [[schedule]] draws — sky.boss's own rows, beside the providers'
+# ============================================================================
+
+# What the `clock` column says. **`sb` means sky.boss fires this**; `watched`
+# means somebody else does and sky.boss is only reading. The second word does
+# not name a mechanism on purpose — sky.boss does not know whether a provider
+# runs on cron, a systemd timer, or something it has never heard of, and a
+# column that guessed would be inventing a fact to fill a cell.
+SB_CLOCK = "sb"
+WATCHED = "watched"
+
+
+def last_runs() -> dict[str, dict]:
+    """The most recent ledger record per job.
+
+    Read through `sb data`'s own JSONL parser rather than a loop here, for the
+    reason [[history]] round 1 gives: this file is appended to while it is read,
+    so its last line can be half-written, and that parser is where a torn line
+    is counted instead of silently dropped.
+    """
+    from cli import capture as capture_
+
+    try:
+        text = ledger_path().read_text()
+    except OSError:
+        return {}
+    latest: dict[str, dict] = {}
+    for record in capture_.parse_jsonl(text).rows:
+        if isinstance(record, dict) and record.get("job"):
+            # Append-only, so later wins without needing the timestamps parsed.
+            latest[str(record["job"])] = record
+    return latest
+
+
+def schedule_rows() -> tuple[list[dict], list[str], int]:
+    """sky.boss's own jobs in [[schedule]]'s vocabulary, and what was left out.
+
+    **Only an *enabled* job is drawn, and that is the whole correctness
+    argument.** A declared job does not fire. An installed-but-not-enabled job
+    does not fire — `sb job install` deliberately stops one step short. Drawing
+    either in a table headed *what fires next* would be a false claim in the one
+    place it is least checkable, so they are **counted, never drawn**: the same
+    answer this doc already gives a project that declares no schedule.
+
+    `next` is read back from `systemctl --user list-timers`, never computed —
+    the refusal [[schedule]] makes about cron, on sky.boss's own clock.
+    """
+    jobs, problems = load()
+    if not jobs:
+        return [], problems, 0
+
+    elapses, _ = timer_elapses()
+    ledger = last_runs()
+    rows: list[dict] = []
+    withheld = 0
+    for job in jobs:
+        unit = unit_state(job.name, elapses)
+        if state_of(job, unit) != "enabled":
+            withheld += 1
+            continue
+        record = ledger.get(job.name, {})
+        rows.append(
+            {
+                "project": SB_CLOCK,
+                "name": job.name,
+                "clock": SB_CLOCK,
+                "schedule": job.schedule,
+                # systemd's own words, unreformatted — a time sky.boss re-words
+                # is a time sky.boss owns.
+                "next": unit.next_run,
+                "last": str(record.get("finished") or record.get("started") or ""),
+            }
+        )
+    return rows, problems, withheld
+
 # **The act/observe bit, asserted rather than inferred.** `cli/canvas/catalog.py`
 # derives `acts` from a *top-level* `run`, so a nested acting command defaults to
 # observe — and an observe may be given a refresh cadence, which for these three

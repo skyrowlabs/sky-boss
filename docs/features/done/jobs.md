@@ -218,11 +218,16 @@ item's **advisory** ruling: sky.boss declines to start *its own* job. It never s
       entry; `--force` installs alongside.
 - [x] A test asserting no generated unit ever references a unit outside the `sb-` prefix.
 
-### Round 2 — layering it into the schedule (not scheduled)
+### Round 2 — layering it into the schedule (2026-09-01 → [[schedule]] round 10)
 
-`sb schedule` folds sky.boss's own rows beside the providers', with `clock` saying which is which
-and `next` read back from systemd. Separate because round 1 must be correct on its own — a job that
-fires wrongly is worse than a job that is hard to see.
+*Built there rather than here, because a reader wondering why the table has a `clock` column opens
+the doc that owns the table.* `sb schedule` folds sky.boss's own rows beside the providers', with
+`clock` saying which is which and `next` read back from systemd. It was kept separate from round 1
+for the reason that still holds: a job that fires wrongly is worse than a job that is hard to see.
+
+The producing half is `jobs.schedule_rows()` here; the fold, the ordering and the column are there.
+One rule from it is worth keeping on this side: **only an *enabled* job is drawn**, because a
+declared job does not fire and an installed one does not either.
 
 ### Round 3 — the ledger read back (not scheduled)
 

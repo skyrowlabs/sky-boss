@@ -1,8 +1,8 @@
 ---
-status: complete       # rounds 1, 3-9 built; round 2 still not scheduled
+status: complete       # rounds 1, 3-10 built; round 2 still not scheduled
 created: 2026-08-29
 updated: 2026-09-01
-agent_value: 3         # nine rounds; the CLI contract, the screen, and six reversals with
+agent_value: 3         # ten rounds; the CLI contract, the screen, and six reversals with
                        # their original reasoning left standing beside them
 key_files: [cli/rollcall.py, cli/schedule.py, cli/view.py, cli/output.py, tests/js/plan.test.js,
             cli/canvas/server.py, cli/canvas/static/render.js, cli/canvas/static/app.js,
@@ -126,13 +126,20 @@ Three states that must not collapse into an empty cell, because each wants a dif
 - **Does not schedule, generate, or edit anything.** [[roll-call]] already says this and
   `CLAUDE.local.md` binds it to *whatever scheduler sky.boss grows next*: the agents that own a
   project own its grid. A viewer does not move that line; it is the line being used.
+
+  *Still true, and it needed re-reading rather than rewriting when sky.boss grew a scheduler on
+  2026-09-01.* **This command** still schedules nothing — it draws two populations and writes
+  neither. [[jobs]] is where a schedule is issued, and it never touches a provider's grid either.
+  The sentence was about the viewer and it stays about the viewer.
 - **Does not judge lateness.** jam.sense computes `overdue`; sky.boss displays that field and never
   computes a rival. Lateness is a judgment, and it is the one place roll-call's refusal genuinely
   does bite — see the ruling below.
 - **Does not parse a cron expression, or a systemd calendar, or anything else in `schedule`.**
 - **Does not keep history.** *What should have fired and did not* needs a past, which is [[open]]
   item 5 and rides the ledger. Round 1 is the future tense only.
-- **Does not normalise time zones**, and does not have a clock of its own.
+- **Does not normalise time zones**, and does not have a clock of its own — *including for
+  sky.boss's own jobs* (round 10). Their `next` is read back from `systemctl --user list-timers`;
+  nothing here derives a fire time from an `OnCalendar` any more than from a cron expression.
 - **Does not reach a machine.** Same boundary roll-call drew: local sources only.
 - **Does not colour-code a project** (round 6). The design system holds four hues and sky.boss
   spends all four — `--sb-brand`, `--sb-ok`, `--sb-warn`, `--sb-danger`. A fifth is a brand
@@ -180,6 +187,15 @@ distinction to be accepted, where the one above only asks the existing sentence 
 - [x] Provider strings drawn as written, offsets included.
 - [x] Projects declaring no schedule are counted in a warning, never drawn as rows.
 - [x] `--only NAMES`, matching [[roll-call]]'s flag rather than inventing a second spelling.
+
+### Round 10 — two populations in one table (2026-09-01)
+
+- [x] `clock` on every row: `watched` for a provider's, `sb` for one sky.boss fires.
+- [x] sky.boss's own rows folded in from [[jobs]], **only when the timer is enabled**.
+- [x] `next` read back from `systemctl --user list-timers`, parsed to the same instant a
+      provider's ISO stamp is, so one order covers two string shapes.
+- [x] `last` for a sky.boss job read from its ledger, through `sb data`'s JSONL parser.
+- [x] Jobs that do not fire counted, never drawn; `--only sb` narrows to sky.boss's own.
 
 ### Round 2 — the past tense (not scheduled)
 
@@ -967,3 +983,53 @@ axis and lane cells share one `left` and one `width`; no tick clipped or out of 
 clipped; no horizontal overflow. The app was proved **alive** by clicking through `6h` → `all` and
 the band's own *show everything*, reading 3 → 31 rows back out of the DOM each time. No `error` and
 no `unhandledrejection` in any run.
+
+### Round 10 — two populations in one table (2026-09-01)
+
+**The column is the round.** Once sky.boss issues schedules of its own ([[jobs]]), a row it will
+**fire** and a row it merely **watches** are two different claims arriving in one table, and
+nothing about a time tells them apart. `clock` says which — `sb` or `watched`.
+
+**`watched` deliberately does not name a mechanism.** The obvious value was `cron`, and it would
+have been a guess: sky.boss does not know whether a provider runs on cron, a systemd timer, or
+something nobody here has heard of. A column that guessed would be inventing a fact to fill a cell,
+which is this doc's own refusal about `next` wearing different clothes.
+
+**Only an *enabled* job is drawn, and that is the correctness argument of the round.** A declared
+job does not fire. An installed-but-not-enabled job does not fire either — `sb job install`
+deliberately stops one step short of enabling. Drawing either under a heading that says *what fires
+next* would be a false claim in the least checkable place there is, so they are **counted, never
+drawn**: the same answer this doc already gives a project that declares no schedule, applied one
+population over.
+
+**Two string shapes, one order.** `systemctl` prints `Wed 2026-09-02 06:00:00 CDT`; a provider
+prints `2026-08-31T23:00:00+00:00`. Both go through a parse to an instant before sorting, because
+appending sky.boss's rows after the providers' would have made the table's order a coincidence of
+where the rows came from. The zone **abbreviation is dropped rather than resolved** — `CDT` is
+ambiguous across the world's timezone databases and guessing is how a view is confidently six hours
+wrong. The local zone is used instead, and it is safe *here* where it would not be for a provider:
+systemd printed that string for **this** machine, in this machine's zone, so the local zone is the
+one fact that is not a guess.
+
+**`project` reads `sb` and `clock` reads `sb`, and the duplication was accepted rather than
+missed.** Dropping the column and letting `project == "sb"` carry the meaning would work until
+somebody declares a project called `sb`, at which point two different things say the same word with
+no way to tell them apart. Leaving `project` empty would put an unworded absence in a table whose
+whole § *Absence has more than one word* says not to. So both, and the collision is **reported** if
+it ever happens.
+
+**`--only sb` is a name even when nothing is armed.** *Nothing of mine fires* and *no such thing as
+mine* are different facts and the second is never true, so `sb` is always accepted by the filter and
+an empty answer carries the withheld count. It also suppresses the *no projects declared* line — a
+reader who asked only about sky.boss's own jobs did not put that question.
+
+**And a table saying *no projects declared* while a timer was armed would have been the single
+sentence this whole feature exists to prevent**, so the fold gathers sky.boss's rows before every
+early return rather than after. Caught while writing the round, not by a test failing — the tests
+came after.
+
+**Found while finishing: `npm run lint` is not a script in this repo.** It is `lint:check`, and
+every "lint clean" reported during this and the two preceding features came from a command that
+exited non-zero without running eslint. The tree *is* clean — verified with `npx eslint .` and then
+with the real script — but the checks that claimed it were not running. A verification step whose
+failure looks like its success is worth more scepticism than the thing it verifies.
