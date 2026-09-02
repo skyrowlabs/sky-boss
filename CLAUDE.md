@@ -78,6 +78,7 @@ replaced by a browser one the same day. What exists:
 | `sb follow -- <argv>` | Holds a command's stream open. Resident by nature; any exit is a visible death. Arrows and PgUp scroll back through the ring |
 | `sb follow <path>` | Follows a file with a native stat cursor, so quiet and dead are different words. `--due 15m` makes late a word too |
 | `sb roll-call` | Asks every declared project how it is and folds the answers. An observe. See [[roll-call]] |
+| `sb agents` | Which agent sessions are running right now, across every provider. An observe. See [[agent-sessions]] |
 | `sb schedule` | What fires next, across projects, ordered by the parsed instant. An observe; it schedules nothing. See [[schedule]] |
 | `sb mcp` | Speaks MCP on stdio, offering the tools to an agent. A surface. See [[mcp]] |
 | `sb tools` | Lists the operator's saved commands, and any that failed to load, grouped |
@@ -971,7 +972,8 @@ primitive-level change. `docs/features/done/` holds the completed docs — `canv
 surface, five rounds), `follow.md` (the streaming substrate, four rounds), `tools.md` (saved commands, three
 rounds), `highlight.md` (lexical tint, four rounds), `capture.md` (declared structure),
 `refresh.md`, `header.md` (the mark, two rounds), `text-reads.md`, `subprocess-env.md`, `table-views.md` (the
-shaping contract, five rounds), `roll-call.md` (federating over projects), `file-follow.md` (the
+shaping contract, five rounds), `roll-call.md` (federating over projects), `agent-sessions.md` (who is running, and the adapter
+seam), `file-follow.md` (the
 native cursor, two rounds), `chrome.md` (what a window knows about its output, three rounds), `mcp.md` (the tools offered to
 an agent), `delay.md` (once, later), `workbench.md` (the authoring surface, three rounds — opened
 and finished 2026-08-26/27), and the constitution's rounds as they land.

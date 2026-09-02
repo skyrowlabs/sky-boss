@@ -1,9 +1,9 @@
 ---
-status: draft
+status: complete
 created: 2026-08-29
-updated: 2026-08-29
+updated: 2026-09-01
 agent_value: 3
-key_files: [cli/agents.py, cli/rollcall.py, cli/canvas/catalog.py]
+key_files: [cli/agents.py, tests/test_agents.py, cli/__init__.py]
 ---
 
 # Agent sessions — who is running right now
@@ -69,14 +69,36 @@ whose is worse than one that shows four.
 
 Verified on this machine rather than assumed. `~/.claude/sessions/` holds one JSON file per live
 session, `<pid>.json`, written by the session itself, carrying `sessionId`, `cwd`, `name`,
-`status` (`busy` / `idle`), `kind`, `entrypoint`, `startedAt`, `version`, `procStart`, and a
-messaging socket path.
+`status`, `kind`, `entrypoint`, `startedAt`, `version`, `procStart`, and a messaging socket path.
+
+**The glob is `*.json` and that is load-bearing**, not incidental: `.key` files sit beside the
+records. `startedAt` is **epoch milliseconds**, not a timestamp string — which is why
+[[schedule]]'s refusal to normalise a provider's offset does not reach it. There, the offset is
+part of what the provider said and rewriting it would erase a disagreement that ought to be
+visible; an epoch has no zone to erase.
+
+**`status` is the provider's own word and there may be no word.** Round 1 measured `busy`, `idle`,
+`shell`, and `null`. A null draws as an empty cell and raises nothing — an empty cell beside `busy`
+already reads as *unknown*, and a warning per invocation about a field the provider chose not to
+set is noise. The enum widens by decision; the record does not grow a hole for it.
 
 **Liveness is two fields, not one.** A record outlives the process that wrote it, so a `pid` alone
 lies twice — once for a crashed session whose file is still there, once for a PID the kernel has
 recycled onto something else. The record pins `procStart` (field 22 of `/proc/<pid>/stat`) for
 exactly this, and a row is live only when both agree. A reader that trusts the PID reports dead
 sessions as running, which is *worked fine, told nobody* in its most confident form.
+
+**And there is a third answer: *cannot tell*.** No `/proc` on this platform, or a record that
+pinned no start tick. Collapsing it into *dead* would report a machine sky.boss cannot inspect as a
+machine with nothing running — the same lie the PID-only reader tells, one platform up. So an
+unverified session is **drawn and counted**, and the count is said out loud.
+
+**An empty answer says which kind of empty it is.** No registry at all, a registry present and
+empty, and records read that had all ended render identically as *no rows*, and a bare empty table
+implies the third for all three. A scan therefore carries how hard it looked — whether the registry
+was present, and how many records it got through — because a detector that counts only what it
+caught answers `0` for *looked and found nobody* and `0` for *never looked*. The adapter stays
+silent about not being installed; the **command** states the arithmetic.
 
 **It is an internal format with no contract.** Undocumented, versioned per record, free to change
 under a client update. So an absent, renamed or unparseable registry degrades to *nothing declared*
@@ -104,15 +126,18 @@ is the same lie in the other direction.
 
 ### Round 1 — the fold, and one adapter (2026-08-29)
 
-- [ ] `cli/agents.py`: the record dataclass, the adapter protocol, and the fold. Pure enough that
+- [x] `cli/agents.py`: the record dataclass, the adapter protocol, and the fold. Pure enough that
       the fold is testable without a registry on disk.
-- [ ] The Claude adapter, reading `~/.claude/sessions/*.json`, with liveness on **both** `pid` and
+- [x] The Claude adapter, reading `~/.claude/sessions/*.json`, with liveness on **both** `pid` and
       `procStart` and a test that a stale record with a live recycled PID is not reported.
-- [ ] Every degrade path silent: absent directory, unreadable file, unparseable JSON, a record
+- [x] Every degrade path silent: absent directory, unreadable file, unparseable JSON, a record
       missing a field. Each named in `warnings`, none raising, and none producing an empty success.
-- [ ] `sb agents` returns the envelope, ordered — probably by `started`, oldest first, so the
-      session that has been going longest is at the top.
-- [ ] `--only NAMES`, matching [[roll-call]]'s flag rather than inventing a second spelling.
+- [x] `sb agents` returns the envelope, ordered — by `started`, oldest first, so the session that
+      has been going longest is at the top. That is also the one whose context is nearest the
+      bottom, which is the reason the order is worth stating.
+- [x] `--only NAMES`, matching [[roll-call]]'s flag rather than inventing a second spelling. It
+      names **providers**, because providers are this fold's population the way projects are
+      roll-call's.
 
 ### Round 2 — where the adapter list lives (not scheduled)
 
@@ -143,3 +168,64 @@ second adapter disagrees is to widen the *enum*, which is a decision, rather tha
 **Item 6 is partly supplied and not closed.** Worth keeping the distinction visible: the registry
 gives identity to sessions sky.boss did not start. Everything sky.boss runs itself is still
 anonymous and dies with its window, and no amount of reading someone else's registry fixes that.
+
+### Round 1 — built (2026-09-01)
+
+**The format had already moved, inside three days.** The spec listed ten fields read off the live
+registry on 2026-08-29. On 2026-09-01 the same records carried five more — `bridgeSessionId`,
+`peerProtocol`, `peerFeatures`, `nameSince`, `statusUpdatedAt` — and `.key` files had appeared
+beside the JSON. Nothing broke, because the spec had already ruled *an internal format with no
+contract*; what is worth recording is how quickly the prediction paid, and that the narrow
+`*.json` glob was the whole defence. A `*` would have read four key files as records.
+
+**`status` is a fourth word and one of five records has none.** The spec named `busy` and `idle`.
+The live set answers `busy`, `idle`, `shell`, and `null` — the last from the `sdk-cli` entrypoint.
+That is the thin-record debt arriving on the day it shipped rather than at the second adapter, and
+it is taken as designed: `null` draws as an empty cell and raises no warning, because an empty cell
+beside `busy` and `idle` already reads as *unknown*, and a line per invocation about a field the
+provider chose not to set is noise. The enum widens by decision, not by the record growing a hole.
+
+**`startedAt` is epoch milliseconds, not a timestamp string** — so [[schedule]]'s refusal to
+normalise does not apply and the doc now says why rather than leaving the next reader to wonder.
+There, a provider writes `2026-08-30T05:15:00-05:00` and the offset is part of what it said, so
+rewriting it to UTC would erase a disagreement between projects that ought to be visible. An epoch
+has no zone to erase. Rendering it as UTC states an instant rather than choosing between readings
+of it.
+
+**Liveness got a third answer, and that was not in the spec.** *Live* and *dead* are what two
+fields agreeing or disagreeing gives you; the case the spec did not name is **cannot tell** — no
+`/proc` on this platform, or a record that pinned no start tick. Collapsing it into *dead* would
+report a machine sky.boss cannot inspect as a machine with nothing running, which is the same lie
+the PID-only reader tells, one platform up. So `alive()` returns `True | False | None`, an
+unverified session is **drawn and counted**, and the count is stated in `warnings`.
+
+**The empty table needed a sentence, and this is the *counting the looking* rule.** `sb agents`
+with no rows had three causes that rendered identically: no registry at all, a registry present and
+empty, and records read that had all ended. A bare empty table implies the third for all three. So
+`Scan` carries `present` and `read` alongside the sessions, and `empty_reason` turns them into one
+line. The adapter stays silent about not being installed — that part of the spec is untouched — and
+it is the *command* that reports the arithmetic, which is the same split [[schedule]] made when it
+counted projects that declare no schedule.
+
+**The fixture and the reader could have agreed with each other by construction**, which is this
+workspace's named blind spot, so the `/proc` reader was checked against the real kernel rather than
+only against a synthetic tree: all five live records matched field 22 exactly, and PID 1 was
+correctly refused. The synthetic `/proc` is still the positive control — it is the only way to
+produce a *recycled* PID on purpose — and it deliberately names its process `(claude (worker) x)`,
+because a tidy comm would let a naive `split()` pass. The offset was wrong on the first run and the
+test caught it.
+
+**Not offered over MCP, deliberately, and this is the one thing round 1 leaves for a ruling.**
+`roll-call` and `schedule` carry `sb_mcp` because they take no argv from their caller and read only
+what the operator declared. `agents` satisfies that test too — but the *Does not do* list rules
+transcripts out by naming the [[mcp]] surface as the hazard, and a row already says where every
+session is sitting. Handing an agent the map of every other agent on the machine is an exposure the
+spec never asked for, so it is not taken silently. `agents.sb_mcp` is simply absent.
+
+**The command renders on the canvas with no work**, because the catalog walks the real Click tree
+and `acts` is `False`, so a window may pin it. Verified by rendering rather than by reasoning: the
+authored view survived the `/api/shape` round trip as `5 of 8 columns` instead of being widened
+back to eight, which is the exact failure [[schedule]] round 3 found.
+
+**The banner is a screenshot of root help**, so adding a command made `readme-banner.png` stale in
+the way no test can see. Re-rendered. See [[header]] round 3.

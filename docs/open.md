@@ -474,7 +474,7 @@ window nobody can see the bottom of. That is the tower's subject arriving early,
 
 **16. The tower shows live agent sessions.** An observe, in the tower, listing what is running now.
 
-*Specced 2026-08-29 → [[agent-sessions]], round 1 drafted and not built.* Items 16 and 17 became one doc: the seam and its first adapter are the same decision, and splitting them would have described an interface with nothing behind it.
+*Specced 2026-08-29 → [[agent-sessions]]; **round 1 built 2026-09-01** as `sb agents`.* Items 16 and 17 became one doc: the seam and its first adapter are the same decision, and splitting them would have described an interface with nothing behind it. Building it moved item 6 without closing it — the tower's `IN FLIGHT` band can have real rows now, because someone else is persisting the identity. Two things round 1 found that the spec had not: liveness needs a third answer (*cannot tell*, where there is no `/proc` to ask), and an empty table needs a sentence saying which of three empties it is.
 
 The mechanism exists and was verified on this machine rather than assumed: `~/.claude/sessions/`
 holds one JSON file per live session, `<pid>.json`, written by the session itself and carrying
@@ -514,7 +514,7 @@ the tree: [[roll-call]] asks every declared project how it is and folds the answ
 every provider who is running and folds the answers. Same fold, different population. **Do not name
 it `fleet`** — that word is bbrain's rental fleet and the collision has already cost clarity once.
 
-**17. Providers, modularly — Claude first, and only Claude verified.** *Specced with item 16 → [[agent-sessions]]. The row-shape half is ruled there: **thin common record, no extras bag**, on the argument that a common vocabulary with an escape hatch will not survive its second provider. Where the adapter list lives is round 2 there and still open.* The operator's ask is that
+**17. Providers, modularly — Claude first, and only Claude verified.** *Specced with item 16 → [[agent-sessions]], and **built 2026-09-01**. The row-shape half is ruled there: **thin common record, no extras bag**, on the argument that a common vocabulary with an escape hatch will not survive its second provider — and the debt it named arrived the same day, since the live registry answers four status words and one `null` rather than the two the spec listed. Where the adapter list lives is round 2 there and still open; so is whether `agents` should be offered over [[mcp]], which round 1 declined to take silently.* The operator's ask is that
 this not be Anthropic-shaped in its bones, and the honest position is that only one registry has
 been read. So: one adapter interface, one adapter written against a format that was actually
 inspected, and no speculative adapters for tools whose on-disk state nobody here has opened. A
