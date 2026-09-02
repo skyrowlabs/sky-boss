@@ -210,6 +210,14 @@ the wrapped rows.
 
 ## Primitives the plan and the tower need, none of which exist
 
+*Superseded 2026-09-01 → [[fundamentals]] § the tower is an observatory. The heading is wrong and
+is left standing because the reversal is the useful part: **the tower needs none of these.** All
+four were named on the assumption that the tower draws jobs sky.boss runs. It does not — fourteen
+of the fifteen job names in the mockup are jam.sense's own, so every band reads a provider, and
+three of the four have a shipped or specced source today (`sb agents`, `sb schedule`, a project's
+ledger). Items 8 and 9 were already answered; 6 and 7 are still open and are no longer blocking
+this screen.*
+
 These four are why [[workbench]] is buildable now and the other two screens are not. Each is
 probably its own feature doc, and they are ordered by how much the others depend on them.
 
@@ -217,10 +225,69 @@ probably its own feature doc, and they are ordered by how much the others depend
 dies with its window. A plan, a claim, a budget and a governor all need to name the same thing
 across restarts.
 
+**Partly supplied 2026-09-01 by [[agent-sessions]], and demoted the same day by [[fundamentals]]
+§ the tower is an observatory.** `sb agents` hands over identity that outlives every window sky.boss
+ever drew — a stable id, a name, a `cwd`, a start time — for sessions sky.boss did **not** start,
+which is the population the tower actually draws. So this stopped being a blocker without being
+closed: sky.boss's own runs are still anonymous, and nothing about reading someone else's registry
+fixes that.
+
+**And the item asks two questions, which is why it sat.** *A record of a finished run surviving its
+window* crosses the **federation** rule (`cli/rollcall.py`: no ledger, no history, no cache) and
+not the execution one — and the staleness argument behind federation does not obviously reach it,
+since sky.boss is the authority for what sky.boss ran. *A job running with no window open* crosses
+execution, squarely. Whoever reopens this should say which they want; the answers are different
+sizes.
+
 **7. The claim.** Several agentic jobs contending for one working tree is a real fact with no
 vocabulary in sb. The mockup renders it as a glyph and a contested band; what it *means* — advisory
-label, or something that actually blocks a departure — is undecided, and those are very different
+label, or something that actually blocks a departure — was undecided, and those are very different
 features.
+
+**Ruled 2026-09-01, on the operator's word: advisory, never blocking.** sky.boss draws what it can
+observe about tree contention and never holds a lock, refuses a departure, or arbitrates between
+two jobs. Three things follow and each is worth more than the ruling itself:
+
+- **It needs no new act**, so the observe/act split is untouched and nothing crosses the daemon
+  line item 10 guards. The blocking reading would have needed both — a second command that acts,
+  and a lock that outlives the window that took it, which is item 6 first.
+- **It is the reversible direction.** An advisory label can be made binding later; a lock that
+  jobs have started depending on cannot be made advisory again without breaking whatever learned
+  to trust it. Same asymmetry that put a per-project state-root override behind the derivation
+  rather than in front of it.
+- **A provider that publishes contention is drawn as it wrote it**, and sky.boss never computes a
+  rival — [[schedule]]'s `overdue` rule and [[agent-sessions]]'s thin record, arriving at a third
+  field.
+
+**And then the evidence was checked, which reshaped the item rather than closing it.** Measured
+2026-09-01 against the live payload: `jam report status --json` returns **16 leaf keys and not one
+of them is about a working tree** — no claim, no lock, no branch, no worktree, no conflict. So the
+mockup's `▸ needs the working tree` has **no provider behind it**, and building the ON DECK half
+today would be drawing a field nobody publishes. That is item 1's parking condition, and it applies
+here.
+
+**The evidence does exist — on the other band.** `sb agents` shipped the same day and publishes
+`cwd` per live session, and `git worktree list` in jam.sense reports **four checkouts of one
+repository** — `jam-sense` plus `jam-pool-0/1/2`, all at the same commit — with live sessions
+sitting in two of them while this was written. So contention is observable **today**, on
+**IN FLIGHT** (sessions that are running) rather than on **ON DECK** (jobs that are scheduled),
+which is the opposite band from where the mockup drew it. The claim's first real subject is not the
+grid; it is the agents item 16 went and found.
+
+**Two ways to derive it, and they are not the same feature:**
+
+- **Same directory** — compare the `cwd` strings `sb agents` already returns. No subprocess, no new
+  rule touched, and strictly weaker: it misses the jam-pool case exactly, which is the case that
+  motivates the item.
+- **Same repository** — ask git which object store a `cwd` belongs to (`rev-parse
+  --git-common-dir`). Catches the worktrees, and it is the first time sky.boss would run a command
+  **nobody declared**. `CLAUDE.md` binds that rather than forbidding it: output from a command
+  sky.boss runs on its own initiative must never reach `data`. A derived boolean is not that
+  command's output, so the rule is satisfiable — it has to be satisfied on purpose rather than
+  noticed afterwards.
+
+**Still open:** which of those two, and whether an advisory claim is worth building before there is
+a band to draw it in. Not blocked on a decision any more — blocked on wanting it.
 
 **8. The budget.** ~~A wall-clock ceiling on a run.~~ **Answered 2026-08-29: the supervisor owns
 it and sky.boss displays it.** The mockup put `--budget` on `follow`, which is a contradiction —
@@ -244,11 +311,25 @@ disabled outside sky.boss.
 
 ## Boundaries
 
-**10. The scheduler/daemon line.** [[fundamentals]] § Cadence: *nothing survives the last window —
-that is what makes this a scheduler and not a daemon, and crossing that line is only ever done on
-purpose.* The clock-source selector crosses it deliberately and, as drawn, honestly: per job,
-explicit, with the consequence written under each option. It still needs a dated fundamentals
-decision, not just a radio button in a mockup.
+**10. The scheduler/daemon line.** *Closed 2026-09-01 → [[fundamentals]] § the tower is an
+observatory, on the operator's ruling: **neither line moves.*** The item asked for a dated
+fundamentals decision and got one — but the answer was that the crossing it was built around never
+happens. Its stated subject, the clock-source selector, had already been disposed of by
+[[schedule]] round 1 (*sky.boss picks no clock, it reads the one each provider stamped*), and the
+tower turned out to be an observatory over a provider's grid rather than a picture of sky.boss's
+own jobs.
+
+**What the decision is actually worth is the separation, not the ruling.** "The daemon line" was
+one name for two rules — **execution** (§ Cadence: nothing keeps running) and **federation**
+(`cli/rollcall.py`: no copy of another project's state) — and a proposal could not be argued with
+while it invoked both at once. A record is not a process; a copy of one's own work is not a copy of
+someone else's. The next proposal has to name which of the two it crosses.
+
+[[fundamentals]] § Cadence: *nothing survives the last window — that is what makes this a scheduler
+and not a daemon, and crossing that line is only ever done on purpose.* The clock-source selector
+crosses it deliberately and, as drawn, honestly: per job, explicit, with the consequence written
+under each option. It still needs a dated fundamentals decision, not just a radio button in a
+mockup.
 
 **11. jam.sense keeps its own scheduler.** `CLAUDE.local.md` says sky.boss never manages, generates
 or edits its cron entries — and the mockup's original cast *was* that scheduler. The cast has since

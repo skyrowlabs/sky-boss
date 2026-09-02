@@ -314,6 +314,47 @@ by reasonable-looking steps. This is one of those steps, declined.
 The canvas takes its tokens as CSS custom properties from `css_variables`, so this is a question of
 *which* property a rule names — not a new colour, and not a second palette.
 
+### 2026-09-01 — the tower is an observatory, and neither line moves
+
+`docs/open.md` item 10 asked for a dated decision about the scheduler/daemon line, on the grounds
+that the flight plan and the tower cross it. **They do not**, and the item was reasoning from a
+mockup rather than from what the mockup draws.
+
+**Measured before ruling.** Fourteen of the fifteen job names in `docs/design/ControlTower.dc.html`
+are jam.sense's own jobs — `agent-fix`, `sentinel`, `integration`, `docs-guard`, `night-review`,
+`implement-ready`, `model-health` and the rest — checked against the 31 rows that project's status
+command returns. The fifteenth is `notify_slack`. So every band is drawn over **someone else's**
+grid: `IN FLIGHT` is a session that provider started, `ON DECK` is that provider's cron, `COMPLETED`
+is that provider's ledger, `OUTPUT` is that provider's logs. The tower is an observatory. It was
+never a picture of jobs sky.boss runs.
+
+**Ruled: neither line moves.** *Execution* — nothing survives the last window — is unchanged, and
+the tower gives no reason to change it, since a foreign job runs whether or not sky.boss is open
+and that is the whole point of watching it. *Federation* — sky.boss keeps no copy of another
+project's state — is unchanged, because the tower reads rather than stores.
+
+**Two rules were being conflated under one name, and separating them is the durable half of this.**
+§ Cadence above is about **execution**: nothing keeps running. `cli/rollcall.py` is about
+**copies**: *no ledger here, no history, no cache*, because a copy of a schedule that agents
+rewrite goes stale without announcing it. A record is not a process, and a copy of one's own work
+is not a copy of someone else's. "It crosses the daemon line" was doing the work of both sentences
+at once, which is why the item could sit unanswered for a fortnight: there was no way to argue with
+it. A future proposal has to say **which** of the two it crosses.
+
+**What this does to item 6.** *Job identity that outlives a window* was named as the primitive the
+plan and the tower are blocked on. For the tower it is not: three of the four bands have a shipped
+or specced source today — `sb agents` ([[agent-sessions]], 2026-09-01), `sb schedule`
+([[schedule]], 2026-08-30), and a project's own ledger ([[history]], drafted). Item 6 is neither
+closed nor rejected; it is **no longer load-bearing for this screen**, which is a better place for
+it to sit than *blocking*. Whatever genuinely needs sky.boss to remember what *it* ran should make
+that case on its own.
+
+**Not decided here, deliberately:** whether sky.boss may keep a record of its own runs. That
+crosses the **federation** rule and not the execution one; the staleness argument that justifies
+federation does not obviously reach it, since sky.boss is the authority for what sky.boss ran; and
+`prefs.json` and `tools.toml` mean *stateless* is already a narrower claim than the word. Left
+undecided until something wants it, rather than pre-answered here.
+
 ## Open questions
 
 One held deliberately; the concept is otherwise closed and further detail belongs in feature
