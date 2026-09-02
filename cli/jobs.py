@@ -26,16 +26,20 @@ systemd and compares.
 
 from __future__ import annotations
 
+import fcntl
+import json
 import os
 import re
+import secrets
 import subprocess
 import tomllib
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 
 import rich_click as click
 
-from cli.helpers import SB_HOME, child_env
+from cli.helpers import PROJECT_ROOT, SB_HOME, STATE_DIR, child_env
 from cli.output import Result, emit
 from cli.view import describe
 
@@ -394,4 +398,191 @@ def job_list() -> Result:
 
     result.data = rows_of(jobs, states)
     result.view = view_of(result.data)
+    return result
+
+
+# ============================================================================
+# Running one — the ledger, the lane, and the five outcomes
+# ============================================================================
+
+# **Five, not two.** `timeout` and `refused` are *recorded outcomes rather than
+# exceptions*: with the ledger standing in for a notifier, a run that vanished
+# without a line is indistinguishable from one that never happened. Inherited
+# from the design deleted in `051333c`, which had already paid for this.
+OUTCOMES = ("ok", "partial", "failed", "timeout", "refused")
+
+
+def jobs_state() -> Path:
+    """Where the ledger and the per-run logs live.
+
+    `$SB_STATE`, not `$SB_HOME`: the home holds what the *operator wrote* and
+    the state holds what the *machine did*. `rm -rf` on the state is a
+    reasonable way to reset and must not delete a schedule.
+    """
+    return STATE_DIR / "jobs"
+
+
+def ledger_path() -> Path:
+    return jobs_state() / "ledger.jsonl"
+
+
+def lane_lock(lane: str) -> Path:
+    """The advisory lock file for a lane.
+
+    `$XDG_RUNTIME_DIR` when there is one — a lock belongs to a boot, not to a
+    machine, and a stale lock file surviving a reboot is a lane that can never
+    be entered again. Falls back to the state directory where there is none.
+    """
+    base = os.environ.get("XDG_RUNTIME_DIR")
+    root = (Path(base) / "sb") if base else (jobs_state() / "lanes")
+    root.mkdir(parents=True, exist_ok=True)
+    return root / f"lane-{lane}.lock"
+
+
+def new_run_id(name: str) -> str:
+    """`<job>-<utc>-<6 hex>`. The stamp makes it sortable and greppable; the
+    suffix is what keeps two runs in the same second apart."""
+    when = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")
+    return f"{name}-{when}-{secrets.token_hex(3)}"
+
+
+def append(record: dict, path: Path | None = None) -> None:
+    """One JSON object, one line, one `write`, append-only.
+
+    **Kept small on purpose.** A single `write` to an `O_APPEND` file is not
+    atomic at arbitrary sizes — the workspace measured an 8 KB append tearing
+    against a concurrent reader — and every reader of this file therefore has to
+    tolerate a torn last line, which `sb data --from jsonl` already does. Small
+    records make the tear rare; they do not make it impossible, and nothing here
+    pretends otherwise.
+    """
+    target = path or ledger_path()
+    target.parent.mkdir(parents=True, exist_ok=True)
+    with target.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(record, default=str) + "\n")
+
+
+def sb_executable() -> str:
+    """The wrapper, by absolute path.
+
+    Absolute because a generated unit has no `PATH` worth relying on, and the
+    same string is used here so a manual run and a timed run cannot execute two
+    different sky.bosses.
+    """
+    return str(PROJECT_ROOT / "sb")
+
+
+def execute(job: Job, log: Path) -> dict:
+    """Run the job's argv, streaming its output into `log`. Never raises.
+
+    **Output goes to a file, not into the envelope.** `sb run` carries what it
+    printed because you typed that argv and seeing it is the feature; a job may
+    print for an hour unattended, so the envelope carries the *record* and names
+    where the bytes went.
+    """
+    log.parent.mkdir(parents=True, exist_ok=True)
+    started = datetime.now(timezone.utc)
+    argv = [sb_executable(), *job.argv]
+    outcome, code = "ok", None
+    try:
+        with log.open("wb") as sink:
+            done = subprocess.run(
+                argv,
+                stdout=sink,
+                stderr=subprocess.STDOUT,
+                # A declared bound or none. See `Job.timeout`.
+                timeout=job.timeout or None,
+                env=child_env(),
+                cwd=str(Path.home()),
+            )
+        code = done.returncode
+        # The envelope's own three codes, and this is where `partial` finally
+        # does real work rather than being tidy: a wrapper branches on the exit
+        # status without parsing a byte of output.
+        outcome = {0: "ok", 3: "partial"}.get(code, "failed")
+    except subprocess.TimeoutExpired:
+        outcome = "timeout"
+    except OSError as exc:
+        # The binary could not start. A recorded outcome, not an exception.
+        outcome = "failed"
+        with log.open("a", encoding="utf-8") as sink:
+            sink.write(f"could not start: {exc}\n")
+    finished = datetime.now(timezone.utc)
+    return {
+        "started": started.isoformat(),
+        "finished": finished.isoformat(),
+        "duration_s": round((finished - started).total_seconds(), 3),
+        "outcome": outcome,
+        "exit": code,
+    }
+
+
+@job.command(name="run")
+@click.argument("name")
+@emit
+def job_run(name: str) -> Result:
+    """Run one job now, in the foreground.
+
+        sb job run nightly
+
+    **This acts** — it is the job's argv, run once. It takes the job's lane
+    before starting and records `refused` if it cannot, so a manual run cannot
+    overlap a timed one. Output goes to a log file beside the ledger and the
+    envelope names it.
+    """
+    result = Result()
+    jobs, problems = load()
+    for problem in problems:
+        result.warn(problem)
+
+    found = next((j for j in jobs if j.name == name), None)
+    if found is None:
+        known = ", ".join(sorted(j.name for j in jobs))
+        raise click.UsageError(
+            f"no such job: {name}" + (f" (declared: {known})" if known else "")
+        )
+
+    run_id = new_run_id(found.name)
+    log = jobs_state() / "logs" / f"{run_id}.log"
+    record = {"job": found.name, "run_id": run_id, "lane": found.lane, "log": str(log)}
+
+    handle = None
+    if found.lane:
+        # **Advisory, and non-blocking.** A job that cannot take its lane does
+        # not wait — waiting turns a schedule into a queue, and a queue that
+        # drains at 3am is a different feature nobody asked for.
+        handle = lane_lock(found.lane).open("w")
+        try:
+            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            handle.close()
+            record |= {
+                "started": datetime.now(timezone.utc).isoformat(),
+                "finished": datetime.now(timezone.utc).isoformat(),
+                "duration_s": 0,
+                "outcome": "refused",
+                "exit": None,
+            }
+            append(record)
+            result.partial = True
+            result.data = record
+            result.warn(f"lane {found.lane!r} is busy — {found.name} did not run")
+            return result
+
+    try:
+        record |= execute(found, log)
+    finally:
+        if handle is not None:
+            handle.close()
+
+    # Nothing runs unlogged, in any phase — including this one.
+    append(record)
+    result.data = record
+    if record["outcome"] == "partial":
+        result.partial = True
+    elif record["outcome"] != "ok":
+        result.ok = False
+        result.warn(f"{found.name} {record['outcome']}" + (
+            f" (exit {record['exit']})" if record["exit"] is not None else ""
+        ))
     return result

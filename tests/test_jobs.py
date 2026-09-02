@@ -15,6 +15,7 @@ unit with no declaration behind it is reported loudly because it still fires.
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
@@ -285,3 +286,181 @@ def test_the_view_describes_every_key_and_invents_none():
     view = view_of(rows)
     named = {c["key"] for c in view["columns"]} | set(view["hidden"])
     assert named == set(rows[0])
+
+
+# ============================================================================
+# Running one — the ledger, the lane, and the five outcomes
+# ============================================================================
+
+import fcntl  # noqa: E402
+import subprocess  # noqa: E402
+
+from cli.jobs import append, execute, jobs_state, lane_lock, ledger_path, new_run_id, sb_executable  # noqa: E402
+
+
+@pytest.fixture
+def state(tmp_path, monkeypatch):
+    """A scratch `$SB_STATE`, so no test writes the real ledger."""
+    target = tmp_path / "state"
+    monkeypatch.setattr("cli.jobs.STATE_DIR", target)
+    monkeypatch.setenv("XDG_RUNTIME_DIR", str(tmp_path / "rt"))
+    (tmp_path / "rt").mkdir()
+    return target
+
+
+def test_the_ledger_lives_under_state_not_home(state):
+    """The home holds what the operator wrote; the state holds what the machine
+    did. `rm -rf` on the state must not delete a schedule."""
+    assert ledger_path() == state / "jobs" / "ledger.jsonl"
+    assert jobs_state() == state / "jobs"
+
+
+def test_a_run_id_survives_two_runs_in_one_second():
+    """The stamp makes it sortable; the suffix is what keeps them apart."""
+    assert new_run_id("j") != new_run_id("j")
+
+
+def test_the_lane_lock_belongs_to_a_boot(tmp_path, monkeypatch):
+    """A stale lock file surviving a reboot is a lane that can never be entered
+    again."""
+    monkeypatch.setenv("XDG_RUNTIME_DIR", str(tmp_path))
+    assert lane_lock("read-only") == tmp_path / "sb" / "lane-read-only.lock"
+
+
+def test_the_executable_is_absolute():
+    """A generated unit has no PATH worth relying on, and a manual run and a
+    timed run must not execute two different sky.bosses."""
+    assert sb_executable().startswith("/") and sb_executable().endswith("/sb")
+
+
+def test_the_ledger_is_one_object_per_line(state):
+    append({"job": "a"})
+    append({"job": "b"})
+    lines = ledger_path().read_text().splitlines()
+    assert [json.loads(line)["job"] for line in lines] == ["a", "b"]
+
+
+@pytest.mark.parametrize(
+    "code,outcome",
+    [(0, "ok"), (3, "partial"), (1, "failed"), (2, "failed"), (7, "failed")],
+)
+def test_the_envelopes_three_codes_map_and_everything_else_is_failure(
+    code, outcome, state, monkeypatch, tmp_path
+):
+    """This is where `partial` finally does real work rather than being tidy: a
+    wrapper branches on the exit status without parsing a byte of output."""
+
+    def fake(*a, **k):
+        return subprocess.CompletedProcess(a[0], code)
+
+    monkeypatch.setattr("cli.jobs.subprocess.run", fake)
+    record = execute(a_job(), tmp_path / "x.log")
+    assert record["outcome"] == outcome and record["exit"] == code
+
+
+def test_a_timeout_is_a_recorded_outcome_not_an_exception(state, monkeypatch, tmp_path):
+    """With the ledger standing in for a notifier, a run that vanished without a
+    line is indistinguishable from one that never happened."""
+
+    def fake(*a, **k):
+        raise subprocess.TimeoutExpired(a[0], 1)
+
+    monkeypatch.setattr("cli.jobs.subprocess.run", fake)
+    record = execute(a_job(timeout=1), tmp_path / "x.log")
+    assert record["outcome"] == "timeout" and record["exit"] is None
+
+
+def test_a_binary_that_cannot_start_is_recorded_and_says_so(state, monkeypatch, tmp_path):
+    def fake(*a, **k):
+        raise OSError(2, "No such file or directory")
+
+    monkeypatch.setattr("cli.jobs.subprocess.run", fake)
+    log = tmp_path / "x.log"
+    record = execute(a_job(), log)
+    assert record["outcome"] == "failed"
+    assert "could not start" in log.read_text()
+
+
+def test_a_declared_bound_is_passed_and_none_is_unbounded(state, monkeypatch, tmp_path):
+    seen = {}
+
+    def fake(*a, **k):
+        seen["timeout"] = k.get("timeout")
+        return subprocess.CompletedProcess(a[0], 0)
+
+    monkeypatch.setattr("cli.jobs.subprocess.run", fake)
+    execute(a_job(timeout=30), tmp_path / "x.log")
+    assert seen["timeout"] == 30
+    execute(a_job(), tmp_path / "x.log")
+    assert seen["timeout"] is None
+
+
+RUNNABLE = """
+[job.quiet]
+argv = ["run", "--", "echo", "spoken"]
+
+[job.laned]
+argv = ["run", "--", "echo", "hi"]
+lane = "read-only"
+"""
+
+
+def test_a_real_run_writes_a_ledger_line_and_a_log(tmp_path, monkeypatch, state):
+    """End to end through the real wrapper, because the thing being proved is
+    that the spawn works at all."""
+    _home(tmp_path, RUNNABLE)
+    body = json.loads(run(tmp_path, monkeypatch, "run", "quiet").stdout)
+    assert body["ok"] is True and body["data"]["outcome"] == "ok"
+    assert len(ledger_path().read_text().splitlines()) == 1
+    assert "spoken" in Path(body["data"]["log"]).read_text()
+
+
+def test_output_goes_to_the_log_and_never_into_the_envelope(tmp_path, monkeypatch, state):
+    """`sb run` carries what it printed because you typed that argv; a job may
+    print for an hour unattended, so the envelope carries the record and names
+    where the bytes went."""
+    _home(tmp_path, RUNNABLE)
+    body = json.loads(run(tmp_path, monkeypatch, "run", "quiet").stdout)
+    assert "spoken" not in json.dumps(body["data"])
+    assert set(body["data"]) == {
+        "job", "run_id", "lane", "log", "started", "finished", "duration_s", "outcome", "exit",
+    }
+
+
+def test_a_busy_lane_refuses_rather_than_waiting(tmp_path, monkeypatch, state):
+    """A job that cannot take its lane does not wait — waiting turns a schedule
+    into a queue, and a queue that drains at 3am is a different feature nobody
+    asked for."""
+    _home(tmp_path, RUNNABLE)
+    monkeypatch.setenv("SB_HOME", str(tmp_path))
+    monkeypatch.setattr("cli.jobs.SB_HOME", tmp_path)
+    held = lane_lock("read-only").open("w")
+    fcntl.flock(held, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    try:
+        result = CliRunner().invoke(cli, ["--json", "job", "run", "laned"])
+    finally:
+        held.close()
+    body = json.loads(result.stdout)
+    assert body["data"]["outcome"] == "refused" and body["data"]["exit"] is None
+    assert body["partial"] is True and result.exit_code == 3
+    assert any("is busy" in w for w in body["warnings"])
+    # Refused is still a run that happened to a job, and it is on the ledger.
+    assert json.loads(ledger_path().read_text())["outcome"] == "refused"
+
+
+def test_a_job_with_no_lane_takes_no_lock(tmp_path, monkeypatch, state):
+    _home(tmp_path, RUNNABLE)
+    held = lane_lock("read-only").open("w")
+    fcntl.flock(held, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    try:
+        body = json.loads(run(tmp_path, monkeypatch, "run", "quiet").stdout)
+    finally:
+        held.close()
+    assert body["data"]["outcome"] == "ok"
+
+
+def test_an_unknown_job_names_the_declared_ones(tmp_path, monkeypatch, state):
+    _home(tmp_path, RUNNABLE)
+    result = run(tmp_path, monkeypatch, "run", "nope")
+    assert result.exit_code == 2
+    assert "quiet" in result.output and "laned" in result.output
