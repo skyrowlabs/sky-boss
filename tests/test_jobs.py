@@ -464,3 +464,334 @@ def test_an_unknown_job_names_the_declared_ones(tmp_path, monkeypatch, state):
     result = run(tmp_path, monkeypatch, "run", "nope")
     assert result.exit_code == 2
     assert "quiet" in result.output and "laned" in result.output
+
+
+# ============================================================================
+# Generating units — and refusing to install one twice
+# ============================================================================
+
+from cli.jobs import (  # noqa: E402
+    busy_lines,
+    calendar,
+    collisions,
+    payload,
+    service_unit,
+    timer_unit,
+)
+
+# Captured verbatim from the real `systemd-analyze calendar` on 2026-09-01, so
+# what is parsed here is what systemd actually prints. **Nothing in this file
+# shells out to it**: `systemd-analyze`, `crontab` and a working
+# `systemctl --user` are all things a CI container may not have, and a test whose
+# environment differs from CI's is a test about your machine.
+NORMALIZED = """  Original form: 06:00
+Normalized form: *-*-* 06:00:00
+    Next elapse: Wed 2026-09-02 06:00:00 CDT
+"""
+REJECTED = "Failed to parse calendar specification 'daily 06:00': Invalid argument\n"
+
+
+@pytest.fixture(autouse=True)
+def no_real_systemctl(monkeypatch):
+    """No test may reach the real user manager — `uninstall` issues a
+    `disable --now`, and the suite must never issue one."""
+    monkeypatch.setattr("cli.jobs._systemctl", lambda *a: ("", True))
+
+
+def canned(stdout="", code=0, stderr=""):
+    def fake(*a, **k):
+        return subprocess.CompletedProcess(a[0], code, stdout, stderr)
+
+    return fake
+
+
+def test_a_valid_schedule_comes_back_normalised(monkeypatch):
+    monkeypatch.setattr("cli.jobs.subprocess.run", canned(NORMALIZED))
+    assert calendar("06:00") == ("*-*-* 06:00:00", "")
+
+
+def test_systemd_owns_the_refusal(monkeypatch):
+    """A second implementation of calendar syntax would be wrong about DST
+    before it was wrong about anything else. `daily 06:00` is a real rejection —
+    it was in this feature's own spec until systemd said no."""
+    monkeypatch.setattr("cli.jobs.subprocess.run", canned(code=1, stderr=REJECTED))
+    normalized, trouble = calendar("daily 06:00")
+    assert normalized == "" and "systemd rejected" in trouble
+
+
+def test_a_manual_job_has_nothing_to_install():
+    assert calendar("")[1].startswith("no schedule declared")
+
+
+def test_no_systemd_analyze_refuses_rather_than_writing_an_unvalidated_unit(monkeypatch):
+    def missing(*a, **k):
+        raise FileNotFoundError
+
+    monkeypatch.setattr("cli.jobs.subprocess.run", missing)
+    assert "not available" in calendar("06:00")[1]
+
+
+# ---------------------------------------------------------------- the units
+
+
+def test_exec_start_goes_through_the_command_never_the_raw_argv():
+    """The difference between a scheduler and a cron line: going through
+    `sb job run` means a timed run takes the lane, honours the timeout and
+    writes the ledger exactly as a manual one does. A unit that ran the argv
+    directly would bypass all three, silently, for the runs nobody watches."""
+    text = service_unit(a_job(schedule="06:00"), "*-*-* 06:00:00")
+    assert "ExecStart=" in text
+    exec_line = next(ln for ln in text.splitlines() if ln.startswith("ExecStart="))
+    assert exec_line.endswith("/sb job run nightly")
+    assert "echo" not in text, "the job's own argv must not appear in the unit"
+
+
+CONTROLLING = (
+    "Conflicts", "Requires", "Requisite", "BindsTo", "PartOf",
+    "Before", "After", "Wants", "Upholds", "OnFailure",
+)
+
+
+@pytest.mark.parametrize("directive", CONTROLLING)
+def test_a_generated_unit_never_controls_another_unit(directive):
+    """`~/.config/systemd/user/` is shared space — five foreign unit files sit
+    in it on a real machine.
+
+    `Conflicts=` is called out by name because it was the original plan and is
+    the expensive mistake: it *stops* the conflicting unit rather than waiting
+    or refusing, so a scheduled job would kill a running one. Preemption, not
+    mutual exclusion. Lanes are a `flock` for exactly this reason.
+    """
+    job = a_job(schedule="06:00")
+    for text in (service_unit(job, ""), timer_unit(job, "")):
+        assert f"{directive}=" not in text
+
+
+def test_the_only_foreign_unit_named_is_the_enable_target():
+    """`WantedBy=timers.target` is how every timer is enabled — the mechanism,
+    not a reference to somebody's unit. It is the single exception and it is
+    pinned here so a second one cannot arrive quietly."""
+    job = a_job(schedule="06:00")
+    named = set()
+    for text in (service_unit(job, ""), timer_unit(job, "")):
+        for line in text.splitlines():
+            for word in line.replace("=", " ").split():
+                if word.endswith((".service", ".timer", ".target")):
+                    named.add(word)
+    assert named - {"sb-nightly.service", "sb-nightly.timer"} == {"timers.target"}
+
+
+def test_a_timer_does_not_catch_up_on_a_missed_run():
+    """No `Persistent=`. It would fire a missed run at the next boot, which cron
+    does not do — and these jobs are being migrated off cron, so matching what
+    they did is the less surprising default."""
+    assert "Persistent=" not in timer_unit(a_job(schedule="06:00"), "")
+
+
+def test_a_generated_unit_says_it_is_generated():
+    """An edit here is invisible to `sb job list` and is overwritten on the next
+    install. Saying so in the file is the only place a person editing it will
+    look."""
+    assert "Generated by sky.boss" in service_unit(a_job(schedule="06:00"), "")
+
+
+# ---------------------------------------------------------- the collision
+
+
+def test_the_payload_is_the_work_without_sky_boss_wrapping():
+    """`jam report overnight` is what the operator's crontab line says too,
+    which is why a collision can be found without either clock being parsed."""
+    assert payload(Job("j", ["run", "--", "jam", "report", "overnight"])) == (
+        "jam report overnight"
+    )
+
+
+def test_a_payload_too_short_to_check_says_so_rather_than_clean(monkeypatch):
+    """Matching `true` against every crontab line would find a collision in
+    somebody's PATH, and reporting no match for it would be worse — a detector
+    that counts what it caught and never counts whether it could look answers
+    `0` for both."""
+    clashes, unchecked = collisions(Job("j", ["run", "--", "true"]))
+    assert clashes == [] and "too short" in unchecked
+
+
+def test_a_foreign_unit_running_the_same_work_is_a_collision(tmp_path, monkeypatch):
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    units = tmp_path / "systemd" / "user"
+    units.mkdir(parents=True)
+    (units / "legacy.service").write_text("[Service]\nExecStart=/usr/bin/jam report overnight\n")
+    monkeypatch.setattr("cli.jobs.subprocess.run", canned(code=1))  # no crontab
+    clashes, unchecked = collisions(Job("j", ["run", "--", "jam", "report", "overnight"]))
+    assert unchecked == ""
+    assert clashes == [("legacy.service", "ExecStart=/usr/bin/jam report overnight")]
+
+
+def test_our_own_units_are_not_a_collision_with_ourselves(tmp_path, monkeypatch):
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    units = tmp_path / "systemd" / "user"
+    units.mkdir(parents=True)
+    (units / "sb-nightly.service").write_text("[Service]\nExecStart=/x/sb job run nightly\n")
+    monkeypatch.setattr("cli.jobs.subprocess.run", canned(code=1))
+    lines, _ = busy_lines()
+    assert lines == []
+
+
+def test_a_crontab_comment_is_not_a_schedule(tmp_path, monkeypatch):
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "none"))
+    monkeypatch.setattr(
+        "cli.jobs.subprocess.run",
+        canned("# 0 2 * * * jam report overnight\n30 2 * * * jam report overnight\n"),
+    )
+    lines, scopes = busy_lines()
+    assert [ln for _, ln in lines] == ["30 2 * * * jam report overnight"]
+    assert "crontab" in scopes
+
+
+# ---------------------------------------------------------------- install
+
+INSTALLABLE = """
+[job.nightly]
+argv     = ["run", "--", "jam", "report", "overnight"]
+schedule = "06:00"
+"""
+
+
+def installing(monkeypatch, *, clashes=()):
+    monkeypatch.setattr("cli.jobs.calendar", lambda s: ("*-*-* 06:00:00", "") if s else ("", "no"))
+    monkeypatch.setattr("cli.jobs.collisions", lambda j: (list(clashes), ""))
+
+
+def test_install_writes_two_units_and_does_not_enable(tmp_path, monkeypatch, state):
+    """Generating never enables — nothing fires until the operator runs the line
+    this prints."""
+    _home(tmp_path, INSTALLABLE)
+    installing(monkeypatch)
+    body = json.loads(run(tmp_path, monkeypatch, "install", "nightly").stdout)
+    assert body["ok"] is True and body["data"]["enabled"] is False
+    units = tmp_path / "xdg" / "systemd" / "user"
+    assert (units / "sb-nightly.service").exists() and (units / "sb-nightly.timer").exists()
+    assert "enable --now sb-nightly.timer" in body["data"]["enable_with"]
+
+
+def test_install_refuses_a_collision_and_names_it(tmp_path, monkeypatch, state):
+    _home(tmp_path, INSTALLABLE)
+    installing(monkeypatch, clashes=[("crontab", "30 2 * * * jam report overnight")])
+    result = run(tmp_path, monkeypatch, "install", "nightly")
+    body = json.loads(result.stdout)
+    assert body["ok"] is False and result.exit_code == 1
+    assert body["data"]["found"][0]["line"] == "30 2 * * * jam report overnight"
+    assert any("deactivate it first" in w for w in body["warnings"])
+    # **Nothing is written on a refusal.** A half-install is the double-fire.
+    assert not (tmp_path / "xdg" / "systemd" / "user").exists()
+
+
+def test_force_installs_alongside_and_says_both_will_fire(tmp_path, monkeypatch, state):
+    _home(tmp_path, INSTALLABLE)
+    installing(monkeypatch, clashes=[("crontab", "30 2 * * * jam report overnight")])
+    body = json.loads(run(tmp_path, monkeypatch, "install", "nightly", "--force").stdout)
+    assert body["ok"] is True
+    assert any("both will fire" in w for w in body["warnings"])
+
+
+def test_an_invalid_schedule_writes_nothing(tmp_path, monkeypatch, state):
+    _home(tmp_path, INSTALLABLE)
+    monkeypatch.setattr("cli.jobs.calendar", lambda s: ("", "systemd rejected it"))
+    result = run(tmp_path, monkeypatch, "install", "nightly")
+    assert json.loads(result.stdout)["ok"] is False and result.exit_code == 1
+    assert not (tmp_path / "xdg" / "systemd" / "user").exists()
+
+
+def test_an_uncheckable_collision_is_reported_not_assumed_clean(tmp_path, monkeypatch, state):
+    _home(tmp_path, INSTALLABLE)
+    monkeypatch.setattr("cli.jobs.calendar", lambda s: ("*-*-* 06:00:00", ""))
+    monkeypatch.setattr("cli.jobs.collisions", lambda j: ([], "'x' is too short to check"))
+    body = json.loads(run(tmp_path, monkeypatch, "install", "nightly").stdout)
+    assert any("collision not checked" in w for w in body["warnings"])
+
+
+def test_install_of_an_unknown_job_names_the_declared_ones(tmp_path, monkeypatch, state):
+    _home(tmp_path, INSTALLABLE)
+    result = run(tmp_path, monkeypatch, "install", "nope")
+    assert result.exit_code == 2 and "nightly" in result.output
+
+
+# -------------------------------------------------------------- uninstall
+
+
+def test_uninstall_removes_only_our_units(tmp_path, monkeypatch, state):
+    _home(tmp_path, INSTALLABLE)
+    units = tmp_path / "xdg" / "systemd" / "user"
+    units.mkdir(parents=True)
+    for name in ("sb-nightly.timer", "sb-nightly.service", "arch-update.timer"):
+        (units / name).write_text("")
+    body = json.loads(run(tmp_path, monkeypatch, "uninstall", "nightly").stdout)
+    assert set(body["data"]["removed"]) == {"sb-nightly.timer", "sb-nightly.service"}
+    assert (units / "arch-update.timer").exists(), "a foreign unit is never ours to remove"
+
+
+def test_uninstall_works_for_an_orphan_whose_declaration_is_gone(tmp_path, monkeypatch, state):
+    """Which is how an orphan gets cleaned up — the state `sb job list` reports
+    loudly has to have a way out."""
+    _home(tmp_path, "")
+    units = tmp_path / "xdg" / "systemd" / "user"
+    units.mkdir(parents=True)
+    (units / "sb-ghost.timer").write_text("")
+    body = json.loads(run(tmp_path, monkeypatch, "uninstall", "ghost").stdout)
+    assert body["data"]["removed"] == ["sb-ghost.timer"]
+
+
+def test_uninstalling_nothing_says_so(tmp_path, monkeypatch, state):
+    _home(tmp_path, INSTALLABLE)
+    body = json.loads(run(tmp_path, monkeypatch, "uninstall", "nightly").stdout)
+    assert body["data"]["removed"] == []
+    assert any("nothing to remove" in w for w in body["warnings"])
+
+
+@pytest.mark.parametrize("name", ["../escape", "a/b", "Nightly"])
+def test_uninstall_refuses_a_name_that_could_escape(name, tmp_path, monkeypatch, state):
+    """The argument is not read from `jobs.toml`, so it gets the check the
+    declaration would have had."""
+    _home(tmp_path, INSTALLABLE)
+    result = run(tmp_path, monkeypatch, "uninstall", name)
+    assert result.exit_code == 2
+
+
+# ============================================================================
+# The act/observe bit
+# ============================================================================
+
+
+def test_every_job_subcommand_chooses_its_act_bit():
+    """**A nested acting command defaults to observe**, and an observe may be
+    given a refresh cadence — which for `sb job run` would be the *scheduler
+    nobody asked for* that rule exists to prevent.
+
+    `cli/canvas/catalog.py` derives `acts` from a **top-level** `run`, so
+    anything under a group can only act by declaring `sb_acts`. All three
+    acting subcommands here shipped without it and the catalog called them
+    observes; nothing failed, and it was found by reading the catalog.
+
+    So the gate is recomputed from the group's real membership rather than
+    listing the three that were wrong — a list would have pinned these and
+    stayed silent on the next one. `sb job enable` fails this test until
+    somebody decides.
+    """
+    from cli.jobs import job as group
+
+    undecided = [
+        name for name, command in group.commands.items()
+        if not hasattr(command, "sb_acts")
+    ]
+    assert not undecided, f"these must declare sb_acts: {undecided}"
+
+
+def test_the_acting_subcommands_reach_the_catalog_as_acts():
+    """The declaration is only worth having if the surface reads it: this is the
+    property that keeps a cadence off them."""
+    from cli.canvas.catalog import catalog
+
+    entries = catalog()
+    rows = entries["commands"] if isinstance(entries, dict) and "commands" in entries else entries
+    acting = {row["name"] for row in rows if row.get("acts")}
+    assert {"job run", "job install", "job uninstall"} <= acting
+    assert "job list" not in acting and "job" not in acting

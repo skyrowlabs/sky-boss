@@ -83,7 +83,8 @@ wrong about DST because it has no opinion about DST.
 [job.asset-drift]
 description = "Ask every project how it is, nightly"
 argv        = ["run", "--", "sb", "roll-call"]
-schedule    = "daily 06:00"      # OnCalendar; systemd validates it
+schedule    = "06:00"            # OnCalendar; systemd validates it
+                                 # ("daily 06:00" is NOT valid — systemd said so)
 lane        = "read-only"        # advisory mutex; two jobs in a lane never overlap
 timeout     = 300
 ```
@@ -130,9 +131,16 @@ this feature adds:
   Silence, which looks exactly like a job that ran and found nothing to do.
 
 **So `sb job install` refuses a collision and names it** (ruled 2026-09-01), reading `crontab -l`
-and the live timers as **opaque busy windows** — never parsed for meaning, never written. `--force`
+and the foreign user units as **opaque text** — never parsed for meaning, never written. `--force`
 installs alongside. Refusing is the default because a double-fire in an agentic grid is not a
 cosmetic fault.
+
+**The collision is on the *command*, not the clock**, which corrects how this was first written.
+*Two things fire at 02:00* is not the hazard; *the same work runs twice* is, and that is what a
+half-finished handover leaves behind. Comparing commands also needs no calendar parsed on either
+side, where comparing times would need cron parsed on one — so the honest check is the cheaper one.
+A payload too short to be distinctive reports **cannot check** rather than clean, because a detector
+that counts what it caught and never counts whether it could look answers `0` for both.
 
 **And installed-state is read back, never remembered.** `sb job list` compares what `jobs.toml`
 declares against what `systemctl --user` actually reports, and a job that disagrees reads
