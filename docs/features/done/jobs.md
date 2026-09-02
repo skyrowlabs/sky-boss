@@ -1,9 +1,9 @@
 ---
-status: draft
+status: complete
 created: 2026-09-01
 updated: 2026-09-01
 agent_value: 3
-key_files: [cli/jobs.py, cli/schedule.py, cli/rollcall.py, cli/helpers.py]
+key_files: [cli/jobs.py, tests/test_jobs.py, cli/__init__.py, docs/design/fundamentals.md]
 ---
 
 # Jobs — sky.boss issues a schedule of its own
@@ -204,19 +204,19 @@ item's **advisory** ruling: sky.boss declines to start *its own* job. It never s
 
 ### Round 1 — a job that runs, records, and cannot double-fire (2026-09-01)
 
-- [ ] `$SB_HOME/jobs.toml` parsed and validated in `cli/jobs.py`: unknown keys named and ignored,
+- [x] `$SB_HOME/jobs.toml` parsed and validated in `cli/jobs.py`: unknown keys named and ignored,
       one bad definition never costing the others, `argv` refused as a string.
-- [ ] `sb job list` — every job with its lane, schedule, installed state and **drift**, read back
+- [x] `sb job list` — every job with its lane, schedule, installed state and **drift**, read back
       from `systemctl --user` rather than remembered.
-- [ ] `sb job run <name>` — foreground, honouring `timeout`, mirroring the job's exit code, taking
+- [x] `sb job run <name>` — foreground, honouring `timeout`, mirroring the job's exit code, taking
       its lane's `flock` and recording `refused` if it cannot.
-- [ ] Every run appends to `$SB_STATE/jobs/ledger.jsonl` with a captured log beside it — including
+- [x] Every run appends to `$SB_STATE/jobs/ledger.jsonl` with a captured log beside it — including
       failures, timeouts and refusals. Nothing runs unlogged, in any phase.
-- [ ] `sb job install <name>` / `uninstall` — generates `sb-<name>.service` and `.timer`,
+- [x] `sb job install <name>` / `uninstall` — generates `sb-<name>.service` and `.timer`,
       `OnCalendar` validated by `systemd-analyze calendar`. Generating never enables.
-- [ ] `install` **refuses a collision** against `crontab -l` and the live timers, naming the
+- [x] `install` **refuses a collision** against `crontab -l` and the live timers, naming the
       entry; `--force` installs alongside.
-- [ ] A test asserting no generated unit ever references a unit outside the `sb-` prefix.
+- [x] A test asserting no generated unit ever references a unit outside the `sb-` prefix.
 
 ### Round 2 — layering it into the schedule (not scheduled)
 
@@ -260,3 +260,63 @@ timer, systemd already does well. What nothing does well is the window in which 
 sides — and that window is opened by design, since the operator deactivates their own cron. Drift
 detection and a refusing `install` are therefore round 1 rather than polish; a layered schedule
 without them is a machine that silently runs the same agent twice on one working tree.
+
+### Round 1 — built (2026-09-01)
+
+**The spec's own worked example did not work.** `schedule = "daily 06:00"` is not `OnCalendar`
+syntax, and systemd rejected it on the first live install. That is the validator earning its place
+on the day it shipped — and the second worked example in two days that named something that does
+not exist, after [[history]]'s `started_at`. The pattern is worth naming: **a block written to be
+pasted is the one place a wrong guess costs a reader directly**, and both were caught by running the
+thing rather than by reading it. Corrected in place.
+
+**The collision check moved from the clock to the command, and it is a better check.** The spec
+said *opaque busy windows*, which implies time — and comparing times would have needed cron parsed
+on one side, the thing this whole feature refuses. The hazard was never *two things fire at 02:00*;
+it is *the same work runs twice*, which is exactly what a half-finished handover leaves behind. So
+a job's payload — its argv with sky.boss's own wrapper stripped — is matched against crontab lines
+and foreign `ExecStart` lines as text. `jam report overnight` is what both sides say.
+
+Its limits are stated rather than implied, because a check with unstated limits reads as a
+guarantee: it sees the invoking user's crontab and the user units in `XDG_CONFIG_HOME`, and not
+system units, other users, or another supervisor. And a payload too short to be distinctive returns
+**cannot check** rather than clean — matching `true` against every crontab line would find a
+collision in somebody's `PATH`, and reporting no match for it would be worse.
+
+**`ExecStart` goes through `sb job run <name>`, not the job's argv**, and this turned out to be the
+single most load-bearing line in the design. It is what makes a timed run and a manual run the same
+run: same lane, same timeout, same ledger. A unit that executed the argv directly would bypass all
+three for precisely the runs nobody is watching.
+
+**A real defect, found by reading the catalog rather than by anything failing.** All three acting
+subcommands reached the surface as **observes**, because `acts` is derived from a *top-level* `run`
+and anything nested can only act by declaring `sb_acts`. An observe may be given a refresh cadence
+— so a pinned `sb job run` window would have been the *"scheduler nobody asked for"* that rule
+exists to prevent, arriving through the feature that exists to be a scheduler. Nothing was red.
+
+The gate is scoped and recomputed: **every** subcommand of the group must declare `sb_acts`,
+observes included, because a missing attribute and a declared `False` are the same value to
+`getattr` and only one of them is a decision. Listing the three that were wrong would have pinned
+them and stayed silent on `sb job enable`.
+
+**`Documentation=man:sb(1)` was written and deleted before it was committed.** There is no man
+page. A generated file that makes a false claim is worse than one that says nothing, and a unit
+nobody reads is exactly where such a claim survives. The units now say they are generated and that
+edits to them are invisible to `sb job list`.
+
+**Three tests were deliberately not written against the real tools.** `systemd-analyze`, `crontab`
+and a working `systemctl --user` are all things a CI container may not have, so the strings being
+parsed were captured verbatim from the real tools on this machine and pinned as fixtures. A test
+whose environment differs from CI's is a test about your machine — and the suite must never issue a
+real `systemctl --user disable`, which `uninstall` does, so `_systemctl` is stubbed for the whole
+module by an autouse fixture.
+
+**All five outcomes were exercised live before the commit that claimed them**, not just asserted:
+`ok`, `failed`, `timeout` and `refused` end to end against the real wrapper, `partial` by
+injection. The lane refusal needed two concurrent runs to produce, and the two runs in the same
+second it took to test it are why a `run_id` carries a random suffix as well as a stamp.
+
+**What round 1 does not have is a way to see a job's history**, and that is round 3 rather than an
+oversight: the ledger is being written from the first run, and reading it back is [[history]]'s
+shape over sky.boss's own runs. Until then `sb data <ledger> --from jsonl` reads it, which is how
+[[history]] round 1 described its own subject before it had a command.

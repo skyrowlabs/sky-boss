@@ -80,6 +80,7 @@ replaced by a browser one the same day. What exists:
 | `sb roll-call` | Asks every declared project how it is and folds the answers. An observe. See [[roll-call]] |
 | `sb agents` | Which agent sessions are running right now, across every provider. An observe. See [[agent-sessions]] |
 | `sb history <project>` | A project's own run ledger, newest first. An observe, and the only one that looks backwards. See [[history]] |
+| `sb job` | Jobs sky.boss **issues**. `list` observes; `run`, `install` and `uninstall` act. systemd is the daemon. See [[jobs]] |
 | `sb schedule` | What fires next, across projects, ordered by the parsed instant. An observe; it schedules nothing. See [[schedule]] |
 | `sb mcp` | Speaks MCP on stdio, offering the tools to an agent. A surface. See [[mcp]] |
 | `sb tools` | Lists the operator's saved commands, and any that failed to load, grouped |
@@ -114,9 +115,17 @@ document, and correct the document when it has fallen behind.
 ## Scope
 
 There is no taxonomy to defend yet. The one property worth preserving from the version that was
-removed is this: **`sb run` is the single command that acts.** Everything else reads. When a group
-of commands returns, that is the line to keep — a command that wants to both read and write is two
-commands.
+removed is this: **`sb run` is the single *top-level* command that acts.** Everything else at that
+level reads. When a group of commands returns, that is the line to keep — a command that wants to
+both read and write is two commands.
+
+**`sb job` is the group that returned, on 2026-09-01, and it splits exactly that way**: `list`
+observes, while `run`, `install` and `uninstall` act and say so. What matters is that the split
+stayed per-command rather than per-group. And the enforcement did **not** come free — `acts` is
+derived in `cli/canvas/catalog.py` from a *top-level* `run`, so all three acting subcommands
+reached the surface labelled as observes, which would have let a window give `sb job run` a refresh
+cadence. A nested command asserts the bit with `sb_acts` or it silently inherits the wrong one; the
+group's own test now fails on a subcommand that never chose. See [[jobs]].
 
 That line is now load-bearing rather than aesthetic. The canvas reads it — `acts` in the catalog —
 to decide whether a window may be given a refresh cadence, because **re-running a read is a
@@ -1001,7 +1010,8 @@ surface, five rounds), `follow.md` (the streaming substrate, four rounds), `tool
 rounds), `highlight.md` (lexical tint, four rounds), `capture.md` (declared structure),
 `refresh.md`, `header.md` (the mark, two rounds), `text-reads.md`, `subprocess-env.md`, `table-views.md` (the
 shaping contract, five rounds), `roll-call.md` (federating over projects), `agent-sessions.md` (who is running, and the adapter
-seam), `history.md` (a provider's ledger, backwards), `file-follow.md` (the
+seam), `history.md` (a provider's ledger, backwards),
+`jobs.md` (a schedule sky.boss issues), `file-follow.md` (the
 native cursor, two rounds), `chrome.md` (what a window knows about its output, three rounds), `mcp.md` (the tools offered to
 an agent), `delay.md` (once, later), `workbench.md` (the authoring surface, three rounds — opened
 and finished 2026-08-26/27), and the constitution's rounds as they land.

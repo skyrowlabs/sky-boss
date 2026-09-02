@@ -239,6 +239,13 @@ since sky.boss is the authority for what sky.boss ran. *A job running with no wi
 execution, squarely. Whoever reopens this should say which they want; the answers are different
 sizes.
 
+***Both were taken, hours later, by [[jobs]].*** A declared job's **name** is an identity that
+outlives every window, and `$SB_STATE/jobs/ledger.jsonl` is the record keyed by it — so the
+federation question is answered in the affirmative for sky.boss's own runs, and execution is
+crossed deliberately with a dated decision. **This closes item 6 for anything sky.boss schedules
+and leaves it open for anything sky.boss merely runs**: `sb run -- <argv>` is still anonymous and
+still dies with its window, which is the `--label` the mockup drew and nothing has needed yet.
+
 **7. The claim.** Several agentic jobs contending for one working tree is a real fact with no
 vocabulary in sb. The mockup renders it as a glyph and a contested band; what it *means* — advisory
 label, or something that actually blocks a departure — was undecided, and those are very different
@@ -288,6 +295,16 @@ grid; it is the agents item 16 went and found.
 
 **Still open:** which of those two, and whether an advisory claim is worth building before there is
 a band to draw it in. Not blocked on a decision any more — blocked on wanting it.
+
+**Half of it arrived with a mechanism on 2026-09-01 → [[jobs]] round 1.** A job declares a `lane`,
+and a lane is an advisory `flock`: a job that cannot take its lane records `refused` and does not
+run. That is contention between **sky.boss's own** jobs, enforced, and it stays inside the advisory
+ruling above — sky.boss declines to start its own work and never stops anyone else's. The
+`Conflicts=` alternative was rejected for a measured reason worth keeping: it *stops* the
+conflicting unit rather than waiting or refusing, which is preemption dressed as mutual exclusion,
+and a scheduled job would have killed a running one. What is still unbuilt is the reading half —
+contention between jobs sky.boss did **not** start, which is where the `cwd`/worktree derivation
+above still applies.
 
 **8. The budget.** ~~A wall-clock ceiling on a run.~~ **Answered 2026-08-29: the supervisor owns
 it and sky.boss displays it.** The mockup put `--budget` on `follow`, which is a contradiction —
