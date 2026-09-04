@@ -571,6 +571,87 @@ different design, not a smaller one. Also still out: `release-please` and a `VER
 the version comes from `git describe` and `cli/banner.py` prints it; a tracked `VERSION` is a
 second source of truth that can disagree with the tag, and the mark would be where it showed.
 
+**Round 2, 2026-09-04 — two of those rulings rest on premises that are wrong, and the retrofit
+stopped being impossible.** Put to the skeletor session directly rather than inferred from its
+tree; both corrections are its findings about itself. The reasoning above is left standing rather
+than edited, for the reason these files exist: a superseded argument beside its reversal is the
+thing that stops the mistake being made twice.
+
+**The commit-hook row names a mechanism skeletor does not use.** *"A git hook is not cloned with
+the repository"* is true of raw `.git/hooks/` and false of what skeletor actually ships — a
+**tracked** `.pre-commit-config.yaml` entry with `default_install_hook_types: [pre-commit,
+commit-msg]`, installed by a documented setup step. The row declines the right thing for a reason
+that does not apply to the thing it declines.
+
+**The conclusion survives on skeletor's own ground, which is better than ours was:** nothing in its
+`ci.yml` checks commit subjects, so the convention binds only a contributor who ran
+`pre-commit install` — not a web-UI commit, not a merge — while Release Please reads those same
+subjects to build the changelog. *Worked fine, told nobody*, surfacing one release late, and a
+finding against skeletor rather than against this decision. What went back, and what it queued
+rather than built: the gate worth having is not *lint every subject* but **fail if a subject
+Release Please will read cannot be parsed** — a check on the contract between two of its own
+components rather than a style rule, which is the difference between a gate people keep and a gate
+people disable.
+
+**The `VERSION` paragraph is missing its precondition, and so was skeletor's.** *A second source of
+truth that can disagree with the tag* is true only of a project **nobody installs**. The
+discriminator is `does anything install this?` — a published artifact's version has to live in a
+tracked file, because a tarball has no git history, and `VERSION` is then the primary with a single
+writer rather than a copy. Nothing installs sky.boss, so the ruling above holds — it holds **for a
+reason it did not state**, and the unstated half is exactly what would make it wrong for a repo
+that ships a wheel.
+
+The symmetry is the useful part. Skeletor **refuses a `VERSION` for itself on this repo's reasoning
+while its template ships one**, and neither side had written down what separates the two cases;
+each of us had half of one rule and neither half was load-bearing alone. Its half is now in its
+`docs/DESIGN_RATIONALE.md` § Versioning. This is ours. It is the same shape as *a rule that exists
+only as a comment in the producing repo is unreachable from where the mistake gets made* — one
+level up, where the rule existed in **neither** repo and both were acting on a guess that happened
+to be right.
+
+**The mechanical blocker on a retrofit is gone, and it was a defect rather than a design.** The
+question put to skeletor was whether adopting its framework would convert six settled decisions
+into six recurring merge conflicts. It did not — it converted them into something quieter. A
+scaffolded tree with `VERSION` and `release-please-config.json` deleted, the deletion committed,
+then `skeletor-upgrade`:
+
+```
+✅ 2 new file(s) would be added
+   · .github/release-please-config.json
+   · VERSION
+```
+
+A green tick, and on a real run written back without asking: **a silent auto-revert of a decision,
+every run, forever.** `theirs is None` was classified on absence alone, never consulting the
+manifest — which already carried the discriminator, since an entry means skeletor wrote that file
+into this tree, so its absence now is a deletion somebody performed. Fixed in skeletor v0.2.7
+(`a47212b`) as a fourth report category, permanent and reported every run as one standing line
+rather than a roll-call, with only the subset the template has *changed* since the decline
+itemised. **Our question is what found it**, which is the § *a repo's own tests cannot find a seam
+defect* rule paying out in the direction that rule predicts.
+
+**What is on the table is the rules layer, not the framework** — scaffold with `--force` at the
+arguments to be recorded, keep the rules and `docs/rules/`, delete the rest as **its own commit**,
+then `skeletor-upgrade --dry-run` and confirm the declines report as declines rather than as
+additions. That last step is not ceremony: it is what verifies v0.2.7 behaves as described *on this
+tree* before anything depends on it. Skeletor's own recommendation, and it argued against the full
+retrofit — the docs lifecycle and Release Please stay out, and five of the divergences above are
+reasoned rather than accidental.
+
+**One rule came back worth naming here, because this repo already built the middle of it.** On when
+a gate may carry an allowlist: *tighter predicate first, **structural marker** if one exists,
+vocabulary allowlist only when the excluded thing is prose about the notation.* The count is not
+the tell — what the entries are *about* is. Entries about code the predicate mis-shaped mean the
+predicate is wrong; entries about the convention's own vocabulary cannot be predicated away, which
+is why `tests/test_docs.py` legitimately allowlists `[[slug]]` (the sentence defining the notation)
+and `[[toolbox]]` (a dated record of a rename — *resolving it would mean the rename had not
+happened*). `tests/test_naming.py` is the middle rung, arrived at here independently: masking
+fenced blocks, indented blocks, inline spans and HTML tags before looking for a bare command,
+because **a fence is the difference between describing a command and telling you to run one**. The
+`PAINTED` set in `tests/test_theme.py` is the fourth shape and the one skeletor took — an exemption
+that is a **redirect rather than a hole**, removed from one check and held to two others, with
+`assert PAINTED` so it cannot silently become a bypass. That assertion is the whole thing.
+
 ---
 
 ## Watching the agents on this machine
