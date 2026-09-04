@@ -170,7 +170,7 @@ def rows_of(project: Project, payload) -> tuple[list[dict], list[str]]:
             "name": str(item.get(mapping["name"], "") or ""),
             # A provider fires its own jobs; sky.boss is reading. The word does
             # not name their mechanism because sky.boss does not know it.
-            "clock": "watched",
+            "clock": jobs_.WATCHED,
         }
         for field in ("schedule", "next", "last"):
             key = mapping.get(field)

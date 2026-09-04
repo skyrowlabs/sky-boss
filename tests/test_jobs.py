@@ -795,3 +795,76 @@ def test_the_acting_subcommands_reach_the_catalog_as_acts():
     acting = {row["name"] for row in rows if row.get("acts")}
     assert {"job run", "job install", "job uninstall"} <= acting
     assert "job list" not in acting and "job" not in acting
+
+
+def test_every_outcome_the_code_produces_is_one_the_module_declares():
+    """`OUTCOMES` was defined, documented with the reason there are five of them
+    rather than two, and **read by nothing** — the five words were spelled as
+    literals at six sites and the tuple sat beside them as decoration. An
+    undocumented rule at least reads as unknown; a documented one with no code
+    under it reads as settled, which is the worse failure of the two.
+
+    So this recomputes the set from the source rather than listing the sites it
+    knows about — listing them would pin these six and stay silent on the
+    seventh. A sixth outcome, or a typo in a comparison that would silently
+    never match, fails here.
+
+    Found 2026-09-04 by sweeping this repo for the shape jam.sense reported.
+    """
+    import ast
+
+    from cli.helpers import PROJECT_ROOT
+    from cli.jobs import OUTCOMES
+
+    tree = ast.parse((PROJECT_ROOT / "cli" / "jobs.py").read_text())
+    found: set[str] = set()
+
+    def strings(node: ast.AST) -> set[str]:
+        return {
+            n.value for n in ast.walk(node)
+            if isinstance(n, ast.Constant) and isinstance(n.value, str)
+        }
+
+    def names_outcome(node: ast.AST) -> bool:
+        """A target, or a subscript, that is the outcome itself."""
+        if isinstance(node, ast.Name):
+            return node.id == "outcome"
+        if isinstance(node, ast.Subscript):
+            return isinstance(node.slice, ast.Constant) and node.slice.value == "outcome"
+        return False
+
+    for node in ast.walk(tree):
+        # `outcome = "timeout"`, and `outcome, code = "ok", None`
+        if isinstance(node, ast.Assign) and node.value is not None:
+            targets = []
+            for t in node.targets:
+                targets.extend(t.elts if isinstance(t, ast.Tuple) else [t])
+            if any(names_outcome(t) for t in targets):
+                found |= strings(node.value)
+        # `{"outcome": "refused"}`
+        elif isinstance(node, ast.Dict):
+            for key, value in zip(node.keys, node.values):
+                if (
+                    isinstance(key, ast.Constant)
+                    and key.value == "outcome"
+                    and isinstance(value, ast.Constant)
+                    and isinstance(value.value, str)
+                ):
+                    found.add(value.value)
+        # `record["outcome"] != "ok"` — a comparison against a word that is not
+        # an outcome never matches, and nothing else would say so.
+        elif isinstance(node, ast.Compare) and names_outcome(node.left):
+            for other in node.comparators:
+                found |= strings(other)
+
+    assert found, "found no outcome strings at all — the walk has stopped working"
+    undeclared = found - set(OUTCOMES)
+    assert not undeclared, (
+        f"cli/jobs.py produces or compares outcomes that OUTCOMES does not declare: "
+        f"{sorted(undeclared)}"
+    )
+    unproduced = set(OUTCOMES) - found
+    assert not unproduced, (
+        f"OUTCOMES declares outcomes nothing produces: {sorted(unproduced)} — "
+        "either the code stopped writing them or the tuple has outlived them"
+    )
