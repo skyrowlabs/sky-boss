@@ -701,9 +701,15 @@ does: an audience that is not the author.
 
 - **Cut from `develop`, open the pull request into `develop`.** A change reaches `main` only by
   `develop` merging into it. A pull request targeting `main` is almost always a mistake.
-- **Both branches are protected**, with the same five checks — `eslint` and `pytest` on 3.11 to
-  3.14. `main` is not given a weaker gate than `develop` on the argument that it only ever receives
-  reviewed work: a release branch that trusts its input is a release branch with no gate.
+- **Both branches are protected**, with the same three checks — `eslint` and `pytest` on 3.12 and
+  3.14, the floor `README.md` promises and the newest release. `main` is not given a weaker gate
+  than `develop` on the argument that it only ever receives reviewed work: a release branch that
+  trusts its input is a release branch with no gate.
+
+  **A required check is named, not discovered**, so narrowing the matrix means editing branch
+  protection on *both* branches in the same sitting. A context that no job reports is a check that
+  never arrives, and it blocks every pull request forever — the same trap `ci.yml` refuses
+  `paths-ignore` for.
 
   **`develop` stopped requiring a pull request on 2026-09-01, and `main` still does.** The checks
   are untouched on both — that sentence above is about the *checks*, and they are what gates. What

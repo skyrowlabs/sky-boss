@@ -199,8 +199,14 @@ def _report(path: Path, mask: str, hits: list[int]) -> str:
     rel = path.relative_to(PROJECT_ROOT)
     # The newline is bound outside the f-string on purpose. A backslash *inside*
     # an f-string expression is PEP 701, which lands in 3.12, and `README.md`
-    # promises 3.11 — so this file failed to import there and took the whole
-    # suite's collection with it. Found by the CI matrix on its first run.
+    # promised 3.11 — so this file failed to import there and took the whole
+    # suite's collection with it. Found by the CI matrix on its first run, and
+    # the reason that matrix exists: a syntax check is not a run.
+    #
+    # The floor moved to 3.12 on 2026-09-05, so the inline form would compile
+    # now. It stays bound out anyway. Rewriting a passing test to spend syntax
+    # it does not need would delete the one comment in this repo that records
+    # what the version floor actually costs.
     newline = "\n"
     return ", ".join(f"{rel}:{mask.count(newline, 0, at) + 1}" for at in hits)
 

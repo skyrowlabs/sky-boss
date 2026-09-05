@@ -557,6 +557,10 @@ to `main` until today. And a **CI matrix over 3.11–3.14**, because `README.md`
 did not test; it found a real break on its first run, and the break was a PEP 701 f-string in
 `tests/test_naming.py` — a file that had been checked against 3.11 with `ast.parse(feature_version=…)`
 and passed, because that argument cannot see a tokenizer change. **A syntax check is not a run.**
+*Narrowed to 3.12 and 3.14 on 2026-09-05 — floor and ceiling. Both failure modes a matrix catches
+live at the ends, the jobs are parallel and free either way, and what four cost was four required
+checks on two protected branches. The floor rose with it, which is Debian 12 given up and Ubuntu
+24.04 LTS kept; see `.github/workflows/ci.yml`.*
 
 `CONTRIBUTING.md` is sky.boss's own rather than skeletor's, and that was forced rather than
 preferred: skeletor's names `check pre-push`, the `docs/TODO/` ↔ `docs/implementations/` move and

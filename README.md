@@ -5,7 +5,7 @@
 <p align="center">
   <a href="https://github.com/skyrowlabs/sky-boss/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/skyrowlabs/sky-boss/actions/workflows/ci.yml/badge.svg?branch=develop"></a>
   <a href="https://github.com/skyrowlabs/sky-boss/tags"><img alt="Latest tag" src="https://img.shields.io/github/v/tag/skyrowlabs/sky-boss?label=version"></a>
-  <a href="https://github.com/skyrowlabs/sky-boss/actions/workflows/ci.yml"><img alt="Python 3.11 to 3.14" src="https://img.shields.io/badge/python-3.11%E2%80%933.14-blue"></a>
+  <a href="https://github.com/skyrowlabs/sky-boss/actions/workflows/ci.yml"><img alt="Python 3.12 to 3.14" src="https://img.shields.io/badge/python-3.12%E2%80%933.14-blue"></a>
   <a href="LICENSE"><img alt="MIT licence" src="https://img.shields.io/github/license/skyrowlabs/sky-boss"></a>
 </p>
 
@@ -50,7 +50,7 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 ln -s "$PWD/sb" ~/.local/bin/sb          # or run ./sb from the repo
 ```
 
-Needs Python 3.11+. Shell completion for fish:
+Needs Python 3.12+. Shell completion for fish:
 `_SB_COMPLETE=fish_source sb > ~/.config/fish/completions/sb.fish`
 
 ## The commands

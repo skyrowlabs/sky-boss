@@ -45,21 +45,37 @@ permissions:
 
 jobs:
   test:
-    # `README.md` promises "Needs Python 3.11+" and for one job that was a
-    # belief, not a check: every file parses as 3.11 syntax and `tomllib` is
-    # 3.11+, so the claim was plausible and nothing verified it. A contributor
-    # on a distro Python would have been the one to find out. Four jobs on a
-    # public repo cost nothing — GitHub-hosted runners are free here — and the
-    # floor of this list is the number the README is allowed to say.
+    # **The floor of this list is the number the README is allowed to say.**
+    # `README.md` promises a range, and for one job that was a belief rather
+    # than a check: every file parsed as floor syntax and `tomllib` is 3.11+,
+    # so the claim was plausible and nothing verified it. A contributor on a
+    # distro Python would have been the one to find out. The matrix found a
+    # real break on its first run — a PEP 701 f-string, which is 3.12 syntax,
+    # in a file that had been checked with `ast.parse(feature_version=…)` and
+    # passed because that argument cannot see a tokenizer change.
+    #
+    # **Floor and ceiling only, as of 2026-09-05.** The two failure modes a
+    # version matrix exists to catch both live at the ends: syntax newer than
+    # the floor fails on the floor, and a removed or deprecated API fails on
+    # the newest. A break unique to the middle of the range is the case this
+    # gives up, and it is the rare one. What it buys is not runner minutes —
+    # the jobs are parallel and free on a public repo, so four cost the same
+    # wall-clock as two — but the number of required checks two protected
+    # branches have to carry.
+    #
+    # The floor moved 3.11 → 3.12 the same day, which is what makes PEP 701
+    # available. Debian 12 ships 3.11 and is what that cost; Ubuntu 24.04 LTS
+    # ships 3.12 and is what it kept. Raising it again is a README edit and a
+    # branch-protection edit, in that order, and never one without the other.
     #
     # `fail-fast: false` because the useful answer is *which* versions broke.
-    # Cancelling the rest on the first red turns four data points into one.
+    # Cancelling the rest on the first red turns two data points into one.
     name: pytest ${{ matrix.python }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        python: ['3.11', '3.12', '3.13', '3.14']
+        python: ['3.12', '3.14']
     steps:
       - uses: actions/checkout@v7
 
