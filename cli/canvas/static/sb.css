@@ -1183,19 +1183,25 @@ pre.stream.wrap .ln {
  * axis — and the timeline is now the last column of this grid, so every lane
  * and the axis above them must be one track.
  *
- * The four view columns size to their own content; SCHEDULE gets its natural
+ * The view columns size to their own content; SCHEDULE gets its natural
  * width back (round 8 had it ellipsis at half a panel) and the lane takes the
  * remainder, with a floor so a very long cron can never collapse the chart to
  * nothing. Nothing here is a magic number except that floor, and a floor is
  * the one number a chart genuinely needs.
  *
+ * **The track count is not written here.** It was, and round 10's `clock`
+ * column made the sheet one track short of what a row emits: every row spilled
+ * into the next, each one column further right than the last, and the marks
+ * marched diagonally across the text instead of standing in the lane. A count
+ * that lives in this file is a copy of `INLINE` in cli/schedule.py, and a copy
+ * drifts the moment a column is added. `--pl-cols` is set by schedule.js from
+ * the view it is actually drawing, so the grid cannot disagree with the row.
+ *
  * `display: contents` removes the row's own box, so the rule that separates
  * rows lives on the cells. */
 .pl-sheet {
   display: grid;
-  grid-template-columns:
-    minmax(0, max-content) minmax(0, max-content) minmax(0, max-content)
-    minmax(0, max-content) minmax(24rem, 1fr);
+  grid-template-columns: repeat(var(--pl-cols, 5), minmax(0, max-content)) minmax(24rem, 1fr);
   column-gap: 4rem;
   align-items: stretch;
 }
