@@ -713,9 +713,16 @@ export function Plan({ result, projects, readAt, now, onRefresh, ui, setUi }) {
           * an identical fixed template; this takes it one level up, because a
           * per-group grid would give each project its own axis. Group headings
           * and provenance blocks span every track; a job's row is
-          * `display: contents` across all five. */ ""}
+          * `display: contents` across the view's columns plus the lane.
+          *
+          * `--pl-cols` is that count, handed to the grid from the view being
+          * drawn rather than written a second time in sb.css. The number was
+          * a literal there until round 10 added `clock` and left the sheet one
+          * track short: every row wrapped one column further right than the
+          * one above it and the marks ran diagonally through the text. The
+          * grid cannot fall behind a column it is told about. */ ""}
       ${anyRows &&
-      html`<div class="pl-sheet">
+      html`<div class="pl-sheet" style=${`--pl-cols: ${columns.length}`}>
         <div class="pl-row pl-hrow">
           ${columns.map((c) => html`<span class="pl-c">${c.label}</span>`)}
           <${Axis} now=${now} spanSeconds=${spanSeconds} />

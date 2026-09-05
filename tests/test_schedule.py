@@ -495,3 +495,38 @@ def test_both_populations_sort_on_one_instant(tmp_path, monkeypatch):
     monkeypatch.setattr("cli.rollcall.SB_HOME", tmp_path)
     body = json.loads(CliRunner().invoke(cli, ["--json", "schedule"]).stdout)
     assert [r["name"] for r in body["data"]] == ["theirs", "armed"]
+
+
+def test_the_sheet_takes_its_track_count_from_the_view():
+    """The grid may not write down how many columns the table has.
+
+    `.pl-sheet` is one grid for the whole sheet and every row is
+    `display: contents`, so a row lands in it as `INLINE` minus `project`, plus
+    the trailing lane. When the track list was spelled out in sb.css that count
+    was a second copy of `INLINE`, and round 10's `clock` column made the two
+    disagree: the sheet was one track short, every row wrapped one column
+    further right than the one above it, and the marks ran diagonally through
+    the text instead of standing in the lane.
+
+    So the count travels — schedule.js hands the view's own `columns.length` to
+    the grid as `--pl-cols`. What this defends is that it keeps travelling: a
+    literal track list here is the bug returning, whatever number it holds.
+    """
+    import re as _re
+
+    from cli.helpers import PROJECT_ROOT
+
+    stylesheet = (PROJECT_ROOT / "cli/canvas/static/sb.css").read_text()
+    sheet = _re.search(r"\.pl-sheet\s*\{([^}]*)\}", stylesheet)
+    assert sheet, "`.pl-sheet` is gone — did the schedule grid move?"
+    tracks = _re.search(r"grid-template-columns:([^;]*);", sheet.group(1))
+    assert tracks, "`.pl-sheet` no longer states its tracks"
+    assert "var(--pl-cols" in tracks.group(1), (
+        "the sheet's track count is written in sb.css again; it is a copy of "
+        "INLINE and it will drift the next time a column is added"
+    )
+
+    script = (PROJECT_ROOT / "cli/canvas/static/schedule.js").read_text()
+    assert _re.search(r"--pl-cols:\s*\$\{columns\.length\}", script), (
+        "schedule.js no longer hands the grid the column count it is drawing"
+    )
