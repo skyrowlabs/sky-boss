@@ -25,8 +25,9 @@ npm run lint:check                # eslint, --max-warnings=0
 npm test                          # node --test, the frontend's pure half
 ```
 
-CI runs all three, plus pytest on 3.11 through 3.14. There is no gate job and no `paths-ignore` —
-the suite is cheap enough that deciding whether to run it would cost more.
+CI runs all three, plus pytest on 3.12 and 3.14 — the floor the README promises and the newest
+release. There is no gate job and no `paths-ignore` — the suite is cheap enough that deciding
+whether to run it would cost more.
 
 To work on the surface, `sb ui --no-browser --port 8765` and point a browser at it. Live reload
 rides the session stream, so a CSS edit swaps in place and every window keeps its state. Only a
@@ -86,9 +87,11 @@ integration branch and the default here; `main` is what has been released. A cha
 only by `develop` merging into it, so a pull request targeting `main` is almost always a mistake —
 say so in the description if you meant it.
 
-Draft it while you iterate and mark it ready once you believe it is green; CI runs either way, on
-pushes to the branch and on the pull request. The branch is deleted automatically when the pull
-request merges. Merges are merge commits — squash and rebase are both off, because a branch here
+Draft it while you iterate and mark it ready once you believe it is green; CI runs on the pull
+request either way. **It does not run on a push to your branch** — `ci.yml` triggers on pushes to
+`main` and `develop` only, so a feature branch registers no run until the pull request exists. Open
+it early, or run the three commands above locally. The branch is deleted automatically when the
+pull request merges. Merges are merge commits — squash and rebase are both off, because a branch here
 is *one logical idea per commit* and squashing throws away the half of that which is the reasoning.
 
 Say what you *ran* and what it *said*, not that it should work. If part of a change is unverified,
