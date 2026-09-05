@@ -39,10 +39,30 @@ from cli.helpers import PROJECT_ROOT
 # `/home/x/y/z.json` in a highlight fixture, `/home/you` in a bug quoted from
 # the workbench. A placeholder is a shape standing in for a name; these are the
 # names this repo has chosen for that job, and a new one is a deliberate act.
-PLACEHOLDERS = {"you", "user", "me", "x"}
+PLACEHOLDERS = {"you", "user", "me", "x", "src", "some", "somewhere", "logs"}
+#   `src`        — what the 2026-08-30 history rewrite chose to stand in for the
+#                  operator's workspace root, so every `~/src/...` in the docs is
+#                  already a scrubbed path.
+#   `some`,      — stand-ins in a docstring example and in fixtures: `--cwd ~/some/repo`,
+#   `somewhere`    `state_root = "~/somewhere"`.
+#   `logs`       — the arbitrary target in the tests that assert `~` expansion at all.
 
 HOME_DIR = re.compile(r"/(?:home|Users)/([A-Za-z][\w.-]*)")
 IPV4 = re.compile(r"(?<![\w.])(\d{1,3}(?:\.\d{1,3}){3})(?![\w.])")
+
+# The third shape, and an adoption found it rather than an audit. `HOME_DIR`
+# matches a literal `/home/<someone>`; a path *composed* onto the home directory
+# contains no such literal, so `~/workspace/thing` and `Path.home() / "workspace"`
+# both name the operator's machine layout and both walked straight past it.
+# skeletor's `scripts/paths.py` carried `Path.home() / "<workspace>" / "..."`
+# into this tree on 2026-09-05 and all five tests here stayed green.
+#
+# The shape that separates a leak from a legitimate use is the **first segment**.
+# A tool owns a dotted directory under the home — `~/.sky-boss`, `~/.local/state/sb`
+# — and cannot legitimately know what else lives up there. So a home-anchored path
+# whose first segment is not a dotfile is describing somebody's disk.
+TILDE_PATH = re.compile(r"~/([A-Za-z0-9][\w.-]*)")
+HOME_JOIN = re.compile(r'Path\.home\(\)\s*/\s*"([A-Za-z0-9][\w.-]*)"')
 
 # Loopback and the unspecified address are how a local server is spelled, and
 # `127.0.0.1` appears in `cli/canvas/` by design. The rest are the ranges the
@@ -164,3 +184,33 @@ def test_the_operators_notes_are_not_tracked():
         check=True,
     ).stdout.split()
     assert not listed, f"tracked, and must not be: {listed}"
+
+
+def test_no_home_anchored_path_in_a_tracked_file():
+    """A path under the home directory says how the operator arranges their disk,
+    which is the same disclosure as naming their machine — and it is the one
+    `test_no_home_directory_in_a_tracked_file` above cannot see, because there is
+    no `/home/<someone>` in `~/workspace` or in `Path.home() / "workspace"`.
+
+    Found by taking a file from another repo rather than by auditing this one:
+    the copied `scripts/paths.py` defaulted a state root to the operator's
+    workspace layout, and five green tests here said nothing about it. That is
+    this repo's own rule arriving from outside — a suite cannot find a
+    disagreement about an artifact it did not write.
+
+    It needed **no** path exemption. Everything it flagged on its first run was
+    a stand-in — `~/some`, `~/somewhere`, `~/logs` — so the answer was the
+    placeholder vocabulary above rather than a list of files, which is the
+    cheaper rung: a widened pattern or a file allowlist would both have stopped
+    this shape seeing the next real one."""
+    found = []
+    for name, text in _tracked():
+        if name == "tests/test_publication.py":
+            continue
+        for pattern in (TILDE_PATH, HOME_JOIN):
+            for match in pattern.finditer(text):
+                if match.group(1) in PLACEHOLDERS:
+                    continue
+                line = text[: match.start()].count("\n") + 1
+                found.append(f"{name}:{line}: {match.group(0)}")
+    assert not found, "a home-anchored path in a tracked file:\n  " + "\n  ".join(found)

@@ -1,0 +1,87 @@
+{
+  "_comment": "Written by skeletor-components; read by skeletor-components report. It records what this tree COPIED from skeletor and when \u2014 it does NOT claim this tree was scaffolded by skeletor. Nothing here is ever merged or written back; see bin/skeletor-components.",
+  "components": {
+    "base": {
+      "files": {
+        "scripts/allowlist.py": {
+          "local_sha": "7df16df78cc645d548be42c5a9f89ece614fc6db4b04dd75c69ba16eade3a128",
+          "ref": "v0.7.0",
+          "source": "template/core/scripts/allowlist.py",
+          "source_sha": "7df16df78cc645d548be42c5a9f89ece614fc6db4b04dd75c69ba16eade3a128"
+        },
+        "scripts/output.py": {
+          "local_sha": "2580c7a1f55fa96855288e7986c4cc7cf68e833bc23f9e7bf878bc9742838368",
+          "ref": "v0.7.0",
+          "source": "template/core/scripts/output.py",
+          "source_sha": "2580c7a1f55fa96855288e7986c4cc7cf68e833bc23f9e7bf878bc9742838368"
+        },
+        "scripts/paths.py": {
+          "local_sha": "4b84446d605d587552f1393b1efb05260b320dc100b3937f1bdbae31fecd132c",
+          "ref": "v0.7.0",
+          "source": "template/core/scripts/paths.py",
+          "source_sha": "0a0a015eb011b1f97fef811961d8baa222c3196e96b9144e2785a9069491f794"
+        },
+        "scripts/yaml_text.py": {
+          "local_sha": "8e2d9392fcfadfcc256eac0a4ab0f8e77f55b7b99b76f16c7f4d04d1ce609990",
+          "ref": "v0.7.0",
+          "source": "template/core/scripts/yaml_text.py",
+          "source_sha": "8e2d9392fcfadfcc256eac0a4ab0f8e77f55b7b99b76f16c7f4d04d1ce609990"
+        }
+      }
+    },
+    "commits": {
+      "files": {
+        "docs/rules/commits.md": {
+          "local_sha": "5f5e7db500851a40fcdb2df91966425c26cbd4d16e3388b4e50b655b8a689869",
+          "ref": "v0.7.0",
+          "source": "template/core/docs/rules/commits.md",
+          "source_sha": "1aff4f40d523aa6e478d8d5fab8ed247038062e65d154eafd0b709e3dfb71486"
+        },
+        "scripts/check_commit_subjects.py": {
+          "local_sha": "5824de4d00b54e81e7008f960fbec3e77d733e5d1721554d66bbe6e4bc8a5bae",
+          "ref": "v0.7.0",
+          "source": "template/core/scripts/check_commit_subjects.py",
+          "source_sha": "5824de4d00b54e81e7008f960fbec3e77d733e5d1721554d66bbe6e4bc8a5bae"
+        },
+        "scripts/hooks/conventional-commit-check.sh": {
+          "local_sha": "37ac81f6ebed5df8db415335bbe4b06c299b036d26318f7d7d2b79a2dcf22d9a",
+          "ref": "v0.7.0",
+          "source": "template/core/scripts/hooks/conventional-commit-check.sh",
+          "source_sha": "37ac81f6ebed5df8db415335bbe4b06c299b036d26318f7d7d2b79a2dcf22d9a"
+        }
+      }
+    },
+    "doc-links": {
+      "files": {
+        "scripts/check_doc_links.py": {
+          "local_sha": "3c3b229b1f7157b3f14e492acce511725a9cb1703b3551a9fa7b88a1c6c06343",
+          "ref": "v0.7.0",
+          "source": "template/core/scripts/check_doc_links.py",
+          "source_sha": "3c3b229b1f7157b3f14e492acce511725a9cb1703b3551a9fa7b88a1c6c06343"
+        },
+        "scripts/doc_links_baseline.json": {
+          "local_sha": "1879dfe92892c3ce936695c0ea249d6bd5c3af85714062d23e39150a30604742",
+          "ref": "v0.7.0",
+          "source": "template/core/scripts/doc_links_baseline.json",
+          "source_sha": "1879dfe92892c3ce936695c0ea249d6bd5c3af85714062d23e39150a30604742"
+        }
+      }
+    },
+    "skip-ratchet": {
+      "files": {
+        "scripts/check_skip_budget.py": {
+          "local_sha": "a46d9b19bbc377bc253100ebfd044fe237801bad5f45c82676808131b2e37bf8",
+          "ref": "v0.7.0",
+          "source": "template/core/scripts/check_skip_budget.py",
+          "source_sha": "8a791c5c0f039c26c48d0a6fc9f79c7a14d7a046d8444148e29952f4966cdda9"
+        },
+        "tests/skip_budget.json": {
+          "local_sha": "29b99070c2f9a765e20feec9640d5e968b6ab746dd9fbf262136fadf286391c1",
+          "ref": "v0.7.0",
+          "source": "template/core/tests/skip_budget.json",
+          "source_sha": "d365b850a9730b2632c6d98e74b0404dd1cbf0f2e9236e9aa6d96d57e948dc0b"
+        }
+      }
+    }
+  }
+}
