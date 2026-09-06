@@ -28,7 +28,7 @@ import threading
 import time
 from collections import deque
 from dataclasses import dataclass
-from typing import IO, Callable
+from typing import IO, Callable, Protocol
 
 from skyboss.helpers import child_env
 
@@ -90,6 +90,46 @@ def pump(source: IO[str], stderr: bool, sink: Callable[[Line], None], clock=time
     for raw in source:
         sink(Line(text=raw.rstrip("\n"), stderr=stderr, at=clock()))
     source.close()
+
+
+class Held(Protocol):
+    """What a window's held-open stream must offer, whatever is behind it.
+
+    `ChildStream` and `FileCursor` are two mechanisms — a process read line by
+    line, and a file read by stat and seek ([[file-follow]]) — and the canvas
+    holds either one under the same `Follower`. That "one interface" has been
+    claimed in a comment in `skyboss/canvas/server.py` since the day the second
+    one arrived, and never written down anywhere a reader or a checker could
+    consult, so nothing said what the shared surface actually was.
+
+    It is these seven. Everything else the server touches is genuinely one-sided
+    and is reached the way a one-sided thing should be: `state`, `size` and
+    `last_write_at` behind an `isinstance` branch that means *this is a file*,
+    and `started_at`, `tick` and `proc` through `getattr` with a default.
+
+    A `Protocol` rather than a base class, because it is structural: the two
+    real classes satisfy it without knowing it exists, and so do the suite's
+    fakes — which is the point, since a fake that drifts from the interface is
+    exactly what a test double is supposed to be caught doing.
+    """
+
+    @property
+    def last_line_at(self) -> float | None: ...
+
+    @property
+    def exit_code(self) -> int | None: ...
+
+    @property
+    def ring(self) -> "Ring": ...
+
+    @property
+    def dropped(self) -> int: ...
+
+    def fresh(self, since_total: int) -> tuple[list["Line"], int]: ...
+
+    def lines(self) -> list["Line"]: ...
+
+    def kill(self) -> None: ...
 
 
 class ChildStream:

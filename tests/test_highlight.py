@@ -8,6 +8,7 @@ no marks, and every rule is shape — no severity vocabulary anywhere.
 import time
 
 import pytest
+from narrowing import present
 
 from skyboss.highlight import load_rulesets, marks, resolve, spans
 
@@ -298,7 +299,7 @@ def test_a_pattern_that_does_not_compile_is_skipped_and_named():
         {"pattern": "fine", "role": "ok"},
     )
     assert "does not compile" in problems[0]
-    assert len(rules.rules) == 1  # one bad rule does not cost the others
+    assert len(present(rules, "a ruleset").rules) == 1  # one bad rule does not cost the others
 
 
 def test_an_overlong_pattern_is_not_a_pattern():
@@ -321,7 +322,7 @@ def test_resolve_names_what_is_declared_when_the_name_is_wrong(tmp_path):
     assert found is not None and problem is None
 
     found, problem = resolve("nope", home=tmp_path)
-    assert found is None and "declared: jam" in problem
+    assert found is None and "declared: jam" in present(problem, "a problem")
 
 
 def test_declared_rules_still_respect_the_cap():

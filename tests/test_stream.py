@@ -56,7 +56,7 @@ def test_fresh_hands_over_only_what_arrived_since_the_mark():
 
     stream.ring = Ring(limit=3)
     stream._lock = threading.Lock()
-    stream._keep = None
+    stream._keep = None  # type: ignore[assignment]  # hand-built, no process to keep
     for n in range(2):
         stream.ring.push(Line(str(n), False, 0.0))
     lines, mark = stream.fresh(0)

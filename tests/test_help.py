@@ -9,6 +9,7 @@ next year is born covered or fails loudly on its first run of the suite.
 
 import click
 import pytest
+from narrowing import present
 
 from skyboss import cli
 
@@ -22,7 +23,7 @@ pytestmark = [pytest.mark.unit]
 CONTRACT_WORDS = ("acts", "observe", "a read", "surface", "saved command")
 
 
-def leaves(command=cli, path=("sb",)):
+def leaves(command: click.Command = cli, path=("sb",)):
     """Every runnable leaf, surfaces included — `sb ui` excludes itself from
     the palette, not from the documentation standard. A group that runs bare
     (`sb tools`) is runnable, so it meets the standard too."""
@@ -70,9 +71,10 @@ def test_a_saved_tool_is_born_covered(tmp_path):
     try:
         register(cli, home=tmp_path)
         found = dict(leaves())["sb tools prs"]
-        lines = [line.strip() for line in found.help.splitlines()]
+        help_text = present(found.help, "help text")
+        lines = [line.strip() for line in help_text.splitlines()]
         assert any(line.startswith("sb data") for line in lines)
-        assert "saved command" in found.help.lower()
+        assert "saved command" in help_text.lower()
     finally:
         for name in [n for n, c in list(tools_group.commands.items()) if getattr(c, "sb_saved", False)]:
             del tools_group.commands[name]

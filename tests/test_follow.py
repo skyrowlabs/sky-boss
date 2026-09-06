@@ -104,6 +104,23 @@ class FakeChild:
         return self._ring.lines()
 
     @property
+    def ring(self):
+        """Part of `stream.Held`, and this fake did not expose it.
+
+        Neither did `fresh` below — which `follow_process` calls, on the path
+        these tests do not take. Both were found by writing the seam down as a
+        protocol: a double is free to be incomplete for exactly as long as the
+        interface it stands in for lives only in a comment.
+        """
+        return self._ring
+
+    def fresh(self, since_total):
+        kept = self._ring.lines()
+        missed = self._ring.total - since_total
+        out = kept[-missed:] if 0 < missed <= len(kept) else (kept if missed > 0 else [])
+        return out, self._ring.total
+
+    @property
     def dropped(self):
         return self._ring.dropped
 
@@ -186,7 +203,7 @@ def test_a_keyword_wrapping_a_file_follow_loads_and_inherits_observe(tmp_path):
         assert problems == []
         entry = {e["name"]: e for e in walk(cli)}["tools cron"]
         assert entry["acts"] is False and entry["resident"] is True
-        assert tools_group.commands["cron"].sb_argv[1].startswith("/")
+        assert getattr(tools_group.commands["cron"], "sb_argv")[1].startswith("/")
     finally:
         for name in [n for n, c in list(tools_group.commands.items()) if getattr(c, "sb_saved", False)]:
             del tools_group.commands[name]

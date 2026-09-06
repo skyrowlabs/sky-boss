@@ -129,11 +129,16 @@ class FakeChild:
         for text in lines:
             self.ring.push(Line(text=text, stderr=False, at=50.0))
         self._exit = exit_code
-        self.proc = type("P", (), {"terminate": lambda self_: None})()
+        # `object` because a test reassigns it with a different ad-hoc class to
+        # observe the terminate; the server only ever reaches it by `getattr`.
+        self.proc: object = type("P", (), {"terminate": lambda self_: None})()
 
-    def fresh(self, since):
+    def fresh(self, since_total):
+        # Named to match `stream.Held`. It was `since`, which reads identically
+        # and would raise on any keyword call — the kind of drift a duck-typed
+        # double is free to have until the interface is written down.
         kept = self.ring.lines()
-        missed = self.ring.total - since
+        missed = self.ring.total - since_total
         out = kept[-missed:] if 0 < missed <= len(kept) else (kept if missed > 0 else [])
         return out, self.ring.total
 
@@ -151,6 +156,19 @@ class FakeChild:
     @property
     def exit_code(self):
         return self._exit
+
+    def kill(self) -> None:
+        """Part of `stream.Held`, and this fake did not have it.
+
+        Found by the protocol on the run it was written, which is what a
+        protocol over a duck-typed seam is for: the docstring above says
+        "enough of a ChildStream", and it was enough for the paths these tests
+        take and not for the interface they claim to stand in for. No test
+        reaches it — that is precisely why nothing had noticed.
+        """
+        terminate = getattr(self.proc, "terminate", None)
+        if terminate is not None:
+            terminate()
 
 
 def test_a_follower_frames_its_fresh_lines_with_stream_chrome():
@@ -607,6 +625,22 @@ def test_resolve_run_descends_to_a_saved_keyword_like_its_sibling(tmp_path):
 # ---------------------------------------------------------------------------
 
 
+def _spawned(follower):
+    """The concrete `ChildStream` behind a follower.
+
+    `Follower.child` is typed as `stream.Held`, the six members both mechanisms
+    share. `wait` and `started_at` are not among them — they are a process's and
+    a file cursor has neither — so a test that spawned a real child and wants
+    one asserts that it did rather than reaching through the interface. The
+    assertion is the claim these tests were already making silently.
+    """
+    from skyboss.stream import ChildStream
+
+    child = follower.child
+    assert isinstance(child, ChildStream), f"expected a spawned child, got {type(child).__name__}"
+    return child
+
+
 def _accruing(argv, command="run", timeout=None):
     """A Follower over a real child, shaped as `/api/accrue` would build it."""
     from skyboss.canvas.server import Follower, Job
@@ -665,8 +699,8 @@ def test_exit_is_a_verdict_for_an_accruing_run_and_a_death_for_a_follow():
     session = Session(id="s1")
     session.followers["w1"] = accruing
     session.followers["w2"] = followed
-    accruing.child.wait(timeout=10)
-    followed.child.wait(timeout=10)
+    _spawned(accruing).wait(timeout=10)
+    _spawned(followed).wait(timeout=10)
 
     frames = {frame["window"]: frame for frame in follower_frames(session, now=1000.0)}
 
@@ -689,7 +723,7 @@ def test_a_failing_accruing_run_carries_the_envelope_its_command_would_have_buil
     follower = _accruing(["sh", "-c", "exit 3"], command="read")
     session = Session(id="s1")
     session.followers["w1"] = follower
-    follower.child.wait(timeout=10)
+    _spawned(follower).wait(timeout=10)
 
     [frame] = follower_frames(session, now=1000.0)
     # A read, so a snapshot — `acts` is inherited from the argv's first word.
@@ -712,7 +746,7 @@ def test_a_run_window_is_not_killed_at_sixty_seconds():
     session.followers["w1"] = unbounded
     session.followers["w2"] = bounded
     try:
-        started = unbounded.child.started_at
+        started = _spawned(unbounded).started_at
         # Two minutes in: the ceiling would have killed both an hour of work ago.
         assert expired(session, now=started + 120.0) == [bounded]
         assert expired(session, now=started + 10.0) == []
@@ -733,7 +767,7 @@ def test_a_follow_is_never_expired_however_long_it_is_quiet():
     session = Session(id="s1")
     session.followers["w1"] = followed
     try:
-        assert expired(session, now=followed.child.started_at + 100_000.0) == []
+        assert expired(session, now=_spawned(followed).started_at + 100_000.0) == []
     finally:
         followed.child.kill()
 

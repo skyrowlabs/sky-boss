@@ -792,13 +792,18 @@ class Follower:
     the transport was never the thing that differed. See [[follow]] round 4.
     """
 
-    # `ChildStream | FileCursor` — one interface over two mechanisms, see
-    # [[file-follow]]. It was annotated `object` with that union written in a
-    # comment beside it, which cost twelve attribute reads their type: `.kill`,
-    # `.fresh`, `.exit_code`, `.ring` and the rest were reads on `object` and
-    # nothing said so. The union is not a widening — the two classes genuinely
-    # share the surface this file uses, and naming them is what checks it.
-    child: stream_.ChildStream | filefollow_.FileCursor
+    # One interface over two mechanisms — a process and a file cursor, see
+    # [[file-follow]]. Annotated `object` with that claim written in a comment
+    # beside it until the type checker was pointed at this package, which cost
+    # twelve attribute reads their type: `.kill`, `.fresh`, `.exit_code`,
+    # `.ring` and the rest were reads on `object` and nothing said so.
+    #
+    # `Held` rather than the union of the two concrete classes. The union
+    # checks, and it also makes every test double a type error for not being
+    # one of two named classes — which is backwards: the seam is structural,
+    # the fakes are the second implementation, and a protocol is what says so.
+    # `skyboss/stream.py` carries it and the reasoning.
+    child: stream_.Held
     argv: list[str]
     # The operator's declared vocabulary for this window, resolved server-side
     # when the follow opened. A page may *name* a ruleset; it may never define

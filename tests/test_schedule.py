@@ -10,6 +10,7 @@ import json
 from datetime import datetime
 
 from click.testing import CliRunner
+from narrowing import present
 
 from skyboss import cli, schedule
 from skyboss.rollcall import Project
@@ -70,7 +71,7 @@ def test_a_naive_timestamp_is_a_reported_error_not_a_guess():
     """Guessing a zone is how a view is confidently six hours wrong."""
     when, problem = parse_instant("2026-08-31T05:15:00")
     assert when is None
-    assert "will not guess" in problem
+    assert "will not guess" in present(problem, "a problem")
 
     when, problem = parse_instant("2026-08-31T05:15:00-05:00")
     assert problem is None and when is not None
@@ -78,7 +79,7 @@ def test_a_naive_timestamp_is_a_reported_error_not_a_guess():
 
 def test_an_unparseable_timestamp_is_named_rather_than_dropped():
     when, problem = parse_instant("next tuesday")
-    assert when is None and "not a timestamp" in problem
+    assert when is None and "not a timestamp" in present(problem, "a problem")
 
 
 def test_an_absent_timestamp_is_absence_and_not_an_error():

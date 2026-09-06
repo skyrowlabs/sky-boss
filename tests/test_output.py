@@ -9,6 +9,7 @@ import json
 import click
 import pytest
 from click.testing import CliRunner
+from narrowing import present
 
 from skyboss.output import (
     EXIT_ERROR,
@@ -742,7 +743,7 @@ def test_a_composite_role_resolves_instead_of_silently_rendering_plain():
     assert style.color is not None, "the composite lost its colour"
     from skyboss.output import THEME
 
-    assert style.color.triplet == THEME.styles["sb.ok"].color.triplet
+    assert present(style.color, "a colour").triplet == present(THEME.styles["sb.ok"].color, "sb.ok").triplet
 
 
 def test_every_role_the_highlighter_can_emit_resolves():

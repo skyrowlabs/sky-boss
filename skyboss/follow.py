@@ -38,6 +38,7 @@ from rich.console import Console, Group
 from skyboss import chrome as chrome_
 from skyboss import highlight as highlight_
 from skyboss import resident
+from skyboss import stream as stream_mod
 from skyboss.helpers import mark, parse_duration, parse_env
 from skyboss.output import THEME, band_text
 from skyboss.stream import DEFAULT_LINES, ChildStream
@@ -278,7 +279,11 @@ def follow_process(
     screen: bool = False,
     ticks: int | None = None,
     ruleset=None,
-    spawn=ChildStream,
+    # An injection seam — the suite hands in a fake child. Annotated as the
+    # thing it produces rather than left to infer `type[ChildStream]` from
+    # the default, which made every fake a type error for not being the one
+    # concrete class the seam exists to replace. See `stream.Held`.
+    spawn: Callable[..., stream_mod.Held] = ChildStream,
     due: int = 0,
     env: dict[str, str] | None = None,
 ) -> None:

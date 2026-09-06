@@ -196,6 +196,22 @@ def open_window(url: str, *, title: str, width: int, height: int, on_closed) -> 
         min_size=(640, 400),
         js_api=Api(),
     )
+    # `create_window` is typed as returning `Window | None`, and a None here
+    # would be an AttributeError one line later. Guarded rather than asserted
+    # because the whole point of this module is that a window is a thing the
+    # machine may decline to give you — `available()` above checks the
+    # libraries, and this checks the window.
+    #
+    # It reported on one pyright invocation and not another: run through a
+    # relative PATH entry the interpreter prefix resolves differently, so
+    # `webview` resolves differently, so the return type does. See the note in
+    # `pyrightconfig.json` — a leaner environment is not a more permissive
+    # check, it is a different one, and this is what that looks like.
+    if window is None:
+        raise RuntimeError(
+            "pywebview declined to create a window. `available()` passed, so the libraries "
+            "are there — run with --no-browser and open the URL yourself."
+        )
     window.events.closed += on_closed
     # Named rather than inferred. pywebview probes Qt first on some
     # installations, and the failure it reports then is `No module named

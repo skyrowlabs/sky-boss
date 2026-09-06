@@ -29,7 +29,6 @@ inventing a signature for one it does not use is how a stub starts lying.
 from collections.abc import Callable
 from typing import Any, TypeVar
 
-from click import *  # noqa: F403
 # Redundant `X as X` form on purpose: in a stub, a plain `from … import X`
 # marks X *private* to the stub and overrides what the star re-exported, so
 # `click.Context` stops resolving. The alias is what re-exports.
@@ -40,6 +39,7 @@ from click import Context as Context
 from click import Group as Group
 from click import Option as Option
 from click import Parameter as Parameter
+from click import *  # noqa: F403
 
 class RichContext(Context): ...
 class RichCommand(Command): ...
@@ -48,6 +48,7 @@ class RichCommandCollection(CommandCollection): ...
 class RichParameter(Parameter): ...
 class RichArgument(Argument): ...
 class RichOption(Option): ...
+
 class RichHelpConfiguration:
     def __init__(self, **kwargs: Any) -> None: ...
 

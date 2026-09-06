@@ -11,6 +11,7 @@ import math
 import re
 
 import pytest
+from narrowing import present
 
 from skyboss.helpers import PROJECT_ROOT
 from skyboss.output import THEME
@@ -227,7 +228,7 @@ def test_every_cli_role_survives_an_unknown_terminal_background():
     for name in STYLES:
         if name in PAINTED:
             continue  # checked by the test below, on the right backgrounds
-        colour = THEME.styles[name].color.get_truecolor().hex
+        colour = present(THEME.styles[name].color, f"a colour on {name}").get_truecolor().hex
         for background in (WHITE, BG):
             ratio = _contrast(colour, background)
             if ratio < FLOOR:
@@ -251,8 +252,8 @@ def test_a_painted_role_is_checked_against_the_ground_it_paints():
     failures = {}
     for name in PAINTED:
         style = THEME.styles[name]
-        ground = style.bgcolor.get_truecolor().hex
-        colour = style.color.get_truecolor().hex
+        ground = present(style.bgcolor, "a background").get_truecolor().hex
+        colour = present(style.color, "a colour").get_truecolor().hex
         # The text is text, so the text floor applies to it — on the ground it
         # actually sits on rather than on a terminal it never touches.
         ratio = _contrast(colour, ground)
@@ -277,7 +278,7 @@ def test_the_canvas_shows_the_brand_at_full_strength():
     concession. Darkening there would dim the brand against a background that
     never required it."""
     assert css_variables()["sb-brand"] == BRAND
-    assert THEME.styles["sb.accent"].color.get_truecolor().hex.lower() != BRAND
+    assert present(THEME.styles["sb.accent"].color, "sb.accent").get_truecolor().hex.lower() != BRAND
 
 
 def test_the_tokens_still_match_the_design_system():

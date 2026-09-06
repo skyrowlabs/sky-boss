@@ -49,6 +49,7 @@ import tokenize
 from pathlib import Path
 
 import pytest
+from narrowing import present
 
 from skyboss.helpers import PROJECT_ROOT
 
@@ -169,7 +170,10 @@ def _python_mask(text: str) -> str:
         if isinstance(first.value.value, str):
             reveal(
                 starts[first.lineno - 1] + first.col_offset,
-                starts[first.end_lineno - 1] + first.end_col_offset,
+                # `end_lineno`/`end_col_offset` are Optional on `ast.AST` and set
+                # on every node a real parse produces. `present` says so rather
+                # than leaving a `None - 1` to a TypeError mid-mask.
+                starts[present(first.end_lineno) - 1] + present(first.end_col_offset),
             )
     return "".join(mask)
 

@@ -8,6 +8,7 @@ are worth the rest of the file.
 """
 
 import pytest
+from narrowing import present
 from starlette.testclient import TestClient
 
 from skyboss.canvas.server import TOKEN_HEADER, Canvas, build
@@ -68,7 +69,10 @@ def test_the_guarded_list_names_every_api_route_there_is():
     """The list above only catches an unguarded route if someone remembers to
     add it, which is the same hazard `static/`'s inventory has — so it is
     checked the same way, against the real thing, rather than trusted."""
-    live = {route.path for route in build(Canvas(token="t")).routes if getattr(route, "path", "").startswith("/api/")}
+    routes = build(Canvas(token="t")).routes
+    # `getattr` for the value too, not only the test: `Starlette.routes` is
+    # `list[BaseRoute]` and only some route kinds carry a path.
+    live = {p for route in routes if (p := getattr(route, "path", "")).startswith("/api/")}
     assert live == {path for path, _ in GUARDED}
 
 
@@ -315,8 +319,8 @@ def test_a_saved_command_is_judged_by_what_it_expands_to():
         {"name": "tools", "argv": ["tools"], "acts": False, "resident": False},
         {"name": "tools deploy", "argv": ["tools", "deploy"], "acts": True, "resident": False},
     ]
-    assert entry_for(["tools", "deploy"], entries)["acts"] is True
-    assert entry_for(["tools"], entries)["acts"] is False
+    assert present(entry_for(["tools", "deploy"], entries), "an entry")["acts"] is True
+    assert present(entry_for(["tools"], entries), "an entry")["acts"] is False
     assert entry_for(["nothing", "here"], entries) is None
 
 

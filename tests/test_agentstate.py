@@ -8,6 +8,7 @@ missing directory says which of the several possible things went wrong.
 from pathlib import Path
 
 import pytest
+from narrowing import present
 
 from skyboss import agentstate
 
@@ -128,13 +129,13 @@ def test_a_missing_directory_names_the_ones_that_are_there(tmp_path, home, monke
     _root_with(tmp_path, monkeypatch, "jam-sense", "breeze-brain")
     found = agentstate.directory("jam", home)
     assert found.path is None
-    assert "no state directory 'jam'" in found.problem
-    assert "breeze-brain, jam-sense" in found.problem
+    assert "no state directory 'jam'" in present(found.problem, "a problem")
+    assert "breeze-brain, jam-sense" in present(found.problem, "a problem")
 
 
 def test_an_empty_root_says_so_rather_than_listing_nothing(tmp_path, home, monkeypatch):
     _root_with(tmp_path, monkeypatch)
-    assert "the root is empty" in agentstate.directory("jam-sense", home).problem
+    assert "the root is empty" in present(agentstate.directory("jam-sense", home).problem, "a problem")
 
 
 def test_a_root_that_is_not_there_is_a_different_sentence(tmp_path, home, monkeypatch):
@@ -142,14 +143,15 @@ def test_a_root_that_is_not_there_is_a_different_sentence(tmp_path, home, monkey
     names which it is — and names the level it came from."""
     monkeypatch.setenv("SL_AGENT_LOGS", str(tmp_path / "nope"))
     problem = agentstate.directory("jam-sense", home).problem
-    assert "is not a directory" in problem
-    assert "SL_AGENT_LOGS" in problem
+    assert "is not a directory" in present(problem, "a problem")
+    assert "SL_AGENT_LOGS" in present(problem, "a problem")
 
 
 def test_no_root_at_all_names_both_ways_to_declare_one(home, monkeypatch):
     monkeypatch.delenv("SL_AGENT_LOGS", raising=False)
     problem = agentstate.directory("jam-sense", home).problem
-    assert "SL_AGENT_LOGS" in problem and "state_root" in problem
+    named = present(problem, "a problem")
+    assert "SL_AGENT_LOGS" in named and "state_root" in named
 
 
 # ── the address form ─────────────────────────────────────────────────────────
@@ -198,8 +200,8 @@ def test_an_undeclared_prefix_is_not_a_reference(declared, home):
 def test_a_declared_project_with_no_state_directory_names_what_is_there(declared, home):
     path, problem = agentstate.resolve("breeze-brain:ledger/runs.jsonl", home)
     assert path == "breeze-brain:ledger/runs.jsonl"
-    assert "no state directory 'breeze-brain'" in problem
-    assert "the root holds jam-sense" in problem
+    assert "no state directory 'breeze-brain'" in present(problem, "a problem")
+    assert "the root holds jam-sense" in present(problem, "a problem")
 
 
 def test_an_existing_file_wins_over_the_project_reading(declared, home, tmp_path, monkeypatch):

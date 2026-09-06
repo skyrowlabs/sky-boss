@@ -8,6 +8,7 @@ subprocess and no file I/O anywhere in this half.
 """
 
 import pytest
+from narrowing import present
 
 from skyboss.capture import Captured, Format, capture, unmatched_warning
 
@@ -76,8 +77,8 @@ def test_unmatched_lines_are_counted_and_the_first_is_sampled():
     assert got.unmatched == 2
     assert got.sample == "total: 2 items"
     warning = unmatched_warning(got, "jam-status")
-    assert "2 of 3 lines did not match jam-status" in warning
-    assert "total: 2 items" in warning
+    assert "2 of 3 lines did not match jam-status" in present(warning, "a warning")
+    assert "total: 2 items" in present(warning, "a warning")
 
 
 def test_a_clean_capture_warns_about_nothing():
@@ -111,7 +112,9 @@ def test_a_pathological_line_returns_in_bounded_time():
 
 def test_captured_is_a_value_the_caller_cannot_quietly_mutate():
     with pytest.raises(Exception):
-        Captured([], 0, 0, None).total = 5
+        # A NamedTuple field, so this raises at runtime — which is the whole
+        # assertion. The type checker says the same thing statically.
+        Captured([], 0, 0, None).total = 5  # type: ignore[misc]
 
 
 # ============================================================================
@@ -208,19 +211,22 @@ def test_a_file_that_cannot_be_parsed_is_reported_rather_than_raised(tmp_path):
 
 def test_json_resolves_with_no_file_anywhere(tmp_path):
     fmt, problem = resolve("json", home=tmp_path / "nope")
-    assert problem is None and fmt.kind == "json" and not fmt.jq
+    assert problem is None
+    fmt = present(fmt, "a format")
+    assert fmt.kind == "json" and not fmt.jq
 
 
 def test_bare_lines_is_refused_toward_a_declaration(tmp_path):
     fmt, problem = resolve("lines", home=tmp_path / "nope")
-    assert fmt is None and "declare a format" in problem
+    assert fmt is None and "declare a format" in present(problem, "a problem")
 
 
 def test_an_unknown_name_lists_what_would_have_worked(tmp_path):
     (tmp_path / "formats.toml").write_text('[format.jam-status]\nkind = "lines"\npattern = "(?P<a>.)"\n')
     fmt, problem = resolve("nope", home=tmp_path)
     assert fmt is None
-    assert "json" in problem and "jam-status" in problem
+    named = present(problem, "a problem")
+    assert "json" in named and "jam-status" in named
 
 
 def test_a_declared_and_refused_format_resolves_to_its_own_problem(tmp_path):
@@ -229,7 +235,7 @@ def test_a_declared_and_refused_format_resolves_to_its_own_problem(tmp_path):
     refused instead."""
     (tmp_path / "formats.toml").write_text('[format.mine]\nkind = "csv"\n')
     fmt, problem = resolve("mine", home=tmp_path)
-    assert fmt is None and "unknown kind" in problem
+    assert fmt is None and "unknown kind" in present(problem, "a problem")
 
 
 # ============================================================================
@@ -272,10 +278,10 @@ def test_no_output_at_all_is_null_honestly():
 def test_a_failing_program_is_a_failed_contract_carrying_jqs_own_stderr():
     data, error = transform({"a": 1}, ".b | keys", "broken")
     assert data is None
-    assert error.startswith("format 'broken':")
+    assert present(error, "an error").startswith("format 'broken':")
     # jq's own words, not a paraphrase — the operator debugs the program with
     # the message jq gave.
-    assert "null" in error
+    assert "null" in present(error, "an error")
 
 
 def test_an_absent_jq_degrades_loudly_at_use_naming_the_format(monkeypatch, tmp_path):
@@ -286,7 +292,8 @@ def test_an_absent_jq_degrades_loudly_at_use_naming_the_format(monkeypatch, tmp_
     monkeypatch.setattr(capture_mod, "child_env", lambda: {"PATH": str(tmp_path)})
     data, error = transform({}, ".", "pr-summary")
     assert data is None
-    assert "jq is not on PATH" in error and "pr-summary" in error
+    named = present(error, "an error")
+    assert "jq is not on PATH" in named and "pr-summary" in named
 
 
 # ============================================================================

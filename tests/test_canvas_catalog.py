@@ -10,6 +10,7 @@ import pytest
 import rich_click as click
 
 from skyboss.canvas.catalog import catalog, vocabulary, walk
+from skyboss.helpers import mark
 
 #: Every test here is host-side and needs no services up.
 pytestmark = [pytest.mark.unit]
@@ -87,7 +88,7 @@ def test_only_run_is_marked_as_acting():
 def test_a_surface_is_not_in_its_own_palette():
     root = click.Group("sb")
     surface = click.Command("ui", short_help="Open the canvas.")
-    surface.sb_surface = True
+    mark(surface, sb_surface=True)
     root.add_command(surface)
     root.add_command(click.Command("run", short_help="Run a command."))
 

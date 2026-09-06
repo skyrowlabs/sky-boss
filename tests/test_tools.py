@@ -16,6 +16,7 @@ import pathlib
 import tomllib
 
 import pytest
+from narrowing import present
 
 from skyboss.tools import load, parse
 
@@ -814,7 +815,7 @@ def test_a_saved_read_round_trips_through_the_real_loader(tmp_path, monkeypatch)
         problems = register(cli, home=tmp_path)
         assert problems == []
         saved = tools_group.commands["greet"]
-        assert list(saved.sb_argv) == [t for t in typed if t not in ("--save", "greet")]
+        assert list(getattr(saved, "sb_argv")) == [t for t in typed if t not in ("--save", "greet")]
     finally:
         for name in [n for n, c in list(tools_group.commands.items()) if getattr(c, "sb_saved", False)]:
             del tools_group.commands[name]
@@ -949,12 +950,12 @@ def test_a_name_is_judged_the_same_way_whoever_asks(tmp_path, monkeypatch):
     monkeypatch.setattr("skyboss.tools.SB_HOME", tmp_path)
 
     assert name_problem("prs", tmp_path) is None
-    assert "lowercase letters" in name_problem("Bad Name", tmp_path)
-    assert "lowercase letters" in name_problem("", tmp_path)
+    assert "lowercase letters" in present(name_problem("Bad Name", tmp_path), "a problem")
+    assert "lowercase letters" in present(name_problem("", tmp_path), "a problem")
 
     save("prs", ["data", "--", "true"], home=tmp_path)
     taken = name_problem("prs", tmp_path)
-    assert "already a tool" in taken
+    assert "already a tool" in present(taken, "a refusal")
     with pytest.raises(click.UsageError) as raised:
         save("prs", ["data", "--", "true"], home=tmp_path)
     assert str(raised.value) == taken
@@ -1108,7 +1109,7 @@ def test_two_writes_in_one_second_keep_two_backups(tmp_path):
     first = backup(home, stamp="20260828T000000Z")
     second = backup(home, stamp="20260828T000000Z")
     assert first != second
-    assert first.exists() and second.exists()
+    assert present(first, "the first backup").exists() and present(second, "the second").exists()
 
 
 def test_backups_are_capped(tmp_path):
@@ -1628,8 +1629,8 @@ def test_the_duplicate_refusal_points_at_the_bench_not_at_a_file(tmp_path):
 
     save("prs", ["data", "--", "x"], home=tmp_path)
     refusal = name_problem("prs", home=tmp_path)
-    assert "workbench" in refusal
-    assert "Edit the file" not in refusal
+    assert "workbench" in present(refusal, "a refusal")
+    assert "Edit the file" not in present(refusal, "a refusal")
 
 
 def test_a_malformed_name_is_a_problem_and_names_nothing_to_replace(tmp_path):

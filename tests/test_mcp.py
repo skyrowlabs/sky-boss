@@ -9,6 +9,7 @@ import io
 import json
 
 import pytest
+from narrowing import group, present
 
 from skyboss import cli
 from skyboss.mcp import METHOD_NOT_FOUND, call, exposed, handle, serve
@@ -61,8 +62,8 @@ def test_a_saved_command_wrapping_run_is_never_offered(tmp_path, monkeypatch):
         assert "tools-deploy" not in names()
         assert "tools-prs" in names()
     finally:
-        cli.commands["tools"].commands.pop("deploy", None)
-        cli.commands["tools"].commands.pop("prs", None)
+        group(cli, "tools").commands.pop("deploy", None)
+        group(cli, "tools").commands.pop("prs", None)
 
 
 def test_every_tool_has_an_empty_input_schema():
@@ -83,14 +84,26 @@ def test_the_list_comes_off_the_live_tree(tmp_path):
     try:
         assert names() - before == {"tools-later"}
     finally:
-        cli.commands["tools"].commands.pop("later", None)
+        group(cli, "tools").commands.pop("later", None)
+
+
+def answered(request) -> dict:
+    """`handle`, asserted to have replied.
+
+    It returns `dict | None`, and the None is the protocol — a notification
+    gets no reply at all, which `test_a_notification_gets_no_reply_at_all`
+    asserts by calling `handle` directly. Every other test here is about the
+    reply's contents, so the assumption is stated once rather than arriving as
+    a `TypeError` at the first subscript.
+    """
+    return present(handle(request), "a JSON-RPC reply")
 
 
 # ── The protocol ────────────────────────────────────────────────────────────
 
 
 def test_initialize_answers_with_capabilities():
-    reply = handle({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}})
+    reply = answered({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}})
     assert reply["result"]["capabilities"] == {"tools": {}}
     assert reply["result"]["serverInfo"]["name"] == "sky-boss"
 
@@ -98,7 +111,7 @@ def test_initialize_answers_with_capabilities():
 def test_initialize_agrees_on_the_clients_version():
     """This implements the core every version in use shares. A mismatch the
     client could have lived with is a worse outcome than agreeing."""
-    reply = handle({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2024-11-05"}})
+    reply = answered({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2024-11-05"}})
     assert reply["result"]["protocolVersion"] == "2024-11-05"
 
 
@@ -108,20 +121,20 @@ def test_a_notification_gets_no_reply_at_all():
 
 
 def test_an_unknown_method_is_a_proper_json_rpc_error():
-    reply = handle({"jsonrpc": "2.0", "id": 7, "method": "resources/list"})
+    reply = answered({"jsonrpc": "2.0", "id": 7, "method": "resources/list"})
     assert reply["error"]["code"] == METHOD_NOT_FOUND
     assert reply["id"] == 7
 
 
 def test_tools_list_carries_no_internal_argv():
     """The argv is how sky.boss runs it, not something the protocol describes."""
-    reply = handle({"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
+    reply = answered({"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
     for tool in reply["result"]["tools"]:
         assert "argv" not in tool
 
 
 def test_tools_call_without_a_name_is_an_invalid_request():
-    reply = handle({"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {}})
+    reply = answered({"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {}})
     assert "error" in reply
 
 
@@ -148,7 +161,7 @@ def test_a_call_returns_the_envelope(tmp_path):
         assert envelope["ok"] is True
         assert envelope["data"] == [{"a": 1}, {"a": 2}]
     finally:
-        cli.commands["tools"].commands.pop("two", None)
+        group(cli, "tools").commands.pop("two", None)
 
 
 def test_a_failed_command_is_an_envelope_not_a_transport_fault(tmp_path):
@@ -165,7 +178,7 @@ def test_a_failed_command_is_an_envelope_not_a_transport_fault(tmp_path):
         assert envelope["ok"] is False
         assert "error" in envelope["data"]
     finally:
-        cli.commands["tools"].commands.pop("broken", None)
+        group(cli, "tools").commands.pop("broken", None)
 
 
 def test_a_result_is_bounded(tmp_path, monkeypatch):
@@ -187,7 +200,7 @@ def test_a_result_is_bounded(tmp_path, monkeypatch):
         assert len(envelope["data"]) == 5
         assert any("45 more rows" in w for w in envelope["warnings"])
     finally:
-        cli.commands["tools"].commands.pop("big", None)
+        group(cli, "tools").commands.pop("big", None)
 
 
 # ── The transport ───────────────────────────────────────────────────────────
@@ -234,7 +247,7 @@ def test_stdout_carries_protocol_and_nothing_else(capsys, tmp_path):
             json.loads(line)
         assert "chatter" not in capsys.readouterr().out
     finally:
-        cli.commands["tools"].commands.pop("noisy", None)
+        group(cli, "tools").commands.pop("noisy", None)
 
 
 def test_mcp_is_a_surface():

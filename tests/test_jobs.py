@@ -799,8 +799,12 @@ def test_the_acting_subcommands_reach_the_catalog_as_acts():
     property that keeps a cadence off them."""
     from skyboss.canvas.catalog import catalog
 
-    entries = catalog()
-    rows = entries["commands"] if isinstance(entries, dict) and "commands" in entries else entries
+    # This read `entries["commands"] if isinstance(entries, dict) else entries`
+    # — a guard against a `{"commands": [...]}` envelope `catalog()` has never
+    # returned and its signature says it cannot. Defensive code against a shape
+    # that does not exist is not caution, it is a second belief about the
+    # contract, and it would have gone on passing had the real one changed.
+    rows = catalog()
     acting = {row["name"] for row in rows if row.get("acts")}
     assert {"job run", "job install", "job uninstall"} <= acting
     assert "job list" not in acting and "job" not in acting

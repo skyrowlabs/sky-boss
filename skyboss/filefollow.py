@@ -24,7 +24,7 @@ from __future__ import annotations
 
 import os
 import time
-from typing import Callable, Iterable
+from typing import Callable, Iterable, Protocol
 
 from skyboss.stream import DEFAULT_LINES, Line, Ring
 
@@ -33,9 +33,24 @@ from skyboss.stream import DEFAULT_LINES, Line, Ring
 BACKFILL_BYTES = 256 * 1024
 
 
+class Fs(Protocol):
+    """The two file operations the cursor needs.
+
+    `RealFs`'s docstring has said "behind a seam a test can replace" since it
+    was written, and the seam was never expressed as a type: the parameter said
+    `RealFs | None`, so the suite's `FakeFs` — the whole reason the seam exists
+    — was the one thing that did not fit it. Structural, so both satisfy it
+    without inheriting anything, and a fake that drifts from the interface is
+    now caught rather than assumed.
+    """
+
+    def stat(self, path: str) -> tuple[int, float, int] | None: ...
+
+    def read(self, path: str, offset: int) -> str: ...
+
+
 class RealFs:
-    """The two file operations the cursor needs, behind a seam a test can
-    replace — the suite proves rotation without ever rotating a file."""
+    """The two file operations against the actual filesystem. See `Fs`."""
 
     def stat(self, path: str) -> tuple[int, float, int] | None:
         """(size, mtime, inode), or None when the file is not there."""
@@ -69,7 +84,7 @@ class FileCursor:
         path: str,
         *,
         limit: int = DEFAULT_LINES,
-        fs: RealFs | None = None,
+        fs: Fs | None = None,
         clock: Callable[[], float] = time.time,
     ):
         self.path = path
@@ -223,7 +238,7 @@ def follow_file(
     console=None,
     screen: bool = False,
     ticks: int | None = None,
-    fs: RealFs | None = None,
+    fs: Fs | None = None,
     ruleset=None,
     due: int = 0,
 ) -> None:
