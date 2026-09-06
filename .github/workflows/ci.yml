@@ -107,7 +107,25 @@ jobs:
       # imports both lazily, inside the functions that open a window, so no
       # test imports either. If a test ever does, this job is where it surfaces.
       - name: Suite
-        run: .venv/bin/python -m pytest -q
+        run: .venv/bin/python -m pytest -q --junitxml=tmp/junit.xml
+
+      # Gates taken from skeletor as components — see `.skeletor-components.json`
+      # for what came from where, and `bin/skeletor-components report` for
+      # whether any of it has moved upstream since.
+      #
+      # They are steps in this job rather than a job of their own on purpose. A
+      # required check is *named* in branch protection, not discovered, so a new
+      # job means editing protection on `develop` and `main` in the same sitting
+      # — and a context no job reports blocks every pull request forever. Steps
+      # cost nothing and gate exactly as hard.
+      #
+      # The skip ratchet reads the junit the step above writes. It refuses
+      # rather than passing when that report is missing, which is the property
+      # worth having: "I could not measure" is never "the budget is respected".
+      - name: Gates
+        run: |
+          .venv/bin/python scripts/check_doc_links.py
+          .venv/bin/python scripts/check_skip_budget.py --suite unit
 
   lint:
     name: eslint

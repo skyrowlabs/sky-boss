@@ -33,7 +33,7 @@
       "files": {
         "docs/rules/commits.md": {
           "local_sha": "5f5e7db500851a40fcdb2df91966425c26cbd4d16e3388b4e50b655b8a689869",
-          "ref": "v0.7.0",
+          "ref": "v0.10.2",
           "source": "template/core/docs/rules/commits.md",
           "source_sha": "1aff4f40d523aa6e478d8d5fab8ed247038062e65d154eafd0b709e3dfb71486"
         },
