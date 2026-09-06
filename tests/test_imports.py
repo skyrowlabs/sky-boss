@@ -150,6 +150,16 @@ class _Scope:
         )
 
 
+
+def _exports(node: ast.Assign) -> set[str]:
+    """The string names in an `__all__ = [...]` assignment, or an empty set."""
+    if not any(isinstance(t, ast.Name) and t.id == "__all__" for t in node.targets):
+        return set()
+    if not isinstance(node.value, (ast.List, ast.Tuple)):
+        return set()
+    return {e.value for e in node.value.elts if isinstance(e, ast.Constant) and isinstance(e.value, str)}
+
+
 def _walk(node: ast.AST, scope: _Scope) -> None:
     for child in ast.iter_child_nodes(node):
         if isinstance(child, SCOPES):
@@ -175,6 +185,14 @@ def _walk(node: ast.AST, scope: _Scope) -> None:
                 scope.loads.add(child.id)
             else:
                 scope.binds.add(child.id)
+        elif isinstance(child, ast.Assign) and _exports(child):
+            # `__all__ = [...]` is a re-export declaration, and every name in it
+            # is used by definition — that is what pyflakes does, and matching
+            # it is the property this gate is validated on. Arrived with the
+            # skeletor shell: `cli/helpers.py` re-exports eleven names from
+            # `scripts.output` so the other shell modules can take them from one
+            # place, and without this every one of them read as dead.
+            scope.loads.update(_exports(child))
         _walk(child, scope)
 
 

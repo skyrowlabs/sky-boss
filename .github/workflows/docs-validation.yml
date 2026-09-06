@@ -1,0 +1,72 @@
+name: Docs Validation
+
+# Pull requests only, deliberately.
+#
+# This used to run on every push to the long-lived branches as well, and was the
+# highest-run-count workflow in the repo it came from. Two host-side jobs cover
+# that case for free: a nightly sentinel runs the same validators and reports,
+# and a nightly docs-guard repairs what it can and commits the fix. Detection
+# moved from minutes to <=24h for direct pushes, while PRs — where a human is
+# waiting on a verdict and the gate actually blocks something — keep the
+# immediate check.
+#
+# Do NOT re-add a `push:` trigger to make a red gate louder. Make the nightly
+# job louder instead; it costs nothing per run.
+
+on:
+  pull_request:
+    branches: [develop, main]
+    paths:
+      - 'docs/**'
+      - '**.md'
+      - '.claude/**'
+      - 'AGENTS.md'
+      # Ships only with `--agent claude`; a path filter naming an absent file
+      # is inert, which is why this is a declaration rather than a condition.
+      # SCAFFOLD-OPTIONAL CLAUDE.md
+      - 'CLAUDE.md'
+      - '.github/DOCS_INDEX.md'
+      # The checkers and the ratchet baseline themselves. Without these, a PR
+      # that only edits a checker (or only lowers a baseline) never runs the job
+      # that would prove the change is correct.
+      - 'scripts/docs/**'
+      - 'scripts/check_doc_links.py'
+      - 'scripts/check_source_doc_refs.py'
+      - 'scripts/check_doc_tables.py'
+      - 'scripts/doc_links_baseline.json'
+  workflow_dispatch:
+
+concurrency:
+  group: docs-validation-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate Documentation
+    runs-on: ubuntu-latest
+    steps:
+      # Tags are needed by the report-anchor check: a report's window is bounded
+      # by release tags, and without them it can only run its tag-free half.
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - name: Generated indexes are current
+        run: python scripts/docs/regen.py --check
+
+      - name: Every doc is registered in both index tables
+        run: python scripts/check_doc_tables.py
+
+      - name: Markdown links and fragments (ratchet)
+        run: python scripts/check_doc_links.py
+
+      - name: docs/* paths cited from source
+        run: python scripts/check_source_doc_refs.py
+
+      - name: Report release anchors
+        run: python scripts/docs/release_window.py --check

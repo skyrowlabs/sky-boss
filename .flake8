@@ -1,0 +1,55 @@
+[flake8]
+
+exclude =
+    .git,
+    __pycache__,
+    .venv,
+    # The CI-parity venv. The `.venv` entry above does not match it, and flake8
+    # runs as `flake8 .` from the repo root — without this it lints hundreds of
+    # findings' worth of third-party site-packages the moment one is built.
+    .venv-ci,
+    venv,
+    env,
+    build,
+    dist,
+    *.egg-info,
+    node_modules,
+    .pytest_cache,
+    .mypy_cache,
+    # Agent worktrees. `isolation: "worktree"` checks a second copy of the repo
+    # out under .claude/, and an agent building a parity environment puts a venv
+    # inside it. Without this, `flake8 .` lints those site-packages and fails
+    # the unit suite for everyone — including the agent whose worktree it is.
+    .claude,
+    # There is deliberately no `docs` entry here, and re-adding one reopens a
+    # bug that shipped. An entry is matched against every path component, so
+    # `docs` also silenced `scripts/docs/` — the entire docs-lifecycle engine,
+    # 11 modules — and hid four dead imports in it. `dev check lint` runs
+    # `flake8 .` and saw nothing; pre-commit passes explicit filenames, and
+    # flake8 ignores `exclude` for those, so it failed. Same binary, same venv,
+    # same `--select`, opposite answers — and the green one was the one the
+    # scaffold told you to trust. Anchoring to `./docs` fixes `scripts/docs/`
+    # but leaves the two gates still disagreeing about `docs/*.py`. Excluding
+    # nothing is what makes them agree, and it costs nothing: flake8 only ever
+    # reads Python, so a `docs` entry never spared it a single file.
+    # Scratch (gitignored)
+    tmp
+
+max-line-length = 120
+
+# Raised from the default 10 to reduce noise. Functions above this are FLAGGED
+# for future refactoring, not blocked — the blocking set is the E9/F-codes only.
+max-complexity = 15
+
+ignore =
+    # E203: whitespace before ':' — conflicts with black
+    E203,
+    # E226: missing whitespace around arithmetic operator — intentional for math readability
+    E226,
+    # E402: module-level import not at top — common for sys.path setup and conditional imports
+    E402,
+    # W503: line break before binary operator — conflicts with black
+    W503
+
+per-file-ignores =
+    __init__.py:F401

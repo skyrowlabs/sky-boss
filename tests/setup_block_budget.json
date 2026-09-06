@@ -1,0 +1,23 @@
+{
+  "_comment": [
+    "Ratchet floor for tests/test_setup_blocks_agree.py. This number may only go UP.",
+    "It is how many leading lines every fenced setup block agrees on -- measured, not",
+    "chosen. Lowering it records an intended divergence and needs the reason in the",
+    "commit message; raising it locks in a new shared line.",
+    "",
+    "Written by the scaffolder, because the count depends on which toolchains this",
+    "tree was generated with: a python tree shares two leading lines and one that",
+    "also carries node shares three. A number baked into the template would be true",
+    "for one --language and red on arrival for the others.",
+    "",
+    "It varies by time as well, which the number cannot. Arriving through",
+    "bin/skeletor-upgrade into a tree scaffolded long ago brings the floor for a",
+    "fresh scaffold, not for that tree -- which may already agree on more. The",
+    "failure then reads UPWARD and names the depth to raise it to; that is the",
+    "ratchet asking you to lock in a gain, not a defect. Read the enrolled block",
+    "list in the message first: a rise can also mean a document left the",
+    "comparison.",
+    "Read the test's docstring before changing either way."
+  ],
+  "min_shared_prefix": 3
+}

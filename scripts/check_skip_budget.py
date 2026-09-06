@@ -75,7 +75,7 @@ def main() -> int:
         # There is no case where "I could not measure" is the same answer as
         # "the budget is respected", so there is no warn-and-pass path here.
         fail(f"no junit report at {args.junit} — run pytest with --junitxml={args.junit} first")
-        detail("Nothing was measured, so nothing is being ratcheted. See CLAUDE.md § Testing.")
+        detail("Nothing was measured, so nothing is being ratcheted. See docs/rules/testing.md.")
         return done({"state": "no-report", "junit": str(args.junit)}, 1)
 
     budget = json.loads(BUDGET.read_text(encoding="utf-8"))

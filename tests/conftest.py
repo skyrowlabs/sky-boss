@@ -107,3 +107,41 @@ def at_a_terminal(monkeypatch):
     monkeypatch.setattr(
         "skyboss.output.console", Console(theme=THEME, highlight=False, force_terminal=True)
     )
+
+
+# ── From skeletor's conftest, kept because the scaffolded tests import them ───
+# Merged rather than chosen: the file skeletor wrote had none of the isolation
+# above, and `--force` would have dropped all of it silently. That is the exact
+# loss SETUP_GUIDE warns about and the exact one this repo took last time.
+
+#: Set by CI and by `dev test --ci`. Under it, an env-gate skip becomes a failure.
+CI_FLAG = "SB_CI"
+
+
+def in_ci() -> bool:
+    return os.environ.get(CI_FLAG) == "1"
+
+
+def require_or_skip(condition: bool, reason: str, *, requires: str | None = None) -> None:
+    """Skip locally, **fail** in CI.
+
+    The rule worth reading before writing a test: a skip in CI is a failure. CI
+    guarantees the environment, so "the service was not reachable" there means
+    the harness broke — and a harness that silently skips its whole suite
+    reports green, which is this repo's own "worked fine, told nobody" wearing
+    a test runner's clothes.
+    """
+    if condition:
+        return
+    detail = f"{reason} (requires: {requires})" if requires else reason
+    if in_ci():
+        pytest.fail(f"environment gate failed in CI: {detail}. CI guarantees this — the harness is broken.")
+    pytest.skip(detail)
+
+
+@pytest.fixture(scope="session")
+def repo_root():
+    """The project root, from the module that owns it — never re-derived here."""
+    from scripts.paths import PROJECT_ROOT
+
+    return PROJECT_ROOT

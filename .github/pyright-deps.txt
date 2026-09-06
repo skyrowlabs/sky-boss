@@ -1,0 +1,12 @@
+# The dependency set pyright sees in CI.
+#
+# This MUST stay a superset of the unit-test job's installs. `reportMissingImports`
+# is `none`, so a package pyright cannot import becomes `Unknown` and stops
+# constraining anything — which means a leaner environment is not a more
+# permissive check, just a DIFFERENT one. Errors that appear only for some
+# people are almost always this.
+#
+# tests/test_pyright_deps.py asserts every type-checking workflow installs from
+# this file rather than inlining a package list.
+
+-r ../scripts/requirements.txt

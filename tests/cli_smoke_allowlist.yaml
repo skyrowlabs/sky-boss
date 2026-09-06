@@ -1,0 +1,16 @@
+# Commands `tests/test_cli_smoke.py` may not EXECUTE, and why.
+#
+# Format:  <command path>: <why running it here is wrong>
+#
+# Enrolment is not a registry: every command with no required arguments is run
+# unless it is named here. A key naming a group exempts the whole group.
+#
+# A reason is not optional. An exemption with one is a decision somebody can
+# re-evaluate; without one it is indistinguishable from a command nobody got
+# round to covering, and it stays exempt forever.
+
+test: runs the suites — and this test is in one of them, so it would recurse
+check pre-push: runs the unit suite, which is what is running this
+check lint: shells out to the whole toolchain; a missing optional linter would fail this for reasons that have nothing to do with the CLI
+check merge-drivers: asserts a property of the checkout (a driver in .git/config), not of the command
+docs index: regenerates four files — a test must not mutate the tree it runs in

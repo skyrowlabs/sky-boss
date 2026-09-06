@@ -1,0 +1,19 @@
+{
+  "_comment": [
+    "Coverage ratchet. scripts/check_coverage_budget.py fails when a suite drops",
+    "more than tolerance_pts below its baseline.",
+    "",
+    "It is a RATCHET, not a target. Never chase the number: a test written to",
+    "move a percentage tests the lines that were cheapest to reach, which are",
+    "the lines least likely to be wrong. When coverage rises for a real reason,",
+    "raise the baseline in the same commit to lock the gain in.",
+    "",
+    "0.0 is the shipped floor and it is not a placeholder to be filled in on",
+    "day one. Until this suite covers source of your own, the only thing being",
+    "measured is the scaffold, and --update refuses to record that as yours."
+  ],
+  "tolerance_pts": 0.5,
+  "suites": {
+    "unit": { "baseline_pct": 0.0 }
+  }
+}

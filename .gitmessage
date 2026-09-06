@@ -1,0 +1,25 @@
+# <type>(<scope>): <subject>
+#
+# Types:
+#   feat:     New feature (MINOR bump)
+#   fix:      Bug fix (PATCH bump)
+#   perf:     Performance improvement (PATCH bump)
+#   refactor: Restructure, no behaviour change (no bump)
+#   docs:     Documentation only (no bump)
+#   test:     Tests only (no bump)
+#   chore:    Maintenance (no bump)
+#   ci:       CI/CD config (no bump)
+#   build:    Build system / dependencies (no bump)
+#
+# Subject:
+#   - Imperative mood ("add", not "added"/"adds")
+#   - No capital on the first letter, no trailing period
+#   - Max 72 characters
+#   - ONE subject line for the whole commit
+#
+# Body: bullet points, one per change. Say WHY, not just what.
+#
+# Breaking change (MAJOR bump):
+#   feat(api)!: redesign the training endpoints
+#
+#   BREAKING CHANGE: endpoints now require a profile_id parameter

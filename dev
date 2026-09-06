@@ -1,0 +1,104 @@
+#!/bin/bash
+# sky.boss — CLI wrapper
+#
+# Usage: ./dev [command] [options]
+#
+# A thin launcher for the cli/ package. Everything interesting lives there; this
+# file exists to solve three environment problems that are invisible until they
+# bite, each documented where it is handled.
+
+set -e
+
+# ── 1. Absolutize PATH before anything is looked up through it ────────────────
+# A relative entry — the `PATH=.venv/bin:$PATH` prefix people write by hand — is
+# re-resolved against each process's own cwd, and an interpreter found through
+# one keeps that relative path as sys.executable. Every child that chdirs then
+# loses it, and the failure reads as a missing package. cli/__main__.py repairs
+# PATH for what the CLI spawns, but it cannot repair the lookup that found the
+# interpreter running it: that one happens here, in the shell.
+_abs_path=""
+IFS=':' read -ra _entries <<< "$PATH" || true
+for _entry in "${_entries[@]}"; do
+    case "$_entry" in
+        /*) ;;
+        "") _entry="$PWD" ;;   # POSIX reads an empty entry as the current directory
+        *) _entry="$PWD/$_entry" ;;
+    esac
+    _abs_path="${_abs_path:+$_abs_path:}$_entry"
+done
+export PATH="$_abs_path"
+unset _abs_path _entries _entry
+
+# ── 2. Resolve the real project root, through symlinks ────────────────────────
+# `python -m cli` resolves the package from sys.path, not from the script's own
+# location, so PYTHONPATH is what gives us what a root-level `python cli.py`
+# would have got for free via sys.path[0]. realpath matters when this file is
+# symlinked onto PATH: without it, SCRIPT_DIR is /usr/local/bin.
+SCRIPT_DIR="$( cd "$( dirname "$(realpath "${BASH_SOURCE[0]}")" )" && pwd )"
+export PYTHONPATH="$SCRIPT_DIR${PYTHONPATH:+:$PYTHONPATH}"
+
+# ...and stop the *cwd* winning anyway. `python -m` prepends the current
+# directory to sys.path ahead of PYTHONPATH, so running this wrapper from
+# inside any directory that happens to contain a `cli/` package imports that
+# one instead of this tree's. The failure is silent and exit 0: the CLI comes
+# up under the other project's name, with the other project's commands, doing
+# the other project's work in this directory. Anything that writes a path —
+# generated units, config, a report header — records the wrong tree.
+#
+# Not hypothetical, and the triggering condition is ordinary: two projects
+# built from the same shell are two `cli/` packages, and one terminal in the
+# wrong directory is the whole bug. PYTHONSAFEPATH is the documented switch
+# (Python 3.11+, the env form of `-P`). An older interpreter ignores it
+# silently and the hazard stands there — the guard is the cheap half, and
+# `--python` is what decides whether you have it.
+export PYTHONSAFEPATH=1
+
+VENV_PYTHON="$SCRIPT_DIR/.venv/bin/python"
+
+# An explicit interpreter override, for reproducing a CI result locally:
+#     SB_PYTHON=.venv-ci/bin/python ./dev check pre-push
+# A broken override fails loudly rather than falling back — silently running the
+# diverged default interpreter is the exact false negative the override removes.
+if [ -n "${SB_PYTHON:-}" ]; then
+    _override="${SB_PYTHON}"
+    case "$_override" in /*) ;; *) _override="$PWD/$_override" ;; esac
+    if [ ! -x "$_override" ]; then
+        echo "❌ SB_PYTHON=$_override is not an executable interpreter" >&2
+        exit 1
+    fi
+    VENV_PYTHON="$_override"
+fi
+
+# ── 3. A linked worktree has no venv of its own ───────────────────────────────
+# `git worktree add` creates a checkout with no .venv, and nothing creates one.
+# Borrow the main worktree's: it is the same repository at the same
+# requirements, and PYTHONPATH above still points at *this* tree — only the
+# installed packages are shared, never the code. A per-worktree venv is a
+# several-hundred-megabyte install plus a setup step before the tree can run its
+# own suite.
+if [ ! -x "$VENV_PYTHON" ]; then
+    GIT_COMMON_DIR="$(git -C "$SCRIPT_DIR" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
+    if [ -n "$GIT_COMMON_DIR" ] && [ -x "${GIT_COMMON_DIR%/*}/.venv/bin/python" ]; then
+        VENV_PYTHON="${GIT_COMMON_DIR%/*}/.venv/bin/python"
+    fi
+fi
+
+if [ -x "$VENV_PYTHON" ]; then
+    # Put the chosen interpreter's bin dir on PATH absolutely, so shell scripts
+    # the CLI spawns get the same interpreter the CLI itself runs on. A bare
+    # `python -m pytest` in a helper script otherwise resolves to /usr/bin/python,
+    # which has no pytest.
+    VENV_BIN="${VENV_PYTHON%/*}"
+    case ":$PATH:" in
+        *":$VENV_BIN:"*) ;;
+        *) export PATH="$VENV_BIN:$PATH" ;;
+    esac
+    exec "$VENV_PYTHON" -m cli "$@"
+fi
+
+if ! command -v python3 &> /dev/null; then
+    echo "❌ python3 not found. Install Python 3, then: python -m venv .venv && .venv/bin/pip install -r scripts/requirements.txt" >&2
+    exit 1
+fi
+
+exec python3 -m cli "$@"

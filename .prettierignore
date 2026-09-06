@@ -1,0 +1,20 @@
+# Markdown is not formatted by Prettier here, and the reason is mechanical
+# rather than a matter of taste.
+#
+# Every doc in this repository was rendered from a template whose placeholders
+# change width when they are substituted — `sky-boss-implementer` is 29
+# characters in skeletor's source and however long your prefix makes it here.
+# Prettier pads a markdown table's columns to its widest cell, so a table that
+# is canonical before substitution is ragged after it. Left un-ignored,
+# `format:check` is red in a tree nobody has touched, on files nobody wrote.
+#
+# Prettier's job here is JS, JSON and config. Prose is yours.
+#
+# Formatting your OWN markdown is fine — it has no placeholders in it. Narrow
+# this to the paths skeletor shipped (`docs/`, `.claude/`, `.github/`,
+# `CLAUDE.md`) if you want that, and accept that those stay ragged.
+*.md
+
+# Generated artifacts. Their generator owns their bytes; a formatter that
+# rewrites them makes every regeneration a diff and every commit a fight.
+docs/implementation_index.json

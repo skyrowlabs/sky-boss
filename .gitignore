@@ -26,3 +26,25 @@ CLAUDE.local.md
 
 # Node — lint tooling only; the project is Python.
 node_modules/
+
+# ── Added by the skeletor scaffold, 2026-09-06 ──
+.env.*
+!.env.example
+!.env.ci
+*.pem
+*.key
+.venv-ci/
+venv/
+.mypy_cache/
+.coverage
+coverage.xml
+htmlcov/
+*.egg-info/
+dist/
+build/
+npm-debug.log*
+.DS_Store
+.idea/
+*.swp
+.claude/settings.local.json
+.claude/worktrees/

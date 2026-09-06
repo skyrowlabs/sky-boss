@@ -1,0 +1,19 @@
+# Host-side toolchain: the CLI, the docs pipeline, and the lint gates.
+#
+# Lint tool versions MUST match .pre-commit-config.yaml, which is the source of
+# truth. tests/test_lint_tool_parity.py fails if they diverge — two versions of
+# a formatter disagree about real formatting, and a local pass with a CI failure
+# on the same file is otherwise unexplainable.
+
+click>=8.1
+requests>=2.31
+
+pytest>=8.0
+pytest-timeout>=2.3
+pytest-cov>=5.0
+
+flake8==7.3.0
+black==26.5.1
+isort==8.0.1
+pyright==1.1.411
+pre-commit>=4.0

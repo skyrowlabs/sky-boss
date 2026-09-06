@@ -1,0 +1,25 @@
+# Paths and fragments that name nothing real BY DESIGN.
+#
+# One per line. A `docs/...` path here is exempt from check_source_doc_refs.py;
+# a `path#fragment` entry is exempt from check_doc_links.py's anchor half.
+#
+# Legitimate entries: help-text examples, output destinations a run creates,
+# test fixtures, template placeholders, in-app routes that look like anchors.
+#
+# NOT legitimate: a reference that broke when a plan was filed. Repoint it —
+# the reference is prose that records why the code is shaped that way.
+
+# ── Shipped by the scaffold itself ──────────────────────────────────────────
+# The tree arrives carrying these, and every one is in the legitimate list
+# above. Without them `check docs` — and the CI gate that runs the same
+# checker — is red on a tree nobody has touched yet.
+#
+# The checker's own docstring example, and two fixture names a unit test
+# creates in a temporary tree:
+docs/TODO/x.md
+docs/a.md
+docs/b.md
+#
+# An output destination the Saturday report job creates, named at `agentic`
+# and above. Harmless at `core`, where nothing references it.
+docs/reports/regular/repository-report.md

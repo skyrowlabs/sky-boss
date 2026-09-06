@@ -1,0 +1,58 @@
+[tool.black]
+line-length = 120
+target-version = ["py312"]
+extend-exclude = '''
+/(
+    \.git
+  | \.venv
+  | \.venv-ci
+  | venv
+  | build
+  | dist
+  | \.egg-info
+  | node_modules
+  | \.pytest_cache
+  | tmp
+)/
+'''
+
+[tool.isort]
+profile = "black"
+line_length = 120
+
+# Asks git which files are ignored rather than keeping a second copy of
+# `.gitignore` in the `skip` list below — which is the same reason every other
+# discovered set in this repo is discovered rather than listed. The cost is that
+# isort shells out to `git ls-files`, so in a tree that is not a repository git
+# writes `fatal: not a git repository` to stderr three times and isort carries
+# on with the skip silently doing nothing. That is not a case to design around:
+# a scaffold gets `git init` and its first commit before it ever runs a gate.
+skip_gitignore = true
+
+# Name the first-party packages instead of letting isort infer them from what
+# happens to be on disk. Inference reads the directories next to the cwd, so the
+# same file sorts one way from the repo root and another from a subdirectory or
+# a partial checkout — and the disagreement shows up as a formatter fight in
+# review rather than as anything that looks like a config problem.
+# `scanning` is listed beside `tests` and is not covered by it: `tests/` is not
+# a package, so its modules are imported as siblings (`from scanning import ...`)
+# and isort classifies an undeclared bare module as third-party — putting it in
+# a block above the first-party imports it belongs with.
+known_first_party = ["cli", "scripts", "tests", "scanning"]
+skip = [".venv", ".venv-ci", "venv", ".git", "build", "dist", "node_modules", ".pytest_cache", "tmp"]
+
+# Keep this block in sync with tests/pytest.ini. That file is the copy that
+# applies when only a service directory plus tests/ is mounted; this one applies
+# when pytest is invoked without a tests/ path argument.
+[tool.pytest.ini_options]
+addopts = "--strict-markers"
+filterwarnings = ["error::pytest.PytestReturnNotNoneWarning"]
+timeout = 120
+markers = [
+    "unit: host-side tests, no running services required",
+    "integration: requires the stack up and seeded",
+    "manual: never in scheduled CI (E2E, live third-party, paid APIs)",
+    "slow: slow-running test",
+    "security: security test",
+    "ui: drives a user interface — a TUI pilot, a browser, an Electron window",
+]

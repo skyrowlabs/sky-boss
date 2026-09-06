@@ -1,0 +1,108 @@
+# Pre-commit hooks for sky.boss
+#
+# Install:  pip install pre-commit && pre-commit install --install-hooks
+# Run all:  pre-commit run --all-files
+#
+# This file is the SOURCE OF TRUTH for lint tool versions. CI installs the same
+# pins, and tests/test_lint_tool_parity.py fails if the two diverge — two
+# versions of a formatter disagree about real formatting, so a local pass and a
+# CI failure on the same file is otherwise unexplainable.
+
+default_install_hook_types: [pre-commit, commit-msg]
+
+repos:
+  - repo: local
+    hooks:
+      - id: conventional-commit
+        name: Conventional Commit
+        language: script
+        entry: scripts/hooks/conventional-commit-check.sh
+        stages: [commit-msg]
+        pass_filenames: true
+
+      - id: forbid-env-files
+        name: Block .env* files (secrets) from commits
+        entry: '.env files must never be committed — real secrets live only in the untracked .env'
+        language: fail
+        files: '(^|/)\.env(\.|$)'
+        exclude: '(^|/)\.env\.(example|ci)$'
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-merge-conflict
+      - id: check-yaml
+      - id: check-json
+        # pyrightconfig.json is JSONC, not JSON: pyright's own parser accepts
+        # `//` comments, and the reason for each suppression has to live next to
+        # the suppression or it gets deleted by whoever trips over it. The
+        # alternative — a `"//"` key — is valid JSON that makes pyright print
+        # `Config contains unrecognized setting` on every run.
+        exclude: '^pyrightconfig\.json$'
+      - id: check-added-large-files
+        args: ['--maxkb=512']
+
+  # ── Python ──────────────────────────────────────────────────────────────
+  # Delete this block for a project with no Python.
+  - repo: https://github.com/PyCQA/flake8
+    rev: 7.3.0
+    hooks:
+      - id: flake8
+        # Match CI exactly: fail on syntax errors and undefined names.
+        args: ['--select=E9,F63,F7,F82,F401', '--show-source']
+        types: [python]
+
+  - repo: https://github.com/psf/black
+    rev: 26.5.1
+    hooks:
+      - id: black
+        args: ['--line-length=120']
+        types: [python]
+
+  - repo: https://github.com/PyCQA/isort
+    rev: 8.0.1
+    hooks:
+      - id: isort
+        args: ['--profile=black', '--line-length=120']
+        types: [python]
+
+  - repo: local
+    hooks:
+      - id: pyright
+        name: Type check with Pyright (whole project)
+        language: node
+        entry: pyright --project pyrightconfig.json
+        additional_dependencies: ['pyright@1.1.411']
+        # Whole-project on purpose, and so pass_filenames is false: the check has
+        # no per-file scoping, which means ONE stale error anywhere blocks every
+        # commit repo-wide. That is the intended pressure — fix errors when you
+        # see them rather than working around the hook.
+        pass_filenames: false
+        types: [python]
+        stages: [pre-commit]
+
+  # ── Prose & generated docs ──────────────────────────────────────────────
+  - repo: local
+    hooks:
+      - id: docs-index-current
+        name: Generated docs indexes are current
+        language: system
+        entry: python scripts/docs/regen.py --check
+        pass_filenames: false
+        files: ^docs/(TODO|implementations)/.*\.md$
+
+      - id: doc-tables
+        name: Every docs/*.md is registered in both index tables
+        language: system
+        entry: python scripts/check_doc_tables.py
+        pass_filenames: false
+        files: ^(docs/[^/]+\.md|AGENTS\.md|CLAUDE\.md|\.github/DOCS_INDEX\.md)$
+
+      - id: source-doc-refs
+        name: docs/* paths cited from source still resolve
+        language: system
+        entry: python scripts/check_source_doc_refs.py
+        pass_filenames: false
+        files: ^(docs/|.*\.(py|js|mjs|cjs|ts|tsx|sh|ya?ml)$)

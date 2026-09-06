@@ -108,18 +108,31 @@ half-renamed tree is unreviewable.
 
 ### Round 2 — the scaffold (2026-09-06)
 
-- [ ] `skeletor-new --force --cli dev --tier core --versioning tag` from `v0.15.0`.
-- [ ] Review the printed overwrite list **file by file**. Every loss is silent:
-      `--force` writes over what is in its way and a line that is gone raises
-      nothing. sky.boss has already lost `PYTHONSAFEPATH` and a `conftest.py`
-      state redirect this exact way, and neither would have failed a test.
-- [ ] Baseline the ratchets at what was inherited, never at zero.
+- [x] `skeletor-new --force --cli dev --tier core --versioning tag` from `v0.15.0`.
+      108 files written, 17 overwritten, `.skeletor.json` recording `v0.15.0`.
+- [x] Review the printed overwrite list file by file. Nine kept, eight taken.
+- [x] Baseline the ratchets at what was inherited, never at zero.
+- [x] `./dev` runs; `sb` unchanged and verified from outside the repo.
 
-### Round 3 — CI, last (2026-09-06)
+### Round 3 — suites and CI (not started)
 
-- [ ] Land any new gate as a non-required check first. Branch protection names
-      its contexts on **both** `develop` and `main`, and a context no job reports
-      blocks every pull request for ever.
+**16 inherited tests are red and they are all one thing.** skeletor's CI model is
+marker-selected suites — a `gate` job, then `unit`, `integration` and `ui` jobs
+each running `pytest -m <marker>` — and `tests/test_ci_runs_every_suite.py` scans
+the workflows for those selections. sky.boss has **no markers at all**: 1485
+tests in one flat suite that CI runs whole.
+
+- [ ] Backfill markers. This is the work, not overhead — it is the first time
+      anyone writes down which of these tests need a stack up.
+- [ ] Restructure `ci.yml`. **This is the step with a consequence outside the
+      repo.** Branch protection on `develop` *and* `main` requires exactly
+      `eslint`, `pytest 3.12`, `pytest 3.14` — read from the API, not assumed.
+      skeletor's `ci.yml` names its jobs `CI Gate`, `Lint & Types`,
+      `Unit Tests (host-side)`. Adopting it wholesale means those three contexts
+      never report again, and a context no job reports blocks every pull request
+      for ever, on both branches. Either the merged workflow keeps producing all
+      three names, or branch protection changes in the same sitting.
+- [ ] Land any new gate as a non-required check first.
 
 ## Notes
 
@@ -161,3 +174,44 @@ to upgrade on a minor or above and never for a patch alone, which makes the tag
 the unit of decision. Taking the tag also makes the first `skeletor-upgrade` a
 real exercise of the mechanism this whole change exists to acquire, rather than a
 no-op.
+
+
+**2026-09-06 — Round 2 landed, and what the red tests actually mean.**
+
+`--force` overwrote 17 files. Nine were kept and eight taken, and the two
+decisions worth recording are the ones that went the *opposite* way to the plan.
+
+`tests/conftest.py` was **merged, not chosen.** skeletor's version has the CI
+gate helpers the newly-scaffolded tests import; ours has the `SB_STATE`,
+`SB_HOME` and `SL_AGENT_LOGS` redirects that keep 1485 tests off the operator's
+real directories. Taking either whole would have been wrong, and taking
+skeletor's is precisely the silent loss `SETUP_GUIDE.md` says this repo already
+suffered once.
+
+`scripts/paths.py` was **taken whole, retiring a divergence rather than
+carrying one.** The plan assumed we would keep our trimmed copy. Both reasons
+for the trim had expired: the docs-lifecycle constants named directories that
+did not exist and now do, and `STATE_ROOT_DEFAULT` was a hardcoded workspace
+layout under the operator's home when it was cut — it is `~/.local/state/…`
+upstream since v0.9.0. Keeping the trim would have been a permanent merge point
+maintained for a reason that stopped being true. It also *unblocked* `./dev`,
+which cannot import `cli/docs.py` without `IMPL_DIR`.
+
+This reverses the recorded line that sky.boss has no `SB_STATE_ROOT` and never
+will. It has one now, at the scripts layer, distinct from the `SB_STATE` that
+`skyboss/helpers.py` owns. The old ruling was made against a default that leaked
+a home layout into a public repo; that default is gone.
+
+**Two gates found each other, which is the argument for adopting in one line.**
+Our own `test_publication.py` failed on skeletor's
+`scripts/check_source_doc_refs.py`, which writes `~/build/` and `~/dist/` in a
+comment — about false positives from matching absolute paths. It identifies
+nobody, so it is a false positive; reworded here, and worth sending upstream
+since every adopter with a publication gate will hit it. And skeletor's
+`cli/helpers.py` broke *our* `test_imports.py`, because it re-exports eleven
+names through `__all__` and this tree had no `__all__` when that gate was
+written. pyflakes counts an `__all__` entry as a use; ours did not. Fixed, and
+re-verified against flake8 — both now report zero across the merged tree.
+
+That is the thing a component consumer cannot buy: neither gate could have found
+the other while the two halves lived in different repositories.
