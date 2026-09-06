@@ -337,3 +337,53 @@ on a pin nobody was looking at. **An adopter can be current on the template and
 stale on the tools**, which is the workspace's framing of exactly this, and it
 argues for `skeletor-check-pins` being run on a cadence rather than at upgrade
 time.
+
+---
+
+### Round 6 — 2026-09-06: a standing conflict, and the ruling made in advance
+
+`bin/skeletor-upgrade --dry-run` against skeletor HEAD, run read-only from this
+tree, reports **two** files that would conflict and be left alone:
+
+```
+❌ 2 file(s) that differ from the template — merge conflicts, LEFT ALONE
+   · .github/workflows/ci.yml
+   · scripts/docs/release_window.py
+```
+
+The first is expected and permanent — `ci.yml` is hand-merged here to keep three
+branch-protected contexts (`eslint`, `pytest 3.12`, `pytest 3.14`) reporting
+under names the template does not use. Nothing to decide.
+
+**The second is new, and it is worth recording because a future session will
+otherwise re-derive it from a conflict marker.** `scripts/docs/release_window.py`
+ships at `core` and is manifest-tracked (`.skeletor.json`, 108 files). This tree
+edited it — a refusal against a shallow clone, because `window()` silently
+returned a well-formed range describing zero commits and `--apply` would stamp
+that into every report. skeletor made **the same fix upstream, independently,
+the same afternoon**, after this tree reported the finding. So the conflict is
+two correct edits to one region, not a divergence of intent.
+
+**The ruling, made now rather than at the merge: take the template's whole.** It
+is the template's file, theirs is the maintained copy, and the guard is the same
+guard — keeping a local variant of a fix that has landed upstream is how a tree
+acquires a conflict it re-resolves at every release for no gain. The one thing
+to *check* rather than assume when porting is that their version refuses on the
+entry points that reach `window()` and not on `--check`, which validates
+frontmatter shape and never calls it. Measured here before the fix:
+
+| clone | `commit_range` | `commits` |
+|---|---|---|
+| full | `v0.1.0..HEAD` | 63 |
+| `--depth 1` | `<sha>..HEAD` | **0** |
+
+**And the reason the local fix was still right to make.** v0.17.0 is untagged
+with no date, and a tree cannot wait on an unreleased fix for a live silent
+failure. The cost of being early is exactly one hand-port, named here, against
+an unbounded window of a report claiming a range it does not describe. That is
+the trade, and it is the one to make again.
+
+The general shape, which is not this file's: **a finding sent upstream becomes a
+conflict downstream if you also fix it locally.** Worth the conflict when the
+failure is silent, not worth it when the failure is loud — a loud one can wait
+for the release, because you will know if it fires.
