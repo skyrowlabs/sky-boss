@@ -35,9 +35,19 @@ def lint() -> None:
 #: Declaration rather than a bare "any file of this type" on purpose: a single
 #: vendored `.js` beside no eslint config is not a project that forgot its
 #: linter, and a check that cannot tell those apart goes red in somebody else's
-#: repository over a file they did not write. Python is declared by the three
-#: roots this project owns — the same three `pyrightconfig.json` names in
-#: `include` — and node by its manifest.
+#: repository over a file they did not write. Python is declared by the roots
+#: this project owns, and node by its manifest.
+#:
+#: **These used to be the same names `pyrightconfig.json` lists in `include`,
+#: and in this tree they are not.** The product moved to `skyboss/` when
+#: skeletor's shell took `cli/`, and only the pyright config followed it — this
+#: literal is parsed by `bin/skeletor-verify` to ask a question about the
+#: *generator's* configurations, so an adopter's own package name does not
+#: belong in it. Nothing is lost: this asks only *is python here*, `cli/` is
+#: still full of it, and flake8 scans the whole tree regardless. Said out loud
+#: because the sentence that used to be here asserted a correspondence that had
+#: quietly stopped holding, which is how the type checker came to be reading an
+#: empty package for a whole branch.
 #:
 #: The gates below run a linter only when its config exists, which was written
 #: as tolerance and reads as a claim. A missing config makes the source it
