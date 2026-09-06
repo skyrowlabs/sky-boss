@@ -1,7 +1,11 @@
 {
   "typeCheckingMode": "standard",
   "pythonVersion": "3.12",
-  "include": ["cli", "scripts", "tests"],
+  // `skyboss` is the product and `cli` is the scaffolded shell — both are
+  // checked. Naming only `cli` is how this file spent the rename reporting a
+  // clean product it was not reading: the package moved out from under the
+  // path and the count went DOWN, which reads exactly like progress.
+  "include": ["skyboss", "cli", "scripts", "tests"],
 
   // reportMissingImports is `none` on purpose: a package pyright cannot import
   // becomes Unknown and stops constraining anything, which keeps the check

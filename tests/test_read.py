@@ -18,8 +18,29 @@ pytestmark = [pytest.mark.unit]
 
 
 def invoke(args):
+    """The result and its envelope — and the envelope is not Optional.
+
+    `sb --json` promises an envelope on stdout, so an empty stdout is that
+    promise broken. This used to return `None` for it, which made every caller
+    below subscript a maybe-None: the failure arrived as `TypeError: 'NoneType'
+    object is not subscriptable`, naming neither the command nor its exit code
+    nor what was actually printed. Asserting here is the same rule the tool
+    itself is held to — a refusal is a sentence where a silence is not.
+
+    A Click usage error is the one case where no envelope is correct, because
+    the refusal happens before any command runs. Those tests call `refuse()`.
+    """
     result = CliRunner().invoke(cli, ["--json", "read", *args])
-    return result, json.loads(result.stdout) if result.stdout.strip() else None
+    assert result.stdout.strip(), (
+        f"`sb --json read {' '.join(args)}` printed no envelope on stdout "
+        f"(exit {result.exit_code}).\n{result.output}"
+    )
+    return result, json.loads(result.stdout)
+
+
+def refuse(args=()):
+    """A Click usage error: exit 2 and no envelope, so the result alone."""
+    return CliRunner().invoke(cli, ["--json", "read", *args])
 
 
 def test_read_is_a_read_so_a_window_may_pin_it():

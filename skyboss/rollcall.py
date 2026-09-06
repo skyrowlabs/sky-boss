@@ -28,7 +28,7 @@ from pathlib import Path
 
 import rich_click as click
 
-from skyboss.helpers import SB_HOME
+from skyboss.helpers import SB_HOME, mark
 from skyboss.output import Result, emit
 
 PROJECTS_FILE = "projects.toml"
@@ -403,4 +403,4 @@ def roll_call(only: str | None) -> Result:
 # Offered to an agent. `roll-call` reads only what the operator declared in
 # `projects.toml` and takes no argv from its caller, which is the property that
 # decides exposure — not "is it saved". See [[mcp]] round 1.
-roll_call.sb_mcp = True
+mark(roll_call, sb_mcp=True)

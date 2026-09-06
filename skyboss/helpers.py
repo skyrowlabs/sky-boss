@@ -7,6 +7,7 @@ import os
 import re
 import subprocess
 from pathlib import Path
+from typing import Any
 
 import click
 
@@ -221,3 +222,56 @@ def parse_duration(value: str) -> int:
     if amount == 0:
         raise ValueError("a duration of zero says nothing — leave the flag off instead")
     return amount * _UNITS[match.group(2)]
+
+
+#: sky.boss's own bits on a Click command object. Click declares none of them —
+#: they are this tool's extension, written here and read back with `getattr` in
+#: `skyboss/canvas/catalog.py` and `skyboss/tools.py`.
+MARKERS = frozenset(
+    {
+        "sb_acts",
+        "sb_argv",
+        "sb_expansion",
+        "sb_group",
+        "sb_highlight",
+        "sb_mcp",
+        "sb_refresh",
+        "sb_resident",
+        "sb_saved",
+        "sb_surface",
+        "sb_tags",
+    }
+)
+
+
+def mark(command: Any, **flags: Any) -> None:
+    """Attach sky.boss's markers to a Click command, refusing a name nobody reads.
+
+    These were plain attribute assignments — `job_run.sb_acts = True` — until
+    pyright was pointed at this package and reported eleven of them as writes to
+    an attribute `Command` does not declare. A `# type: ignore` at each would
+    have silenced that and bought nothing else.
+
+    **The name check is why this is a function rather than eleven comments.**
+    Every reader spells the marker as a string with a default —
+    `getattr(command, "sb_acts", False)` — so a misspelled *write* lands as a
+    real attribute nobody ever looks at, and the reader keeps returning its
+    default. `job_run.sb_act = True` would have made an acting command reachable
+    with a refresh cadence, silently, permanently, and with a green suite: the
+    silent path and the healthy path are the same bytes. Here it raises.
+
+    `tests/test_markers.py` holds the read side, and it **recomputes** the names
+    the tree reads rather than listing them. That is not a preference: this
+    docstring first said "eleven comments" about a set of four names, the scan
+    found a fifth on its first run and a sixth on its second, and the tree turned
+    out to carry eleven markers across seventeen sites. A list would have pinned
+    four and stayed silent on seven.
+    """
+    unknown = sorted(set(flags) - MARKERS)
+    if unknown:
+        raise AttributeError(
+            f"{', '.join(unknown)} is not a sky.boss marker — nothing reads it, so setting it "
+            f"would do nothing at all. Known markers: {', '.join(sorted(MARKERS))}."
+        )
+    for name, value in flags.items():
+        setattr(command, name, value)

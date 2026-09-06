@@ -13,8 +13,29 @@ from skyboss import cli
 
 
 def invoke(args):
+    """The result and its envelope — and the envelope is not Optional.
+
+    `sb --json` promises an envelope on stdout, so an empty stdout is that
+    promise broken. This used to return `None` for it, which made every caller
+    below subscript a maybe-None: the failure arrived as `TypeError: 'NoneType'
+    object is not subscriptable`, naming neither the command nor its exit code
+    nor what was actually printed. Asserting here is the same rule the tool
+    itself is held to — a refusal is a sentence where a silence is not.
+
+    A Click usage error is the one case where no envelope is correct, because
+    the refusal happens before any command runs. Those tests call `refuse()`.
+    """
     result = CliRunner().invoke(cli, ["--json", "data", *args])
-    return result, json.loads(result.stdout) if result.stdout.strip() else None
+    assert result.stdout.strip(), (
+        f"`sb --json data {' '.join(args)}` printed no envelope on stdout "
+        f"(exit {result.exit_code}).\n{result.output}"
+    )
+    return result, json.loads(result.stdout)
+
+
+def refuse(args=()):
+    """A Click usage error: exit 2 and no envelope, so the result alone."""
+    return CliRunner().invoke(cli, ["--json", "data", *args])
 
 
 def test_a_json_list_becomes_the_data_outright():
@@ -159,12 +180,12 @@ def test_from_json_is_the_default_made_explicit():
 def test_an_unknown_format_is_a_usage_error_not_a_guess():
     """Exit 2 — Click's refusal — rather than a parser silently guessing. A
     speculative csv parser is how 'silently wrong' gets back in."""
-    result, _ = invoke(["--from", "csv", "--", "printf", "a,b"])
+    result = refuse(["--from", "csv", "--", "printf", "a,b"])
     assert result.exit_code == 2
 
 
 def test_the_refusal_lists_what_would_have_worked():
-    result, _ = invoke(["--from", "csv", "--", "printf", "a,b"])
+    result = refuse(["--from", "csv", "--", "printf", "a,b"])
     assert "json" in result.output
 
 
@@ -187,6 +208,14 @@ def declared(tmp_path, toml_text, args):
     (tmp_path / "formats.toml").write_text(toml_text)
     with unittest.mock.patch.object(capture_mod, "SB_HOME", tmp_path):
         return invoke(args)
+
+
+def declared_refusal(tmp_path, toml_text, args):
+    """`declared`'s usage-error half — see `refuse`. A format that does not
+    parse is rejected before the command runs, so there is no envelope."""
+    (tmp_path / "formats.toml").write_text(toml_text)
+    with unittest.mock.patch.object(capture_mod, "SB_HOME", tmp_path):
+        return refuse(args)
 
 
 LINES = '[format.jam-status]\nkind = "lines"\n' "pattern = '(?P<pr>#\\d+)\\s+(?P<state>\\w+)\\s+(?P<title>.+)'\n"
@@ -240,7 +269,7 @@ def test_nothing_matching_is_a_failed_contract_naming_both_recourses(tmp_path):
 
 
 def test_a_broken_format_used_by_name_fails_the_run_with_its_own_reason(tmp_path):
-    result, envelope = declared(
+    result = declared_refusal(
         tmp_path,
         '[format.mine]\nkind = "csv"\n',
         ["--from", "mine", "--", "printf", "x"],

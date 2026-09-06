@@ -29,7 +29,7 @@ import rich_click as click
 
 from skyboss.canvas import shell
 from skyboss.canvas.server import Canvas, build
-from skyboss.helpers import STATE_DIR
+from skyboss.helpers import STATE_DIR, mark
 from skyboss.output import Result, emit, serving_note
 
 # In preference order, for `--browser`. The first three take `--app`, which is
@@ -275,4 +275,4 @@ def ui(
 
 # A surface, not an entry in its own palette. Read by `cli/canvas/catalog.py`,
 # which asks the command rather than keeping a list of names to skip.
-ui.sb_surface = True
+mark(ui, sb_surface=True)

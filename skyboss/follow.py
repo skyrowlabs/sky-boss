@@ -38,7 +38,7 @@ from rich.console import Console, Group
 from skyboss import chrome as chrome_
 from skyboss import highlight as highlight_
 from skyboss import resident
-from skyboss.helpers import parse_duration, parse_env
+from skyboss.helpers import mark, parse_duration, parse_env
 from skyboss.output import THEME, band_text
 from skyboss.stream import DEFAULT_LINES, ChildStream
 
@@ -254,7 +254,7 @@ def follow(
 # Read by the catalog the way `sb_surface` and `sb_acts` are: a property on
 # the command object, never a name in a list. Resident means no cadence —
 # a follow re-running on a timer is a contradiction, not a feature.
-follow.sb_resident = True
+mark(follow, sb_resident=True)
 
 
 def _display_width(console: Console) -> int | None:

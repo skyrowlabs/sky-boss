@@ -39,7 +39,7 @@ from pathlib import Path
 
 import rich_click as click
 
-from skyboss.helpers import PROJECT_ROOT, SB_HOME, STATE_DIR, child_env
+from skyboss.helpers import PROJECT_ROOT, SB_HOME, STATE_DIR, child_env, mark
 from skyboss.output import Result, emit
 from skyboss.view import describe
 
@@ -937,8 +937,8 @@ def schedule_rows() -> tuple[list[dict], list[str], int]:
 # of them is a decision. `tests/test_jobs.py` recomputes the group's membership
 # and fails on a subcommand that never chose — which is what the next
 # `sb job enable` would otherwise inherit silently.
-job.sb_acts = False
-job_list.sb_acts = False
-job_run.sb_acts = True
-job_install.sb_acts = True
-job_uninstall.sb_acts = True
+mark(job, sb_acts=False)
+mark(job_list, sb_acts=False)
+mark(job_run, sb_acts=True)
+mark(job_install, sb_acts=True)
+mark(job_uninstall, sb_acts=True)

@@ -48,7 +48,7 @@ import rich_click as click
 
 from skyboss.canvas.catalog import walk
 from skyboss.canvas.watch import INTERVALS
-from skyboss.helpers import INVOCATION, SB_HOME
+from skyboss.helpers import INVOCATION, SB_HOME, mark
 from skyboss.output import Result, emit
 
 TOOLS_FILE = "tools.toml"
@@ -433,12 +433,12 @@ def make_command(tool: Tool) -> click.Command:
     # A property on the command, inherited from the expansion like `acts` —
     # the catalog reads it to withhold the cadence control from stream
     # windows, saved or typed alike.
-    command.sb_resident = tool.resident
+    mark(command, sb_resident=tool.resident)
     # The sky.boss argv this keyword stands for. The catalog ships it so the
     # bench can open a saved tool for editing; nothing else reads it, and a
     # surface that re-derived it would be guessing at the file. See [[tools]]
     # round 4.
-    command.sb_expansion = list(tool.argv)
+    mark(command, sb_expansion=list(tool.argv))
 
     if not tool.acts and not tool.resident:
         # Only a snapshot observe may take a cadence; on a tool that acts —
@@ -461,27 +461,27 @@ def make_command(tool: Tool) -> click.Command:
     )
     # A property on the command, so the catalog reads it the way it reads
     # `sb_surface` rather than by consulting a list of names.
-    command.sb_saved = True
-    command.sb_refresh = tool.refresh
+    mark(command, sb_saved=True)
+    mark(command, sb_refresh=tool.refresh)
     # Declared, not inherited — unlike `acts`, a group is a statement about
     # where the operator wants to see this, which nothing can derive. Rides the
     # same path every other property does: a property on the command, never a
     # name written down in a module. See [[tools]] round 5.
-    command.sb_group = tool.group
+    mark(command, sb_group=tool.group)
     # Carried so a surface that *rewrites* this tool can restate it. A replace
     # is a restatement, which only works if every declared field is reachable
     # from the surface doing the restating — otherwise the writer accepts an
     # incomplete statement as a complete one. See [[tools]] round 6.
-    command.sb_highlight = tool.highlight
+    mark(command, sb_highlight=tool.highlight)
     # Read by the rail's filter and inherited by a window it opens. On the
     # command object rather than a list in the catalog, the rule every other
     # declared field follows. See [[tools]] round 8.
-    command.sb_tags = tuple(tool.tags)
-    command.sb_argv = tuple(tool.argv)
+    mark(command, sb_tags=tuple(tool.tags))
+    mark(command, sb_argv=tuple(tool.argv))
     # Inherited, never declared. The catalog reads this rather than the command
     # path, because the path of `sb deploy-thing` says nothing about the `run`
     # hiding inside it.
-    command.sb_acts = tool.acts
+    mark(command, sb_acts=tool.acts)
     return command
 
 

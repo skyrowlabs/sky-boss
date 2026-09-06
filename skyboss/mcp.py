@@ -37,6 +37,8 @@ from typing import Any
 
 import rich_click as click
 
+from skyboss.helpers import mark
+
 # What this implements. A hand-rolled subset rather than the official SDK: that
 # brings pydantic into a project which has deliberately avoided it, to save
 # perhaps a hundred lines of JSON-RPC over a pipe. Revisit if the surface ever
@@ -283,4 +285,4 @@ def mcp() -> None:
 # This is a surface, like `sb ui`. It stays out of the palette and out of its
 # own tool list — set on the command object rather than named in a skip-list,
 # which is the rule that stops a module here growing a command table.
-mcp.sb_surface = True
+mark(mcp, sb_surface=True)

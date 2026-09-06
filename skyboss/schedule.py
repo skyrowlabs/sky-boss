@@ -36,6 +36,7 @@ import rich_click as click
 
 from skyboss import jobs as jobs_
 from skyboss.chrome import ago
+from skyboss.helpers import mark
 from skyboss.output import Result, emit
 from skyboss.rollcall import Project, ask, home_file, load
 from skyboss.view import describe
@@ -374,4 +375,4 @@ def ask_schedule(project: Project) -> Result:
 
 # Offered to an agent for the reason `roll-call` is: it takes no argv from its
 # caller and reads only what the operator declared. See [[mcp]] round 1.
-schedule.sb_mcp = True
+mark(schedule, sb_mcp=True)
