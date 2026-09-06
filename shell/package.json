@@ -9,6 +9,6 @@
     "start:canvas": "electron canvas-main.js"
   },
   "devDependencies": {
-    "electron": "^44.0.0"
+    "electron": "^44.1.1"
   }
 }
