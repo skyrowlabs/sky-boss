@@ -15,6 +15,12 @@
 # see which jobs are blocking. The decision is published as an output so a
 # future expensive job can consume it without a second copy of the rule.
 #
+# **The gate is not the only job that needs the history**, and reading that
+# sentence as though it were is what broke the first run of this file: the
+# pytest matrix asks `git log --all` whether a symbol a doc names was ever
+# ours, and it refuses outright against a shallow clone rather than passing
+# having looked at nothing. Both checkouts carry the depth.
+#
 # The one thing never to add is `paths-ignore`, which makes a required check
 # that never reports and blocks a PR forever.
 
@@ -142,7 +148,16 @@ jobs:
       matrix:
         python: ['3.12', '3.14']
     steps:
+      # Full history, and this is a required condition rather than a habit.
+      # `tests/test_docs_name_live_code.py` asks `git log --all` whether a
+      # symbol a doc names was ever ours; against a shallow clone that finds
+      # nothing, so every reference reads as never-ours and the file passes by
+      # *seeing* nothing rather than by *finding* nothing. It refuses instead —
+      # and refused here, on the first CI run after this workflow was merged by
+      # hand, because only the `gate` job above had been given the depth.
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-python@v7
         with:
