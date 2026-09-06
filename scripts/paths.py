@@ -60,7 +60,6 @@ it, and sky.boss is only the first tree where it was published.
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 #: The repository root. The only place in the tree this is worked out.
@@ -74,5 +73,6 @@ TESTS_DIR = PROJECT_ROOT / "tests"
 GITHUB_DIR = PROJECT_ROOT / ".github"
 #: Scratch, and gitignored. Tree locks, coverage XML, merge markers — everything
 #: whose lifetime is a run rather than a commit, and which nothing will want
-#: next week. The record of what ran is **not** here; see `state_dir` below.
+#: next week. The record of what ran is **not** here — this repo keeps that
+#: under `$SB_STATE`, which `cli/helpers.py` owns and this module does not.
 TMP_DIR = PROJECT_ROOT / "tmp"
