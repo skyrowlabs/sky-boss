@@ -54,6 +54,19 @@ IGNORE_FILE = GITHUB_DIR / "scripts" / ".validate-ignore"
 
 SCAN_ROOTS = ["docs", ".claude", ".github"]
 
+#: **Add your own roots below, as an append. Do not edit the list above.**
+#: A root written into the literal conflicts with every upstream change to it;
+#: an append is a different line and merges clean. See the same note beside
+#: `NARRATIVE` in `scripts/paths.py`, where the two spellings were measured.
+#:
+#:     SCAN_ROOTS += ["strategy"]
+#:
+#: **Keep a blank line between your block and the template's**, and audit it per
+#: line rather than per block. The unit of collision is the line: a single `#:`
+#: separator left above the list costs exactly what a five-line explanation
+#: does. Both were measured, in two adopted trees, on this constant and on
+#: `NARRATIVE`.
+
 _LINK = re.compile(r"(?<!!)\[(?P<text>[^\]]*)\]\((?P<href>[^)\s]+)(?:\s+\"[^\"]*\")?\)")
 _HEADING = re.compile(r"^(#{1,6})\s+(?P<text>.+?)\s*$", re.MULTILINE)
 _CODE_FENCE = re.compile(r"```.*?```", re.DOTALL)

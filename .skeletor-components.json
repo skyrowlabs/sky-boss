@@ -5,25 +5,25 @@
       "files": {
         "scripts/allowlist.py": {
           "local_sha": "7df16df78cc645d548be42c5a9f89ece614fc6db4b04dd75c69ba16eade3a128",
-          "ref": "v0.7.0",
+          "ref": "v0.10.2",
           "source": "template/core/scripts/allowlist.py",
           "source_sha": "7df16df78cc645d548be42c5a9f89ece614fc6db4b04dd75c69ba16eade3a128"
         },
         "scripts/output.py": {
           "local_sha": "2580c7a1f55fa96855288e7986c4cc7cf68e833bc23f9e7bf878bc9742838368",
-          "ref": "v0.7.0",
+          "ref": "v0.10.2",
           "source": "template/core/scripts/output.py",
           "source_sha": "2580c7a1f55fa96855288e7986c4cc7cf68e833bc23f9e7bf878bc9742838368"
         },
         "scripts/paths.py": {
           "local_sha": "4b84446d605d587552f1393b1efb05260b320dc100b3937f1bdbae31fecd132c",
-          "ref": "v0.7.0",
+          "ref": "v0.10.2",
           "source": "template/core/scripts/paths.py",
-          "source_sha": "0a0a015eb011b1f97fef811961d8baa222c3196e96b9144e2785a9069491f794"
+          "source_sha": "ce66806d95416e8aa5489574db4e59c88e85d09f43bbf05d09bc7c55e2fc8ba6"
         },
         "scripts/yaml_text.py": {
           "local_sha": "8e2d9392fcfadfcc256eac0a4ab0f8e77f55b7b99b76f16c7f4d04d1ce609990",
-          "ref": "v0.7.0",
+          "ref": "v0.10.2",
           "source": "template/core/scripts/yaml_text.py",
           "source_sha": "8e2d9392fcfadfcc256eac0a4ab0f8e77f55b7b99b76f16c7f4d04d1ce609990"
         }
@@ -54,14 +54,14 @@
     "doc-links": {
       "files": {
         "scripts/check_doc_links.py": {
-          "local_sha": "3c3b229b1f7157b3f14e492acce511725a9cb1703b3551a9fa7b88a1c6c06343",
-          "ref": "v0.7.0",
+          "local_sha": "07d3b0291f7d7d6fac30edb7dbdabdaa6390290144abce971d8eb930ff99ea02",
+          "ref": "v0.10.2",
           "source": "template/core/scripts/check_doc_links.py",
-          "source_sha": "3c3b229b1f7157b3f14e492acce511725a9cb1703b3551a9fa7b88a1c6c06343"
+          "source_sha": "07d3b0291f7d7d6fac30edb7dbdabdaa6390290144abce971d8eb930ff99ea02"
         },
         "scripts/doc_links_baseline.json": {
           "local_sha": "1879dfe92892c3ce936695c0ea249d6bd5c3af85714062d23e39150a30604742",
-          "ref": "v0.7.0",
+          "ref": "v0.10.2",
           "source": "template/core/scripts/doc_links_baseline.json",
           "source_sha": "1879dfe92892c3ce936695c0ea249d6bd5c3af85714062d23e39150a30604742"
         }
