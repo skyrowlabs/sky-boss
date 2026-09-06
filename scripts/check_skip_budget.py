@@ -55,7 +55,7 @@ def main() -> int:
     parser.add_argument("--suite", default="unit")
     parser.add_argument("--junit", type=Path, default=DEFAULT_JUNIT)
     parser.add_argument("--update", action="store_true", help="record the observed count as the new ceiling")
-    parser.add_argument("--json", action="store_true", help="emit the result on stdout as well")
+    parser.add_argument("--json", action="store_true", help="the machine-readable result on stdout")
     args = parser.parse_args()
 
     def done(payload: dict, status: int) -> int:
