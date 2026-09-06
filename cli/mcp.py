@@ -37,8 +37,6 @@ from typing import Any
 
 import rich_click as click
 
-from cli.output import Result, emit
-
 # What this implements. A hand-rolled subset rather than the official SDK: that
 # brings pydantic into a project which has deliberately avoided it, to save
 # perhaps a hundred lines of JSON-RPC over a pipe. Revisit if the surface ever

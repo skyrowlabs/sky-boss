@@ -24,7 +24,6 @@ from cli import cli
 from cli.jobs import (
     Job,
     Unit,
-    home_file,
     orphans,
     parse,
     rows_of,

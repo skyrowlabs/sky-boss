@@ -12,7 +12,6 @@ fence is the marker rather than a list of exceptions in this file.
 
 import re
 import subprocess
-import sys
 from pathlib import Path
 
 import pytest

@@ -8,7 +8,6 @@ that spawn a real child bound every wait.
 """
 
 import io
-import subprocess
 
 from cli.stream import (
     MAX_KEEP_CHARS,
@@ -199,8 +198,6 @@ def test_a_child_is_told_how_wide_the_display_is():
     Measured against the real thing: with COLUMNS the child's output is
     byte-identical to its output in a terminal, without it every long line
     loses its tail."""
-    import time
-
     from cli.stream import ChildStream
 
     child = ChildStream(["sh", "-c", "echo width=$COLUMNS"], columns=150)

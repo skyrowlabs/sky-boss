@@ -22,8 +22,6 @@ slow, and the generator fires exactly what `due()` hands it.
 import asyncio
 import json
 
-import pytest
-
 from cli.canvas.runner import Run
 from cli.canvas.server import Canvas, stream_frames
 from cli.canvas.watch import Session

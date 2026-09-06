@@ -12,7 +12,7 @@ import pytest
 from click.testing import CliRunner
 
 from cli import cli
-from cli.rollcall import load, parse, read
+from cli.rollcall import load, parse
 
 
 def write(home, text):

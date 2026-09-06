@@ -8,8 +8,6 @@ would work perfectly and be wrong.
 import io
 import json
 
-import pytest
-from click.testing import CliRunner
 
 from cli import cli
 from cli.mcp import METHOD_NOT_FOUND, call, exposed, handle, serve

@@ -15,7 +15,6 @@ from cli import cli
 from cli.chrome import (
     ATTENTION,
     ROLE,
-    Chrome,
     act,
     ago,
     clock,
