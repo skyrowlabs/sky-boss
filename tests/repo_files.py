@@ -42,6 +42,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts.paths import NARRATIVE, PROJECT_ROOT  # noqa: E402
 
+import pytest
+
+#: Every test here is host-side and needs no services up.
+pytestmark = [pytest.mark.unit]
+
 
 def git(*args: str, root: Path = PROJECT_ROOT) -> str:
     return subprocess.run(["git", *args], cwd=str(root), capture_output=True, text=True, check=True).stdout

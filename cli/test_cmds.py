@@ -80,7 +80,15 @@ UNSCHEDULED = {
 #: the marker; nothing here is a file list.
 SUITES = {
     "unit": Suite("host-side tests, no services required", ships_tests=True),
-    "integration": Suite("requires the stack up and seeded"),
+    # sky.boss has no stack to stand up: every test is host-side, and the ones
+    # that spawn a real child still talk to nothing but this machine. The row
+    # stays so the vocabulary is here when it is needed, and `empty` expires by
+    # itself the moment one test carries the marker.
+    "integration": Suite(
+        "requires the stack up and seeded",
+        scheduled=False,
+        unscheduled="empty",
+    ),
     # Costs money or needs a person. The one row CI is not expected to run, and
     # the reason that is a field rather than an `if marker != "manual"` in two
     # places, which is what it used to be.
@@ -105,7 +113,17 @@ SUITES = {
     # at any point. A browser or an Electron window may still need a display,
     # and that setup is the adopting repo's — a job failing loudly for want of
     # one is strictly better than tests quietly leaving CI.
-    "ui": Suite("drives a user interface; needs a display, a browser, or a pilot"),
+    # Nothing carries this yet. The canvas is exercised through Starlette's
+    # TestClient, which is host-side and therefore `unit` — CLAUDE.md is explicit
+    # that a runner cannot see an unpainted mark or a control off the edge of the
+    # screen, so the headless render pass it calls an obligation is still a thing
+    # a person does. When that becomes a job, this row flips and the `empty`
+    # reason expires on its own.
+    "ui": Suite(
+        "drives a user interface; needs a display, a browser, or a pilot",
+        scheduled=False,
+        unscheduled="empty",
+    ),
 }
 
 

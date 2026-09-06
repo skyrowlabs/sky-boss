@@ -52,6 +52,9 @@ import pytest
 
 from skyboss.helpers import PROJECT_ROOT
 
+#: Every test here is host-side and needs no services up.
+pytestmark = [pytest.mark.unit]
+
 # The command as a standalone word. The lookarounds are what exempt every
 # identifier that merely starts with the letters: `$SB_HOME`, `sb.fish`.
 BARE = re.compile(r"(?<![\w./$-])sb(?![\w./-])")

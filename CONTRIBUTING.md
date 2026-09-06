@@ -8,9 +8,12 @@ the decisions that were reversed.
 ## Setup
 
 ```bash
-git clone https://github.com/skyrowlabs/sky-boss && cd sky-boss
-python3 -m venv .venv
-.venv/bin/pip install -r requirements.txt -r requirements-dev.txt
+git clone https://github.com/skyrowlabs/sky-boss
+cd sky-boss
+python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+.venv/bin/pip install -r requirements-dev.txt
+.venv/bin/pip install -r scripts/requirements.txt
+.venv/bin/pre-commit install --install-hooks
 npm ci                                   # eslint and the frontend test runner
 ```
 

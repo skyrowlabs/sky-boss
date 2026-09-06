@@ -3,7 +3,9 @@
 ## First-Time Setup
 
 ```bash
-python -m venv .venv && .venv/bin/pip install -r scripts/requirements.txt
+python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+.venv/bin/pip install -r requirements-dev.txt
+.venv/bin/pip install -r scripts/requirements.txt
 .venv/bin/pre-commit install --install-hooks
 npm install
 cp .env.example .env

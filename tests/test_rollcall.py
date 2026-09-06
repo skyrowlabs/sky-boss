@@ -171,6 +171,9 @@ def test_parse_reads_no_file():
 
 from skyboss.rollcall import Project, ask  # noqa: E402
 
+#: Every test here is host-side and needs no services up.
+pytestmark = [pytest.mark.unit]
+
 
 def test_a_command_source_is_read_by_sb_datas_own_path():
     project = Project(name="p", argv=["printf", '[{"a": 1}]'])

@@ -9,6 +9,9 @@ import pytest
 
 from skyboss.helpers import parse_duration
 
+#: Every test here is host-side and needs no services up.
+pytestmark = [pytest.mark.unit]
+
 
 @pytest.mark.parametrize(
     "text,seconds",

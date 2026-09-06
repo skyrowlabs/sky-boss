@@ -22,6 +22,9 @@ from skyboss.view import (
     warnings_for,
 )
 
+#: Every test here is host-side and needs no services up.
+pytestmark = [pytest.mark.unit]
+
 
 @pytest.fixture
 def rows():

@@ -10,6 +10,11 @@ import io
 
 from skyboss import keys
 
+import pytest
+
+#: Every test here is host-side and needs no services up.
+pytestmark = [pytest.mark.unit]
+
 
 def test_the_leave_keys_are_q_and_esc():
     assert keys.leaves("q") and keys.leaves("Q") and keys.leaves("\x1b")

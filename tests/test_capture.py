@@ -248,6 +248,9 @@ import shutil  # noqa: E402
 
 from skyboss.capture import transform  # noqa: E402
 
+#: Every test here is host-side and needs no services up.
+pytestmark = [pytest.mark.unit]
+
 needs_jq = pytest.mark.skipif(shutil.which("jq") is None, reason="no jq on PATH")
 
 

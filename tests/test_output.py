@@ -627,6 +627,9 @@ def test_columns_still_shrink_when_they_genuinely_do_not_fit(capsys):
 
 from skyboss.output import _render_value, fit_columns  # noqa: E402
 
+#: Every test here is host-side and needs no services up.
+pytestmark = [pytest.mark.unit]
+
 
 def _cols(*mins):
     return [{"key": f"c{i}", "label": f"C{i}", "min": m} for i, m in enumerate(mins)]

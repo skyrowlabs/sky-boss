@@ -9,6 +9,11 @@ import time
 
 from skyboss.highlight import load_rulesets, marks, resolve, spans
 
+import pytest
+
+#: Every test here is host-side and needs no services up.
+pytestmark = [pytest.mark.unit]
+
 LINE = "2026-08-22T14:03:11 [jam-pr-report] fetched https://api.github.com/repos rows=14"
 
 

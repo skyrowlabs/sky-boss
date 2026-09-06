@@ -11,6 +11,9 @@ import pytest
 
 from skyboss import agentstate
 
+#: Every test here is host-side and needs no services up.
+pytestmark = [pytest.mark.unit]
+
 
 @pytest.fixture
 def home(tmp_path):

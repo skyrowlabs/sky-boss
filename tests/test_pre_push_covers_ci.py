@@ -96,8 +96,12 @@ def _markers() -> frozenset:
 #: have, and that stays true however the tree changes. There is deliberately no
 #: second kind — an exemption because *nobody got round to it* is the state this
 #: file exists to make visible, not to license.
-UNREACHABLE = {
-    "pytest:integration": "needs the stack up and seeded; a host run has no services to talk to",
+UNREACHABLE: dict[str, str] = {
+    # Empty, and the test below fails if an entry goes stale rather than letting
+    # it sit. `pytest:integration` was here on arrival and was deleted rather
+    # than reworded: this tree declares the integration suite unscheduled
+    # (`cli/test_cmds.py`), so ci.yml does not run it and there is no unreachable
+    # check to excuse. An exemption for a check nobody runs is not an exemption.
 }
 
 

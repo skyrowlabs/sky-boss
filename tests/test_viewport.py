@@ -12,6 +12,9 @@ import pytest
 from skyboss import keys
 from skyboss.resident import Viewport
 
+#: Every test here is host-side and needs no services up.
+pytestmark = [pytest.mark.unit]
+
 
 def ready(stream) -> bool:
     """`select` on a fake stream polls the *real* stdin, which reads as the

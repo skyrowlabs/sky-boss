@@ -12,6 +12,9 @@ from starlette.testclient import TestClient
 
 from skyboss.canvas.server import TOKEN_HEADER, Canvas, build
 
+#: Every test here is host-side and needs no services up.
+pytestmark = [pytest.mark.unit]
+
 
 @pytest.fixture
 def canvas():

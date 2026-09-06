@@ -9,6 +9,11 @@ The fs is a fake; nothing here sleeps, rotates, or writes to disk.
 
 from skyboss.filefollow import BACKFILL_BYTES, FileCursor, follow_file
 
+import pytest
+
+#: Every test here is host-side and needs no services up.
+pytestmark = [pytest.mark.unit]
+
 
 class FakeFs:
     """A filesystem as three numbers and a string per path."""

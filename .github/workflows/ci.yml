@@ -1,11 +1,22 @@
 # The whole suite, on every push and every pull request.
 #
-# There is no cost gating here and that is deliberate. Gating exists to keep an
-# expensive suite off the pre-merge path; this one is 1,083 tests in under ten
-# seconds with no network, so deciding whether to run it would cost more than
-# running it. If that stops being true, the thing to add is a gate job — not a
-# `paths-ignore`, which makes a required check that never reports and blocks a
-# PR forever.
+# **This file used to say there was no cost gating and that it was deliberate**:
+# gating keeps an expensive suite off the pre-merge path, and this one is under
+# ten seconds with no network, so deciding cost more than running. That argument
+# still holds for the suite, and the `gate` job below does NOT gate it — the
+# pytest matrix and eslint run unconditionally, because they are the three
+# contexts branch protection requires on `develop` and `main`, and a required
+# context that reports `skipped` is accepted by branch protection. A PR would
+# merge having proven nothing.
+#
+# What the gate buys here is not skipping. It is the structural checks and the
+# commit-subject read that need `fetch-depth: 0`, one place that decides what a
+# change earns, and a `needs:` edge so `tests/test_workflow_job_graph.py` can
+# see which jobs are blocking. The decision is published as an output so a
+# future expensive job can consume it without a second copy of the rule.
+#
+# The one thing never to add is `paths-ignore`, which makes a required check
+# that never reports and blocks a PR forever.
 
 name: CI
 
@@ -30,6 +41,10 @@ on:
     branches: [main, develop]
   pull_request:
     branches: [main, develop]
+    # `ready_for_review` is load-bearing. Without it a job gated on anything
+    # never re-runs when a PR leaves draft: it stays `skipped`, branch
+    # protection accepts that, and the PR merges having proven nothing.
+    types: [opened, synchronize, reopened, ready_for_review]
   workflow_dispatch:
 
 # A public repo means pushes to a PR arrive from people who are not watching
@@ -44,6 +59,53 @@ permissions:
   contents: read
 
 jobs:
+  # One place that decides what a change earns, and the only job with full
+  # history. `docs-only.cjs` is required rather than re-inlined: two copies of
+  # that rule drift, and the copy that is wrong is the one deciding whether
+  # tests run. It fails OPEN — an API error or an unrecognised path leaves
+  # `full_suite` true and runs everything.
+  gate:
+    name: CI Gate
+    runs-on: ubuntu-latest
+    outputs:
+      full_suite: ${{ steps.decide.outputs.full_suite }}
+      docs_only: ${{ steps.decide.outputs.docs_only }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - name: Decide what this change earns
+        id: decide
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const decide = require('./.github/scripts/docs-only.cjs');
+            const result = await decide({ github, context, core });
+            core.setOutput('docs_only', String(result.docsOnly));
+            core.setOutput('full_suite', String(result.fullSuite));
+            core.summary
+              .addHeading('CI Gate')
+              .addTable([
+                [{data: 'Question', header: true}, {data: 'Answer', header: true}],
+                ['Docs-only change', String(result.docsOnly)],
+                ['Full suite', String(result.fullSuite)],
+                ['Reason', result.reason],
+              ])
+              .write();
+
+      # These need no venv and no dependencies, so they belong here rather than
+      # behind the matrix: a structural fault should fail once, early, not twice.
+      - name: Fast structural checks
+        run: |
+          python scripts/check_doc_tables.py
+          python scripts/check_source_doc_refs.py
+          python scripts/check_output_discipline.py
+
   test:
     # **The floor of this list is the number the README is allowed to say.**
     # `README.md` promises a range, and for one job that was a belief rather
@@ -71,6 +133,9 @@ jobs:
     # `fail-fast: false` because the useful answer is *which* versions broke.
     # Cancelling the rest on the first red turns two data points into one.
     name: pytest ${{ matrix.python }}
+    # Depends on the gate, gated by nothing. See the reversal note at the top:
+    # this is a required context, and `skipped` satisfies branch protection.
+    needs: gate
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -100,14 +165,21 @@ jobs:
       - name: Install
         run: |
           .venv/bin/python -m pip install --upgrade pip
-          .venv/bin/pip install -r requirements.txt -r requirements-dev.txt
+          # One `-r` per line, deliberately. `tests/test_setup_blocks_agree.py`
+          # reads which requirements files CI installs with a regex that
+          # captures a single target per `pip install`, so three `-r` flags on
+          # one line are seen as one file and the other two read as documented
+          # by nobody. Reported upstream; splitting is clearer regardless.
+          .venv/bin/pip install -r requirements.txt
+          .venv/bin/pip install -r requirements-dev.txt
+          .venv/bin/pip install -r scripts/requirements.txt
 
       # `pywebview` installs here but its GTK bindings (`gi`) are system-owned
       # and absent on a runner. That is fine and checked: `skyboss/canvas/shell.py`
       # imports both lazily, inside the functions that open a window, so no
       # test imports either. If a test ever does, this job is where it surfaces.
       - name: Suite
-        run: .venv/bin/python -m pytest -q --junitxml=tmp/junit.xml
+        run: .venv/bin/python -m pytest -q -m "unit" --junitxml=tmp/junit.xml
 
       # Gates taken from skeletor as components — see `.skeletor-components.json`
       # for what came from where, and `bin/skeletor-components report` for
@@ -129,6 +201,7 @@ jobs:
 
   lint:
     name: eslint
+    needs: gate
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -150,3 +223,39 @@ jobs:
       # headless render CLAUDE.md calls an obligation: a runner cannot see an
       # unpainted mark or a control off the edge of the screen.
       - run: npm test
+
+  # A single context meaning "everything above passed". It exists for two
+  # reasons and neither is decoration.
+  #
+  # `tests/test_pre_push_covers_ci.py` derives *blocking* from `needs:` — a job
+  # is blocking when another job waits on it — so without an edge pointing at
+  # them, the pytest matrix and eslint were invisible to the scan and it found
+  # nothing to hold `dev check pre-push` against. A gate nobody depends on is
+  # not a gate.
+  #
+  # And it is the one context worth requiring in branch protection if the three
+  # named there are ever replaced: it stays correct as jobs are added, where a
+  # list of names has to be edited on `develop` and `main` in the same sitting.
+  # Nothing is required on it today — adding a required context that has never
+  # reported would block every pull request immediately.
+  verdict:
+    name: All checks
+    needs: [gate, test, lint]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Report
+        env:
+          # The only consumer of the gate's verdict in this file, and it
+          # REPORTS rather than gates. Said plainly because the obvious reading
+          # of this line is the opposite one: nothing here is skipped on it, for
+          # the reason at the top of the file. When a genuinely expensive job
+          # arrives, it is this output it should be gated on.
+          FULL_SUITE: ${{ needs.gate.outputs.full_suite }}
+        run: |
+          echo "full suite: $FULL_SUITE"
+          if [ "${{ contains(needs.*.result, 'failure') }}" = "true" ]; then
+            echo "a required job failed"
+            exit 1
+          fi
+          echo "all green"

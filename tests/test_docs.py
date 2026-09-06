@@ -30,6 +30,9 @@ import pytest
 
 from skyboss.helpers import PROJECT_ROOT
 
+#: Every test here is host-side and needs no services up.
+pytestmark = [pytest.mark.unit]
+
 # `[[…]]` is also legal prose when the subject *is* the convention. Each entry
 # names a slug that is written down deliberately and resolves to nothing.
 ALLOWED: dict[str, str] = {

@@ -12,6 +12,11 @@ import json
 from skyboss import cli
 from skyboss.mcp import METHOD_NOT_FOUND, call, exposed, handle, serve
 
+import pytest
+
+#: Every test here is host-side and needs no services up.
+pytestmark = [pytest.mark.unit]
+
 
 def names(root=None):
     return {tool["name"] for tool in exposed(root)}

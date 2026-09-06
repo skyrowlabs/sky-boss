@@ -114,7 +114,7 @@ half-renamed tree is unreviewable.
 - [x] Baseline the ratchets at what was inherited, never at zero.
 - [x] `./dev` runs; `sb` unchanged and verified from outside the repo.
 
-### Round 3 — suites and CI (not started)
+### Round 3 — suites and CI (2026-09-06)
 
 **16 inherited tests are red and they are all one thing.** skeletor's CI model is
 marker-selected suites — a `gate` job, then `unit`, `integration` and `ui` jobs
@@ -122,9 +122,9 @@ each running `pytest -m <marker>` — and `tests/test_ci_runs_every_suite.py` sc
 the workflows for those selections. sky.boss has **no markers at all**: 1485
 tests in one flat suite that CI runs whole.
 
-- [ ] Backfill markers. This is the work, not overhead — it is the first time
+- [x] Backfill markers. This is the work, not overhead — it is the first time
       anyone writes down which of these tests need a stack up.
-- [ ] Restructure `ci.yml`. **This is the step with a consequence outside the
+- [x] Restructure `ci.yml`. **This is the step with a consequence outside the
       repo.** Branch protection on `develop` *and* `main` requires exactly
       `eslint`, `pytest 3.12`, `pytest 3.14` — read from the API, not assumed.
       skeletor's `ci.yml` names its jobs `CI Gate`, `Lint & Types`,
@@ -132,7 +132,27 @@ tests in one flat suite that CI runs whole.
       never report again, and a context no job reports blocks every pull request
       for ever, on both branches. Either the merged workflow keeps producing all
       three names, or branch protection changes in the same sitting.
-- [ ] Land any new gate as a non-required check first.
+- [x] Land any new gate as a non-required check first — `verdict` is added and
+      required by nothing.
+
+### Round 4 — the lint backlog (not started)
+
+`./dev check pre-push` is green on flake8, output discipline, docs, commit
+subjects, unit tests and the skip budget. Three gates are red and none of them
+is a test:
+
+| Gate | Red on | Shape |
+|---|---|---|
+| `black` | 51 files — 20 `skyboss/`, 30 `tests/`, 1 `docs/` | mechanical, one huge diff |
+| `isort` | import ordering | mechanical |
+| `pyright` | 259 errors | not mechanical |
+
+Every one is **ours**; the scaffolded files arrive conforming. This is the state
+`SETUP_GUIDE.md` predicts — *"the shell assumes a green tree; an existing repo is
+not green"* — and it is deliberately not fixed in the same commit as the
+adoption. Reformatting 51 files is a decision about the repo's style, not a
+consequence of scaffolding, and burying it inside an adoption diff would make
+both unreviewable.
 
 ## Notes
 
@@ -204,10 +224,13 @@ a home layout into a public repo; that default is gone.
 
 **Two gates found each other, which is the argument for adopting in one line.**
 Our own `test_publication.py` failed on skeletor's
-`scripts/check_source_doc_refs.py`, which writes `~/build/` and `~/dist/` in a
-comment — about false positives from matching absolute paths. It identifies
-nobody, so it is a false positive; reworded here, and worth sending upstream
-since every adopter with a publication gate will hit it. And skeletor's
+`scripts/check_source_doc_refs.py`, whose comment named two home-anchored build
+directories while explaining false positives from matching absolute paths. They
+identify nobody, so it was one; reworded there, and worth sending upstream since
+every adopter with a publication gate will hit it. Note this paragraph had to be
+reworded too — the first draft quoted the literals and tripped the same gate,
+which is the shape `test_naming.py` already masks code spans to avoid: **a gate
+cannot tell prose about a pattern from the pattern.** And skeletor's
 `cli/helpers.py` broke *our* `test_imports.py`, because it re-exports eleven
 names through `__all__` and this tree had no `__all__` when that gate was
 written. pyflakes counts an `__all__` entry as a use; ours did not. Fixed, and
@@ -215,3 +238,65 @@ re-verified against flake8 — both now report zero across the merged tree.
 
 That is the thing a component consumer cannot buy: neither gate could have found
 the other while the two halves lived in different repositories.
+
+
+**2026-09-06 — Round 3, and the two-configs bug it surfaced.**
+
+The sixteen went green without a single test being weakened, and the route
+through each is worth keeping because four of them were the *instrument* rather
+than the tree.
+
+**Markers.** 37 files got `pytestmark = [pytest.mark.unit]`. `integration` and
+`ui` are declared `scheduled=False, unscheduled="empty"` — true here, and the
+reason expires by itself the moment one test carries either marker. Nothing was
+marked to make a gate quiet.
+
+**`ci.yml`.** A `gate` job, `ready_for_review`, marker selection, and a `verdict`
+job that `needs: [gate, test, lint]`. That last one exists because
+`test_pre_push_covers_ci.py` derives *blocking* from `needs:` — with no edge
+pointing at them, the pytest matrix and eslint were invisible to the scan, which
+found nothing and had nothing to hold `pre-push` against. **A gate nobody
+depends on is not a gate.**
+
+The reversal to state plainly: this file used to argue there was no cost gating
+and that it was deliberate. The `gate` job now exists and **still gates
+nothing** — the three contexts branch protection requires must never report
+`skipped`, because branch protection accepts that and the PR merges having
+proven nothing. The verdict job consumes `full_suite` to *report* it. That is
+one assertion passing on a technicality and it is said out loud in the workflow
+rather than left to be discovered.
+
+**Three false positives, all in skeletor's gates, all reported rather than
+worked around silently:**
+
+1. `test_setup_blocks_agree.py` scans CI with `pip install\s+-r\s+(target)`,
+   anchored on `pip install`, so it captures only the **first** `-r` on a
+   command. Three targets on one line read as one, and the gate said CI never
+   installs the toolchain it does install. Split one per line.
+2. `test_docs_name_real_paths.py` and `test_docs_name_live_code.py` read
+   `docs/features/done/` as a description of the tree as it is now. It is a
+   dated archive — this repo's rule is that such docs are never scrubbed — so it
+   is appended to `NARRATIVE`, which is the extension the template documents,
+   *as an append*, because editing the tuple conflicts on every upgrade and an
+   append is line-disjoint forever.
+3. `check_source_doc_refs.py` flagged `docs/plan.md` and
+   `docs/AGENTIC_AUTOMATION.md` in `skyboss/highlight.py` and its tests. Those
+   are **highlighter fixtures**: the module tints by shape, so its samples must
+   contain path-shaped text to prove a path gets tinted. Exempted in
+   `.validate-ignore`, which names test fixtures as legitimate. Pointing them at
+   real documents would be worse — the fixture would then depend on a document
+   existing for a reason unrelated to what it tests.
+
+**And one real bug, found only by running the shell rather than the suite.**
+`pytest -q` was green at 1500 while `./dev test unit` reported **8 failures**:
+every `async def` in the canvas suite was collected and not run. `tests/pytest.ini`
+is a second config that wins once `tests/` is passed as a path, and it had no
+`asyncio_mode`. Root `pytest.ini` had been folded into `pyproject.toml` — itself
+because two config sources meant `--strict-markers` and the marker registry were
+inert from the moment the scaffold landed — and this third copy was missed.
+
+> **A config that only applies on one invocation is only tested by that
+> invocation.** Both commands were "run the tests" and only one of them ran them.
+
+That is the same class as everything else this week, and the suite could not
+see it: it *was* the thing being mis-run.

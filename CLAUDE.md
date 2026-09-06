@@ -752,8 +752,8 @@ does: an audience that is not the author.
   five jobs, under a minute, free on a public repo. It is § CI's own rule on a new axis: deciding
   would cost more than running.
 
-**A default-branch change moves what the portfolio site reports, silently.** `skyrowlabs.com`'s
-`scripts/badges.py` reads each project's CI conclusion from *the default branch*, so the site's
+**A default-branch change moves what the portfolio site reports, silently.** The `skyrowlabs.com`
+repo's `badges.py` reads each project's CI conclusion from *the default branch*, so the site's
 `ci:` segment now describes `develop` rather than `main` — and a freshly cut branch has no runs, so
 the segment would have vanished entirely until the next push. A missing segment reads as *this
 project has no CI*, not as *this branch has not run yet*, which is **worked fine, told nobody**

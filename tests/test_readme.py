@@ -16,6 +16,9 @@ from pathlib import Path
 
 import pytest
 
+#: Every test here is host-side and needs no services up.
+pytestmark = [pytest.mark.unit]
+
 README = Path(__file__).resolve().parents[1] / "README.md"
 
 # `$ sb …` inside a ```console fence. The prompt is what makes a line a command

@@ -478,6 +478,9 @@ from skyboss.jobs import (  # noqa: E402
     timer_unit,
 )
 
+#: Every test here is host-side and needs no services up.
+pytestmark = [pytest.mark.unit]
+
 # Captured verbatim from the real `systemd-analyze calendar` on 2026-09-01, so
 # what is parsed here is what systemd actually prints. **Nothing in this file
 # shells out to it**: `systemd-analyze`, `crontab` and a working

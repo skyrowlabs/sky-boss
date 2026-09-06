@@ -11,6 +11,11 @@ import click
 
 from skyboss import cli
 
+import pytest
+
+#: Every test here is host-side and needs no services up.
+pytestmark = [pytest.mark.unit]
+
 # The vocabulary a contract is stated in. One of these words appearing is not
 # proof of a good sentence, but its absence is proof of a missing one — a
 # command that never says whether it acts or observes, or that it is a

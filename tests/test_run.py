@@ -16,6 +16,11 @@ from click.testing import CliRunner
 from skyboss import cli
 from skyboss.helpers import child_env
 
+import pytest
+
+#: Every test here is host-side and needs no services up.
+pytestmark = [pytest.mark.unit]
+
 
 def _envelope(res):
     """Parse stdout, not `output`.

@@ -12,6 +12,11 @@ from skyboss import cli
 from skyboss.follow import follow_process, is_file_form
 from skyboss.stream import Line, Ring
 
+import pytest
+
+#: Every test here is host-side and needs no services up.
+pytestmark = [pytest.mark.unit]
+
 
 # ============================================================================
 # Dispatch — argument shape only

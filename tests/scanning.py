@@ -36,6 +36,11 @@ from __future__ import annotations
 
 from typing import Sized, TypeVar
 
+import pytest
+
+#: Every test here is host-side and needs no services up.
+pytestmark = [pytest.mark.unit]
+
 #: Bound to `Sized`, and returned unchanged, so a scan keeps the type it had. A
 #: mapping of `path → where it was found` must not come back as a list of keys
 #: merely to be counted, and a caller's annotation must stay true.

@@ -13,6 +13,11 @@ from rich.console import Console
 from skyboss import banner, cli
 from skyboss.theme import BRAND, STYLES, SURFACE_2, TEXT, TEXT_3
 
+import pytest
+
+#: Every test here is host-side and needs no services up.
+pytestmark = [pytest.mark.unit]
+
 
 # ============================================================================
 # The picture

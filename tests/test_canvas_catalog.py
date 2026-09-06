@@ -10,6 +10,11 @@ import rich_click as click
 
 from skyboss.canvas.catalog import catalog, walk, vocabulary
 
+import pytest
+
+#: Every test here is host-side and needs no services up.
+pytestmark = [pytest.mark.unit]
+
 
 def _tree():
     """A tree with the shape the real one does not have.

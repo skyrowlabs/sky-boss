@@ -36,6 +36,11 @@ import subprocess
 
 from skyboss.helpers import PROJECT_ROOT
 
+import pytest
+
+#: Every test here is host-side and needs no services up.
+pytestmark = [pytest.mark.unit]
+
 # `/home/x/y/z.json` in a highlight fixture, `/home/you` in a bug quoted from
 # the workbench. A placeholder is a shape standing in for a name; these are the
 # names this repo has chosen for that job, and a new one is a deliberate act.

@@ -26,6 +26,11 @@ from skyboss.chrome import (
     stream,
 )
 
+import pytest
+
+#: Every test here is host-side and needs no services up.
+pytestmark = [pytest.mark.unit]
+
 NOW = 1_766_000_000.0  # an injected moment; nothing here calls time.time()
 
 

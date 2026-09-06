@@ -89,6 +89,11 @@ from pathlib import Path
 
 from skyboss.helpers import PROJECT_ROOT
 
+import pytest
+
+#: Every test here is host-side and needs no services up.
+pytestmark = [pytest.mark.unit]
+
 SKIPPED_DIRS = {".git", ".venv", "vendor", "node_modules", "__pycache__", "dist", "tmp"}
 
 #: `from __future__ import ...` binds a name nothing reads. It is a compiler

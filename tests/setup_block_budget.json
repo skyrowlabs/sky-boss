@@ -17,7 +17,9 @@
     "ratchet asking you to lock in a gain, not a defect. Read the enrolled block",
     "list in the message first: a rise can also mean a document left the",
     "comparison.",
-    "Read the test's docstring before changing either way."
+    "Read the test's docstring before changing either way.",
+    "",
+    "Raised 3 -> 5 on 2026-09-06, and the enrolled set SHRANK in the same commit, which the failure message warns to check for. README.md and CONTRIBUTING.md left deliberately: both open by cloning and changing directory, which is the documented exclusion, because they address a reader who is not in the tree yet and needs the product's dependencies rather than the toolchain. Telling a user of `sb` to install pyright is wrong, and that is the divergence the exclusion exists for. What remains enrolled -- AGENTS.md and docs/DEVELOPMENT.md -- are the two contributor setups, and they now agree line for line."
   ],
-  "min_shared_prefix": 3
+  "min_shared_prefix": 5
 }

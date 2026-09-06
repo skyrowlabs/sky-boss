@@ -534,6 +534,9 @@ def test_a_tool_takes_no_arguments(saved):
 
 from skyboss import expand_t  # noqa: E402
 
+#: Every test here is host-side and needs no services up.
+pytestmark = [pytest.mark.unit]
+
 
 def test_dash_t_stands_where_a_command_word_could():
     assert expand_t(["-t", "prs"]) == ["tools", "prs"]

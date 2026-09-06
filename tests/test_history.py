@@ -17,6 +17,11 @@ from skyboss.history import DEFAULT_LAST, order, rows_of, view_of
 from skyboss.rollcall import Project, parse
 from skyboss.schedule import now_utc
 
+import pytest
+
+#: Every test here is host-side and needs no services up.
+pytestmark = [pytest.mark.unit]
+
 DECL = """
 state_root = "ROOT"
 

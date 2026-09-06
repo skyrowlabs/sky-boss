@@ -45,7 +45,8 @@ the right. Down the left are the commands you saved.
 ## Install
 
 ```bash
-git clone https://github.com/skyrowlabs/sky-boss && cd sky-boss
+git clone https://github.com/skyrowlabs/sky-boss
+cd sky-boss
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 ln -s "$PWD/sb" ~/.local/bin/sb          # or run ./sb from the repo
 ```

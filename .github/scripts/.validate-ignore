@@ -23,3 +23,16 @@ docs/b.md
 # An output destination the Saturday report job creates, named at `agentic`
 # and above. Harmless at `core`, where nothing references it.
 docs/reports/regular/repository-report.md
+
+# ── sky.boss: highlighter fixtures ──────────────────────────────────────────
+# `skyboss/highlight.py` tints a followed line by SHAPE — a timestamp, a number,
+# a path — so its sample lines and its tests must contain path-shaped text to
+# prove a path is tinted at all. These name nothing and are not meant to: they
+# are the input to a highlighter, not a reference to a document.
+#
+# Replacing them with real paths would be worse than the exemption. The fixture
+# would then depend on a document continuing to exist for a reason unrelated to
+# what it is testing, and deleting that document would break the highlighter's
+# tests with a message about tinting.
+docs/plan.md
+docs/AGENTIC_AUTOMATION.md

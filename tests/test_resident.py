@@ -15,6 +15,11 @@ from skyboss import cli
 from skyboss.output import Result
 from skyboss.resident import Residency, loop, reside
 
+import pytest
+
+#: Every test here is host-side and needs no services up.
+pytestmark = [pytest.mark.unit]
+
 
 class Clock:
     def __init__(self, now: float = 1_766_000_000.0):

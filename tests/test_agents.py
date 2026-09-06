@@ -32,6 +32,9 @@ from skyboss.agents import (
     view_of,
 )
 
+#: Every test here is host-side and needs no services up.
+pytestmark = [pytest.mark.unit]
+
 LIVE = "4242"
 
 

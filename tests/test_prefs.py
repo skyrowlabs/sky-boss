@@ -10,6 +10,11 @@ import json
 
 from skyboss.canvas import prefs
 
+import pytest
+
+#: Every test here is host-side and needs no services up.
+pytestmark = [pytest.mark.unit]
+
 
 def test_nothing_remembered_is_not_an_error(tmp_path):
     assert prefs.read(tmp_path) == {}

@@ -26,6 +26,11 @@ from skyboss.canvas.runner import Run
 from skyboss.canvas.server import Canvas, stream_frames
 from skyboss.canvas.watch import Session
 
+import pytest
+
+#: Every test here is host-side and needs no services up.
+pytestmark = [pytest.mark.unit]
+
 # Generous — this bounds a hang, it does not measure anything.
 PULL_TIMEOUT = 5.0
 

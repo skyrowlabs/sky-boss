@@ -19,6 +19,11 @@ from skyboss.stream import (
     pump,
 )
 
+import pytest
+
+#: Every test here is host-side and needs no services up.
+pytestmark = [pytest.mark.unit]
+
 # Generous ceilings — they bound a hang, they measure nothing.
 WAIT = 10
 

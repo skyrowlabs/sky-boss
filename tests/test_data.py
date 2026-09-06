@@ -179,6 +179,9 @@ import pytest  # noqa: E402
 
 import skyboss.capture as capture_mod  # noqa: E402
 
+#: Every test here is host-side and needs no services up.
+pytestmark = [pytest.mark.unit]
+
 
 def declared(tmp_path, toml_text, args):
     (tmp_path / "formats.toml").write_text(toml_text)

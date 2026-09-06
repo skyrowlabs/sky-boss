@@ -14,6 +14,11 @@ from skyboss.helpers import PROJECT_ROOT
 from skyboss.output import THEME
 from skyboss.theme import BG, BRAND, DANGER, OK, PAINTED, STYLES, TEXT, TEXT_2, TEXT_3, WARN, css_variables
 
+import pytest
+
+#: Every test here is host-side and needs no services up.
+pytestmark = [pytest.mark.unit]
+
 HEX = re.compile(r"#[0-9a-fA-F]{6}\b")
 
 

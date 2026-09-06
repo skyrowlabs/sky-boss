@@ -239,6 +239,9 @@ import skyboss.jobs as jobs_  # noqa: E402
 from skyboss.jobs import Unit  # noqa: E402
 from skyboss.schedule import _systemd_instant, now_utc  # noqa: E402
 
+#: Every test here is host-side and needs no services up.
+pytestmark = [pytest.mark.unit]
+
 
 def test_a_provider_row_says_it_is_watched():
     """A row sky.boss *fires* and a row it merely *watches* are two different

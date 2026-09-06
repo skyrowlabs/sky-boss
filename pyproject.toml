@@ -48,6 +48,14 @@ skip = [".venv", ".venv-ci", "venv", ".git", "build", "dist", "node_modules", ".
 addopts = "--strict-markers"
 filterwarnings = ["error::pytest.PytestReturnNotNoneWarning"]
 timeout = 120
+# Merged in from pytest.ini, which was deleted: two config sources is one too
+# many, and pytest.ini silently WINS over this table — so `--strict-markers` and
+# the marker registry below were inert from the moment the scaffold landed.
+# `pythonpath` is what lets `skyboss` and `scripts` import without installation;
+# `asyncio_mode` is required because the canvas session loop is async.
+testpaths = ["tests"]
+pythonpath = ["."]
+asyncio_mode = "auto"
 markers = [
     "unit: host-side tests, no running services required",
     "integration: requires the stack up and seeded",
