@@ -9,7 +9,7 @@ that spawn a real child bound every wait.
 
 import io
 
-from cli.stream import (
+from skyboss.stream import (
     MAX_KEEP_CHARS,
     ChildStream,
     Line,
@@ -139,7 +139,7 @@ def test_a_human_read_streams_the_lines_pure_on_stdout():
     stamp is status and goes to stderr, same purity rule as warnings."""
     from click.testing import CliRunner
 
-    from cli import cli
+    from skyboss import cli
 
     result = CliRunner().invoke(cli, ["read", "--", "printf", "a\\nb\\n"])
     assert result.exit_code == 0
@@ -150,7 +150,7 @@ def test_a_human_read_streams_the_lines_pure_on_stdout():
 def test_a_human_run_streams_and_stamps_the_act():
     from click.testing import CliRunner
 
-    from cli import cli
+    from skyboss import cli
 
     result = CliRunner().invoke(cli, ["run", "--", "sh", "-c", "echo hi"])
     assert result.exit_code == 0
@@ -161,7 +161,7 @@ def test_a_human_run_streams_and_stamps_the_act():
 def test_a_failing_human_run_still_exits_nonzero_with_the_lines_shown():
     from click.testing import CliRunner
 
-    from cli import cli
+    from skyboss import cli
 
     result = CliRunner().invoke(cli, ["run", "--", "sh", "-c", "echo trouble; exit 3"])
     assert result.exit_code == 1
@@ -176,7 +176,7 @@ def test_the_json_envelope_is_still_built_once_complete_at_exit():
 
     from click.testing import CliRunner
 
-    from cli import cli
+    from skyboss import cli
 
     result = CliRunner().invoke(cli, ["--json", "run", "--", "sh", "-c", "echo hi"])
     envelope = json.loads(result.stdout)
@@ -198,7 +198,7 @@ def test_a_child_is_told_how_wide_the_display_is():
     Measured against the real thing: with COLUMNS the child's output is
     byte-identical to its output in a terminal, without it every long line
     loses its tail."""
-    from cli.stream import ChildStream
+    from skyboss.stream import ChildStream
 
     child = ChildStream(["sh", "-c", "echo width=$COLUMNS"], columns=150)
     child.wait(timeout=10)
@@ -215,7 +215,7 @@ def test_a_child_is_told_nothing_when_there_is_no_display(monkeypatch):
     round 1's rule is that sky.boss scrubs what it added to boot and nothing else.
     What this pins is that sky.boss adds none of its own."""
     monkeypatch.delenv("COLUMNS", raising=False)
-    from cli.stream import ChildStream
+    from skyboss.stream import ChildStream
 
     child = ChildStream(["sh", "-c", "echo width=[$COLUMNS]"])
     child.wait(timeout=10)
@@ -226,7 +226,7 @@ def test_the_operators_own_width_still_passes_through(monkeypatch):
     """The environment is theirs. sky.boss overrides it only when it knows better —
     which is exactly when it has a display to describe."""
     monkeypatch.setenv("COLUMNS", "99")
-    from cli.helpers import child_env
+    from skyboss.helpers import child_env
 
     assert child_env()["COLUMNS"] == "99"
     assert child_env(150)["COLUMNS"] == "150"
@@ -236,7 +236,7 @@ def test_the_height_is_never_passed(monkeypatch):
     """A tool that thinks it knows the height may decide to paginate, and a
     pager inside a stream is a hang."""
     monkeypatch.delenv("LINES", raising=False)
-    from cli.helpers import child_env
+    from skyboss.helpers import child_env
 
     assert "LINES" not in child_env(150)
     assert child_env(150)["COLUMNS"] == "150"
@@ -254,7 +254,7 @@ def test_a_held_open_stream_is_not_left_in_the_childs_buffer():
     import textwrap
     import time
 
-    from cli.stream import ChildStream
+    from skyboss.stream import ChildStream
 
     script = textwrap.dedent(
         """
@@ -277,7 +277,7 @@ def test_a_held_open_stream_is_not_left_in_the_childs_buffer():
 def test_a_snapshot_read_is_not_unbuffered_for_no_reason():
     """`stream=True` is the streaming paths' concern. A buffered run collects
     everything at exit anyway, so there is nothing to un-delay."""
-    from cli.helpers import child_env
+    from skyboss.helpers import child_env
 
     assert "PYTHONUNBUFFERED" not in child_env(150)
     assert child_env(150, stream=True)["PYTHONUNBUFFERED"] == "1"
@@ -292,7 +292,7 @@ def test_the_operators_declaration_beats_sky_boss_own_two():
     The two sky.boss sets are facts it knows about the child's surroundings; the
     operator's is a fact about the child. A tool whose author says
     PYTHONUNBUFFERED breaks it must be able to say so."""
-    from cli.helpers import child_env
+    from skyboss.helpers import child_env
 
     env = child_env(150, stream=True, extra={"COLUMNS": "40", "PYTHONUNBUFFERED": "0"})
     assert env["COLUMNS"] == "40"
@@ -303,7 +303,7 @@ def test_env_adds_without_disturbing_the_operators_environment(monkeypatch):
     """Round 1's rule is unchanged: the environment is theirs, minus the two
     variables the `sb` wrapper set. `--env` adds; it does not replace."""
     monkeypatch.setenv("SB_TEST_INHERITED", "kept")
-    from cli.helpers import child_env
+    from skyboss.helpers import child_env
 
     env = child_env(extra={"SB_TEST_DECLARED": "set"})
     assert env["SB_TEST_INHERITED"] == "kept"
@@ -318,7 +318,7 @@ def test_an_env_token_without_a_value_is_refused_not_ignored():
     import click
     import pytest
 
-    from cli.helpers import parse_env
+    from skyboss.helpers import parse_env
 
     with pytest.raises(click.UsageError) as caught:
         parse_env(["JAM_TRANSCRIPT_STDOUT"])
@@ -327,6 +327,6 @@ def test_an_env_token_without_a_value_is_refused_not_ignored():
 
 def test_an_env_value_may_be_empty_or_carry_an_equals():
     """Empty is a real value and not an unset — only the first `=` splits."""
-    from cli.helpers import parse_env
+    from skyboss.helpers import parse_env
 
     assert parse_env(["A=", "B=x=y"]) == {"A": "", "B": "x=y"}

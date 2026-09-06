@@ -4,13 +4,13 @@ created: 2026-08-21
 updated: 2026-08-23
 agent_value: 3
 key_files:
-  - cli/filefollow.py
-  - cli/chrome.py
-  - cli/helpers.py
-  - cli/follow.py
-  - cli/resident.py
-  - cli/keys.py
-  - cli/canvas/server.py
+  - skyboss/filefollow.py
+  - skyboss/chrome.py
+  - skyboss/helpers.py
+  - skyboss/follow.py
+  - skyboss/resident.py
+  - skyboss/keys.py
+  - skyboss/canvas/server.py
   - tests/test_filefollow.py
   - tests/test_canvas_stream.py
 ---
@@ -105,7 +105,7 @@ that through the standard [[tools]] rule. ANSI is stripped, never interpreted, p
 
 ### Round 1 — the cursor and the path form (2026-08-21)
 
-- [x] **The cursor, pure.** A `FileCursor` (module beside `cli/follow.py`) over an injectable
+- [x] **The cursor, pure.** A `FileCursor` (module beside `skyboss/follow.py`) over an injectable
       clock and filesystem: backfill, advance, quiet, rotation, truncation,
       absent-then-appearing. Tests assert the mechanism, never the timing — no sleeps, no
       tmp-file races; the fs is a fake.
@@ -168,7 +168,7 @@ too — a tool's argv carries `--due 15m` like any other flag, so `[[tools]]` ne
 - **No history.** A follow shows what is happening now; "how often was it late last week" is a
   report, and reports are what the tools sky.boss watches already write.
 
-- [x] **A duration is a shared parser.** `15m`, `2h`, `90s` → seconds, in `cli/helpers.py`,
+- [x] **A duration is a shared parser.** `15m`, `2h`, `90s` → seconds, in `skyboss/helpers.py`,
       because [[delay]] needs the identical spelling and two parsers for one syntax is how they
       start disagreeing. Rejects anything else loudly, at parse time, not at first tick.
 - [x] **`late` in the chrome contract.** `Chrome` gains the declared interval for a cursor and a
@@ -262,7 +262,7 @@ What the execution argued back:
 
 The first Rule-branch rung landed: followed lines now carry lexical tint — a leading
 timestamp muted, a positional `[tag]` in the accent, a URL in the path role — computed by one
-pure rule set in `cli/highlight.py` and applied by both terminal forms and the canvas. The
+pure rule set in `skyboss/highlight.py` and applied by both terminal forms and the canvas. The
 amendment is recognition-for-tinting only: lines stay verbatim, unfiltered, unordered, and
 the "does not parse, filter, or judge" argument above stands untouched for structure. The
 cursor's own voice (rotation, truncation) keeps its warn tint; highlight never re-tags it.
@@ -280,7 +280,7 @@ offset.
 
 The mechanical consequence here: `follow_file` takes a `wait` where it took a `sleep`, and the
 loop, the frame clipping and the body assembler are now shared with the process form through
-`cli/resident.py`. The clip keeps the **tail** — a log's interesting end is its newest line, and
+`skyboss/resident.py`. The clip keeps the **tail** — a log's interesting end is its newest line, and
 the ring outruns the terminal on every frame.
 
 ### Round 2 — drafted, awaiting the word (2026-08-22)

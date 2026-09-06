@@ -4,11 +4,11 @@ created: 2026-08-21
 updated: 2026-08-30
 agent_value: 3
 key_files:
-  - cli/data.py
-  - cli/keys.py
-  - cli/read.py
-  - cli/resident.py
-  - cli/tools.py
+  - skyboss/data.py
+  - skyboss/keys.py
+  - skyboss/read.py
+  - skyboss/resident.py
+  - skyboss/tools.py
   - tests/test_data.py
   - tests/test_resident.py
   - tests/test_help.py
@@ -58,9 +58,9 @@ consumer that wants a cadence is what the canvas API is for. Refused with a mess
 **`wrap` becomes `data`.** Module, command name, catalog, tests, prose. Hard rename, no alias —
 one operator, one `tools.toml`, and an alias is a second name to test forever. A saved tool still
 saying `wrap` fails to load *loudly by name* — `sb tools` already lists tools that failed to
-load, which is the right surface for the migration message. Implementation note: `cli/data.py`
+load, which is the right surface for the migration message. Implementation note: `skyboss/data.py`
 defining a command named `data` walks straight into the import-shadowing gotcha CLAUDE.md
-records — import under an alias in `cli/__init__.py`, as `read` already must.
+records — import under an alias in `skyboss/__init__.py`, as `read` already must.
 
 **`every` becomes `refresh`.** Same word as the flag, same hard-rename policy, same loud failure
 through the tools-that-failed-to-load listing.
@@ -162,7 +162,7 @@ The consumer's version of the argument is the stronger one and it is why this is
 than a degrade: **a refusal is a sentence where a hang is not.** See `CLAUDE.md` § *Worked fine,
 told nobody*, of which this is one of five instances.
 
-- [x] `refuse_resident_pipe(refresh)` in `cli/output.py`, beside `refuse_resident_json` and raised
+- [x] `refuse_resident_pipe(refresh)` in `skyboss/output.py`, beside `refuse_resident_json` and raised
       in the same two places in each command — at the door before `--save` writes, and again inside
       `_reside` for any future path that reaches residency another way.
 - [x] The message names the fix: drop `--refresh` for a single read.
@@ -234,7 +234,7 @@ operator a scrollbar and a search. No key bindings other than `q`, `Esc` and Ctr
 ### Round 1 — the realignment (2026-08-21)
 
 - [x] **`wrap` → `data`, plus `--from`.** Rename module/command/tests/catalog references; add
-      `--from json`; alias-import in `cli/__init__.py`; update CLAUDE.md's command table and the
+      `--from json`; alias-import in `skyboss/__init__.py`; update CLAUDE.md's command table and the
       operator's `tools.toml` (one entry). The failed-to-load path proves the loud migration
       message.
 - [x] **`every` → `refresh`** in the [[tools]] loader and its validation messages; docs.

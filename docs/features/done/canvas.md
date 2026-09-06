@@ -4,17 +4,17 @@ created: 2026-08-20
 updated: 2026-09-01
 agent_value: 3
 key_files:
-  - cli/canvas/server.py
-  - cli/canvas/watch.py
-  - cli/canvas/runner.py
-  - cli/canvas/catalog.py
-  - cli/canvas/__init__.py
-  - cli/canvas/static/app.js
-  - cli/canvas/static/render.js
-  - cli/canvas/static/api.js
-  - cli/canvas/static/sb.css
-  - cli/data.py
-  - cli/theme.py
+  - skyboss/canvas/server.py
+  - skyboss/canvas/watch.py
+  - skyboss/canvas/runner.py
+  - skyboss/canvas/catalog.py
+  - skyboss/canvas/__init__.py
+  - skyboss/canvas/static/app.js
+  - skyboss/canvas/static/render.js
+  - skyboss/canvas/static/api.js
+  - skyboss/canvas/static/sb.css
+  - skyboss/data.py
+  - skyboss/theme.py
   - tests/test_theme.py
 ---
 
@@ -279,7 +279,7 @@ Reported by the operator against `jam-agent-fix-log`: *"it looks like the monito
 some time and stopped showing new data."* Filed as item 22 in [[open]].
 
 **The file cursor is not at fault.** Rotation, truncation and disappearance are all handled by
-`cli/filefollow.py` and none of them is what happened. The break is in the browser half:
+`skyboss/filefollow.py` and none of them is what happened. The break is in the browser half:
 `stream()` opens the session stream **once**, calls `onDown()` when it ends, and never tries
 again — the effect that opened it has an empty dependency list, so it runs once per page load.
 
@@ -338,7 +338,7 @@ open by hand is also never printed. Found while looking for the first.
 
 **The fix respects "commands return data; they never print" by using the exception that already
 exists for this.** A resident command that renders its own last frame ends with
-`raise click.exceptions.Exit(0)` rather than returning — `cli/data.py`'s `_reside` says so
+`raise click.exceptions.Exit(0)` rather than returning — `skyboss/data.py`'s `_reside` says so
 explicitly. `sb ui` is resident by the same definition, so it announces on **stderr** before it
 blocks, exactly as `saved_note` does for a `--save` that precedes a stream, and for the same
 reason: this is status, not payload.
@@ -399,7 +399,7 @@ the cap was trying to approximate.
   one closes — so focus alone is a larger change than the tiling, and split direction, gutter
   resize and tree restructuring each follow it. There is also nowhere honest to test it:
   `CLAUDE.md` records that the frontend has **no test runner**, and a layout tree is precisely the
-  pure, off-by-one-prone code a runner exists for. `cli/view.py` solved that by putting the
+  pure, off-by-one-prone code a runner exists for. `skyboss/view.py` solved that by putting the
   deciding half in Python, and a layout tree cannot go there — it changes on every drag.
   Revisit when it is possible to say which of focus, resize or move is actually missed.
 - **No resize handle in tiled mode.** `app.js` renders `.resize` only under `FLOAT`, and that
@@ -502,17 +502,17 @@ tasks / windows / watchers / attention counters. This round is the remainder.
 
 ### Round 1 — replace the TUI with the canvas (2026-08-20)
 
-- [x] **Phase 1 — the API.** `cli/canvas/server.py`: loopback Starlette, per-launch token, strict
+- [x] **Phase 1 — the API.** `skyboss/canvas/server.py`: loopback Starlette, per-launch token, strict
       `Origin` check. `GET /catalog` off the live Click tree, `POST /run` returning a `Result`.
-      Lift the in-process dispatch out of `cli/tui/dispatch.py` before it is deleted. Tests cover
+      Lift the in-process dispatch out of `skyboss/tui/dispatch.py` before it is deleted. Tests cover
       the token, the origin rejection, and that the catalog cannot be a hardcoded table.
 - [x] **Phase 2 — the watcher clock.** `GET /watch` as SSE, one scheduler per connection, cadence
-      from `[0, 5, 30, 60, 300]`. Injectable clock, the way `cli/tui/watchdog.py` did it, so a
+      from `[0, 5, 30, 60, 300]`. Injectable clock, the way `skyboss/tui/watchdog.py` did it, so a
       cadence test costs milliseconds rather than five real seconds. Tests: a closed stream stops
       its watcher; an open one keeps firing.
 - [x] **Phase 3 — the shell.** `sb ui` starts the server and opens the `--app` window. Vendored
       Preact/htm, the palette wired to `/catalog`, one window rendering one `Result`. **Delete
-      `cli/tui/` and the textual dependency in this phase**, not before — the canvas has to be
+      `skyboss/tui/` and the textual dependency in this phase**, not before — the canvas has to be
       able to dispatch and show a result before the thing it replaces goes.
 - [x] **Phase 4 — the demo.** `jam pr list --json` end to end: structured table, chips that re-run
       with flags, pin, cadence, manual refresh. Needs `cwd` pinned to `~/src/jam.sense` —
@@ -596,7 +596,7 @@ during the build is worth more right now. The migration is the launcher only, by
 useful thing to fall out of pinning down the watcher semantics before writing any code: the
 requirement sounded like a UI detail and turned out to decide where the scheduler lives.
 
-**What survives the TUI's deletion, and what dies with it.** Surviving: `cli/output.py` and its
+**What survives the TUI's deletion, and what dies with it.** Surviving: `skyboss/output.py` and its
 thread-local capture, the in-process Click dispatch, and the rule that the catalog is derived
 rather than written down. Dying: the watchdog, `os._exit` past a wedged worker, the bounded
 `write_body`, and the chunked writes — all of them solutions to Textual-specific problems.
@@ -609,7 +609,7 @@ rebuilt on the new substrate rather than assumed away by the change of medium.
 ### Round 1 — what actually got built (2026-08-20)
 
 **Reversed before writing a line of it: commands run in a subprocess, not in-process.** Phase 1
-said to lift `cli/tui/dispatch.py`. The original reasoning was sound for a terminal — the envelope
+said to lift `skyboss/tui/dispatch.py`. The original reasoning was sound for a terminal — the envelope
 comes back directly, there is no interpreter to start, and `capture` already existed to collect it.
 What it did not survive is that a watcher fires *unattended*. A thread cannot be cancelled, so
 `jam pr list` hanging on a `git fetch` would strand its thread forever, and six windows on a bad
@@ -658,14 +658,14 @@ frontend bugs above, and is not the same as a suite. The pure parts (`unwrap`, `
 the frontend grows.
 
 **Deleted `TUI_STYLES`/`TUI_THEME`,** whose only consumer was the surface being replaced. The
-concept survives as `cli/theme.css_variables`: the canvas paints `BG` itself, so it takes the
+concept survives as `skyboss/theme.css_variables`: the canvas paints `BG` itself, so it takes the
 tokens undarkened, exactly as the TUI did, but it renders from the envelope's data rather than
 from sky.boss's bytes so it needs CSS custom properties rather than a Rich theme. The hex scan now
 follows the surface rather than the language — `.css` and `.js` too, vendored code exempt — plus a
 check for `rgba()` literals, which is the form the drift would actually take here given the mockup
 is built out of them.
 
-**`cli/output.capture` now has no consumer.** It was the mechanism the TUI rendered through, and the
+**`skyboss/output.capture` now has no consumer.** It was the mechanism the TUI rendered through, and the
 canvas does not render sky.boss's bytes at all. It is kept, tested and documented, but nothing in
 the shipped surface calls it. It is a candidate for deletion the next time this area is opened.
 
@@ -753,7 +753,7 @@ failed substitution renders at normal size instead of collapsing the surface to 
 ### Round 4 — a native window (2026-08-20)
 
 **The migration cost what it said it would.** Round 1 recorded pywebview as *deferred, not rejected*
-and promised the change would be "the launcher only". It was: `cli/canvas/shell.py` is new, the
+and promised the change would be "the launcher only". It was: `skyboss/canvas/shell.py` is new, the
 launcher chooses between it and Chromium, and the server, the frontend and all 106 tests were
 untouched. Everything the page talks to is still HTTP, which is what made the swap cheap.
 
@@ -885,9 +885,9 @@ what gives the window an envelope, a killable subprocess and a cadence. Only the
 
 **The interesting problem was the working directory, not the parsing.** A raw command has no place
 to put `--cwd`, and the canvas inherits whatever directory `sb ui` was launched in — so a canvas
-started inside this repo runs `jam pr list` with sky.boss's `cli/` package shadowing jam's own
+started inside this repo runs `jam pr list` with sky.boss's `skyboss/` package shadowing jam's own
 and hands back sky.boss's error message. Defaulting to `$HOME` fixes it for a reason worth
-writing down: a home directory has no `cli/` package to shadow anything. It is neutral rather than
+writing down: a home directory has no `skyboss/` package to shadow anything. It is neutral rather than
 merely conventional, and the same property makes it right for the next tool with the same bug.
 
 The window carries that directory as an editable field, and **rebuilds its argv from it** rather
@@ -990,7 +990,7 @@ Three instances in one function, from one report. That is the argument for treat
 told nobody"* as a class to sweep for rather than a bug to fix: the reporter found the one that cost
 them something, and the other two were sitting beside it.
 
-`serving_note` lives in `cli/output.py` next to `saved_note` because it is the same thing — status
+`serving_note` lives in `skyboss/output.py` next to `saved_note` because it is the same thing — status
 on stderr, before a resident command stops returning. Commands still never print; this is the band
 mechanism they already had.
 

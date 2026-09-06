@@ -102,8 +102,8 @@ def at_a_terminal(monkeypatch):
     """
     from rich.console import Console
 
-    from cli.output import THEME
+    from skyboss.output import THEME
 
     monkeypatch.setattr(
-        "cli.output.console", Console(theme=THEME, highlight=False, force_terminal=True)
+        "skyboss.output.console", Console(theme=THEME, highlight=False, force_terminal=True)
     )

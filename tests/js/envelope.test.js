@@ -6,8 +6,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { dimensions, unwrap } from "../../cli/canvas/static/render.js";
-import { tagPool } from "../../cli/canvas/static/bench.js";
+import { dimensions, unwrap } from "../../skyboss/canvas/static/render.js";
+import { tagPool } from "../../skyboss/canvas/static/bench.js";
 
 test("tagPool is sorted, deduplicated, and survives a tool with no tags", () => {
   assert.deepEqual(

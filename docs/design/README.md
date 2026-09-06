@@ -1,7 +1,7 @@
 # Vendored design source
 
 `skyrow-colors_and_type.css` is Skyrow Labs' design system token file, copied unmodified from the
-design-system bundle. It is here so that `cli/theme.py`'s claim to have copied it verbatim is
+design-system bundle. It is here so that `skyboss/theme.py`'s claim to have copied it verbatim is
 **checkable** rather than asserted — `tests/test_theme.py` parses this file and fails if any
 token in `theme.py` has drifted from it.
 
@@ -26,7 +26,7 @@ node docs/design/render-canvas.mjs              # the canvas
 
 | File | Rendered from | Byte-stable? |
 |---|---|---|
-| `cli-header.png` | `ART` in `cli/banner.py` | yes |
+| `cli-header.png` | `ART` in `skyboss/banner.py` | yes |
 | `readme-banner.png` | real `sb --help` through a pty | yes |
 | `app-icon.png` | `ART`, on a square | yes |
 | `readme-session.png` | real commands through a pty | **no** — the band carries a wall clock |
@@ -50,8 +50,8 @@ Now they cannot disagree, because there is only one of them.
 ### `cli-header.png`
 
 The mark alone — one square per art pixel, at the palette's own values, plus the byline. Nothing
-here picks a colour; they all come from `cli/theme.py`, which is the rule `tests/test_theme.py`
-enforces inside `cli/` and this directory keeps by hand.
+here picks a colour; they all come from `skyboss/theme.py`, which is the rule `tests/test_theme.py`
+enforces inside `skyboss/` and this directory keeps by hand.
 
 ### `readme-banner.png`
 
@@ -70,7 +70,7 @@ screen.
 
 ### Neither render carries a version
 
-`cli/banner.py` prints the real `git describe`, because a header stating a version it is not is
+`skyboss/banner.py` prints the real `git describe`, because a header stating a version it is not is
 worse than one with none. Both renders drop that segment, for two reasons that happen to agree. A
 README is read long after any hash means anything, so `36927d9-dirty` in the first thing a reader
 sees is the same lie in a louder place. And a PNG that embeds `git describe` changes on **every

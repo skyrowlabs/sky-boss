@@ -7,7 +7,7 @@ refused, and quiet is knowledge (a stat) rather than a guess (a silence).
 The fs is a fake; nothing here sleeps, rotates, or writes to disk.
 """
 
-from cli.filefollow import BACKFILL_BYTES, FileCursor, follow_file
+from skyboss.filefollow import BACKFILL_BYTES, FileCursor, follow_file
 
 
 class FakeFs:
@@ -210,7 +210,7 @@ def test_the_cursor_body_tints_through_the_same_rules(monkeypatch):
     their own opinions would drift the week they were written."""
     from rich.console import Console
 
-    from cli import highlight
+    from skyboss import highlight
 
     seen = []
     real = highlight.spans
@@ -310,8 +310,8 @@ def test_the_cursors_own_voice_stays_loud_when_stderr_goes_grey():
     banner, a summary — and painting all of it yellow is a judgment. sky.boss's own
     announcements are not that, so they carry `voice` rather than borrowing a
     tag whose meaning changed underneath them. See [[highlight]] round 4."""
-    from cli.resident import stream_body
-    from cli.stream import Line
+    from skyboss.resident import stream_body
+    from skyboss.stream import Line
 
     body = stream_body(
         [

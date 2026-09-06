@@ -31,8 +31,8 @@ package names.
 `toolbox` until 2026-08-26" — is a fact about the past, and scrubbing it would make the sentence
 false; that is why the rename notes in [[tools]] and [[header]] read the way they do. The **mark**
 was the other one and is not any more: it was a drawing of a toolbox lettered `TOOLBOX`, printed
-beside the word by `cli/banner.py`, and it was redrawn the same day as a **control tower**
-([[header]] round 2). `ART` in `cli/banner.py` is the picture; `docs/design/render-mark.py` renders
+beside the word by `skyboss/banner.py`, and it was redrawn the same day as a **control tower**
+([[header]] round 2). `ART` in `skyboss/banner.py` is the picture; `docs/design/render-mark.py` renders
 every PNG from it — the header, the README banner, and the square app icon — so the drawing and the
 word cannot drift apart again, which they had, for exactly as long as it took to notice. **Re-run it
 after adding a command**: the banner is a screenshot of root help, so a new subcommand makes it
@@ -122,7 +122,7 @@ both read and write is two commands.
 **`sb job` is the group that returned, on 2026-09-01, and it splits exactly that way**: `list`
 observes, while `run`, `install` and `uninstall` act and say so. What matters is that the split
 stayed per-command rather than per-group. And the enforcement did **not** come free — `acts` is
-derived in `cli/canvas/catalog.py` from a *top-level* `run`, so all three acting subcommands
+derived in `skyboss/canvas/catalog.py` from a *top-level* `run`, so all three acting subcommands
 reached the surface labelled as observes, which would have let a window give `sb job run` a refresh
 cadence. A nested command asserts the bit with `sb_acts` or it silently inherits the wrong one; the
 group's own test now fails on a subcommand that never chose. See [[jobs]].
@@ -156,7 +156,7 @@ commands. If groups come back, group them that way and be slower to add one.
   for `aws`/`gh`/`stripe`). **External CLIs keep their own authentication.** `sb` is never in the
   credential path. This is what keeps a future MCP surface safe to expose.
 - **Judging a followed line.** Tint is *shape* — a timestamp, a number, a path — and it is
-  computed in `cli/highlight.py` for both surfaces. A severity vocabulary (ERROR/WARN/INFO) is a
+  computed in `skyboss/highlight.py` for both surfaces. A severity vocabulary (ERROR/WARN/INFO) is a
   judgment wearing a regex's clothes and sky.boss does not ship one; the operator declares their own
   words under `[highlight.<name>]` in `formats.toml` and names it with `--highlight`. Those rules
   run **after** sky.boss's and claim only unclaimed text, so a declaration can never repaint a
@@ -276,7 +276,7 @@ design system holds four hues and sky.boss spends all four, so identity colour c
 fifth. It also must not come from the three that are free: `ok` is green, `warn` is what a *late*
 job already is on the same screen, and `danger` is red — a project drawn in one would read as broken
 or be indistinguishable from lateness. `color-mix` against an injected role is the tint mechanism
-the stylesheet already has, so nothing outside `cli/theme.py` names a colour. The step is assigned
+the stylesheet already has, so nothing outside `skyboss/theme.py` names a colour. The step is assigned
 in `rollcall.parse` by declaration order and shipped by `/api/projects`, so the CLI and the surface
 cannot disagree; it is **not** a declarable key, because a file that could set it could argue with
 the assignment.
@@ -324,6 +324,8 @@ The rules that are not negotiable:
   offered as `sb read -- <argv>`, synthesised from the query rather than from any list, with the
   expansion shown before it runs. It defaults to `$HOME` — neutral, because the canvas inherits
   whatever directory `sb ui` started in, and any repo with a `cli/` package shadows a tool's own.
+  **This repo is one of them again as of the skeletor adoption** — the product moved to `skyboss/`,
+  and skeletor's shell took `cli/`, so running the canvas from here still shadows `jam`.
 - **Only a read may be given a cadence.** See § Scope.
 - **A rewrite has to know every field; a splice does not.** `block()` serialises a tool, so a
   field it has not heard of is dropped on every rewrite — which is not hypothetical: a declared
@@ -396,7 +398,7 @@ The rules that are not negotiable:
   `sb ui` binds an *ephemeral* port unless told otherwise, so the page is served from
   `http://127.0.0.1:<different>/` every time and `localStorage` — which is keyed by origin — is
   empty on arrival by construction. True in all three shells. Anything the surface must remember
-  between launches goes in `$SB_STATE` through `cli/canvas/prefs.py` and the guarded `/api/prefs`,
+  between launches goes in `$SB_STATE` through `skyboss/canvas/prefs.py` and the guarded `/api/prefs`,
   which is strictly shaped so it cannot become a second config file. **The native webview is a red
   herring here**: `pywebview`'s `private_mode` does default to `True`, and turning it off with a
   `storage_path` really does make WebKitGTK persist `localStorage` — across a restart of the
@@ -424,13 +426,13 @@ The rules that are not negotiable:
   clearing it wraps the text inside a box too wide to see it in.
 - **No single result may render unbounded.** The terminal surface froze for exactly this, and a
   120k-line result kills a browser tab as dead as it killed a `RichLog`. The substrate changed; the
-  rule did not. See `MAX_ROWS` and `MAX_CHARS` in `cli/canvas/static/render.js`.
+  rule did not. See `MAX_ROWS` and `MAX_CHARS` in `skyboss/canvas/static/render.js`.
 - **The server is remote code execution bound to a port, and is treated that way.** Four things,
   none optional: loopback bind, a required custom header (which forces a preflight that is never
   answered — this is the one that actually stops a hostile page), a per-launch token, and an
   `Origin` check. **There is no CORS allow-origin header anywhere and adding one would undo most of
   that.** A test asserts its absence.
-- **Everything in `cli/canvas/static/` is served.** Anything left there is published; a test
+- **Everything in `skyboss/canvas/static/` is served.** Anything left there is published; a test
   declares the inventory. Two scratch pages lived there during the build, one with a live token
   baked in.
 - **One number drives every size, so `--scale` is a geometry and not a preference.** `--sb-scale`
@@ -447,7 +449,7 @@ The rules that are not negotiable:
   CSS `zoom` was rejected
   because it breaks dragging — `clientX` is unzoomed and `left` is zoomed — and
   `--force-device-scale-factor` because it *overrides* display scaling rather than multiplying it.
-- **The shell is a native webview** (`cli/canvas/shell.py`), because three things the operator asked
+- **The shell is a native webview** (`skyboss/canvas/shell.py`), because three things the operator asked
   for are impossible in a browser: a frameless window that is still resizable, a page that moves its
   own window, and no port exposed to any other tab. `--browser` and `--no-browser` keep the old
   paths, and `--no-browser` is still the mode to develop in.
@@ -524,12 +526,14 @@ already first on PATH), because `sb` is a homebase tool you run from anywhere.
 
 **`PYTHONSAFEPATH=1` in the wrapper is load-bearing.** `python -m` prepends the current directory
 to `sys.path` *ahead of* `PYTHONPATH`, so running `sb` from inside any directory containing a
-`cli/` package imports that one. This has already bitten once: generating systemd units from
+`skyboss/` package imports that one. This has already bitten once: generating systemd units from
 inside an older checkout wrote every unit with the old `WorkingDirectory`, successfully and
-silently.
+silently. The package was `cli` until 2026-09-06, which made that collision likely rather than
+exotic — every sibling repo here has one. `skyboss` is a name nothing else claims, so the odds
+drop a long way without reaching zero, and the switch is what makes the difference not matter.
 
 **The consequence is a hard rule: `sb` never assumes cwd is the project root.** Every path derives
-from `PROJECT_ROOT` in `cli/helpers.py`, and the wrapper resolves its own symlink with `realpath`
+from `PROJECT_ROOT` in `skyboss/helpers.py`, and the wrapper resolves its own symlink with `realpath`
 before setting `PYTHONPATH` — otherwise `python -m cli` resolves the package relative to
 `~/.local/bin`. This is a whole class of bug: relative `PATH` entries re-resolving against each
 child's cwd, 112 tests failing from a tmp dir. Read the wrapper's comments before touching it.
@@ -567,7 +571,7 @@ check there first.
 
 **`$SB_HOME` is the operator content directory, and it is outside the repo with no fallback path
 into it.** *It does have one fallback path* **outside** *the repo*: the 2026-08-27 rename moved the
-default from `~/.toolbox` to `~/.sky-boss`, and `_default_home()` in `cli/helpers.py` still returns
+default from `~/.toolbox` to `~/.sky-boss`, and `_default_home()` in `skyboss/helpers.py` still returns
 the old path while it is the only one that exists. That bridge is there because an absent home
 degrades to *nothing declared* rather than raising — a silent move would have made every saved
 tool, format and project vanish with no error to read. It stops applying the moment `~/.sky-boss`
@@ -618,7 +622,7 @@ stops matching its source.
 **`[[slug]]` references are checked** — `tests/test_docs.py`. Slugs exist so a doc can move between
 `docs/features/` and `done/` without breaking a link, which they do; what they cannot survive is
 naming a doc nobody wrote. The check found two dead on its first run (`keys` and `theme`, cited
-from `cli/resident.py`, `cli/banner.py` and a test), both dead long enough that nothing recorded
+from `skyboss/resident.py`, `skyboss/banner.py` and a test), both dead long enough that nothing recorded
 when they broke. A slug that resolves to nothing is worse than a broken path, because it *looks*
 like it survived the move that broke it. The allowlist is two entries and each is tested to still
 need to be there.
@@ -689,7 +693,7 @@ wrong.
 **`sb data` is deliberately not an exception even so** — it carries parsed data only, and a tool
 that printed something else has failed its contract. See [[text-reads]].
 
-**Gotcha:** never `from cli.<mod> import <same_name>` in `cli/__init__.py` — it rebinds the package
+**Gotcha:** never `from cli.<mod> import <same_name>` in `skyboss/__init__.py` — it rebinds the package
 attribute from the module to the Command and shadows the module. Import under an alias.
 
 ## Branches
@@ -774,14 +778,14 @@ Shared with sibling CLIs so the family feels like one tool.
   `SB_STATE`, the window class) are outside it by construction.
 - **Python 3 + Click.** Available here: Python 3.14.7, click 8.3.3. Fail fast with a readable
   install message on a missing dependency.
-- **Layout:** `sb` bash wrapper → `cli/__main__.py` thin entry → `cli/` package. The wrapper does
+- **Layout:** `sb` bash wrapper → `skyboss/__main__.py` thin entry → `skyboss/` package. The wrapper does
   path work only (resolve symlinks, prefer `.venv`, set `PYTHONPATH`, `exec python -m cli "$@"`).
-- **Shared plumbing in `cli/helpers.py`** — `PROJECT_ROOT`, `STATE_DIR`, `run_command`. Command
+- **Shared plumbing in `skyboss/helpers.py`** — `PROJECT_ROOT`, `STATE_DIR`, `run_command`. Command
   modules call these rather than building paths directly.
 - **Ops commands act on real machines** via SSH, systemd, or the filesystem — never through an API
   client. Keep any HTTP behind a dedicated adapter module.
 - **A command sky.boss spawns gets the operator's environment, not sky.boss's.** Everything that
-  shells out goes through `child_env()` in `cli/helpers.py`, which drops `PYTHONPATH` and
+  shells out goes through `child_env()` in `skyboss/helpers.py`, which drops `PYTHONPATH` and
   `PYTHONSAFEPATH` — the two the wrapper exports so `python -m cli` resolves. Without it a wrapped
   Python tool imports *this* `cli` package from anywhere on the machine. `PATH` is deliberately
   kept: stripping the venv the wrapper prepends would be sky.boss choosing which `python3` a foreign
@@ -799,7 +803,7 @@ Shared with sibling CLIs so the family feels like one tool.
   `env NAME=VALUE …` in the argv is *not* the same thing and is rejected in
   [[subprocess-env]] round 4: it makes the bench report `env resolves /usr/bin/env`, so the
   surface vouches for the wrapper instead of the tool.
-- **One palette, in `cli/theme.py`** — Skyrow Labs' **design system**, copied verbatim from its own
+- **One palette, in `skyboss/theme.py`** — Skyrow Labs' **design system**, copied verbatim from its own
   `colors_and_type.css`, vendored at `docs/design/` so the copy is checkable. The system is
   dark-only by declaration.
 
@@ -851,7 +855,7 @@ Shared with sibling CLIs so the family feels like one tool.
   tries to read `sb.ok` as a colour, fails, and raises — and the render path *swallows it*, so the
   span comes out unstyled with no error anywhere. An earlier version of this file said Rich reads
   it directly; it never did, and every ✓ ✗ ⚠ in a followed line rendered plain for a week.
-  `role_style` in `cli/output.py` is the resolver. **And the canvas half is the same rule from the
+  `role_style` in `skyboss/output.py` is the resolver. **And the canvas half is the same rule from the
   other side**: a `mk-<role>` class lands whether or not the stylesheet has a rule for it, so
   `.mk-ok`, `.mk-fail` and `.mk-warn` were unpainted for the same week. A test enumerates the roles
   off `_RULES` now. *Both bugs were invisible to a check that asks whether the mark landed — the
@@ -869,7 +873,7 @@ Shared with sibling CLIs so the family feels like one tool.
   natural place for someone to paste one. Vendored code is exempt. A second test rejects `rgba()`
   literals, which is the form the drift would actually take here: the mockup is built out of them.
   Tints are `color-mix` against an injected role. There is no theme switching.
-- **Commands return data; they never print.** All rendering goes through `cli/output.py` and the
+- **Commands return data; they never print.** All rendering goes through `skyboss/output.py` and the
   `Result` envelope (`ok` / `partial` / `data` / `warnings`, plus an optional `view`). Exit codes:
   `0` ok, `1` hard failure, `3` partial — **not 2**, which Click uses for usage errors. The surface
   is a second consumer of that envelope — a command that prints prose has to be written twice.
@@ -877,7 +881,7 @@ Shared with sibling CLIs so the family feels like one tool.
   **A `view` describes how to present `data`; it never filters it.** ~~Only `data` sets one~~ —
   **a command may *author* a view; only `data` may have one *inferred*.** The old wording was
   already false when it was written: [[roll-call]] has set a `blocks` view since it shipped. What is
-  actually reserved is `cli/view.shape`, the inference — it reads fields nobody here chose, and
+  actually reserved is `skyboss/view.shape`, the inference — it reads fields nobody here chose, and
   auto-dropping one of sky.boss's own would be a bug wearing a feature's clothes. A command that
   already knows its columns states them and takes its widths from `describe`, so there is still one
   opinion about flex. The key is *omitted* rather than
@@ -898,10 +902,10 @@ Shared with sibling CLIs so the family feels like one tool.
   has no such flag. A message naming a flag that does not exist is worse than none. Both renderers
   go through one function for it; `render.js` had the string inline at **two** call sites and both
   kept saying `7` after the terminal changed, which only a headless render caught.
-  The rules live in `cli/view.py` and not in `render.js`, because the frontend has no test runner:
+  The rules live in `skyboss/view.py` and not in `render.js`, because the frontend has no test runner:
   that puts the deciding half where pytest reaches it and leaves both renderers drawing what they
   are told. **The warnings a shaping is owed live there too** as of 2026-08-27 — *which columns went
-  quiet* is the same kind of decision, and it stopped being inline in `cli/data.py` the moment the
+  quiet* is the same kind of decision, and it stopped being inline in `skyboss/data.py` the moment the
   bench became a second caller. See [[table-views]].
 - **sky.boss may order; only a provider may judge.** The test that let [[schedule]] fold a row
   across projects without breaking [[roll-call]]'s refusal of a common vocabulary. That refusal is

@@ -50,7 +50,7 @@ from pathlib import Path
 
 import pytest
 
-from cli.helpers import PROJECT_ROOT
+from skyboss.helpers import PROJECT_ROOT
 
 # The command as a standalone word. The lookarounds are what exempt every
 # identifier that merely starts with the letters: `$SB_HOME`, `sb.fish`.

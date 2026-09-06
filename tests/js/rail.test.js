@@ -8,7 +8,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { kindOf, matches } from "../../cli/canvas/static/app.js";
+import { kindOf, matches } from "../../skyboss/canvas/static/app.js";
 
 const tool = (over = {}) => ({
   name: "tools jam-prs",

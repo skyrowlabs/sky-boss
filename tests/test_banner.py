@@ -10,8 +10,8 @@ the one place a tested invariant is deliberately stepped around.
 from click.testing import CliRunner
 from rich.console import Console
 
-from cli import banner, cli
-from cli.theme import BRAND, STYLES, SURFACE_2, TEXT, TEXT_3
+from skyboss import banner, cli
+from skyboss.theme import BRAND, STYLES, SURFACE_2, TEXT, TEXT_3
 
 
 # ============================================================================

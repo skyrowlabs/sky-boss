@@ -4,17 +4,17 @@ created: 2026-08-22
 updated: 2026-08-30
 agent_value: 3
 key_files:
-  - cli/highlight.py
-  - cli/resident.py
-  - cli/tools.py
-  - cli/follow.py
-  - cli/filefollow.py
-  - cli/canvas/server.py
-  - cli/canvas/catalog.py
-  - cli/canvas/static/api.js
-  - cli/canvas/static/app.js
-  - cli/canvas/static/bench.js
-  - cli/canvas/static/sb.css
+  - skyboss/highlight.py
+  - skyboss/resident.py
+  - skyboss/tools.py
+  - skyboss/follow.py
+  - skyboss/filefollow.py
+  - skyboss/canvas/server.py
+  - skyboss/canvas/catalog.py
+  - skyboss/canvas/static/api.js
+  - skyboss/canvas/static/app.js
+  - skyboss/canvas/static/bench.js
+  - skyboss/canvas/static/sb.css
   - tests/test_canvas_catalog.py
   - tests/test_highlight.py
 ---
@@ -47,7 +47,7 @@ operator-declared highlight patterns are this doc's future round, not its first.
 
 ## Shape
 
-**One rule set, in Python, applied everywhere a followed line renders.** `cli/highlight.py`
+**One rule set, in Python, applied everywhere a followed line renders.** `skyboss/highlight.py`
 holds a pure function — a line in, `(start, end, role)` marks out — for the same reason the
 view heuristic and the chrome facts live where they do: the frontend has no test runner, and
 two renderers holding their own opinions would drift the week they were written. The terminal
@@ -67,7 +67,7 @@ The round-1 rules, all shape, no vocabulary:
 Round 2 adds the rest of the shapes an agent's log actually contains — see Phases. The rule
 that governs *which role* each gets is new and is the point of that round: **the value
 vocabulary is shared with `sb data`.** A number is `sb.num` whether it sits in a table cell or
-a log line; a path is `sb.path` in both. `cli/output.py` already decides that for table cells
+a log line; a path is `sb.path` in both. `skyboss/output.py` already decides that for table cells
 (`_cell`: numbers `sb.num`, `/`-leading strings `sb.path`), and a stream that invented its own
 palette would mean the same value looked like two different things depending on which surface
 you were reading. One vocabulary, two surfaces — the same argument the theme itself makes.
@@ -76,7 +76,7 @@ you were reading. One vocabulary, two surfaces — the same argument the theme i
 `{text, stderr}` verbatim and gains `marks: [[start, end, role], …]` — offsets into the text,
 so the payload the canvas appends is provably the payload the file carried. Roles are theme
 role names; the canvas already has every token as a CSS custom property, and no color is named
-outside `cli/theme.py` in any language.
+outside `skyboss/theme.py` in any language.
 
 **Does not do:**
 
@@ -115,7 +115,7 @@ outside `cli/theme.py` in any language.
 
 ### Round 1 — shape, not vocabulary (2026-08-22)
 
-- [x] **The rules, pure.** `cli/highlight.py`: `marks(text) -> list[(start, end, role)]` for
+- [x] **The rules, pure.** `skyboss/highlight.py`: `marks(text) -> list[(start, end, role)]` for
       timestamp, tag and URL; overlaps resolved (first match wins, no nesting). Tests per
       rule, plus the properties: text never altered, a non-matching line yields no marks, a
       pathological line (200 KB, no spaces) returns in bounded time.
@@ -162,7 +162,7 @@ the eye needs them:
 **Code spans take `sb.path` rather than a hue of their own, and that is a deliberate refusal.**
 A violet for code was prototyped and looked good, and the design system has no violet. Inventing
 one would put a colour outside `colors_and_type.css` into the CLI, which is the exact drift
-`cli/theme.py` exists to prevent. A code span and a path are the same *kind* of thing — a
+`skyboss/theme.py` exists to prevent. A code span and a path are the same *kind* of thing — a
 literal, an identifier — and one role for both is honest.
 
 **The text stays verbatim, so the `**` markers stay on screen.** That is inherited from round 1
@@ -185,7 +185,7 @@ since the first unbounded render froze one.
   that restyled them would be sky.boss overriding the font.
 - **No change to `data`, envelopes, `--json`, or accrual output.** Tint is rendering.
 
-- [x] **The rules.** `cli/highlight.py` gains ref, number, date, time, code, path, bold and
+- [x] **The rules.** `skyboss/highlight.py` gains ref, number, date, time, code, path, bold and
       heading, with an explicit priority so a number inside a code span does not tint twice —
       timestamp, tag, code, url, path, date, time, ref, number. `MAX_MARKS` caps the line.
 - [x] **The number rule does not eat the following word.** Found in the prototype: a rule that
@@ -284,7 +284,7 @@ they look like the vocabulary rules this doc refuses:
 
 - **A check is green, a cross is red, a warning sign is warn.** Not sky.boss deciding a line went
   well: `sb data` already renders a true boolean as a green `✓` and a false one as a red `✗`
-  (`_cell` in `cli/output.py`). One value vocabulary, two surfaces — the same rule round 2 ran
+  (`_cell` in `skyboss/output.py`). One value vocabulary, two surfaces — the same rule round 2 ran
   on. `⚠️` is two codepoints (the sign plus U+FE0F) and both are claimed, or the glyph tints
   half.
 - **A coloured circle shows its colour** — `🔴` red, `🟢` green.
@@ -679,7 +679,7 @@ theme name inside a compound style string: `get_style("sb.ok")` finds the theme 
 fails, and raises `MissingStyle` — which the render path swallows. CLAUDE.md recorded that *"Rich
 reads `bold sb.path` directly"*, which was never true. Round 4 made it a handful of bold phrases;
 **round 5 made every glyph composite**, so every ✓, ✗ and ⚠ in the log rendered plain. `role_style`
-in `cli/output.py` resolves each word against the theme and parses only what the theme has no entry
+in `skyboss/output.py` resolves each word against the theme and parses only what the theme has no entry
 for. Found by rendering one line and looking at the escape codes.
 
 **And the canvas never had a rule for `.mk-ok`, `.mk-fail` or `.mk-warn` at all.** Round 4's verdict

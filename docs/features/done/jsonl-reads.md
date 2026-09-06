@@ -3,7 +3,7 @@ status: complete       # draft | active | complete — the directory follows thi
 created: 2026-08-29
 updated: 2026-08-29
 agent_value: 3         # three rounds shipped; the path form, the kind and the variance rule
-key_files: [cli/data.py, cli/capture.py, cli/view.py, tests/test_data.py, tests/test_view.py]
+key_files: [skyboss/data.py, skyboss/capture.py, skyboss/view.py, tests/test_data.py, tests/test_view.py]
 ---
 
 # Reading a file of records as data
@@ -42,7 +42,7 @@ made the file worth reading.
 
 The gap is sharper than it looks because `sb follow` already settled the principle. A
 path is a first-class subject there: `sb follow <path>` runs a native stat cursor and
-`cli/follow.py` owns the dispatch between a path and an argv. Following a file needed no
+`skyboss/follow.py` owns the dispatch between a path and an argv. Following a file needed no
 argv; reading one should not either.
 
 **What it unlocks, concretely.** `sb data` already has the machinery — a view that picks
@@ -56,7 +56,7 @@ and an eye.
 `sb data <path>` — the same dispatch `follow` already performs, extended to the one other
 command that consumes structured input.
 
-**A path is inherently a read, and that is the load-bearing part.** `cli/data.py` explains
+**A path is inherently a read, and that is the load-bearing part.** `skyboss/data.py` explains
 at length why `data` is a separate command from `run`: `run` acts, so it may never be
 given a refresh cadence, and `data` is *"the operator's declaration that the argv is a
 read, which is what makes it safe to pin."* A file cannot be executed. The declaration
@@ -65,7 +65,7 @@ operator's promise — which makes the path form **more** defensible than the ar
 not a relaxation of it.
 
 **JSONL is a parsing contract, not a guess.** `--from` already names the contract, and
-`cli/data.py` is emphatic that *"the contract does not move: parsed data or a failed
+`skyboss/data.py` is emphatic that *"the contract does not move: parsed data or a failed
 contract, never carried bytes."* So `--from jsonl` is the honest spelling, with a
 malformed line counted and named the way a missed capture already is — never silently
 skipped.
@@ -135,7 +135,7 @@ own justification retires it. That is a narrower claim than "the argument's type
 declaration", and it is the one that holds — inspection works here, so the reason for refusing to
 inspect is gone.
 
-`cli/follow.py:46`'s `is_file_form()` is the dispatch model, and the precedent is *stronger* for
+`skyboss/follow.py:46`'s `is_file_form()` is the dispatch model, and the precedent is *stronger* for
 `data` than it was for `follow`. Follow's two forms run genuinely different machinery, which is why
 [[file-follow]] has to say "the file cursor owns files; the process stream owns commands" to keep
 them apart. Both `data` forms produce the same thing: parsed rows and a view. One verb covers less
@@ -146,7 +146,7 @@ ground here, not more.
 ### Round 1 — the path form, one contract (2026-08-29)
 
 - [x] Settle the verb question — `sb data <path>`, ruled above.
-- [x] Dispatch a path argument to a file reader, mirroring `cli/follow.py`'s split.
+- [x] Dispatch a path argument to a file reader, mirroring `skyboss/follow.py`'s split.
 - [x] `--from jsonl`: one object per line, blank lines skipped, malformed lines counted
       and named in `warnings` rather than dropped.
 - [x] A file whose lines *all* fail to parse is a failure, not an empty table — the rule
@@ -242,7 +242,7 @@ installed deliberately: sky.boss cannot tell a line that is 0.8 µs from complet
 corrupt, and the two want opposite conclusions. The warning also costs nothing in practice — at
 this duty cycle a real ledger read hits one about once in 27,000 nights.
 
-**`sb follow` answers the same bytes differently, and both are right.** `cli/filefollow.py` holds a
+**`sb follow` answers the same bytes differently, and both are right.** `skyboss/filefollow.py` holds a
 partial final line until its newline arrives and never emits half. The asymmetry is the contract,
 not an inconsistency: a follow's next read is guaranteed to come, so waiting costs nothing, while a
 `data` read *is* the answer and has nothing to wait for. See [[file-follow]].
@@ -294,7 +294,7 @@ direction of a fact instead of a doc.*
 ### 2026-08-29 — three rounds, and two things the suite decided
 
 **The file-form rule is not `follow`'s, and the suite is what said so.** Reusing
-`cli/follow.py`'s `is_file_form` outright broke
+`skyboss/follow.py`'s `is_file_form` outright broke
 `test_a_missing_command_fails_rather_than_raising` immediately: follow treats a bare word that no
 executable answers to as a *file*, because `sb follow new.log` has to be legal before the log's
 first write. That reasoning does not survive the trip. A file with no records has no rows to
@@ -339,7 +339,7 @@ file is the one this must stay quiet about.
 
 **A second suppression arrived from rendering it, not from designing it.** With `--cols kind,job,at`
 the warning read *"10 record shapes here, so these 3 columns are a union no single record has"* —
-false, and recommending the flag the operator had just typed. `cli/view.py` already refuses to name
+false, and recommending the flag the operator had just typed. `skyboss/view.py` already refuses to name
 a column back at someone who typed `--drop` for it, and this is the same rule. The count stays on
 the view, where a surface can still draw it; the prose goes.
 

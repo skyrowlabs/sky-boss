@@ -11,8 +11,8 @@ import time
 
 from click.testing import CliRunner
 
-from cli import cli
-from cli.chrome import (
+from skyboss import cli
+from skyboss.chrome import (
     ATTENTION,
     ROLE,
     act,
@@ -197,7 +197,7 @@ def test_the_spans_join_to_exactly_the_plain_lines():
     """The round-2 contract: status_lines is the spans joined, so every
     width and truncation property proven against the strings holds for the
     styled rendering by construction."""
-    from cli.chrome import status_bands
+    from skyboss.chrome import status_bands
 
     c = resident("jam-prs", ok=True, interval=30, last_run=NOW - 18,
                  ran_at=NOW - 18, duration_s=0.4, warnings=1)
@@ -211,7 +211,7 @@ def test_the_frame_is_furniture_and_the_facts_wear_their_roles():
     """Corners and fills always muted; the source bold; the countdown in
     accent; the verdict word in its verdict's color; warnings in warn. One
     color per band was the round-1 mistake this round retires."""
-    from cli.chrome import status_bands
+    from skyboss.chrome import status_bands
 
     c = resident("jam-prs", ok=True, interval=30, last_run=NOW - 18,
                  ran_at=NOW - 18, duration_s=0.4, warnings=1)
@@ -230,7 +230,7 @@ def test_the_frame_is_furniture_and_the_facts_wear_their_roles():
 def test_quiet_is_legible_not_hidden():
     """Quiet's clock wears the label role — the state the band exists to
     make legible must not be the dimmest thing on screen."""
-    from cli.chrome import status_bands
+    from skyboss.chrome import status_bands
 
     c = cursor("cron.log", state="quiet", last_write_at=NOW - 180, size_bytes=1000)
     top, _ = status_bands(c, NOW, width=72)
@@ -239,7 +239,7 @@ def test_quiet_is_legible_not_hidden():
 
 
 def test_a_death_and_a_rotation_wear_their_alarm_colors():
-    from cli.chrome import status_bands
+    from skyboss.chrome import status_bands
 
     dead = stream("x", exit_code=1, exited_at=NOW)
     top, _ = status_bands(dead, NOW, width=70)
@@ -411,7 +411,7 @@ def test_a_band_never_reaches_stdout(capsys):
 
     `capsys` rather than CliRunner: click 8.3 folds stderr into `.output`, so
     the runner cannot answer a question about which stream a byte went to."""
-    from cli.output import Result, render
+    from skyboss.output import Result, render
 
     render(Result("data", data=[{"a": i} for i in range(20)]), source="data -- x")
     captured = capsys.readouterr()
@@ -432,7 +432,7 @@ def test_bands_do_not_reach_the_envelope():
 def test_run_keeps_its_own_single_band(capsys):
     """`run` stamps an act band itself and carries no data, so it must not also
     acquire a snapshot pair."""
-    from cli.output import Result, render
+    from skyboss.output import Result, render
 
     render(Result("run", data=None), source="run -- echo hello")
     captured = capsys.readouterr()
@@ -448,7 +448,7 @@ def test_an_act_can_be_running_without_gaining_a_cadence():
     """`act` says it never carries a countdown, and that still holds. What it
     refuses is a *cadence* — a write happening again, or about to. This is one
     write happening now, in a window watching it. See [[follow]] round 4."""
-    from cli import chrome as chrome_
+    from skyboss import chrome as chrome_
 
     running = chrome_.act("run -- ./deploy.sh", ok=True, running_since=1000.0)
     assert running.shape == "act" and running.attention == "running"
@@ -466,7 +466,7 @@ def test_an_act_can_be_running_without_gaining_a_cadence():
 
 
 def test_a_snapshot_reads_running_the_same_way_a_resident_one_does():
-    from cli import chrome as chrome_
+    from skyboss import chrome as chrome_
 
     reading = chrome_.snapshot("read -- ./build.sh", ok=True, running_since=500.0)
     assert reading.shape == "snapshot" and reading.attention == "running"
@@ -486,7 +486,7 @@ def test_a_clean_exit_survives_the_trip_to_the_canvas():
     `dead · exited undefined` for a command that simply finished. Found by
     rendering rather than by the suite; the terminal band reads the dataclass
     and never saw it. See [[follow]] round 4."""
-    from cli import chrome as chrome_
+    from skyboss import chrome as chrome_
 
     assert chrome_.stream("x", exit_code=0, exited_at=1.0).to_dict()["exit_code"] == 0
     assert chrome_.stream("x", exit_code=1, exited_at=1.0).to_dict()["exit_code"] == 1

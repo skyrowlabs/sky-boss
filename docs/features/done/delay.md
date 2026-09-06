@@ -4,11 +4,11 @@ created: 2026-08-22
 updated: 2026-08-23
 agent_value: 3
 key_files:
-  - cli/run.py
+  - skyboss/run.py
   - tests/conftest.py
-  - cli/helpers.py
-  - cli/chrome.py
-  - cli/resident.py
+  - skyboss/helpers.py
+  - skyboss/chrome.py
+  - skyboss/resident.py
   - tests/test_run.py
 ---
 
@@ -82,7 +82,7 @@ have a round.
 
 ### Round 1 — the countdown and the flag (2026-08-22)
 
-- [x] **A duration is a shared parser.** `5m`, `90s`, `2h` → seconds, in `cli/helpers.py`.
+- [x] **A duration is a shared parser.** `5m`, `90s`, `2h` → seconds, in `skyboss/helpers.py`.
       [[file-follow]] round 2 needs the identical spelling for `--due`; whichever lands first
       writes it, and the second one uses it rather than agreeing with it by hand.
 - [x] **The pending shape in chrome.** The `act` shape carries what is pending and when it fires;

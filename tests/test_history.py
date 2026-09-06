@@ -12,10 +12,10 @@ import json
 
 from click.testing import CliRunner
 
-from cli import cli
-from cli.history import DEFAULT_LAST, order, rows_of, view_of
-from cli.rollcall import Project, parse
-from cli.schedule import now_utc
+from skyboss import cli
+from skyboss.history import DEFAULT_LAST, order, rows_of, view_of
+from skyboss.rollcall import Project, parse
+from skyboss.schedule import now_utc
 
 DECL = """
 state_root = "ROOT"
@@ -52,7 +52,7 @@ def _home(tmp_path, rows=None, *, decl: str = DECL, ledger: str | None = None):
 
 def _at(tmp_path, monkeypatch):
     monkeypatch.setenv("SB_HOME", str(tmp_path))
-    monkeypatch.setattr("cli.rollcall.SB_HOME", tmp_path)
+    monkeypatch.setattr("skyboss.rollcall.SB_HOME", tmp_path)
 
 
 def run(tmp_path, monkeypatch, *args):

@@ -4,9 +4,9 @@ created: 2026-08-22
 updated: 2026-08-22
 agent_value: 3
 key_files:
-  - cli/capture.py
-  - cli/data.py
-  - cli/tools.py
+  - skyboss/capture.py
+  - skyboss/data.py
+  - skyboss/tools.py
   - tests/test_capture.py
   - tests/test_data.py
 ---
@@ -94,7 +94,7 @@ did I declare, and what was refused" — a second listing command would split th
 formats appear with their kind and description; load failures land in the same problems list
 the tools use.
 
-**The deciding half is pure.** `cli/capture.py`: `capture(text, format) -> Captured` — rows,
+**The deciding half is pure.** `skyboss/capture.py`: `capture(text, format) -> Captured` — rows,
 the unmatched count, one sample unmatched line. The `lines` kind's rules, each earning its
 place:
 
@@ -145,7 +145,7 @@ runs `sb --json data --from … -- …` through the runner unchanged. No canvas 
 
 ### Round 1 — the lines kind, the formats file, and the jq stage (2026-08-22)
 
-- [x] **The capture, pure.** `cli/capture.py` and `tests/test_capture.py`: matching, group
+- [x] **The capture, pure.** `skyboss/capture.py` and `tests/test_capture.py`: matching, group
       naming, number shaping, blank-line skip, unmatched counting with sample, the
       nothing-matched verdict. No subprocess, no file I/O in the mechanism tests.
 - [x] **The transform stage.** The `jq` field on any format: spawn the operator's binary

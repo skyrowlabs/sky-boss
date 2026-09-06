@@ -294,7 +294,7 @@ CLI's measured 3.5:1 floor — and asked whether to *widen the canvas exemption*
 tier of labels or lift the tier. **Both halves of the question were wrong, and the measurement
 was too.** It is 1.81:1, not the "roughly 2.5:1" the item recorded.
 
-**It is not a contrast dispute. It is a token used outside its role.** `cli/theme.py` defines
+**It is not a contrast dispute. It is a token used outside its role.** `skyboss/theme.py` defines
 `TEXT_3` as *"very dim — structure, not reading text"*, and `BORDER = TEXT_3`. The mockup used
 the **border** token as a **text** token. Nothing about the floor, the exemption, or the palette
 needs to change to fix that.
@@ -334,7 +334,7 @@ and that is the whole point of watching it. *Federation* — sky.boss keeps no c
 project's state — is unchanged, because the tower reads rather than stores.
 
 **Two rules were being conflated under one name, and separating them is the durable half of this.**
-§ Cadence above is about **execution**: nothing keeps running. `cli/rollcall.py` is about
+§ Cadence above is about **execution**: nothing keeps running. `skyboss/rollcall.py` is about
 **copies**: *no ledger here, no history, no cache*, because a copy of a schedule that agents
 rewrite goes stale without announcing it. A record is not a process, and a copy of one's own work
 is not a copy of someone else's. "It crosses the daemon line" was doing the work of both sentences
@@ -382,7 +382,7 @@ you opened to look at. A job is the right owner: declared in a file, installed o
 deliberately. The canvas's refusal is unchanged and now has a reason it can point at instead of a
 prohibition.
 
-**Federation is crossed narrowly, and the argument for it was already written.** `cli/rollcall.py`
+**Federation is crossed narrowly, and the argument for it was already written.** `skyboss/rollcall.py`
 keeps no ledger because a copy of *another project's* state goes stale without announcing it. A
 record of what sky.boss itself ran is not a copy of anyone's state — sky.boss is its authority.
 That is exactly the reasoning left standing above, applied on the day something wanted it.

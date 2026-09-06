@@ -9,7 +9,7 @@ subprocess and no file I/O anywhere in this half.
 
 import pytest
 
-from cli.capture import Captured, Format, capture, unmatched_warning
+from skyboss.capture import Captured, Format, capture, unmatched_warning
 
 STATUS = Format(
     name="jam-status",
@@ -118,7 +118,7 @@ def test_captured_is_a_value_the_caller_cannot_quietly_mutate():
 # The formats file
 # ============================================================================
 
-from cli.capture import load_formats, parse_formats, resolve  # noqa: E402
+from skyboss.capture import load_formats, parse_formats, resolve  # noqa: E402
 
 GOOD = {
     "format": {
@@ -246,7 +246,7 @@ def test_a_declared_and_refused_format_resolves_to_its_own_problem(tmp_path):
 
 import shutil  # noqa: E402
 
-from cli.capture import transform  # noqa: E402
+from skyboss.capture import transform  # noqa: E402
 
 needs_jq = pytest.mark.skipif(shutil.which("jq") is None, reason="no jq on PATH")
 
@@ -286,7 +286,7 @@ def test_a_failing_program_is_a_failed_contract_carrying_jqs_own_stderr():
 def test_an_absent_jq_degrades_loudly_at_use_naming_the_format(monkeypatch, tmp_path):
     """The environment is injected the same way the operator's is — through
     child_env — so the test proves the degrade without uninstalling anything."""
-    import cli.capture as capture_mod
+    import skyboss.capture as capture_mod
 
     monkeypatch.setattr(capture_mod, "child_env", lambda: {"PATH": str(tmp_path)})
     data, error = transform({}, ".", "pr-summary")
@@ -311,10 +311,10 @@ def test_a_saved_tool_carrying_a_format_rides_every_rail(tmp_path, monkeypatch):
 
     from click.testing import CliRunner
 
-    import cli.capture as capture_mod
-    from cli import cli
-    from cli.canvas.catalog import walk
-    from cli.tools import register, tools as tools_group
+    import skyboss.capture as capture_mod
+    from skyboss import cli
+    from skyboss.canvas.catalog import walk
+    from skyboss.tools import register, tools as tools_group
 
     (tmp_path / "formats.toml").write_text(
         '[format.jam-status]\nkind = "lines"\npattern = \'(?P<pr>#\\d+) (?P<state>\\w+)\'\n'

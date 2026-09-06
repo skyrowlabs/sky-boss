@@ -8,7 +8,7 @@ exists, with a description of what it used to do.
 
 import rich_click as click
 
-from cli.canvas.catalog import catalog, walk, vocabulary
+from skyboss.canvas.catalog import catalog, walk, vocabulary
 
 
 def _tree():
@@ -99,7 +99,7 @@ def test_the_real_tree_offers_run_and_not_the_canvas():
 
 
 def test_a_command_added_to_the_tree_appears_with_no_change_here():
-    from cli import cli
+    from skyboss import cli
 
     cli.add_command(click.Command("invented", short_help="not written down anywhere"))
     try:
@@ -163,7 +163,7 @@ def test_a_hidden_option_is_not_offered():
 
 
 def test_the_real_run_does_not_offer_its_refusal_flag():
-    from cli import cli as root
+    from skyboss import cli as root
 
     entry = next(e for e in catalog(root) if e["name"] == "run")
     assert "--refresh" not in [o["flag"] for o in entry["options"]]
@@ -225,7 +225,7 @@ def test_the_legend_is_rendered_by_the_real_rules(tmp_path):
     `marks()` the stream uses, so the legend cannot drift from what it
     documents: a rule that stops matching stops being tinted in its own entry.
     """
-    from cli.highlight import marks, utf16
+    from skyboss.highlight import marks, utf16
 
     legend = vocabulary(tmp_path)["legend"]
     assert legend
@@ -245,7 +245,7 @@ def test_every_built_in_rule_has_a_legend_entry(tmp_path):
     """Coverage, checked rather than remembered. A rule added without an
     example is one the operator has no way to discover — which is the whole
     complaint this round answers, arriving again by the back door."""
-    from cli.highlight import _RULES
+    from skyboss.highlight import _RULES
 
     examples = [row["text"] for row in vocabulary(tmp_path)["legend"]]
     for pattern, role, _, _ in _RULES:

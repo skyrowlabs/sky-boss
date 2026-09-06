@@ -150,7 +150,7 @@ precisely the collision, and it is where four of the five land.
 
 **Four of the five want a colour that does not exist.** `STYLES` has eight roles and every one
 already means something: `accent`, `label`, `muted`, `ok`, `fail`, `warn`, `num`, `path`. A ninth is
-a palette change, and `cli/highlight.py` records the last attempt in its own comments — a violet for
+a palette change, and `skyboss/highlight.py` records the last attempt in its own comments — a violet for
 code spans was prototyped, looked good, and was rejected as *"exactly how a second palette starts"*.
 So the question this item actually holds is **not which shapes to tint, but where a new colour comes
 from**, and there are only three honest answers: reuse a role and accept the collision; reach for
@@ -189,7 +189,7 @@ the wrapped rows.
 
 *Not yet designed. What is already known and would shape it:*
 
-- **The indent is derivable and must not be guessed.** `cli/highlight.py`'s `_TIMESTAMP` already
+- **The indent is derivable and must not be guessed.** `skyboss/highlight.py`'s `_TIMESTAMP` already
   matches a leading stamp and returns its end offset — the same number a hanging indent needs. So
   this is `text-indent`/`padding-inline-start` computed from a mark sky.boss already produces, not
   a new parse. A line with no stamp wraps flush, by the same rule and with no special case.
@@ -233,7 +233,7 @@ closed: sky.boss's own runs are still anonymous, and nothing about reading someo
 fixes that.
 
 **And the item asks two questions, which is why it sat.** *A record of a finished run surviving its
-window* crosses the **federation** rule (`cli/rollcall.py`: no ledger, no history, no cache) and
+window* crosses the **federation** rule (`skyboss/rollcall.py`: no ledger, no history, no cache) and
 not the execution one — and the staleness argument behind federation does not obviously reach it,
 since sky.boss is the authority for what sky.boss ran. *A job running with no window open* crosses
 execution, squarely. Whoever reopens this should say which they want; the answers are different
@@ -338,7 +338,7 @@ own jobs.
 
 **What the decision is actually worth is the separation, not the ruling.** "The daemon line" was
 one name for two rules — **execution** (§ Cadence: nothing keeps running) and **federation**
-(`cli/rollcall.py`: no copy of another project's state) — and a proposal could not be argued with
+(`skyboss/rollcall.py`: no copy of another project's state) — and a proposal could not be argued with
 while it invoked both at once. A record is not a process; a copy of one's own work is not a copy of
 someone else's. The next proposal has to name which of the two it crosses.
 
@@ -370,7 +370,7 @@ runs subprocesses) and `--save` already composes with a cadence, so the bench co
 the CLI supports rather than teaching it anything. Held by a test — no route writes `tools.toml`.
 Two consequences of `--save` writing *before* it runs became round-3 items there, and building
 them found a third: a usage error raised *below* the write left a tool on disk under a name that
-could not be reused, then reported a failure. Fixed in `cli/output.py`.
+could not be reused, then reported a failure. Fixed in `skyboss/output.py`.
 
 **18. A schedule viewer, over schedules sky.boss did not write.** *Closed 2026-08-30 → [[schedule]] round 1: `sb schedule` folds every declared project's rows into one table ordered by the parsed instant. The ruling that licensed it — **sky.boss may order; only a provider may judge** — is the test to apply to the next case, and it disposes of the clock-selector half of item 9: sky.boss picks no clock, it reads the one each provider stamped.* Raised by the operator
 2026-08-29. **The boundary half needs no decision** — it is item 11 answered in the direction it was
@@ -391,7 +391,7 @@ the recommendation on each; the boundary above is unchanged.
 **~~It is a narrowing of a stated refusal.~~ It is not — the refusal does not apply.** The original
 argument, kept because it is the one a reader will reach for and it is weaker than it looks:
 
-> `cli/rollcall.py`: *"sky.boss folds sources, not semantics. No common status vocabulary, no
+> `skyboss/rollcall.py`: *"sky.boss folds sources, not semantics. No common status vocabulary, no
 > cross-project verdict."* A schedule view needs exactly that. The distinction that would license a
 > narrow one: roll-call refuses to decide what another tool's **word** means, and a cron expression
 > and an ISO timestamp are not words, they are measurements.
@@ -526,9 +526,9 @@ is the "something needs them" the item was waiting for — `app.js` is ~1000 lin
 a screen, and a ratchet retrofitted afterwards baselines the bugs you just wrote. Clean on arrival:
 9 files, 0 errors, 0 warnings, so `--max-warnings=0` starts at zero and may only go down.
 
-Three constraints held. **No Prettier**, and none on `cli/canvas/static/` ever — the `htm` comment
+Three constraints held. **No Prettier**, and none on `skyboss/canvas/static/` ever — the `htm` comment
 hazard is a formatter's bug with authority behind it. **Config lives at the root, never in
-`cli/canvas/static/`**, which is served wholesale and has a declared inventory a stray config would
+`skyboss/canvas/static/`**, which is served wholesale and has a declared inventory a stray config would
 break. **Vendored code is exempt**, the same rule the hex scan uses. The Electron files are not
 split by process: `preload.js` bridges both by design, so a strict split would flag correct code.
 
@@ -572,7 +572,7 @@ lifecycle machinery — generated indexes, `TODO/` ↔ `implementations/`, front
 `CLAUDE.md`: *"No index machinery yet. There was a generated one; it went with the docs."* The
 split this repo uses instead — [[open]], `ideas.md`, [[fundamentals]], one doc per feature — is a
 different design, not a smaller one. Also still out: `release-please` and a `VERSION` file, because
-the version comes from `git describe` and `cli/banner.py` prints it; a tracked `VERSION` is a
+the version comes from `git describe` and `skyboss/banner.py` prints it; a tracked `VERSION` is a
 second source of truth that can disagree with the tag, and the mark would be where it showed.
 
 **Round 2, 2026-09-04 — two of those rulings rest on premises that are wrong, and the retrofit
@@ -723,7 +723,7 @@ four.
 
 Two halves are genuinely open:
 
-- **Where an adapter lives.** Parsing a format is code, so adapters are probably modules in `cli/`.
+- **Where an adapter lives.** Parsing a format is code, so adapters are probably modules in `skyboss/`.
   But *which are enabled* looks like operator content — `projects.toml` is the precedent, and it is
   outside the repo and never written by sky.boss. Splitting it that way means shipping code for a
   provider the operator has turned off, which is fine, and lets a machine with nothing installed
@@ -758,7 +758,7 @@ closes non-interactive use, the second makes `follow` a second data-producing co
 
 **~~`sb data --refresh` has the same bug, and the fix that closed it for `follow` did not touch it.~~**
 *Closed 2026-08-29 → [[refresh]] round 3, built as recommended below: `refuse_resident_pipe` in
-`cli/output.py` raises a usage error naming the fix.* **Reversed for `data` 2026-08-30 →
+`skyboss/output.py` raises a usage error naming the fix.* **Reversed for `data` 2026-08-30 →
 [[refresh]] round 4, on the operator's ruling out of the morning review: off a terminal — or under
 `--json` — it emits one envelope per tick as NDJSON instead of refusing. The round-3 objection was
 answered rather than dismissed: a resident render has no *single* envelope, and a stream of
@@ -836,8 +836,8 @@ The two arguments as they stood, kept because the second is the one that had to 
   refresh to count, and "the backfill and out" is one pass rather than N of anything, which is
   round 2 there.*
 
-**Worth keeping from the diagnosis:** `cli/follow.py:219` already asked `console.is_terminal` and
-used the answer to pick a display width, throwing the rest away. `cli/banner.py:151` asked the same
+**Worth keeping from the diagnosis:** `skyboss/follow.py:219` already asked `console.is_terminal` and
+used the answer to pick a display width, throwing the rest away. `skyboss/banner.py:151` asked the same
 question and handed the decision up. The fix was not "add a check" but "use the check that was
 already there for the thing it was actually telling you" — which is the shape to look for in
 whatever answers the above.
@@ -932,7 +932,7 @@ optional field that is usually redundant gets omitted, so it cannot be the prima
 anything else, and the listing is cheap enough that it needs no cache.
 
 **Related and already shipped:** the same class of silence in the *parser* — a typo'd table name
-returning zero projects and zero problems — was closed on 2026-08-29 in `cli/rollcall.py`, which is
+returning zero projects and zero problems — was closed on 2026-08-29 in `skyboss/rollcall.py`, which is
 where the state root would have been swallowed next. That fix stands alone and is not a prerequisite
 for any of the above.
 
@@ -958,7 +958,7 @@ new data"* — against `jam-agent-fix-log`, which is `follow --highlight jam jam
 The file cursor is not at fault; rotation, truncation and disappearance are all handled and none of
 them is what happened.
 
-`stream()` in `cli/canvas/static/api.js` opens the session stream once and calls `onDown()` when it
+`stream()` in `skyboss/canvas/static/api.js` opens the session stream once and calls `onDown()` when it
 ends. `app.js` turns that into `setDown(true)` and **nothing else** — the effect that opened it has
 an empty dependency list, so it runs once per page load. Once the stream drops, for any reason, it
 is down until a manual reload.

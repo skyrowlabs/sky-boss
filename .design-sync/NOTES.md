@@ -5,27 +5,27 @@ Published to **sky.boss Design System**
 
 ## Shape
 
-sky.boss is a CSS design system: one stylesheet, `cli/canvas/static/sb.css`,
+sky.boss is a CSS design system: one stylesheet, `skyboss/canvas/static/sb.css`,
 and no components to import. The design-sync skill's converter bundles React
 from a `dist/` and does not apply; the layout is produced off-script by
 `.design-sync/scripts/` and checked with the skill's own
 `package-validate.mjs`, which has a first-class tokens-only path. It exits
 clean.
 
-**The colour roles are not in any stylesheet.** `cli/theme.py` owns them and
+**The colour roles are not in any stylesheet.** `skyboss/theme.py` owns them and
 the server injects them into the page at runtime, so `tokens.css` is
 **generated** by asking `theme.py` for `css_root()` — never transcribed. A
 hand-copied hex would be the second palette that module exists to prevent.
 
 **`tokens.css` therefore contains six-digit hexes, and must never be written
-into `cli/`.** `tests/test_theme.py` scans `PROJECT_ROOT / "cli"` for `*.py`,
+into `skyboss/`.** `tests/test_theme.py` scans `PROJECT_ROOT / "cli"` for `*.py`,
 `*.css`, `*.js`, `*.tcss` and fails on `#rrggbb` outside `theme.py`. The build
 writes to a scratch directory; nothing generated lands in the repo.
 
 ## What ships
 
 - `tokens.css` — the 11 roles from `theme.py`, plus `--sb-scale: 1.15`, which is
-  what `sb ui` ships as its default (`cli/canvas/__init__.py`). The stylesheet
+  what `sb ui` ships as its default (`skyboss/canvas/__init__.py`). The stylesheet
   falls back to 1 if it is absent.
 - `sb.css` — verbatim, the whole surface
 - `styles.css` — the two, in order

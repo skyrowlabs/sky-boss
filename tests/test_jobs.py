@@ -20,8 +20,8 @@ from pathlib import Path
 import pytest
 from click.testing import CliRunner
 
-from cli import cli
-from cli.jobs import (
+from skyboss import cli
+from skyboss.jobs import (
     Job,
     Unit,
     orphans,
@@ -196,7 +196,7 @@ def test_an_absent_unit_directory_is_not_an_error(tmp_path, monkeypatch):
 
 
 def test_a_machine_with_no_systemctl_says_it_could_not_ask(monkeypatch):
-    monkeypatch.setattr("cli.jobs._systemctl", lambda *a: ("", False))
+    monkeypatch.setattr("skyboss.jobs._systemctl", lambda *a: ("", False))
     assert unit_state("nightly").known is False
     assert timer_elapses() == ({}, False)
 
@@ -205,7 +205,7 @@ def test_a_fire_time_is_read_back_verbatim(monkeypatch):
     """Never computed here, and never re-worded: a time sky.boss reformats is a
     time sky.boss owns."""
     line = "Wed 2026-09-02 06:00:00 CDT 8h Tue 2026-09-01 06:00:00 CDT 15h sb-nightly.timer sb-nightly.service"
-    monkeypatch.setattr("cli.jobs._systemctl", lambda *a: (line, True))
+    monkeypatch.setattr("skyboss.jobs._systemctl", lambda *a: (line, True))
     found, asked = timer_elapses()
     assert asked is True
     assert found["sb-nightly.timer"] == "Wed 2026-09-02 06:00:00 CDT"
@@ -223,7 +223,7 @@ def _home(tmp_path, body: str):
 
 def run(tmp_path, monkeypatch, *args, xdg=None):
     monkeypatch.setenv("SB_HOME", str(tmp_path))
-    monkeypatch.setattr("cli.jobs.SB_HOME", tmp_path)
+    monkeypatch.setattr("skyboss.jobs.SB_HOME", tmp_path)
     monkeypatch.setenv("XDG_CONFIG_HOME", str(xdg or tmp_path / "xdg"))
     return CliRunner().invoke(cli, ["--json", "job", *args])
 
@@ -294,14 +294,14 @@ def test_the_view_describes_every_key_and_invents_none():
 import fcntl  # noqa: E402
 import subprocess  # noqa: E402
 
-from cli.jobs import append, execute, jobs_state, lane_lock, ledger_path, new_run_id, sb_executable  # noqa: E402
+from skyboss.jobs import append, execute, jobs_state, lane_lock, ledger_path, new_run_id, sb_executable  # noqa: E402
 
 
 @pytest.fixture
 def state(tmp_path, monkeypatch):
     """A scratch `$SB_STATE`, so no test writes the real ledger."""
     target = tmp_path / "state"
-    monkeypatch.setattr("cli.jobs.STATE_DIR", target)
+    monkeypatch.setattr("skyboss.jobs.STATE_DIR", target)
     monkeypatch.setenv("XDG_RUNTIME_DIR", str(tmp_path / "rt"))
     (tmp_path / "rt").mkdir()
     return target
@@ -352,7 +352,7 @@ def test_the_envelopes_three_codes_map_and_everything_else_is_failure(
     def fake(*a, **k):
         return subprocess.CompletedProcess(a[0], code)
 
-    monkeypatch.setattr("cli.jobs.subprocess.run", fake)
+    monkeypatch.setattr("skyboss.jobs.subprocess.run", fake)
     record = execute(a_job(), tmp_path / "x.log")
     assert record["outcome"] == outcome and record["exit"] == code
 
@@ -364,7 +364,7 @@ def test_a_timeout_is_a_recorded_outcome_not_an_exception(state, monkeypatch, tm
     def fake(*a, **k):
         raise subprocess.TimeoutExpired(a[0], 1)
 
-    monkeypatch.setattr("cli.jobs.subprocess.run", fake)
+    monkeypatch.setattr("skyboss.jobs.subprocess.run", fake)
     record = execute(a_job(timeout=1), tmp_path / "x.log")
     assert record["outcome"] == "timeout" and record["exit"] is None
 
@@ -373,7 +373,7 @@ def test_a_binary_that_cannot_start_is_recorded_and_says_so(state, monkeypatch, 
     def fake(*a, **k):
         raise OSError(2, "No such file or directory")
 
-    monkeypatch.setattr("cli.jobs.subprocess.run", fake)
+    monkeypatch.setattr("skyboss.jobs.subprocess.run", fake)
     log = tmp_path / "x.log"
     record = execute(a_job(), log)
     assert record["outcome"] == "failed"
@@ -387,7 +387,7 @@ def test_a_declared_bound_is_passed_and_none_is_unbounded(state, monkeypatch, tm
         seen["timeout"] = k.get("timeout")
         return subprocess.CompletedProcess(a[0], 0)
 
-    monkeypatch.setattr("cli.jobs.subprocess.run", fake)
+    monkeypatch.setattr("skyboss.jobs.subprocess.run", fake)
     execute(a_job(timeout=30), tmp_path / "x.log")
     assert seen["timeout"] == 30
     execute(a_job(), tmp_path / "x.log")
@@ -432,7 +432,7 @@ def test_a_busy_lane_refuses_rather_than_waiting(tmp_path, monkeypatch, state):
     asked for."""
     _home(tmp_path, RUNNABLE)
     monkeypatch.setenv("SB_HOME", str(tmp_path))
-    monkeypatch.setattr("cli.jobs.SB_HOME", tmp_path)
+    monkeypatch.setattr("skyboss.jobs.SB_HOME", tmp_path)
     held = lane_lock("read-only").open("w")
     fcntl.flock(held, fcntl.LOCK_EX | fcntl.LOCK_NB)
     try:
@@ -469,7 +469,7 @@ def test_an_unknown_job_names_the_declared_ones(tmp_path, monkeypatch, state):
 # Generating units — and refusing to install one twice
 # ============================================================================
 
-from cli.jobs import (  # noqa: E402
+from skyboss.jobs import (  # noqa: E402
     busy_lines,
     calendar,
     collisions,
@@ -494,7 +494,7 @@ REJECTED = "Failed to parse calendar specification 'daily 06:00': Invalid argume
 def no_real_systemctl(monkeypatch):
     """No test may reach the real user manager — `uninstall` issues a
     `disable --now`, and the suite must never issue one."""
-    monkeypatch.setattr("cli.jobs._systemctl", lambda *a: ("", True))
+    monkeypatch.setattr("skyboss.jobs._systemctl", lambda *a: ("", True))
 
 
 def canned(stdout="", code=0, stderr=""):
@@ -505,7 +505,7 @@ def canned(stdout="", code=0, stderr=""):
 
 
 def test_a_valid_schedule_comes_back_normalised(monkeypatch):
-    monkeypatch.setattr("cli.jobs.subprocess.run", canned(NORMALIZED))
+    monkeypatch.setattr("skyboss.jobs.subprocess.run", canned(NORMALIZED))
     assert calendar("06:00") == ("*-*-* 06:00:00", "")
 
 
@@ -513,7 +513,7 @@ def test_systemd_owns_the_refusal(monkeypatch):
     """A second implementation of calendar syntax would be wrong about DST
     before it was wrong about anything else. `daily 06:00` is a real rejection —
     it was in this feature's own spec until systemd said no."""
-    monkeypatch.setattr("cli.jobs.subprocess.run", canned(code=1, stderr=REJECTED))
+    monkeypatch.setattr("skyboss.jobs.subprocess.run", canned(code=1, stderr=REJECTED))
     normalized, trouble = calendar("daily 06:00")
     assert normalized == "" and "systemd rejected" in trouble
 
@@ -526,7 +526,7 @@ def test_no_systemd_analyze_refuses_rather_than_writing_an_unvalidated_unit(monk
     def missing(*a, **k):
         raise FileNotFoundError
 
-    monkeypatch.setattr("cli.jobs.subprocess.run", missing)
+    monkeypatch.setattr("skyboss.jobs.subprocess.run", missing)
     assert "not available" in calendar("06:00")[1]
 
 
@@ -619,7 +619,7 @@ def test_a_foreign_unit_running_the_same_work_is_a_collision(tmp_path, monkeypat
     units = tmp_path / "systemd" / "user"
     units.mkdir(parents=True)
     (units / "legacy.service").write_text("[Service]\nExecStart=/usr/bin/jam report overnight\n")
-    monkeypatch.setattr("cli.jobs.subprocess.run", canned(code=1))  # no crontab
+    monkeypatch.setattr("skyboss.jobs.subprocess.run", canned(code=1))  # no crontab
     clashes, unchecked = collisions(Job("j", ["run", "--", "jam", "report", "overnight"]))
     assert unchecked == ""
     assert clashes == [("legacy.service", "ExecStart=/usr/bin/jam report overnight")]
@@ -630,7 +630,7 @@ def test_our_own_units_are_not_a_collision_with_ourselves(tmp_path, monkeypatch)
     units = tmp_path / "systemd" / "user"
     units.mkdir(parents=True)
     (units / "sb-nightly.service").write_text("[Service]\nExecStart=/x/sb job run nightly\n")
-    monkeypatch.setattr("cli.jobs.subprocess.run", canned(code=1))
+    monkeypatch.setattr("skyboss.jobs.subprocess.run", canned(code=1))
     lines, _ = busy_lines()
     assert lines == []
 
@@ -638,7 +638,7 @@ def test_our_own_units_are_not_a_collision_with_ourselves(tmp_path, monkeypatch)
 def test_a_crontab_comment_is_not_a_schedule(tmp_path, monkeypatch):
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "none"))
     monkeypatch.setattr(
-        "cli.jobs.subprocess.run",
+        "skyboss.jobs.subprocess.run",
         canned("# 0 2 * * * jam report overnight\n30 2 * * * jam report overnight\n"),
     )
     lines, scopes = busy_lines()
@@ -656,8 +656,8 @@ schedule = "06:00"
 
 
 def installing(monkeypatch, *, clashes=()):
-    monkeypatch.setattr("cli.jobs.calendar", lambda s: ("*-*-* 06:00:00", "") if s else ("", "no"))
-    monkeypatch.setattr("cli.jobs.collisions", lambda j: (list(clashes), ""))
+    monkeypatch.setattr("skyboss.jobs.calendar", lambda s: ("*-*-* 06:00:00", "") if s else ("", "no"))
+    monkeypatch.setattr("skyboss.jobs.collisions", lambda j: (list(clashes), ""))
 
 
 def test_install_writes_two_units_and_does_not_enable(tmp_path, monkeypatch, state):
@@ -694,7 +694,7 @@ def test_force_installs_alongside_and_says_both_will_fire(tmp_path, monkeypatch,
 
 def test_an_invalid_schedule_writes_nothing(tmp_path, monkeypatch, state):
     _home(tmp_path, INSTALLABLE)
-    monkeypatch.setattr("cli.jobs.calendar", lambda s: ("", "systemd rejected it"))
+    monkeypatch.setattr("skyboss.jobs.calendar", lambda s: ("", "systemd rejected it"))
     result = run(tmp_path, monkeypatch, "install", "nightly")
     assert json.loads(result.stdout)["ok"] is False and result.exit_code == 1
     assert not (tmp_path / "xdg" / "systemd" / "user").exists()
@@ -702,8 +702,8 @@ def test_an_invalid_schedule_writes_nothing(tmp_path, monkeypatch, state):
 
 def test_an_uncheckable_collision_is_reported_not_assumed_clean(tmp_path, monkeypatch, state):
     _home(tmp_path, INSTALLABLE)
-    monkeypatch.setattr("cli.jobs.calendar", lambda s: ("*-*-* 06:00:00", ""))
-    monkeypatch.setattr("cli.jobs.collisions", lambda j: ([], "'x' is too short to check"))
+    monkeypatch.setattr("skyboss.jobs.calendar", lambda s: ("*-*-* 06:00:00", ""))
+    monkeypatch.setattr("skyboss.jobs.collisions", lambda j: ([], "'x' is too short to check"))
     body = json.loads(run(tmp_path, monkeypatch, "install", "nightly").stdout)
     assert any("collision not checked" in w for w in body["warnings"])
 
@@ -775,7 +775,7 @@ def test_every_job_subcommand_chooses_its_act_bit():
     stayed silent on the next one. `sb job enable` fails this test until
     somebody decides.
     """
-    from cli.jobs import job as group
+    from skyboss.jobs import job as group
 
     undecided = [
         name for name, command in group.commands.items()
@@ -787,7 +787,7 @@ def test_every_job_subcommand_chooses_its_act_bit():
 def test_the_acting_subcommands_reach_the_catalog_as_acts():
     """The declaration is only worth having if the surface reads it: this is the
     property that keeps a cadence off them."""
-    from cli.canvas.catalog import catalog
+    from skyboss.canvas.catalog import catalog
 
     entries = catalog()
     rows = entries["commands"] if isinstance(entries, dict) and "commands" in entries else entries
@@ -812,10 +812,10 @@ def test_every_outcome_the_code_produces_is_one_the_module_declares():
     """
     import ast
 
-    from cli.helpers import PROJECT_ROOT
-    from cli.jobs import OUTCOMES
+    from skyboss.helpers import PROJECT_ROOT
+    from skyboss.jobs import OUTCOMES
 
-    tree = ast.parse((PROJECT_ROOT / "cli" / "jobs.py").read_text())
+    tree = ast.parse((PROJECT_ROOT / "skyboss" / "jobs.py").read_text())
     found: set[str] = set()
 
     def strings(node: ast.AST) -> set[str]:
@@ -859,7 +859,7 @@ def test_every_outcome_the_code_produces_is_one_the_module_declares():
     assert found, "found no outcome strings at all — the walk has stopped working"
     undeclared = found - set(OUTCOMES)
     assert not undeclared, (
-        f"cli/jobs.py produces or compares outcomes that OUTCOMES does not declare: "
+        f"skyboss/jobs.py produces or compares outcomes that OUTCOMES does not declare: "
         f"{sorted(undeclared)}"
     )
     unproduced = set(OUTCOMES) - found

@@ -3,7 +3,7 @@ status: complete       # round 1 built 2026-08-30; round 2 not scheduled
 created: 2026-08-30
 updated: 2026-08-30
 agent_value: 2
-key_files: [cli/resident.py, cli/data.py, cli/read.py, cli/filefollow.py, cli/output.py, cli/chrome.py]
+key_files: [skyboss/resident.py, skyboss/data.py, skyboss/read.py, skyboss/filefollow.py, skyboss/output.py, skyboss/chrome.py]
 ---
 
 # Unwatched — what a resident command can say with no band to say it in

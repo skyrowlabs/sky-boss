@@ -4,11 +4,11 @@ created: 2026-08-20
 updated: 2026-08-23
 agent_value: 3
 key_files:
-  - cli/view.py
-  - cli/data.py
-  - cli/output.py
-  - cli/canvas/static/render.js
-  - cli/canvas/static/sb.css
+  - skyboss/view.py
+  - skyboss/data.py
+  - skyboss/output.py
+  - skyboss/canvas/static/render.js
+  - skyboss/canvas/static/sb.css
   - tests/test_view.py
   - tests/test_data.py
   - tests/test_output.py
@@ -101,7 +101,7 @@ and the stdout-purity test keeps meaning what it meant.
 
 ### The heuristic lives in Python
 
-`cli/view.py`, as pure functions over `list[dict]`. Not in `render.js`, and the reason is not
+`skyboss/view.py`, as pure functions over `list[dict]`. Not in `render.js`, and the reason is not
 taste: **the frontend has no test runner and adding one means npm.** Putting the decisions in
 Python makes the interesting half the tested half, and leaves `render.js` doing something dumb
 enough to be obviously correct — *render these columns in this order*. It stops being a place
@@ -333,7 +333,7 @@ because every run happened to be 80 columns.
 - **Does not drop a named column that is missing.** It is drawn, because "nothing matched" is often
   the answer. It is drawn *and reported*.
 
-- [x] **`shape()` reports a named column no row carries.** Pure, in `cli/view.py`, beside the rules
+- [x] **`shape()` reports a named column no row carries.** Pure, in `skyboss/view.py`, beside the rules
       it does not become one of — a `missing` list on the view, empty and omitted when there is
       nothing to say, the same rule `rows` and `view` itself were added under.
 - [x] **`sb data` warns, naming them.** The wording distinguishes "no row has this field" from
@@ -364,7 +364,7 @@ through a door nobody was watching.
 1. `shape()` opens with `if not is_rows(data): return None`, and `is_rows` requires a *bare list of
    dicts*. jam returns `{"generated": "…", "jobs": [ … ]}` — the rows are one level down. So no
    view is computed, `--cols` is discarded without a word, and `view` never enters the envelope.
-2. Even with a view, it could not arrive. `_render_mapping` in `cli/output.py` dispatches a nested
+2. Even with a view, it could not arrive. `_render_mapping` in `skyboss/output.py` dispatches a nested
    list of dicts to `_render_columns(list(value), title=None, indent=indent)` — **and passes no
    `view`**. The nested render path predates views and never learned about them.
 
@@ -405,7 +405,7 @@ the output does *not* say, and takes the terminator half of this in its own roun
   27 times.
 
 - [x] **`is_rows` grows a sibling, not an exception.** `find_rows(data, path=None)` in
-      `cli/view.py`: returns the row list and the key it came from, or a reason it could not.
+      `skyboss/view.py`: returns the row list and the key it came from, or a reason it could not.
       Pure, tested first — the ambiguous case and the zero-candidate case before the happy one.
 - [x] **`--rows KEY` on `sb data`**, dotted paths allowed, alongside `--cols` / `--drop` /
       `--no-shape`. A named path that does not resolve is an error, not a silent fallback.
@@ -477,7 +477,7 @@ ignore a warning.
 - [x] **`shape()` stops truncating.** `DEFAULT_BUDGET` and the `budget` parameter retire;
       `hidden` means hidden-by-rule only. `tests/test_view.py` updated — the budget tests
       become fit tests against a declared width.
-- [x] **The terminal fits to its console.** `_resolve_widths` in `cli/output.py` takes columns
+- [x] **The terminal fits to its console.** `_resolve_widths` in `skyboss/output.py` takes columns
       while floors fit, and `_render_view` prints `N columns not shown: …` in the dim style
       the row-truncation line already uses. Today floors that do not fit are used anyway and
       the table overflows sideways — that stays the *last* resort, for a single column too
@@ -488,7 +488,7 @@ ignore a warning.
       (`NUMBE…`, `IS_DRAF…`, `MERGE_STAT…` inside columns floored to fit them exactly): the
       terminal renders the same labels in full, so this is a canvas-side `ch`-rounding
       question, cause to confirm before fixing.
-- [x] **The warning narrows.** `cli/data.py` warns only about rule-hidden columns. A window
+- [x] **The warning narrows.** `skyboss/data.py` warns only about rule-hidden columns. A window
       with room stops being told it is missing something.
 - [x] **Docs.** Rule 7's reversal is already recorded above; Round 1's and Round 2's
       "still imperfect" notes get their dated resolution.
@@ -507,13 +507,13 @@ ignore a warning.
 
 ### Round 1 — shape a wrapped table (2026-08-20)
 
-- [x] `cli/view.py`: the rules as pure functions over `list[dict]`, plus `tests/test_view.py`
+- [x] `skyboss/view.py`: the rules as pure functions over `list[dict]`, plus `tests/test_view.py`
       covering each rule and a fixture with the *shape* of `jam pr list` rather than its content.
       Nothing wired yet.
 - [x] `Result` gains an optional `view`; `to_dict` omits the key when unset, so existing envelopes
       and the stdout-purity test are untouched.
 - [x] `wrap` computes the view and attaches it. `data` unchanged — asserted by a test.
-- [x] `_render_columns` in `cli/output.py` honours a view when present, first-seen order when not.
+- [x] `_render_columns` in `skyboss/output.py` honours a view when present, first-seen order when not.
 - [x] `Table` in `render.js` honours a view when present. Full text of a clipped cell in `title`.
 - [x] `--cols` / `--drop` / `--no-shape` on `wrap`.
 - [x] Hidden columns reported as a warning naming them.
@@ -588,7 +588,7 @@ of Python. Shipping the rendered string in the envelope was the alternative and 
 a view a transformation of `data` rather than a description of it.
 
 **Verification without a test runner, again.** Headless Chromium against a harness in a scratch
-directory that imports the real module — deliberately *not* a page under `cli/canvas/static/`,
+directory that imports the real module — deliberately *not* a page under `skyboss/canvas/static/`,
 since everything there is served and two scratch pages once lived there, one with a live token
 baked in.
 
@@ -662,7 +662,7 @@ reads sensibly — prose eats width, so move it out of the way — and on a real
 pull-request table it moves `title` to the far right, where the column budget
 then hides it. The table you are left with identifies its rows by number alone.
 The fix is that the *first* prose column is the row's label and keeps its place;
-only the second and later ones move. `_label_of` in `cli/output.py` has treated
+only the second and later ones move. `_label_of` in `skyboss/output.py` has treated
 the first string field as the label since long before this, so the corrected
 rule is one sb already believed.
 
@@ -689,7 +689,7 @@ prose — which is the whole of what is under test. Real rows were used to check
 the result, at a terminal, and not committed.
 
 **`summariseMapping` is duplicated in JavaScript, knowingly.** It is the only
-piece of `cli/view.py` with a second implementation. The alternative is putting
+piece of `skyboss/view.py` with a second implementation. The alternative is putting
 the rendered string in the envelope, and that would make a view a
 *transformation* of `data` rather than a description of it — the one property
 the whole feature rests on. Four lines that have to agree is the cheaper price,
@@ -706,7 +706,7 @@ hides a known column every run.
 **Verification.** The frontend still has no test runner, so `render.js` was
 checked by rendering it headless against a fabricated envelope and reading the
 DOM back — the harness was built outside the repo, because
-`cli/canvas/static/` is *served*, and two scratch pages once lived there with a
+`skyboss/canvas/static/` is *served*, and two scratch pages once lived there with a
 live token baked in. Then end to end against a live server: the catalog offers
 the three flags as chips, `wrap` stays `acts: false` so a window may still be
 pinned, and `/api/run` returns a view with `data` intact.
@@ -734,7 +734,7 @@ no help. This is the same argument that keeps `head` dropped for being uniform-l
 than for being called "head", and it is the third time it has come up.
 
 **The duplication warned about in Round 1 drifted within a day.** `summariseMapping` in
-`render.js` is the one piece of `cli/view.py` with a second implementation, and Round 1's Notes
+`render.js` is the one piece of `skyboss/view.py` with a second implementation, and Round 1's Notes
 called it "four lines that must agree" and accepted the risk. They did not agree: the JavaScript
 checked `null`/`undefined`/`""`/`0`/`false` and forgot empty arrays, so a `checks` dict carrying
 `failing_names: []` rendered `failing_names=` in the canvas while the terminal correctly dropped it.
@@ -781,7 +781,7 @@ arithmetic — the terminal in `_resolve_widths`, the canvas in flexbox — so t
 third, blinder opinion sitting upstream of two informed ones.
 
 **The line that does not move.** Round 1 put the heuristic in Python because the frontend has
-no test runner, and that argument is untouched: *selection* stays in `cli/view.py`, tested.
+no test runner, and that argument is untouched: *selection* stays in `skyboss/view.py`, tested.
 What moves is *fitting*, which was never a judgment — "take columns while the running total
 still fits" is arithmetic of the kind `render.js` is already trusted with, and is the same
 reason both renderers already apply `min` themselves.
@@ -804,7 +804,7 @@ landed in the same commit. A phase boundary that leaves the repo visibly broken 
 boundary worth keeping.
 
 **The warning narrowed for free, which is the tell that the split was already latent.**
-`cli/data.py` has always warned about `hidden` *minus* the keys the operator explicitly
+`skyboss/data.py` has always warned about `hidden` *minus* the keys the operator explicitly
 dropped — so the moment `hidden` stopped carrying budget casualties, the warning started
 naming exactly the rule-hidden ones. No edit to `data.py` at all. The code had the right shape
 and the wrong input.
@@ -814,7 +814,7 @@ mirroring the tail arithmetic in `render.js`; it turned out to be unnecessary, b
 substrates genuinely differ — **a browser can scroll sideways and a terminal cannot.** So the
 terminal drops from the tail and names what it dropped, the canvas overflows into the scroll
 `.body` already had, and neither is a compromise. `fit_columns` therefore lives in
-`cli/output.py` as the *terminal's* arithmetic rather than as shared code, and the JS
+`skyboss/output.py` as the *terminal's* arithmetic rather than as shared code, and the JS
 duplication Round 2's Notes warned about was not repeated.
 
 **The header truncation was a different bug wearing the same screenshot.** Not the budget: a

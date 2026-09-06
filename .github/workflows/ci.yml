@@ -103,7 +103,7 @@ jobs:
           .venv/bin/pip install -r requirements.txt -r requirements-dev.txt
 
       # `pywebview` installs here but its GTK bindings (`gi`) are system-owned
-      # and absent on a runner. That is fine and checked: `cli/canvas/shell.py`
+      # and absent on a runner. That is fine and checked: `skyboss/canvas/shell.py`
       # imports both lazily, inside the functions that open a window, so no
       # test imports either. If a test ever does, this job is where it surfaces.
       - name: Suite

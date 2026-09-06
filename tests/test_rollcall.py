@@ -11,8 +11,8 @@ import json
 import pytest
 from click.testing import CliRunner
 
-from cli import cli
-from cli.rollcall import load, parse
+from skyboss import cli
+from skyboss.rollcall import load, parse
 
 
 def write(home, text):
@@ -147,7 +147,7 @@ def test_the_known_keys_cover_every_field_a_project_can_carry():
     argue with the assignment. See [[schedule]] round 6."""
     from dataclasses import fields
 
-    from cli.rollcall import PROJECT_KEYS, Project
+    from skyboss.rollcall import PROJECT_KEYS, Project
 
     derived = {"name", "shade"}
     expected = {
@@ -169,7 +169,7 @@ def test_parse_reads_no_file():
 # ── One project, read ───────────────────────────────────────────────────────
 
 
-from cli.rollcall import Project, ask  # noqa: E402
+from skyboss.rollcall import Project, ask  # noqa: E402
 
 
 def test_a_command_source_is_read_by_sb_datas_own_path():
@@ -225,7 +225,7 @@ def invoke(args=()):
 def home(tmp_path, monkeypatch):
     h = tmp_path / "home"
     h.mkdir()
-    monkeypatch.setattr("cli.rollcall.SB_HOME", h)
+    monkeypatch.setattr("skyboss.rollcall.SB_HOME", h)
     return h
 
 
@@ -322,7 +322,7 @@ def test_a_roll_call_is_a_read_so_the_canvas_may_pin_it():
     """Asking six projects how they are runs each project's own status command
     and changes nothing. If this flips, the canvas stops offering a cadence on
     the window that most wants one — and starts offering it on a write."""
-    from cli.canvas.catalog import catalog
+    from skyboss.canvas.catalog import catalog
 
     entries = {entry["name"]: entry for entry in catalog()}
     assert entries["roll-call"]["acts"] is False
@@ -332,7 +332,7 @@ def test_the_roll_call_is_in_the_palette_because_the_tree_is():
     """Nothing keeps a command table. If roll-call were registered anywhere but
     the live Click tree it would be offerable and absent, which is worse than
     not being offered."""
-    from cli.canvas.catalog import catalog
+    from skyboss.canvas.catalog import catalog
 
     assert "roll-call" in {entry["name"] for entry in catalog()}
 

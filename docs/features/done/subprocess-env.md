@@ -4,14 +4,14 @@ created: 2026-08-20
 updated: 2026-08-28
 agent_value: 3  # four rounds; the tty verdict is the one nobody rediscovers
 key_files:
-  - cli/helpers.py
-  - cli/run.py
-  - cli/read.py
-  - cli/data.py
-  - cli/follow.py
-  - cli/stream.py
-  - cli/canvas/runner.py
-  - cli/canvas/server.py
+  - skyboss/helpers.py
+  - skyboss/run.py
+  - skyboss/read.py
+  - skyboss/data.py
+  - skyboss/follow.py
+  - skyboss/stream.py
+  - skyboss/canvas/runner.py
+  - skyboss/canvas/server.py
   - tests/test_run.py
 ---
 
@@ -31,7 +31,7 @@ directory:
 
 ```
 $ cd /tmp && sb run -- python3 -c "import cli; print(cli.__file__)"
-   <repo>/cli/__init__.py
+   <repo>/skyboss/__init__.py
 
 $ cd /tmp && python3 -c "import cli"
    ModuleNotFoundError: No module named 'cli'
@@ -61,16 +61,16 @@ there. The leak was making it work.
 
 Following that down turned up a second thing worth recording, in a different repository. jam's
 wrapper does not set `PYTHONSAFEPATH`, so `python -m cli` prepends the current directory to
-`sys.path` and **any directory containing a `cli/` package shadows jam's own**:
+`sys.path` and **any directory containing a `skyboss/` package shadows jam's own**:
 
 ```
-jam from sky-boss (has a cli/ package):       exit=1
-jam from /tmp (no cli/ package):             exit=0
+jam from sky-boss (has a skyboss/ package):       exit=1
+jam from /tmp (no skyboss/ package):             exit=0
 jam from sky-boss, PYTHONSAFEPATH=1:          exit=0
 ```
 
 The error it printed — `missing required Python dependencies` — is sky.boss's own message from
-`cli/__init__.py:18`. jam was running sky.boss's CLI. That is jam.sense's bug to fix and this
+`skyboss/__init__.py:18`. jam was running sky.boss's CLI. That is jam.sense's bug to fix and this
 document does not propose fixing it here, but it is the reason `--cwd` genuinely is needed for jam,
 and it is **not** the reason `CLAUDE.local.md` currently records. That note says jam resolves
 `.venv` against the cwd; it has not done so for some time — its wrapper uses `realpath
@@ -83,7 +83,7 @@ that works today is the argv that breaks the moment either bug is fixed.
 
 **A command sky.boss spawns gets the operator's environment, not sky.boss's.**
 
-One helper in `cli/helpers.py`. It began as a scrub and has grown two narrow additions and one
+One helper in `skyboss/helpers.py`. It began as a scrub and has grown two narrow additions and one
 declaration, in that order, each argued in its own round:
 
 ```python
@@ -139,8 +139,8 @@ bootstraps cannot quietly satisfy it.
 
 ### Round 1 — stop leaking the bootstrap (2026-08-20)
 
-- [x] `BOOTSTRAP` and `child_env()` in `cli/helpers.py`.
-- [x] `run_command`, `sb run`, `sb wrap` and `cli/canvas/runner.py` all use it.
+- [x] `BOOTSTRAP` and `child_env()` in `skyboss/helpers.py`.
+- [x] `run_command`, `sb run`, `sb wrap` and `skyboss/canvas/runner.py` all use it.
 - [x] A test that `sb run -- python3 -c "import cli"` fails from outside the repo, and one that
       `PATH` and ordinary variables survive.
 - [x] Correct `CLAUDE.local.md`'s account of why `jam` needs `--cwd`, and add the scrub to
@@ -249,7 +249,7 @@ Reported by the operator, watching a two-hour `jam report agent-task` accrue on 
 was late or dropped.
 
 **A tool that decides what to print by asking whether it has a terminal says less into a pipe.**
-jam's reporting funnel, `cli/report.py:91` in that repo:
+jam's reporting funnel, `skyboss/report.py:91` in that repo:
 
 ```python
 def _echo_to_stdout() -> bool:
@@ -293,7 +293,7 @@ sb run --cwd ~/src/jam.sense --env JAM_TRANSCRIPT_STDOUT=1 -- jam report agent-t
 exists, so it wins over sky.boss's two automatic ones; a tool whose author says
 `PYTHONUNBUFFERED` breaks it must be able to say so.
 
-**A saved tool needs no new key.** A tool is a name plus a *sky.boss argv*, and `cli/tools.py`
+**A saved tool needs no new key.** A tool is a name plus a *sky.boss argv*, and `skyboss/tools.py`
 re-invokes the real command with `tool.argv[1:]`, so `--env` rides in exactly as `--cwd` does. An
 `env` field in `tools.toml` would be a second way to say the same thing, negotiating with the flag
 the way `refresh` and `highlight` have to — and those two negotiate because they are *inherited*
@@ -365,7 +365,7 @@ levels down from that surprise were two separate bugs in two different repositor
 had been hiding the other:
 
 - sky.boss handed every subprocess its own `PYTHONPATH` and `PYTHONSAFEPATH`.
-- jam's wrapper does not set `PYTHONSAFEPATH`, so any directory holding a `cli/` package shadows
+- jam's wrapper does not set `PYTHONSAFEPATH`, so any directory holding a `skyboss/` package shadows
   jam's own — and sky.boss's leak was supplying the missing variable.
 
 Neither is visible from inside its own repository. sky.boss's suite passes with the leak, because
@@ -392,7 +392,7 @@ the dangerous one: the argv that worked was the argv that would break the moment
 fixed, in either repository, by anyone.
 
 **What is not fixed.** jam's wrapper still lacks `PYTHONSAFEPATH`, so `jam` still fails when run
-from any directory containing a `cli/` package. That is jam.sense's to change, and `sb wrap`
+from any directory containing a `skyboss/` package. That is jam.sense's to change, and `sb wrap`
 without `--cwd` now fails honestly there instead of quietly working.
 
 ### 2026-08-21 — the words moved; the history stays (supersession)

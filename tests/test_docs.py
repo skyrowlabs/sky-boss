@@ -28,7 +28,7 @@ from pathlib import Path
 
 import pytest
 
-from cli.helpers import PROJECT_ROOT
+from skyboss.helpers import PROJECT_ROOT
 
 # `[[…]]` is also legal prose when the subject *is* the convention. Each entry
 # names a slug that is written down deliberately and resolves to nothing.
@@ -136,9 +136,9 @@ def test_no_constant_is_documented_and_then_read_by_nothing():
     import ast
     from collections import Counter
 
-    from cli.helpers import PROJECT_ROOT
+    from skyboss.helpers import PROJECT_ROOT
 
-    sources = sorted((PROJECT_ROOT / "cli").rglob("*.py"))
+    sources = sorted((PROJECT_ROOT / "skyboss").rglob("*.py"))
     uses: Counter[str] = Counter()
     for path in sources + sorted((PROJECT_ROOT / "tests").rglob("*.py")):
         try:

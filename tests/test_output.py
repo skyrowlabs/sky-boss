@@ -10,7 +10,7 @@ import click
 import pytest
 from click.testing import CliRunner
 
-from cli.output import (
+from skyboss.output import (
     EXIT_ERROR,
     EXIT_OK,
     EXIT_PARTIAL,
@@ -113,7 +113,7 @@ def _body(out: str) -> list[str]:
     Header rules are decoration and are dropped too, so an index into this list
     means the same thing whether or not the table was shaped.
     """
-    from cli.read import strip_ansi
+    from skyboss.read import strip_ansi
 
     return [
         l.rstrip()
@@ -266,7 +266,7 @@ def test_usage_error_still_belongs_to_click(app):
 
 
 def test_humanize_bytes_uses_binary_units():
-    from cli.output import humanize_bytes
+    from skyboss.output import humanize_bytes
 
     assert humanize_bytes(0) == "0 B"
     assert humanize_bytes(512) == "512 B"
@@ -298,8 +298,8 @@ def test_help_honours_the_captured_width():
 
     import rich_click as click
 
-    from cli import cli
-    from cli.output import capture
+    from skyboss import cli
+    from skyboss.output import capture
 
     for width in (46, 60, 120):
         with capture(width=width) as captured:
@@ -316,7 +316,7 @@ def test_capture_restores_columns_even_when_the_body_raises():
     """A leaked COLUMNS would follow every later subprocess out of the process."""
     import os
 
-    from cli.output import capture
+    from skyboss.output import capture
 
     before = os.environ.get("COLUMNS")
     with pytest.raises(RuntimeError):
@@ -345,7 +345,7 @@ def test_concurrent_captures_do_not_post_into_each_other():
 
     import rich_click as click
 
-    from cli.output import Result, capture, emit
+    from skyboss.output import Result, capture, emit
 
     @click.command()
     @emit
@@ -387,7 +387,7 @@ def test_concurrent_captures_do_not_post_into_each_other():
 def test_a_capture_restores_the_thread_it_was_taken_on():
     import threading
 
-    from cli.output import _out, capture, console
+    from skyboss.output import _out, capture, console
 
     seen = {}
 
@@ -416,7 +416,7 @@ def test_a_finished_capture_leaves_the_consoles_usable():
     workers are reused, so the second dispatch on a recycled worker would have
     crashed on its first warning.
     """
-    from cli.output import _err, _out, capture
+    from skyboss.output import _err, _out, capture
 
     before = (_out(), _err())
     with capture(width=80, redirect=False):
@@ -427,7 +427,7 @@ def test_a_finished_capture_leaves_the_consoles_usable():
 
 
 def test_a_nested_capture_restores_the_outer_one():
-    from cli.output import _out, capture
+    from skyboss.output import _out, capture
 
     with capture(width=80, redirect=False):
         outer = _out()
@@ -506,7 +506,7 @@ def test_a_column_is_never_squeezed_below_its_header(capsys):
     ignores `min_width`, so a proportional column can be crushed below its own
     label — `MERGE_STATE` as `ME…`, a column you cannot identify. The widths
     are resolved here instead, and this is what says so."""
-    from cli.output import capture
+    from skyboss.output import capture
 
     with capture(width=40, redirect=False) as captured:
         render(
@@ -601,7 +601,7 @@ def test_a_scan_column_is_not_padded_out_to_fill_the_terminal(capsys):
     """Prose left the row, so no column left in it wants to be wider than its
     own content. Spreading the spare width across four scan columns is how
     NUMBER ends up eighteen characters wide with a three-digit number in it."""
-    from cli.output import _resolve_widths
+    from skyboss.output import _resolve_widths
 
     columns = [
         {"key": "number", "label": "NUMBER", "flex": 1, "min": 6, "max": 6},
@@ -611,7 +611,7 @@ def test_a_scan_column_is_not_padded_out_to_fill_the_terminal(capsys):
 
 
 def test_columns_still_shrink_when_they_genuinely_do_not_fit(capsys):
-    from cli.output import _resolve_widths
+    from skyboss.output import _resolve_widths
 
     columns = [
         {"key": "a", "label": "A", "flex": 1, "min": 1, "max": 40},
@@ -625,7 +625,7 @@ def test_columns_still_shrink_when_they_genuinely_do_not_fit(capsys):
 # Fitting columns to the width — [[table-views]] round 3
 # ============================================================================
 
-from cli.output import _render_value, fit_columns  # noqa: E402
+from skyboss.output import _render_value, fit_columns  # noqa: E402
 
 
 def _cols(*mins):
@@ -705,7 +705,7 @@ def test_a_wrapped_payload_states_its_size_beside_the_key(capsys):
 def _console():
     from rich.console import Console
 
-    from cli.output import THEME
+    from skyboss.output import THEME
 
     return Console(theme=THEME, force_terminal=True, color_system="truecolor")
 
@@ -729,13 +729,13 @@ def test_a_composite_role_resolves_instead_of_silently_rendering_plain():
     """
     from rich.style import Style
 
-    from cli.output import role_style
+    from skyboss.output import role_style
 
     style = role_style("bold sb.ok")
     assert isinstance(style, Style)
     assert style.bold is True
     assert style.color is not None, "the composite lost its colour"
-    from cli.output import THEME
+    from skyboss.output import THEME
 
     assert style.color.triplet == THEME.styles["sb.ok"].color.triplet
 
@@ -746,8 +746,8 @@ def test_every_role_the_highlighter_can_emit_resolves():
     would render plain and say nothing."""
     from rich.errors import MissingStyle
 
-    from cli import highlight as highlight_
-    from cli.output import role_style
+    from skyboss import highlight as highlight_
+    from skyboss.output import role_style
 
     roles = {role for _, role, _, _ in highlight_._RULES}
     roles |= set(highlight_._COLOUR_WORDS.values())
@@ -779,8 +779,8 @@ def test_said_recovers_a_sentence_drawn_in_colour(said, monkeypatch):
     *built* — at import — so setting it from inside a test is already too late.
     Same drawing either way; this one is reachable.
     """
-    from cli import HELP_CONFIG
-    from cli import cli as cli_
+    from skyboss import HELP_CONFIG
+    from skyboss import cli as cli_
 
     monkeypatch.setattr(HELP_CONFIG, "force_terminal", True)
     result = CliRunner().invoke(cli_, ["data", "--ticks", "3", "--", "printf", "hi"])

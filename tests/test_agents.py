@@ -17,8 +17,8 @@ from datetime import datetime, timezone
 import pytest
 from click.testing import CliRunner
 
-from cli import cli
-from cli.agents import (
+from skyboss import cli
+from skyboss.agents import (
     Claude,
     Scan,
     Session,
@@ -292,14 +292,14 @@ def test_an_absent_registry_and_an_empty_one_say_different_things():
 
 
 def test_the_command_says_which_kind_of_empty_it_is(monkeypatch, said):
-    monkeypatch.setattr("cli.agents.providers", lambda: [Fake("claude", present=False)])
+    monkeypatch.setattr("skyboss.agents.providers", lambda: [Fake("claude", present=False)])
     result = CliRunner().invoke(cli, ["agents"])
     assert result.exit_code == 0
     assert "no registry present" in said(result)
 
 
 def test_only_refuses_a_provider_that_does_not_exist(monkeypatch, said):
-    monkeypatch.setattr("cli.agents.providers", lambda: [Fake("claude")])
+    monkeypatch.setattr("skyboss.agents.providers", lambda: [Fake("claude")])
     result = CliRunner().invoke(cli, ["agents", "--only", "cursor"])
     assert result.exit_code == 2
     assert "no such provider: cursor" in said(result)
@@ -308,7 +308,7 @@ def test_only_refuses_a_provider_that_does_not_exist(monkeypatch, said):
 def test_only_narrows_to_the_named_provider(monkeypatch):
     a = Session(provider="a", id="1", name="a-one", started=at(100))
     b = Session(provider="b", id="2", name="b-one", started=at(200))
-    monkeypatch.setattr("cli.agents.providers", lambda: [Fake("a", [a]), Fake("b", [b])])
+    monkeypatch.setattr("skyboss.agents.providers", lambda: [Fake("a", [a]), Fake("b", [b])])
     result = CliRunner().invoke(cli, ["--json", "agents", "--only", "a"])
     assert result.exit_code == 0
     assert [r["name"] for r in json.loads(result.stdout)["data"]] == ["a-one"]
@@ -317,10 +317,10 @@ def test_only_narrows_to_the_named_provider(monkeypatch):
 def test_an_unverified_row_is_reported_in_the_envelope(monkeypatch, said):
     session = Session(provider="a", id="1", name="one", started=at(100))
     monkeypatch.setattr(
-        "cli.agents.providers",
+        "skyboss.agents.providers",
         lambda: [Fake("a", [session], present=True, read=1)],
     )
-    from cli import agents as agents_
+    from skyboss import agents as agents_
 
     def scan_with_unverified(self=None):
         scan = Scan(provider="a", sessions=[session], present=True, read=1, unverified=1)

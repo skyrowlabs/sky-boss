@@ -3,7 +3,7 @@ status: complete
 created: 2026-08-29
 updated: 2026-08-29
 agent_value: 2
-key_files: [cli/canvas/static/app.js, cli/canvas/static/render.js, cli/canvas/static/sb.css]
+key_files: [skyboss/canvas/static/app.js, skyboss/canvas/static/render.js, skyboss/canvas/static/sb.css]
 ---
 
 # Wrap — a followed line that fits the window
@@ -39,7 +39,7 @@ structure that stops sky.boss making columns out of it. Wrapping a `read` by def
 inference arriving through the rendering instead of through a parser.
 
 **The indent is derived from a mark sky.boss already produces, never guessed.**
-`cli/highlight.py`'s `_TIMESTAMP` matches a leading ISO stamp and its mark already carries the end
+`skyboss/highlight.py`'s `_TIMESTAMP` matches a leading ISO stamp and its mark already carries the end
 offset. That number *is* the hanging indent. Two consequences worth stating because they are what
 makes this small:
 
@@ -110,7 +110,7 @@ Asked for by the operator 2026-08-29 while reading the live agent-fix drain, and
 
 The thing worth not losing: **the indent was the hard part and it is already solved.** The obvious
 implementation is to measure the timestamp, which means writing a second timestamp matcher beside
-`cli/highlight.py`'s — a rule this repo has broken before and named for it (*one rule set, applied
+`skyboss/highlight.py`'s — a rule this repo has broken before and named for it (*one rule set, applied
 everywhere a followed line renders*). `_TIMESTAMP` produces the offset as a side effect of tinting,
 and the indent is that number. Anything that re-derives it has built the second implementation.
 

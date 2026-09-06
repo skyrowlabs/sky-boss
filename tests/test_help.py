@@ -9,7 +9,7 @@ next year is born covered or fails loudly on its first run of the suite.
 
 import click
 
-from cli import cli
+from skyboss import cli
 
 # The vocabulary a contract is stated in. One of these words appearing is not
 # proof of a good sentence, but its absence is proof of a missing one — a
@@ -62,10 +62,10 @@ def test_a_saved_tool_is_born_covered(tmp_path):
     """The generated help carries the expansion as its example and names
     itself a saved command — tools meet the standard with no code in the
     loader growing an opinion about documentation."""
-    from cli.tools import register
+    from skyboss.tools import register
 
     (tmp_path / "tools.toml").write_text('[tool.prs]\nargv = ["data", "--", "printf", "[]"]\n')
-    from cli.tools import tools as tools_group
+    from skyboss.tools import tools as tools_group
 
     try:
         register(cli, home=tmp_path)

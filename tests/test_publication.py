@@ -34,7 +34,7 @@ class of leak as a host name in a tracked file", two lines under one.
 import re
 import subprocess
 
-from cli.helpers import PROJECT_ROOT
+from skyboss.helpers import PROJECT_ROOT
 
 # `/home/x/y/z.json` in a highlight fixture, `/home/you` in a bug quoted from
 # the workbench. A placeholder is a shape standing in for a name; these are the

@@ -11,9 +11,9 @@ from datetime import datetime
 
 from click.testing import CliRunner
 
-from cli import cli, schedule
-from cli.schedule import order, parse_instant, rows_of
-from cli.rollcall import Project
+from skyboss import cli, schedule
+from skyboss.schedule import order, parse_instant, rows_of
+from skyboss.rollcall import Project
 
 
 def _home(tmp_path, projects: str, **files) -> None:
@@ -56,7 +56,7 @@ def test_ordering_is_on_the_instant_not_the_string(tmp_path, monkeypatch):
         ),
     )
     monkeypatch.setenv("SB_HOME", str(tmp_path))
-    monkeypatch.setattr("cli.rollcall.SB_HOME", tmp_path)
+    monkeypatch.setattr("skyboss.rollcall.SB_HOME", tmp_path)
 
     out = json.loads(CliRunner().invoke(cli, ["--json", "schedule"]).stdout)
     assert [r["name"] for r in out["data"]] == ["earlier-instant", "later-instant"]
@@ -109,7 +109,7 @@ def test_a_project_declaring_no_schedule_is_counted_and_never_drawn(tmp_path, mo
         beta=json.dumps({"anything": 1}),
     )
     monkeypatch.setenv("SB_HOME", str(tmp_path))
-    monkeypatch.setattr("cli.rollcall.SB_HOME", tmp_path)
+    monkeypatch.setattr("skyboss.rollcall.SB_HOME", tmp_path)
 
     result = CliRunner().invoke(cli, ["--json", "schedule"])
     out = json.loads(result.stdout)
@@ -129,7 +129,7 @@ def test_the_schedule_string_is_drawn_exactly_as_the_provider_wrote_it(tmp_path,
         ),
     )
     monkeypatch.setenv("SB_HOME", str(tmp_path))
-    monkeypatch.setattr("cli.rollcall.SB_HOME", tmp_path)
+    monkeypatch.setattr("skyboss.rollcall.SB_HOME", tmp_path)
 
     out = json.loads(CliRunner().invoke(cli, ["--json", "schedule"]).stdout)
     assert out["data"][0]["schedule"] == "15 5 * * *"
@@ -144,7 +144,7 @@ def test_next_is_never_computed_from_the_schedule(tmp_path, monkeypatch):
         alpha=json.dumps({"jobs": [{"job": "j", "schedule": "15 5 * * *", "next_run": ""}]}),
     )
     monkeypatch.setenv("SB_HOME", str(tmp_path))
-    monkeypatch.setattr("cli.rollcall.SB_HOME", tmp_path)
+    monkeypatch.setattr("skyboss.rollcall.SB_HOME", tmp_path)
 
     out = json.loads(CliRunner().invoke(cli, ["--json", "schedule"]).stdout)
     assert out["data"][0]["next"] == ""
@@ -163,7 +163,7 @@ def test_rows_names_a_missing_container_rather_than_returning_nothing():
 def test_schedule_is_an_observe_so_a_window_may_pin_it():
     """`acts` decides whether the canvas will offer a cadence. A viewer that
     read as a write could never be refreshed."""
-    from cli.schedule import schedule as cmd
+    from skyboss.schedule import schedule as cmd
 
     assert not getattr(cmd, "sb_acts", False)
 
@@ -217,7 +217,7 @@ def test_view_is_authored_and_hides_the_absolutes():
 
 def test_band_says_drawn_of_arrived():
     """Five under the word seven is the confusion; the band answers it."""
-    from cli.output import _dimensions
+    from skyboss.output import _dimensions
     rows = [{k: "x" for k in ("a", "b", "c")}]
     view = {"columns": [{"key": "a"}], "details": [], "hidden": ["b", "c"]}
     assert _dimensions(rows, view) == "table · 1 row · 1 of 3 columns"
@@ -235,9 +235,9 @@ def test_band_says_drawn_of_arrived():
 import pytest  # noqa: E402
 from datetime import timedelta, timezone as tz  # noqa: E402
 
-import cli.jobs as jobs_  # noqa: E402
-from cli.jobs import Unit  # noqa: E402
-from cli.schedule import _systemd_instant, now_utc  # noqa: E402
+import skyboss.jobs as jobs_  # noqa: E402
+from skyboss.jobs import Unit  # noqa: E402
+from skyboss.schedule import _systemd_instant, now_utc  # noqa: E402
 
 
 def test_a_provider_row_says_it_is_watched():
@@ -252,7 +252,7 @@ def test_a_provider_row_says_it_is_watched():
 
 
 def test_the_clock_column_is_drawn(tmp_path, monkeypatch):
-    from cli.schedule import INLINE
+    from skyboss.schedule import INLINE
 
     assert "clock" in INLINE
 
@@ -290,14 +290,14 @@ def _jobs(monkeypatch, tmp_path, toml: str, *, enabled=(), elapses=None, ledger=
     """A scratch `$SB_HOME` for jobs, with systemd's answers injected — enabling
     a real timer on the machine running the suite is not a test."""
     (tmp_path / "jobs.toml").write_text(toml)
-    monkeypatch.setattr("cli.jobs.SB_HOME", tmp_path)
-    monkeypatch.setattr("cli.jobs.STATE_DIR", tmp_path / "state")
+    monkeypatch.setattr("skyboss.jobs.SB_HOME", tmp_path)
+    monkeypatch.setattr("skyboss.jobs.STATE_DIR", tmp_path / "state")
     if ledger:
         (tmp_path / "state" / "jobs").mkdir(parents=True, exist_ok=True)
         (tmp_path / "state" / "jobs" / "ledger.jsonl").write_text(ledger)
-    monkeypatch.setattr("cli.jobs.timer_elapses", lambda: (dict(elapses or {}), True))
+    monkeypatch.setattr("skyboss.jobs.timer_elapses", lambda: (dict(elapses or {}), True))
     monkeypatch.setattr(
-        "cli.jobs.unit_state",
+        "skyboss.jobs.unit_state",
         lambda name, e=None: Unit(
             file=name in enabled,
             enabled="enabled" if name in enabled else "disabled",
@@ -397,7 +397,7 @@ def test_both_populations_land_in_one_table(tmp_path, monkeypatch):
         elapses={"sb-armed.timer": "Wed 2026-09-02 06:00:00 CDT"},
     )
     monkeypatch.setenv("SB_HOME", str(tmp_path))
-    monkeypatch.setattr("cli.rollcall.SB_HOME", tmp_path)
+    monkeypatch.setattr("skyboss.rollcall.SB_HOME", tmp_path)
     body = json.loads(CliRunner().invoke(cli, ["--json", "schedule"]).stdout)
     clocks = {r["name"]: r["clock"] for r in body["data"]}
     assert clocks == {"theirs": "watched", "armed": "sb"}
@@ -407,7 +407,7 @@ def test_only_sb_narrows_to_our_own(tmp_path, monkeypatch):
     _home(tmp_path, ALPHA, alpha=ALPHA_ROWS)
     _jobs(monkeypatch, tmp_path, TWO_JOBS, enabled=("armed",))
     monkeypatch.setenv("SB_HOME", str(tmp_path))
-    monkeypatch.setattr("cli.rollcall.SB_HOME", tmp_path)
+    monkeypatch.setattr("skyboss.rollcall.SB_HOME", tmp_path)
     body = json.loads(CliRunner().invoke(cli, ["--json", "schedule", "--only", "sb"]).stdout)
     assert [r["name"] for r in body["data"]] == ["armed"]
 
@@ -416,7 +416,7 @@ def test_only_a_project_leaves_our_own_out(tmp_path, monkeypatch):
     _home(tmp_path, ALPHA, alpha=ALPHA_ROWS)
     _jobs(monkeypatch, tmp_path, TWO_JOBS, enabled=("armed",))
     monkeypatch.setenv("SB_HOME", str(tmp_path))
-    monkeypatch.setattr("cli.rollcall.SB_HOME", tmp_path)
+    monkeypatch.setattr("skyboss.rollcall.SB_HOME", tmp_path)
     body = json.loads(CliRunner().invoke(cli, ["--json", "schedule", "--only", "alpha"]).stdout)
     assert [r["name"] for r in body["data"]] == ["theirs"]
     assert not any("not drawn" in w for w in body["warnings"]), (
@@ -430,7 +430,7 @@ def test_only_sb_is_a_name_even_with_nothing_armed(tmp_path, monkeypatch):
     _home(tmp_path, ALPHA, alpha=ALPHA_ROWS)
     _jobs(monkeypatch, tmp_path, TWO_JOBS)
     monkeypatch.setenv("SB_HOME", str(tmp_path))
-    monkeypatch.setattr("cli.rollcall.SB_HOME", tmp_path)
+    monkeypatch.setattr("skyboss.rollcall.SB_HOME", tmp_path)
     result = CliRunner().invoke(cli, ["--json", "schedule", "--only", "sb"])
     body = json.loads(result.stdout)
     assert result.exit_code == 0 and body["data"] == []
@@ -450,7 +450,7 @@ def test_an_armed_job_shows_up_with_no_projects_declared_at_all(tmp_path, monkey
         elapses={"sb-armed.timer": "Wed 2026-09-02 06:00:00 CDT"},
     )
     monkeypatch.setenv("SB_HOME", str(tmp_path))
-    monkeypatch.setattr("cli.rollcall.SB_HOME", tmp_path)
+    monkeypatch.setattr("skyboss.rollcall.SB_HOME", tmp_path)
     body = json.loads(CliRunner().invoke(cli, ["--json", "schedule"]).stdout)
     assert [r["name"] for r in body["data"]] == ["armed"]
     assert not any("no projects declared" in w for w in body["warnings"])
@@ -470,7 +470,7 @@ def test_a_project_called_sb_is_reported_rather_than_silently_confusing(tmp_path
         elapses={"sb-armed.timer": "Wed 2026-09-02 06:00:00 CDT"},
     )
     monkeypatch.setenv("SB_HOME", str(tmp_path))
-    monkeypatch.setattr("cli.rollcall.SB_HOME", tmp_path)
+    monkeypatch.setattr("skyboss.rollcall.SB_HOME", tmp_path)
     body = json.loads(CliRunner().invoke(cli, ["--json", "schedule"]).stdout)
     assert any("read the `clock` column" in w for w in body["warnings"])
 
@@ -492,7 +492,7 @@ def test_both_populations_sort_on_one_instant(tmp_path, monkeypatch):
         elapses={"sb-armed.timer": later},
     )
     monkeypatch.setenv("SB_HOME", str(tmp_path))
-    monkeypatch.setattr("cli.rollcall.SB_HOME", tmp_path)
+    monkeypatch.setattr("skyboss.rollcall.SB_HOME", tmp_path)
     body = json.loads(CliRunner().invoke(cli, ["--json", "schedule"]).stdout)
     assert [r["name"] for r in body["data"]] == ["theirs", "armed"]
 
@@ -514,9 +514,9 @@ def test_the_sheet_takes_its_track_count_from_the_view():
     """
     import re as _re
 
-    from cli.helpers import PROJECT_ROOT
+    from skyboss.helpers import PROJECT_ROOT
 
-    stylesheet = (PROJECT_ROOT / "cli/canvas/static/sb.css").read_text()
+    stylesheet = (PROJECT_ROOT / "skyboss/canvas/static/sb.css").read_text()
     sheet = _re.search(r"\.pl-sheet\s*\{([^}]*)\}", stylesheet)
     assert sheet, "`.pl-sheet` is gone — did the schedule grid move?"
     tracks = _re.search(r"grid-template-columns:([^;]*);", sheet.group(1))
@@ -526,7 +526,7 @@ def test_the_sheet_takes_its_track_count_from_the_view():
         "INLINE and it will drift the next time a column is added"
     )
 
-    script = (PROJECT_ROOT / "cli/canvas/static/schedule.js").read_text()
+    script = (PROJECT_ROOT / "skyboss/canvas/static/schedule.js").read_text()
     assert _re.search(r"--pl-cols:\s*\$\{columns\.length\}", script), (
         "schedule.js no longer hands the grid the column count it is drawing"
     )

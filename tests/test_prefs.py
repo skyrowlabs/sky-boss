@@ -8,7 +8,7 @@ config file: only declared keys are stored, and every failure degrades to
 
 import json
 
-from cli.canvas import prefs
+from skyboss.canvas import prefs
 
 
 def test_nothing_remembered_is_not_an_error(tmp_path):
@@ -72,7 +72,7 @@ def test_the_route_round_trips(tmp_path, monkeypatch):
     """Through the guarded routes, which is how the surface reaches it."""
     from starlette.testclient import TestClient
 
-    from cli.canvas.server import TOKEN_HEADER, Canvas, build
+    from skyboss.canvas.server import TOKEN_HEADER, Canvas, build
 
     monkeypatch.setattr(prefs, "STATE_DIR", tmp_path)
     client = TestClient(build(Canvas(token="t")))
@@ -87,7 +87,7 @@ def test_the_route_round_trips(tmp_path, monkeypatch):
 def test_the_route_refuses_a_bad_shape_with_its_reason(tmp_path, monkeypatch):
     from starlette.testclient import TestClient
 
-    from cli.canvas.server import TOKEN_HEADER, Canvas, build
+    from skyboss.canvas.server import TOKEN_HEADER, Canvas, build
 
     monkeypatch.setattr(prefs, "STATE_DIR", tmp_path)
     client = TestClient(build(Canvas(token="t")))

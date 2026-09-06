@@ -13,8 +13,8 @@ import sys
 
 from click.testing import CliRunner
 
-from cli import cli
-from cli.helpers import child_env
+from skyboss import cli
+from skyboss.helpers import child_env
 
 
 def _envelope(res):
@@ -137,7 +137,7 @@ def test_the_scrub_is_two_variables_and_not_a_clean_room(monkeypatch):
 def test_multi_line_output_renders_as_a_block_not_a_folded_cell(capsys):
     """An aligned table folded into a key/value cell wraps at the column edge
     and loses the alignment that was the reason to look at it."""
-    from cli.output import Result, render
+    from skyboss.output import Result, render
 
     render(Result("run", data={"exit_code": 0, "stdout": "PR     STATE\n#952   draft\n"}),
            as_json=False)
@@ -156,7 +156,7 @@ def test_a_pending_write_carries_no_cadence():
     refuses is a *cadence* — a write happening again unattended forever. This
     is one write happening once, later, which is why `fires_at` is a different
     field from `interval`."""
-    from cli import chrome as chrome_
+    from skyboss import chrome as chrome_
 
     facts = chrome_.pending("run -- ./deploy.sh", fires_at=1000.0)
     assert facts.shape == "act"
@@ -166,7 +166,7 @@ def test_a_pending_write_carries_no_cadence():
 
 def test_the_countdown_says_what_is_left_and_how_to_stop_it():
     """A countdown you cannot see a way out of is one you watch helplessly."""
-    from cli import chrome as chrome_
+    from skyboss import chrome as chrome_
 
     facts = chrome_.pending("run -- ./deploy.sh", fires_at=1298.0)
     top, bottom = chrome_.status_lines(facts, 1000.0, 78)
@@ -175,7 +175,7 @@ def test_the_countdown_says_what_is_left_and_how_to_stop_it():
 
 
 def test_a_delay_that_reaches_its_moment_fires():
-    from cli.run import _await
+    from skyboss.run import _await
 
     ticks = iter([1000.0, 1000.0, 1003.0, 1003.0, 1003.0])
     assert _await(("true",), 2, clock=lambda: next(ticks), wait=lambda _: None, **_quiet()) is True
@@ -184,7 +184,7 @@ def test_a_delay_that_reaches_its_moment_fires():
 def test_leaving_the_countdown_cancels_and_nothing_runs():
     """Cancellation is not a flag, it is the clock: `hold` returns both when
     the operator leaves and when its ticks run out, and does not say which."""
-    from cli.run import _await
+    from skyboss.run import _await
 
     assert _await(("true",), 300, clock=lambda: 1000.0, wait=lambda _: "q", **_quiet()) is False
 
@@ -192,7 +192,7 @@ def test_leaving_the_countdown_cancels_and_nothing_runs():
 def test_cancelling_exits_non_zero():
     """A script that could not tell the difference would deploy on a
     keystroke."""
-    import cli.run as run_
+    import skyboss.run as run_
 
     calls = []
     original = run_._await
@@ -235,8 +235,8 @@ def _quiet():
 def test_envelope_for_is_the_one_place_an_outcome_becomes_a_run_envelope():
     """The canvas accrues too now, and must not re-decide any of this beside
     `cli/run.py`. See [[follow]] round 4."""
-    from cli.run import envelope_for
-    from cli.stream import Outcome
+    from skyboss.run import envelope_for
+    from skyboss.stream import Outcome
 
     ok = envelope_for(["true"], Outcome(0, 0.1, "hi\n", ""), None)
     # `data` is None on success: the lines already reached the surface, on the
@@ -263,7 +263,7 @@ def test_env_reaches_the_child(tmp_path):
     command can read."""
     from click.testing import CliRunner
 
-    from cli import cli
+    from skyboss import cli
 
     result = CliRunner().invoke(
         cli,
@@ -279,7 +279,7 @@ def test_env_without_a_value_is_a_usage_error_before_anything_runs(tmp_path):
     the flag was added to produce — this round's own failure."""
     from click.testing import CliRunner
 
-    from cli import cli
+    from skyboss import cli
 
     marker = tmp_path / "ran"
     result = CliRunner().invoke(

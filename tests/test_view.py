@@ -11,7 +11,7 @@ import copy
 
 import pytest
 
-from cli.view import (
+from skyboss.view import (
     columns_of,
     find_rows,
     offered,

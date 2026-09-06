@@ -10,7 +10,7 @@ are worth the rest of the file.
 import pytest
 from starlette.testclient import TestClient
 
-from cli.canvas.server import TOKEN_HEADER, Canvas, build
+from skyboss.canvas.server import TOKEN_HEADER, Canvas, build
 
 
 @pytest.fixture
@@ -124,7 +124,7 @@ def test_the_page_carries_the_palette(canvas, client):
     hands it values. If this substitution silently stops happening the canvas
     still renders — every role resolves to nothing and the whole surface is
     default black on default white. It failed exactly that way once."""
-    from cli.theme import BRAND
+    from skyboss.theme import BRAND
 
     body = client.get("/").text
     assert "__SB_TOKENS__" not in body
@@ -190,7 +190,7 @@ def test_the_static_directory_ships_only_what_the_page_needs():
     forgotten `rm` away from doing so. A directory that is wholly public should
     have a declared inventory.
     """
-    from cli.canvas.server import STATIC
+    from skyboss.canvas.server import STATIC
 
     expected = {
         "index.html",
@@ -252,7 +252,7 @@ def test_the_favicon_is_drawn_from_the_palette():
     """Without it the taskbar shows Chromium's default globe, so a surface with
     no browser chrome still announces itself as a browser. Generated rather
     than stored, because a static .svg would have to name a colour."""
-    from cli.theme import BRAND
+    from skyboss.theme import BRAND
 
     canvas = Canvas(token="test-token")
     response = TestClient(build(canvas)).get("/favicon.svg")
@@ -322,7 +322,7 @@ def test_a_saved_command_is_judged_by_what_it_expands_to():
     one wrapping `run`, which is the exact mistake the read/write split exists
     to prevent.
     """
-    from cli.canvas.catalog import entry_for
+    from skyboss.canvas.catalog import entry_for
 
     entries = [
         {"name": "tools", "argv": ["tools"], "acts": False, "resident": False},
@@ -363,7 +363,7 @@ def test_projects_reports_where_a_schedule_comes_from(monkeypatch, client):
     """Provenance: which argv produced these rows, and which field became which
     column. The question the screen could not answer was why one project has 31
     rows and another none. See [[schedule]] round 5."""
-    from cli import rollcall
+    from skyboss import rollcall
 
     declared = rollcall.Project(
         name="jam-sense",
@@ -505,7 +505,7 @@ def test_the_name_is_judged_before_the_write(client):
 def test_the_block_is_the_bytes_save_would_have_written(client):
     """`run` cannot save by example, so it gets the block to paste — rendered
     by the same function `--save` appends with, not by a second one."""
-    from cli import tools as tools_
+    from skyboss import tools as tools_
 
     argv = ["run", "--cwd", "/tmp", "--", "gh", "workflow", "run", "ci.yml"]
     body = client.post(
@@ -526,8 +526,8 @@ def test_no_route_writes_the_tools_file(client, tmp_path, monkeypatch):
     is the one writer sky.boss has — and nothing in this process does.
     """
     home = tmp_path / "home"
-    monkeypatch.setattr("cli.helpers.SB_HOME", home)
-    monkeypatch.setattr("cli.tools.SB_HOME", home, raising=False)
+    monkeypatch.setattr("skyboss.helpers.SB_HOME", home)
+    monkeypatch.setattr("skyboss.tools.SB_HOME", home, raising=False)
 
     argv = ["data", "--save", "prs", "--", "echo", "[]"]
     for path, payload in (
@@ -549,8 +549,8 @@ def test_the_tools_route_writes_and_reloads(client, tmp_path, monkeypatch):
     does not list is a surface disagreeing with itself — the name is refused as
     taken while nothing shows it exists."""
     monkeypatch.setenv("SB_HOME", str(tmp_path))
-    monkeypatch.setattr("cli.helpers.SB_HOME", tmp_path)
-    monkeypatch.setattr("cli.tools.SB_HOME", tmp_path)
+    monkeypatch.setattr("skyboss.helpers.SB_HOME", tmp_path)
+    monkeypatch.setattr("skyboss.tools.SB_HOME", tmp_path)
     body = {"name": "probe", "argv": ["read", "--", "echo", "hi"], "description": "a probe"}
     response = client.post("/api/tools", json=body, headers=auth())
     assert response.status_code == 200, response.text
@@ -574,8 +574,8 @@ def test_the_tools_route_refuses_with_the_loaders_own_reason(client, tmp_path, m
     """A 400 carrying why, not a 500 and not a silent write. `write_problem`
     is asked, so the route cannot hold a second opinion."""
     monkeypatch.setenv("SB_HOME", str(tmp_path))
-    monkeypatch.setattr("cli.helpers.SB_HOME", tmp_path)
-    monkeypatch.setattr("cli.tools.SB_HOME", tmp_path)
+    monkeypatch.setattr("skyboss.helpers.SB_HOME", tmp_path)
+    monkeypatch.setattr("skyboss.tools.SB_HOME", tmp_path)
     response = client.post(
         "/api/tools",
         json={"name": "nope", "argv": ["ls", "-la"]},
@@ -589,8 +589,8 @@ def test_the_tools_route_refuses_with_the_loaders_own_reason(client, tmp_path, m
 def test_the_tools_route_will_not_give_a_cadence_to_a_write(client, tmp_path, monkeypatch):
     """The act/observe split holds through the new door too."""
     monkeypatch.setenv("SB_HOME", str(tmp_path))
-    monkeypatch.setattr("cli.helpers.SB_HOME", tmp_path)
-    monkeypatch.setattr("cli.tools.SB_HOME", tmp_path)
+    monkeypatch.setattr("skyboss.helpers.SB_HOME", tmp_path)
+    monkeypatch.setattr("skyboss.tools.SB_HOME", tmp_path)
     response = client.post(
         "/api/tools",
         json={"name": "deploy", "argv": ["run", "--", "true"], "refresh": 30},
@@ -610,7 +610,7 @@ def test_serving_note_names_the_url_and_the_mode(capsys):
     only did the second half: `emit` renders when a command returns, and every
     foreground-serving mode calls `server.run()`, which returns when the server
     stops."""
-    from cli.output import serving_note
+    from skyboss.output import serving_note
 
     serving_note("http://127.0.0.1:8765/", "headless")
     captured = capsys.readouterr()
@@ -626,7 +626,7 @@ def test_ui_refuses_json_rather_than_promising_an_envelope_it_never_sends():
     kept by silence."""
     from click.testing import CliRunner
 
-    from cli import cli
+    from skyboss import cli
 
     result = CliRunner().invoke(cli, ["--json", "ui", "--no-browser"])
     assert result.exit_code == 2
@@ -644,8 +644,8 @@ def test_a_rename_removes_the_old_block_rather_than_copying_it(client, tmp_path,
     missing identity. One tool in, one tool out.
     """
     monkeypatch.setenv("SB_HOME", str(tmp_path))
-    monkeypatch.setattr("cli.helpers.SB_HOME", tmp_path)
-    monkeypatch.setattr("cli.tools.SB_HOME", tmp_path)
+    monkeypatch.setattr("skyboss.helpers.SB_HOME", tmp_path)
+    monkeypatch.setattr("skyboss.tools.SB_HOME", tmp_path)
 
     body = {"name": "before", "argv": ["read", "--", "echo", "hi"], "description": "d"}
     assert client.post("/api/tools", json=body, headers=auth()).status_code == 200
@@ -664,8 +664,8 @@ def test_a_save_that_does_not_rename_leaves_the_old_name_alone(client, tmp_path,
     """`was` equal to the name is an edit in place, not a rename — and must not
     delete the block that was just written."""
     monkeypatch.setenv("SB_HOME", str(tmp_path))
-    monkeypatch.setattr("cli.helpers.SB_HOME", tmp_path)
-    monkeypatch.setattr("cli.tools.SB_HOME", tmp_path)
+    monkeypatch.setattr("skyboss.helpers.SB_HOME", tmp_path)
+    monkeypatch.setattr("skyboss.tools.SB_HOME", tmp_path)
 
     body = {"name": "same", "argv": ["read", "--", "echo", "hi"], "description": "d"}
     assert client.post("/api/tools", json=body, headers=auth()).status_code == 200
@@ -679,8 +679,8 @@ def test_the_preflight_calls_a_taken_name_a_replace_not_a_problem(client, tmp_pa
     what drew a refusal in the problem style over an edit that would have
     worked — and told the operator to go and edit a file."""
     monkeypatch.setenv("SB_HOME", str(tmp_path))
-    monkeypatch.setattr("cli.helpers.SB_HOME", tmp_path)
-    monkeypatch.setattr("cli.tools.SB_HOME", tmp_path)
+    monkeypatch.setattr("skyboss.helpers.SB_HOME", tmp_path)
+    monkeypatch.setattr("skyboss.tools.SB_HOME", tmp_path)
 
     body = {"name": "taken", "argv": ["read", "--", "echo", "hi"], "description": "d"}
     assert client.post("/api/tools", json=body, headers=auth()).status_code == 200

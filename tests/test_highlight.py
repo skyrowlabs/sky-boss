@@ -7,7 +7,7 @@ no marks, and every rule is shape — no severity vocabulary anywhere.
 
 import time
 
-from cli.highlight import load_rulesets, marks, resolve, spans
+from skyboss.highlight import load_rulesets, marks, resolve, spans
 
 LINE = "2026-08-22T14:03:11 [jam-pr-report] fetched https://api.github.com/repos rows=14"
 
@@ -233,7 +233,7 @@ def test_a_heading_is_emphasised_whole():
 def test_marks_are_capped_so_one_line_cannot_flood_a_frame():
     """Every mark rides to the canvas inside the frame, and round 2 turned
     three rules into ten. The tail is dropped, never the line."""
-    from cli.highlight import MAX_MARKS
+    from skyboss.highlight import MAX_MARKS
 
     line = " ".join(str(n) for n in range(500))
     found = marks(line)
@@ -251,7 +251,7 @@ def _tinted(line, ruleset=None):
 
 
 def _ruleset(*rules):
-    from cli.highlight import parse_rulesets
+    from skyboss.highlight import parse_rulesets
 
     sets, problems = parse_rulesets({"highlight": {"jam": {"rules": list(rules)}}})
     return (sets[0] if sets else None), problems
@@ -312,7 +312,7 @@ def test_a_zero_width_pattern_marks_nothing():
 
 
 def test_resolve_names_what_is_declared_when_the_name_is_wrong(tmp_path):
-    from cli.highlight import resolve
+    from skyboss.highlight import resolve
 
     (tmp_path / "formats.toml").write_text(
         '[highlight.jam]\nrules = [{ pattern = "x", role = "ok" }]\n'
@@ -326,7 +326,7 @@ def test_resolve_names_what_is_declared_when_the_name_is_wrong(tmp_path):
 
 def test_declared_rules_still_respect_the_cap():
     rules, _ = _ruleset({"pattern": r"a", "role": "warn"})
-    from cli.highlight import MAX_MARKS
+    from skyboss.highlight import MAX_MARKS
 
     assert len(marks("a " * 400, rules)) <= MAX_MARKS
 
@@ -478,7 +478,7 @@ def test_marks_for_the_wire_are_in_the_units_a_browser_slices_by():
     page does it — by slicing UTF-16 — because comparing offsets is exactly
     the check that missed it.
     """
-    from cli.highlight import utf16
+    from skyboss.highlight import utf16
 
     text = "🟢 up  🔴 down 👍"
     wire = utf16(text, marks(text))
@@ -490,7 +490,7 @@ def test_marks_for_the_wire_are_in_the_units_a_browser_slices_by():
 def test_a_line_with_no_astral_character_is_returned_unchanged():
     """The conversion is identity for almost every line there is, so it costs
     nothing on the common path and cannot introduce a difference there."""
-    from cli.highlight import utf16
+    from skyboss.highlight import utf16
 
     text = "2026-08-29 04:15:02 [agent-fix] ✓ 8 done"
     found = marks(text)
@@ -546,7 +546,7 @@ def test_an_unbalanced_bracket_is_prose():
 def test_the_hang_is_the_first_character_after_the_stamp():
     """Not the stamp's end — the first *text* after it. A continuation that
     began in the gap would sit under whitespace rather than under the words."""
-    from cli.highlight import hang
+    from skyboss.highlight import hang
 
     assert hang("2026-08-29 04:15:02 [agent-fix] a finding") == 20
     assert hang("2026-08-29T04:15:02.123Z  double spaced") == 26
@@ -555,7 +555,7 @@ def test_the_hang_is_the_first_character_after_the_stamp():
 def test_a_line_with_no_stamp_hangs_flush():
     """Zero, and a flush wrap is what zero means — the same rule with nothing
     to skip rather than a special case."""
-    from cli.highlight import hang
+    from skyboss.highlight import hang
 
     assert hang("no stamp here at all") == 0
     assert hang("") == 0
@@ -566,7 +566,7 @@ def test_an_indent_without_a_stamp_is_not_a_hang():
     its own reasons must not be silently given a hanging indent it never asked
     for — that would be inferring structure from whitespace, which is the one
     thing this surface refuses."""
-    from cli.highlight import hang
+    from skyboss.highlight import hang
 
     assert hang("    indented but no stamp") == 0
 
@@ -575,7 +575,7 @@ def test_the_hang_comes_from_the_matcher_that_dims_the_stamp():
     """The property, not the number. Measuring the stamp a second time — here
     or in the frontend — is the second timestamp matcher the one-rule-set
     design exists to prevent, and it would drift the week it was written."""
-    from cli.highlight import hang
+    from skyboss.highlight import hang
 
     line = "2026-08-29 04:15:02 [agent-fix] starting"
     stamp = next((e for s, e, role in marks(line) if s == 0 and role == "sb.muted"), None)

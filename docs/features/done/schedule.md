@@ -4,9 +4,9 @@ created: 2026-08-29
 updated: 2026-09-01
 agent_value: 3         # ten rounds; the CLI contract, the screen, and six reversals with
                        # their original reasoning left standing beside them
-key_files: [cli/rollcall.py, cli/schedule.py, cli/view.py, cli/output.py, tests/js/plan.test.js,
-            cli/canvas/server.py, cli/canvas/static/render.js, cli/canvas/static/app.js,
-            cli/canvas/static/schedule.js, cli/canvas/static/sb.css]
+key_files: [skyboss/rollcall.py, skyboss/schedule.py, skyboss/view.py, skyboss/output.py, tests/js/plan.test.js,
+            skyboss/canvas/server.py, skyboss/canvas/static/render.js, skyboss/canvas/static/app.js,
+            skyboss/canvas/static/schedule.js, skyboss/canvas/static/sb.css]
 ---
 
 # The schedule view
@@ -158,7 +158,7 @@ Three states that must not collapse into an empty cell, because each wants a dif
 **Settled 2026-08-29 by the operator and the sky.boss session, and worth stating because it looks
 like a contradiction at a glance.**
 
-`cli/rollcall.py` is emphatic: *"sky.boss folds sources, not semantics. No common status vocabulary,
+`skyboss/rollcall.py` is emphatic: *"sky.boss folds sources, not semantics. No common status vocabulary,
 no cross-project verdict, no totalling of anyone's `red`."* This doc defines a shared row across
 projects, which reads like the thing being refused.
 
@@ -180,7 +180,7 @@ distinction to be accepted, where the one above only asks the existing sentence 
 
 ### Round 1 — what fires next (2026-08-29)
 
-- [x] `[project.X.schedule]` parsed and validated in `cli/rollcall.py`, unknown keys named the way
+- [x] `[project.X.schedule]` parsed and validated in `skyboss/rollcall.py`, unknown keys named the way
       unknown project keys are, a malformed mapping skipped and reported rather than fatal.
 - [x] `sb schedule` folds every declared project's rows into one table ordered by `next`.
 - [x] Timestamps parsed to an instant for ordering; a naive one is a reported declaration error.
@@ -224,7 +224,7 @@ report 20 problems where there are 39, and the ones it dropped would be the `red
 This is not a new rule, it is the sharpest instance of the one in § The ruling: **sky.boss may
 order; only a provider may judge.** `status` is the provider's verdict and `rc` is a process detail
 that resembles one. Read the field that was published as the judgment, never the field that looks
-like it. There is no `rc` reference anywhere in `cli/` today and there should not be one.
+like it. There is no `rc` reference anywhere in `skyboss/` today and there should not be one.
 
 Found by the skyrow-workspace session on 2026-08-29 while driving `sb data` against a live
 agent-fix run; it lives in `skyrow-workspace/strategy/seams/agent-state.md` as the contract's own
@@ -378,7 +378,7 @@ that identity is drawn as **steps along the brand**, never as a new hue and neve
 role. `ok` is green, `warn` is what a late job on this very screen already is, and `danger` is red:
 a project drawn in one of those would either read as broken or be indistinguishable from lateness.
 `color-mix` against an injected role is the tint mechanism the stylesheet already uses, so nothing
-outside `cli/theme.py` names a colour and `tests/test_theme.py` stays green.
+outside `skyboss/theme.py` names a colour and `tests/test_theme.py` stays green.
 
 The step is assigned in `rollcall.parse`, **by declaration order**, and shipped by `/api/projects`
 so the CLI and the surface cannot disagree about which project is which colour. It is not a
@@ -540,7 +540,7 @@ to a statement about the screen.
 **Does not do:**
 
 - **Does not sort or order anything new** (round 9). One grid means one row order, and it is still
-  `cli/schedule.py`'s. The lane's *position* is arithmetic on an instant Python already parsed; its
+  `skyboss/schedule.py`'s. The lane's *position* is arithmetic on an instant Python already parsed; its
   *place in the list* is not this file's opinion.
 
 #### Phases
@@ -638,7 +638,7 @@ reading stderr, which nobody does in a window.
 - **A command may author a view; only `data` may have one inferred.** `CLAUDE.md` said *only `data`
   sets one*, and that was **already false** — [[roll-call]] has set a `blocks` view since it
   shipped. The true rule is the narrower one: `shape` is inference and stays `sb data`'s, while a
-  command that already knows its columns states them. The widths still come from `cli/view.py`
+  command that already knows its columns states them. The widths still come from `skyboss/view.py`
   through a new public `describe`, because a second opinion about flex would drift.
 - **The canvas destroyed the authored view, and the reason generalises.** Every window posts its
   payload to `/api/shape` and installs what comes back — which for an inferred view is the same view

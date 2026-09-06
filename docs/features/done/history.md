@@ -3,7 +3,7 @@ status: complete
 created: 2026-08-29
 updated: 2026-09-01
 agent_value: 2
-key_files: [cli/history.py, tests/test_history.py, cli/rollcall.py, cli/__init__.py]
+key_files: [skyboss/history.py, tests/test_history.py, skyboss/rollcall.py, skyboss/__init__.py]
 ---
 
 # History — how did this go the last seven nights
@@ -79,7 +79,7 @@ sky.boss draws the declared field and does not reconcile two.
 
 ### Round 1 — a project's ledger, addressable and legible (2026-08-29)
 
-- [x] `[project.X.history]` parsed and validated in `cli/rollcall.py`, unknown keys named the way
+- [x] `[project.X.history]` parsed and validated in `skyboss/rollcall.py`, unknown keys named the way
       the schedule block's are. Three keys are **required** — `path`, `when`, `name` — each because
       its absence has no honest word; `from` defaults to `jsonl` and `outcome` is optional.
 - [x] `sb history <project>` reads the declared path under the state root and returns the envelope,

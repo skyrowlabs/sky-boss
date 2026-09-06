@@ -4,11 +4,11 @@ created: 2026-08-21
 updated: 2026-08-23
 agent_value: 3
 key_files:
-  - cli/chrome.py
-  - cli/output.py
-  - cli/resident.py
-  - cli/canvas/server.py
-  - cli/canvas/static/app.js
+  - skyboss/chrome.py
+  - skyboss/output.py
+  - skyboss/resident.py
+  - skyboss/canvas/server.py
+  - skyboss/canvas/static/app.js
   - tests/test_chrome.py
   - tests/test_canvas_stream.py
 ---
@@ -18,7 +18,7 @@ key_files:
 ## Why
 
 Two presentation layers exist in this design and only one of them has a home. **The view** is
-in-band — how the data itself is drawn — and it is owned by [[table-views]] and `cli/view.py`.
+in-band — how the data itself is drawn — and it is owned by [[table-views]] and `skyboss/view.py`.
 **The chrome** is out-of-band: everything the surface *knows about* the output that the output
 itself does not say. The source argv or keyword. The temporal shape. When it ran and how long it
 took. The countdown to the next refresh. The liveness clock. The exit that made a stream go
@@ -38,7 +38,7 @@ four-file retrofit.
 ## Shape
 
 **The chrome is a fact set, computed once in Python, drawn twice.** A pure structure in
-`cli/chrome.py`, assembled from what the envelope says (`ok`/`partial`, duration, warnings) plus
+`skyboss/chrome.py`, assembled from what the envelope says (`ok`/`partial`, duration, warnings) plus
 what the surface knows (interval, last run, liveness, ring occupancy). Both renderers — the
 terminal's status lines and the canvas window's title bar and footer — draw what they are told,
 exactly as they do for a view. The deciding half lives where pytest reaches it; neither renderer
@@ -97,7 +97,7 @@ untouched by this feature existing, byte for byte.
 
 ### Round 1 — one contract, two renderings (2026-08-21)
 
-- [x] **The facts, pure.** `cli/chrome.py`: the per-shape fact set assembled from envelope +
+- [x] **The facts, pure.** `skyboss/chrome.py`: the per-shape fact set assembled from envelope +
       surface state over an injectable clock. Tests cover every shape and every mechanical
       attention state; no real time anywhere.
 - [x] **The terminal rendering.** Status lines for the one-time and resident forms; [[refresh]]'s
@@ -122,16 +122,16 @@ accent, a death in danger, a rotation in warn, a verdict word in its verdict's c
 clock renders in label — readable and calm — because quiet is the state the band exists to
 make legible, not to hide.
 
-Still one contract: the spans are computed in `cli/chrome.py` as `(text, role)` pairs — the
+Still one contract: the spans are computed in `skyboss/chrome.py` as `(text, role)` pairs — the
 deciding half where pytest reaches it — and `status_lines` keeps returning the same plain
 strings by joining them, so every width and truncation property already proven stays proven.
 Renderers assemble spans into styled text; none of them grows an opinion. No new colors: every
-role named already lives in `cli/theme.py`, and the no-hex scan does not move.
+role named already lives in `skyboss/theme.py`, and the no-hex scan does not move.
 
 - [x] **Spans, pure.** `status_bands()` beside `status_lines()`: the same band layout as
       `(text, role)` spans, width-exact, left side truncating by span. Tests: roles per fact,
       fills always muted, plain-join identical to `status_lines`.
-- [x] **Renderers assemble.** `cli/output.py` gains the span-to-Text assembler; the resident
+- [x] **Renderers assemble.** `skyboss/output.py` gains the span-to-Text assembler; the resident
       loop, both follow forms and the run/read exit stamps render through it. The whole-band
       role styling is retired.
 

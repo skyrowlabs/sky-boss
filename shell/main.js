@@ -1,6 +1,6 @@
 /* The window — or rather, the windows.
  *
- * cli/canvas/shell.py exists because three things are impossible in a browser:
+ * skyboss/canvas/shell.py exists because three things are impossible in a browser:
  * a frameless window that is still resizable, a page that moves its own
  * window, and no port exposed to any other tab. This shell inherits all three
  * and adds the one pywebview could not reasonably give: **a command is an OS
@@ -10,7 +10,7 @@
  *
  * The promise shell.py made, and kept, was that the migration was "the
  * launcher only": the server, the frontend and every test untouched. This one
- * makes the same promise about cli/. Nothing here is imported by Python and
+ * makes the same promise about skyboss/. Nothing here is imported by Python and
  * nothing in Python knows this exists; `sb ui --no-browser` is the entire
  * interface, and it is a documented mode that already had to work.
  */
@@ -26,7 +26,7 @@ const bridge = require("./bridge.js");
  * This is the one place the multi-window model costs something real, and it is
  * worth stating plainly rather than discovering later.
  *
- * `Session` in cli/canvas/watch.py says:
+ * `Session` in skyboss/canvas/watch.py says:
  *
  *     The stream is the lifetime. There is no unregister-on-close to forget,
  *     because closing the stream drops the whole session.
@@ -67,7 +67,7 @@ function create({ argv = null } = {}) {
     // The surface carries its own close button, guarded like every other
     // route, because the frame it would otherwise rely on may not be there.
     frame: !FRAMELESS,
-    backgroundColor: "#0d0f12", // TODO: read cli/theme.py BG through the catalog
+    backgroundColor: "#0d0f12", // TODO: read skyboss/theme.py BG through the catalog
     show: false,
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),

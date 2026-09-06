@@ -1,6 +1,6 @@
 /* Everything the shell knows how to say to sb.
  *
- * The mirror of cli/canvas/static/api.js, one process up. That file opens by
+ * The mirror of skyboss/canvas/static/api.js, one process up. That file opens by
  * promising the transport sits behind a seam so that "swapping the browser for
  * a native webview later replaces this file and nothing else" — this is that
  * swap, taken at its word. Every function here has a counterpart there, with
@@ -12,7 +12,7 @@
  * preload.js. That is the whole security gain of the shell: with N windows the
  * old arrangement would have had to write the token into N pages.
  *
- * sky.boss is spawned exactly as `--no-browser` documents, so nothing under cli/
+ * sky.boss is spawned exactly as `--no-browser` documents, so nothing under skyboss/
  * changes to run this. `shell.py` made the same promise about pywebview and
  * kept it; there is no reason this shell should be allowed to be greedier.
  */
@@ -23,7 +23,7 @@ const net = require("node:net");
 const TOKEN_HEADER = "x-sb-token";
 
 /* A port the kernel just told us was free. The same race `_free_port` in
- * cli/canvas/__init__.py runs, and lost for the same reasons — which is to say
+ * skyboss/canvas/__init__.py runs, and lost for the same reasons — which is to say
  * never, on a machine that is not also handing ports out in a loop. */
 function freePort() {
   return new Promise((resolve, reject) => {
@@ -54,7 +54,7 @@ function freePort() {
 async function handshake(url, deadlineMs = 10_000) {
   // The window must not race the bind, or it lands on a refused connection and
   // shows an error page for a server that came up 40ms later. wait_for_bind()
-  // in cli/canvas/__init__.py waits the same 10s for the same reason.
+  // in skyboss/canvas/__init__.py waits the same 10s for the same reason.
   const until = Date.now() + deadlineMs;
   for (;;) {
     try {
@@ -180,7 +180,7 @@ function stream(ctx, onFrame, onDown) {
  * shell from the terminal that started it, which is how a shell under
  * development is stopped nearly every time.
  *
- * `stop()` in cli/canvas/__init__.py is careful that the session ends when its
+ * `stop()` in skyboss/canvas/__init__.py is careful that the session ends when its
  * window does; this is the same promise kept from the other side.
  */
 function reapOnSignal(getCtx) {

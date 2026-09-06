@@ -11,9 +11,9 @@ import json
 
 from click.testing import CliRunner
 
-from cli import cli
-from cli.output import Result
-from cli.resident import Residency, loop, reside
+from skyboss import cli
+from skyboss.output import Result
+from skyboss.resident import Residency, loop, reside
 
 
 class Clock:
@@ -56,7 +56,7 @@ def test_a_run_is_due_again_only_after_the_interval():
 def test_the_chrome_reads_the_same_two_numbers_the_canvas_bar_does():
     """interval and last_run — the countdown rule inherited from [[canvas]],
     computed nowhere else."""
-    from cli.chrome import countdown
+    from skyboss.chrome import countdown
 
     clock = Clock()
     state = Residency("jam-prs", 30, clock)
@@ -190,7 +190,7 @@ def test_json_refresh_on_data_streams_instead_of_refusing(monkeypatch):
     """
     seen = {}
     monkeypatch.setattr(
-        "cli.output.resident_ndjson",
+        "skyboss.output.resident_ndjson",
         lambda once, interval, **kw: seen.update(interval=interval, once=once),
     )
     result = CliRunner().invoke(cli, ["--json", "data", "--refresh", "5", "--", "printf", "[]"])
@@ -213,7 +213,7 @@ def test_a_resident_read_runs_through_the_loop(monkeypatch, at_a_terminal):
         calls["interval"] = interval
         calls["result"] = run_once()
 
-    monkeypatch.setattr("cli.resident.reside", fake_reside)
+    monkeypatch.setattr("skyboss.resident.reside", fake_reside)
     result = CliRunner().invoke(cli, ["read", "--refresh", "7", "--", "printf", "hi"])
     assert result.exit_code == 0
     assert calls["interval"] == 7
@@ -227,14 +227,14 @@ def test_a_resident_read_runs_through_the_loop(monkeypatch, at_a_terminal):
 
 
 def declare(tmp_path, toml_text):
-    from cli.tools import register
+    from skyboss.tools import register
 
     (tmp_path / "tools.toml").write_text(toml_text)
     return register(cli, home=tmp_path)
 
 
 def undeclare():
-    from cli.tools import tools as tools_group
+    from skyboss.tools import tools as tools_group
 
     for name in [
         n for n, c in list(tools_group.commands.items()) if getattr(c, "sb_saved", False)
@@ -259,7 +259,7 @@ def test_a_bare_refresh_on_a_keyword_adopts_its_own_field(tmp_path, monkeypatch,
     def fake_reside(source, interval, run_once, **kwargs):
         calls["interval"] = interval
 
-    monkeypatch.setattr("cli.resident.reside", fake_reside)
+    monkeypatch.setattr("skyboss.resident.reside", fake_reside)
     try:
         declare(tmp_path, '[tool.prs]\nargv = ["data", "--", "printf", "[]"]\nrefresh = 30\n')
         result = CliRunner().invoke(cli, ["tools", "prs", "--refresh"])
@@ -272,7 +272,7 @@ def test_a_bare_refresh_on_a_keyword_adopts_its_own_field(tmp_path, monkeypatch,
 def test_an_explicit_value_outranks_the_field(tmp_path, monkeypatch, at_a_terminal):
     calls = {}
     monkeypatch.setattr(
-        "cli.resident.reside", lambda source, interval, run_once, **kw: calls.update(interval=interval)
+        "skyboss.resident.reside", lambda source, interval, run_once, **kw: calls.update(interval=interval)
     )
     try:
         declare(tmp_path, '[tool.prs]\nargv = ["data", "--", "printf", "[]"]\nrefresh = 30\n')
@@ -339,7 +339,7 @@ def test_the_body_is_clipped_to_the_room_inline_has():
     taller than the terminal would append instead of replacing."""
     from rich.text import Text
 
-    from cli.resident import clip
+    from skyboss.resident import clip
 
     body = Text("\n".join(f"line {i}" for i in range(50)))
     out = clip(body, 10)
@@ -352,7 +352,7 @@ def test_the_body_is_clipped_to_the_room_inline_has():
 def test_a_body_that_fits_is_left_exactly_alone():
     from rich.text import Text
 
-    from cli.resident import clip
+    from skyboss.resident import clip
 
     body = Text("one\ntwo\nthree")
     assert clip(body, 10).plain == body.plain
@@ -364,7 +364,7 @@ def test_the_alternate_screen_is_no_longer_the_default():
     way a one-shot does."""
     import inspect
 
-    from cli.resident import reside
+    from skyboss.resident import reside
 
     assert inspect.signature(reside).parameters["screen"].default is False
 
@@ -387,7 +387,7 @@ def test_the_refresh_help_says_how_to_leave(said):
 def test_the_screen_flag_reaches_the_resident_loop(monkeypatch, at_a_terminal):
     seen = {}
     monkeypatch.setattr(
-        "cli.resident.reside",
+        "skyboss.resident.reside",
         lambda source, interval, run_once, **kw: seen.update(kw),
     )
     CliRunner().invoke(cli, ["read", "--refresh", "5", "--screen", "--", "printf", "hi"])
@@ -408,7 +408,7 @@ def test_a_stream_body_is_clipped_from_the_tail_with_the_marker_leading():
     caller and silently wrong for its second."""
     from rich.text import Text
 
-    from cli.resident import clip
+    from skyboss.resident import clip
 
     body = Text("\n".join(f"line {i}" for i in range(50)))
     out = clip(body, 10, tail=True).plain.split("\n")
@@ -420,7 +420,7 @@ def test_a_stream_body_is_clipped_from_the_tail_with_the_marker_leading():
 def test_the_head_clip_is_untouched_by_the_direction_landing():
     from rich.text import Text
 
-    from cli.resident import clip
+    from skyboss.resident import clip
 
     body = Text("\n".join(f"line {i}" for i in range(50)))
     out = clip(body, 10).plain.split("\n")
@@ -437,7 +437,7 @@ def test_clipping_a_stream_does_not_repaint_the_body():
     span, not a base style."""
     from rich.text import Text
 
-    from cli.resident import clip
+    from skyboss.resident import clip
 
     body = Text()
     for i in range(40):
@@ -481,7 +481,7 @@ def test_a_piped_refresh_on_data_streams_ndjson(monkeypatch):
     loop instead of raising. Intercepted, never run — endless by nature."""
     seen = {}
     monkeypatch.setattr(
-        "cli.output.resident_ndjson",
+        "skyboss.output.resident_ndjson",
         lambda once, interval, **kw: seen.update(interval=interval),
     )
     result = CliRunner().invoke(cli, ["data", "--refresh", "2", "--", "printf", "[]"])
@@ -510,7 +510,7 @@ def test_the_refusal_fires_before_save_writes(tmp_path, monkeypatch):
     """Same ordering its sibling documents: `--save` writes before it runs, so a
     refusal raised inside the resident path would fire after the append — a name
     taken, a file changed, and a failure reported."""
-    monkeypatch.setattr("cli.tools.SB_HOME", tmp_path)
+    monkeypatch.setattr("skyboss.tools.SB_HOME", tmp_path)
     result = CliRunner().invoke(
         cli, ["read", "--refresh", "30", "--save", "prs", "--", "printf", "hi"]
     )
@@ -521,7 +521,7 @@ def test_the_refusal_fires_before_save_writes(tmp_path, monkeypatch):
 def test_a_terminal_still_goes_resident(at_a_terminal, monkeypatch):
     reached = {}
     monkeypatch.setattr(
-        "cli.resident.reside",
+        "skyboss.resident.reside",
         lambda source, interval, run_once, **kw: reached.update(interval=interval),
     )
     result = CliRunner().invoke(cli, ["read", "--refresh", "7", "--", "printf", "hi"])
@@ -539,7 +539,7 @@ def test_each_tick_is_one_line_and_carries_its_number(capsys):
     tick N+1 exists. Bounded by `ticks` and driven by an injected clock — the
     rule `CLAUDE.md` states as *bound every wait* and *assert against the
     mechanism, not the timing*."""
-    from cli.output import Result, resident_ndjson
+    from skyboss.output import Result, resident_ndjson
 
     made = []
 
@@ -558,7 +558,7 @@ def test_a_tick_line_is_the_single_shot_envelope_plus_two_keys(capsys):
     """The contract that makes this cheap to consume: each line is exactly what
     `sb --json data` prints for that tick, plus `tick` and `at`. A slimmer
     per-tick record would be a second data contract to keep in step."""
-    from cli.output import Result, resident_ndjson
+    from skyboss.output import Result, resident_ndjson
 
     result = Result(data={"rows": [{"a": 1}]}, warnings=["careful"])
     resident_ndjson(lambda: result, 5, clock=lambda: 1756000000.0, sleep=lambda _: None, ticks=1)
@@ -572,7 +572,7 @@ def test_a_tick_line_is_the_single_shot_envelope_plus_two_keys(capsys):
 def test_the_tick_timestamp_is_an_instant_not_a_wall_clock(capsys):
     """`08:50:02` is what a band draws for a human reading one screen. A machine
     consumer needs an unambiguous instant, and a bare time-of-day is not one."""
-    from cli.output import Result, resident_ndjson
+    from skyboss.output import Result, resident_ndjson
 
     resident_ndjson(
         lambda: Result(data={}), 5, clock=lambda: 1756000000.0, sleep=lambda _: None, ticks=1
@@ -586,7 +586,7 @@ def test_a_warning_rides_the_line_and_is_not_reprinted_every_tick(capsys):
     """A one-shot prints warnings to stderr as well, because a human may be
     reading either. A stream would reprint the same warning forever, and nothing
     is lost — `warnings` is a field on every line."""
-    from cli.output import Result, resident_ndjson
+    from skyboss.output import Result, resident_ndjson
 
     resident_ndjson(
         lambda: Result(data={}, warnings=["careful"]),
@@ -608,7 +608,7 @@ def test_a_consumer_that_leaves_ends_the_stream_without_reporting_a_failure():
     import contextlib
     import io
 
-    from cli.output import Result, resident_ndjson
+    from skyboss.output import Result, resident_ndjson
 
     class Closed(io.StringIO):
         def write(self, _):
@@ -644,11 +644,11 @@ def test_ticks_means_refreshes_on_both_paths(monkeypatch, tmp_path):
     """
     seen = {}
     monkeypatch.setattr(
-        "cli.output.resident_ndjson",
+        "skyboss.output.resident_ndjson",
         lambda once, interval, **kw: seen.setdefault("pipe", kw.get("runs")),
     )
     monkeypatch.setattr(
-        "cli.resident.reside",
+        "skyboss.resident.reside",
         lambda *a, **kw: seen.setdefault("tty", kw.get("runs")),
     )
 
@@ -663,7 +663,7 @@ def test_ticks_means_refreshes_on_both_paths(monkeypatch, tmp_path):
 def test_a_run_bound_counts_runs_and_a_tick_bound_counts_turns():
     """The two units, asserted apart. `loop` polls once a second and runs only
     when due, so with a 5-second cadence three turns is *one* run."""
-    from cli.resident import Residency, loop
+    from skyboss.resident import Residency, loop
 
     now = [0.0]
     runs = []
@@ -686,7 +686,7 @@ def test_a_run_bound_counts_runs_and_a_tick_bound_counts_turns():
 def test_the_run_bound_leaves_its_last_frame_behind():
     """Checked after the draw, so the loop ends with its final result on
     screen — the property that makes leaving a residency leave its output."""
-    from cli.resident import Residency, loop
+    from skyboss.resident import Residency, loop
 
     drawn = []
     state = Residency("x", 0, clock=lambda: 0.0)

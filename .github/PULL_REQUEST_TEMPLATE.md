@@ -25,6 +25,6 @@
 
 - [ ] Keeps `sb run` the only command that acts
 - [ ] Returns a `Result` rather than printing
-- [ ] No hex outside `cli/theme.py`
+- [ ] No hex outside `skyboss/theme.py`
 - [ ] Wordmark in prose, `sb` only in code spans
 - [ ] No host name, home directory, or routable address added

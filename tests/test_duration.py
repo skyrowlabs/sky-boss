@@ -7,7 +7,7 @@ meaning two hours in one place and two minutes in another. See [[delay]] and
 
 import pytest
 
-from cli.helpers import parse_duration
+from skyboss.helpers import parse_duration
 
 
 @pytest.mark.parametrize(

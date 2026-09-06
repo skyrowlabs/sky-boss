@@ -8,7 +8,7 @@ would hand the operator a shell that does not echo.
 
 import io
 
-from cli import keys
+from skyboss import keys
 
 
 def test_the_leave_keys_are_q_and_esc():

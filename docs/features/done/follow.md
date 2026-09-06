@@ -4,18 +4,18 @@ created: 2026-08-21
 updated: 2026-08-28
 agent_value: 3
 key_files:
-  - cli/stream.py
-  - cli/follow.py
-  - cli/filefollow.py
-  - cli/resident.py
-  - cli/keys.py
-  - cli/run.py
-  - cli/read.py
-  - cli/canvas/server.py
-  - cli/canvas/runner.py
-  - cli/canvas/static/app.js
-  - cli/canvas/static/api.js
-  - cli/chrome.py
+  - skyboss/stream.py
+  - skyboss/follow.py
+  - skyboss/filefollow.py
+  - skyboss/resident.py
+  - skyboss/keys.py
+  - skyboss/run.py
+  - skyboss/read.py
+  - skyboss/canvas/server.py
+  - skyboss/canvas/runner.py
+  - skyboss/canvas/static/app.js
+  - skyboss/canvas/static/api.js
+  - skyboss/chrome.py
   - tests/test_canvas_server.py
   - tests/test_chrome.py
   - tests/test_stream.py
@@ -150,7 +150,7 @@ and the watcher path already delivers a complete envelope on a cadence — which
 ceiling belongs. So the split is exactly the existing one, drawn once more: a cadence gets the
 snapshot path, a single invocation gets the stream.
 
-**The envelope construction moves to one place, deliberately.** `_accrued` in `cli/run.py` already
+**The envelope construction moves to one place, deliberately.** `_accrued` in `skyboss/run.py` already
 turns an `Outcome` into a `Result` — ok from the exit code, the `wrote to stderr` warning, the
 timed-out shape — and the canvas must not re-decide any of that beside it. Round 2's caution about
 a shared helper being *"correct for its first caller and silently wrong for its second"* is the
@@ -187,7 +187,7 @@ and `--json` from a pipe is untouched, still one complete envelope built at exit
       tree. Server-side for the reason round 1 gave — a client that could strip `run --` itself is
       the start of a command table. Raises on an argv that is not one, like its sibling. Pure,
       tested against the tree.
-- [x] **One `Outcome` → `Result`.** Extract `_accrued`'s tail in `cli/run.py` into a function both
+- [x] **One `Outcome` → `Result`.** Extract `_accrued`'s tail in `skyboss/run.py` into a function both
       surfaces call, so ok, the stderr warning and the timed-out envelope are decided once. The
       terminal path must come out byte-identical; the existing `--json` purity tests are the proof.
 - [x] **An act that is running.** `chrome.act` gains `running_since` the way `chrome.resident`
@@ -285,7 +285,7 @@ The operator asked for this round immediately after. Both follow forms are in sc
 process stream here and the file cursor in [[file-follow]] — because they are one command with
 one way out.
 
-**1. `q` and `Esc` leave, alongside Ctrl-C.** The reader already exists as `cli/keys.py`,
+**1. `q` and `Esc` leave, alongside Ctrl-C.** The reader already exists as `skyboss/keys.py`,
 written shared for exactly this: cbreak on a real terminal, polled by the `select` that is
 already the loop's tick, drained so an arrow key cannot quit, and absent entirely when stdin is
 not a terminal. Nothing new is designed here; it is applied.
@@ -304,7 +304,7 @@ were watching vanishes the instant you press Ctrl-C. `--screen` keeps the altern
 The difference is **which end gets clipped**, and it is not a detail:
 
 > A snapshot's interesting end is the **top** — headers, the first rows. A stream's interesting
-> end is the **bottom** — the newest lines. `clip` in `cli/resident.py` keeps the head and says
+> end is the **bottom** — the newest lines. `clip` in `skyboss/resident.py` keeps the head and says
 > how many it dropped, which is right for a table and exactly wrong for a log.
 
 This is not an edge case for follow, it is the normal case: the ring holds 200 lines by default
@@ -331,7 +331,7 @@ inverted. So the round adds a direction to the clip rather than reusing it as-is
   follow is left and where it draws. The canvas's follow windows are unaffected: they close by
   closing, which was never in doubt.
 
-- [x] **Both forms take `q` and `Esc`.** `follow_process` and `follow_file` adopt `cli/keys.py`,
+- [x] **Both forms take `q` and `Esc`.** `follow_process` and `follow_file` adopt `skyboss/keys.py`,
       replacing their `sleep(1)` with the same key-polling wait the resident loop uses; Ctrl-C
       unchanged, and leaving still kills a process child. Tested with the injected wait both
       loops already accept.
@@ -348,7 +348,7 @@ inverted. So the round adds a direction to the clip rather than reusing it as-is
 
 ### Round 1 — the streaming runner and the follow command (2026-08-21)
 
-- [x] **The runner.** Async line-streaming subprocess execution (extending `cli/canvas/runner.py`
+- [x] **The runner.** Async line-streaming subprocess execution (extending `skyboss/canvas/runner.py`
       or a shared module it and the CLI both use): bounded ring, stderr tagging, cancellation
       that kills the process. Tests: bounded waits only, a hung child is killable, the ring
       bounds memory, no real sleeps — drive with injected pipes.
@@ -453,7 +453,7 @@ the operator hit the defect on `--refresh`, that round fixed it there and delibe
 the boundary this doc drew, and the flag raised at handover — *"follow still leaves only on
 Ctrl-C"* — came back as "draft it".
 
-**Nothing here is new mechanism.** `cli/keys.py` was written shared and is already proven against
+**Nothing here is new mechanism.** `skyboss/keys.py` was written shared and is already proven against
 a real pty; `--screen` and the inline default are [[refresh]] round 2's shape applied to a second
 pair of loops. The round exists because the *decision* is this doc's, not because the code is
 hard.
@@ -478,14 +478,14 @@ What the execution argued back:
 
 - **The clip direction was the finding the draft predicted, and sharing went further than it
   planned.** Both follow loops, both frame assemblers and both clip calls collapsed into
-  `cli/resident.py` — `hold`, `room`, `clip(..., tail=True)` and `stream_body`. The draft's
+  `skyboss/resident.py` — `hold`, `room`, `clip(..., tail=True)` and `stream_body`. The draft's
   caution ("a shared helper correct for its first caller and silently wrong for its second") is
   the reason to share *deliberately* rather than the reason not to: `clip` now takes a direction
   and both callers state which end they mean, which is exactly the failure made impossible
   instead of merely avoided. `stream_body` was already duplicated between the two forms before
   this round; one assembler is what the existing test *"both follow bodies tint through one
   `spans`"* was already asserting by hand.
-- **`cli/resident.py` grew a charter rather than a helper.** It was written as "the terminal's
+- **`skyboss/resident.py` grew a charter rather than a helper.** It was written as "the terminal's
   rendering of the refresh rule"; it is now "the terminal's resident views — how they draw and
   how they are left", which is the honest description of a module that owns `q` for two commands
   that share nothing else. The alternative was a lazy cross-import between `follow.py` and

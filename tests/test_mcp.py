@@ -9,8 +9,8 @@ import io
 import json
 
 
-from cli import cli
-from cli.mcp import METHOD_NOT_FOUND, call, exposed, handle, serve
+from skyboss import cli
+from skyboss.mcp import METHOD_NOT_FOUND, call, exposed, handle, serve
 
 
 def names(root=None):
@@ -46,7 +46,7 @@ def test_the_surface_excludes_itself():
 def test_a_saved_command_wrapping_run_is_never_offered(tmp_path, monkeypatch):
     """`acts` is inherited from a tool's first word, so the exclusion holds
     through a name that hides what it wraps."""
-    from cli.tools import register
+    from skyboss.tools import register
 
     (tmp_path / "tools.toml").write_text(
         '[tool.deploy]\nargv = ["run", "--", "./deploy.sh"]\n'
@@ -71,7 +71,7 @@ def test_every_tool_has_an_empty_input_schema():
 def test_the_list_comes_off_the_live_tree(tmp_path):
     """Adding a tool to tools.toml makes it appear with no code change here. A
     surface that kept its own list could offer something that does not exist."""
-    from cli.tools import register
+    from skyboss.tools import register
 
     before = names()
     (tmp_path / "tools.toml").write_text(
@@ -136,7 +136,7 @@ def test_calling_an_unknown_tool_is_an_answer_not_a_fault():
 
 
 def test_a_call_returns_the_envelope(tmp_path):
-    from cli.tools import register
+    from skyboss.tools import register
 
     (tmp_path / "tools.toml").write_text(
         '[tool.two]\nargv = ["data", "--", "printf", "[{\\"a\\": 1}, {\\"a\\": 2}]"]\n'
@@ -155,7 +155,7 @@ def test_a_call_returns_the_envelope(tmp_path):
 def test_a_failed_command_is_an_envelope_not_a_transport_fault(tmp_path):
     """An agent asking 'what is the state of X' is owed 'the tool failed and
     here is what it said' as an *answer*."""
-    from cli.tools import register
+    from skyboss.tools import register
 
     (tmp_path / "tools.toml").write_text(
         '[tool.broken]\nargv = ["data", "--", "sh", "-c", "echo boom >&2; exit 3"]\n'
@@ -174,9 +174,9 @@ def test_a_failed_command_is_an_envelope_not_a_transport_fault(tmp_path):
 def test_a_result_is_bounded(tmp_path, monkeypatch):
     """A 120k-line result kills an agent's context as dead as it killed a
     browser tab. The substrate changed; the rule did not."""
-    import cli.mcp as mcp_
+    import skyboss.mcp as mcp_
 
-    from cli.tools import register
+    from skyboss.tools import register
 
     monkeypatch.setattr(mcp_, "MAX_ROWS", 5)
     # Built through json.dumps rather than an f-string: a JSON payload inside a
@@ -222,7 +222,7 @@ def test_malformed_json_does_not_end_the_session():
 def test_stdout_carries_protocol_and_nothing_else(capsys, tmp_path):
     """Over stdio the protocol *is* stdout, so a stray print is a corrupted
     session rather than an ugly one. The tool below writes to both streams."""
-    from cli.tools import register
+    from skyboss.tools import register
 
     (tmp_path / "tools.toml").write_text(
         '[tool.noisy]\nargv = ["data", "--", "sh", "-c", '
@@ -246,6 +246,6 @@ def test_stdout_carries_protocol_and_nothing_else(capsys, tmp_path):
 
 
 def test_mcp_is_a_surface():
-    from cli.canvas.catalog import catalog
+    from skyboss.canvas.catalog import catalog
 
     assert "mcp" not in {entry["name"] for entry in catalog()}

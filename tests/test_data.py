@@ -9,7 +9,7 @@ import json
 
 from click.testing import CliRunner
 
-from cli import cli
+from skyboss import cli
 
 
 def invoke(args):
@@ -68,7 +68,7 @@ def test_data_is_a_read_so_the_canvas_may_pin_it():
     """The whole reason it is a separate command from `run`. If this flips, the
     canvas stops offering a cadence on the only kind of window that should have
     one."""
-    from cli.canvas.catalog import catalog
+    from skyboss.canvas.catalog import catalog
 
     entries = {entry["name"]: entry for entry in catalog()}
     assert entries["data"]["acts"] is False
@@ -177,7 +177,7 @@ import unittest.mock  # noqa: E402
 
 import pytest  # noqa: E402
 
-import cli.capture as capture_mod  # noqa: E402
+import skyboss.capture as capture_mod  # noqa: E402
 
 
 def declared(tmp_path, toml_text, args):
@@ -449,7 +449,7 @@ def test_the_file_form_needs_a_path_not_a_bare_word():
     bare unknown word a file because a log legitimately does not exist yet;
     here there is nothing to wait for, so it stays a command and the error says
     `no such command` rather than `no such file`."""
-    from cli.data import is_file_form
+    from skyboss.data import is_file_form
 
     assert is_file_form(("ledger/runs.jsonl",))
     assert is_file_form(("/var/log/syslog",))

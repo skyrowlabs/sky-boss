@@ -4,23 +4,23 @@ created: 2026-08-20
 updated: 2026-08-30
 agent_value: 3
 key_files:
-  - cli/tools.py
-  - cli/helpers.py
-  - cli/output.py
-  - cli/read.py
-  - cli/data.py
-  - cli/follow.py
-  - cli/helpers.py
-  - cli/__init__.py
-  - cli/canvas/catalog.py
-  - cli/canvas/server.py
-  - cli/canvas/static/app.js
-  - cli/canvas/static/bench.js
-  - cli/canvas/static/api.js
-  - cli/canvas/static/sb.css
-  - cli/canvas/prefs.py
-  - cli/canvas/catalog.py
-  - cli/canvas/server.py
+  - skyboss/tools.py
+  - skyboss/helpers.py
+  - skyboss/output.py
+  - skyboss/read.py
+  - skyboss/data.py
+  - skyboss/follow.py
+  - skyboss/helpers.py
+  - skyboss/__init__.py
+  - skyboss/canvas/catalog.py
+  - skyboss/canvas/server.py
+  - skyboss/canvas/static/app.js
+  - skyboss/canvas/static/bench.js
+  - skyboss/canvas/static/api.js
+  - skyboss/canvas/static/sb.css
+  - skyboss/canvas/prefs.py
+  - skyboss/canvas/catalog.py
+  - skyboss/canvas/server.py
   - tests/test_prefs.py
   - tests/test_canvas_server.py
   - tools.example.toml
@@ -101,7 +101,7 @@ from `/api/catalog`, which walks the live Click tree, so it cannot offer a comma
 exist. A naive tools list breaks that immediately: a sidebar reading a TOML file is a second list of
 commands, drifting against the first.
 
-So tools are not a second list. At startup `cli/__init__.py` reads the file and calls
+So tools are not a second list. At startup `skyboss/__init__.py` reads the file and calls
 `cli.add_command()` for each one, building a `click.Command` whose callback re-dispatches into the
 root group with the declared argv. Everything downstream then works with **no code change at all**:
 
@@ -334,7 +334,7 @@ and the name takes the same `_NAME` shape a command does, for the reason round 5
 
 **The union and its order are computed in Python, not in the rail.** `/api/catalog` gains a
 `groups` list, already ordered, already counted, so `sectionsOf` in `app.js` stops holding a copy of
-an ordering rule that is decided in `cli/tools.py`. That is round 5's own argument arriving one
+an ordering rule that is decided in `skyboss/tools.py`. That is round 5's own argument arriving one
 layer down: the deciding half goes where pytest reaches it. `sb tools` grows the same list, so an
 empty group is visible from the terminal too — the CLI/rail parity round 5 was built to preserve.
 
@@ -493,7 +493,7 @@ reason it expected:
 
 > The cheapest implementation of "in `$SB_STATE`" is `localStorage`, which needs no route and no
 > Python at all, and lands in the browser profile that already lives there on the `--browser` path.
-> **Whether it survives in the native webview is unverified** — nothing in `cli/canvas/static/`
+> **Whether it survives in the native webview is unverified** — nothing in `skyboss/canvas/static/`
 > touches `localStorage` today, and `shell.py` configures no storage path. So the phase checks it
 > rather than assuming, and names its fallback: a small JSON file in `$SB_STATE` behind a guarded
 > route, the same guard as every other.
@@ -506,7 +506,7 @@ across a full restart — measured twice, `null` then the value.
 served from `http://127.0.0.1:<different>/` each time, browser storage is keyed by origin, and a
 fold written under one launch's origin is *not there* under the next. That is true in all three
 shells, has nothing to do with private mode, and cannot be configured away without pinning the
-port. So `cli/canvas/prefs.py` holds it: a small JSON file in `$SB_STATE` behind `GET`/`POST
+port. So `skyboss/canvas/prefs.py` holds it: a small JSON file in `$SB_STATE` behind `GET`/`POST
 /api/prefs`, guarded like every other route, strictly shaped so it cannot become a second config
 file. An absent or unreadable store degrades to **everything open**, and a key naming a group that
 no longer exists is dropped on write rather than kept forever.
@@ -529,7 +529,7 @@ no longer exists is dropped on write rather than kept forever.
 
 - [x] **The field and the loader.** `group` on `Tool`, validated in `_check` against `_NAME` with
       `""` and absent both meaning ungrouped; `sb_group` set on the registered command in
-      `cli/__init__.py`. Tests: a valid group survives, a bad shape is skipped and *named* while
+      `skyboss/__init__.py`. Tests: a valid group survives, a bad shape is skipped and *named* while
       the other tools load, and a tool with no group is unchanged from today.
 - [x] **`sb tools` groups.** `_listing` carries `group` on every declared row and orders them —
       groups alphabetical, tools alphabetical within, ungrouped last. *Shipped as a `GROUP` column
@@ -623,7 +623,7 @@ start with a sky.boss command, a cadence is refused on a tool that acts or is re
 - **Still refuses to run a tool whose argv does not start with a sky.boss command.** The write path
   changes who may author a tool, not what a tool may be.
 
-- [x] **The splice** — `replace_block`, `remove_block`, `block_range` in `cli/tools.py`, plus the
+- [x] **The splice** — `replace_block`, `remove_block`, `block_range` in `skyboss/tools.py`, plus the
       backup. Tests for: comments above survive an edit, contiguous comments go with a delete, a
       separated section heading stays, every other block is byte-identical, an unlocatable block
       refuses.
@@ -641,13 +641,13 @@ start with a sky.boss command, a cadence is refused on a tool that acts or is re
 
 ### Round 1 — the tools read (2026-08-20)
 
-- [x] `SB_HOME` in `cli/helpers.py` alongside `STATE_DIR`, defaulting to `~/.config/sb/`.
-- [x] `cli/tools.py`: load and validate `tools.toml` as pure functions over a parsed dict, plus
+- [x] `SB_HOME` in `skyboss/helpers.py` alongside `STATE_DIR`, defaulting to `~/.config/sb/`.
+- [x] `skyboss/tools.py`: load and validate `tools.toml` as pure functions over a parsed dict, plus
       `tests/test_tools.py`. Absent file → `[]`. Malformed tool → skipped with a warning naming it,
       never an exception; one bad entry must not cost the operator the other nine.
 - [x] Validation covers the four rules: sb-argv only, `acts` inherited, builtin collisions refused,
       `every` refused on a tool that acts.
-- [x] Register tools onto the root group in `cli/__init__.py`. `sb jam-pr-list` runs; `sb --help`
+- [x] Register tools onto the root group in `skyboss/__init__.py`. `sb jam-pr-list` runs; `sb --help`
       lists it. **`catalog.py` needed two lines after all** — the claim that it would need none was
       too strong, and the second line was a real safety hole. See Notes.
 - [x] `sb tools` — a read listing name, description, expansion and `acts`.
@@ -784,7 +784,7 @@ result.** The envelope says where it went; under `--json` that is a field, not p
 - **No validation of the world.** A saved argv naming a host, a repo or a tool that is not there
   fails when it runs, exactly as a hand-written one does.
 
-- [x] **The writer.** `save()` in `cli/tools.py`: validate the name against `_NAME`, refuse one
+- [x] **The writer.** `save()` in `skyboss/tools.py`: validate the name against `_NAME`, refuse one
       already declared (naming its expansion), append a `[tool.<name>]` block with the argv and
       any `refresh`. Pure-ish over an injected home; tests write to `tmp_path` and never to the
       real `$SB_HOME` (`conftest.py` already redirects it, and this is the round where that
@@ -925,7 +925,7 @@ and irrelevant to the outcome. Measured, in this order:
 
 So the `shell.py` change was reverted — it was no longer needed, and turning off private mode
 persists cookies and cache nobody asked for — and the doc's own named fallback shipped:
-`cli/canvas/prefs.py`, a strictly-shaped JSON file in `$SB_STATE` behind a guarded `/api/prefs`.
+`skyboss/canvas/prefs.py`, a strictly-shaped JSON file in `$SB_STATE` behind a guarded `/api/prefs`.
 Verified end to end the way the substitute demands: fold `jam` on port 8820, kill the server,
 start a new one on **8821** with a **fresh browser profile**, and the group comes back folded with
 its count. `localStorage` could not have passed that test in any configuration.
@@ -971,7 +971,7 @@ keep — a `[tool.run]` and a `["docker", "ps"]` were both in the first real
 
 **"`catalog.py` is untouched" was too strong, and one of the two lines it
 actually needed was a safety hole.** The Shape table originally claimed the
-palette would find a tool with no change to `cli/canvas/catalog.py` at all. The
+palette would find a tool with no change to `skyboss/canvas/catalog.py` at all. The
 first line is benign: `saved` has to reach the sidebar somehow, and it is read
 off the command object exactly the way `sb_surface` is.
 
@@ -1089,7 +1089,7 @@ The repo took the name **toolbox**, which put the project and this doc on the sa
 The doc took the new slug `[[tools]]` rather than the project taking a different one: it documents
 `sb tools`, which is where round 2 put saved commands anyway, so the slug now matches the command
 instead of matching the concept's nickname. Nothing in the prose was scrubbed — "the toolbox" is
-still what the collection is called, here and in `cli/tools.py`, and the 16 links that pointed at
+still what the collection is called, here and in `skyboss/tools.py`, and the 16 links that pointed at
 `[[toolbox]]` were rewritten in one pass. This is the only doc whose slug the rename touched.
 
 ### Round 3 — executed (2026-08-22)
@@ -1138,7 +1138,7 @@ without confusion, and "the toolbox" was what the collection *was*.
 What broke it was not the argument but the CLI. Once `tb` → `sb` was in scope, keeping "toolbox"
 meant the box of saved commands was named after a tool that no longer existed under that name — a
 noun pointing at nothing. Rather than coin a replacement, the container lost its nickname: it is
-**the tools**, `sb tools` lists them, and `cli/tools.py` documents them. The sidebar header reads
+**the tools**, `sb tools` lists them, and `skyboss/tools.py` documents them. The sidebar header reads
 `TOOLS`, and its CSS is `.tools` wrapping the `.tool` rows that were always there, which is a
 better pairing than `.toolbox` wrapping `.tool` ever was.
 

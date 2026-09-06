@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from cli import agentstate
+from skyboss import agentstate
 
 
 @pytest.fixture

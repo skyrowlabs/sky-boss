@@ -4,11 +4,11 @@ created: 2026-08-23
 updated: 2026-08-23
 agent_value: 3
 key_files:
-  - cli/rollcall.py
-  - cli/data.py
-  - cli/view.py
-  - cli/output.py
-  - cli/canvas/static/render.js
+  - skyboss/rollcall.py
+  - skyboss/data.py
+  - skyboss/view.py
+  - skyboss/output.py
+  - skyboss/canvas/static/render.js
   - tests/test_rollcall.py
 ---
 

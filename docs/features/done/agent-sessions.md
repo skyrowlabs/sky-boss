@@ -3,7 +3,7 @@ status: complete
 created: 2026-08-29
 updated: 2026-09-01
 agent_value: 3
-key_files: [cli/agents.py, tests/test_agents.py, cli/__init__.py]
+key_files: [skyboss/agents.py, tests/test_agents.py, skyboss/__init__.py]
 ---
 
 # Agent sessions — who is running right now
@@ -126,7 +126,7 @@ is the same lie in the other direction.
 
 ### Round 1 — the fold, and one adapter (2026-08-29)
 
-- [x] `cli/agents.py`: the record dataclass, the adapter protocol, and the fold. Pure enough that
+- [x] `skyboss/agents.py`: the record dataclass, the adapter protocol, and the fold. Pure enough that
       the fold is testable without a registry on disk.
 - [x] The Claude adapter, reading `~/.claude/sessions/*.json`, with liveness on **both** `pid` and
       `procStart` and a test that a stale record with a live recycled PID is not reported.
@@ -141,7 +141,7 @@ is the same lie in the other direction.
 
 ### Round 2 — where the adapter list lives (not scheduled)
 
-The one genuinely open half. Parsing a format is code, so adapters are modules in `cli/`; but
+The one genuinely open half. Parsing a format is code, so adapters are modules in `skyboss/`; but
 *which are enabled* looks like operator content, and `projects.toml` is the precedent — outside the
 repo, never written by sky.boss. Splitting it that way means shipping code for a provider the
 operator has turned off, which is fine, and lets a machine with nothing installed stay silent with

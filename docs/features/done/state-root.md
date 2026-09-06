@@ -3,8 +3,8 @@ status: complete       # draft | active | complete — the directory follows thi
 created: 2026-08-29
 updated: 2026-08-29
 agent_value: 3         # a new seam, a new declaration, and a new address form
-key_files: [cli/agentstate.py, cli/rollcall.py, cli/data.py, cli/follow.py,
-            cli/canvas/server.py, tests/test_agentstate.py]
+key_files: [skyboss/agentstate.py, skyboss/rollcall.py, skyboss/data.py, skyboss/follow.py,
+            skyboss/canvas/server.py, tests/test_agentstate.py]
 ---
 
 # The agent-state root
@@ -147,7 +147,7 @@ it can derive *and verify* — an asymmetry that means the conclusion does not t
 
 - [x] `state_root` accepted as a top-level key in `projects.toml`, with unknown top-level keys
       still named the way unknown tables are.
-- [x] `cli/agentstate.py`: `root()` returning the path and which source it came from; resolved at
+- [x] `skyboss/agentstate.py`: `root()` returning the path and which source it came from; resolved at
       use, never at import.
 - [x] `directory(slug)` with the three-state diagnostic, including the sibling listing.
 
@@ -233,7 +233,7 @@ Two things that came out of the same check and are worth having written down:
   would hand the surface a *different* snapshot, not a live value. It would also run arbitrary
   startup code, and a non-interactive fish does not execute the same paths an interactive one does,
   so the surface would see an environment the operator's terminal never had.
-  `cli/canvas/shell.py` already sets its two Wayland variables with `os.environ.setdefault` — only
+  `skyboss/canvas/shell.py` already sets its two Wayland variables with `os.environ.setdefault` — only
   where the operator has not chosen — which is the existing statement of this rule: sky.boss fills a
   gap in an environment and never manufactures one. Same reasoning as the refusal to write a
   window-manager rule.

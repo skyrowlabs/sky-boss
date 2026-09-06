@@ -4,9 +4,9 @@ created: 2026-08-22
 updated: 2026-08-30
 agent_value: 3
 key_files:
-  - cli/banner.py
-  - cli/theme.py
-  - cli/__init__.py
+  - skyboss/banner.py
+  - skyboss/theme.py
+  - skyboss/__init__.py
   - docs/design/cli-header.png
   - docs/design/app-icon.png
   - docs/design/render-mark.py
@@ -46,7 +46,7 @@ square halves — foreground above, background below — putting 14 art rows int
 the proportions the mark was drawn with. The panel is 67 columns wide and 8 lines tall including
 the byline.
 
-**The picture lives in the source as a picture.** `ART` in `cli/banner.py` is fourteen strings of
+**The picture lives in the source as a picture.** `ART` in `skyboss/banner.py` is fourteen strings of
 `B`/`D`/`W`/`.` — brand, dark slate, light, background. It is legible, diffable and hand-editable;
 changing the mark is changing those strings, not re-running a converter. The PNG stays in
 `docs/design/` as the thing it was drawn from.
@@ -92,9 +92,9 @@ out when the envelope was asked for.
 
 - [x] **Measure the grid and generate the art.** Letterforms confirmed as 5x7 by sampling; icon
       18x14 on the same grid; composed to 63x14 and embedded as `ART`.
-- [x] **`cli/banner.py`.** Half-block rendering, the byline that always fits, and `show()` /
+- [x] **`skyboss/banner.py`.** Half-block rendering, the byline that always fits, and `show()` /
       `plain()` — draw, or say you could not.
-- [x] **The mark's colours in `cli/theme.py`**, undarkened, with the reason they sit outside
+- [x] **The mark's colours in `skyboss/theme.py`**, undarkened, with the reason they sit outside
       `STYLES` written where the next person will look.
 - [x] **Wire it to root help** through `Root.format_help`, retiring the title and subtitle. The
       one-line description stays: it is what still earns its place under a logo.

@@ -10,9 +10,9 @@ same afternoon.
 import math
 import re
 
-from cli.helpers import PROJECT_ROOT
-from cli.output import THEME
-from cli.theme import BG, BRAND, DANGER, OK, PAINTED, STYLES, TEXT, TEXT_2, TEXT_3, WARN, css_variables
+from skyboss.helpers import PROJECT_ROOT
+from skyboss.output import THEME
+from skyboss.theme import BG, BRAND, DANGER, OK, PAINTED, STYLES, TEXT, TEXT_2, TEXT_3, WARN, css_variables
 
 HEX = re.compile(r"#[0-9a-fA-F]{6}\b")
 
@@ -37,7 +37,7 @@ def test_no_file_outside_the_palette_names_a_colour():
     """
     offenders = {}
     for pattern in ("*.py", "*.css", "*.js", "*.tcss"):
-        for path in sorted((PROJECT_ROOT / "cli").rglob(pattern)):
+        for path in sorted((PROJECT_ROOT / "skyboss").rglob(pattern)):
             if path.name == "theme.py" or "vendor" in path.parts:
                 continue
             found = HEX.findall(path.read_text())
@@ -56,7 +56,7 @@ def test_no_stylesheet_smuggles_a_colour_past_the_hex_scan():
     """
     literals = re.compile(r"\b(rgba?|hsla?)\s*\(\s*[\d.]+[\s,]", re.IGNORECASE)
     offenders = {}
-    for path in sorted((PROJECT_ROOT / "cli").rglob("*.css")):
+    for path in sorted((PROJECT_ROOT / "skyboss").rglob("*.css")):
         if "vendor" in path.parts:
             continue
         found = literals.findall(path.read_text())
@@ -78,9 +78,9 @@ def test_every_token_the_stylesheet_uses_is_defined():
     """
     import re as _re
 
-    from cli.theme import css_variables
+    from skyboss.theme import css_variables
 
-    stylesheet = (PROJECT_ROOT / "cli/canvas/static/sb.css").read_text()
+    stylesheet = (PROJECT_ROOT / "skyboss/canvas/static/sb.css").read_text()
     bare = set(_re.findall(r"var\(\s*--(sb-[a-z0-9-]+)\s*\)", stylesheet))
     assert bare, "found no --sb-* tokens at all — did the stylesheet move?"
 
@@ -97,7 +97,7 @@ def test_the_scale_token_keeps_its_fallback():
     failed injection would render the whole canvas at zero."""
     import re as _re
 
-    stylesheet = (PROJECT_ROOT / "cli/canvas/static/sb.css").read_text()
+    stylesheet = (PROJECT_ROOT / "skyboss/canvas/static/sb.css").read_text()
     uses = _re.findall(r"var\(\s*--sb-scale\s*(,[^)]*)?\)", stylesheet)
     assert uses, "the stylesheet no longer scales"
     assert all(use.strip() for use in uses), "a bare var(--sb-scale) has no safety net"
@@ -109,9 +109,9 @@ def test_the_stylesheet_defines_no_token_the_palette_already_owns():
     what `--sb-tint` is. Shadowing `--sb-brand` is not."""
     import re as _re
 
-    from cli.theme import css_variables
+    from skyboss.theme import css_variables
 
-    stylesheet = (PROJECT_ROOT / "cli/canvas/static/sb.css").read_text()
+    stylesheet = (PROJECT_ROOT / "skyboss/canvas/static/sb.css").read_text()
     defined_here = set(
         _re.findall(r"^\s*--(sb-[a-z0-9-]+)\s*:", stylesheet, _re.MULTILINE)
     )
@@ -120,7 +120,7 @@ def test_the_stylesheet_defines_no_token_the_palette_already_owns():
 
 
 def test_the_injected_root_block_carries_every_token():
-    from cli.theme import css_root, css_variables
+    from skyboss.theme import css_root, css_variables
 
     block = css_root()
     for name, value in css_variables().items():
@@ -285,7 +285,7 @@ def test_the_tokens_still_match_the_design_system():
     machinery than the thing it generates — but a copy with nothing checking it
     is how the palette drifted the first time.
     """
-    from cli import theme
+    from skyboss import theme
 
     source = (PROJECT_ROOT / "docs/design/skyrow-colors_and_type.css").read_text()
     declared = dict(re.findall(r"--([a-z0-9-]+):\s*(#[0-9a-fA-F]{6})", source))
@@ -326,13 +326,13 @@ def test_every_mark_role_the_highlighter_can_emit_has_a_rule_in_the_stylesheet()
     It survived because the natural check is *did the mark land*, which reads
     class names and passes. The failure is only visible in a computed style.
     """
-    from cli import highlight as highlight_
+    from skyboss import highlight as highlight_
 
     roles = {role for _, role, _, _ in highlight_._RULES}
     roles |= set(highlight_._COLOUR_WORDS.values())
     # The positional rules, which are not in `_RULES`.
     roles |= {"sb.muted", "sb.accent"}
-    css = (PROJECT_ROOT / "cli/canvas/static/sb.css").read_text()
+    css = (PROJECT_ROOT / "skyboss/canvas/static/sb.css").read_text()
     missing = sorted(
         role for role in roles if f".mk-{role.removeprefix('sb.')}" not in css
     )

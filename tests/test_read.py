@@ -9,8 +9,8 @@ import json
 
 from click.testing import CliRunner
 
-from cli import cli
-from cli.read import MAX_CHARS, strip_ansi
+from skyboss import cli
+from skyboss.read import MAX_CHARS, strip_ansi
 
 
 def invoke(args):
@@ -21,7 +21,7 @@ def invoke(args):
 def test_read_is_a_read_so_a_window_may_pin_it():
     """The whole reason it exists. `sb run` carries text too and acts, so its
     window can never be given a cadence."""
-    from cli.canvas.catalog import catalog
+    from skyboss.canvas.catalog import catalog
 
     entries = {e["name"]: e for e in catalog()}
     assert entries["read"]["acts"] is False
@@ -88,8 +88,8 @@ def test_envelope_for_is_reads_own_and_not_shared_with_run():
     """Shared between *surfaces*, not between commands: a `read` reports a
     non-zero exit as a warning and carries its error as text, where an act
     carries a mapping. See [[follow]] round 4."""
-    from cli.read import envelope_for
-    from cli.stream import Outcome
+    from skyboss.read import envelope_for
+    from skyboss.stream import Outcome
 
     ok = envelope_for(Outcome(0, 0.1, "rows\n", ""), 60)
     assert ok.ok is True and ok.data is None and ok.warnings == []

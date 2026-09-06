@@ -22,9 +22,9 @@ slow, and the generator fires exactly what `due()` hands it.
 import asyncio
 import json
 
-from cli.canvas.runner import Run
-from cli.canvas.server import Canvas, stream_frames
-from cli.canvas.watch import Session
+from skyboss.canvas.runner import Run
+from skyboss.canvas.server import Canvas, stream_frames
+from skyboss.canvas.watch import Session
 
 # Generous — this bounds a hang, it does not measure anything.
 PULL_TIMEOUT = 5.0
@@ -118,7 +118,7 @@ class FakeChild:
     exit code, and an observable terminate."""
 
     def __init__(self, lines=(), exit_code=None):
-        from cli.stream import Line, Ring
+        from skyboss.stream import Line, Ring
 
         self.ring = Ring(limit=10)
         for text in lines:
@@ -149,7 +149,7 @@ class FakeChild:
 
 
 def test_a_follower_frames_its_fresh_lines_with_stream_chrome():
-    from cli.canvas.server import Follower, follower_frames
+    from skyboss.canvas.server import Follower, follower_frames
 
     session = Session(id="s1")
     session.followers["w1"] = Follower(child=FakeChild(["one", "two"]), argv=["journalctl", "-f"])
@@ -168,7 +168,7 @@ def test_a_frame_line_carries_marks_beside_its_verbatim_text():
     """[[highlight]]: the rules live in Python; the page slices offsets. The
     text ships untouched — marks ride beside it, and a line with nothing to
     tint carries no key at all rather than an empty list."""
-    from cli.canvas.server import Follower, follower_frames
+    from skyboss.canvas.server import Follower, follower_frames
 
     session = Session(id="s1")
     stamped = "2026-01-01T00:00:00 [job] ok"
@@ -186,9 +186,9 @@ def test_a_frame_line_carries_marks_beside_its_verbatim_text():
 
 
 def test_a_stderr_frame_line_is_never_retagged():
-    from cli.stream import Line
+    from skyboss.stream import Line
 
-    from cli.canvas.server import _frame_line
+    from skyboss.canvas.server import _frame_line
 
     line = _frame_line(Line(text="[rotated] 2026-01-01T00:00:00", stderr=True, at=1.0))
     assert "marks" not in line and line["stderr"] is True
@@ -197,7 +197,7 @@ def test_a_stderr_frame_line_is_never_retagged():
 def test_a_followers_death_is_announced_exactly_once():
     """Dead is an event to display; a frame per tick forever would make the
     corpse louder than the living stream ever was."""
-    from cli.canvas.server import Follower, follower_frames
+    from skyboss.canvas.server import Follower, follower_frames
 
     session = Session(id="s1")
     session.followers["w1"] = Follower(child=FakeChild(["bye"], exit_code=143), argv=["x"])
@@ -211,7 +211,7 @@ def test_a_followers_death_is_announced_exactly_once():
 async def test_a_followers_child_dies_with_its_session():
     """The watcher rule, extended to processes: closing the stream SIGTERMs
     every follower's child. Nothing survives the last window."""
-    from cli.canvas.server import Follower
+    from skyboss.canvas.server import Follower
 
     killed = []
     child = FakeChild(["x"])
@@ -231,7 +231,7 @@ async def test_a_followers_child_dies_with_its_session():
 
 
 def test_resolve_follow_resolves_keywords_and_strips_the_fence():
-    from cli.canvas.server import resolve_follow
+    from skyboss.canvas.server import resolve_follow
 
     got = resolve_follow(["follow", "--", "journalctl", "-f"])
     assert got.kind == "process"
@@ -251,7 +251,7 @@ def test_resolve_follow_resolves_keywords_and_strips_the_fence():
 
 
 def test_resolve_follow_tells_a_file_by_the_same_shape_rule_as_the_cli():
-    from cli.canvas.server import resolve_follow
+    from skyboss.canvas.server import resolve_follow
 
     got = resolve_follow(["follow", "some/path.log"])
     assert got.kind == "file" and got.foreign == ["some/path.log"]
@@ -261,9 +261,9 @@ def test_resolve_follow_descends_to_a_saved_keyword_behind_the_tools_group(tmp_p
     """A saved keyword lives at `tools <name>` since [[tools]] round 2, and
     the server resolves its expansion off the live tree — the client sends the
     catalog argv and keeps no command table."""
-    from cli import cli
-    from cli.canvas.server import resolve_follow
-    from cli.tools import register, tools as tools_group
+    from skyboss import cli
+    from skyboss.canvas.server import resolve_follow
+    from skyboss.tools import register, tools as tools_group
 
     (tmp_path / "tools.toml").write_text('[tool.logs]\nargv = ["follow", "--", "journalctl", "-f"]\n')
     try:
@@ -280,7 +280,7 @@ def test_resolve_follow_descends_to_a_saved_keyword_behind_the_tools_group(tmp_p
 def test_resolve_follow_refuses_what_is_not_a_follow():
     import pytest
 
-    from cli.canvas.server import resolve_follow
+    from skyboss.canvas.server import resolve_follow
 
     with pytest.raises(ValueError):
         resolve_follow(["run", "--", "true"])  # not a follow at all
@@ -292,8 +292,8 @@ def test_a_cursor_follower_frames_the_stat_verdict_as_cursor_chrome():
     """The file form on the canvas: quiet, absent and rotated travel as the
     cursor's own words, and a state change frames out even with no lines —
     a window whose file vanished must not keep saying quiet."""
-    from cli.canvas.server import Follower, follower_frames
-    from cli.filefollow import FileCursor
+    from skyboss.canvas.server import Follower, follower_frames
+    from skyboss.filefollow import FileCursor
     from tests.test_filefollow import FakeFs
 
     fs = FakeFs()
@@ -319,7 +319,7 @@ def test_a_cursor_follower_frames_the_stat_verdict_as_cursor_chrome():
 def test_chrome_for_tells_an_act_from_an_observe_through_the_catalog():
     """Inherited, never inferred from the path — the same rule the cadence
     control follows. A failed run wears failed, mechanically."""
-    from cli.canvas.server import chrome_for
+    from skyboss.canvas.server import chrome_for
 
     ran = {"ok": True, "duration_s": 0.4, "envelope": {"ok": True, "partial": False, "warnings": []}}
     assert chrome_for(["run", "--", "true"], ran, now=1000.0)["shape"] == "act"
@@ -426,7 +426,7 @@ def test_dropping_a_watcher_stops_it():
 
 
 def test_an_edited_file_is_noticed(tmp_path):
-    from cli.canvas.server import changed, fingerprint
+    from skyboss.canvas.server import changed, fingerprint
 
     (tmp_path / "sb.css").write_text("a{}")
     before = fingerprint(tmp_path)
@@ -438,7 +438,7 @@ def test_an_edited_file_is_noticed(tmp_path):
 def test_a_new_file_and_a_deleted_one_both_count_as_changes(tmp_path):
     """A file appearing is the common case while building a page, and one
     disappearing is how a rename looks from here."""
-    from cli.canvas.server import changed, fingerprint
+    from skyboss.canvas.server import changed, fingerprint
 
     (tmp_path / "a.js").write_text("1")
     before = fingerprint(tmp_path)
@@ -450,7 +450,7 @@ def test_a_new_file_and_a_deleted_one_both_count_as_changes(tmp_path):
 
 def test_vendored_code_is_not_watched(tmp_path):
     """It does not change, and it is most of the directory."""
-    from cli.canvas.server import fingerprint
+    from skyboss.canvas.server import fingerprint
 
     (tmp_path / "vendor").mkdir()
     (tmp_path / "vendor" / "preact.mjs").write_text("x")
@@ -460,7 +460,7 @@ def test_vendored_code_is_not_watched(tmp_path):
 
 async def test_editing_a_file_pushes_a_reload_frame(monkeypatch):
     """The whole point: the page learns about the edit without being asked."""
-    from cli.canvas import server as module
+    from skyboss.canvas import server as module
 
     stamps = {"sb.css": 1.0}
     monkeypatch.setattr(module, "fingerprint", lambda *a, **k: dict(stamps))
@@ -480,7 +480,7 @@ async def test_editing_a_file_pushes_a_reload_frame(monkeypatch):
 
 async def test_an_unchanged_directory_pushes_nothing(monkeypatch):
     """Otherwise the page would reload every half second forever."""
-    from cli.canvas import server as module
+    from skyboss.canvas import server as module
 
     monkeypatch.setattr(module, "fingerprint", lambda *a, **k: {"sb.css": 1.0})
 
@@ -503,7 +503,7 @@ def test_a_late_follower_says_so_in_the_frame_it_already_sends():
     """`attention` already travels to a window; `late` is a new value in a slot
     that exists. If this had needed a field on the wire, [[file-follow]] round 2
     was designed wrong."""
-    from cli.canvas.server import Follower, follower_frames
+    from skyboss.canvas.server import Follower, follower_frames
 
     session = Session(id="s1")
     session.followers["w1"] = Follower(
@@ -516,7 +516,7 @@ def test_a_late_follower_says_so_in_the_frame_it_already_sends():
 
 
 def test_a_follower_within_its_expectation_is_not_late():
-    from cli.canvas.server import Follower, follower_frames
+    from skyboss.canvas.server import Follower, follower_frames
 
     session = Session(id="s1")
     session.followers["w1"] = Follower(
@@ -529,7 +529,7 @@ def test_a_follower_within_its_expectation_is_not_late():
 def test_resolve_follow_carries_due_off_the_argv():
     """A saved tool's argv carries `--due 15m` like any other flag, so [[tools]]
     needs no field for this."""
-    from cli.canvas.server import resolve_follow
+    from skyboss.canvas.server import resolve_follow
 
     assert resolve_follow(["follow", "--due", "15m", "some/path.log"]).due == 900
     assert resolve_follow(["follow", "some/path.log"]).due == 0
@@ -539,7 +539,7 @@ def test_a_malformed_due_in_a_saved_argv_degrades_rather_than_killing_the_window
     """The CLI refuses it at the door. Here it becomes no expectation, which is
     the state before anyone declared one — a typo in a saved tool must not stop
     a pinned window from following its log."""
-    from cli.canvas.server import resolve_follow
+    from skyboss.canvas.server import resolve_follow
 
     assert resolve_follow(["follow", "--due", "fortnightly", "x.log"]).due == 0
 
@@ -550,7 +550,7 @@ def test_a_malformed_due_in_a_saved_argv_degrades_rather_than_killing_the_window
 
 
 def test_resolve_run_strips_the_fence_and_keeps_each_command_s_own_bound():
-    from cli.canvas.server import resolve_run
+    from skyboss.canvas.server import resolve_run
 
     got = resolve_run(["run", "--cwd", "/tmp", "--", "jam", "report", "x", "--budget", "120"])
     assert got.command == "run" and got.acts is True
@@ -579,7 +579,7 @@ def test_resolve_run_refuses_a_flag_it_cannot_account_for():
     """
     import pytest
 
-    from cli.canvas.server import resolve_run
+    from skyboss.canvas.server import resolve_run
 
     with pytest.raises(ValueError):
         resolve_run(["read", "--save", "status", "--", "ls"])
@@ -597,9 +597,9 @@ def test_resolve_run_descends_to_a_saved_keyword_like_its_sibling(tmp_path):
     """The same descent `resolve_follow` uses, shared rather than copied — and
     `acts` comes off the expansion's first word, which is the rule a saved tool
     inherits by."""
-    from cli import cli
-    from cli.canvas.server import resolve_run
-    from cli.tools import register, tools as tools_group
+    from skyboss import cli
+    from skyboss.canvas.server import resolve_run
+    from skyboss.tools import register, tools as tools_group
 
     (tmp_path / "tools.toml").write_text(
         '[tool.drain]\nargv = ["run", "--cwd", "/tmp", "--", "jam", "report", "agent-task"]\n'
@@ -623,8 +623,8 @@ def test_resolve_run_descends_to_a_saved_keyword_like_its_sibling(tmp_path):
 
 def _accruing(argv, command="run", timeout=None):
     """A Follower over a real child, shaped as `/api/accrue` would build it."""
-    from cli.canvas.server import Follower, Job
-    from cli.stream import ChildStream
+    from skyboss.canvas.server import Follower, Job
+    from skyboss.stream import ChildStream
 
     job = Job(command, argv, None, timeout, command == "run")
     return Follower(child=ChildStream(argv), argv=[command, "--", *argv], kind="accrue", job=job)
@@ -647,8 +647,8 @@ def test_an_accruing_run_ships_its_lines_before_it_has_a_verdict():
     """The black-box gap, closed on the canvas. The window sees the line while
     the command is still working, and the band reads `running` — mechanically,
     the subprocess has not exited."""
-    from cli.canvas.server import follower_frames
-    from cli.canvas.watch import Session
+    from skyboss.canvas.server import follower_frames
+    from skyboss.canvas.watch import Session
 
     follower = _accruing(["sh", "-c", "echo working; sleep 30"])
     session = Session(id="s1")
@@ -670,9 +670,9 @@ def test_exit_is_a_verdict_for_an_accruing_run_and_a_death_for_a_follow():
     not be spelled as letting `/api/follow` take a `run` argv: that route's
     whole rendering treats exit 0 as a death, and for an act exit 0 is the
     answer."""
-    from cli.canvas.server import Follower, follower_frames
-    from cli.canvas.watch import Session
-    from cli.stream import ChildStream
+    from skyboss.canvas.server import Follower, follower_frames
+    from skyboss.canvas.watch import Session
+    from skyboss.stream import ChildStream
 
     accruing = _accruing(["sh", "-c", "echo done"])
     followed = Follower(child=ChildStream(["sh", "-c", "echo done"]), argv=["sh"])
@@ -697,8 +697,8 @@ def test_exit_is_a_verdict_for_an_accruing_run_and_a_death_for_a_follow():
 
 
 def test_a_failing_accruing_run_carries_the_envelope_its_command_would_have_built():
-    from cli.canvas.server import follower_frames
-    from cli.canvas.watch import Session
+    from skyboss.canvas.server import follower_frames
+    from skyboss.canvas.watch import Session
 
     follower = _accruing(["sh", "-c", "exit 3"], command="read")
     session = Session(id="s1")
@@ -717,8 +717,8 @@ def test_a_run_window_is_not_killed_at_sixty_seconds():
     everyone's. An accruing window is watched by construction and dies with its
     window, so it has no default bound — `--timeout` in the argv is the
     operator's, and it is honoured."""
-    from cli.canvas.server import expired
-    from cli.canvas.watch import Session
+    from skyboss.canvas.server import expired
+    from skyboss.canvas.watch import Session
 
     session = Session(id="s1")
     unbounded = _accruing(["sleep", "300"])
@@ -739,9 +739,9 @@ def test_a_follow_is_never_expired_however_long_it_is_quiet():
     """A stream has no bound to exceed. That it stopped printing is
     [[file-follow]]'s `--due` question, answered by saying so rather than by
     killing it."""
-    from cli.canvas.server import Follower, expired
-    from cli.canvas.watch import Session
-    from cli.stream import ChildStream
+    from skyboss.canvas.server import Follower, expired
+    from skyboss.canvas.watch import Session
+    from skyboss.stream import ChildStream
 
     followed = Follower(child=ChildStream(["sleep", "300"]), argv=["sleep"], due=1)
     session = Session(id="s1")
@@ -755,7 +755,7 @@ def test_a_follow_is_never_expired_however_long_it_is_quiet():
 def test_accrue_refuses_a_stream_and_says_where_to_go():
     import pytest
 
-    from cli.canvas.server import resolve_run
+    from skyboss.canvas.server import resolve_run
 
     with pytest.raises(ValueError, match="follow it instead"):
         resolve_run(["follow", "--", "journalctl", "-f"])
@@ -769,7 +769,7 @@ def test_an_accruing_argv_accounts_for_env_rather_than_refusing_it():
     cannot account for, and a refusal sends the window back to `/api/run` —
     where the watcher's 60s ceiling applies. So an unaccounted `--env` would
     silently put a two-hour act back under a one-minute bound."""
-    from cli.canvas.server import resolve_run
+    from skyboss.canvas.server import resolve_run
 
     job = resolve_run(
         ["run", "--cwd", "/tmp", "--env", "JAM_TRANSCRIPT_STDOUT=1", "--", "jam", "x"]
@@ -780,7 +780,7 @@ def test_an_accruing_argv_accounts_for_env_rather_than_refusing_it():
 
 
 def test_a_follow_argv_accounts_for_env_too():
-    from cli.canvas.server import resolve_follow
+    from skyboss.canvas.server import resolve_follow
 
     follow = resolve_follow(["follow", "--env", "A=1", "--env", "B=2", "--", "tail", "-f", "x"])
     assert follow.env == {"A": "1", "B": "2"}
@@ -793,7 +793,7 @@ def test_a_malformed_env_is_a_refusal_the_route_can_send():
     so the page gets a 400 with a reason instead of a 500."""
     import pytest
 
-    from cli.canvas.server import resolve_run
+    from skyboss.canvas.server import resolve_run
 
     with pytest.raises(ValueError) as caught:
         resolve_run(["run", "--env", "NOPE", "--", "true"])
@@ -802,8 +802,8 @@ def test_a_malformed_env_is_a_refusal_the_route_can_send():
 
 def test_an_accruing_child_is_spawned_with_the_declared_variable(tmp_path):
     """End to end through the real spawn: the window's child can read it."""
-    from cli import stream as stream_
-    from cli.canvas.server import resolve_run
+    from skyboss import stream as stream_
+    from skyboss.canvas.server import resolve_run
 
     job = resolve_run(
         ["run", "--env", "SB_DECLARED=canvas", "--",

@@ -1,6 +1,6 @@
 // Correctness only. Prettier is deliberately absent — see docs/open.md.
 //
-// The hazard that keeps a formatter out of `cli/canvas/static/`: `htm` has no
+// The hazard that keeps a formatter out of `skyboss/canvas/static/`: `htm` has no
 // notion of a comment, and whitespace in tag position silently mangles an
 // element's children. One comment inside a `<div>` opening tag once removed an
 // `<input>` from the DOM entirely, and only rendering the page found it. A tool
@@ -25,12 +25,12 @@ export default [
   {
     // Vendored code is exempt, the same rule tests/test_theme.py's hex scan
     // uses: it is not ours to keep a house style out of.
-    ignores: ['cli/canvas/static/vendor/**', '**/node_modules/**', '.venv/**'],
+    ignores: ['skyboss/canvas/static/vendor/**', '**/node_modules/**', '.venv/**'],
   },
   {
     // The canvas: ES modules the browser loads directly. No build step, no
     // bundler, no Node — a `require` here would be a real error.
-    files: ['cli/canvas/static/**/*.js'],
+    files: ['skyboss/canvas/static/**/*.js'],
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'module',

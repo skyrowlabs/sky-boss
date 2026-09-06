@@ -26,7 +26,7 @@ Three things are unusual and load-bearing:
 
 ## Colour is a role, never a value
 
-Eleven roles, generated from `cli/theme.py` — the only place in the project
+Eleven roles, generated from `skyboss/theme.py` — the only place in the project
 allowed to name a hex, and a test fails on one anywhere else. Honour that here:
 **never write a hex or an `rgba()`.**
 

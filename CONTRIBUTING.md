@@ -41,12 +41,12 @@ These are not style preferences. Each one is load-bearing and most have a test:
   read and write is two commands. The canvas reads this line to decide whether a window may be
   given a refresh cadence — re-running a read is a refresh, re-running a write is a scheduler
   nobody asked for.
-- **Commands return data; they never print.** Everything goes through `cli/output.py` and the
+- **Commands return data; they never print.** Everything goes through `skyboss/output.py` and the
   `Result` envelope. A command that prints prose has to be written twice, because the surface is a
   second consumer of that envelope.
 - **sky.boss never parses human output.** `sb data` takes JSON. `sb read` shows what a command
   printed, verbatim, and says so. There is no flag that guesses.
-- **No hex outside `cli/theme.py`**, in any language — a test scans `.py`, `.css` and `.js`. Tints
+- **No hex outside `skyboss/theme.py`**, in any language — a test scans `.py`, `.css` and `.js`. Tints
   are `color-mix` against an injected role.
 - **The wordmark in prose, the command in code spans.** The project is **sky.boss**; `sb` is what
   you type, and it appears only inside backticks. `tests/test_naming.py` checks this.

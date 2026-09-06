@@ -4,16 +4,16 @@ created: 2026-08-26
 updated: 2026-08-30
 agent_value: 3
 key_files:
-  - cli/canvas/server.py
-  - cli/canvas/static/bench.js
-  - cli/canvas/catalog.py
-  - cli/canvas/static/app.js
-  - cli/canvas/static/render.js
-  - cli/view.py
-  - cli/chrome.py
-  - cli/tools.py
+  - skyboss/canvas/server.py
+  - skyboss/canvas/static/bench.js
+  - skyboss/canvas/catalog.py
+  - skyboss/canvas/static/app.js
+  - skyboss/canvas/static/render.js
+  - skyboss/view.py
+  - skyboss/chrome.py
+  - skyboss/tools.py
   - docs/design/Workbench.dc.html
-  - cli/canvas/static/sb.css
+  - skyboss/canvas/static/sb.css
 ---
 
 # Workbench — where a command gets made
@@ -247,7 +247,7 @@ the one panel whose height genuinely depends on what a foreign command printed.
 - [x] Clicking a chip rebuilds the table, the hidden-column warning and the composed argv together.
 - [x] `--from` and `--rows` beside it; `--due` and `--highlight` for `follow`, with the declared
       highlight rules applied to the drawn result so you can see which words claimed what.
-- [x] Tests, in `cli/view.py` where pytest reaches them: the offered set is exactly what the
+- [x] Tests, in `skyboss/view.py` where pytest reaches them: the offered set is exactly what the
       envelope carried, and a chip for a column no row has is never offered.
 
 ### Round 3 — the act asymmetry and save (2026-08-26, done 2026-08-27)
@@ -257,7 +257,7 @@ the one panel whose height genuinely depends on what a foreign command printed.
 - [x] **Save.** Compose the argv, show it, run it as a subprocess. The append-only and
       refuse-a-duplicate behaviour comes from `--save` unchanged.
 - [x] **The name field is the last control, and it is checked before it is used.** `--save`
-      writes *before* it runs (`cli/data.py`), so a mis-composed argv is on disk before its own
+      writes *before* it runs (`skyboss/data.py`), so a mis-composed argv is on disk before its own
       output shows it was wrong — and the name cannot be reused, because a duplicate is refused
       and editing stays `$EDITOR`'s. The bench asks *the server* whether the name is taken and
       says so *before* offering the button, rather than surfacing a refusal after the write.
@@ -309,7 +309,7 @@ the round-3 proposal ratified rather than assumed. Ratified as proposed, and the
 stronger than the doc had it: this is not a new mechanism and it is not even a new *shape*.
 
 The canvas already runs commands as subprocesses — [[canvas]]'s *reads in, execution out* — so the
-bench adds no execution path. And `--save` was already built to compose with a cadence: `cli/data.py`
+bench adds no execution path. And `--save` was already built to compose with a cadence: `skyboss/data.py`
 documents *"a `--refresh` in force becomes the saved command's own cadence"*, which is exactly what
 the job strip reads left to right. The bench composes a one-liner the CLI already supports; it does
 not teach the CLI anything.
@@ -403,8 +403,8 @@ changes how the tool's bytes are parsed, and `--due` and `--highlight` belong to
 opened — all three compose into the argv and take effect on the next trial run. The panel says so
 rather than leaving it to be discovered by clicking.
 
-**`warnings_for` moved into `cli/view.py`, and it should always have been there.** It was inline in
-`cli/data.py` only because there had been one caller. *Which columns went quiet* is exactly the
+**`warnings_for` moved into `skyboss/view.py`, and it should always have been there.** It was inline in
+`skyboss/data.py` only because there had been one caller. *Which columns went quiet* is exactly the
 kind of decision the module header already argues belongs in Python — and the bench asks the same
 question of the same payload without re-running the tool, so two copies would have drifted the week
 after they were written.
@@ -433,7 +433,7 @@ sequence that produced it. The most plausible cause was `shaped: null` meaning t
 
 The doc predicted this: *"Building a surface that runs the real commands and draws the real
 envelope is the cheapest way to find the flags that should exist and the facts that should ship."*
-Three rounds in, the surface has cost more bugs than it has caused. All four below are in `cli/`,
+Three rounds in, the surface has cost more bugs than it has caused. All four below are in `skyboss/`,
 not in the bench.
 
 **1. `--save` wrote before a usage error refused the run.** `sb --json data --save prs --refresh 30
@@ -441,7 +441,7 @@ not in the bench.
 each other`. A name taken, a file changed, and a failure reported — the worst available
 combination, and the name could not be reused because a duplicate is refused. `--save` writes first
 on purpose (so a resident invocation saves at all), which means any refusal below it fires too
-late. The conflict check is now `refuse_resident_json` in `cli/output.py`, raised at the door in
+late. The conflict check is now `refuse_resident_json` in `skyboss/output.py`, raised at the door in
 both `data` and `read`, with the guard left in the resident path as belt and braces. Found by a
 test hanging, which is its own small lesson: the test hung because running that line goes resident.
 

@@ -7,7 +7,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { byProject, nextUp, readAge, silentProjects } from "../../cli/canvas/static/schedule.js";
+import { byProject, nextUp, readAge, silentProjects } from "../../skyboss/canvas/static/schedule.js";
 
 test("byProject keeps the command's order inside each group", () => {
   const rows = [
@@ -17,7 +17,7 @@ test("byProject keeps the command's order inside each group", () => {
   ];
   const groups = byProject(rows);
   assert.deepEqual(groups.map((g) => g.project), ["a", "b"]);
-  /* Not re-sorted: cli/schedule.py ordered by the parsed instant, and this
+  /* Not re-sorted: skyboss/schedule.py ordered by the parsed instant, and this
    * file has neither the parse nor the offsets to do it again. */
   assert.deepEqual(groups[0].rows.map((r) => r.name), ["one", "three"]);
 });
@@ -63,7 +63,7 @@ test("readAge is chrome.ago's vocabulary, and never negative", () => {
 });
 
 /* --- round 5: the charts ------------------------------------------------ */
-import { byHour, plottable, ticks } from "../../cli/canvas/static/schedule.js";
+import { byHour, plottable, ticks } from "../../skyboss/canvas/static/schedule.js";
 
 const HOUR = 3600;
 const NOW_MS = 1756_000_000_000;
@@ -72,7 +72,7 @@ const NOW_S = NOW_MS / 1000;
 test("plottable defers to Python about which rows are datable", () => {
   const rows = [
     { name: "ok", at: NOW_S + HOUR },
-    /* Empty is what cli/schedule.py writes when it could not parse an offset.
+    /* Empty is what skyboss/schedule.py writes when it could not parse an offset.
      * Testing that rather than re-inspecting `next` is the whole point. */
     { name: "naive", at: "" },
     { name: "missing" },
@@ -87,7 +87,7 @@ test("plottable defers to Python about which rows are datable", () => {
  * round 5 paid for — beyond is counted rather than pinned, late is clamped to
  * the left rather than dropped — asserted one level up, where they now decide
  * whether a row is drawn at all. */
-import { derivedSpan, percentOf, spanFilter } from "../../cli/canvas/static/schedule.js";
+import { derivedSpan, percentOf, spanFilter } from "../../skyboss/canvas/static/schedule.js";
 
 test("percentOf places a mark at its fraction of the span", () => {
   const row = { name: "half", at: NOW_S + 12 * HOUR, fires: "in 12h" };
@@ -178,7 +178,7 @@ test("byHour always has 24 buckets, including the empty ones", () => {
 });
 
 /* --- round 6: the card and the stack ------------------------------------ */
-import { cardState, clampCard, stackOf } from "../../cli/canvas/static/schedule.js";
+import { cardState, clampCard, stackOf } from "../../skyboss/canvas/static/schedule.js";
 
 const VIEW = { width: 1000, height: 800 };
 const CARD = { width: 300, height: 200 };

@@ -3,7 +3,7 @@ status: complete
 created: 2026-09-01
 updated: 2026-09-01
 agent_value: 3
-key_files: [cli/jobs.py, tests/test_jobs.py, cli/__init__.py, docs/design/fundamentals.md]
+key_files: [skyboss/jobs.py, tests/test_jobs.py, skyboss/__init__.py, docs/design/fundamentals.md]
 ---
 
 # Jobs — sky.boss issues a schedule of its own
@@ -20,7 +20,7 @@ untouched; beside it, a schedule sky.boss issues and owns. A job moves from one 
 by the operator deactivating it in cron and declaring it here — a handover they perform, not one
 sky.boss performs for them.
 
-**This is the redesign the 2026-08-20 strip was for.** `cli/jobs.py`, `jobs/*.yaml`,
+**This is the redesign the 2026-08-20 strip was for.** `skyboss/jobs.py`, `jobs/*.yaml`,
 `templates/job.yaml` and `docs/features/done/jobs.md` were deleted in `051333c` — *"deletes the job
 layer and everything that depended on it, **to design that half over from a clean base**"* — with
 all five phases shipped and running. It was not removed for being wrong. What has arrived since is
@@ -53,7 +53,7 @@ you close it, and it would make a scheduler out of something you opened to look 
 right owner, declared once and installed deliberately. So the rule keeps its force and gains its
 missing half: **a repeating write is not forbidden, it is simply not a window's to own.**
 
-**Federation is crossed too, narrowly.** `cli/rollcall.py` keeps *no ledger, no history, no cache*
+**Federation is crossed too, narrowly.** `skyboss/rollcall.py` keeps *no ledger, no history, no cache*
 because a copy of another project's state goes stale without announcing it. A job's ledger is not a
 copy of anyone's state: sky.boss is the authority for what sky.boss ran. That is the crossing left
 undecided on 2026-09-01 morning, arriving the same day because something now wants it.
@@ -204,7 +204,7 @@ item's **advisory** ruling: sky.boss declines to start *its own* job. It never s
 
 ### Round 1 — a job that runs, records, and cannot double-fire (2026-09-01)
 
-- [x] `$SB_HOME/jobs.toml` parsed and validated in `cli/jobs.py`: unknown keys named and ignored,
+- [x] `$SB_HOME/jobs.toml` parsed and validated in `skyboss/jobs.py`: unknown keys named and ignored,
       one bad definition never costing the others, `argv` refused as a string.
 - [x] `sb job list` — every job with its lane, schedule, installed state and **drift**, read back
       from `systemctl --user` rather than remembered.

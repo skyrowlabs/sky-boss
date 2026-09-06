@@ -4,10 +4,10 @@ created: 2026-08-22
 updated: 2026-08-23
 agent_value: 3
 key_files:
-  - cli/mcp.py
-  - cli/canvas/catalog.py
-  - cli/tools.py
-  - cli/output.py
+  - skyboss/mcp.py
+  - skyboss/canvas/catalog.py
+  - skyboss/tools.py
+  - skyboss/output.py
   - tests/test_mcp.py
 ---
 

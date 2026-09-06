@@ -39,8 +39,8 @@ sys.path.insert(0, str(ROOT))
 
 from PIL import Image, ImageDraw, ImageFont  # noqa: E402
 
-from cli import banner  # noqa: E402
-from cli.theme import BG, BRAND, LOGO_BG, LOGO_BRAND, LOGO_DARK, LOGO_LIGHT, TEXT  # noqa: E402
+from skyboss import banner  # noqa: E402
+from skyboss.theme import BG, BRAND, LOGO_BG, LOGO_BRAND, LOGO_DARK, LOGO_LIGHT, TEXT  # noqa: E402
 
 INK = {"B": LOGO_BRAND, "D": LOGO_DARK, "W": LOGO_LIGHT, ".": LOGO_BG}
 UPPER_HALF = "▀"

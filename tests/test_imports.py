@@ -87,7 +87,7 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-from cli.helpers import PROJECT_ROOT
+from skyboss.helpers import PROJECT_ROOT
 
 SKIPPED_DIRS = {".git", ".venv", "vendor", "node_modules", "__pycache__", "dist", "tmp"}
 
@@ -108,8 +108,8 @@ SCOPES = (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
 #: nothing reads on purpose: `shell.available()` asks whether this machine has a
 #: webview behind `pywebview` at all, and the answer is whether the import raised.
 SUPPRESSED = {
-    "cli/canvas/shell.py:74",  # gi.repository.WebKit2 — probed, never called
-    "cli/canvas/shell.py:76",  # webview — probed, never called
+    "skyboss/canvas/shell.py:74",  # gi.repository.WebKit2 — probed, never called
+    "skyboss/canvas/shell.py:76",  # webview — probed, never called
 }
 
 

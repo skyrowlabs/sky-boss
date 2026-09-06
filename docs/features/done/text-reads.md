@@ -4,9 +4,9 @@ created: 2026-08-20
 updated: 2026-08-21
 agent_value: 3
 key_files:
-  - cli/read.py
-  - cli/__init__.py
-  - cli/output.py
+  - skyboss/read.py
+  - skyboss/__init__.py
+  - skyboss/output.py
   - tests/test_read.py
 ---
 
@@ -86,7 +86,7 @@ a `RichLog`. `read` truncates and says how much it dropped.
 
 ### Round 1 — a read that carries text (2026-08-20)
 
-- [x] `cli/read.py`: run an argv, strip ANSI, carry the text as `data`. Registered on the root
+- [x] `skyboss/read.py`: run an argv, strip ANSI, carry the text as `data`. Registered on the root
       group; the catalog gives it `acts: false` with no change, so a window may pin it.
 - [x] Truncation with a warning naming how much was dropped.
 - [x] `tests/test_read.py`: it is a read, it carries what the tool printed, it strips ANSI, it

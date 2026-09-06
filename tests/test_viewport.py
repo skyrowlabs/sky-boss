@@ -9,8 +9,8 @@ import io
 
 import pytest
 
-from cli import keys
-from cli.resident import Viewport
+from skyboss import keys
+from skyboss.resident import Viewport
 
 
 def ready(stream) -> bool:
