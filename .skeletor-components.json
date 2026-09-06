@@ -16,10 +16,10 @@
           "source_sha": "2580c7a1f55fa96855288e7986c4cc7cf68e833bc23f9e7bf878bc9742838368"
         },
         "scripts/paths.py": {
-          "local_sha": "4b84446d605d587552f1393b1efb05260b320dc100b3937f1bdbae31fecd132c",
-          "ref": "v0.10.2",
+          "local_sha": "4fbd6893ed1e4d2fb51e2e733870dffdbcc566519eb8465b1d6d21954fb1ccc7",
+          "ref": "v0.15.0-2-g2b64bf9",
           "source": "template/core/scripts/paths.py",
-          "source_sha": "ce66806d95416e8aa5489574db4e59c88e85d09f43bbf05d09bc7c55e2fc8ba6"
+          "source_sha": "e3536d40afe5e5a3bf3240cd2a399982ce5d9d3f26a825de1e37550d46e6b498"
         },
         "scripts/yaml_text.py": {
           "local_sha": "8e2d9392fcfadfcc256eac0a4ab0f8e77f55b7b99b76f16c7f4d04d1ce609990",
@@ -70,10 +70,10 @@
     "skip-ratchet": {
       "files": {
         "scripts/check_skip_budget.py": {
-          "local_sha": "a46d9b19bbc377bc253100ebfd044fe237801bad5f45c82676808131b2e37bf8",
-          "ref": "v0.7.0",
+          "local_sha": "b0966e54a11d2d786f59bf7c4d0817e41a8777b351f504732f6cabc652fd4b13",
+          "ref": "v0.15.0-2-g2b64bf9",
           "source": "template/core/scripts/check_skip_budget.py",
-          "source_sha": "8a791c5c0f039c26c48d0a6fc9f79c7a14d7a046d8444148e29952f4966cdda9"
+          "source_sha": "ac293223c8ad17a55bad41eaa647f375887834bbbd08b6b63acb0f052bb39849"
         },
         "tests/skip_budget.json": {
           "local_sha": "29b99070c2f9a765e20feec9640d5e968b6ab746dd9fbf262136fadf286391c1",
