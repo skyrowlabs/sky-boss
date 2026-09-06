@@ -135,7 +135,7 @@ tests in one flat suite that CI runs whole.
 - [x] Land any new gate as a non-required check first — `verdict` is added and
       required by nothing.
 
-### Round 4 — the lint backlog (not started)
+### Round 4 — the lint backlog (2026-09-06)
 
 `./dev check pre-push` is green on flake8, output discipline, docs, commit
 subjects, unit tests and the skip budget. Three gates are red and none of them
@@ -143,9 +143,9 @@ is a test:
 
 | Gate | Red on | Shape |
 |---|---|---|
-| `black` | 51 files — 20 `skyboss/`, 30 `tests/`, 1 `docs/` | mechanical, one huge diff |
-| `isort` | import ordering | mechanical |
-| `pyright` | 259 errors | not mechanical |
+| `black` | 51 files — 20 `skyboss/`, 30 `tests/`, 1 `docs/` | **done** |
+| `isort` | import ordering | **done** |
+| `pyright` | 259 errors | **open** — a typing backlog, not a formatting one |
 
 Every one is **ours**; the scaffolded files arrive conforming. This is the state
 `SETUP_GUIDE.md` predicts — *"the shell assumes a green tree; an existing repo is
@@ -300,3 +300,40 @@ inert from the moment the scaffold landed — and this third copy was missed.
 
 That is the same class as everything else this week, and the suite could not
 see it: it *was* the thing being mis-run.
+
+
+**2026-09-06 — Round 5: the first upgrade, which is what this was all for.**
+
+`v0.15.0` → `v0.16.0`, from a clean clone pinned at the tag rather than from the
+sibling checkout, which carries an untracked file and is another session's.
+
+**One conflict, and it was the expected one:** `ci.yml`, hand-merged in round 3
+to keep three branch-protected context names reporting. The upgrade left it
+alone, wrote the template's diff to `tmp/upgrade/`, and **did not advance the
+base** until it was ported — which is the behaviour that makes the mechanism
+worth having. It also correctly did **not** restore `.github/CONTRIBUTING.md`,
+deleted in round 2 as a duplicate of the root one: a deletion is a decision, and
+it is reported as standing state every run instead of being silently re-made.
+
+**Half the patch did not apply, and reporting that as "not applicable" would
+have been the failure this whole adoption exists to prevent.** v0.16.0 converts
+a flake8 step from `continue-on-error:` to `|| true` — and this workflow had no
+flake8 step at all. The gate was simply missing, while `dev check lint` ran it
+locally and looked green. So the blocking set is now a CI step here, pinned to
+one matrix leg because the rule set is a property of the source rather than of
+the interpreter — running it on both is dream-doll's eslint-twice, one file over.
+
+The **informational** step beside it upstream is deliberately not taken. That is
+the complexity pass, and it is the thing `v0.16.0` exists to fix: *a channel
+whose severity does not mean what it says*. This repo has no complexity budget
+to report against, so taking it would import a miscalibrated surface and nothing
+else. Taking half a patch on purpose is only honest if the half you drop is
+named — that is what this paragraph is.
+
+The other half applied and was worth having: `actions/setup-node` was on `@v5`
+where the template moved `@v4` → `@v7`. Checked against the action's own tags
+rather than assumed — `v7.0.0` is current — so this tree was two majors behind
+on a pin nobody was looking at. **An adopter can be current on the template and
+stale on the tools**, which is the workspace's framing of exactly this, and it
+argues for `skeletor-check-pins` being run on a cadence rather than at upgrade
+time.

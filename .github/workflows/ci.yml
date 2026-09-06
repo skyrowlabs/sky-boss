@@ -199,6 +199,26 @@ jobs:
           .venv/bin/python scripts/check_doc_links.py
           .venv/bin/python scripts/check_skip_budget.py --suite unit
 
+      # The blocking set only — E9 syntax errors, F63/F7 always-wrong
+      # comparisons, F82 undefined names, F401 unused imports. It arrived with
+      # v0.16.0's patch, which this workflow could not take: the template's
+      # change converts a flake8 step that did not exist here, and porting it as
+      # "not applicable" would have left the gate missing while the file it
+      # patches claims to run it.
+      #
+      # The INFORMATIONAL step beside it upstream is deliberately not taken.
+      # That is the complexity pass, and it is what v0.16.0 exists to fix: a
+      # channel whose severity does not mean what it says. This repo has no
+      # complexity budget to report against, so importing it would add a
+      # miscalibrated surface and nothing else.
+      #
+      # Pinned to one matrix leg. The rule set is a property of the source, not
+      # of the interpreter, so running it on both is the duplicate-work shape
+      # dream-doll found as eslint-twice — same finding, one file over.
+      - name: flake8 (blocking set)
+        if: matrix.python == '3.12'
+        run: .venv/bin/python -m flake8 . --select=E9,F63,F7,F82,F401 --show-source --statistics
+
   lint:
     name: eslint
     needs: gate
@@ -206,7 +226,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
           cache: npm
