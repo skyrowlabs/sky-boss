@@ -37,9 +37,16 @@ def test_no_root_declared_is_not_an_error(home):
 
 
 def test_sky_boss_never_defaults_to_the_workspace_layout(home, monkeypatch):
-    """The writers each default to `~/src/sl-agent-logs`. Copying that
-    would bake one machine's layout into a published tool — the same class of
-    leak as a host name in a tracked file."""
+    """The writers each carry a default root of their own. Copying whatever
+    that is would bake one machine's layout into a published tool — the same
+    class of leak as a host name in a tracked file.
+
+    The sentence deliberately does not name their path. It named one until
+    2026-09-05, when the writers moved and the test kept asserting the right
+    thing under a premise that had stopped being true — a claim about another
+    repo, restated here, going stale silently because nothing on this side
+    reads it. The reason not to copy a default is structural and survives the
+    default changing; the path was decoration that could rot."""
     monkeypatch.delenv("SL_AGENT_LOGS", raising=False)
     assert agentstate.root(home).path is None
 
