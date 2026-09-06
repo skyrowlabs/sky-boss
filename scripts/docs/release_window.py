@@ -67,7 +67,34 @@ def window(release: Optional[str] = None) -> Dict[str, object]:
     Before the first release there is no previous tag, so the range opens at the
     root commit. That is the honest answer: the report genuinely describes
     everything, and inventing a boundary would be worse than a wide one.
+
+    **Refuses against a shallow clone**, because the wrong answer there looks
+    exactly like a right one. A shallow clone has no tags and no root commit, so
+    `previous` is empty, the range opens at the graft boundary, and the window
+    comes back valid, well-formed and describing **zero commits** — measured:
+    `v0.1.0..HEAD` / 63 commits here, `<sha>..HEAD` / 0 commits from a
+    `--depth 1` clone of this same repository. `--apply` then *stamps* that into
+    every anchored report, so a report claims a window it does not describe —
+    and `--check`, which validates frontmatter shape rather than the range,
+    would go on calling it well-formed.
+
+    Scoped deliberately: `check()` never calls this, so it was never the thing
+    reporting a false green. The exposure is the stamp and the emitted JSON.
+
+    `tests/test_docs_name_live_code.py` refuses for the same reason, and the two
+    are worth reading together: that one is a pytest test carrying a marker, so
+    a gate can derive *which CI job must not check out shallow* from the suite
+    it runs. This is a script, in a different workflow, and no such derivation
+    reaches it. It has to say so itself.
     """
+    if (PROJECT_ROOT / ".git" / "shallow").exists():
+        die(
+            "shallow clone: the report window is bounded by release tags and a root commit, "
+            "and a shallow clone has neither — the window would come back well-formed and "
+            "describing zero commits, and --apply would stamp that into every report. "
+            "Fetch the full history "
+            "(`fetch-depth: 0`) or run this somewhere that has it."
+        )
     all_tags = tags()
     if release:
         if release not in all_tags:
