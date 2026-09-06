@@ -35,10 +35,9 @@ import secrets
 import threading
 import time
 import uuid
+from dataclasses import dataclass
 from pathlib import Path
 from typing import NamedTuple
-
-from skyboss.helpers import parse_duration, parse_env
 
 import rich_click as click
 from starlette.applications import Starlette
@@ -47,17 +46,15 @@ from starlette.responses import HTMLResponse, JSONResponse, Response, StreamingR
 from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 
-from dataclasses import dataclass
-
 from skyboss import chrome as chrome_
-from skyboss.canvas import prefs
 from skyboss import highlight as highlight_
 from skyboss import stream as stream_
 from skyboss import tools as tools_
 from skyboss import view as view_
-from skyboss.canvas import runner
+from skyboss.canvas import prefs, runner
 from skyboss.canvas.catalog import catalog, entry_for
 from skyboss.canvas.watch import INTERVALS, Session
+from skyboss.helpers import parse_duration, parse_env
 from skyboss.theme import css_root, css_variables
 
 STATIC = Path(__file__).resolve().parent / "static"
@@ -96,9 +93,7 @@ class Canvas:
 
     def authorised(self, request: Request) -> bool:
         """Header first, then origin. Both, every time, on every API route."""
-        if not secrets.compare_digest(
-            request.headers.get(TOKEN_HEADER, ""), self.token
-        ):
+        if not secrets.compare_digest(request.headers.get(TOKEN_HEADER, ""), self.token):
             return False
         origin = request.headers.get("origin")
         if origin is not None and origin != _own_origin(request):
@@ -234,9 +229,7 @@ def build(canvas: Canvas | None = None) -> Starlette:
                 # no surface can see — which is not a nicety: a rewrite dropped
                 # a declared `highlight` for a day because the serialiser did
                 # not know about it. See [[tools]] round 6.
-                out = await asyncio.to_thread(
-                    tools_.regroup, name, str(body.get("group") or "")
-                )
+                out = await asyncio.to_thread(tools_.regroup, name, str(body.get("group") or ""))
             else:
                 out = await asyncio.to_thread(
                     tools_.write_block,
@@ -289,9 +282,7 @@ def build(canvas: Canvas | None = None) -> Starlette:
             if body.get("delete"):
                 out = await asyncio.to_thread(tools_.remove_group, name)
             else:
-                out = await asyncio.to_thread(
-                    tools_.write_group, name, str(body.get("description") or "")
-                )
+                out = await asyncio.to_thread(tools_.write_group, name, str(body.get("description") or ""))
         except click.UsageError as exc:
             return JSONResponse({"error": exc.format_message()}, status_code=400)
         except OSError as exc:
@@ -475,10 +466,7 @@ def build(canvas: Canvas | None = None) -> Starlette:
         entry = entry_for(argv)
         if _acts(argv, entry):
             return JSONResponse(
-                {
-                    "error": "an act has no trial run — sb will not run a write "
-                    "to show you what it would print"
-                },
+                {"error": "an act has no trial run — sb will not run a write " "to show you what it would print"},
                 status_code=400,
             )
         if entry is not None and entry["resident"]:
@@ -530,9 +518,7 @@ def build(canvas: Canvas | None = None) -> Starlette:
         # key: `offered` is columns + details + hidden either way.
         authored = body.get("view") if isinstance(body.get("view"), dict) else None
         if authored and authored.get("authored") and not cols and not drop:
-            return JSONResponse(
-                {"view": authored, "offered": view_.offered(authored), "warnings": []}
-            )
+            return JSONResponse({"view": authored, "offered": view_.offered(authored), "warnings": []})
 
         found = view_.find_rows(data, rows_path)
         view = view_.shape(data, cols=cols, drop=drop, rows_path=rows_path)
@@ -664,31 +650,24 @@ def build(canvas: Canvas | None = None) -> Starlette:
                 return JSONResponse({"error": problem}, status_code=400)
         try:
             if kind == "file":
-                from skyboss.filefollow import FileCursor
-
                 # Resolved before the cwd join, and the order matters: a
                 # project reference resolves to an absolute path, where joining
                 # first would make `jam-sense:log/cron.log` a relative path
                 # under the window's directory. See [[state-root]].
                 from skyboss.agentstate import resolve as resolve_state
+                from skyboss.filefollow import FileCursor
 
                 path, problem = resolve_state(foreign[0])
                 if problem:
                     return JSONResponse({"error": problem}, status_code=400)
                 if cwd and not path.startswith("/"):
                     path = str(Path(cwd) / path)
-                child = await asyncio.to_thread(
-                    lambda: FileCursor(path, limit=lines)
-                )
+                child = await asyncio.to_thread(lambda: FileCursor(path, limit=lines))
             else:
-                child = await asyncio.to_thread(
-                    lambda: stream_.ChildStream(foreign, cwd=cwd, limit=lines, env=env)
-                )
+                child = await asyncio.to_thread(lambda: stream_.ChildStream(foreign, cwd=cwd, limit=lines, env=env))
         except (FileNotFoundError, OSError) as exc:
             return JSONResponse({"error": str(exc)}, status_code=400)
-        session.followers[window_id] = Follower(
-            child=child, argv=foreign, ruleset=ruleset, due=due
-        )
+        session.followers[window_id] = Follower(child=child, argv=foreign, ruleset=ruleset, due=due)
         return JSONResponse({"following": True})
 
     async def post_accrue(request: Request) -> Response:
@@ -731,15 +710,11 @@ def build(canvas: Canvas | None = None) -> Starlette:
         lines = int(body.get("lines") or stream_.DEFAULT_LINES)
         try:
             child = await asyncio.to_thread(
-                lambda: stream_.ChildStream(
-                    job.foreign, cwd=job.cwd, limit=lines, env=job.env
-                )
+                lambda: stream_.ChildStream(job.foreign, cwd=job.cwd, limit=lines, env=job.env)
             )
         except (FileNotFoundError, OSError) as exc:
             return JSONResponse({"error": str(exc)}, status_code=400)
-        session.followers[window_id] = Follower(
-            child=child, argv=argv, kind="accrue", job=job
-        )
+        session.followers[window_id] = Follower(child=child, argv=argv, kind="accrue", job=job)
         return JSONResponse({"accruing": True, "acts": job.acts})
 
     async def stream(request: Request) -> Response:
@@ -984,9 +959,7 @@ def resolve_run(argv: list[str], root=None) -> Job:
     return Job(command, foreign, cwd, timeout, command == "run", env)
 
 
-def resolve_follow(
-    argv: list[str], root=None
-) -> tuple[str, list[str], str | None, int, str | None]:
+def resolve_follow(argv: list[str], root=None) -> tuple[str, list[str], str | None, int, str | None]:
     """A sb-level follow argv down to what it follows.
 
     The client sends what the operator typed or saved — `follow -- journalctl
@@ -1295,9 +1268,7 @@ def preflight(argv: list[str]) -> list[dict]:
         with command.make_context(argv[0], list(argv[1:]), resilient_parsing=False):
             pass
     except click.ClickException as exc:
-        checks.append(
-            {"ok": False, "label": "sb accepts the argv", "detail": exc.format_message()}
-        )
+        checks.append({"ok": False, "label": "sb accepts the argv", "detail": exc.format_message()})
     except Exception as exc:  # pragma: no cover — a parser bug, not a usage error
         checks.append({"ok": False, "label": "sb accepts the argv", "detail": str(exc)})
     else:
@@ -1306,9 +1277,7 @@ def preflight(argv: list[str]) -> list[dict]:
             {
                 "ok": True,
                 "label": "sb accepts the argv",
-                "detail": f"{words} word{'' if words == 1 else 's'} after the separator"
-                if foreign
-                else "parses",
+                "detail": f"{words} word{'' if words == 1 else 's'} after the separator" if foreign else "parses",
             }
         )
     return checks
@@ -1349,16 +1318,26 @@ def chrome_for(argv: list[str], run: dict, *, interval: int = 0, now: float | No
 
     if interval:
         facts = chrome_.resident(
-            source, ok=ok, partial=partial, warnings=warnings,
-            ran_at=ran_at, duration_s=duration, interval=interval, last_run=ran_at,
+            source,
+            ok=ok,
+            partial=partial,
+            warnings=warnings,
+            ran_at=ran_at,
+            duration_s=duration,
+            interval=interval,
+            last_run=ran_at,
         )
     else:
         # Inherited, never inferred from the path: a saved tool's `acts` came
         # from its expansion, and the catalog is the one place that knows it.
         build = chrome_.act if _acts(argv) else chrome_.snapshot
         facts = build(
-            source, ok=ok, partial=partial, warnings=warnings,
-            ran_at=ran_at, duration_s=duration,
+            source,
+            ok=ok,
+            partial=partial,
+            warnings=warnings,
+            ran_at=ran_at,
+            duration_s=duration,
         )
     return facts.to_dict()
 
@@ -1382,11 +1361,7 @@ def fingerprint(directory: Path = STATIC) -> dict[str, float]:
 
 def changed(before: dict[str, float], after: dict[str, float]) -> list[str]:
     """Which files differ. Additions and deletions count as changes."""
-    return sorted(
-        name
-        for name in set(before) | set(after)
-        if before.get(name) != after.get(name)
-    )
+    return sorted(name for name in set(before) | set(after) if before.get(name) != after.get(name))
 
 
 async def stream_frames(
@@ -1423,12 +1398,8 @@ async def stream_frames(
         try:
             result = await asyncio.to_thread(runner_fn, list(watcher.argv))
             payload = result.to_dict()
-            payload["chrome"] = chrome_for(
-                list(watcher.argv), payload, interval=watcher.interval
-            )
-            await queue.put(
-                {"type": "run", "window": watcher.window_id, "result": payload}
-            )
+            payload["chrome"] = chrome_for(list(watcher.argv), payload, interval=watcher.interval)
+            await queue.put({"type": "run", "window": watcher.window_id, "result": payload})
         finally:
             session.release(watcher)
 

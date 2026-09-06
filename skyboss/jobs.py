@@ -163,10 +163,7 @@ def _check(name: str, body, commands: dict[str, bool] | None) -> str | None:
         return "argv must be a non-empty list of strings"
     if commands is not None and argv[0] not in commands:
         known = ", ".join(sorted(commands))
-        return (
-            f"argv must start with a sb command, not {argv[0]!r} — "
-            f"one of {known}"
-        )
+        return f"argv must start with a sb command, not {argv[0]!r} — " f"one of {known}"
     if "timeout" in body and not isinstance(body["timeout"], int):
         return "timeout must be a whole number of seconds"
     for key in ("schedule", "lane", "description"):
@@ -260,9 +257,7 @@ def unit_state(name: str, elapses: dict[str, str] | None = None) -> Unit:
     out, asked = _systemctl("show", job_timer, "-p", "UnitFileState", "-p", "ActiveState")
     if not asked:
         return Unit(file=on_disk, known=False)
-    fields = dict(
-        line.split("=", 1) for line in out.splitlines() if "=" in line
-    )
+    fields = dict(line.split("=", 1) for line in out.splitlines() if "=" in line)
     return Unit(
         file=on_disk,
         enabled=fields.get("UnitFileState", ""),
@@ -538,9 +533,7 @@ def job_run(name: str) -> Result:
     found = next((j for j in jobs if j.name == name), None)
     if found is None:
         known = ", ".join(sorted(j.name for j in jobs))
-        raise click.UsageError(
-            f"no such job: {name}" + (f" (declared: {known})" if known else "")
-        )
+        raise click.UsageError(f"no such job: {name}" + (f" (declared: {known})" if known else ""))
 
     run_id = new_run_id(found.name)
     log = jobs_state() / "logs" / f"{run_id}.log"
@@ -582,9 +575,9 @@ def job_run(name: str) -> Result:
         result.partial = True
     elif record["outcome"] != "ok":
         result.ok = False
-        result.warn(f"{found.name} {record['outcome']}" + (
-            f" (exit {record['exit']})" if record["exit"] is not None else ""
-        ))
+        result.warn(
+            f"{found.name} {record['outcome']}" + (f" (exit {record['exit']})" if record["exit"] is not None else "")
+        )
     return result
 
 
@@ -695,9 +688,7 @@ def busy_lines() -> tuple[list[tuple[str, str]], list[str]]:
     lines: list[tuple[str, str]] = []
     scopes: list[str] = []
     try:
-        done = subprocess.run(
-            ["crontab", "-l"], capture_output=True, text=True, timeout=10, env=child_env()
-        )
+        done = subprocess.run(["crontab", "-l"], capture_output=True, text=True, timeout=10, env=child_env())
         if done.returncode == 0:
             scopes.append("crontab")
             for line in done.stdout.splitlines():
@@ -768,9 +759,7 @@ def job_install(name: str, force: bool) -> Result:
     found = next((j for j in jobs if j.name == name), None)
     if found is None:
         known = ", ".join(sorted(j.name for j in jobs))
-        raise click.UsageError(
-            f"no such job: {name}" + (f" (declared: {known})" if known else "")
-        )
+        raise click.UsageError(f"no such job: {name}" + (f" (declared: {known})" if known else ""))
 
     normalized, trouble = calendar(found.schedule)
     if trouble:
@@ -860,7 +849,6 @@ def job_uninstall(name: str) -> Result:
     return result
 
 
-
 # ============================================================================
 # What [[schedule]] draws — sky.boss's own rows, beside the providers'
 # ============================================================================
@@ -936,6 +924,7 @@ def schedule_rows() -> tuple[list[dict], list[str], int]:
             }
         )
     return rows, problems, withheld
+
 
 # **The act/observe bit, asserted rather than inferred.** `cli/canvas/catalog.py`
 # derives `acts` from a *top-level* `run`, so a nested acting command defaults to

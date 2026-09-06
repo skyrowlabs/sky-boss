@@ -179,14 +179,10 @@ def parse(raw: dict) -> tuple[list[Project], list[str]]:
                 timeout=int(body.get("timeout", 60)),
                 description=str(body.get("description", "")),
                 schedule=(
-                    {k: str(v) for k, v in body["schedule"].items()}
-                    if isinstance(body.get("schedule"), dict)
-                    else None
+                    {k: str(v) for k, v in body["schedule"].items()} if isinstance(body.get("schedule"), dict) else None
                 ),
                 history=(
-                    {k: str(v) for k, v in body["history"].items()}
-                    if isinstance(body.get("history"), dict)
-                    else None
+                    {k: str(v) for k, v in body["history"].items()} if isinstance(body.get("history"), dict) else None
                 ),
             )
         )
@@ -331,9 +327,7 @@ def ask(project: Project) -> Result:
         return result
 
     meta = {"source": str(path)}
-    return parse_text(
-        text, meta, fmt, result, project.cols or None, project.rows or None, None, False
-    )
+    return parse_text(text, meta, fmt, result, project.cols or None, project.rows or None, None, False)
 
 
 def _expand(value: str) -> str:

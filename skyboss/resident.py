@@ -244,6 +244,7 @@ def hold(
 
     def run(wait_for: Callable[[float], str | None]) -> None:
         if emit is not None and not console.is_terminal:
+
             def spill() -> None:
                 new = list(emit())
                 if not new:
@@ -266,6 +267,7 @@ def hold(
             return
 
         if screen:
+
             def draw() -> None:
                 console.clear()
                 console.print(frame())
@@ -474,6 +476,7 @@ def reside(
 
     def run(wait_for: Callable[[float], str | None]) -> None:
         if screen:
+
             def draw(result: Result | None) -> None:
                 out.clear()
                 out.print(frame_for(result))

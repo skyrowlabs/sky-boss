@@ -22,11 +22,11 @@ slow, and the generator fires exactly what `due()` hands it.
 import asyncio
 import json
 
+import pytest
+
 from skyboss.canvas.runner import Run
 from skyboss.canvas.server import Canvas, stream_frames
 from skyboss.canvas.watch import Session
-
-import pytest
 
 #: Every test here is host-side and needs no services up.
 pytestmark = [pytest.mark.unit]
@@ -177,9 +177,7 @@ def test_a_frame_line_carries_marks_beside_its_verbatim_text():
 
     session = Session(id="s1")
     stamped = "2026-01-01T00:00:00 [job] ok"
-    session.followers["w1"] = Follower(
-        child=FakeChild([stamped, "plain prose"]), argv=["x"]
-    )
+    session.followers["w1"] = Follower(child=FakeChild([stamped, "plain prose"]), argv=["x"])
 
     lines = follower_frames(session, now=100.0)[0]["lines"]
     assert lines[0]["text"] == stamped
@@ -191,9 +189,8 @@ def test_a_frame_line_carries_marks_beside_its_verbatim_text():
 
 
 def test_a_stderr_frame_line_is_never_retagged():
-    from skyboss.stream import Line
-
     from skyboss.canvas.server import _frame_line
+    from skyboss.stream import Line
 
     line = _frame_line(Line(text="[rotated] 2026-01-01T00:00:00", stderr=True, at=1.0))
     assert "marks" not in line and line["stderr"] is True
@@ -242,16 +239,12 @@ def test_resolve_follow_resolves_keywords_and_strips_the_fence():
     assert got.kind == "process"
     assert got.foreign == ["journalctl", "-f"] and got.cwd is None
 
-    got = resolve_follow(
-        ["follow", "--cwd", "/tmp", "--lines", "50", "--", "sh", "-c", "true"]
-    )
+    got = resolve_follow(["follow", "--cwd", "/tmp", "--lines", "50", "--", "sh", "-c", "true"])
     assert got.foreign == ["sh", "-c", "true"] and got.cwd == "/tmp" and got.lines == 50
 
     # The operator's declared vocabulary is *named* by the argv and resolved
     # against their own file server-side — see [[highlight]] round 3.
-    got = resolve_follow(
-        ["follow", "--highlight", "jam", "--", "journalctl", "-f"]
-    )
+    got = resolve_follow(["follow", "--highlight", "jam", "--", "journalctl", "-f"])
     assert got.foreign == ["journalctl", "-f"] and got.highlight == "jam"
 
 
@@ -268,7 +261,8 @@ def test_resolve_follow_descends_to_a_saved_keyword_behind_the_tools_group(tmp_p
     catalog argv and keeps no command table."""
     from skyboss import cli
     from skyboss.canvas.server import resolve_follow
-    from skyboss.tools import register, tools as tools_group
+    from skyboss.tools import register
+    from skyboss.tools import tools as tools_group
 
     (tmp_path / "tools.toml").write_text('[tool.logs]\nargv = ["follow", "--", "journalctl", "-f"]\n')
     try:
@@ -276,9 +270,7 @@ def test_resolve_follow_descends_to_a_saved_keyword_behind_the_tools_group(tmp_p
         got = resolve_follow(["tools", "logs"])
         assert got.kind == "process" and got.foreign == ["journalctl", "-f"]
     finally:
-        for name in [
-            n for n, c in list(tools_group.commands.items()) if getattr(c, "sb_saved", False)
-        ]:
+        for name in [n for n, c in list(tools_group.commands.items()) if getattr(c, "sb_saved", False)]:
             del tools_group.commands[name]
 
 
@@ -341,9 +333,7 @@ async def test_a_quiet_session_still_sends_something():
     """An idle window must not be indistinguishable from one whose connection
     died — and without a write, the server never learns the socket is gone."""
     canvas = Canvas(token="t")
-    generator = stream_frames(
-        canvas, _session(canvas), run=fake_run, tick=0.001, heartbeat=0.002
-    )
+    generator = stream_frames(canvas, _session(canvas), run=fake_run, tick=0.001, heartbeat=0.002)
     try:
         await frame(generator)  # hello
         assert (await frame(generator))["type"] == "beat"
@@ -471,9 +461,7 @@ async def test_editing_a_file_pushes_a_reload_frame(monkeypatch):
     monkeypatch.setattr(module, "fingerprint", lambda *a, **k: dict(stamps))
 
     canvas = Canvas(token="t")
-    generator = stream_frames(
-        canvas, _session(canvas), run=fake_run, tick=0.001, heartbeat=1e9
-    )
+    generator = stream_frames(canvas, _session(canvas), run=fake_run, tick=0.001, heartbeat=1e9)
     try:
         await frame(generator)  # hello
         stamps["sb.css"] = 2.0
@@ -490,9 +478,7 @@ async def test_an_unchanged_directory_pushes_nothing(monkeypatch):
     monkeypatch.setattr(module, "fingerprint", lambda *a, **k: {"sb.css": 1.0})
 
     canvas = Canvas(token="t")
-    generator = stream_frames(
-        canvas, _session(canvas), run=fake_run, tick=0.001, heartbeat=0.05
-    )
+    generator = stream_frames(canvas, _session(canvas), run=fake_run, tick=0.001, heartbeat=0.05)
     try:
         await frame(generator)  # hello
         # The next thing to arrive is the heartbeat, not a reload.
@@ -511,9 +497,7 @@ def test_a_late_follower_says_so_in_the_frame_it_already_sends():
     from skyboss.canvas.server import Follower, follower_frames
 
     session = Session(id="s1")
-    session.followers["w1"] = Follower(
-        child=FakeChild(["one"]), argv=["journalctl", "-f"], due=900
-    )
+    session.followers["w1"] = Follower(child=FakeChild(["one"]), argv=["journalctl", "-f"], due=900)
     # The fake's last line is at 50.0; 3000 is well past a fifteen-minute rule.
     frames = follower_frames(session, now=3000.0)
     assert frames[0]["chrome"]["attention"] == "late"
@@ -524,9 +508,7 @@ def test_a_follower_within_its_expectation_is_not_late():
     from skyboss.canvas.server import Follower, follower_frames
 
     session = Session(id="s1")
-    session.followers["w1"] = Follower(
-        child=FakeChild(["one"]), argv=["journalctl", "-f"], due=900
-    )
+    session.followers["w1"] = Follower(child=FakeChild(["one"]), argv=["journalctl", "-f"], due=900)
     frames = follower_frames(session, now=100.0)
     assert frames[0]["chrome"]["attention"] == "running"
 
@@ -604,7 +586,8 @@ def test_resolve_run_descends_to_a_saved_keyword_like_its_sibling(tmp_path):
     inherits by."""
     from skyboss import cli
     from skyboss.canvas.server import resolve_run
-    from skyboss.tools import register, tools as tools_group
+    from skyboss.tools import register
+    from skyboss.tools import tools as tools_group
 
     (tmp_path / "tools.toml").write_text(
         '[tool.drain]\nargv = ["run", "--cwd", "/tmp", "--", "jam", "report", "agent-task"]\n'
@@ -615,9 +598,7 @@ def test_resolve_run_descends_to_a_saved_keyword_like_its_sibling(tmp_path):
         assert got.command == "run" and got.acts is True
         assert got.foreign == ["jam", "report", "agent-task"] and got.cwd == "/tmp"
     finally:
-        for name in [
-            n for n, c in list(tools_group.commands.items()) if getattr(c, "sb_saved", False)
-        ]:
+        for name in [n for n, c in list(tools_group.commands.items()) if getattr(c, "sb_saved", False)]:
             del tools_group.commands[name]
 
 
@@ -776,9 +757,7 @@ def test_an_accruing_argv_accounts_for_env_rather_than_refusing_it():
     silently put a two-hour act back under a one-minute bound."""
     from skyboss.canvas.server import resolve_run
 
-    job = resolve_run(
-        ["run", "--cwd", "/tmp", "--env", "JAM_TRANSCRIPT_STDOUT=1", "--", "jam", "x"]
-    )
+    job = resolve_run(["run", "--cwd", "/tmp", "--env", "JAM_TRANSCRIPT_STDOUT=1", "--", "jam", "x"])
     assert job.env == {"JAM_TRANSCRIPT_STDOUT": "1"}
     assert job.foreign == ["jam", "x"]
     assert job.timeout is None, "an act still carries no bound of the surface's"
@@ -811,8 +790,7 @@ def test_an_accruing_child_is_spawned_with_the_declared_variable(tmp_path):
     from skyboss.canvas.server import resolve_run
 
     job = resolve_run(
-        ["run", "--env", "SB_DECLARED=canvas", "--",
-         "python3", "-c", "import os; print(os.environ['SB_DECLARED'])"]
+        ["run", "--env", "SB_DECLARED=canvas", "--", "python3", "-c", "import os; print(os.environ['SB_DECLARED'])"]
     )
     child = stream_.ChildStream(job.foreign, cwd=job.cwd, env=job.env)
     child.proc.wait(timeout=10)

@@ -7,12 +7,11 @@ display.
 
 import json
 
+import pytest
 from click.testing import CliRunner
 
 from skyboss import cli
 from skyboss.read import MAX_CHARS, strip_ansi
-
-import pytest
 
 #: Every test here is host-side and needs no services up.
 pytestmark = [pytest.mark.unit]

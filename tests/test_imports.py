@@ -70,7 +70,7 @@ instead and be honest about it.
 
 The escape hatch is `# noqa: F401` on the import line, spelled the way flake8
 spells it — and that spelling was already in this tree before this gate was,
-which is the finding in miniature. `cli/canvas/shell.py` annotates two imports
+which is the finding in miniature. `skyboss/canvas/shell.py` annotates two imports
 it makes purely to see whether they *work*, and annotates them for a linter that
 has never run here. The notation crossed over from the wider Python world by
 habit; the check it addresses did not.
@@ -87,9 +87,9 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-from skyboss.helpers import PROJECT_ROOT
-
 import pytest
+
+from skyboss.helpers import PROJECT_ROOT
 
 #: Every test here is host-side and needs no services up.
 pytestmark = [pytest.mark.unit]
@@ -112,16 +112,20 @@ SCOPES = (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
 #: Every override, and why. An import that exists to be *attempted* binds a name
 #: nothing reads on purpose: `shell.available()` asks whether this machine has a
 #: webview behind `pywebview` at all, and the answer is whether the import raised.
+#: Keyed by the NAME bound, never by a line number. The first version pinned
+#: `file:line` and broke the moment `isort` reordered two imports — the
+#: suppressions had not changed at all, only moved. A formatter moves lines; it
+#: does not move names, and the thing being excused is the import rather than its
+#: position. Same lesson as every other literal in this tree: a rule that
+#: constrains a literal is only as true as the literal.
 SUPPRESSED = {
-    "skyboss/canvas/shell.py:74",  # gi.repository.WebKit2 — probed, never called
-    "skyboss/canvas/shell.py:76",  # webview — probed, never called
+    "skyboss/canvas/shell.py:WebKit2",  # probed, never called
+    "skyboss/canvas/shell.py:webview",  # probed, never called
 }
 
 
 def _python_files() -> list[Path]:
-    return sorted(
-        p for p in PROJECT_ROOT.rglob("*.py") if p.is_file() and not SKIPPED_DIRS & set(p.parts)
-    )
+    return sorted(p for p in PROJECT_ROOT.rglob("*.py") if p.is_file() and not SKIPPED_DIRS & set(p.parts))
 
 
 def _label(path: Path) -> str:
@@ -150,10 +154,7 @@ class _Scope:
         itself is not a reader of the module's `pytest`, which is how a
         module-level import can be dead in a file that says the name forty times.
         """
-        return name in self.loads or any(
-            child.sees(name) for child in self.children if name not in child.binds
-        )
-
+        return name in self.loads or any(child.sees(name) for child in self.children if name not in child.binds)
 
 
 def _exports(node: ast.Assign) -> set[str]:
@@ -234,16 +235,15 @@ def test_every_suppression_is_the_declared_set():
         _walk(ast.parse("\n".join(lines), filename=str(path)), module)
 
         def collect(scope: _Scope) -> None:
-            for _, line, _ in scope.imports:
+            for local, line, _ in scope.imports:
                 if SUPPRESSION in lines[line - 1]:
-                    using.add(f"{_label(path)}:{line}")
+                    using.add(f"{_label(path)}:{local}")
             for child in scope.children:
                 collect(child)
 
         collect(module)
     assert using == SUPPRESSED, (
-        f"suppressions changed — added {sorted(using - SUPPRESSED)}, "
-        f"stale {sorted(SUPPRESSED - using)}"
+        f"suppressions changed — added {sorted(using - SUPPRESSED)}, " f"stale {sorted(SUPPRESSED - using)}"
     )
 
 

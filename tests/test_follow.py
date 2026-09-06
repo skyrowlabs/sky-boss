@@ -6,13 +6,12 @@ visible death and never a restart, the child dies with the loop, and a saved
 keyword inherits residency the way it inherits acts.
 """
 
+import pytest
 from click.testing import CliRunner
 
 from skyboss import cli
 from skyboss.follow import follow_process, is_file_form
 from skyboss.stream import Line, Ring
-
-import pytest
 
 #: Every test here is host-side and needs no services up.
 pytestmark = [pytest.mark.unit]
@@ -179,7 +178,6 @@ def test_a_keyword_wrapping_a_file_follow_loads_and_inherits_observe(tmp_path):
     the tilde expands, because these are the operator's own paths."""
     from skyboss.canvas.catalog import walk
     from skyboss.tools import register
-
     from skyboss.tools import tools as tools_group
 
     (tmp_path / "tools.toml").write_text('[tool.cron]\nargv = ["follow", "~/logs/cron.log"]\n')
@@ -190,28 +188,23 @@ def test_a_keyword_wrapping_a_file_follow_loads_and_inherits_observe(tmp_path):
         assert entry["acts"] is False and entry["resident"] is True
         assert tools_group.commands["cron"].sb_argv[1].startswith("/")
     finally:
-        for name in [
-            n for n, c in list(tools_group.commands.items()) if getattr(c, "sb_saved", False)
-        ]:
+        for name in [n for n, c in list(tools_group.commands.items()) if getattr(c, "sb_saved", False)]:
             del tools_group.commands[name]
 
 
 def test_a_keyword_wrapping_follow_inherits_residency_and_refuses_a_cadence(tmp_path):
     """Inherited like acts: declaring refresh on a follow would load and mean
     nothing — the loader refuses it loudly instead."""
-    from skyboss.tools import register, tools as tools_group
+    from skyboss.tools import register
+    from skyboss.tools import tools as tools_group
 
-    (tmp_path / "tools.toml").write_text(
-        '[tool.logs]\nargv = ["follow", "--", "journalctl", "-f"]\nrefresh = 30\n'
-    )
+    (tmp_path / "tools.toml").write_text('[tool.logs]\nargv = ["follow", "--", "journalctl", "-f"]\nrefresh = 30\n')
     try:
         problems = register(cli, home=tmp_path)
         assert any("resident by nature" in p for p in problems)
         assert "logs" not in tools_group.commands
 
-        (tmp_path / "tools.toml").write_text(
-            '[tool.logs]\nargv = ["follow", "--", "journalctl", "-f"]\n'
-        )
+        (tmp_path / "tools.toml").write_text('[tool.logs]\nargv = ["follow", "--", "journalctl", "-f"]\n')
         problems = register(cli, home=tmp_path)
         assert problems == []
         from skyboss.canvas.catalog import walk
@@ -220,9 +213,7 @@ def test_a_keyword_wrapping_follow_inherits_residency_and_refuses_a_cadence(tmp_
         assert entry["resident"] is True
         assert entry["acts"] is False
     finally:
-        for name in [
-            n for n, c in list(tools_group.commands.items()) if getattr(c, "sb_saved", False)
-        ]:
+        for name in [n for n, c in list(tools_group.commands.items()) if getattr(c, "sb_saved", False)]:
             del tools_group.commands[name]
 
 

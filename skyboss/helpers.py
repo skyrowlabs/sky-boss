@@ -3,8 +3,8 @@
 Command modules call these rather than shelling out or building paths directly.
 """
 
-import re
 import os
+import re
 import subprocess
 from pathlib import Path
 
@@ -168,10 +168,7 @@ def parse_env(pairs: tuple[str, ...] | list[str]) -> dict[str, str]:
     for pair in pairs:
         name, sep, value = pair.partition("=")
         if not sep or not name:
-            raise click.UsageError(
-                f"--env takes NAME=VALUE, not {pair!r} "
-                "(a value may be empty: --env NAME=)"
-            )
+            raise click.UsageError(f"--env takes NAME=VALUE, not {pair!r} " "(a value may be empty: --env NAME=)")
         out[name] = value
     return out
 
@@ -219,9 +216,7 @@ def parse_duration(value: str) -> int:
     """
     match = _DURATION.match((value or "").strip().lower())
     if not match:
-        raise ValueError(
-            f"not a duration: {value!r} — use 90s, 15m, 2h or 3d (a bare number is seconds)"
-        )
+        raise ValueError(f"not a duration: {value!r} — use 90s, 15m, 2h or 3d (a bare number is seconds)")
     amount = int(match.group(1))
     if amount == 0:
         raise ValueError("a duration of zero says nothing — leave the flag off instead")

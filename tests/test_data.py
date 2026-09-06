@@ -189,10 +189,7 @@ def declared(tmp_path, toml_text, args):
         return invoke(args)
 
 
-LINES = (
-    '[format.jam-status]\nkind = "lines"\n'
-    "pattern = '(?P<pr>#\\d+)\\s+(?P<state>\\w+)\\s+(?P<title>.+)'\n"
-)
+LINES = '[format.jam-status]\nkind = "lines"\n' "pattern = '(?P<pr>#\\d+)\\s+(?P<state>\\w+)\\s+(?P<title>.+)'\n"
 
 
 def test_a_lines_format_turns_prose_into_rows(tmp_path):
@@ -210,9 +207,7 @@ def test_a_lines_format_turns_prose_into_rows(tmp_path):
 
 def test_rows_flow_into_the_standard_view_shaping(tmp_path):
     """No capture-specific carve-outs: one shaping contract, not two."""
-    _, envelope = declared(
-        tmp_path, LINES, ["--from", "jam-status", "--", "printf", "#1 open x\\n"]
-    )
+    _, envelope = declared(tmp_path, LINES, ["--from", "jam-status", "--", "printf", "#1 open x\\n"])
     assert "view" in envelope
 
 
@@ -274,9 +269,7 @@ def test_a_jq_transform_runs_on_captured_rows_exactly_as_on_json(tmp_path):
     care which kind produced it."""
     _, envelope = declared(
         tmp_path,
-        LINES.replace(
-            "\\s+(?P<title>.+)'\n", "\\s+(?P<title>.+)'\njq = '[.[] | .state]'\n"
-        ),
+        LINES.replace("\\s+(?P<title>.+)'\n", "\\s+(?P<title>.+)'\njq = '[.[] | .state]'\n"),
         ["--from", "jam-status", "--", "printf", "#1 open x\\n#2 draft y\\n"],
     )
     assert envelope["ok"] is True
@@ -324,6 +317,7 @@ def test_a_wide_table_does_not_warn_merely_for_being_wide():
 
 def test_data_never_tells_a_tool_how_wide_the_terminal_is(monkeypatch):
     import subprocess
+
     """`data` parses what the tool prints. A width is an instruction to lay
     out for a display, and a tool that wrapped its JSON to 80 columns would
     hand back a corrupted document rather than a narrower one. The display
@@ -588,6 +582,6 @@ def test_a_torn_tail_is_reported_on_every_read_not_once_per_file(tmp_path):
     for read in (1, 2, 3):
         _, envelope = invoke(["--from", "jsonl", str(path)])
         assert envelope["data"] == [{"job": "a"}], f"read {read}"
-        assert any("1 of 2 lines not a JSON object" in w for w in envelope["warnings"]), (
-            f"read {read} went quiet about the torn tail"
-        )
+        assert any(
+            "1 of 2 lines not a JSON object" in w for w in envelope["warnings"]
+        ), f"read {read} went quiet about the torn tail"

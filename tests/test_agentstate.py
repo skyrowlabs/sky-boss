@@ -160,10 +160,8 @@ def declared(home, tmp_path, monkeypatch):
     """A home declaring two projects, and a root holding one of them."""
     (home / "projects.toml").write_text(
         'state_root = "{root}"\n\n'
-        "[project.jam-sense]\nargv = [\"jam\", \"status\"]\n\n"
-        "[project.breeze-brain]\nargv = [\"bbrain\", \"status\"]\n".format(
-            root=tmp_path / "state"
-        )
+        '[project.jam-sense]\nargv = ["jam", "status"]\n\n'
+        '[project.breeze-brain]\nargv = ["bbrain", "status"]\n'.format(root=tmp_path / "state")
     )
     monkeypatch.setenv("SB_HOME", str(home))
     monkeypatch.delenv("SL_AGENT_LOGS", raising=False)

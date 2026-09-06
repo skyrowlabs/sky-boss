@@ -210,7 +210,8 @@ cli.add_command(ui_cmd)
 
 # Aliased on import — `from skyboss.tools import tools` would rebind this package's
 # `tools` attribute from the module to the Command and shadow the module.
-from skyboss.tools import PROBLEMS, register, tools as tools_cmd  # noqa: E402
+from skyboss.tools import PROBLEMS, register
+from skyboss.tools import tools as tools_cmd  # noqa: E402
 
 cli.add_command(tools_cmd)
 
@@ -222,4 +223,3 @@ cli.add_command(tools_cmd)
 # Problems are collected rather than printed. Nothing has a Click context yet,
 # and stdout must stay clean for `--json`; `sb tools` reports them.
 PROBLEMS.extend(register(cli))
-

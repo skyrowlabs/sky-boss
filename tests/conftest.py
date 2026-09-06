@@ -104,9 +104,7 @@ def at_a_terminal(monkeypatch):
 
     from skyboss.output import THEME
 
-    monkeypatch.setattr(
-        "skyboss.output.console", Console(theme=THEME, highlight=False, force_terminal=True)
-    )
+    monkeypatch.setattr("skyboss.output.console", Console(theme=THEME, highlight=False, force_terminal=True))
 
 
 # ── From skeletor's conftest, kept because the scaffolded tests import them ───

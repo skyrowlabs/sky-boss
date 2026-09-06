@@ -33,13 +33,12 @@ from pathlib import Path
 from typing import Callable, Iterable
 
 import rich_click as click
-
-from skyboss.helpers import parse_duration, parse_env
 from rich.console import Console, Group
 
 from skyboss import chrome as chrome_
 from skyboss import highlight as highlight_
 from skyboss import resident
+from skyboss.helpers import parse_duration, parse_env
 from skyboss.output import THEME, band_text
 from skyboss.stream import DEFAULT_LINES, ChildStream
 
@@ -237,9 +236,7 @@ def follow(
                 # The channel every warning uses, for the reason the band does:
                 # this is status, not payload, and a follow's stdout must stay
                 # exactly the lines the file holds.
-                _err().print(
-                    f"[yellow]⚠️  waiting on {target}{hint}[/yellow]", highlight=False
-                )
+                _err().print(f"[yellow]⚠️  waiting on {target}{hint}[/yellow]", highlight=False)
 
         follow_file(target, limit=lines, screen=screen, ruleset=ruleset, due=seconds)
     else:
@@ -317,9 +314,7 @@ def follow_process(
             exited_at = clock()
         kept = child.lines()
         height = resident.room(out) if not screen else max(1, out.height - 2)
-        shown_lines, first, last = view.window(
-            kept, height=height, dropped=child.dropped
-        )
+        shown_lines, first, last = view.window(kept, height=height, dropped=child.dropped)
         facts = chrome_.stream(
             source,
             last_line_at=child.last_line_at,

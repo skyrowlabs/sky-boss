@@ -9,6 +9,7 @@ envelope (that boundary has its own test at the bottom).
 import json
 import time
 
+import pytest
 from click.testing import CliRunner
 
 from skyboss import cli
@@ -25,8 +26,6 @@ from skyboss.chrome import (
     status_lines,
     stream,
 )
-
-import pytest
 
 #: Every test here is host-side and needs no services up.
 pytestmark = [pytest.mark.unit]
@@ -135,8 +134,7 @@ def test_clock_is_wall_time_of_the_injected_moment():
 
 
 def test_the_two_bands_are_exactly_the_width_asked_for():
-    c = resident("jam-prs · data", ok=True, interval=30, last_run=NOW - 18,
-                 ran_at=NOW - 18, duration_s=0.4, warnings=1)
+    c = resident("jam-prs · data", ok=True, interval=30, last_run=NOW - 18, ran_at=NOW - 18, duration_s=0.4, warnings=1)
     top, bottom = status_lines(c, NOW, width=64)
     assert len(top) == 64 and len(bottom) == 64
     assert top.startswith("┌") and top.endswith("┐")
@@ -167,8 +165,7 @@ def test_a_dead_stream_wears_its_exit_code_and_when():
 def test_a_cursor_band_tells_quiet_from_dead_because_it_can_stat():
     """The whole argument for the native loop: 'file untouched since 19:00'
     is knowledge a spawned tail cannot have."""
-    c = cursor("cron.log", state="quiet", last_write_at=NOW - 180,
-               size_bytes=202_752, ring_shown=200, ring_limit=200)
+    c = cursor("cron.log", state="quiet", last_write_at=NOW - 180, size_bytes=202_752, ring_shown=200, ring_limit=200)
     top, bottom = status_lines(c, NOW, width=72)
     assert "quiet 3m" in top and f"last write {clock(NOW - 180)}" in top
     assert "198.0 KiB" in bottom and "showing last 200" in bottom
@@ -190,8 +187,7 @@ def test_a_long_source_gives_way_to_the_live_half():
 
 
 def test_a_running_resident_shows_running_not_a_stale_countdown():
-    c = resident("jam-prs", ok=True, interval=30, last_run=NOW - 30,
-                 running_since=NOW - 2)
+    c = resident("jam-prs", ok=True, interval=30, last_run=NOW - 30, running_since=NOW - 2)
     top, bottom = status_lines(c, NOW, width=60)
     assert "running 2s" in top
     assert "next in" not in top
@@ -204,8 +200,7 @@ def test_the_spans_join_to_exactly_the_plain_lines():
     styled rendering by construction."""
     from skyboss.chrome import status_bands
 
-    c = resident("jam-prs", ok=True, interval=30, last_run=NOW - 18,
-                 ran_at=NOW - 18, duration_s=0.4, warnings=1)
+    c = resident("jam-prs", ok=True, interval=30, last_run=NOW - 18, ran_at=NOW - 18, duration_s=0.4, warnings=1)
     top_spans, bottom_spans = status_bands(c, NOW, width=64)
     top, bottom = status_lines(c, NOW, width=64)
     assert "".join(t for t, _ in top_spans) == top
@@ -218,8 +213,7 @@ def test_the_frame_is_furniture_and_the_facts_wear_their_roles():
     color per band was the round-1 mistake this round retires."""
     from skyboss.chrome import status_bands
 
-    c = resident("jam-prs", ok=True, interval=30, last_run=NOW - 18,
-                 ran_at=NOW - 18, duration_s=0.4, warnings=1)
+    c = resident("jam-prs", ok=True, interval=30, last_run=NOW - 18, ran_at=NOW - 18, duration_s=0.4, warnings=1)
     top, bottom = status_bands(c, NOW, width=64)
 
     roles = dict(top + bottom)

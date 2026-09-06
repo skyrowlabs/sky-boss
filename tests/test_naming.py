@@ -75,9 +75,7 @@ SKIPPED_DIRS = {".git", ".venv", "vendor", "node_modules", "__pycache__", "dist"
 # Gitignored; the operator's half, and not published prose.
 SKIPPED_FILES = {"CLAUDE.local.md"}
 
-_JS_STRING = re.compile(
-    r"""(?<!\\)(?:'(?:[^'\\\n]|\\.)*'|"(?:[^"\\\n]|\\.)*"|`(?:[^`\\]|\\.)*`)""", re.DOTALL
-)
+_JS_STRING = re.compile(r"""(?<!\\)(?:'(?:[^'\\\n]|\\.)*'|"(?:[^"\\\n]|\\.)*"|`(?:[^`\\]|\\.)*`)""", re.DOTALL)
 _JS_COMMENT = re.compile(r"//[^\n]*|/\*.*?\*/", re.DOTALL)
 
 
@@ -232,16 +230,12 @@ def test_prose_says_sky_boss(path: Path):
 def test_the_check_can_still_see_a_violation():
     """A mask this aggressive could pass by blanking everything. Each exempt
     form is exercised beside the prose it must not swallow."""
-    exempt = (
-        "`sb run`, $SB_HOME, sb.fish, <img alt='sb --help'>\n"
-        "\n```\nsb data -- x\n```\n"
-        "\n    sb read -- y\n"
-    )
+    exempt = "`sb run`, $SB_HOME, sb.fish, <img alt='sb --help'>\n" "\n```\nsb data -- x\n```\n" "\n    sb read -- y\n"
     assert not BARE.findall(_markdown_mask(exempt))
     assert len(BARE.findall(_markdown_mask("sb never guesses; sb's rule.\n"))) == 2
     assert BARE.findall(_python_mask("# sb never guesses\nx = 'sb'\n"))
     assert not BARE.findall(_python_mask("# `sb run` never guesses\nrun('sb', 'x')\n"))
-    spans = 'r' + r'"""A human, ``sb``, and `html\`` after it."""' + "\n"
+    spans = "r" + r'"""A human, ``sb``, and `html\`` after it."""' + "\n"
     assert not BARE.findall(_python_mask(spans))
     assert BARE.findall(_python_mask('"""sb never guesses."""\n'))
     example = 'def f():\n    """Examples.\n\n        sb data -- x\n    """\n'

@@ -12,8 +12,8 @@ from datetime import datetime
 from click.testing import CliRunner
 
 from skyboss import cli, schedule
-from skyboss.schedule import order, parse_instant, rows_of
 from skyboss.rollcall import Project
+from skyboss.schedule import order, parse_instant, rows_of
 
 
 def _home(tmp_path, projects: str, **files) -> None:
@@ -124,9 +124,7 @@ def test_the_schedule_string_is_drawn_exactly_as_the_provider_wrote_it(tmp_path,
     _home(
         tmp_path,
         ALPHA,
-        alpha=json.dumps(
-            {"jobs": [{"job": "j", "schedule": "15 5 * * *", "next_run": "2026-08-31T05:15:00+00:00"}]}
-        ),
+        alpha=json.dumps({"jobs": [{"job": "j", "schedule": "15 5 * * *", "next_run": "2026-08-31T05:15:00+00:00"}]}),
     )
     monkeypatch.setenv("SB_HOME", str(tmp_path))
     monkeypatch.setattr("skyboss.rollcall.SB_HOME", tmp_path)
@@ -205,9 +203,17 @@ def test_elapsed_reads_behind():
 def test_view_is_authored_and_hides_the_absolutes():
     """The five drawn columns are sky.boss's own, and the two it keeps are the
     provider's untouched strings — a view describes, it never filters."""
-    rows = [{"project": "p", "name": "j", "fires": "in 1h", "schedule": "0 * * * *",
-             "ran": "2h ago", "next": "2026-08-30T13:00:00+00:00",
-             "last": "2026-08-30T10:00:00+00:00"}]
+    rows = [
+        {
+            "project": "p",
+            "name": "j",
+            "fires": "in 1h",
+            "schedule": "0 * * * *",
+            "ran": "2h ago",
+            "next": "2026-08-30T13:00:00+00:00",
+            "last": "2026-08-30T10:00:00+00:00",
+        }
+    ]
     v = schedule.view_of(rows)
     assert [c["key"] for c in v["columns"]] == list(schedule.INLINE)
     assert v["hidden"] == list(schedule.HIDDEN)
@@ -218,6 +224,7 @@ def test_view_is_authored_and_hides_the_absolutes():
 def test_band_says_drawn_of_arrived():
     """Five under the word seven is the confusion; the band answers it."""
     from skyboss.output import _dimensions
+
     rows = [{k: "x" for k in ("a", "b", "c")}]
     view = {"columns": [{"key": "a"}], "details": [], "hidden": ["b", "c"]}
     assert _dimensions(rows, view) == "table · 1 row · 1 of 3 columns"
@@ -232,8 +239,10 @@ def test_band_says_drawn_of_arrived():
 # Round 10 — two populations in one table
 # ============================================================================
 
+from datetime import timedelta
+from datetime import timezone as tz  # noqa: E402
+
 import pytest  # noqa: E402
-from datetime import timedelta, timezone as tz  # noqa: E402
 
 import skyboss.jobs as jobs_  # noqa: E402
 from skyboss.jobs import Unit  # noqa: E402
@@ -276,9 +285,7 @@ def test_the_zone_abbreviation_is_dropped_rather_than_resolved():
     how a view is confidently six hours wrong. The local zone is safe *here*
     where it would not be for a provider: systemd printed this for this machine,
     in this machine's zone."""
-    assert _systemd_instant("Wed 2026-09-02 06:00:00 CDT") == _systemd_instant(
-        "Wed 2026-09-02 06:00:00 XYZ"
-    )
+    assert _systemd_instant("Wed 2026-09-02 06:00:00 CDT") == _systemd_instant("Wed 2026-09-02 06:00:00 XYZ")
 
 
 @pytest.mark.parametrize("value", ["", "n/a", "-", "not a time", "Wed"])
@@ -385,9 +392,7 @@ def test_a_torn_ledger_line_does_not_lose_the_whole_history(tmp_path, monkeypatc
 # ----------------------------------------------------------- the fold
 
 
-ALPHA_ROWS = json.dumps(
-    {"jobs": [{"job": "theirs", "next_run": "2026-08-31T23:00:00+00:00"}]}
-)
+ALPHA_ROWS = json.dumps({"jobs": [{"job": "theirs", "next_run": "2026-08-31T23:00:00+00:00"}]})
 
 
 def test_both_populations_land_in_one_table(tmp_path, monkeypatch):
@@ -422,9 +427,9 @@ def test_only_a_project_leaves_our_own_out(tmp_path, monkeypatch):
     monkeypatch.setattr("skyboss.rollcall.SB_HOME", tmp_path)
     body = json.loads(CliRunner().invoke(cli, ["--json", "schedule", "--only", "alpha"]).stdout)
     assert [r["name"] for r in body["data"]] == ["theirs"]
-    assert not any("not drawn" in w for w in body["warnings"]), (
-        "a withheld count for a population nobody asked about is noise"
-    )
+    assert not any(
+        "not drawn" in w for w in body["warnings"]
+    ), "a withheld count for a population nobody asked about is noise"
 
 
 def test_only_sb_is_a_name_even_with_nothing_armed(tmp_path, monkeypatch):
@@ -460,9 +465,7 @@ def test_an_armed_job_shows_up_with_no_projects_declared_at_all(tmp_path, monkey
 
 
 def test_a_project_called_sb_is_reported_rather_than_silently_confusing(tmp_path, monkeypatch):
-    collide = ALPHA.replace("[project.alpha]", "[project.sb]").replace(
-        "HOME/alpha.json", "HOME/alpha.json"
-    )
+    collide = ALPHA.replace("[project.alpha]", "[project.sb]").replace("HOME/alpha.json", "HOME/alpha.json")
     (tmp_path / "projects.toml").write_text(collide.replace("HOME", str(tmp_path)))
     (tmp_path / "alpha.json").write_text(ALPHA_ROWS)
     _jobs(
@@ -482,9 +485,7 @@ def test_both_populations_sort_on_one_instant(tmp_path, monkeypatch):
     """Two string shapes, one order. This is the whole reason sky.boss's rows go
     through a parse rather than being appended after the providers'."""
     soon = (now_utc() + timedelta(minutes=5)).astimezone(tz.utc).isoformat()
-    later = (datetime.now().astimezone() + timedelta(hours=9)).strftime(
-        "%a %Y-%m-%d %H:%M:%S %Z"
-    )
+    later = (datetime.now().astimezone() + timedelta(hours=9)).strftime("%a %Y-%m-%d %H:%M:%S %Z")
     (tmp_path / "projects.toml").write_text(ALPHA.replace("HOME", str(tmp_path)))
     (tmp_path / "alpha.json").write_text(json.dumps({"jobs": [{"job": "theirs", "next_run": soon}]}))
     _jobs(
@@ -530,6 +531,6 @@ def test_the_sheet_takes_its_track_count_from_the_view():
     )
 
     script = (PROJECT_ROOT / "skyboss/canvas/static/schedule.js").read_text()
-    assert _re.search(r"--pl-cols:\s*\$\{columns\.length\}", script), (
-        "schedule.js no longer hands the grid the column count it is drawing"
-    )
+    assert _re.search(
+        r"--pl-cols:\s*\$\{columns\.length\}", script
+    ), "schedule.js no longer hands the grid the column count it is drawing"

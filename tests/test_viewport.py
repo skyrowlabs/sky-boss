@@ -37,13 +37,18 @@ def decode(text: str):
 @pytest.mark.parametrize(
     "sequence,name",
     [
-        ("\x1b[A", "up"), ("\x1b[B", "down"),
-        ("\x1b[5~", "pgup"), ("\x1b[6~", "pgdn"),
-        ("\x1b[H", "home"), ("\x1b[F", "end"),
-        ("\x1b[1~", "home"), ("\x1b[4~", "end"),
+        ("\x1b[A", "up"),
+        ("\x1b[B", "down"),
+        ("\x1b[5~", "pgup"),
+        ("\x1b[6~", "pgdn"),
+        ("\x1b[H", "home"),
+        ("\x1b[F", "end"),
+        ("\x1b[1~", "home"),
+        ("\x1b[4~", "end"),
         # Application-cursor mode. A reader that knew only `[` would work
         # everywhere until it did not.
-        ("\x1bOA", "up"), ("\x1bOF", "end"),
+        ("\x1bOA", "up"),
+        ("\x1bOF", "end"),
     ],
 )
 def test_a_movement_key_decodes_to_a_name(sequence, name):

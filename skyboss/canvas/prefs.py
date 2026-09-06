@@ -126,9 +126,7 @@ def _usable(key: str, value) -> bool:
     if isinstance(value, bool):
         return False
     if isinstance(value, list):
-        return len(value) <= MAX_ITEMS and all(
-            isinstance(item, str) and 0 < len(item) <= MAX_LEN for item in value
-        )
+        return len(value) <= MAX_ITEMS and all(isinstance(item, str) and 0 < len(item) <= MAX_LEN for item in value)
     if key == "rail":
         return RAIL_MIN <= value <= RAIL_MAX
     return True

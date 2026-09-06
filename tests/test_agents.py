@@ -255,9 +255,7 @@ def test_the_fold_keeps_every_provider_problem():
 
 
 def test_epoch_milliseconds_become_an_instant():
-    assert epoch_ms(1788229475837) == datetime(
-        2026, 9, 1, 2, 24, 35, 837000, tzinfo=timezone.utc
-    )
+    assert epoch_ms(1788229475837) == datetime(2026, 9, 1, 2, 24, 35, 837000, tzinfo=timezone.utc)
 
 
 @pytest.mark.parametrize("value", [None, 0, "", "later", [], float("nan")])

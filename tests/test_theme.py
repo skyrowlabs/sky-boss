@@ -10,11 +10,11 @@ same afternoon.
 import math
 import re
 
+import pytest
+
 from skyboss.helpers import PROJECT_ROOT
 from skyboss.output import THEME
 from skyboss.theme import BG, BRAND, DANGER, OK, PAINTED, STYLES, TEXT, TEXT_2, TEXT_3, WARN, css_variables
-
-import pytest
 
 #: Every test here is host-side and needs no services up.
 pytestmark = [pytest.mark.unit]
@@ -117,9 +117,7 @@ def test_the_stylesheet_defines_no_token_the_palette_already_owns():
     from skyboss.theme import css_variables
 
     stylesheet = (PROJECT_ROOT / "skyboss/canvas/static/sb.css").read_text()
-    defined_here = set(
-        _re.findall(r"^\s*--(sb-[a-z0-9-]+)\s*:", stylesheet, _re.MULTILINE)
-    )
+    defined_here = set(_re.findall(r"^\s*--(sb-[a-z0-9-]+)\s*:", stylesheet, _re.MULTILINE))
     clashes = defined_here & set(css_variables())
     assert not clashes, f"the stylesheet redefines palette roles: {sorted(clashes)}"
 
@@ -338,9 +336,7 @@ def test_every_mark_role_the_highlighter_can_emit_has_a_rule_in_the_stylesheet()
     # The positional rules, which are not in `_RULES`.
     roles |= {"sb.muted", "sb.accent"}
     css = (PROJECT_ROOT / "skyboss/canvas/static/sb.css").read_text()
-    missing = sorted(
-        role for role in roles if f".mk-{role.removeprefix('sb.')}" not in css
-    )
+    missing = sorted(role for role in roles if f".mk-{role.removeprefix('sb.')}" not in css)
     assert not missing, f"roles with no rule to paint them: {missing}"
     # `bold` is not a role but a weight, and composes with all of them.
     assert ".mk-bold" in css
@@ -404,6 +400,5 @@ def test_the_structure_colour_is_never_used_as_text():
         if found:
             offenders[str(path.relative_to(PROJECT_ROOT))] = len(found)
     assert not offenders, (
-        f"rules painting text with the structure colour: {offenders} — "
-        "use --sb-text-2 for text a reader reads"
+        f"rules painting text with the structure colour: {offenders} — " "use --sb-text-2 for text a reader reads"
     )

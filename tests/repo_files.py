@@ -40,9 +40,9 @@ from pathlib import Path
 # owns every path below — can be imported. See scripts/paths.py.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts.paths import NARRATIVE, PROJECT_ROOT  # noqa: E402
-
 import pytest
+
+from scripts.paths import NARRATIVE, PROJECT_ROOT  # noqa: E402
 
 #: Every test here is host-side and needs no services up.
 pytestmark = [pytest.mark.unit]

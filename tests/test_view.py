@@ -410,7 +410,7 @@ def test_a_named_column_no_row_carries_is_reported(rows):
 
 
 def test_a_named_column_is_still_drawn_when_missing(rows):
-    """"Nothing matched" is frequently the answer being looked for, so an
+    """ "Nothing matched" is frequently the answer being looked for, so an
     explicit column is drawn even when empty. Drawn *and* reported."""
     view = shape(rows, cols=["number", "nope"])
     assert [c["key"] for c in view["columns"]] == ["number", "nope"]

@@ -150,9 +150,7 @@ def test_an_unknown_kind_fails_loudly_by_name_and_does_not_load():
 
 
 def test_a_pattern_that_does_not_compile_is_refused():
-    _, problems = parse_formats(
-        {"format": {"x": {"kind": "lines", "pattern": "(?P<a"}}}
-    )
+    _, problems = parse_formats({"format": {"x": {"kind": "lines", "pattern": "(?P<a"}}})
     assert "does not compile" in problems[0]
 
 
@@ -168,16 +166,12 @@ def test_a_builtin_kind_always_wins_the_name(name):
     """A format named `json` would silently change what every `--from json`
     on the machine means — the same rule that kept a tool from shadowing
     `run` while tools lived on the root."""
-    _, problems = parse_formats(
-        {"format": {name: {"kind": "lines", "pattern": "(?P<a>.)"}}}
-    )
+    _, problems = parse_formats({"format": {name: {"kind": "lines", "pattern": "(?P<a>.)"}}})
     assert "builtin kind" in problems[0]
 
 
 def test_a_pattern_on_a_json_format_is_refused_not_ignored():
-    _, problems = parse_formats(
-        {"format": {"x": {"kind": "json", "pattern": "(?P<a>.)", "jq": "."}}}
-    )
+    _, problems = parse_formats({"format": {"x": {"kind": "json", "pattern": "(?P<a>.)", "jq": "."}}})
     assert "means nothing" in problems[0]
 
 
@@ -223,16 +217,14 @@ def test_bare_lines_is_refused_toward_a_declaration(tmp_path):
 
 
 def test_an_unknown_name_lists_what_would_have_worked(tmp_path):
-    (tmp_path / "formats.toml").write_text(
-        '[format.jam-status]\nkind = "lines"\npattern = "(?P<a>.)"\n'
-    )
+    (tmp_path / "formats.toml").write_text('[format.jam-status]\nkind = "lines"\npattern = "(?P<a>.)"\n')
     fmt, problem = resolve("nope", home=tmp_path)
     assert fmt is None
     assert "json" in problem and "jam-status" in problem
 
 
 def test_a_declared_and_refused_format_resolves_to_its_own_problem(tmp_path):
-    """"No such format" about a format the operator wrote is the least
+    """ "No such format" about a format the operator wrote is the least
     helpful true sentence available — the resolution says why it was
     refused instead."""
     (tmp_path / "formats.toml").write_text('[format.mine]\nkind = "csv"\n')
@@ -317,10 +309,11 @@ def test_a_saved_tool_carrying_a_format_rides_every_rail(tmp_path, monkeypatch):
     import skyboss.capture as capture_mod
     from skyboss import cli
     from skyboss.canvas.catalog import walk
-    from skyboss.tools import register, tools as tools_group
+    from skyboss.tools import register
+    from skyboss.tools import tools as tools_group
 
     (tmp_path / "formats.toml").write_text(
-        '[format.jam-status]\nkind = "lines"\npattern = \'(?P<pr>#\\d+) (?P<state>\\w+)\'\n'
+        "[format.jam-status]\nkind = \"lines\"\npattern = '(?P<pr>#\\d+) (?P<state>\\w+)'\n"
     )
     (tmp_path / "tools.toml").write_text(
         "[tool.statuses]\n"
@@ -341,7 +334,5 @@ def test_a_saved_tool_carrying_a_format_rides_every_rail(tmp_path, monkeypatch):
                 {"pr": "#2", "state": "draft"},
             ]
     finally:
-        for name in [
-            n for n, c in list(tools_group.commands.items()) if getattr(c, "sb_saved", False)
-        ]:
+        for name in [n for n, c in list(tools_group.commands.items()) if getattr(c, "sb_saved", False)]:
             del tools_group.commands[name]

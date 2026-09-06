@@ -139,9 +139,7 @@ def _is_mapping(values: list) -> bool:
 
 def _is_numeric(values: list) -> bool:
     present = [v for v in values if v is not None]
-    return bool(present) and all(
-        isinstance(v, (int, float)) and not isinstance(v, bool) for v in present
-    )
+    return bool(present) and all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in present)
 
 
 def _flex(width: int) -> int:
@@ -203,11 +201,7 @@ def variance(rows: list[dict]) -> int:
 
 def is_rows(data) -> bool:
     """A non-empty list of plain objects — the only thing there is to shape."""
-    return (
-        isinstance(data, list)
-        and bool(data)
-        and all(isinstance(row, dict) for row in data)
-    )
+    return isinstance(data, list) and bool(data) and all(isinstance(row, dict) for row in data)
 
 
 class Found(NamedTuple):
@@ -259,10 +253,7 @@ def find_rows(data, path: str | None = None) -> Found:
         return Found(None, reason="no list of rows in this payload")
     return Found(
         None,
-        reason=(
-            f"{len(candidates)} candidate row lists "
-            f"({', '.join(candidates)}) — use --rows to choose"
-        ),
+        reason=(f"{len(candidates)} candidate row lists " f"({', '.join(candidates)}) — use --rows to choose"),
     )
 
 
@@ -405,8 +396,12 @@ def shape(
         # Drawn *and* reported. Drawing it answers the question the operator
         # asked; saying so answers the one they did not know to ask.
         return _view(
-            inline, details, [], found.key,
-            missing=_absent(rows, cols), shapes=variance(rows),
+            inline,
+            details,
+            [],
+            found.key,
+            missing=_absent(rows, cols),
+            shapes=variance(rows),
         )
 
     if not enabled:
@@ -523,9 +518,7 @@ def warnings_for(
     # fifteen crushed columns and no reason. Anything that asks for shaping and
     # gets none is owed the reason shaping declined.
     if reason and (requested or dropped):
-        asked = ", ".join(
-            f"--{name}" for name, v in (("cols", requested), ("drop", dropped)) if v
-        )
+        asked = ", ".join(f"--{name}" for name, v in (("cols", requested), ("drop", dropped)) if v)
         out.append(f"{asked} not applied — {reason}")
 
     if not view:
@@ -551,8 +544,7 @@ def warnings_for(
     if surprising:
         count = len(surprising)
         out.append(
-            f"{count} column{'' if count == 1 else 's'} hidden: "
-            f"{', '.join(surprising)} — use --cols to choose"
+            f"{count} column{'' if count == 1 else 's'} hidden: " f"{', '.join(surprising)} — use --cols to choose"
         )
 
     # Why the table is this wide, which is the one thing a wide table cannot

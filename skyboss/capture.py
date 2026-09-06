@@ -292,10 +292,7 @@ def resolve(name: str, home: Path | None = None) -> tuple[Format | None, str | N
         # declare. See [[jsonl-reads]].
         return Format(name="jsonl", kind="jsonl"), None
     if name == "lines":
-        return None, (
-            "'lines' needs a pattern — declare a format in formats.toml "
-            "and name it: --from <name>"
-        )
+        return None, ("'lines' needs a pattern — declare a format in formats.toml " "and name it: --from <name>")
 
     formats, problems = load_formats(home)
     for fmt in formats:
@@ -389,7 +386,4 @@ def unmatched_warning(captured: Captured, name: str) -> str | None:
     difference between a declared parser and a guessed one."""
     if not captured.unmatched or captured.matched_nothing:
         return None
-    return (
-        f"{captured.unmatched} of {captured.total} lines did not match "
-        f"{name} — first: {captured.sample!r}"
-    )
+    return f"{captured.unmatched} of {captured.total} lines did not match " f"{name} — first: {captured.sample!r}"

@@ -9,6 +9,8 @@ that spawn a real child bound every wait.
 
 import io
 
+import pytest
+
 from skyboss.stream import (
     MAX_KEEP_CHARS,
     ChildStream,
@@ -18,8 +20,6 @@ from skyboss.stream import (
     accrue,
     pump,
 )
-
-import pytest
 
 #: Every test here is host-side and needs no services up.
 pytestmark = [pytest.mark.unit]
@@ -261,13 +261,11 @@ def test_a_held_open_stream_is_not_left_in_the_childs_buffer():
 
     from skyboss.stream import ChildStream
 
-    script = textwrap.dedent(
-        """
+    script = textwrap.dedent("""
         import sys, time
         print("first")
         time.sleep(30)
-        """
-    )
+        """)
     child = ChildStream(["python3", "-c", script])
     try:
         deadline = time.monotonic() + 10

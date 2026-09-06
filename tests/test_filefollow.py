@@ -7,9 +7,9 @@ refused, and quiet is knowledge (a stat) rather than a guess (a silence).
 The fs is a fake; nothing here sleeps, rotates, or writes to disk.
 """
 
-from skyboss.filefollow import BACKFILL_BYTES, FileCursor, follow_file
-
 import pytest
+
+from skyboss.filefollow import BACKFILL_BYTES, FileCursor, follow_file
 
 #: Every test here is host-side and needs no services up.
 pytestmark = [pytest.mark.unit]
@@ -219,9 +219,7 @@ def test_the_cursor_body_tints_through_the_same_rules(monkeypatch):
 
     seen = []
     real = highlight.spans
-    monkeypatch.setattr(
-        highlight, "spans", lambda t, ruleset=None: seen.append(t) or real(t, ruleset)
-    )
+    monkeypatch.setattr(highlight, "spans", lambda t, ruleset=None: seen.append(t) or real(t, ruleset))
 
     fs = FakeFs()
     stamped = "2026-01-01T00:00:00 [cron] ran"

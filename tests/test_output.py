@@ -15,13 +15,12 @@ from skyboss.output import (
     EXIT_OK,
     EXIT_PARTIAL,
     Result,
-    capture,
     _cell,
+    capture,
     emit,
     exit_code,
     render,
 )
-
 
 # ---------------------------------------------------------------- cell
 
@@ -140,10 +139,13 @@ def test_booleans_render_with_glyphs(capsys):
 def test_ok_field_triggers_status_list(capsys):
     """The `ok` convention: a data contract, not styling chosen by a command."""
     render(
-        Result("doctor", data=[
-            {"tool": "aws", "ok": True, "detail": None},
-            {"tool": "bws", "ok": False, "detail": "no token"},
-        ]),
+        Result(
+            "doctor",
+            data=[
+                {"tool": "aws", "ok": True, "detail": None},
+                {"tool": "bws", "ok": False, "detail": "no token"},
+            ],
+        ),
         as_json=False,
     )
     body = _body(capsys.readouterr().out)
@@ -367,10 +369,7 @@ def test_concurrent_captures_do_not_post_into_each_other():
                 pass
         results[index] = captured.text
 
-    threads = [
-        threading.Thread(target=worker, args=(i, command))
-        for i, command in enumerate([alpha, beta] * 4)
-    ]
+    threads = [threading.Thread(target=worker, args=(i, command)) for i, command in enumerate([alpha, beta] * 4)]
     for thread in threads:
         thread.start()
     for thread in threads:
@@ -483,9 +482,7 @@ def test_a_view_summarises_a_nested_dict_into_one_cell(capsys):
             "x",
             data=[{"checks": {"passed": 2, "failed": 0, "skipped": 7}}],
             view={
-                "columns": [
-                    {"key": "checks", "label": "CHECKS", "flex": 3, "min": 6, "max": 24, "summarise": True}
-                ],
+                "columns": [{"key": "checks", "label": "CHECKS", "flex": 3, "min": 6, "max": 24, "summarise": True}],
                 "hidden": [],
             },
         ),
@@ -554,10 +551,7 @@ def test_a_detail_column_gets_its_own_line_under_the_record():
         "x",
         data=[{"number": 946, "title": "a title far too long to sit inside a shared column"}],
         view={
-            "columns": [
-                {"key": "number", "label": "NUMBER", "flex": 1, "min": 6, "max": 6,
-                 "align": "right"}
-            ],
+            "columns": [{"key": "number", "label": "NUMBER", "flex": 1, "min": 6, "max": 6, "align": "right"}],
             "details": [{"key": "title", "label": "TITLE", "flex": 1, "min": 5, "max": 60}],
             "hidden": [],
         },
@@ -573,9 +567,11 @@ def test_a_detail_column_gets_its_own_line_under_the_record():
 
 def test_a_shaped_table_has_a_rule_under_its_header(capsys):
     render(
-        Result("x", data=[{"a": 1}],
-               view={"columns": [{"key": "a", "label": "A", "flex": 1, "min": 1, "max": 1}],
-                     "hidden": []}),
+        Result(
+            "x",
+            data=[{"a": 1}],
+            view={"columns": [{"key": "a", "label": "A", "flex": 1, "min": 1, "max": 1}], "hidden": []},
+        ),
         as_json=False,
     )
     lines = [l for l in capsys.readouterr().out.splitlines() if l.strip()]
@@ -586,11 +582,17 @@ def test_a_shaped_table_leaves_no_trailing_whitespace(capsys):
     """Invisible until someone selects the line or diffs the output, and then
     it is noise."""
     render(
-        Result("x", data=[{"a": 1, "b": "x"}],
-               view={"columns": [
-                   {"key": "a", "label": "A", "flex": 1, "min": 1, "max": 3},
-                   {"key": "b", "label": "BBBB", "flex": 1, "min": 4, "max": 4}],
-                   "hidden": []}),
+        Result(
+            "x",
+            data=[{"a": 1, "b": "x"}],
+            view={
+                "columns": [
+                    {"key": "a", "label": "A", "flex": 1, "min": 1, "max": 3},
+                    {"key": "b", "label": "BBBB", "flex": 1, "min": 4, "max": 4},
+                ],
+                "hidden": [],
+            },
+        ),
         as_json=False,
     )
     for line in capsys.readouterr().out.splitlines():

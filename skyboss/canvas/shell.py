@@ -71,9 +71,8 @@ def available() -> bool:
         import gi
 
         gi.require_version("WebKit2", "4.1")
-        from gi.repository import WebKit2  # noqa: F401
-
         import webview  # noqa: F401
+        from gi.repository import WebKit2  # noqa: F401
     except (ImportError, ValueError):
         return False
     return True
@@ -97,7 +96,6 @@ class Api:
         """
         try:
             from gi.repository import Gdk
-
             from webview.platforms.gtk import BrowserView
 
             window = next(iter(BrowserView.instances.values())).window

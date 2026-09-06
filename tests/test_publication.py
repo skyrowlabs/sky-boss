@@ -34,9 +34,9 @@ class of leak as a host name in a tracked file", two lines under one.
 import re
 import subprocess
 
-from skyboss.helpers import PROJECT_ROOT
-
 import pytest
+
+from skyboss.helpers import PROJECT_ROOT
 
 #: Every test here is host-side and needs no services up.
 pytestmark = [pytest.mark.unit]

@@ -8,11 +8,10 @@ would work perfectly and be wrong.
 import io
 import json
 
+import pytest
 
 from skyboss import cli
 from skyboss.mcp import METHOD_NOT_FOUND, call, exposed, handle, serve
-
-import pytest
 
 #: Every test here is host-side and needs no services up.
 pytestmark = [pytest.mark.unit]
@@ -79,9 +78,7 @@ def test_the_list_comes_off_the_live_tree(tmp_path):
     from skyboss.tools import register
 
     before = names()
-    (tmp_path / "tools.toml").write_text(
-        '[tool.later]\nargv = ["data", "--", "echo", "[]"]\n'
-    )
+    (tmp_path / "tools.toml").write_text('[tool.later]\nargv = ["data", "--", "echo", "[]"]\n')
     assert register(cli, home=tmp_path) == []
     try:
         assert names() - before == {"tools-later"}
@@ -101,10 +98,7 @@ def test_initialize_answers_with_capabilities():
 def test_initialize_agrees_on_the_clients_version():
     """This implements the core every version in use shares. A mismatch the
     client could have lived with is a worse outcome than agreeing."""
-    reply = handle(
-        {"jsonrpc": "2.0", "id": 1, "method": "initialize",
-         "params": {"protocolVersion": "2024-11-05"}}
-    )
+    reply = handle({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2024-11-05"}})
     assert reply["result"]["protocolVersion"] == "2024-11-05"
 
 
@@ -162,9 +156,7 @@ def test_a_failed_command_is_an_envelope_not_a_transport_fault(tmp_path):
     here is what it said' as an *answer*."""
     from skyboss.tools import register
 
-    (tmp_path / "tools.toml").write_text(
-        '[tool.broken]\nargv = ["data", "--", "sh", "-c", "echo boom >&2; exit 3"]\n'
-    )
+    (tmp_path / "tools.toml").write_text('[tool.broken]\nargv = ["data", "--", "sh", "-c", "echo boom >&2; exit 3"]\n')
     assert register(cli, home=tmp_path) == []
     try:
         text, is_error = call("tools-broken")
@@ -180,7 +172,6 @@ def test_a_result_is_bounded(tmp_path, monkeypatch):
     """A 120k-line result kills an agent's context as dead as it killed a
     browser tab. The substrate changed; the rule did not."""
     import skyboss.mcp as mcp_
-
     from skyboss.tools import register
 
     monkeypatch.setattr(mcp_, "MAX_ROWS", 5)
@@ -230,17 +221,13 @@ def test_stdout_carries_protocol_and_nothing_else(capsys, tmp_path):
     from skyboss.tools import register
 
     (tmp_path / "tools.toml").write_text(
-        '[tool.noisy]\nargv = ["data", "--", "sh", "-c", '
-        '"echo chatter >&2; printf \'[{\\\\\\"a\\\\\\": 1}]\'"]\n'
+        '[tool.noisy]\nargv = ["data", "--", "sh", "-c", ' '"echo chatter >&2; printf \'[{\\\\\\"a\\\\\\": 1}]\'"]\n'
     )
     assert register(cli, home=tmp_path) == []
     try:
         out = io.StringIO()
         serve(
-            stdin=io.StringIO(
-                '{"jsonrpc":"2.0","id":1,"method":"tools/call",'
-                '"params":{"name":"tools-noisy"}}\n'
-            ),
+            stdin=io.StringIO('{"jsonrpc":"2.0","id":1,"method":"tools/call",' '"params":{"name":"tools-noisy"}}\n'),
             stdout=out,
         )
         for line in out.getvalue().splitlines():

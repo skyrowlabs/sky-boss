@@ -97,9 +97,7 @@ def test_an_unknown_top_level_table_is_named():
 def test_one_bad_definition_does_not_cost_the_others():
     """A loader that raises on one malformed job takes down the whole
     schedule."""
-    jobs, problems = parse(
-        {"job": {"good": a_body(), "bad": a_body(timeout="soon")}}, COMMANDS
-    )
+    jobs, problems = parse({"job": {"good": a_body(), "bad": a_body(timeout="soon")}}, COMMANDS)
     assert [j.name for j in jobs] == ["good"]
     assert len(problems) == 1 and "timeout" in problems[0]
 
@@ -343,9 +341,7 @@ def test_the_ledger_is_one_object_per_line(state):
     "code,outcome",
     [(0, "ok"), (3, "partial"), (1, "failed"), (2, "failed"), (7, "failed")],
 )
-def test_the_envelopes_three_codes_map_and_everything_else_is_failure(
-    code, outcome, state, monkeypatch, tmp_path
-):
+def test_the_envelopes_three_codes_map_and_everything_else_is_failure(code, outcome, state, monkeypatch, tmp_path):
     """This is where `partial` finally does real work rather than being tidy: a
     wrapper branches on the exit status without parsing a byte of output."""
 
@@ -422,7 +418,15 @@ def test_output_goes_to_the_log_and_never_into_the_envelope(tmp_path, monkeypatc
     body = json.loads(run(tmp_path, monkeypatch, "run", "quiet").stdout)
     assert "spoken" not in json.dumps(body["data"])
     assert set(body["data"]) == {
-        "job", "run_id", "lane", "log", "started", "finished", "duration_s", "outcome", "exit",
+        "job",
+        "run_id",
+        "lane",
+        "log",
+        "started",
+        "finished",
+        "duration_s",
+        "outcome",
+        "exit",
     }
 
 
@@ -549,8 +553,16 @@ def test_exec_start_goes_through_the_command_never_the_raw_argv():
 
 
 CONTROLLING = (
-    "Conflicts", "Requires", "Requisite", "BindsTo", "PartOf",
-    "Before", "After", "Wants", "Upholds", "OnFailure",
+    "Conflicts",
+    "Requires",
+    "Requisite",
+    "BindsTo",
+    "PartOf",
+    "Before",
+    "After",
+    "Wants",
+    "Upholds",
+    "OnFailure",
 )
 
 
@@ -603,9 +615,7 @@ def test_a_generated_unit_says_it_is_generated():
 def test_the_payload_is_the_work_without_sky_boss_wrapping():
     """`jam report overnight` is what the operator's crontab line says too,
     which is why a collision can be found without either clock being parsed."""
-    assert payload(Job("j", ["run", "--", "jam", "report", "overnight"])) == (
-        "jam report overnight"
-    )
+    assert payload(Job("j", ["run", "--", "jam", "report", "overnight"])) == ("jam report overnight")
 
 
 def test_a_payload_too_short_to_check_says_so_rather_than_clean(monkeypatch):
@@ -780,10 +790,7 @@ def test_every_job_subcommand_chooses_its_act_bit():
     """
     from skyboss.jobs import job as group
 
-    undecided = [
-        name for name, command in group.commands.items()
-        if not hasattr(command, "sb_acts")
-    ]
+    undecided = [name for name, command in group.commands.items() if not hasattr(command, "sb_acts")]
     assert not undecided, f"these must declare sb_acts: {undecided}"
 
 
@@ -822,10 +829,7 @@ def test_every_outcome_the_code_produces_is_one_the_module_declares():
     found: set[str] = set()
 
     def strings(node: ast.AST) -> set[str]:
-        return {
-            n.value for n in ast.walk(node)
-            if isinstance(n, ast.Constant) and isinstance(n.value, str)
-        }
+        return {n.value for n in ast.walk(node) if isinstance(n, ast.Constant) and isinstance(n.value, str)}
 
     def names_outcome(node: ast.AST) -> bool:
         """A target, or a subscript, that is the outcome itself."""
@@ -862,8 +866,7 @@ def test_every_outcome_the_code_produces_is_one_the_module_declares():
     assert found, "found no outcome strings at all — the walk has stopped working"
     undeclared = found - set(OUTCOMES)
     assert not undeclared, (
-        f"skyboss/jobs.py produces or compares outcomes that OUTCOMES does not declare: "
-        f"{sorted(undeclared)}"
+        f"skyboss/jobs.py produces or compares outcomes that OUTCOMES does not declare: " f"{sorted(undeclared)}"
     )
     unproduced = set(OUTCOMES) - found
     assert not unproduced, (

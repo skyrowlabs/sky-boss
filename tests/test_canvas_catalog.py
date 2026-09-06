@@ -6,11 +6,10 @@ catalog does not break, it simply starts offering a command that no longer
 exists, with a description of what it used to do.
 """
 
+import pytest
 import rich_click as click
 
-from skyboss.canvas.catalog import catalog, walk, vocabulary
-
-import pytest
+from skyboss.canvas.catalog import catalog, vocabulary, walk
 
 #: Every test here is host-side and needs no services up.
 pytestmark = [pytest.mark.unit]
@@ -133,8 +132,7 @@ def test_a_summary_is_a_paragraph_not_a_line():
 
     entry = walk(wrapped, ("wrapped",))[0]
     assert entry["summary"] == (
-        "Read another CLI's output as data. An observe — a window may pin it and "
-        "refresh it."
+        "Read another CLI's output as data. An observe — a window may pin it and " "refresh it."
     )
 
 
@@ -190,17 +188,15 @@ def test_a_declared_ruleset_is_listed_with_its_size(tmp_path):
     whose placeholder named a file the surface had never opened."""
     home = _home(
         tmp_path,
-        '[highlight.jam]\n'
+        "[highlight.jam]\n"
         'description = "jam\'s vocabulary"\n'
-        'rules = [\n'
+        "rules = [\n"
         '  { pattern = "\\\\bESCALATE\\\\b", role = "warn" },\n'
         '  { pattern = "\\\\bdone\\\\b", role = "ok" },\n'
-        ']\n',
+        "]\n",
     )
     body = vocabulary(home)
-    assert body["highlights"] == [
-        {"name": "jam", "description": "jam's vocabulary", "rules": 2}
-    ]
+    assert body["highlights"] == [{"name": "jam", "description": "jam's vocabulary", "rules": 2}]
     assert body["problems"] == []
 
 

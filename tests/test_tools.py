@@ -205,9 +205,7 @@ def test_a_tilde_in_an_argv_is_expanded():
 
 
 def test_a_group_is_carried_through():
-    tools, problems = one(
-        {"tool": {"prs": {"argv": ["data", "--", "x"], "group": "jam"}}}
-    )
+    tools, problems = one({"tool": {"prs": {"argv": ["data", "--", "x"], "group": "jam"}}})
     assert problems == []
     assert tools[0].group == "jam"
 
@@ -229,9 +227,7 @@ def test_an_empty_group_is_ungrouped_rather_than_refused():
 def test_a_group_that_is_not_a_key_is_refused(group):
     # A group is keyed on, not just captioned: `jam ` and `jam` would be two
     # groups that look like one.
-    tools, problems = one(
-        {"tool": {"prs": {"argv": ["data", "--", "x"], "group": group}}}
-    )
+    tools, problems = one({"tool": {"prs": {"argv": ["data", "--", "x"], "group": group}}})
     assert tools == []
     assert "group" in problems[0]
 
@@ -267,7 +263,8 @@ def test_a_tilde_inside_a_value_is_left_alone():
 
 from skyboss import cli  # noqa: E402
 from skyboss.canvas.catalog import walk  # noqa: E402
-from skyboss.tools import register, tools as tools_group  # noqa: E402
+from skyboss.tools import register
+from skyboss.tools import tools as tools_group  # noqa: E402
 
 
 @pytest.fixture
@@ -278,15 +275,14 @@ def saved(tmp_path):
     is that a tool becomes an ordinary command, and a stand-in group would let
     that claim be true of the stand-in only.
     """
+
     def declare(toml_text):
         (tmp_path / "tools.toml").write_text(toml_text)
         return register(cli, home=tmp_path)
 
     yield declare
 
-    for name in [
-        n for n, c in list(tools_group.commands.items()) if getattr(c, "sb_saved", False)
-    ]:
+    for name in [n for n, c in list(tools_group.commands.items()) if getattr(c, "sb_saved", False)]:
         del tools_group.commands[name]
 
 
@@ -358,7 +354,7 @@ def test_the_listing_reports_formats_beside_tools(saved, tmp_path):
 
     (tmp_path / "formats.toml").write_text(
         '[format.jam-status]\ndescription = "PR, state, title"\nkind = "lines"\n'
-        'pattern = \'(?P<pr>#\\d+) (?P<state>\\w+)\'\n'
+        "pattern = '(?P<pr>#\\d+) (?P<state>\\w+)'\n"
         '[format.broken]\nkind = "nope"\n'
     )
     saved('[tool.prs]\nargv = ["data", "--", "printf", "[]"]\n')
@@ -367,9 +363,7 @@ def test_the_listing_reports_formats_beside_tools(saved, tmp_path):
     with unittest.mock.patch.object(capture_mod, "SB_HOME", tmp_path):
         result = CliRunner().invoke(cli, ["--json", "tools"])
     envelope = json.loads(result.stdout)
-    assert envelope["data"]["formats"] == [
-        {"name": "jam-status", "kind": "lines", "description": "PR, state, title"}
-    ]
+    assert envelope["data"]["formats"] == [{"name": "jam-status", "kind": "lines", "description": "PR, state, title"}]
     assert envelope["partial"] is True
     assert any("unknown kind" in w for w in envelope["warnings"])
 
@@ -401,10 +395,7 @@ def test_a_file_with_no_groups_lists_exactly_as_it_did_before_groups(saved):
     listing is what it was before this round."""
     from click.testing import CliRunner
 
-    saved(
-        '[tool.prs]\nargv = ["data", "--", "printf", "[]"]\n'
-        '[tool.disk]\nargv = ["data", "--", "printf", "[]"]\n'
-    )
+    saved('[tool.prs]\nargv = ["data", "--", "printf", "[]"]\n' '[tool.disk]\nargv = ["data", "--", "printf", "[]"]\n')
     rows = json.loads(CliRunner().invoke(cli, ["--json", "tools"]).stdout)["data"]["tools"]
     assert [r["name"] for r in rows] == ["disk", "prs"]
     assert all("group" not in r for r in rows)
@@ -458,9 +449,7 @@ def test_a_group_named_by_a_command_lists_without_being_declared(saved):
 
     saved('[tool.prs]\ngroup = "jam"\nargv = ["data", "--", "printf", "[]"]\n')
     groups = json.loads(CliRunner().invoke(cli, ["--json", "tools"]).stdout)["data"]["groups"]
-    assert groups == [
-        {"name": "jam", "description": "", "commands": 1, "declared": False}
-    ]
+    assert groups == [{"name": "jam", "description": "", "commands": 1, "declared": False}]
 
 
 def test_the_tools_table_is_unchanged_by_groups_existing(saved):
@@ -689,17 +678,14 @@ def test_saving_appends_and_never_touches_what_is_already_there(tmp_path):
     spacing and hand-written tools survive byte-for-byte."""
     from skyboss.tools import save
 
-    handwritten = (
-        "# my tools, hand-written\n\n"
-        '[tool.disk]\n# why this one acts\nargv = ["run", "--", "df", "-h"]\n'
-    )
+    handwritten = "# my tools, hand-written\n\n" '[tool.disk]\n# why this one acts\nargv = ["run", "--", "df", "-h"]\n'
     (tmp_path / "tools.toml").write_text(handwritten)
 
     save("prs", ["data", "--", "jam", "pr", "list"], home=tmp_path)
 
     after = (tmp_path / "tools.toml").read_text()
     assert after.startswith(handwritten)
-    assert '[tool.prs]' in after
+    assert "[tool.prs]" in after
     assert 'argv = ["data", "--", "jam", "pr", "list"]' in after
 
 
@@ -714,8 +700,8 @@ def test_saving_into_an_absent_home_creates_it(tmp_path):
 
 def test_a_name_already_declared_is_refused_and_told_what_it_runs(tmp_path):
     """No overwrite: a name that exists is an edit, and edits are $EDITOR's."""
-    import rich_click as click
     import pytest
+    import rich_click as click
 
     from skyboss.tools import save
 
@@ -728,8 +714,8 @@ def test_a_name_already_declared_is_refused_and_told_what_it_runs(tmp_path):
 
 def test_a_cadence_the_surface_cannot_cycle_to_is_refused_at_save_time(tmp_path):
     """Saving cleanly and then failing to load is the worst of both."""
-    import rich_click as click
     import pytest
+    import rich_click as click
 
     from skyboss.tools import save
 
@@ -740,8 +726,8 @@ def test_a_cadence_the_surface_cannot_cycle_to_is_refused_at_save_time(tmp_path)
 
 
 def test_a_name_that_could_not_be_a_command_is_refused(tmp_path):
-    import rich_click as click
     import pytest
+    import rich_click as click
 
     from skyboss.tools import save
 
@@ -752,8 +738,8 @@ def test_a_name_that_could_not_be_a_command_is_refused(tmp_path):
 
 def test_an_unparseable_file_is_not_appended_to(tmp_path):
     """Appending to a file sky.boss cannot read would bury the real problem."""
-    import rich_click as click
     import pytest
+    import rich_click as click
 
     from skyboss.tools import save
 
@@ -813,7 +799,8 @@ def test_a_saved_read_round_trips_through_the_real_loader(tmp_path, monkeypatch)
     from click.testing import CliRunner
 
     from skyboss import cli
-    from skyboss.tools import register, tools as tools_group
+    from skyboss.tools import register
+    from skyboss.tools import tools as tools_group
 
     monkeypatch.setenv("SB_HOME", str(tmp_path))
     monkeypatch.setattr("skyboss.helpers.SB_HOME", tmp_path)
@@ -829,9 +816,7 @@ def test_a_saved_read_round_trips_through_the_real_loader(tmp_path, monkeypatch)
         saved = tools_group.commands["greet"]
         assert list(saved.sb_argv) == [t for t in typed if t not in ("--save", "greet")]
     finally:
-        for name in [
-            n for n, c in list(tools_group.commands.items()) if getattr(c, "sb_saved", False)
-        ]:
+        for name in [n for n, c in list(tools_group.commands.items()) if getattr(c, "sb_saved", False)]:
             del tools_group.commands[name]
 
 
@@ -885,9 +870,7 @@ def test_a_resident_read_saves_before_it_goes_resident(tmp_path, monkeypatch, at
 
     monkeypatch.setattr("skyboss.tools.SB_HOME", tmp_path)
     monkeypatch.setattr("skyboss.resident.reside", lambda source, interval, run_once, **kw: None)
-    result = CliRunner().invoke(
-        cli, ["read", "--refresh", "30", "--save", "prs", "--", "printf", "hi"]
-    )
+    result = CliRunner().invoke(cli, ["read", "--refresh", "30", "--save", "prs", "--", "printf", "hi"])
     assert result.exit_code == 0
     saved = (tmp_path / "tools.toml").read_text()
     # The cadence is lifted into the field, not left in the argv.
@@ -932,13 +915,20 @@ def test_the_bench_ordering_round_trips_with_the_cadence_lifted(tmp_path, monkey
     monkeypatch.setattr("skyboss.tools.SB_HOME", tmp_path)
 
     typed = [
-        "data", "--save", "prs", "--refresh", "30",
-        "--cwd", str(tmp_path), "--cols", "a",
-        "--", "printf", '[{"a": 1}]',
+        "data",
+        "--save",
+        "prs",
+        "--refresh",
+        "30",
+        "--cwd",
+        str(tmp_path),
+        "--cols",
+        "a",
+        "--",
+        "printf",
+        '[{"a": 1}]',
     ]
-    assert saved_argv(typed, "data") == [
-        "data", "--cwd", str(tmp_path), "--cols", "a", "--", "printf", '[{"a": 1}]'
-    ]
+    assert saved_argv(typed, "data") == ["data", "--cwd", str(tmp_path), "--cols", "a", "--", "printf", '[{"a": 1}]']
     assert cadence_of(typed, "data") == 30
 
     written = save_invocation("prs", "data", typed)
@@ -995,9 +985,7 @@ def test_a_refused_cadence_writes_nothing(tmp_path, monkeypatch):
     monkeypatch.setattr("skyboss.helpers.SB_HOME", tmp_path)
     monkeypatch.setattr("skyboss.tools.SB_HOME", tmp_path)
 
-    result = CliRunner().invoke(
-        cli, ["--json", "read", "--save", "prs", "--refresh", "30", "--", "printf", "hi"]
-    )
+    result = CliRunner().invoke(cli, ["--json", "read", "--save", "prs", "--refresh", "30", "--", "printf", "hi"])
     assert result.exit_code == 2
     assert "refuse each other" in result.output
     assert not (tmp_path / "tools.toml").exists()
@@ -1012,9 +1000,7 @@ def test_the_same_ordering_holds_for_read(tmp_path, monkeypatch):
     monkeypatch.setattr("skyboss.helpers.SB_HOME", tmp_path)
     monkeypatch.setattr("skyboss.tools.SB_HOME", tmp_path)
 
-    result = CliRunner().invoke(
-        cli, ["--json", "read", "--save", "log", "--refresh", "30", "--", "printf", "hi"]
-    )
+    result = CliRunner().invoke(cli, ["--json", "read", "--save", "log", "--refresh", "30", "--", "printf", "hi"])
     assert result.exit_code == 2
     assert not (tmp_path / "tools.toml").exists()
 
@@ -1027,13 +1013,18 @@ def test_save_carries_env_into_the_saved_argv():
 
     line = ["read", "--env", "JAM_TRANSCRIPT_STDOUT=1", "--save", "x", "--", "jam", "status"]
     assert saved_argv(line, "read") == [
-        "read", "--env", "JAM_TRANSCRIPT_STDOUT=1", "--", "jam", "status",
+        "read",
+        "--env",
+        "JAM_TRANSCRIPT_STDOUT=1",
+        "--",
+        "jam",
+        "status",
     ]
 
 
 # --- [[tools]] round 4: the interface writes --------------------------------
 
-SAMPLE = '''# a section heading, separated by a blank line
+SAMPLE = """# a section heading, separated by a blank line
 
 # describes alpha
 [tool.alpha]
@@ -1043,7 +1034,7 @@ argv = ["read", "--", "echo", "a"]
 # inside beta
 argv = ["read", "--", "echo", "b"]
 refresh = 30
-'''
+"""
 
 
 def _home(tmp_path):
@@ -1059,7 +1050,7 @@ def test_replacing_a_block_leaves_every_other_byte_alone(tmp_path):
     home = _home(tmp_path)
     write_block("alpha", ["read", "--", "echo", "CHANGED"], home=home)
     after = (home / "tools.toml").read_text()
-    assert after[after.index("[tool.beta]"):] == SAMPLE[SAMPLE.index("[tool.beta]"):]
+    assert after[after.index("[tool.beta]") :] == SAMPLE[SAMPLE.index("[tool.beta]") :]
 
 
 def test_a_comment_above_a_block_survives_an_edit(tmp_path):
@@ -1199,9 +1190,7 @@ def test_the_writer_refuses_a_group_the_loader_would_refuse(tmp_path):
     from skyboss.tools import write_problem
 
     home = _home(tmp_path)
-    assert "group" in (
-        write_problem("gamma", ["read", "--", "echo", "x"], home=home, group="No Good") or ""
-    )
+    assert "group" in (write_problem("gamma", ["read", "--", "echo", "x"], home=home, group="No Good") or "")
     assert write_problem("gamma", ["read", "--", "echo", "x"], home=home, group="jam") is None
 
 
@@ -1210,9 +1199,7 @@ def test_a_comment_above_a_grouped_block_still_survives_an_edit(tmp_path):
     from skyboss.tools import write_block
 
     home = tmp_path
-    (home / "tools.toml").write_text(
-        '# why this needs --cwd\n[tool.alpha]\nargv = ["read", "--", "echo", "a"]\n'
-    )
+    (home / "tools.toml").write_text('# why this needs --cwd\n[tool.alpha]\nargv = ["read", "--", "echo", "a"]\n')
     write_block("alpha", ["read", "--", "echo", "b"], home=home, group="jam")
     after = (home / "tools.toml").read_text()
     assert after.startswith("# why this needs --cwd\n")
@@ -1295,9 +1282,7 @@ def test_a_group_named_but_not_declared_still_exists():
     from skyboss.tools import sections
 
     tools, _ = one({"tool": {"prs": {"argv": ["data", "--", "x"], "group": "jam"}}})
-    assert sections(tools, []) == [
-        {"name": "jam", "description": "", "declared": False, "count": 1}
-    ]
+    assert sections(tools, []) == [{"name": "jam", "description": "", "declared": False, "count": 1}]
 
 
 def test_the_ungrouped_are_not_a_section():
@@ -1342,9 +1327,7 @@ def test_a_regroup_changes_one_line_and_keeps_everything_else(tmp_path):
 def test_a_regroup_replaces_an_existing_group_rather_than_adding_one(tmp_path):
     from skyboss.tools import regroup
 
-    (tmp_path / "tools.toml").write_text(
-        '[tool.prs]\ngroup = "jam"\nargv = ["data", "--", "x"]\n'
-    )
+    (tmp_path / "tools.toml").write_text('[tool.prs]\ngroup = "jam"\nargv = ["data", "--", "x"]\n')
     regroup("prs", "bbrain", home=tmp_path)
     after = (tmp_path / "tools.toml").read_text()
     assert after.count("group =") == 1
@@ -1356,9 +1339,7 @@ def test_regrouping_to_nothing_removes_the_line(tmp_path):
     representation for 'not set', not two."""
     from skyboss.tools import regroup
 
-    (tmp_path / "tools.toml").write_text(
-        '[tool.prs]\ngroup = "jam"\nargv = ["data", "--", "x"]\n'
-    )
+    (tmp_path / "tools.toml").write_text('[tool.prs]\ngroup = "jam"\nargv = ["data", "--", "x"]\n')
     regroup("prs", "", home=tmp_path)
     assert "group" not in (tmp_path / "tools.toml").read_text()
 
@@ -1366,9 +1347,7 @@ def test_regrouping_to_nothing_removes_the_line(tmp_path):
 def test_a_regroup_survives_a_reload(tmp_path):
     from skyboss.tools import load, regroup
 
-    (tmp_path / "tools.toml").write_text(
-        '[tool.applog]\nargv = ["follow", "--", "printf", "x"]\nhighlight = "jam"\n'
-    )
+    (tmp_path / "tools.toml").write_text('[tool.applog]\nargv = ["follow", "--", "printf", "x"]\nhighlight = "jam"\n')
     regroup("applog", "logs", home=tmp_path)
     tools, problems = load({"follow": False}, home=tmp_path, resident=frozenset({"follow"}))
     assert problems == []
@@ -1418,9 +1397,7 @@ def test_the_regroup_route_moves_one_command(tmp_path, monkeypatch):
 
     from skyboss.canvas.server import TOKEN_HEADER, Canvas, build
 
-    (tmp_path / "tools.toml").write_text(
-        '[tool.prs]\nargv = ["data", "--", "printf", "[]"]\n'
-    )
+    (tmp_path / "tools.toml").write_text('[tool.prs]\nargv = ["data", "--", "printf", "[]"]\n')
     monkeypatch.setattr("skyboss.tools.SB_HOME", tmp_path, raising=False)
     client = TestClient(build(Canvas(token="t")))
     moved = client.post(
@@ -1490,14 +1467,11 @@ def test_a_group_that_still_holds_commands_is_not_deleted(tmp_path):
 def test_an_empty_group_is_deleted_and_nothing_else_is(tmp_path):
     from skyboss.tools import remove_group
 
-    (tmp_path / "tools.toml").write_text(
-        "[group.archive]\n"
-        '[tool.prs]\ngroup = "jam"\nargv = ["data", "--", "x"]\n'
-    )
+    (tmp_path / "tools.toml").write_text("[group.archive]\n" '[tool.prs]\ngroup = "jam"\nargv = ["data", "--", "x"]\n')
     remove_group("archive", home=tmp_path)
     after = (tmp_path / "tools.toml").read_text()
     assert "[group.archive]" not in after
-    assert '[tool.prs]' in after and 'group = "jam"' in after
+    assert "[tool.prs]" in after and 'group = "jam"' in after
 
 
 def test_deleting_a_group_that_is_not_declared_is_an_error(tmp_path):
@@ -1611,9 +1585,7 @@ def test_a_saved_highlight_survives_a_rewrite(tmp_path):
 def test_the_catalog_carries_a_highlight_so_a_surface_can_restate_it(saved):
     """The half that makes the fix reach the bench: a surface rewriting a tool
     has to be able to see every field it is restating."""
-    saved(
-        '[tool.applog]\nargv = ["follow", "--", "printf", "x"]\nhighlight = "jam"\n'
-    )
+    saved('[tool.applog]\nargv = ["follow", "--", "printf", "x"]\nhighlight = "jam"\n')
     entry = next(e for e in walk(cli) if e["name"] == "tools applog")
     assert entry["highlight"] == "jam"
 

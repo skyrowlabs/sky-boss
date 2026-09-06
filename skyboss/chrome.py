@@ -30,7 +30,15 @@ from dataclasses import dataclass, replace
 # an exit code, a stat comparison, an envelope fact. The escalation ladder's
 # tint and badge will key off this field when the Rule branch arrives.
 ATTENTION = (
-    "running", "ok", "partial", "failed", "dead", "quiet", "absent", "rotated", "late",
+    "running",
+    "ok",
+    "partial",
+    "failed",
+    "dead",
+    "quiet",
+    "absent",
+    "rotated",
+    "late",
     "pending",
 )
 
@@ -110,10 +118,24 @@ class Chrome:
         the shape of a window's chrome does not carry another shape's nulls."""
         out = {"source": self.source, "shape": self.shape, "attention": self.attention}
         for key in (
-            "duration_s", "warnings", "ran_at", "interval", "last_run",
-            "running_since", "last_line_at", "exit_code", "exited_at",
-            "last_write_at", "size_bytes", "ring_shown", "ring_limit", "due",
-            "fires_at", "ring_first", "ring_last", "parked",
+            "duration_s",
+            "warnings",
+            "ran_at",
+            "interval",
+            "last_run",
+            "running_since",
+            "last_line_at",
+            "exit_code",
+            "exited_at",
+            "last_write_at",
+            "size_bytes",
+            "ring_shown",
+            "ring_limit",
+            "due",
+            "fires_at",
+            "ring_first",
+            "ring_last",
+            "parked",
         ):
             value = getattr(self, key)
             # Zero is *absent* for a count and *meaningful* for an exit code,
@@ -261,9 +283,7 @@ def stream(
     return Chrome(
         source=source,
         shape="stream",
-        attention=_late(
-            "dead" if exit_code is not None else "running", last_line_at, due, now
-        ),
+        attention=_late("dead" if exit_code is not None else "running", last_line_at, due, now),
         due=due,
         ring_first=ring_first,
         ring_last=ring_last,
@@ -503,10 +523,7 @@ def _bottom_spans(chrome: Chrome, now: float) -> tuple[list[Span], list[Span]]:
                 # old band said "showing last 200" while drawing forty of them
                 # and relied on a separate clip marker to admit it — two places
                 # telling half the truth each. See [[follow]] round 3.
-                left.append(
-                    (f"{lead}showing {chrome.ring_first}\u2013{chrome.ring_last} of {shown}",
-                     "sb.label")
-                )
+                left.append((f"{lead}showing {chrome.ring_first}\u2013{chrome.ring_last} of {shown}", "sb.label"))
             if chrome.parked:
                 left.append((" \u00b7 parked", ROLE["pending"]))
 

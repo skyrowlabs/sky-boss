@@ -141,9 +141,7 @@ def ui(
     # silence. See [[canvas]] round 9.
     ctx = click.get_current_context()
     if (ctx.find_root().obj or {}).get("as_json"):
-        raise click.UsageError(
-            "ui is resident and emits no envelope — --json has no meaning here"
-        )
+        raise click.UsageError("ui is resident and emits no envelope — --json has no meaning here")
 
     result = Result()
     if scale <= 0:

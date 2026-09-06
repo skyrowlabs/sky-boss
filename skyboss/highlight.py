@@ -32,9 +32,7 @@ Mark = tuple[int, int, str]
 # A leading ISO-8601 stamp, seconds required, fraction and zone optional. The
 # least informative and most repeated thing on every line; dimming it is what
 # makes everything else legible.
-_TIMESTAMP = re.compile(
-    r"\A\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:[.,]\d+)?(?:Z|[+-]\d{2}:?\d{2})?"
-)
+_TIMESTAMP = re.compile(r"\A\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:[.,]\d+)?(?:Z|[+-]\d{2}:?\d{2})?")
 
 # A [bracketed-tag]: short, no nesting, no inner whitespace-only. The job's
 # name — the boundary the eye actually scans for in a multi-job log.
@@ -136,12 +134,8 @@ _NUMBER = re.compile(r"(?<![\w-])\d[\d,_]*(?:\.\d+)?(?:%|[a-zA-Z]{1,3})?(?![\w-]
 # else. They are the operator's vocabulary, and round 3 already ships the way to
 # say so — **a declared pattern may be a glyph.** See [[highlight]] round 5.
 _OK_GLYPH = re.compile(r"[\u2713\u2714\u2705\u2611]\uFE0F?|\U0001F44D")
-_FAIL_GLYPH = re.compile(
-    r"[\u2716\u2717\u2718\u274C\u274E\u2612]\uFE0F?|\U0001F534|\U0001F44E"
-)
-_WARN_GLYPH = re.compile(
-    r"[\u26A0\u26D4\u2757\u2755\u203C]\uFE0F?|\U0001F7E1|\U0001F6A8|\U0001F6D1"
-)
+_FAIL_GLYPH = re.compile(r"[\u2716\u2717\u2718\u274C\u274E\u2612]\uFE0F?|\U0001F534|\U0001F44E")
+_WARN_GLYPH = re.compile(r"[\u26A0\u26D4\u2757\u2755\u203C]\uFE0F?|\U0001F7E1|\U0001F6A8|\U0001F6D1")
 _OK_EMOJI = re.compile(r"\U0001F7E2|\U0001F7E9")
 _INFO_GLYPH = re.compile(r"\U0001F535|\U0001F7E6|\u2139\uFE0F?")
 
@@ -214,9 +208,7 @@ _COLOUR_WORDS = {
     "grey": "sb.muted",
     "gray": "sb.muted",
 }
-_COLOUR_WORD = re.compile(
-    r"\b(?:" + "|".join(sorted(_COLOUR_WORDS)) + r")\b", re.IGNORECASE
-)
+_COLOUR_WORD = re.compile(r"\b(?:" + "|".join(sorted(_COLOUR_WORDS)) + r")\b", re.IGNORECASE)
 
 # Markdown emphasis, which the agent prose in these logs leans on for its
 # findings. **Bold is a weight, not a colour**, so it composes with whatever
@@ -456,9 +448,7 @@ def _merge(ranges: list[tuple[int, int]]) -> list[tuple[int, int]]:
     return out
 
 
-def _emphasise(
-    text: str, coloured: list[Mark], loud: list[tuple[int, int]] = []
-) -> list[Mark]:
+def _emphasise(text: str, coloured: list[Mark], loud: list[tuple[int, int]] = []) -> list[Mark]:
     """Fold emphasis into the colour marks as a *weight*.
 
     Bold is the one attribute here that is not a colour, so it does not
@@ -542,6 +532,7 @@ def utf16(text: str, found: list[Mark]) -> list[Mark]:
     wide = [i for i, ch in enumerate(text) if ord(ch) > 0xFFFF]
     if not wide:
         return found
+
     def shift(at: int) -> int:
         return at + sum(1 for i in wide if i < at)
 
@@ -579,6 +570,7 @@ def spans(text: str, ruleset: "Ruleset | None" = None) -> list[tuple[str, str | 
 # against a pasted mistake, not against an adversary — this is the operator's
 # own file on their own machine, at `tools.toml`'s trust level.
 MAX_PATTERN = 200
+
 
 # What a declared rule may ask for: the palette's role names, minus the `sb.`
 # prefix the operator should not have to type. A role the theme does not

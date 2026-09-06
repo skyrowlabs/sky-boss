@@ -280,10 +280,7 @@ def _check(
         # Names the alternative rather than just refusing: the mistake this
         # catches is someone writing a shell command, and the fix is to say
         # which sky.boss command would have run it.
-        return (
-            f"argv must start with a sb command, not {argv[0]!r} — "
-            "put it behind `run` or `data`"
-        )
+        return f"argv must start with a sb command, not {argv[0]!r} — " "put it behind `run` or `data`"
 
     if "every" in body:
         # The field-side half of the same migration `RENAMED` handles for
@@ -425,9 +422,7 @@ def make_command(tool: Tool) -> click.Command:
             # the flag is given; residency is never ambient.
             interval = tool.refresh if refresh == 0 else refresh
             if interval <= 0:
-                raise click.UsageError(
-                    f"{tool.name} declares no refresh — give a value: --refresh 30"
-                )
+                raise click.UsageError(f"{tool.name} declares no refresh — give a value: --refresh 30")
             args = ["--refresh", str(interval), *args]
 
         target = root.get_command(ctx, tool.argv[0])
@@ -575,11 +570,7 @@ def _listing() -> Result:
     from skyboss import capture as capture_
 
     result = Result()
-    saved = [
-        (name, command)
-        for name, command in tools.commands.items()
-        if getattr(command, "sb_saved", False)
-    ]
+    saved = [(name, command) for name, command in tools.commands.items() if getattr(command, "sb_saved", False)]
     # Groups alphabetical, tools alphabetical within them, the ungrouped last.
     # Declaration order was the tempting alternative — the file is hand-written
     # and its order is an assertion — and it lost to the fact that the catalog
@@ -748,12 +739,7 @@ def _toml_string(value: str) -> str:
     plausibly appear in one. Anything more exotic would be a sign the argv is
     not what it claims to be.
     """
-    escaped = (
-        value.replace("\\", "\\\\")
-        .replace('"', '\\"')
-        .replace("\n", "\\n")
-        .replace("\t", "\\t")
-    )
+    escaped = value.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n").replace("\t", "\\t")
     return f'"{escaped}"'
 
 
@@ -967,9 +953,7 @@ def write_block(
     surface holds an opinion about the file's current contents that may be one
     tick out of date.
     """
-    problem = write_problem(
-        name, argv, refresh, home, group=group, highlight=highlight, tags=tags
-    )
+    problem = write_problem(name, argv, refresh, home, group=group, highlight=highlight, tags=tags)
     if problem:
         raise click.UsageError(problem)
 
@@ -1047,11 +1031,7 @@ def set_field(name: str, key: str, value: str, home: Path | None = None) -> dict
     line = f"{key} = {_toml_string(value)}\n" if value else ""
 
     at = next(
-        (
-            i
-            for i in range(start + 1, end)
-            if (match := _ASSIGN.match(rows[i])) and match.group(1) == key
-        ),
+        (i for i in range(start + 1, end) if (match := _ASSIGN.match(rows[i])) and match.group(1) == key),
         None,
     )
     if at is not None:
@@ -1172,14 +1152,11 @@ def remove_group(name: str, home: Path | None = None) -> dict:
 
     raw = read(home)
     holders = sorted(
-        tool
-        for tool, body in (raw.get("tool") or {}).items()
-        if isinstance(body, dict) and body.get("group") == name
+        tool for tool, body in (raw.get("tool") or {}).items() if isinstance(body, dict) and body.get("group") == name
     )
     if holders:
         raise click.UsageError(
-            f"{name!r} still holds {_plural(len(holders))}: {', '.join(holders)} — "
-            "move them out first"
+            f"{name!r} still holds {_plural(len(holders))}: {', '.join(holders)} — " "move them out first"
         )
 
     span = block_range(text, name, table="group")

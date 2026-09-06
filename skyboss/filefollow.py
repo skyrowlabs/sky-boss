@@ -252,9 +252,7 @@ def follow_file(
 
     def frame() -> Group:
         kept = cursor.lines()
-        shown_lines, first, last = view.window(
-            kept, height=_height(), dropped=cursor.dropped
-        )
+        shown_lines, first, last = view.window(kept, height=_height(), dropped=cursor.dropped)
         facts = chrome_.cursor(
             path,
             state=cursor.state,
@@ -276,9 +274,7 @@ def follow_file(
         return Group(band_text(top), shown, band_text(bottom))
 
     def scroll(key: str) -> bool:
-        return view.move(
-            key, height=_height(), held=len(cursor.lines()), dropped=cursor.dropped
-        )
+        return view.move(key, height=_height(), held=len(cursor.lines()), dropped=cursor.dropped)
 
     since = 0
     # Whether the last look said `late`, so the sentence is said once per lapse

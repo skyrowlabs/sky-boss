@@ -68,11 +68,7 @@ def test_the_guarded_list_names_every_api_route_there_is():
     """The list above only catches an unguarded route if someone remembers to
     add it, which is the same hazard `static/`'s inventory has — so it is
     checked the same way, against the real thing, rather than trusted."""
-    live = {
-        route.path
-        for route in build(Canvas(token="t")).routes
-        if getattr(route, "path", "").startswith("/api/")
-    }
+    live = {route.path for route in build(Canvas(token="t")).routes if getattr(route, "path", "").startswith("/api/")}
     assert live == {path for path, _ in GUARDED}
 
 
@@ -85,9 +81,7 @@ def test_a_foreign_origin_is_refused_even_with_the_right_token(client):
     """The token cannot leak to a page cross-origin, so this is belt and braces
     — but it is the brace that holds if the page is ever served somewhere it
     can be read."""
-    response = client.get(
-        "/api/catalog", headers=auth({"Origin": "https://evil.example"})
-    )
+    response = client.get("/api/catalog", headers=auth({"Origin": "https://evil.example"}))
     assert response.status_code == 403
 
 
@@ -100,9 +94,7 @@ def test_the_refusal_does_not_say_which_check_failed(client):
     """A message distinguishing "bad token" from "bad origin" is an oracle for
     whoever is guessing."""
     bad_token = client.get("/api/catalog", headers={TOKEN_HEADER: "wrong"})
-    bad_origin = client.get(
-        "/api/catalog", headers=auth({"Origin": "https://evil.example"})
-    )
+    bad_origin = client.get("/api/catalog", headers=auth({"Origin": "https://evil.example"}))
     assert bad_token.json() == bad_origin.json()
 
 
@@ -150,9 +142,7 @@ def test_the_catalog_comes_from_the_tree(client):
 
 
 def test_running_a_command_returns_its_envelope(client):
-    body = client.post(
-        "/api/run", headers=auth(), json={"argv": ["run", "--", "echo", "canvas"]}
-    ).json()
+    body = client.post("/api/run", headers=auth(), json={"argv": ["run", "--", "echo", "canvas"]}).json()
     assert body["ok"] is True
     assert body["envelope"]["data"]["stdout"].strip() == "canvas"
 
@@ -160,9 +150,7 @@ def test_running_a_command_returns_its_envelope(client):
 def test_a_failing_command_still_returns_an_envelope(client):
     """A non-zero exit is data, not an error. The window has to be able to show
     what went wrong rather than going blank."""
-    body = client.post(
-        "/api/run", headers=auth(), json={"argv": ["run", "--", "false"]}
-    ).json()
+    body = client.post("/api/run", headers=auth(), json={"argv": ["run", "--", "false"]}).json()
     assert body["ok"] is False
     assert body["envelope"]["data"]["exit_code"] == 1
 
@@ -235,9 +223,10 @@ def test_the_close_button_is_guarded_like_every_other_route():
     client = TestClient(build(canvas))
 
     assert client.post("/api/quit", json={}).status_code == 403
-    assert client.post(
-        "/api/quit", headers={TOKEN_HEADER: "test-token", "Origin": "https://evil.example"}
-    ).status_code == 403
+    assert (
+        client.post("/api/quit", headers={TOKEN_HEADER: "test-token", "Origin": "https://evil.example"}).status_code
+        == 403
+    )
     assert not canvas.quitting.is_set()
 
 
@@ -276,6 +265,7 @@ def test_the_page_carries_the_scale():
 
 # ---------------------------------------------------------------- the bench
 
+
 def test_a_trial_run_of_an_act_is_refused_by_the_server(client):
     """Not merely a button the bench declines to draw.
 
@@ -284,9 +274,7 @@ def test_a_trial_run_of_an_act_is_refused_by_the_server(client):
     without the surface. This is the act/observe split standing up to a POST.
     See [[workbench]] round 1.
     """
-    response = client.post(
-        "/api/trial", headers=auth(), json={"argv": ["run", "--", "true"]}
-    )
+    response = client.post("/api/trial", headers=auth(), json={"argv": ["run", "--", "true"]})
     assert response.status_code == 400
     assert "act" in response.json()["error"]
 
@@ -295,18 +283,14 @@ def test_a_trial_run_of_a_stream_is_refused_and_says_where_to_go(client):
     """`runner.run` would sit on a follow until the timeout and then report a
     hang as a result. A stream is held open by /api/follow like every other one
     on this surface."""
-    response = client.post(
-        "/api/trial", headers=auth(), json={"argv": ["follow", "--", "tail", "-f", "x"]}
-    )
+    response = client.post("/api/trial", headers=auth(), json={"argv": ["follow", "--", "tail", "-f", "x"]})
     assert response.status_code == 400
     assert "held open" in response.json()["error"]
 
 
 def test_a_trial_run_of_an_observe_returns_the_envelope(client):
     """The pleasant path, once. Everything else about the bench is a refusal."""
-    response = client.post(
-        "/api/trial", headers=auth(), json={"argv": ["read", "--", "echo", "hello"]}
-    )
+    response = client.post("/api/trial", headers=auth(), json={"argv": ["read", "--", "echo", "hello"]})
     assert response.status_code == 200
     body = response.json()
     assert body["ok"] is True
@@ -344,9 +328,7 @@ def test_shaping_runs_nothing_and_returns_the_whole_checklist(client):
     unticked. See [[workbench]] round 2.
     """
     data = [{"a": 1, "b": 2, "c": None}, {"a": 3, "b": 4, "c": None}]
-    response = client.post(
-        "/api/shape", headers=auth(), json={"data": data, "cols": ["a"]}
-    )
+    response = client.post("/api/shape", headers=auth(), json={"data": data, "cols": ["a"]})
     assert response.status_code == 200
     body = response.json()
     assert [c["key"] for c in body["view"]["columns"]] == ["a"]
@@ -397,17 +379,24 @@ def test_shaping_leaves_an_authored_view_alone(client):
     how a five-column schedule window drew seven and said so. See [[schedule]]
     round 3.
     """
-    data = [{"project": "p", "name": "j", "fires": "in 1h", "schedule": "0 * * * *",
-             "ran": "2h ago", "next": "2026-08-30T13:00:00+00:00", "last": ""}]
+    data = [
+        {
+            "project": "p",
+            "name": "j",
+            "fires": "in 1h",
+            "schedule": "0 * * * *",
+            "ran": "2h ago",
+            "next": "2026-08-30T13:00:00+00:00",
+            "last": "",
+        }
+    ]
     authored = {
         "columns": [{"key": k} for k in ("project", "name", "fires", "schedule", "ran")],
         "details": [],
         "hidden": ["next", "last"],
         "authored": True,
     }
-    body = client.post(
-        "/api/shape", headers=auth(), json={"data": data, "view": authored}
-    ).json()
+    body = client.post("/api/shape", headers=auth(), json={"data": data, "view": authored}).json()
     assert body["view"] == authored
     # Every key stays tickable, so the two it kept can be asked back on.
     assert body["offered"] == ["project", "name", "fires", "schedule", "ran", "next", "last"]
@@ -420,11 +409,8 @@ def test_asking_for_columns_overrides_an_authored_view(client):
     """Authored is a default, not a lock. The operator asking is the one thing
     that outranks the command's own choice."""
     data = [{"a": 1, "b": 2, "c": 3}]
-    authored = {"columns": [{"key": "a"}], "details": [], "hidden": ["b", "c"],
-                "authored": True}
-    body = client.post(
-        "/api/shape", headers=auth(), json={"data": data, "view": authored, "cols": ["b"]}
-    ).json()
+    authored = {"columns": [{"key": "a"}], "details": [], "hidden": ["b", "c"], "authored": True}
+    body = client.post("/api/shape", headers=auth(), json={"data": data, "view": authored, "cols": ["b"]}).json()
     assert [c["key"] for c in body["view"]["columns"]] == ["b"]
 
 
@@ -445,7 +431,7 @@ def test_shaping_a_payload_with_no_rows_says_why(client):
 
 
 def test_an_act_gets_checks_instead_of_a_trial(client):
-    """"We cannot run it" is not the same as "we can tell you nothing".
+    """ "We cannot run it" is not the same as "we can tell you nothing".
 
     Three questions have answers that cost nothing, and the third is asked of
     sky.boss's own parser rather than of a copy of its rules.
@@ -475,9 +461,7 @@ def test_a_bad_cwd_fails_the_directory_check_and_the_parse(client):
 
 
 def test_an_unknown_flag_is_caught_without_running(client):
-    body = client.post(
-        "/api/preflight", headers=auth(), json={"argv": ["run", "--bogus", "--", "ls"]}
-    ).json()
+    body = client.post("/api/preflight", headers=auth(), json={"argv": ["run", "--bogus", "--", "ls"]}).json()
     parse = body["checks"][-1]
     assert parse["ok"] is False
     assert "--bogus" in parse["detail"]
@@ -498,9 +482,7 @@ def test_preflight_runs_nothing(client, tmp_path):
 def test_the_name_is_judged_before_the_write(client):
     """`--save` writes before it runs, so a refusal found afterwards is found
     too late — under a name that then cannot be reused."""
-    body = client.post(
-        "/api/preflight", headers=auth(), json={"argv": ["data", "--", "x"], "name": "Bad Name"}
-    ).json()
+    body = client.post("/api/preflight", headers=auth(), json={"argv": ["data", "--", "x"], "name": "Bad Name"}).json()
     assert body["name"]["ok"] is False
     assert "lowercase letters" in body["name"]["reason"]
 
@@ -511,9 +493,7 @@ def test_the_block_is_the_bytes_save_would_have_written(client):
     from skyboss import tools as tools_
 
     argv = ["run", "--cwd", "/tmp", "--", "gh", "workflow", "run", "ci.yml"]
-    body = client.post(
-        "/api/preflight", headers=auth(), json={"argv": argv, "name": "ci-check"}
-    ).json()
+    body = client.post("/api/preflight", headers=auth(), json={"argv": argv, "name": "ci-check"}).json()
     assert body["block"] == tools_.block("ci-check", argv)
 
 

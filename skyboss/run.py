@@ -19,8 +19,8 @@ import shlex
 import subprocess
 import time
 
-from rich.console import Console
 import rich_click as click
+from rich.console import Console
 
 from skyboss.helpers import child_env, parse_duration, parse_env
 from skyboss.output import Result, band, emit

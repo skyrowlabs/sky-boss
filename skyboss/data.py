@@ -60,8 +60,8 @@ from pathlib import Path
 import rich_click as click
 
 from skyboss import capture as capture_
-from skyboss.helpers import child_env, parse_env
 from skyboss import output
+from skyboss.helpers import child_env, parse_env
 from skyboss.output import Result, emit
 from skyboss.view import find_rows, shape, warnings_for
 
@@ -117,7 +117,9 @@ def is_file_form(argv: tuple[str, ...]) -> bool:
 # Where the rows are, when the payload wraps them. Named beats inferred: sky.boss
 # infers only when exactly one value is a list of rows, and reports rather than
 # guesses when two are. See [[table-views]] round 4.
-@click.option("--rows", "rows_path", metavar="KEY", help="Where the rows are, if the payload wraps them. Dotted paths allowed.")
+@click.option(
+    "--rows", "rows_path", metavar="KEY", help="Where the rows are, if the payload wraps them. Dotted paths allowed."
+)
 @click.option("--drop", help="Hide these columns, keeping the rest of the shaping.")
 @click.option("--no-shape", "no_shape", is_flag=True, help="Every column, in the order found.")
 # One option whose value is a *name*, never a flag per format. It resolves to
@@ -249,9 +251,7 @@ def data(
     if ticks is not None and refresh is None:
         raise click.UsageError("--ticks needs --refresh — a single read already stops after one")
     if refresh is not None:
-        _reside(
-            argv, timeout, cwd, cols, rows_path, drop, no_shape, from_, refresh, screen, env, ticks
-        )
+        _reside(argv, timeout, cwd, cols, rows_path, drop, no_shape, from_, refresh, screen, env, ticks)
     result = _once(argv, timeout, cwd, cols, rows_path, drop, no_shape, from_, env)
     result.saved = saved
     return result
@@ -322,9 +322,7 @@ def _once(
     # dispatch made once at startup would run a file read the first time and a
     # subprocess forever after. See [[jsonl-reads]].
     if is_file_form(argv):
-        return _from_file(
-            argv[0], started, cols, rows_path, drop, no_shape, from_, timeout
-        )
+        return _from_file(argv[0], started, cols, rows_path, drop, no_shape, from_, timeout)
 
     # Re-resolved on every run rather than closed over: the resident loop and
     # the canvas both re-enter here, and the operator editing formats.toml
@@ -378,9 +376,7 @@ def _once(
         result.data = {**meta, "error": _first_line(proc.stderr) or "exited non-zero"}
         return result
 
-    return parse_text(
-        proc.stdout, meta, fmt, result, cols, rows_path, drop, no_shape, timeout
-    )
+    return parse_text(proc.stdout, meta, fmt, result, cols, rows_path, drop, no_shape, timeout)
 
 
 def _from_file(
@@ -485,8 +481,7 @@ def parse_text(
             result.ok = False
             result.data = {
                 **meta,
-                "error": "no line is a JSON object — check --from, or use `sb read` "
-                "to see what is there",
+                "error": "no line is a JSON object — check --from, or use `sb read` " "to see what is there",
             }
             return result
         warning = capture_.malformed_warning(captured, fmt.name)
@@ -539,9 +534,7 @@ def parse_text(
         result.data = {**meta, "error": found.reason}
         return result
 
-    result.view = shape(
-        parsed, cols=requested, drop=dropped, enabled=not no_shape, rows_path=rows_path
-    )
+    result.view = shape(parsed, cols=requested, drop=dropped, enabled=not no_shape, rows_path=rows_path)
 
     # What this shaping is owed a word about. Three warnings, all decided in
     # cli/view.py rather than here — the bench asks the same question of the
@@ -588,10 +581,7 @@ def _not_json(text: str) -> str:
                 return base
         except json.JSONDecodeError:
             return base
-    return (
-        f"not JSON, but each of its {len(lines)} lines parses alone "
-        "— that is JSONL: add --from jsonl"
-    )
+    return f"not JSON, but each of its {len(lines)} lines parses alone " "— that is JSONL: add --from jsonl"
 
 
 def _first_line(text: str) -> str:

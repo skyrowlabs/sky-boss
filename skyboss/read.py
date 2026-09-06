@@ -134,9 +134,7 @@ def read_(
         # status. A Job is a stream that ends — see [[follow]]. The envelope
         # path below is untouched; under --json it is still built complete,
         # once, at exit.
-        result = _accrued(
-            argv, timeout, cwd, source=f"{ctx.info_name} -- {shlex.join(argv)}", env=env
-        )
+        result = _accrued(argv, timeout, cwd, source=f"{ctx.info_name} -- {shlex.join(argv)}", env=env)
     else:
         result = _once(argv, timeout, cwd, env)
     result.saved = saved
@@ -301,7 +299,5 @@ def _reside(
     refuse_resident_json(refresh)
     refuse_resident_pipe(refresh)
     source = f"{ctx.info_name} -- {shlex.join(argv)}"
-    resident.reside(
-        source, refresh, lambda: _once(argv, timeout, cwd, env), screen=screen, runs=ticks
-    )
+    resident.reside(source, refresh, lambda: _once(argv, timeout, cwd, env), screen=screen, runs=ticks)
     raise click.exceptions.Exit(0)

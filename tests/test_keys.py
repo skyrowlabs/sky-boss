@@ -8,9 +8,9 @@ would hand the operator a shell that does not echo.
 
 import io
 
-from skyboss import keys
-
 import pytest
+
+from skyboss import keys
 
 #: Every test here is host-side and needs no services up.
 pytestmark = [pytest.mark.unit]

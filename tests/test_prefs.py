@@ -8,9 +8,9 @@ config file: only declared keys are stored, and every failure degrades to
 
 import json
 
-from skyboss.canvas import prefs
-
 import pytest
+
+from skyboss.canvas import prefs
 
 #: Every test here is host-side and needs no services up.
 pytestmark = [pytest.mark.unit]
@@ -96,9 +96,7 @@ def test_the_route_refuses_a_bad_shape_with_its_reason(tmp_path, monkeypatch):
 
     monkeypatch.setattr(prefs, "STATE_DIR", tmp_path)
     client = TestClient(build(Canvas(token="t")))
-    response = client.post(
-        "/api/prefs", json={"folded": "jam"}, headers={TOKEN_HEADER: "t"}
-    )
+    response = client.post("/api/prefs", json={"folded": "jam"}, headers={TOKEN_HEADER: "t"})
     assert response.status_code == 400
     assert "folded" in response.json()["error"]
 

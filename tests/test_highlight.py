@@ -7,9 +7,9 @@ no marks, and every rule is shape — no severity vocabulary anywhere.
 
 import time
 
-from skyboss.highlight import load_rulesets, marks, resolve, spans
-
 import pytest
+
+from skyboss.highlight import load_rulesets, marks, resolve, spans
 
 #: Every test here is host-side and needs no services up.
 pytestmark = [pytest.mark.unit]
@@ -125,8 +125,7 @@ def test_no_severity_vocabulary_anywhere():
     a word. Weight carries no verdict — that is the whole argument for
     spending it in round 5 rather than a hue.
     """
-    for line in ("ERROR everything is on fire", "WARN disk almost full",
-                 "FAILED to reach the host", "CRITICAL outage"):
+    for line in ("ERROR everything is on fire", "WARN disk almost full", "FAILED to reach the host", "CRITICAL outage"):
         roles = {role for _, _, role in marks(line)}
         assert roles <= {"bold"}, line
 
@@ -198,9 +197,7 @@ def test_inline_code_takes_the_path_role_rather_than_a_hue_of_its_own():
 
 
 def test_a_number_inside_a_code_span_is_claimed_once_by_the_outer_shape():
-    assert [text for text, _ in _tinted("caps at `MAX_COMMITS = 50` today")] == [
-        "`MAX_COMMITS = 50`"
-    ]
+    assert [text for text, _ in _tinted("caps at `MAX_COMMITS = 50` today")] == ["`MAX_COMMITS = 50`"]
 
 
 def test_paths_keep_their_leading_dot_and_their_line_number():
@@ -319,9 +316,7 @@ def test_a_zero_width_pattern_marks_nothing():
 def test_resolve_names_what_is_declared_when_the_name_is_wrong(tmp_path):
     from skyboss.highlight import resolve
 
-    (tmp_path / "formats.toml").write_text(
-        '[highlight.jam]\nrules = [{ pattern = "x", role = "ok" }]\n'
-    )
+    (tmp_path / "formats.toml").write_text('[highlight.jam]\nrules = [{ pattern = "x", role = "ok" }]\n')
     found, problem = resolve("jam", home=tmp_path)
     assert found is not None and problem is None
 
@@ -436,8 +431,7 @@ def test_an_acronym_in_prose_is_not_a_shout():
     """Five characters, measured rather than chosen: below it the corpus is
     acronyms in ordinary prose — `PR` 122 times, `CI` 52, plus a bare `I` and
     `A`. Four would buy TODO at the price of HEAD and HTTP."""
-    for line in ("the PR is green and CI agrees, I think",
-                 "SHA and LFS and API and HEAD"):
+    for line in ("the PR is green and CI agrees, I think", "SHA and LFS and API and HEAD"):
         # No *shout* — `green` is still a colour word, which is round 4's and
         # not this rule's. Asserting an empty list here would have tested the
         # wrong thing and passed for the wrong reason.
@@ -599,8 +593,7 @@ def test_a_declared_rule_may_ask_for_weight(tmp_path):
     never a weight, so `escalate` could be tinted and not emphasised and there
     was no spelling an operator could write to ask."""
     (tmp_path / "formats.toml").write_text(
-        '[highlight.j]\n'
-        '[[highlight.j.rules]]\npattern = "escalate"\nrole = "warn"\nweight = "bold"\n'
+        "[highlight.j]\n" '[[highlight.j.rules]]\npattern = "escalate"\nrole = "warn"\nweight = "bold"\n'
     )
     ruleset, problem = resolve("j", tmp_path)
     assert problem is None
@@ -612,8 +605,7 @@ def test_a_declared_weight_is_the_same_object_a_builtin_one_is(tmp_path):
     `_merge` handles overlap and `_emphasise` folds it once. The proof is that
     it composes with markdown emphasis instead of doubling."""
     (tmp_path / "formats.toml").write_text(
-        '[highlight.j]\n'
-        '[[highlight.j.rules]]\npattern = "escalate"\nrole = "warn"\nweight = "bold"\n'
+        "[highlight.j]\n" '[[highlight.j.rules]]\npattern = "escalate"\nrole = "warn"\nweight = "bold"\n'
     )
     ruleset, _ = resolve("j", tmp_path)
     for _start, _end, role in marks("**we escalate now**", ruleset):
@@ -624,8 +616,7 @@ def test_a_weight_that_is_not_bold_is_refused(tmp_path):
     """One value, because bold is the only weight the palette has. A second is
     a design-system decision exactly as a ninth hue is."""
     (tmp_path / "formats.toml").write_text(
-        '[highlight.j]\n'
-        '[[highlight.j.rules]]\npattern = "x"\nrole = "warn"\nweight = "italic"\n'
+        "[highlight.j]\n" '[[highlight.j.rules]]\npattern = "x"\nrole = "warn"\nweight = "italic"\n'
     )
     _ruleset, problems = load_rulesets(tmp_path)
     assert any("weight must be 'bold'" in p for p in problems)
@@ -657,8 +648,7 @@ def test_a_quoted_string_the_operator_claimed_keeps_its_colour(tmp_path):
     operator's rules — so their colour lands on the words and the quotes dim
     around it."""
     (tmp_path / "formats.toml").write_text(
-        "[highlight.j]\n"
-        "[[highlight.j.rules]]\npattern = \"'[a-z-]+'\"\nrole = \"ok\"\n"
+        "[highlight.j]\n" '[[highlight.j.rules]]\npattern = "\'[a-z-]+\'"\nrole = "ok"\n'
     )
     ruleset, _ = resolve("j", tmp_path)
     found = marks("ran 'repo-report' now", ruleset)

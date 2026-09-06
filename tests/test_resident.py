@@ -9,13 +9,12 @@ proving a five-second cadence must not cost five seconds of suite.
 
 import json
 
+import pytest
 from click.testing import CliRunner
 
 from skyboss import cli
 from skyboss.output import Result
 from skyboss.resident import Residency, loop, reside
-
-import pytest
 
 #: Every test here is host-side and needs no services up.
 pytestmark = [pytest.mark.unit]
@@ -126,8 +125,14 @@ def test_reside_renders_bands_around_the_body_and_leaves_on_interrupt():
         return Result(ok=True, data="the body")
 
     reside(
-        "jam-prs", 30, run_once,
-        clock=clock, wait=clock.sleep, console=recording, screen=False, ticks=3,
+        "jam-prs",
+        30,
+        run_once,
+        clock=clock,
+        wait=clock.sleep,
+        console=recording,
+        screen=False,
+        ticks=3,
     )
     text = recording.export_text()
     assert "jam-prs" in text and "refresh 30s" in text
@@ -138,8 +143,14 @@ def test_reside_renders_bands_around_the_body_and_leaves_on_interrupt():
         raise KeyboardInterrupt
 
     reside(
-        "jam-prs", 30, interrupted,
-        clock=clock, wait=clock.sleep, console=recording, screen=False, ticks=3,
+        "jam-prs",
+        30,
+        interrupted,
+        clock=clock,
+        wait=clock.sleep,
+        console=recording,
+        screen=False,
+        ticks=3,
     )  # returning at all is the assertion
 
 
@@ -241,9 +252,7 @@ def declare(tmp_path, toml_text):
 def undeclare():
     from skyboss.tools import tools as tools_group
 
-    for name in [
-        n for n, c in list(tools_group.commands.items()) if getattr(c, "sb_saved", False)
-    ]:
+    for name in [n for n, c in list(tools_group.commands.items()) if getattr(c, "sb_saved", False)]:
         del tools_group.commands[name]
 
 
@@ -496,9 +505,7 @@ def test_a_piped_refresh_on_data_streams_ndjson(monkeypatch):
 
 def test_screen_does_not_exempt_it():
     """The alternate screen is *more* of a terminal requirement, not less."""
-    result = CliRunner().invoke(
-        cli, ["read", "--refresh", "2", "--screen", "--", "printf", "hi"]
-    )
+    result = CliRunner().invoke(cli, ["read", "--refresh", "2", "--screen", "--", "printf", "hi"])
     assert result.exit_code == 2
 
 
@@ -516,9 +523,7 @@ def test_the_refusal_fires_before_save_writes(tmp_path, monkeypatch):
     refusal raised inside the resident path would fire after the append — a name
     taken, a file changed, and a failure reported."""
     monkeypatch.setattr("skyboss.tools.SB_HOME", tmp_path)
-    result = CliRunner().invoke(
-        cli, ["read", "--refresh", "30", "--save", "prs", "--", "printf", "hi"]
-    )
+    result = CliRunner().invoke(cli, ["read", "--refresh", "30", "--save", "prs", "--", "printf", "hi"])
     assert result.exit_code == 2
     assert not (tmp_path / "tools.toml").exists()
 
@@ -579,9 +584,7 @@ def test_the_tick_timestamp_is_an_instant_not_a_wall_clock(capsys):
     consumer needs an unambiguous instant, and a bare time-of-day is not one."""
     from skyboss.output import Result, resident_ndjson
 
-    resident_ndjson(
-        lambda: Result(data={}), 5, clock=lambda: 1756000000.0, sleep=lambda _: None, ticks=1
-    )
+    resident_ndjson(lambda: Result(data={}), 5, clock=lambda: 1756000000.0, sleep=lambda _: None, ticks=1)
     at = json.loads(capsys.readouterr().out.strip())["at"]
     assert at.startswith("2025-") or at.startswith("2026-")
     assert at.endswith("+00:00") or at.endswith("Z")
@@ -658,9 +661,7 @@ def test_ticks_means_refreshes_on_both_paths(monkeypatch, tmp_path):
     )
 
     CliRunner().invoke(cli, ["data", "--refresh", "2", "--ticks", "3", "--", "printf", "[]"])
-    at_a_tty = CliRunner().invoke(
-        cli, ["--json", "data", "--refresh", "2", "--ticks", "3", "--", "printf", "[]"]
-    )
+    at_a_tty = CliRunner().invoke(cli, ["--json", "data", "--refresh", "2", "--ticks", "3", "--", "printf", "[]"])
     assert at_a_tty.exit_code == 0
     assert seen["pipe"] == 3
 

@@ -189,9 +189,7 @@ def history(project: str | None, last: int) -> Result:
         # about which words would have worked.
         if not declared:
             raise click.UsageError(f"no project declares a history — see {home_file()}")
-        raise click.UsageError(
-            f"name a project: {', '.join(sorted(p.name for p in declared))}"
-        )
+        raise click.UsageError(f"name a project: {', '.join(sorted(p.name for p in declared))}")
 
     found = next((p for p in projects if p.name == project), None)
     if found is None:

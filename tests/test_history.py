@@ -10,14 +10,13 @@ rather than a loop of its own.
 
 import json
 
+import pytest
 from click.testing import CliRunner
 
 from skyboss import cli
 from skyboss.history import DEFAULT_LAST, order, rows_of, view_of
 from skyboss.rollcall import Project, parse
 from skyboss.schedule import now_utc
-
-import pytest
 
 #: Every test here is host-side and needs no services up.
 pytestmark = [pytest.mark.unit]
@@ -110,9 +109,7 @@ def test_the_three_fields_with_no_word_for_their_absence_are_required():
 
 def test_an_outcome_is_optional():
     """A ledger that records only what ran and when is a legitimate ledger."""
-    projects, problems = parse(
-        {"project": {"a": {"path": "x", "history": {"path": "r", "when": "t", "name": "j"}}}}
-    )
+    projects, problems = parse({"project": {"a": {"path": "x", "history": {"path": "r", "when": "t", "name": "j"}}}})
     assert problems == [] and projects[0].history is not None
 
 
@@ -158,9 +155,7 @@ def test_a_row_sky_boss_cannot_place_in_time_goes_last():
 
 
 def test_a_naive_timestamp_is_reported_rather_than_guessed():
-    _, problems = rows_of(
-        a_project(), [{"job": "j", "started": "2026-08-31T23:00:00"}], now_utc()
-    )
+    _, problems = rows_of(a_project(), [{"job": "j", "started": "2026-08-31T23:00:00"}], now_utc())
     assert len(problems) == 1 and "will not guess" in problems[0]
 
 

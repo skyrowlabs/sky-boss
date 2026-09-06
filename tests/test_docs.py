@@ -77,9 +77,7 @@ def test_every_slug_reference_resolves_to_a_document():
     nothing, because it *looks* like it survived the move that broke it."""
     docs = _slugs_on_disk()
     dangling = {
-        slug: sorted(where)
-        for slug, where in _references().items()
-        if slug not in docs and slug not in ALLOWED
+        slug: sorted(where) for slug, where in _references().items() if slug not in docs and slug not in ALLOWED
     }
     assert not dangling, "slug references with no docs/**/<slug>.md: " + "; ".join(
         f"[[{slug}]] cited by {', '.join(where)}" for slug, where in sorted(dangling.items())
@@ -96,10 +94,7 @@ def test_the_allowlist_does_not_outlive_its_reason():
             f"[[{slug}]] is allowlisted as {why!r} but docs/**/{slug}.md now exists — "
             "drop the entry and let the real check cover it"
         )
-        assert slug in refs, (
-            f"[[{slug}]] is allowlisted as {why!r} but nothing writes it any more — "
-            "drop the entry"
-        )
+        assert slug in refs, f"[[{slug}]] is allowlisted as {why!r} but nothing writes it any more — " "drop the entry"
 
 
 @pytest.mark.parametrize("required", ["open", "ideas", "fundamentals"])

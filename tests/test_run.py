@@ -11,12 +11,11 @@ import json
 import os
 import sys
 
+import pytest
 from click.testing import CliRunner
 
 from skyboss import cli
 from skyboss.helpers import child_env
-
-import pytest
 
 #: Every test here is host-side and needs no services up.
 pytestmark = [pytest.mark.unit]
@@ -115,8 +114,7 @@ def test_a_spawned_command_does_not_inherit_tbs_import_path(tmp_path):
     """
     result = CliRunner().invoke(
         cli,
-        ["--json", "run", "--cwd", str(tmp_path), "--",
-         sys.executable, "-c", "import cli"],
+        ["--json", "run", "--cwd", str(tmp_path), "--", sys.executable, "-c", "import cli"],
     )
     envelope = json.loads(result.stdout)
     assert envelope["data"]["exit_code"] != 0
@@ -144,8 +142,7 @@ def test_multi_line_output_renders_as_a_block_not_a_folded_cell(capsys):
     and loses the alignment that was the reason to look at it."""
     from skyboss.output import Result, render
 
-    render(Result("run", data={"exit_code": 0, "stdout": "PR     STATE\n#952   draft\n"}),
-           as_json=False)
+    render(Result("run", data={"exit_code": 0, "stdout": "PR     STATE\n#952   draft\n"}), as_json=False)
     out = capsys.readouterr().out
     assert "PR     STATE" in out
 
@@ -272,8 +269,16 @@ def test_env_reaches_the_child(tmp_path):
 
     result = CliRunner().invoke(
         cli,
-        ["--json", "run", "--env", "SB_DECLARED=hello", "--",
-         "python3", "-c", "import os; print(os.environ['SB_DECLARED'])"],
+        [
+            "--json",
+            "run",
+            "--env",
+            "SB_DECLARED=hello",
+            "--",
+            "python3",
+            "-c",
+            "import os; print(os.environ['SB_DECLARED'])",
+        ],
     )
     assert result.exit_code == 0, result.output
     assert "hello" in result.output
@@ -289,8 +294,7 @@ def test_env_without_a_value_is_a_usage_error_before_anything_runs(tmp_path):
     marker = tmp_path / "ran"
     result = CliRunner().invoke(
         cli,
-        ["run", "--env", "NOPE", "--",
-         "python3", "-c", f"open({str(marker)!r}, 'w').write('x')"],
+        ["run", "--env", "NOPE", "--", "python3", "-c", f"open({str(marker)!r}, 'w').write('x')"],
     )
     assert result.exit_code == 2  # Click's usage error
     assert "NAME=VALUE" in result.output

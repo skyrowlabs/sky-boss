@@ -25,8 +25,8 @@ from typing import Any, Callable
 import click
 from rich.console import Console
 from rich.padding import Padding
-from rich.table import Table
 from rich.style import Style
+from rich.table import Table
 from rich.text import Text
 from rich.theme import Theme
 
@@ -145,9 +145,7 @@ def capture(width: int = 100, redirect: bool = True, theme: Theme | None = None)
     which are already sized directly.
     """
     buffer = io.StringIO()
-    swapped = Console(
-        theme=theme or THEME, file=buffer, force_terminal=True, width=width, highlight=False
-    )
+    swapped = Console(theme=theme or THEME, file=buffer, force_terminal=True, width=width, highlight=False)
     saved = (getattr(_local, "console", None), getattr(_local, "err_console", None))
     saved_columns = os.environ.get("COLUMNS")
     _local.console = _local.err_console = swapped
@@ -186,6 +184,7 @@ def capture(width: int = 100, redirect: bool = True, theme: Theme | None = None)
         else:
             os.environ["COLUMNS"] = saved_columns
 
+
 # Exit codes. `partial` gets its own code so a caller can branch on degradation
 # without parsing anything — which is what makes sky.boss commands composable inside
 # job definitions.
@@ -195,6 +194,7 @@ def capture(width: int = 100, redirect: bool = True, theme: Theme | None = None)
 EXIT_OK = 0
 EXIT_ERROR = 1
 EXIT_PARTIAL = 3
+
 
 def humanize_bytes(count: int) -> str:
     """Binary units — a 4 TB disk is 3.6 TiB and saying so is the honest answer."""
@@ -560,11 +560,7 @@ def _is_block(value: Any) -> bool:
         return "\n" in value.strip()
     if isinstance(value, dict):
         return True
-    return (
-        isinstance(value, (list, tuple))
-        and bool(value)
-        and all(isinstance(item, dict) for item in value)
-    )
+    return isinstance(value, (list, tuple)) and bool(value) and all(isinstance(item, dict) for item in value)
 
 
 def _render_sequence(items: list, title: str | None = None, view: dict | None = None) -> None:
@@ -640,9 +636,7 @@ def _label_of(row: dict) -> Any:
     return next(iter(row.values()), "")
 
 
-def _render_columns(
-    rows: list[dict], title: str | None, indent: int = 0, view: dict | None = None
-) -> None:
+def _render_columns(rows: list[dict], title: str | None, indent: int = 0, view: dict | None = None) -> None:
     """Borderless aligned columns for rows with no single status.
 
     Without a view this is what it always was: every key of every row, in
@@ -739,8 +733,7 @@ def _resolve_widths(columns: list[dict], available: int) -> list[int]:
     weights = [max(1, column.get("flex", 1)) for column in columns]
     total = sum(weights)
     return [
-        min(natural, floor + (spare * weight) // total)
-        for floor, natural, weight in zip(floors, naturals, weights)
+        min(natural, floor + (spare * weight) // total) for floor, natural, weight in zip(floors, naturals, weights)
     ]
 
 
@@ -863,9 +856,7 @@ def _view_cell(row: dict, column: dict) -> Text:
 def _numeric_column(rows: list[dict], column: str) -> bool:
     values = [r.get(column) for r in rows]
     present = [v for v in values if v is not None]
-    return bool(present) and all(
-        isinstance(v, (int, float)) and not isinstance(v, bool) for v in present
-    )
+    return bool(present) and all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in present)
 
 
 def _styled_value(value: Any, key: str | None = None) -> Text:
@@ -878,11 +869,7 @@ def _styled_value(value: Any, key: str | None = None) -> Text:
     if value is None:
         return Text(EMPTY, style="sb.muted")
     if isinstance(value, bool):
-        return (
-            Text(f"{OK_GLYPH} yes", style="sb.ok")
-            if value
-            else Text(f"{FAIL_GLYPH} no", style="sb.fail")
-        )
+        return Text(f"{OK_GLYPH} yes", style="sb.ok") if value else Text(f"{FAIL_GLYPH} no", style="sb.fail")
     if isinstance(value, (list, tuple)):
         if not value:
             return Text(EMPTY, style="sb.muted")
@@ -1204,9 +1191,7 @@ def refuse_resident_pipe(refresh: int | None) -> None:
     # the suite's redirection is the one answering.
     if _out().is_terminal:
         return
-    raise click.UsageError(
-        "--refresh needs a terminal to draw on — drop it for a single read"
-    )
+    raise click.UsageError("--refresh needs a terminal to draw on — drop it for a single read")
 
 
 def emit(func):

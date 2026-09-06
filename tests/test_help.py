@@ -8,10 +8,9 @@ next year is born covered or fails loudly on its first run of the suite.
 """
 
 import click
+import pytest
 
 from skyboss import cli
-
-import pytest
 
 #: Every test here is host-side and needs no services up.
 pytestmark = [pytest.mark.unit]
@@ -48,9 +47,7 @@ def test_every_command_shows_a_runnable_example():
     anywhere else goes stale the day the flag changes."""
     for path, command in leaves():
         lines = [line.strip() for line in (command.help or "").splitlines()]
-        assert any(line.startswith("sb ") for line in lines), (
-            f"{path} --help has no runnable example"
-        )
+        assert any(line.startswith("sb ") for line in lines), f"{path} --help has no runnable example"
 
 
 def test_every_command_states_its_contract():
@@ -58,9 +55,7 @@ def test_every_command_states_its_contract():
     fact a reader cannot infer from a flag list."""
     for path, command in leaves():
         text = (command.help or "").lower()
-        assert any(word in text for word in CONTRACT_WORDS), (
-            f"{path} --help does not state its contract"
-        )
+        assert any(word in text for word in CONTRACT_WORDS), f"{path} --help does not state its contract"
 
 
 def test_a_saved_tool_is_born_covered(tmp_path):
@@ -79,7 +74,5 @@ def test_a_saved_tool_is_born_covered(tmp_path):
         assert any(line.startswith("sb data") for line in lines)
         assert "saved command" in found.help.lower()
     finally:
-        for name in [
-            n for n, c in list(tools_group.commands.items()) if getattr(c, "sb_saved", False)
-        ]:
+        for name in [n for n, c in list(tools_group.commands.items()) if getattr(c, "sb_saved", False)]:
             del tools_group.commands[name]

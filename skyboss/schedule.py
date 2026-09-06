@@ -293,13 +293,10 @@ def schedule(only: str | None) -> Result:
     if withheld:
         # Counted, never drawn — the answer this doc already gives a project
         # that declares no schedule, applied to a job that does not fire.
-        result.warn(
-            f"{withheld} sky.boss job(s) not drawn — declared or installed, but not enabled"
-        )
+        result.warn(f"{withheld} sky.boss job(s) not drawn — declared or installed, but not enabled")
     if own and any(p.name == jobs_.SB_CLOCK for p in projects):  # noqa: SIM102
         result.warn(
-            f"a declared project is also called {jobs_.SB_CLOCK!r} — "
-            "read the `clock` column, not the project name"
+            f"a declared project is also called {jobs_.SB_CLOCK!r} — " "read the `clock` column, not the project name"
         )
 
     declared = [p for p in projects if p.schedule]
