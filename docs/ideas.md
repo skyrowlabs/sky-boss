@@ -86,3 +86,42 @@ built — decided, but not decided how — live in `docs/open.md`.*
   inline version belongs to [[open]] item 13 — the governor is already LLM narration over a log,
   and already owes the same four answers: who calls it, on what cadence, against what budget, and
   what it shows when the model cannot run
+
+- an estate-currency view — **which declared projects are behind their scaffold, and by how
+  much.** Raised 2026-09-05 by jam.sense's session after skeletor declined to build it, and the
+  refusal is the reason it lands here: a sibling glob inside skeletor would bake one workspace's
+  home layout into a tool other people run, and on any machine laid out differently it enumerates
+  zero trees and reports "nothing is behind" forever — permanently green and worth nothing. That
+  is the same leak class [[state-root]] names, one level up. `$SB_HOME/projects.toml` has no such
+  problem: it is operator-owned, outside every repo, and already declares each project and its
+  `cwd`. It is an adopter list nobody has to guess at, and the guessing is the part skeletor is
+  right to refuse.
+
+  **The obvious source is the wrong one, and wrong in the direction that looks fine.** A tree's
+  `.skeletor.json` records `skeletor_ref` — the ref it was *scaffolded* at — and the manifest is
+  only rewritten by a run that applies something, so a tree current through four releases still
+  reports the day it was made. Reading that field alone answers the question backwards. The
+  authoritative form is `skeletor-upgrade <tree> --dry-run --json`, which emits `base_ref` and
+  `head_ref` as separate fields so that currency is never inferred from one string, writes
+  nothing, and is never refused. Measured over five trees, the ref ordering and the work ordering
+  disagree: one repo a single minor behind had the most friction and another two minors behind
+  needed one file. **Behind by a ref and behind by a file are different things and only the second
+  is work** — which is a fact about a provider's answer, so sky.boss reports both and ranks
+  neither. `render_dirt` is a third field and not a synonym for the `-dirty` suffix inside
+  `head_ref`: one asks whether unversioned content reaches the render, the other whether the
+  checkout is modified at all. Same spelling, two questions, and a consumer filtering on the
+  suffix inherits both of the string's errors silently.
+
+  **Two sources, not one, and this repo is the proof.** `skeletor-upgrade` answers only for a tree
+  with a `.skeletor.json`. sky.boss has none and will not — it consumes components, recorded in
+  `.skeletor-components.json`, where the question is `skeletor-components report`. Those answer
+  genuinely different things: *does this tree still reproduce a render*, versus *has anything I
+  copied moved since*. A view that ran only the first would report its own author as absent.
+
+  Unresolved, and the reason this is an idea rather than a plan: it is a **third** provider shape
+  next to [[roll-call]]'s argv and path, and one whose answer is about a *relationship* between
+  two repos rather than about the project itself. Whether that belongs in `sb roll-call`, in a
+  command of its own, or nowhere is the question. The inverse proposal is also open — skeletor
+  emitting a declaration of where a repo's truth lives, so `projects.toml` stops being hand-typed
+  — and the two are complementary: this one works today and covers only adopters, that one needs
+  a template change and covers every repo
