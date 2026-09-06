@@ -426,6 +426,16 @@ def make_command(tool: Tool) -> click.Command:
             args = ["--refresh", str(interval), *args]
 
         target = root.get_command(ctx, tool.argv[0])
+        if target is None:
+            # The loader refuses a tool whose first word is not a sky.boss
+            # command, so this is unreachable through `tools.toml`. It is
+            # reachable if a command is ever removed while a saved tool still
+            # names it — and the alternative is `NoneType has no attribute
+            # make_context`, which names neither the tool nor the word.
+            raise click.UsageError(
+                f"{tool.name} expands to `sb {tool.argv[0]} …`, and sky.boss has no "
+                f"`{tool.argv[0]}` command. The saved tool is out of date."
+            )
         sub_ctx = target.make_context(tool.name, args, parent=ctx.parent)
         with sub_ctx:
             target.invoke(sub_ctx)
@@ -1268,7 +1278,7 @@ def save(
     return path
 
 
-def save_invocation(name: str, command: str, invocation: list[str] | None = None) -> dict:
+def save_invocation(name: str, command: str | None, invocation: list[str] | None = None) -> dict:
     """Save the line that is running, as `name`. The three observes' one call.
 
     Reads the recorded invocation rather than Click's parsed values — see
@@ -1280,7 +1290,19 @@ def save_invocation(name: str, command: str, invocation: list[str] | None = None
     the expansion it will run. **What it will run** is the half worth carrying
     — it is the operator's one chance to notice that the saved line is not the
     line they meant, while they still remember what they typed.
+    `command` is typed Optional because that is what its three callers have:
+    Click's `ctx.info_name` is `str | None`. It is never actually None for a
+    command being invoked, which is why this went unnoticed — but `saved_argv`
+    scans the recorded line *for that word* to find where the tool's argv
+    begins, so a None would not fail, it would save the wrong argv. That is the
+    shape this tool refuses everywhere else: wrong and looks right, visible
+    only on the day the saved tool runs.
     """
+    if command is None:
+        raise click.ClickException(
+            "cannot save: sky.boss does not know which command it is running, so it cannot "
+            "tell where your argv begins. This should be impossible — please report it."
+        )
     line = INVOCATION if invocation is None else invocation
     argv = saved_argv(line, command)
     refresh = cadence_of(line, command)

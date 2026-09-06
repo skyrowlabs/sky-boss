@@ -101,7 +101,12 @@ def directory(slug: str, home: Path | None = None) -> Found:
     it can derive *and verify*.
     """
     found = root(home)
-    if not found:
+    # `if found.path is None` rather than `if not found`, which reads the same
+    # and narrows nothing: `Root.__bool__` returns exactly this comparison, but
+    # a custom `__bool__` is opaque to a type checker, so `found.path` stayed
+    # `Path | None` for the rest of the function and three uses of it below
+    # went unchecked.
+    if found.path is None:
         return Found(
             None,
             f"no state root; set {ROOT_ENV} or {ROOT_KEY} in projects.toml",

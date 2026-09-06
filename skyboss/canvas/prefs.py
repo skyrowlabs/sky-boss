@@ -35,7 +35,7 @@ PREFS_FILE = "prefs.json"
 # Every key the surface may persist, with the check that says a value is
 # usable. A key not named here is dropped on write and ignored on read, so a
 # page from a future version cannot quietly grow this file.
-KEYS: dict[str, object] = {
+KEYS: dict[str, type] = {
     # Which tool groups are folded in the rail. See [[tools]] round 5.
     "folded": list,
     # How wide the rail is, in `rem`. Stored in rem rather than pixels because

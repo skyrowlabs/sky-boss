@@ -116,7 +116,7 @@ class Chrome:
     def to_dict(self) -> dict:
         """The same facts for the canvas renderer, keys omitted when unset —
         the shape of a window's chrome does not carry another shape's nulls."""
-        out = {"source": self.source, "shape": self.shape, "attention": self.attention}
+        out: dict = {"source": self.source, "shape": self.shape, "attention": self.attention}
         for key in (
             "duration_s",
             "warnings",
@@ -508,7 +508,10 @@ def _bottom_spans(chrome: Chrome, now: float) -> tuple[list[Span], list[Span]]:
             shown = min(chrome.ring_shown, chrome.ring_limit)
             if chrome.ring_first is None:
                 left.append((f"{lead}showing last {shown}", "sb.label"))
-            elif chrome.ring_last - chrome.ring_first + 1 >= shown:
+            # Both, because they are set as a pair by both callers and a
+            # `None - int` here would be a TypeError at render time — in the
+            # branch that draws a *healthy* window.
+            elif chrome.ring_last is not None and chrome.ring_last - chrome.ring_first + 1 >= shown:
                 # Everything held is on screen, which is what "showing last N"
                 # always meant and the one case where it was not lying. Kept
                 # word for word — [[chrome]]'s own sketch uses this phrasing.

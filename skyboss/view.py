@@ -22,7 +22,7 @@ clothes. See [[table-views]].
 from __future__ import annotations
 
 import re
-from typing import NamedTuple
+from typing import NamedTuple, TypeGuard
 
 # There is no column budget here. There was — a fixed count of eight — and it
 # hid the same two columns whether the window had room for them or not, because
@@ -199,8 +199,13 @@ def variance(rows: list[dict]) -> int:
     return len(shapes)
 
 
-def is_rows(data) -> bool:
-    """A non-empty list of plain objects — the only thing there is to shape."""
+def is_rows(data) -> TypeGuard[list[dict]]:
+    """A non-empty list of plain objects — the only thing there is to shape.
+
+    `TypeGuard` rather than `bool` because that is what the function already
+    means: every caller uses it to decide whether the payload may be treated as
+    rows, and a bare `bool` leaves them holding the unnarrowed value.
+    """
     return isinstance(data, list) and bool(data) and all(isinstance(row, dict) for row in data)
 
 

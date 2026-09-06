@@ -244,9 +244,15 @@ def hold(
 
     def run(wait_for: Callable[[float], str | None]) -> None:
         if emit is not None and not console.is_terminal:
+            # Bound to a local because the narrowing above does not reach into
+            # a nested function: `emit` is a closure variable and could in
+            # principle be rebound between here and the call, so a checker will
+            # not carry `is not None` across the boundary. It cannot be, but
+            # the local says so rather than asserting it.
+            emit_lines = emit
 
             def spill() -> None:
-                new = list(emit())
+                new = list(emit_lines())
                 if not new:
                     return
                 # Written straight to the file rather than through
@@ -360,8 +366,15 @@ class Viewport:
             return was
 
         oldest, newest_top = dropped, dropped + max(0, held - height)
-        current = self.anchor if self.parked else newest_top
-        step = {"up": -1, "down": 1, "pgup": -height, "pgdn": height}.get(key)
+        # `self.anchor is not None` rather than `self.parked`, which is a
+        # property returning exactly that comparison — and a property is opaque
+        # to narrowing, so `current` stayed `int | None` and the arithmetic
+        # below went unchecked. Same value, same reading, one fewer indirection.
+        current = self.anchor if self.anchor is not None else newest_top
+        # `home` is the one move that does not use a step, so the default is
+        # never read rather than being a fallback for an unknown key: `key` is
+        # already through the `keys.MOVES` guard above.
+        step = {"up": -1, "down": 1, "pgup": -height, "pgdn": height}.get(key, 0)
         target = oldest if key == "home" else current + step
 
         target = max(oldest, min(target, newest_top))
@@ -385,7 +398,8 @@ class Viewport:
         two numbering schemes in one line would be worse than none.
         """
         held = len(lines)
-        if not self.parked:
+        # `self.anchor is None` rather than `not self.parked` — see `move`.
+        if self.anchor is None:
             shown = lines[-height:] if height < held else lines
             return shown, held - len(shown) + 1, held
 

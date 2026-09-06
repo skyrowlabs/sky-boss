@@ -26,7 +26,12 @@ suite for one assertion.
 from __future__ import annotations
 
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:  # `server` imports this module; a real import closes the cycle.
+    from skyboss.canvas.server import Follower
 
 # The cadences the surface offers. 0 means pinned but manual — the window stays
 # and refreshes only when asked.
@@ -61,12 +66,18 @@ class Session:
     """
 
     id: str
-    clock: object = time.monotonic
+    clock: Callable[[], float] = time.monotonic
     watchers: dict[str, Watcher] = field(default_factory=dict)
     # One window's held-open stream ([[follow]]): a Follower, owned by this
     # session exactly as watchers are — nothing survives the last window,
     # and for a follower that means the child process dies with it.
-    followers: dict[str, object] = field(default_factory=dict)
+    #
+    # Declared as `object` until the type checker was pointed at this package:
+    # the comment named `Follower` and the annotation did not, so twenty-two
+    # attribute reads in `server.py` were reads on `object` and nothing said so.
+    # `Follower` lives in `server.py`, which imports this module, so the import
+    # is under TYPE_CHECKING — a real one would close the cycle.
+    followers: dict[str, Follower] = field(default_factory=dict)
 
     def now(self) -> float:
         return self.clock()

@@ -47,6 +47,7 @@ from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 
 from skyboss import chrome as chrome_
+from skyboss import filefollow as filefollow_
 from skyboss import highlight as highlight_
 from skyboss import stream as stream_
 from skyboss import tools as tools_
@@ -791,7 +792,13 @@ class Follower:
     the transport was never the thing that differed. See [[follow]] round 4.
     """
 
-    child: object  # ChildStream or FileCursor; one interface, see [[file-follow]]
+    # `ChildStream | FileCursor` — one interface over two mechanisms, see
+    # [[file-follow]]. It was annotated `object` with that union written in a
+    # comment beside it, which cost twelve attribute reads their type: `.kill`,
+    # `.fresh`, `.exit_code`, `.ring` and the rest were reads on `object` and
+    # nothing said so. The union is not a widening — the two classes genuinely
+    # share the surface this file uses, and naming them is what checks it.
+    child: stream_.ChildStream | filefollow_.FileCursor
     argv: list[str]
     # The operator's declared vocabulary for this window, resolved server-side
     # when the follow opened. A page may *name* a ruleset; it may never define
@@ -959,7 +966,7 @@ def resolve_run(argv: list[str], root=None) -> Job:
     return Job(command, foreign, cwd, timeout, command == "run", env)
 
 
-def resolve_follow(argv: list[str], root=None) -> tuple[str, list[str], str | None, int, str | None]:
+def resolve_follow(argv: list[str], root=None) -> Follow:
     """A sb-level follow argv down to what it follows.
 
     The client sends what the operator typed or saved — `follow -- journalctl
@@ -1048,7 +1055,16 @@ def follower_frames(session: Session, now: float | None = None) -> list[dict]:
             follower.exited_at = moment
         newly_dead = code is not None and not follower.dead_announced
 
-        cursor_state = getattr(child, "state", None)
+        # `getattr(child, "state", None)` until the type checker was pointed at
+        # this package. That asked *does this object carry a `state` attribute*
+        # as a stand-in for *is this a file cursor*, which is a proxy for the
+        # property it names: the probe agrees with the answer only for as long
+        # as no other child ever grows a `state`. It also told the checker
+        # nothing, so the branch below read `.last_write_at` and `.size` — both
+        # `FileCursor`-only — off a `ChildStream | FileCursor` with no
+        # complaint. The type test both narrows and says what is meant.
+        is_file = isinstance(child, filefollow_.FileCursor)
+        cursor_state = child.state if is_file else None
         state_changed = cursor_state is not None and cursor_state != follower.last_state
         if not fresh and not newly_dead and not state_changed:
             continue
@@ -1061,12 +1077,15 @@ def follower_frames(session: Session, now: float | None = None) -> list[dict]:
         result = None
         if follower.kind == "accrue":
             facts, result = _accrual(follower, child, code, moment)
-        elif cursor_state is not None:
+        elif isinstance(child, filefollow_.FileCursor):
             # A file: the chrome carries what the loop statted — quiet,
             # absent and rotated are the cursor's verdicts, never re-derived.
             facts = chrome_.cursor(
                 " ".join(follower.argv),
-                state=cursor_state,
+                # `child.state`, not `cursor_state`: identical value, and the
+                # narrowing that makes it a `str` rather than `str | None`
+                # belongs to this branch's `isinstance`.
+                state=child.state,
                 last_write_at=child.last_write_at,
                 size_bytes=child.size,
                 ring_shown=len(child.lines()),

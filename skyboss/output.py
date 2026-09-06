@@ -971,7 +971,11 @@ def _command_path(ctx: click.Context) -> str:
     never drift apart.
     """
     parts = ctx.command_path.split()
-    return ".".join(parts[1:]) if len(parts) > 1 else ctx.info_name
+    # `command_path` rather than `info_name` for the fallback: the two are the
+    # same word for a top-level command, and `info_name` is Optional in Click
+    # while `command_path` is not — so this cannot return None into an
+    # envelope field and an MCP tool name.
+    return ".".join(parts[1:]) if len(parts) > 1 else ctx.command_path
 
 
 def _source_of(ctx, name: str) -> str:

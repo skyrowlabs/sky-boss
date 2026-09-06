@@ -169,10 +169,18 @@ def ui(
         access_log=False,
     )
     server = uvicorn.Server(config)
-    # uvicorn installs signal handlers only from the main thread, and the
-    # native shell demands that thread for itself. Declining them is the price
-    # of the window: Ctrl-C in the launching terminal is handled below instead.
-    server.install_signal_handlers = False
+    # **There was a `server.install_signal_handlers = False` here and it had
+    # stopped doing anything.** uvicorn replaced that attribute with
+    # `capture_signals()`, which opens by checking whether it is on the main
+    # thread and yields without touching a handler when it is not — so the
+    # assignment named nothing on `uvicorn.Server` (0.52.4 has no such
+    # attribute) and simply set a field no code reads. The workaround outlived
+    # the thing it worked around, and the comment beside it went on explaining
+    # a mechanism that no longer exists.
+    #
+    # The requirement is unchanged and is now uvicorn's own: the native shell
+    # demands the main thread, the server runs off it, and uvicorn declines the
+    # handlers by itself. Ctrl-C in the launching terminal is handled below.
 
     started = time.monotonic()
     mode = "native"

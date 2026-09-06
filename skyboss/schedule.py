@@ -166,7 +166,10 @@ def rows_of(project: Project, payload) -> tuple[list[dict], list[str]]:
     for item in source:
         if not isinstance(item, dict):
             continue
-        row = {
+        # `dict` rather than the inferred `dict[str, str]`: `_at` and `_last`
+        # below carry a parsed `datetime | None`, which is the whole point of
+        # them — the page never re-parses a timestamp (see [[schedule]]).
+        row: dict = {
             "project": project.name,
             "name": str(item.get(mapping["name"], "") or ""),
             # A provider fires its own jobs; sky.boss is reading. The word does

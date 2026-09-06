@@ -321,9 +321,16 @@ def order(sessions: list[Session]) -> list[Session]:
     [[schedule]]'s reason: among rows ordered by time, a row with no time has
     nowhere honest to sit, and putting it first makes the least certain thing
     look the most imminent."""
-    dated = sorted((s for s in sessions if s.started), key=lambda s: s.started)
+    # The `started` binding is repeated in the key rather than reused from the
+    # filter because a comprehension's condition does not narrow the element
+    # type: `s.started` is still `datetime | None` inside `key=`, and `sorted`
+    # has no overload for a key that may return None. Two names, one read.
+    dated = sorted(
+        [(s.started, s) for s in sessions if s.started is not None],
+        key=lambda pair: pair[0],
+    )
     undated = [s for s in sessions if not s.started]
-    return dated + undated
+    return [s for _, s in dated] + undated
 
 
 # What the table draws, in order, and what it keeps but does not draw. Hidden

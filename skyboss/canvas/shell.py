@@ -67,12 +67,18 @@ def available() -> bool:
     behind it, and the failure would otherwise arrive as a stack trace at the
     moment the operator asked for a window.
     """
+    # `gi.repository` is a namespace assembled at import time from the GObject
+    # typelibs installed on the machine, so no type checker can see `Gdk`,
+    # `GLib` or `WebKit2` in it under any configuration — there is nothing to
+    # resolve until `gi.require_version` has run. The `type: ignore[attr-defined]`
+    # comments in this file are that and nothing wider: one rule, one symbol
+    # each, so a real mistake anywhere else here still reports.
     try:
         import gi
 
         gi.require_version("WebKit2", "4.1")
         import webview  # noqa: F401
-        from gi.repository import WebKit2  # noqa: F401
+        from gi.repository import WebKit2  # type: ignore[attr-defined]  # noqa: F401
     except (ImportError, ValueError):
         return False
     return True
@@ -95,7 +101,7 @@ class Api:
         rather than as an immovable window.
         """
         try:
-            from gi.repository import Gdk
+            from gi.repository import Gdk  # type: ignore[attr-defined]
             from webview.platforms.gtk import BrowserView
 
             window = next(iter(BrowserView.instances.values())).window
@@ -124,7 +130,7 @@ def _name_the_window() -> None:
 
         gi.require_version("Gtk", "3.0")
         gi.require_version("Gdk", "3.0")
-        from gi.repository import Gdk, GLib
+        from gi.repository import Gdk, GLib  # type: ignore[attr-defined]
 
         GLib.set_prgname(WM_CLASS)
         GLib.set_application_name("sky.boss")

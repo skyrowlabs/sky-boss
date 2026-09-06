@@ -587,7 +587,10 @@ class Ruleset:
 
     name: str
     description: str = ""
-    rules: tuple[tuple[re.Pattern, str], ...] = ()
+    # `(pattern, role, emphasise)`. The third element arrived with the
+    # `weight = "bold"` round and this annotation did not move with it, so it
+    # said 2-tuples while every writer and every reader used 3.
+    rules: tuple[tuple[re.Pattern, str, bool], ...] = ()
 
 
 def parse_rulesets(raw: dict) -> tuple[list[Ruleset], list[str]]:
@@ -613,7 +616,7 @@ def parse_rulesets(raw: dict) -> tuple[list[Ruleset], list[str]]:
             problems.append(f"highlight {name!r}: rules must be a non-empty list")
             continue
 
-        compiled: list[tuple[re.Pattern, str]] = []
+        compiled: list[tuple[re.Pattern, str, bool]] = []
         for index, rule in enumerate(declared):
             problem = _check_rule(rule, roles)
             if problem:
