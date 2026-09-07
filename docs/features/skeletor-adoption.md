@@ -998,7 +998,17 @@ day it was written, all on `develop`:
 
 And the cause is the gap itself, confirmed rather than assumed:
 `.git/hooks/commit-msg` **does not exist in this checkout** — no hooks are
-installed at all, so the rule had never run here on any commit. The check is
+installed at all, so the rule had never run here on any commit.
+
+**Not a documentation gap, and worth saying so before somebody goes to fix
+one.** `.venv/bin/pre-commit install --install-hooks` is in `AGENTS.md`,
+`CONTRIBUTING.md` and `docs/DEVELOPMENT.md`, and `tests/test_setup_blocks_agree.py`
+holds those three copies together. The instruction was present, correct and
+guarded the whole time; it had simply not been run here. Which is the evening's
+own rule from the other side — *a disobeyed instruction is not a falsified one*
+— and it decides the remedy: run the step, do not edit the docs. Installed
+2026-09-06, verified by feeding the hook a 76-character subject and watching it
+exit 1. The check is
 forward-looking and those four are left standing: CI reads the range an event
 carries, so history is not re-litigated, and rewriting pushed commits to satisfy
 a gate added afterwards is the cost this repository refuses elsewhere.
