@@ -1127,3 +1127,55 @@ miss is the instructive part: a relay is the only party holding both ends of a
 cross-repo claim, so **a relay's error is the one error no recipient can
 check** — proto.pilot could correct it because it was their tree, and this
 session had neither the standing nor a reason to look.
+
+---
+
+### Round 15 — 2026-09-06: `skeletor_ref` names the template, and cannot name the tool
+
+v0.20.1 shipped with the `--set-arg` reporting fix this tree's round 14 asked
+for. **It changes no template file at all**, verified here rather than taken
+from the release note:
+
+```
+git diff --stat v0.20.0..v0.20.1 -- template/   →  empty
+                                    bin/        →  +260 lines
+```
+
+The fix works, checked against the tree that produced the report — the same bare
+`--set-arg` on this declined `ci.yml` that reported an amendment and silently
+dropped it now says so:
+
+```
+⚠️  the 1 --set-arg value(s) were NOT recorded
+   again. Resolve the conflicts, then re-run with the same --set-arg.
+```
+
+**And it cannot be recorded as taken.** Running the upgrade — `--ported`
+included — writes nothing and leaves the ref where it was:
+
+```
+→ head: skeletor @ v0.20.1
+✅ already current with skeletor @ v0.20.1 — nothing to carry over
+git status → clean          skeletor_ref → v0.20.0
+```
+
+Which is correct rather than a defect: with no template change there is no
+render to perform, and `skeletor_ref` records the last render. This tree's
+template state is byte-identical to both tags.
+
+The consequence is the policy, and it is stated as one because the fact behind
+it rots the moment there is a v0.20.2:
+
+> **`skeletor_ref` is a fact about the last template render. It says nothing
+> about the `bin/` that will perform the next upgrade, because that is chosen
+> when somebody types the command — and a tool-only release cannot move it at
+> all.** So an upgrade is run from a checkout pinned to the **newest** tag, not
+> merely the newest one with template changes. The ledger row reading `current`
+> is accurate and is not an answer to *which tool will run next*.
+
+That is this repository's own *do not keep a copy of what a command will tell
+you*, meeting a value no command in this tree can be asked: the version of a
+binary in somebody else's checkout, at a time nobody has chosen yet. Round 7's
+finding about branch protection was the first of these, and the family is now
+three — the account's required contexts, the account's Actions permissions, and
+the operator's tool version.
