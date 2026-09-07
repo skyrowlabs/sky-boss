@@ -199,10 +199,14 @@ def pre_push(quick: bool) -> None:
         ("lint", _lint()),
         ("output discipline", script("scripts/check_output_discipline.py")),
         ("docs", _docs()),
-        # No `--range`, which means HEAD alone — what a local run wants, and the
-        # same script CI runs over the PR's range. Self-guarding: with no
-        # release automation in the tree there is no contract to check and it
-        # says so.
+        # No `--range`, which now means everything not yet on the upstream —
+        # the set this push will send, and therefore the set CI will check.
+        # It used to mean HEAD alone, so a push of three commits was validated
+        # here one commit deep and there three: same gate, same name, two sets,
+        # and the bigger one runs after the push. The script prints the range
+        # it chose, because two ranges that print alike is the whole defect.
+        # Self-guarding: with no release automation in the tree there is no
+        # contract to check and it says so.
         ("commit subjects", script("scripts/check_commit_subjects.py")),
     ]
     if not quick:

@@ -120,18 +120,63 @@ def unreadable(inspected: list, types: set) -> list:
     return findings
 
 
+def default_range() -> str:
+    """What is about to be pushed, or `HEAD` alone when git cannot say.
+
+    The default used to be `-1` — HEAD alone — described as *what a local run
+    wants*. It is not what the run that matters wants. `check pre-push` passes
+    no `--range`, so a push of three commits validated one of them here and CI
+    validated all three: **same gate, same name, two sets, and the larger one
+    runs after the push.** A gate whose local and remote answers differ is worse
+    than one that only runs remotely, because the green tick is doing work to
+    stop somebody looking.
+
+    `@{u}..HEAD` is the set the push will send. With no upstream — a branch
+    whose first push this is — there is nothing to diff against and HEAD alone
+    is the honest answer, which is the same fallback `ci.yml` makes for an
+    all-zeros `before`. The chosen range is printed either way, because the
+    defect being fixed here was two ranges that looked identical in the output.
+    """
+    resolved = subprocess.run(
+        ["git", "rev-parse", "--abbrev-ref", "@{u}"],
+        cwd=str(PROJECT_ROOT),
+        capture_output=True,
+        text=True,
+    )
+    return "@{u}..HEAD" if resolved.returncode == 0 else "-1"
+
+
+def described(commit_range: str, chosen: bool) -> str:
+    """The range as a sentence, because `-1` is a git spelling and not English.
+
+    `chosen` means *this script picked it*, and it gates the parenthetical
+    rather than the range: `-1` from `default_range()` means there was no
+    upstream, and `-1` from a caller means they asked for HEAD alone with an
+    upstream possibly sitting right there. Same string, two different facts,
+    and the explanation is only true for one of them.
+    """
+    if not chosen:
+        return commit_range
+    return {
+        "-1": "HEAD alone (no upstream to compare against)",
+        "@{u}..HEAD": "@{u}..HEAD (everything this push would send)",
+    }.get(commit_range, commit_range)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--range",
         dest="commit_range",
         default="",
-        help="git range to inspect. Empty means HEAD alone, which is what a local run wants.",
+        help="git range to inspect. Empty means everything not yet on the upstream, "
+        "which is what a push will send; HEAD alone if there is no upstream.",
     )
     parser.add_argument("--json", action="store_true", help="machine-readable payload on stdout")
     args = parser.parse_args()
 
-    commit_range = args.commit_range or "-1"
+    chosen = not args.commit_range
+    commit_range = args.commit_range or default_range()
     types = configured_types()
     inspected = subjects(commit_range)
 
@@ -139,9 +184,14 @@ def main() -> int:
         if args.json:
             emit({"range": commit_range, "error": "git could not resolve this range"})
         fail(f"git could not resolve `{commit_range}`")
-        detail("A shallow clone cannot see the base commit — CI checks this out with")
-        detail("`fetch-depth: 0` for that reason. An unresolvable range is an error and")
-        detail("never a pass: reporting it as zero subjects is a green tick over nothing.")
+        detail("Two causes, and they take different remedies:")
+        detail("  · a shallow clone cannot see the base commit — deepen it, which is why")
+        detail("    CI checks out with `fetch-depth: 0`;")
+        detail("  · the base is an ORPHAN, which a force-push leaves behind. It is")
+        detail("    reachable from no ref, so there is nothing for a deeper fetch to")
+        detail("    reach — check HEAD alone, or name a range that exists.")
+        detail("An unresolvable range is an error and never a pass: reporting it as zero")
+        detail("subjects is a green tick over nothing.")
         return 1
 
     findings = unreadable(inspected, types) if types else []
@@ -179,9 +229,9 @@ def main() -> int:
     # merge commits contains no subject this asks about. That is a different
     # fact from an unresolvable range above, and the two must not print alike.
     if not inspected:
-        ok(f"no non-merge commits in {commit_range} — nothing to check")
+        ok(f"no non-merge commits in {described(commit_range, chosen)} — nothing to check")
         return 0
-    ok(f"{len(inspected)} subject(s) in {commit_range} are readable by Release Please")
+    ok(f"{len(inspected)} subject(s) in {described(commit_range, chosen)} are readable by Release Please")
     return 0
 
 

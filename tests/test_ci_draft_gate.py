@@ -82,10 +82,18 @@ def test_skipping_is_at_job_level_not_paths_ignore():
 
 
 def test_push_gates_the_branch_work_lands_on():
-    """`push` must cover develop, not just main.
+    """`push` must cover `develop`, the branch work lands on.
+
+    In a two-branch tree that is the point of contrast — `develop` and
+    not only `main`. **This tree was scaffolded with both set, and
+    if they read the same there is no contrast to draw**: one branch, and the
+    requirement is that the trigger covers it. The sentence used to be phrased
+    as the contrast, which in a one-branch tree interpolates to a word set
+    against itself. Found by mind.head, in a rendered tree, which is the only
+    place it is visible.
 
     A PR flow is gated by the `pull_request` trigger, so this looks redundant
-    right up until somebody commits straight to develop — which every
+    right up until somebody commits straight to `develop` — which every
     project does while it is one person, and which is exactly when nobody is
     reviewing either. The scaffold this tree came from shipped without it and a
     consumer landed three ungated commits before noticing.

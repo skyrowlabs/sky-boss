@@ -34,6 +34,19 @@ on:
       - 'scripts/check_source_doc_refs.py'
       - 'scripts/check_doc_tables.py'
       - 'scripts/doc_links_baseline.json'
+  # Unavailable until something has fired this file. A workflow GitHub has
+  # never registered answers `404: workflow not found on the default branch` to
+  # `gh workflow run`, and that message is wrong about its own reason: in the
+  # same repository, on the same non-default branch, with no `.github/workflows`
+  # directory on the default branch at all, `ci.yml` dispatches fine — because a
+  # `push` had already fired it. Registration, not branch.
+  #
+  # `pull_request` above is expected to register this file the first time
+  # somebody opens one, and that is the trigger nobody has been able to
+  # measure — so this is dormant rather than dead. If you need the handle
+  # before then, put this file's branch on the repository:
+  #
+  #     gh api -X PATCH repos/<org>/<slug> -f 'default_branch=<this branch>'
   workflow_dispatch:
 
 concurrency:

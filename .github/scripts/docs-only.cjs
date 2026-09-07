@@ -56,7 +56,47 @@ module.exports = async function decide({ github, context, core }) {
     return { docsOnly: false, fullSuite: true, reason: 'dependency bump — full suite' };
   }
 
-  // A PR into the release branch is a release candidate.
+  // A PR into the release branch is a release candidate — where the base
+  // branch and the release branch are different. **This tree was scaffolded
+  // `--base-branch develop --release-branch main`**, and
+  // if those read the same, every pull request here takes this branch and
+  // everything below it is unreachable: `DOC_PATTERNS`, the `listFiles` call,
+  // the whole classification half. A README edit runs the full suite.
+  //
+  // **Whether that outcome is right depends on a second flag, and two earlier
+  // versions of this comment each keyed it to whichever one the writer's
+  // evidence was about.** The question is whether a push to
+  // `main` cuts a release:
+  //
+  //   * `--versioning release-please` — it does, so the merge IS the release,
+  //     the pull request is the last chance to run anything, and a cheap path
+  //     would put integration first on already-released code. **This tree is
+  //     `--versioning tag`.**
+  //   * `--versioning tag` — it does not. A push to `main`
+  //     releases nothing; an annotated tag does. So the full suite that runs on
+  //     that push happens BEFORE the release and is itself a gate, which makes
+  //     a cheap path on the pull request affordable — exactly as it is in a
+  //     two-branch tree, where the base branch merging here is the later run.
+  //
+  // So in a one-branch tag-versioned tree the cost is real and unrecovered:
+  // the full suite runs on a docs-only pull request and there is no way to opt
+  // out, because the classification half this comment sits above is
+  // unreachable. Recovering it means moving the docs-only test above this one,
+  // which changes when a repository's gates run — an adopter's decision rather
+  // than a generator's default, and the trade is *do we accept integration
+  // first running post-merge and pre-tag* rather than *do we release untested
+  // code*.
+  //
+  // The wrong version of this said the merge is always the release. Every tree
+  // that could have made that true was `--versioning tag`, so the reason held
+  // for none of them — a sentence about a two-flag mechanism keyed to one
+  // flag, which is the third time that shape has been written down today.
+  //
+  // Found by mind.head, who executed this file with real payload shapes rather
+  // than reading it, and by skyrow-workspace, who surveyed the manifests. Half
+  // the adopters at the time. No test here could have said so: they assert this
+  // workflow's structure, and the dead branch is a fact about an argument
+  // recorded in `.skeletor.json`.
   if (base === 'main') {
     return { docsOnly: false, fullSuite: true, reason: 'targets the release branch — full suite' };
   }

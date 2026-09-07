@@ -89,25 +89,88 @@ def test_declared_markers_are_registered():
     assert not unknown, f"Unregistered markers (add them to tests/pytest.ini): {unknown}"
 
 
-def test_every_config_declares_the_same_markers():
-    """`tests/pytest.ini` and `pyproject.toml` must agree about the vocabulary.
+def _normalise(value) -> list:
+    """One shape for a setting, whichever file it was read from.
+
+    `pyproject.toml` gives a real list and a real int; `pytest.ini` gives a
+    string that may be newline-separated. Comparing them raw would report every
+    key as drifted, which is a gate nobody can keep green.
+    """
+    if isinstance(value, str):
+        return [line.strip() for line in value.strip().splitlines() if line.strip()]
+    if isinstance(value, list):
+        return [str(item).strip() for item in value]
+    return [str(value).strip()]
+
+
+def _ini_settings() -> dict:
+    config = configparser.ConfigParser()
+    config.read(TESTS_DIR / "pytest.ini")
+    return {key: _normalise(value) for key, value in config["pytest"].items()}
+
+
+def _toml_settings() -> dict:
+    root = tomllib.loads((PROJECT_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    return {key: _normalise(value) for key, value in root["tool"]["pytest"]["ini_options"].items()}
+
+
+#: Resolved against rootdir, which differs between the two files by
+#: construction. Compared for presence, never for value. See the note below.
+_ROOTDIR_RELATIVE = frozenset({"pythonpath", "testpaths"})
+
+
+def test_every_config_declares_the_same_settings():
+    """`tests/pytest.ini` and `pyproject.toml` must agree about every key.
 
     Two configs exist for a real reason — pytest reads the nearest one, so the
     root copy applies when it is invoked without a `tests/` path and the inner
     one when it is not — and the reason does not make them safe. They drift the
-    ordinary way: somebody adds a suite, edits the file they had open, and the
-    new suite works from one directory and errors from the other under
-    `--strict-markers`.
+    ordinary way: somebody adds a setting, edits the file they had open, and the
+    suite behaves one way from `tests/` and another from the root.
+
+    **This compared `markers` and nothing else**, while the two files also share
+    `addopts`, `filterwarnings` and `timeout` — one of four keys gated, and the
+    one gated was the one whose drift is loudest under `--strict-markers`. So
+    the quiet three were the unguarded ones. sky.boss hit the general form with
+    an async suite that collected and never ran under one invocation and ran
+    under the other, because `asyncio_mode` was set in a single file.
+
+    Both directions, and every key: a setting present in one file and absent
+    from the other is exactly the async case, and it is invisible to any check
+    that only compares the keys they happen to share.
 
     Recomputed from both files rather than compared against a list here, which
-    would be a fifth home for the same set.
+    would be a third home for every one of these settings.
     """
-    root = tomllib.loads((PROJECT_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
-    declared = {m.split(":")[0].strip() for m in root["tool"]["pytest"]["ini_options"]["markers"]}
+    ini, toml = _ini_settings(), _toml_settings()
+    # `least=4`: the four keys this template ships. A scan feeding a comparison
+    # is unobservable at one key, and at zero it would agree with anything.
+    scanned(sorted(set(ini) | set(toml)), "settings across the two pytest configs", least=4)
 
-    drift = sorted(declared ^ declared_markers())
+    only_ini = sorted(set(ini) - set(toml))
+    only_toml = sorted(set(toml) - set(ini))
+    # **Presence is compared for every key; value for every key that is not a
+    # path.** `pythonpath` and `testpaths` are resolved against *rootdir*, and
+    # rootdir is whichever directory holds the config pytest found — so the two
+    # files necessarily spell the same two paths differently (`..`/`.` against
+    # `.`/`tests`) and textual identity is the *wrong* assertion for them. There
+    # is no assignment that satisfies it while both files stay correct: this
+    # tree measured `rootdir: …/tests, configfile: pytest.ini` for a run given
+    # `tests/`, and `rootdir: …/sky-boss, configfile: pyproject.toml` without.
+    #
+    # Local divergence from the template, reported upstream the day the widened
+    # check shipped — it is the first tree to set either key in both files.
+    # Presence is still compared, which is what catches the async case the
+    # widening exists for: a key in one file and not the other.
+    differ = sorted(key for key in set(ini) & set(toml) if key not in _ROOTDIR_RELATIVE and ini[key] != toml[key])
 
-    assert not drift, f"pyproject.toml and tests/pytest.ini disagree about markers: {drift}"
+    assert not (only_ini or only_toml or differ), (
+        "tests/pytest.ini and pyproject.toml disagree — pytest reads whichever is nearest, so a "
+        "suite behaves differently depending on the path it was invoked with.\n"
+        f"  only in tests/pytest.ini: {only_ini or 'none'}\n"
+        f"  only in pyproject.toml:   {only_toml or 'none'}\n"
+        f"  set in both, different:   {differ or 'none'}"
+    )
 
 
 def test_every_suite_the_cli_offers_is_a_declared_marker():

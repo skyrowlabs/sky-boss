@@ -82,12 +82,37 @@ from scripts.yaml_text import read_uncommented  # noqa: E402
 #: illustration and a ```console block is a transcript.
 _FENCE = re.compile(r"```bash\n(?P<body>.*?)```", re.DOTALL)
 
-#: `pip install -r <file>`, wherever on the line it appears — the docs run it
-#: through a venv path and CI runs it bare.
-_REQUIREMENTS = re.compile(r"pip install\s+-r\s+(?P<target>[\w./-]+)")
+#: A `pip install` and the rest of its command, stopping at a newline or a shell
+#: separator so the arguments of one install cannot bleed into the next.
+_PIP_INSTALL = re.compile(r"pip install\b(?P<args>[^\n;&|]*)")
+
+#: Every `-r <file>` within those arguments. **Every**, and that is the point:
+#: this was one regex, `pip install\s+-r\s+(?P<target>...)`, which matches the
+#: first `-r` on a line and stops — `pip install -r a -r b -r c` measured as
+#: `['a']`. Two of its three callers fail loudly when they under-collect, so
+#: they would have been found; the third checks each documented file against
+#: what CI installs and simply never looks at the second one, which is a silent
+#: pass on exactly the line most likely to be wrong. sky.boss found it with a
+#: CI step installing a toolchain no document was ever checked against.
+_DASH_R = re.compile(r"-r\s+(?P<target>[\w./-]+)")
 
 #: Installing dependencies, in either toolchain this tree can carry.
 _INSTALLS = re.compile(r"pip install\s+-r\s+[\w./-]+|npm install")
+
+
+def requirements_in(text: str) -> list:
+    """Every requirements file `text` installs from, in order of appearance.
+
+    A list rather than a set because the callers want different things from it
+    and one of them reports the offending name — deduplicating here would make
+    a message name a file that is not the one on the line.
+    """
+    return [
+        match.group("target")
+        for install in _PIP_INSTALL.finditer(text)
+        for match in _DASH_R.finditer(install.group("args"))
+    ]
+
 
 #: The ratchet's home. The value is written by the generator, because the number
 #: of shared lines depends on which toolchains the tree was scaffolded with.
@@ -132,7 +157,7 @@ def ci_requirements() -> set:
     """
     found = set()
     for workflow in sorted((GITHUB_DIR / "workflows").glob("*.yml")):
-        found.update(_REQUIREMENTS.findall(read_uncommented(workflow)))
+        found.update(requirements_in(read_uncommented(workflow)))
     return found
 
 
@@ -159,18 +184,40 @@ def test_the_scan_finds_blocks_to_compare():
     scanned(ci_requirements(), "requirements files installed by a CI workflow")
 
 
+def test_the_scan_sees_every_requirements_file_on_a_line():
+    """The parser, against the case that produced a silent pass.
+
+    A fixture rather than a tree fact, and deliberately: the template ships no
+    multi-`-r` line today, so a check over the tree would be green under the
+    broken regex and the correct one alike — the convenient case cannot
+    discriminate. The string below is the shape an adopter's CI takes the moment
+    it grows a second requirements file, which is when the scan stops looking.
+    """
+    assert requirements_in("pip install -r a.txt -r b/c.txt -r d.txt") == ["a.txt", "b/c.txt", "d.txt"]
+    # Two installs on separate lines are two installs, and neither swallows the
+    # other's arguments — `[^\n;&|]` is what stops the first `args` group
+    # running to the end of the file.
+    assert requirements_in("pip install -r a.txt\nnpm install\npip install -r b.txt") == ["a.txt", "b.txt"]
+    assert requirements_in("pip install -r a.txt && pip install -r b.txt") == ["a.txt", "b.txt"]
+    # A `pip install` with no `-r` contributes nothing rather than a false one.
+    assert requirements_in("pip install pre-commit") == []
+
+
 def test_no_setup_block_invents_a_requirements_file():
     """A document may not send a reader to a file nothing installs from."""
     authoritative = ci_requirements()
     for doc, lines in sorted(setup_blocks().items()):
         for line in lines:
-            match = _REQUIREMENTS.search(line)
-            if match and match.group("target") not in authoritative:
-                pytest.fail(
-                    f"{doc} tells a reader to install from `{match.group('target')}`, which no CI "
-                    f"workflow installs from. CI installs {sorted(authoritative)}. Either the "
-                    "document is stale or the workflow is — they cannot both be the setup."
-                )
+            # Every `-r` on the line, not the first. A second requirements file
+            # is exactly where a document goes stale, because it is the one
+            # somebody appended without re-reading the workflow.
+            for target in requirements_in(line):
+                if target not in authoritative:
+                    pytest.fail(
+                        f"{doc} tells a reader to install from `{target}`, which no CI "
+                        f"workflow installs from. CI installs {sorted(authoritative)}. Either the "
+                        "document is stale or the workflow is — they cannot both be the setup."
+                    )
 
 
 def test_every_setup_block_installs_the_host_toolchain():
@@ -186,7 +233,7 @@ def test_every_setup_block_installs_the_host_toolchain():
     """
     target = REQUIREMENTS.relative_to(PROJECT_ROOT).as_posix()
     for doc, lines in sorted(setup_blocks().items()):
-        installed = {match.group("target") for line in lines if (match := _REQUIREMENTS.search(line))}
+        installed = {target for line in lines for target in requirements_in(line)}
         assert target in installed, (
             f"{doc}'s setup block never installs `{target}`, so a reader who follows it has no "
             f"CLI, no lint tools and no test runner — it installs {sorted(installed) or 'nothing'}. "

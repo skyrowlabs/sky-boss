@@ -134,9 +134,14 @@ def test_an_unscheduled_suite_is_not_quietly_running():
     exempt = {marker for marker, suite in SUITES.items() if not suite.scheduled}
     running = sorted(exempt & set(selected_markers()))
 
+    # Built before the f-string rather than inside it. `f"{ {...} }"` needs
+    # those spaces — without them `{{` opens a literal brace and `}}` closes it
+    # — and flake8 reads them as E201/E202 whatever black does. Two tools, one
+    # line, no arrangement that satisfies both.
+    offenders = {m: selected_markers()[m] for m in running}
     assert not running, (
         f"{running} declare `scheduled=False` in cli/test_cmds.py but a workflow selects them: "
-        f"{ {m: selected_markers()[m] for m in running} }. Fix the row or the workflow."
+        f"{offenders}. Fix the row or the workflow."
     )
 
 

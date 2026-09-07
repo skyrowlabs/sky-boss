@@ -63,8 +63,9 @@ MARK_SYMBOLS = {
 SYMBOLS = {**STATE_SYMBOLS, **MARK_SYMBOLS}
 
 #: Recorded outcome -> symbol name. The outcome *names* belong to the run
-#: ledger; the symbols belong here, so a status viewer never spells its own. It used to, and the viewer's `declined` glyph and the
-#: runner's had already drifted apart by a trailing space.
+#: ledger; the symbols belong here, so a status viewer never spells its own. It
+#: used to, and the viewer's `declined` glyph and the runner's had already
+#: drifted apart by a trailing space.
 OUTCOME_SYMBOLS = {
     "ok": "ok",
     "failed": "fail",

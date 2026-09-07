@@ -68,32 +68,26 @@ def window(release: Optional[str] = None) -> Dict[str, object]:
     root commit. That is the honest answer: the report genuinely describes
     everything, and inventing a boundary would be worse than a wide one.
 
-    **Refuses against a shallow clone**, because the wrong answer there looks
-    exactly like a right one. A shallow clone has no tags and no root commit, so
-    `previous` is empty, the range opens at the graft boundary, and the window
-    comes back valid, well-formed and describing **zero commits** — measured:
-    `v0.1.0..HEAD` / 63 commits here, `<sha>..HEAD` / 0 commits from a
-    `--depth 1` clone of this same repository. `--apply` then *stamps* that into
-    every anchored report, so a report claims a window it does not describe —
-    and `--check`, which validates frontmatter shape rather than the range,
-    would go on calling it well-formed.
+    **A shallow clone is refused, and this is the only place that can refuse
+    it.** `git tag --list` returns nothing there and `rev-list --max-parents=0`
+    finds no parentless commit, so the range opens at the graft boundary and
+    comes back **well-formed and describing nothing** — no error, no warning,
+    valid JSON. sky.boss measured it against their own history: 63 commits from
+    a full clone, 0 from a `--depth 1` clone of the same repository, and
+    `--apply` would stamp the second into every anchored report.
 
-    Scoped deliberately: `check()` never calls this, so it was never the thing
-    reporting a false green. The exposure is the stamp and the emitted JSON.
-
-    `tests/test_docs_name_live_code.py` refuses for the same reason, and the two
-    are worth reading together: that one is a pytest test carrying a marker, so
-    a gate can derive *which CI job must not check out shallow* from the suite
-    it runs. This is a script, in a different workflow, and no such derivation
-    reaches it. It has to say so itself.
+    The workflow that runs this does check out with `fetch-depth: 0`, so
+    nothing is wrong today. What was missing is the thing that would say so if
+    it stopped — and unlike the suite's history check, no marker-keyed gate can
+    reach this one: it is not a pytest test and it runs in a different
+    workflow. `tests/test_ci_job_settings.py` covers the job that runs it now,
+    by reading which scripts a job invokes rather than which markers it selects.
     """
     if (PROJECT_ROOT / ".git" / "shallow").exists():
         die(
-            "shallow clone: the report window is bounded by release tags and a root commit, "
-            "and a shallow clone has neither — the window would come back well-formed and "
-            "describing zero commits, and --apply would stamp that into every report. "
-            "Fetch the full history "
-            "(`fetch-depth: 0`) or run this somewhere that has it."
+            "shallow clone: this reads git history and would return a well-formed window "
+            "describing nothing — no tags, no root commit, a range opening at the graft "
+            "boundary. Check out with `fetch-depth: 0`, or run it somewhere with history."
         )
     all_tags = tags()
     if release:

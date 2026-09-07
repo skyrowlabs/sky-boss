@@ -63,9 +63,9 @@ def bug(summary: str, finding: str, reproduce: str, scope: str, acceptance: str,
             ok(f"captured: {result.stdout.strip()}")
             detail("Mention this in your response so the user can kill it if they disagree.")
             return
-        warn(
-            f"gh failed ({result.stderr.strip().splitlines()[-1] if result.stderr.strip() else 'unknown'}) — falling back to a local capture"
-        )
+        stderr = result.stderr.strip()
+        why = stderr.splitlines()[-1] if stderr else "unknown"
+        warn(f"gh failed ({why}) — falling back to a local capture")
 
     QUEUE.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")

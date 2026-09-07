@@ -504,7 +504,7 @@ whole round is about, installed on purpose.
 
 ---
 
-### Round 8 — 2026-09-07: the components manifest goes, and round 2 was wrong to keep it
+### Round 8 — 2026-09-06: the components manifest goes, and round 2 was wrong to keep it
 
 Round 2 ruled that `.skeletor-components.json` stays, on the reasoning that
 *"deleting it would make nine files look scaffolded that were not."* That was
@@ -543,3 +543,100 @@ its round-2 note, `ci.yml`'s comment above the gate steps, and an entry in
 [[ideas]] whose premise was *"sky.boss has no `.skeletor.json` and will not"* —
 false in both halves as of yesterday, and left visible rather than deleted
 because the idea it supports is still good and now needs a different example.
+
+---
+
+### Round 9 — 2026-09-06: v0.17.0, and the divergence the tool forgets once you tell it
+
+`v0.16.0` → `v0.17.0`, run the way round 5 established: from a clone pinned at
+the tag, using **that clone's own binary**. `--from-dir` overrides the *base*,
+not the target — the target is whichever checkout the binary lives in — and
+pointing this tree's binary at the pinned clone produced sixteen *"manifest
+disagrees with the base it names"* refusals before that was understood. The
+refusal was correct and the reading of it was not.
+
+Eleven files merged, three added, one clean auto-merge, one standing deletion
+correctly not restored.
+
+**The three added files are the round this tree argued for and they do not
+close it.** `test_ci_job_conditions.py` and `test_ci_job_settings.py` hold a
+workflow's jobs to conditions and settings; `test_commit_vocabulary.py` holds
+the subject vocabulary to one home. None can find what round 7 named as
+unfindable — a job that runs and gates nothing — because the separating fact is
+which contexts branch protection requires, and that lives in the GitHub API
+against a suite that is network-free by design. Three gates arriving for a
+question is not the question being answered, and the gap is worth restating
+rather than letting the file count imply otherwise.
+
+**`release_window.py` resolved by taking the template's version whole**, per the
+ruling round 6 made before the upgrade ran. Ours was a shallow-clone refusal and
+theirs covers it. Four arms measured rather than reasoned about: full/bare `0`,
+full/`--check` `0`, shallow/bare `1`, shallow/`--check` `0`.
+
+**`ci.yml` left alone**, per round 7.
+
+#### The parity gate shipped unsatisfiable, and this is the first tree that could tell
+
+`test_marker_coverage.py` was widened the same day to compare **every** key
+across `tests/pytest.ini` and `pyproject.toml` by value, where it had compared
+`markers` alone. The widening is right and the reason for it is this repo's own:
+a key in one file and not the other is exactly the `asyncio_mode` case round 4
+hit, and it is invisible to a check that compares only shared keys.
+
+`pythonpath` and `testpaths` cannot be compared that way. **Both resolve against
+rootdir, and rootdir is the directory holding the config pytest found**, so the
+two files necessarily spell the same two paths differently. Measured both ways:
+
+```
+pytest tests/…   →  rootdir: …/sky-boss/tests,  configfile: pytest.ini
+pytest           →  rootdir: …/sky-boss,        configfile: pyproject.toml
+```
+
+So `pythonpath = ..` / `testpaths = .` in one file and `pythonpath = ["."]` /
+`testpaths = ["tests"]` in the other are the *same two directories*, and textual
+identity is the wrong assertion for them. There is no assignment that satisfies
+the gate while both files stay correct. Deleting the inner file gives the right
+rootdir and breaks eight other tests.
+
+Resolved by exempting those two keys from the **value** comparison and keeping
+them in the **presence** comparison — presence is the half that catches the case
+the widening exists for. A new standing divergence on a scaffold-tracked file,
+created hours after the check shipped, and reported upstream: this tree sets
+either key in both files, which is very likely why nobody had hit it.
+
+#### What `--ported` costs, which is not in its description
+
+`--ported` advances the recorded base, and the base is what the next three-way
+merge diffs against — so recording the *template's* v0.17.0 hash for a file we
+deliberately did not take is correct, and the manifest says as much in its own
+header (*"records how this tree was rendered"*). The next upgrade will apply the
+v0.17.0→v0.18.0 patch onto our divergent file, which is what we want.
+
+The cost is what the tool says afterwards:
+
+```
+before:  ❌ 2 file(s) that differ from the template — merge conflicts, LEFT ALONE
+after:   ✅ already current with skeletor @ v0.17.0 — nothing to carry over
+```
+
+**Two deliberate divergences went from reported-every-run to invisible**, and
+the asymmetry is with a deletion three lines above them in the same output:
+
+```
+⏭️  1 file(s) skeletor wrote and you deleted — NOT restored
+   Recorded in the manifest, absent from the tree: a decision you made, which
+   an upgrade does not re-make for you. Standing state, reported every run.
+```
+
+A deletion is standing state. An edit is not, once ported — and yet *disk hash ≠
+base hash* is exactly as computable after `--ported` as before it, and it means
+the same thing both times: **this tree has edited a file skeletor wrote.** The
+tool's own argument for reporting the deletion applies unchanged.
+
+The consequence here is that `docs/features/skeletor-adoption.md` is now the
+**only** record that `ci.yml` and `test_marker_coverage.py` are ours by
+decision. That is this adoption's founding complaint arriving on the instrument
+itself: *a component consumer is never told a gate exists* becomes *a scaffolded
+consumer is never told a divergence exists*, and in both cases the remedy the
+tree reaches for is a doc, which is the thing that goes stale. Reported upstream
+alongside the parity finding.
