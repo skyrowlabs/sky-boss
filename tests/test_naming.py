@@ -72,7 +72,20 @@ ESCAPED_TICK = re.compile(r"\\`")
 CODE_SPAN = re.compile(r"(`+)[\s\S]*?\1")
 HTML_TAG = re.compile(r"<[^>]*>", re.DOTALL)
 
-SKIPPED_DIRS = {".git", ".venv", "vendor", "node_modules", "__pycache__", "dist"}
+#: Directories whose contents this repository did not write. `tmp` and
+#: `.pytest_cache` were added on 2026-09-07 after an upgrade's
+#: collected-ID diff came back with 205 spurious additions: `tmp/pre-upgrade`
+#: is the throwaway worktree that comparison itself creates, and
+#: `.pytest_cache/README.md` is pytest's own file, which this gate had been
+#: reading for prose about a product pytest has never heard of.
+#:
+#: Both are harmless in the sense that they pass. Neither is harmless as a
+#: **population**: the parametrised set changed with whatever scratch happened
+#: to be on disk, so the count moved run to run and a comparison across two
+#: checkouts was measuring the filesystem rather than the tree. A gate whose
+#: subject set is unstable cannot be diffed, and diffing it is exactly what an
+#: upgrade asks you to do.
+SKIPPED_DIRS = {".git", ".venv", "vendor", "node_modules", "__pycache__", "dist", "tmp", ".pytest_cache"}
 # Gitignored; the operator's half, and not published prose.
 SKIPPED_FILES = {"CLAUDE.local.md"}
 
