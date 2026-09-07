@@ -3,11 +3,35 @@
 # **This file used to say there was no cost gating and that it was deliberate**:
 # gating keeps an expensive suite off the pre-merge path, and this one is under
 # ten seconds with no network, so deciding cost more than running. That argument
-# still holds for the suite, and the `gate` job below does NOT gate it — the
-# pytest matrix and eslint run unconditionally, because they are the three
-# contexts branch protection requires on `develop` and `main`, and a required
-# context that reports `skipped` is accepted by branch protection. A PR would
-# merge having proven nothing.
+# still holds for the suite, and the `gate` job below does NOT gate it in the
+# sense of skipping work by decision: nothing here is conditional on the gate's
+# output, and the pytest matrix and eslint run on every event that reaches them.
+#
+# **They do, however, carry `needs: gate`, and that sentence used to end
+# "unconditionally", which was false about this file in the one direction that
+# mattered.** The paragraph correctly stated the hazard — a required context
+# reporting `skipped` is ACCEPTED by branch protection — and then claimed a
+# mitigation the graph does not implement. A `needs:` edge is exactly how a job
+# comes to report `skipped`: if `gate` fails, `test` and `lint` never run, all
+# three required contexts report `skipped`, protection accepts them, and a pull
+# request merges having proven nothing. Named in the template's own header at
+# v0.22.0 as *requiring only the leaves is requiring nothing*, and confirmed
+# here by asking the account rather than the file:
+#
+#     gh api repos/OWNER/REPO/branches/develop/protection/required_status_checks \
+#       --jq '.contexts[]'      # → eslint, pytest 3.12, pytest 3.14
+#
+# The remedy is in the account, not here: the required list has to name `CI
+# Gate` itself, or a job that transitively depends on every other. Dropping the
+# `needs:` edges would also make the old sentence true and is the wrong trade —
+# the edge is what `tests/test_workflow_job_graph.py` reads to see which jobs
+# block, and losing it to fix a setting outside the tree spends a mechanism to
+# work around a list.
+#
+# **No check in this tree can catch it**, which is why it stood: the required
+# contexts are a list in the account and appear in no file here. Same class as
+# the enterprise Actions pull-request switch, and the same remedy — ask, do not
+# keep a copy.
 #
 # What the gate buys here is not skipping. It is the structural checks, one
 # place that decides what a change earns, and a `needs:` edge so
@@ -181,11 +205,28 @@ jobs:
     # ships 3.12 and is what it kept. Raising it again is a README edit and a
     # branch-protection edit, in that order, and never one without the other.
     #
+    # **And a `.skeletor.json` edit, which is the half this comment was missing
+    # and the template added at v0.22.0.** The list below is RENDERED from the
+    # recorded `--python-ceiling`, so it is changed by moving the record:
+    #
+    #     skeletor-upgrade . --set-arg python-ceiling=<version> --dry-run
+    #
+    # Editing the list here instead leaves the record saying the old value —
+    # which is what the base still renders — so the hunk conflicts on every
+    # upgrade, for ever, while the tree stays green and current the whole time.
+    # Two adopters were in that state and neither was found by an instrument.
+    # This tree is not one of them: the ceiling moved to 3.14 through `--set-arg`
+    # in round 14, which is why this list and the manifest agree.
+    #
     # `fail-fast: false` because the useful answer is *which* versions broke.
     # Cancelling the rest on the first red turns two data points into one.
     name: pytest ${{ matrix.python }}
-    # Depends on the gate, gated by nothing. See the reversal note at the top:
-    # this is a required context, and `skipped` satisfies branch protection.
+    # Depends on the gate, gated by nothing — no step here is conditional on
+    # its output. But `needs:` is itself how a job comes to report `skipped`,
+    # and `skipped` satisfies branch protection: see the header, which used to
+    # claim this job ran unconditionally and did not. The hole is **open** as of
+    # 2026-09-07 and closes in the account by requiring `CI Gate`, never here by
+    # cutting this edge — ask the API rather than trusting this comment.
     needs: gate
     runs-on: ubuntu-latest
     strategy:
