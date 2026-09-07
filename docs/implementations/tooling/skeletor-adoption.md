@@ -1502,3 +1502,80 @@ requiring `CI Gate` on both branches; `All checks` alone was rejected because
 it. **The hazard was written in this tree's own `ci.yml`, two screens above the graph
 that fell into it** — and what surfaced it was a comment arriving from another
 repository, in the one upgrade this tree could not otherwise use.
+
+### Round 19 — 2026-09-07: v0.22.1, and the diff that had to be cleaned before it meant anything
+
+`v0.22.1` landed a few hours after round 18's report. `v0.20.0 → v0.22.1` in one
+step, `skeletor_ref` advanced, CI green.
+
+**Run from a fresh clone at the tag**, in this session's scratch, rather than from
+the sibling checkout — that checkout belongs to a live session and a `git checkout`
+in it would have moved somebody else's working tree while their grid was running. A
+clone is seconds and isolates completely. Worth doing by default: *the tool you are
+running lives in a repository somebody else is using.*
+
+**The blocker is gone and the fix is the ordering argued for here, at an address
+this tree did not propose.** `SHELL_PACKAGE = "cli"` is a rendered literal and
+discovery is removed, so `cli/` and `skyboss/` both having `__main__.py` is
+unremarkable rather than a contradiction. The proposal from here was to read
+`.skeletor.json`; `scripts/paths.py`'s own comment rules that out twice — the
+manifest is a **supported deletion**, so manifest-primary breaks every tree that
+took that choice, and *"never read it for anything an upgrade owns"* forbids a
+consumer in the tree parsing the generator's arg list. **The principle was right and
+the address was wrong, and the file that corrected it was the one being fixed.**
+
+Verified by running rather than by reading: `dev --help` up, `sb --version` from
+outside the repo, 1528 passed, all seven gates.
+
+**The collected-ID diff — five additions, zero removals:**
+
+```
++ test_a_block_it_cannot_find_is_still_tolerated
++ test_a_trailing_comment_is_stripped_and_not_read_as_the_value
++ test_frontmatter_refuses_what_it_cannot_represent[a block sequence]
++ test_frontmatter_refuses_what_it_cannot_represent[a wrapped inline list]
++ test_prose_says_sky_boss[tests/shell.py]
+```
+
+Four of the five are round 16's frontmatter report arriving back as gates, the same
+day. Zero removals, so nothing this tree depended on went away.
+
+**But the first diff came back with 210 additions, and 205 of them were noise from
+this repository's own gate.** `tests/test_naming.py` parametrises over a filesystem
+walk, and its skip set held `.git`, `.venv`, `vendor`, `node_modules`,
+`__pycache__`, `dist` — not `tmp`, and not `.pytest_cache`. So it was collecting
+`tmp/pre-upgrade/**`, the throwaway worktree **the comparison recipe itself
+creates**, and `.pytest_cache/README.md`, which is pytest's own file being read for
+prose about a product pytest has never heard of.
+
+Nothing was ever red; every one of those cases passed. The defect is the
+**population**:
+
+> A gate whose subject set is unstable cannot be diffed — and diffing it is exactly
+> what an upgrade asks you to do.
+
+The parametrised set moved with whatever scratch happened to be on disk, so its
+count changed run to run and a comparison across two checkouts was measuring the
+filesystem rather than the tree. That is the same shape as skeletor's grid measuring
+a population of fresh scaffolds, arriving in our own suite while reading their
+report about theirs. **A walk is a population, and a skip set is what defines it.**
+
+The recipe's existing paragraph warns that an unscoped `pytest` descends into the
+worktree; this is the identical collision one layer up, where the descent belongs to
+the *test* rather than to the *runner*, so scoping to `tests/` does not prevent it.
+Reported upstream as a sentence their paragraph is missing, since any adopter whose
+suite parametrises over a walk will hit it, and *check every file for X* is an
+ordinary way to write a gate.
+
+**`scripts/paths.py` merged clean on the very hunk the rename needed** — the second
+dividend from round 16 deleting the `NARRATIVE +=` append. A tree still carrying it
+would have taken a conflict here on top of the ci.yml one.
+
+**`.github/workflows/ci.yml` conflicted as ever** — round 7's standing divergence —
+and its patch is byte-identical to v0.22.0's, already ported by hand, so `--ported`
+took that one file on trust and advanced the base.
+
+**And the green is worth stating precisely, because the last one was greener.**
+v0.22.0 passed 279 checks and CI and could not work in this tree. v0.22.1 passes 337
+and one real adopter. That is better and it is not proof; it is one more tree in the
+population, which is the only thing that was ever missing.
