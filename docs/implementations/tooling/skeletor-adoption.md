@@ -1325,3 +1325,54 @@ a rule that lives in a file we own costs nothing.
 This round was itself filed by the path it documents: moved back out of the
 archive, extended, and re-filed — so the reopen half of the lifecycle has now been
 run once rather than merely written down.
+
+### Round 17 — 2026-09-07: what a new scaffold argument's default says about this tree
+
+A question asked before an untagged release, and the answer mattered less than
+the reason for asking. skeletor is shipping `--shell-package`, which decides the
+directory the shell renders into — `cli/` here, since round 1 moved the product to
+`skyboss/` precisely so the shell could own that name.
+
+**Our manifest predates the flag**, so it records no value for it and the parser
+fills in the default on the next upgrade. Measured on their side: it is `cli`, so
+nothing happens to this tree and no backfill is needed. That value is deliberately
+**not written down here** — it is a fact about a parser in somebody else's
+checkout, which is round 15's whole subject.
+
+**What is written down is the class, because it recurs every time an argument is
+added rather than changed:**
+
+> `--set-arg` refuses to change a path-set argument. A new flag's default changes
+> one **for free**. The refusal is about the loud path; a default is the quiet one,
+> and the trees it reaches are exactly the ones that predate the thinking.
+
+The distinction that makes this actionable is *within a file* versus *the set of
+paths*. An argument whose effect is within files is safe to amend and safe to
+default; one that decides a directory name is neither, and the second half of that
+sentence has no refusal guarding it because nobody asked for anything.
+
+**The standing check this leaves, for whoever runs the next upgrade:** when a
+release adds a scaffold argument, ask whether it decides a **path** before running
+`skeletor-upgrade`. If it does, and this manifest has no recorded value for it, the
+default is the value — and a wrong one renders the whole shell into a new directory
+while reporting the old one as no longer shipped. `--dry-run --json` names both
+sets, which is the instrument; it costs one command and it is the only one that
+answers before the merge rather than after.
+
+**skeletor's gate for it was green and looking at the wrong tree**, which is the
+part worth keeping. `shell_package_gate` asserted the default *from a fresh
+scaffold* — the one place it cannot matter, because a fresh scaffold **records** the
+flag, so the default is consumed at scaffold time and never at upgrade time. The
+path where a default is load-bearing is a manifest with **no recorded value**, and
+that is every tree scaffolded before the flag existed. Their fix strips the argument
+from a real manifest — byte-identical to a pre-flag one — and requires the upgrade to
+come back *already current*, an assertion that needs no knowledge of the default's
+value and can only hold if the render put the shell back where it was.
+
+Same shape as round 15 and as the workspace's `--tagline` incident: **a default no
+gate ever produces is not a tested default.** Worse here, because the gate naming
+the default was reading it off the recorded args rather than off the absence — so it
+printed green about the one case it could not see. The family of *no instrument at
+any distance the tree can reach* now has a sibling that is merely *the instrument
+pointed at the wrong tree*, and the two want different remedies: the first is
+written down as a limit, the second is fixed.
