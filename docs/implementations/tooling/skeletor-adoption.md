@@ -1376,3 +1376,19 @@ printed green about the one case it could not see. The family of *no instrument 
 any distance the tree can reach* now has a sibling that is merely *the instrument
 pointed at the wrong tree*, and the two want different remedies: the first is
 written down as a limit, the second is fixed.
+
+**The tell separating them, which is the half worth carrying, is whether the case
+can be manufactured.** Family membership is not a question anybody can answer at the
+moment of the decision — it asks whether an instrument could exist at *any* distance,
+which is unfalsifiable from inside a tree. *Can I build the case?* is answerable in
+one attempt. Here it took stripping one argument from a real manifest, so the hole was
+closeable all along and writing it down as a limit would have been a false comfort:
+a documented hole reads as a boundary, and this one was a bug.
+
+That is the positive-control practice arriving from the other end. This file already
+holds it as *when the live data cannot produce the case, a render that did not show it
+is not evidence, and the fix is to manufacture the case rather than to look harder* —
+[[schedule]] round 9, where the operator's live payload contained none of the three
+absences the screen had to distinguish. Same move, pointed at a gate instead of a
+screen: **do not ask whether the green is trustworthy, ask whether you can make it go
+red on purpose.** A gate that cannot be made to fail has not been shown to pass.
