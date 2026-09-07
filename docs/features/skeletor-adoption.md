@@ -1092,3 +1092,38 @@ Both legs reported on the push that carried this change. That is the only
 instrument that sees it; the manifest agreeing proves nothing about it, and
 neither does the workflow file, which is what a halved matrix would still look
 correct in if the amendment had gone the other way.
+
+#### Coda: converting a note instead of deleting it
+
+proto.pilot's `ci.yml` carried a comment reading *"this list is a hand-edit and
+the manifest disagrees with it"*, which their amendment made false. It was
+reported here as **deleted** and it was not — they converted it:
+
+```
+-    # **This list is a hand-edit and the manifest disagrees with it.**
++    # **This list is not a hand-edit any more; the manifest says it.**
++    # Change the versions by changing the recorded argument, not by editing the
++    # list below.
+```
+
+Their rule, which is better than the one this round would otherwise have drawn:
+
+> **The remedy for a note that rots is not deletion — it is converting the fact
+> into a policy.** A conscientious warning rots because it *describes a state*.
+> The same care spent writing a rule survives the state changing. And **a
+> disobeyed instruction is not a falsified one** — which is what lets a rule
+> outlive the condition that prompted it, where a description cannot.
+
+That is round 13's move, named. The `ci.yml` header comment there had been wrong
+in both directions inside one day, and the third version deliberately stopped
+describing which jobs need history and started saying *a depth is justified by
+the line that reads history, never by a paragraph*. This tree already complies;
+what it lacked was the reason, and the reason is what tells the next person
+which of the two edits to make.
+
+**The false premise reached a message and never reached this file**, which is
+the only reason there is nothing to retract above. Recorded because the near
+miss is the instructive part: a relay is the only party holding both ends of a
+cross-repo claim, so **a relay's error is the one error no recipient can
+check** — proto.pilot could correct it because it was their tree, and this
+session had neither the standing nor a reason to look.
