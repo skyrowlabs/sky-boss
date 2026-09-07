@@ -323,9 +323,25 @@ The rules that are not negotiable:
   **A raw command is not a drift.** Anything typed whose first word is not a sky.boss command is
   offered as `sb read -- <argv>`, synthesised from the query rather than from any list, with the
   expansion shown before it runs. It defaults to `$HOME` — neutral, because the canvas inherits
-  whatever directory `sb ui` started in, and any repo with a `cli/` package shadows a tool's own.
-  **This repo is one of them again as of the skeletor adoption** — the product moved to `skyboss/`,
-  and skeletor's shell took `cli/`, so running the canvas from here still shadows `jam`.
+  whatever directory `sb ui` started in, and a repo with a `cli/` package shadows a tool's own —
+  **but only for a tool that has not defended itself.** This repo has such a package again as of
+  the skeletor adoption: the product moved to `skyboss/` and skeletor's shell took `cli/`, so
+  `python3 -c "import cli"` from this directory still resolves to *ours*. `python3 -P` does not,
+  and that is the whole of it.
+
+  **This paragraph said "so running the canvas from here still shadows `jam`" until 2026-09-06,
+  and that had stopped being true.** jam.sense put `-P` on both exec lines of its wrapper — the
+  flag rather than `PYTHONSAFEPATH=1`, because the env var is inherited by every process it
+  spawns — and the comment explaining it names this repository and the issue it was filed as.
+  Measured before the correction: `jam --help` exits 0 from here and from `/tmp` alike.
+
+  So the mechanism is real, the named victim is immune, and no live consumer is known. The
+  reason the sentence rotted is worth more than the sentence: **a sibling's fix does not notify
+  the tree it was made for.** jam.sense closed this on sky.boss's behalf, citing sky.boss by
+  name, and nothing here changed — the fix and the note about it live in different repositories
+  and only one of them had a reason to move. The workspace guide records the version of this
+  about a neighbour's *pending* work; this is the same class about their *completed* work, and
+  it is the harder one, because a stale hazard reads as more credible the longer it sits.
 - **Only a read may be given a cadence.** See § Scope.
 - **A rewrite has to know every field; a splice does not.** `block()` serialises a tool, so a
   field it has not heard of is dropped on every rewrite — which is not hypothetical: a declared
