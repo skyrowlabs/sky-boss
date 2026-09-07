@@ -640,3 +640,56 @@ itself: *a component consumer is never told a gate exists* becomes *a scaffolded
 consumer is never told a divergence exists*, and in both cases the remedy the
 tree reaches for is a doc, which is the thing that goes stale. Reported upstream
 alongside the parity finding.
+
+#### Pre-made ruling for the next upgrade: drop the exemption, take theirs whole
+
+Both findings above were built upstream the same evening they were sent, and
+neither is tagged yet — so this is written now, while the reasoning is live,
+rather than rediscovered by whoever runs the next upgrade. Round 6 did this for
+`release_window.py` and it is the reason that conflict took one decision instead
+of an investigation.
+
+**skeletor fixed the parity gate by comparing meaning rather than by exempting.**
+Two tables: `_ARGS_KEYS` splits `addopts`, `norecursedirs`, `testpaths` and
+`pythonpath` on any whitespace, and `_ROOTDIR_RELATIVE` resolves `testpaths` and
+`pythonpath` against **the owning file's** rootdir before comparing. That is the
+more faithful of the two shapes and it is the one this round declined to build,
+on the grounds that it needed the gate to know each file's rootdir — which was a
+judgement about effort, not about correctness, and they spent the effort.
+
+Checked against our values without needing their code, because it is arithmetic:
+
+```
+pythonpath   tests/..        → <root>        vs  <root>/.       → <root>       ✓
+testpaths    tests/.         → <root>/tests  vs  <root>/tests   → <root>/tests ✓
+```
+
+So **our pair passes their gate unchanged**, and the local exemption
+(`_ROOTDIR_RELATIVE` in `tests/test_marker_coverage.py`, with the note that
+argues for it) is to be **deleted** at the next upgrade rather than merged
+forward. Take the template's file whole. The exemption stopped comparing; theirs
+starts comparing the right thing, and keeping ours would preserve a blind spot on
+purpose.
+
+One thing worth carrying rather than dropping with it: their `_ROOTDIR_RELATIVE`
+is a hand-kept table, and they justify it rather than smuggling it — pytest's own
+registry types `norecursedirs` and `testpaths` **identically as `args`**, so
+nothing in the schema separates basename globs from rootdir-relative paths. It is
+knowledge about another tool that no predicate over the tree can derive, which is
+the one kind of list worth keeping, and it is checked against pytest on every run.
+
+**And the second finding removes the reason this paragraph has to be load-bearing.**
+Their fix to `--ported` reports an edited file as standing state every run:
+
+```
+📝 2 file(s) skeletor wrote and you have edited — standing state
+   · .github/workflows/ci.yml
+   · tests/test_marker_coverage.py
+```
+
+Computed before anything is written — after the loop it would be lowest on the
+runs that changed the most, which is wrong in the reassuring direction. So the
+next upgrade will *name* both divergences without anybody having found this doc.
+That is the right relationship between the two: **the tool raises the question and
+the doc holds the answer**, where until tonight the doc had to do both and was the
+only thing that could go stale.
