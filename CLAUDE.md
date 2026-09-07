@@ -738,11 +738,25 @@ does: an audience that is not the author.
 
   **It did not silence the notice, and predicting that it would was wrong.** A direct push now
   reports one bypassed rule instead of two — the pull-request line is gone and
-  `5 of 5 required status checks are expected` remains, because required status checks apply to a
+  `N of N required status checks are expected` remains, because required status checks apply to a
   direct push and a fresh commit has none yet. **That line is not removable while the checks are
   required**, and the checks are the only thing on `develop` that actually gates anyone. So the
   message is the price of keeping the gate that works, and the remaining half is worth reading as
   *the gate fired and you are exempt* rather than as noise.
+
+  **`N` is deliberately not a number here.** This sentence quoted `5 of 5` for a week while the
+  paragraph four lines above named three checks, and the push that found it reported `3 of 3` —
+  so the doc disagreed with itself and with the remote, and neither half was reading the other.
+  The count is whatever branch protection currently requires, which is a fact about the account
+  and not about this tree; ask it rather than trusting a copy:
+
+  ```bash
+  gh api repos/OWNER/REPO/branches/develop/protection/required_status_checks --jq '.contexts[]'
+  ```
+
+  Same lesson as the workspace's worktree list, one repo down: **do not keep a copy of what a
+  command will tell you** — and note that this is the *only* instrument that answers it, which is
+  round 7 of [[skeletor-adoption]] arriving from the other side.
 
   **The gate for anyone else survives it**, which is the reason this is not a weakening: required
   status checks apply to a direct push too, and a fresh push has no passing checks yet, so a
