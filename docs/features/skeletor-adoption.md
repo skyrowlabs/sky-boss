@@ -1029,3 +1029,66 @@ state, it now says the rule:
 Round 10's removal was correct when it was made and is not retracted. A setting
 with a caller and a setting with only a comment are different objects that look
 identical in a diff.
+
+---
+
+### Round 14 — 2026-09-06: the manifest discrepancy closed, and `--set-arg` needs `--ported` here
+
+Round 11 recorded `--python-ceiling 3.12` against a matrix that runs `3.12` and
+`3.14`, and declined to hand-edit the manifest on the grounds that a value
+invented in an adopter's tree is a second opinion about the render. The
+supported verb arrived in v0.20.0 and proto.pilot ran it first. Closed:
+
+```
+--python-ceiling  3.12 → 3.14      ci.yml untouched, still ['3.12', '3.14']
+```
+
+Two lines in the diff — the argument, and `ci.yml`'s recorded base hash, which
+now describes a render with two legs. `skeletor_ref` did not move.
+
+**The inversion is the part worth keeping**, and it was proto.pilot's to find:
+this looked like *a tree that edited away from its record*, which frames the fix
+as reconciling two artefacts and invites fixing the file, since the file is the
+thing that runs.
+
+> **The divergence closed by making the record true, not by editing the
+> workflow.** The tree was already right; the record was the wrong artefact all
+> along.
+
+#### It does not work alone in a tree with a standing conflict
+
+`--set-arg` on its own is a **no-op here**, and silently so in the sense that
+matters — it reports the amendment and then does not keep it:
+
+```
+→ 1 argument(s) changed for this render
+⏸️  .skeletor.json left at v0.20.0 — 1 file(s) still pending
+git status → clean
+```
+
+The amendment applies to the render and is recorded only if the run applies
+everything, and this tree has a permanent conflict by ruling — round 7's
+declined `ci.yml`, which is *the file the amended argument renders into*. So the
+one tree in the fleet still carrying this divergence is the one that cannot use
+the verb built for it. `--set-arg --ported` records it, because `--ported` is
+exactly the assertion that the conflict is resolved as intended, which round 7
+made and this tree has repeated on every upgrade since.
+
+That is the second time this argument has produced the same shape. The round 11
+review found that the consequence-check justifying a *valued* flag over a bare
+assertion could never fire here, because the only file `PYTHON_MATRIX` reaches
+is the declined one. This is the same geometry one layer out: **a mechanism
+keyed to a file cannot serve the tree that has opted out of that file, and the
+tree that opted out is the one most likely to need it.**
+
+#### The check that was asked for, and it is not the manifest
+
+proto.pilot's specific request, because this fix's failure mode is *record now
+agrees, coverage silently halved* — and a halved matrix is green:
+
+> Confirm the leg count **in the run**, not in the manifest.
+
+Both legs reported on the push that carried this change. That is the only
+instrument that sees it; the manifest agreeing proves nothing about it, and
+neither does the workflow file, which is what a halved matrix would still look
+correct in if the amendment had gone the other way.
