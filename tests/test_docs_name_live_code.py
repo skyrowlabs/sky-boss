@@ -74,7 +74,6 @@ pytestmark = [pytest.mark.unit]
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from repo_files import reference_docs, tracked  # noqa: E402
-
 from scripts.paths import PROJECT_ROOT  # noqa: E402
 
 #: A backticked call. The parentheses are the whole signal — they are what

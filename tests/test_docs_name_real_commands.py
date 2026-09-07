@@ -63,8 +63,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import click  # noqa: E402
 
+from repo_files import reference_docs  # noqa: E402
 from scanning import scanned  # noqa: E402
-from scripts.paths import PROJECT_ROOT, TODO_DIR  # noqa: E402
+from scripts.paths import PROJECT_ROOT  # noqa: E402
 from tests.shell import group  # noqa: E402
 
 #: `--shell-package` moves the package, never the group inside it — see
@@ -99,9 +100,22 @@ def known_commands() -> set:
 def invocations() -> dict:
     """Every command a shell block tells a reader to run, and where."""
     found: dict = {}
-    for path in sorted(PROJECT_ROOT.rglob("*.md")):
-        if TODO_DIR in path.parents or "node_modules" in path.parts or ".venv" in path.parts:
-            continue
+    # `reference_docs()`, never a walk. An `rglob` here read whatever was on the
+    # disk and carried its own skip list — `node_modules`, `.venv`, the tank —
+    # which is the shape `repo_files.py` exists to replace and says so in its
+    # own docstring: a skip list is a registry, so the verdict turns on what a
+    # dependency tree happens to ship and on what scratch is lying around.
+    #
+    # sky.boss hit the same shape in their tree from the other end. A gate
+    # parametrised over a walk collected `tmp/pre-upgrade/**` — the worktree
+    # `skeletor-upgrade`'s own collected-ID recipe creates — and 205 of 210
+    # reported additions were that scratch. Nothing was red; the SUBJECT SET
+    # moved with the filesystem, so the comparison measured the disk. The two
+    # skip lists between them named six directories and neither named `tmp/`.
+    #
+    # `git ls-files` has no list to forget: an untracked file is not this
+    # repository's claim, and that is the whole predicate.
+    for path in sorted(reference_docs()):
         for body in BLOCK.findall(path.read_text(encoding="utf-8", errors="replace")):
             for raw in body.splitlines():
                 line = raw.split("#")[0].strip()

@@ -73,7 +73,6 @@ pytestmark = [pytest.mark.unit]
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from repo_files import reference_docs  # noqa: E402
-
 from scanning import scanned  # noqa: E402
 from scripts.paths import GITHUB_DIR, PROJECT_ROOT, REQUIREMENTS, TESTS_DIR  # noqa: E402
 from scripts.yaml_text import read_uncommented  # noqa: E402
