@@ -419,11 +419,26 @@ if: github.event_name == 'push' && github.ref == 'refs/heads/{{RELEASE_BRANCH}}'
 
 — so it runs on pushes to the release branch only. Here that is `main`, which
 receives merges from `develop` when a release is cut, so the true frequency is
-*per release*, not per push. The wrong figure was also the more critical one,
-and it had already been relayed to the fleet and generalised to three trees
-before it was checked. The claim it was supporting does not need it: a job that
-can never do anything in a tag tree is still a job we have no reason to take,
-whatever its cadence.
+*per release*, not per push.
+
+**And the retraction needed a retraction of its own, which is the more useful
+half.** "That was wrong" is stated flatly above and is only wrong *here*. The
+guard turns entirely on whether the base branch and the release branch are the
+same ref: where they differ, as they do in this tree, it excludes everything
+that is not a release; where they are both `main`, it excludes pull requests and
+nothing else, so the job does fire on every merge and the original sentence
+holds. Derived from the guard rather than from a survey — a fleet census of who
+is in which position belongs to the workspace, not to this file.
+
+So the same two-flag conjunction that produced this whole round — `--versioning`
+against `--base-branch`, a mechanism inert because of a branch nobody works on —
+decides the cadence too, one field over. **A claim about a scaffolded tree is
+almost never about scaffolded trees.**
+
+The wrong figure was also the more critical one, and it had been relayed to the
+fleet and generalised to three trees before anyone checked. The claim it was
+supporting needs none of it: a job that can never do anything in a tag tree is
+one we have no reason to take, at any cadence, on any branch layout.
 
 **The `node:` half fixes a defect this tree does not have.** Its own comment
 upstream says why it exists: *"only the python half was ever run by CI — so a
