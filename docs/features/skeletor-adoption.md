@@ -693,3 +693,114 @@ next upgrade will *name* both divergences without anybody having found this doc.
 That is the right relationship between the two: **the tool raises the question and
 the doc holds the answer**, where until tonight the doc had to do both and was the
 only thing that could go stale.
+
+---
+
+### Round 10 — 2026-09-06: v0.18.0, and a clean merge that was not a correct one
+
+`v0.17.0` → `v0.18.0`, from a clone pinned at the tag, using that clone's binary.
+Eight untouched files updated, four merged cleanly, one conflict left alone, one
+standing deletion not restored. The ruling written at the end of round 9 was
+executed as written: **the exemption is gone and the template's
+`test_marker_coverage.py` is taken whole.**
+
+Round 9's finding 2 is live and reports more than it was asked for:
+
+```
+📝 24 file(s) skeletor wrote and you have edited — standing state
+```
+
+Twenty-four, not the two that were merge conflicts — every scaffold-tracked file
+this tree has edited. That is the right answer to the question and a larger
+number than the request implied, which is the correct direction for a report to
+be surprising in.
+
+#### A clean three-way merge produced a file with two definitions of one constant
+
+`tests/test_marker_coverage.py` came back in the **merged cleanly** list. It was
+not correct. skeletor's fix adds `_ROOTDIR_RELATIVE` near the top as a `set`,
+beside the `_normalise` that resolves against the owning file's rootdir; our
+exemption defined `_ROOTDIR_RELATIVE` as a `frozenset` seventy lines lower. The
+two edits never overlapped textually, so git merged both, and **Python kept the
+later one**:
+
+```
+_ROOTDIR_RELATIVE is frozenset frozenset({'testpaths', 'pythonpath'})
+```
+
+Ours. So their normalisation was live code that nothing called, and the
+comparison still skipped both keys. **Five tests passed on it.** A gate doing
+strictly less than it reports, arrived at by a merge that reported success —
+this repo's *worked fine, told nobody* reached through version control rather
+than through code.
+
+The general rule, which is not specific to this file:
+
+> **A clean merge is a statement about text, not about meaning.** Two edits that
+> add a module-level name in different regions never conflict, and the second
+> definition silently wins. Where an upgrade merges cleanly into a file you had
+> edited *for the same reason the upgrade exists*, expect a duplicate rather than
+> a resolution.
+
+Taking the file whole removed it. Checked afterwards by parsing all four cleanly
+merged Python files for duplicate top-level names — none remained.
+
+#### The pass was then verified, because a pass on a file you just replaced is not evidence
+
+Planting real drift (`testpaths = ["scripts"]` in `pyproject.toml` alone):
+
+```
+set in both, different: ['testpaths']   → 1 failed
+```
+
+and our genuine pair still passes, because `tests/..` and `<root>/.` resolve to
+one directory and `tests/.` and `<root>/tests` resolve to another. The gate is
+comparing, not skipping. *Prove the instrument can see one before believing it
+saw none* — the practice this repo already had, applied to somebody else's fix.
+
+#### The new scanner found dead configuration here on its first run
+
+`test_no_job_fetches_history_the_scan_cannot_explain` failed on `ci.yml:gate`
+and `ci.yml:test`. The relayed guidance was that this tree was *"the one where
+that finding does not apply"* — which was a prediction about a file the writer
+had not read, and it was wrong in both jobs. Reconciled against the render, as
+usual, and the two causes are different:
+
+**`test` was a blind spot in the scan.** Its `_DASH_M` is `-m\s+(?P<marker>\w+)`
+and this fork ran `-m "unit"`. `\w` does not match a quote, so the job's real
+dependency — the unit suite refuses a shallow clone — was invisible. The quotes
+were our own divergence (the template writes `-m unit`), so they are gone, which
+converges rather than diverges. **The pattern still needs widening upstream**: a
+compound selector like `-m "unit and not slow"` *must* be quoted, so any adopter
+writing one is unreadable to this scan. Reported.
+
+**`gate`'s depth was genuinely dead, which is the scanner working.** Nothing in
+that job reads git: `docs-only.cjs` classifies through the GitHub API, and the
+three structural checks touch no history. It carried `fetch-depth: 0` because
+the *template's* gate runs the commit-subject read over the PR range — and this
+fork does not run that step at all. So the line was kept alive by a header
+comment describing a caller that is not in the file. Both are fixed: the depth
+is gone and the comment now says which job needs history and why.
+
+> **Configuration justified by a comment rather than by a caller survives every
+> reader and fails only to a question.** Nobody reading `ci.yml` would have
+> doubted a `fetch-depth: 0` with a paragraph above it explaining the need. It
+> took an instrument that asked *which caller* rather than *is there a reason*.
+
+**One gap is left open deliberately, because it is a policy change rather than
+an upgrade.** This fork runs no commit-subject check in CI. The local
+`commit-msg` hook binds whoever has it installed; the template's `gate` step is
+what binds a pull request from someone who does not. Restoring it means
+restoring `gate`'s `fetch-depth: 0` in the same edit, which the new comment
+there says. Not taken here — it changes what gates the branch, and that is the
+operator's call rather than an upgrade's.
+
+#### The declined `ci.yml` patch turned out to be a no-op
+
+Round 7's decline stands, and the reason has changed. The whole v0.18.0 patch
+for this file is the matrix and the context rename — `name: pytest ${{
+matrix.python }}`, `strategy.matrix.python`, `python-version: ${{ matrix.python
+}}` — every line of which this tree already had, having built it independently
+when it asked for the feature. So there was nothing to port, and the branch
+protection edit the release warns adopters about costs this tree nothing. That
+was checked against the remote rather than against the release note.

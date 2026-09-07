@@ -12,8 +12,9 @@ import sys
 
 import click
 
-from cli.helpers import PROJECT_ROOT, fail, module, ok, run, script, summarize
 from scripts.paths import TMP_DIR
+
+from .helpers import PROJECT_ROOT, fail, module, ok, run, script, summarize
 
 
 @click.group()

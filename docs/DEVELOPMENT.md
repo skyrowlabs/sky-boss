@@ -103,7 +103,7 @@ Full rules: [`docs/rules/testing.md`](rules/testing.md).
 | ------------------------------ | -------------------------------------- | ---- |
 | Draft PR                       | `CI Gate` alone                        | ~1   |
 | Ready PR → `develop`, docs-only | `CI Gate` alone               | ~1   |
-| Ready PR → `develop`, code      | `CI Gate` + `Unit Tests`      | ~5   |
+| Ready PR → `develop`, code      | `CI Gate` + `Node` + `pytest` | ~5   |
 | Ready PR opened by Dependabot  | **everything** — deliberately exempt   | full |
 | Push to `main`   | **everything**                         | full |
 

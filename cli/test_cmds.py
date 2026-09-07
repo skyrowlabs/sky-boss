@@ -13,8 +13,9 @@ from typing import NamedTuple
 
 import click
 
-from cli.helpers import PROJECT_ROOT, run, shell, skip, step, summarize
 from scripts.paths import TMP_DIR
+
+from .helpers import PROJECT_ROOT, run, shell, skip, step, summarize
 
 #: pytest's exit code for "the marker you asked for selected nothing".
 NO_TESTS_COLLECTED = 5

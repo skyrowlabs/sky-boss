@@ -39,7 +39,7 @@ from scripts.output import (  # noqa: E402
 from scripts.paths import PROJECT_ROOT  # noqa: E402
 
 #: Re-exported on purpose — listed so flake8 does not read them as unused, and
-#: so `from cli.helpers import ok` keeps working from every command module.
+#: so `from .helpers import ok` keeps working from every command module.
 __all__ = [
     "PROJECT_ROOT",
     "SYMBOLS",

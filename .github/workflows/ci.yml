@@ -9,17 +9,23 @@
 # context that reports `skipped` is accepted by branch protection. A PR would
 # merge having proven nothing.
 #
-# What the gate buys here is not skipping. It is the structural checks and the
-# commit-subject read that need `fetch-depth: 0`, one place that decides what a
-# change earns, and a `needs:` edge so `tests/test_workflow_job_graph.py` can
-# see which jobs are blocking. The decision is published as an output so a
-# future expensive job can consume it without a second copy of the rule.
+# What the gate buys here is not skipping. It is the structural checks, one
+# place that decides what a change earns, and a `needs:` edge so
+# `tests/test_workflow_job_graph.py` can see which jobs are blocking. The
+# decision is published as an output so a future expensive job can consume it
+# without a second copy of the rule.
 #
-# **The gate is not the only job that needs the history**, and reading that
-# sentence as though it were is what broke the first run of this file: the
-# pytest matrix asks `git log --all` whether a symbol a doc names was ever
-# ours, and it refuses outright against a shallow clone rather than passing
-# having looked at nothing. Both checkouts carry the depth.
+# **This paragraph used to say the gate needed `fetch-depth: 0` for the
+# structural checks and a commit-subject read.** Neither is true here: the three
+# scripts touch no history, and this fork does not run the subject check at all
+# — the template runs it in `gate` over the PR range and that step is not in
+# this file. So the depth had a comment justifying it and no caller, and it was
+# skeletor v0.18.0's scanner that asked the question rather than any reader.
+#
+# **`test` is the job that needs the history**, and only it: the pytest matrix
+# asks `git log --all` whether a symbol a doc names was ever ours, and it
+# refuses outright against a shallow clone rather than passing having looked at
+# nothing. Its checkout carries the depth and this one no longer does.
 #
 # The one thing never to add is `paths-ignore`, which makes a required check
 # that never reports and blocks a PR forever.
@@ -77,9 +83,13 @@ jobs:
       full_suite: ${{ steps.decide.outputs.full_suite }}
       docs_only: ${{ steps.decide.outputs.docs_only }}
     steps:
+      # Default depth on purpose. Nothing in this job reads git: `docs-only.cjs`
+      # classifies through the GitHub API, and the three structural checks below
+      # touch no history at all. The depth was here because the template's gate
+      # runs the commit-subject read over the PR range and this fork does not —
+      # so it was configuration kept alive by a comment rather than by a caller.
+      # Restoring that check means restoring this line in the same edit.
       - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
 
       - uses: actions/setup-python@v7
         with:
@@ -194,7 +204,7 @@ jobs:
       # imports both lazily, inside the functions that open a window, so no
       # test imports either. If a test ever does, this job is where it surfaces.
       - name: Suite
-        run: .venv/bin/python -m pytest -q -m "unit" --junitxml=tmp/junit.xml
+        run: .venv/bin/python -m pytest -q -m unit --junitxml=tmp/junit.xml
 
       # Gates that came from skeletor. They arrived as components and are now
       # the scaffold's — `.skeletor.json` tracks them with everything else, and

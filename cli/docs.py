@@ -12,11 +12,11 @@ import sys
 
 import click
 
-from cli.helpers import PROJECT_ROOT, detail, fail, git, item, line, ok, run, script, step, warn
-
 # Imported, not redefined. These were declared here *and* in `scripts/docs/plans.py`
 # — two owners for the two directories the whole docs lifecycle moves files between.
 from scripts.paths import IMPL_DIR, TODO_DIR  # noqa: E402
+
+from .helpers import PROJECT_ROOT, detail, fail, git, item, line, ok, run, script, step, warn
 
 
 @click.group()

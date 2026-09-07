@@ -50,7 +50,26 @@ repos:
     rev: 7.3.0
     hooks:
       - id: flake8
-        # Match CI exactly: fail on syntax errors and undefined names.
+        # Matches CI's **blocking** step exactly — syntax errors and undefined
+        # names, the set whose findings are always real.
+        #
+        # It does NOT match everything CI runs, and the difference is invisible
+        # from here. `ci.yml` runs flake8 a second time with `--max-complexity`
+        # and `--max-line-length`, and that step is informational (`|| true`),
+        # so its findings reach no exit code anywhere: not here, because this
+        # `--select` cannot emit them, and not in CI, because the code is
+        # swallowed. `dev check lint` passes the same narrow select, so it
+        # cannot see them either. **`flake8 .` with no arguments is the one
+        # command that does** — bare, it reads `.flake8`, where
+        # `max-line-length` and `max-complexity` live.
+        #
+        # This said *"Match CI exactly"*, which over-reaches only because CI
+        # runs flake8 twice — the hook does match the blocking step exactly,
+        # same select and same `--show-source`, and the clause after the colon
+        # named which step it meant. stash.flow measured the gap (`flake8
+        # Passed` here, four E501/E201/E202 findings there, one tree, one
+        # second); dream.doll scoped it back to `exactly` after the first
+        # write-up of this comment inherited the larger claim.
         args: ['--select=E9,F63,F7,F82,F401', '--show-source']
         types: [python]
 

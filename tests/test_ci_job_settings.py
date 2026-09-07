@@ -105,10 +105,41 @@ SCRIPTS_ROOT = TESTS_DIR.parent / "scripts"
 #: `.exists()` call under an `assert`. Recorded rather than claimed closed.
 _NEEDS_HISTORY = re.compile(r"""["']shallow["'][^\n]*\.exists\(""")
 
-#: A script that reads git history. `--all` is on the `log` form because a
-#: plain `git log` of HEAD is answerable in a shallow clone and only the
-#: whole-history question is not.
-_READS_HISTORY = re.compile(r"""["']rev-list["']|log["'],\s*["']--all|log\s+--all""")
+#: A script that reads git history. Two shapes, and the second was missing.
+#:
+#: `--all` is on the `log` form because a plain `git log` of HEAD is answerable
+#: in a shallow clone and only the whole-history question is not. **A RANGE is
+#: the other unanswerable question** — `git log <base>..HEAD` fails the moment
+#: `<base>` is outside the fetched depth, which is every range in a shallow
+#: clone that reaches past the tip. The original reasoning was right about
+#: `git log HEAD` and generalised from it to every `log` without `--all`.
+#:
+#: That omission had a live occupant in every tree this template renders:
+#: `ci.yml`'s `gate` job carries `fetch-depth: 0` for
+#: `check_commit_subjects.py`, whose read is
+#: `["git", "log", "--no-merges", "--format=%h\x1f%s", commit_range]` — no
+#: `--all`, so the scan walked past it, and `test_every_job_that_reads_history_
+#: fetches_it` passed while saying nothing about the job that needs the depth
+#: most. Remove that `fetch-depth: 0` and this suite stayed green.
+#:
+#: The range is matched as a **literal in the source** (`"@{u}..HEAD"`), not as
+#: a variable reaching a git call, because the second needs an `ast` walk and
+#: the first is what a script that accepts a range actually contains. Narrower
+#: than the truth and recorded as such.
+#: One alternative per line, joined rather than concatenated: black pulls two
+#: adjacent string literals onto one line whenever they fit, which is how this
+#: pattern arrived as a 118-column blob. A tuple with a trailing comma stays
+#: exploded, and the four questions stay legible.
+_READS_HISTORY = re.compile(
+    "|".join(
+        (
+            r"""["']rev-list["']""",
+            r"""log["'],\s*["']--all""",
+            r"""log\s+--all""",
+            r"""["'][A-Za-z0-9_@{}^~-]+\.\.[A-Za-z0-9_@{}^~-]*["']""",
+        )
+    )
+)
 
 _JOB = re.compile(r"^  (?P<id>[A-Za-z0-9_-]+):$", re.MULTILINE)
 _MARKER_IN_FILE = re.compile(r"pytestmark\s*=\s*\[?pytest\.mark\.(?P<name>\w+)")
@@ -156,6 +187,60 @@ def test_the_scan_finds_every_side():
     markers = scanned(sorted(history_dependent_markers()), "suites that refuse a shallow clone")
     scripts = scanned(sorted(history_dependent_scripts()), "scripts that read whole git history")
     scanned(jobs_needing_history(set(markers), set(scripts)), "jobs running either")
+
+
+def jobs_with_full_history() -> set:
+    """Every job that pays for a full clone, whatever the scan thinks of it."""
+    found = set()
+    for workflow in sorted(WORKFLOWS.glob("*.yml")):
+        text = read_uncommented(workflow)
+        bounds = [(m.group("id"), m.start()) for m in _JOB.finditer(text)]
+        for index, (job, start) in enumerate(bounds):
+            end = bounds[index + 1][1] if index + 1 < len(bounds) else len(text)
+            if _FETCH_DEPTH_ZERO.search(text[start:end]):
+                found.add(f"{workflow.name}:{job}")
+    return found
+
+
+def test_no_job_fetches_history_the_scan_cannot_explain():
+    """The other direction, and it is not the one it sounds like.
+
+    A job carrying `fetch-depth: 0` that does not need it is harmless waste.
+    The direction that matters is a job somebody **deliberately configured for
+    full history that the scan does not classify** — because that is either
+    dead configuration or a blind spot in the scan, and neither is visible from
+    the assertion below, which only ever walks the jobs the scan already found.
+
+    `recompute, do not list` protects against a STALE entry and says nothing
+    about a MISSING one, and the asymmetry is structural rather than an
+    oversight: **a scanner that walks the entries can only ever see entries, and
+    the absent one is absent from the scan too.** The population being
+    recomputed is derived from the thing under test, so a gap in the derivation
+    is a gap in the population.
+
+    Found by mind.head, who asked the question of the file rather than reading
+    it, and it had an occupant on the first run: `gate` declares
+    `fetch-depth: 0` and the scan could not say why, because
+    `check_commit_subjects.py` reads a RANGE and the pattern wanted `--all`.
+
+    The two tests partition every job that touches history, which is what keeps
+    this one from being a gate with no correct move: a job needing full history
+    for a reason the scan cannot see fails HERE, and the fix is to teach the
+    scan rather than to exempt the job. If that reason is ever genuinely outside
+    a marker and a script — an inline `run:` doing its own git — this is the
+    test that says so, by name, instead of the depth quietly meaning nothing.
+    """
+    markers, scripts = history_dependent_markers(), history_dependent_scripts()
+    paying = scanned(sorted(jobs_with_full_history()), "jobs checking out full history")
+    unexplained = sorted(set(paying) - set(jobs_needing_history(markers, scripts)))
+    assert not unexplained, (
+        f"these jobs check out with `fetch-depth: 0` and the scan cannot say why: {unexplained}. "
+        f"It knows the suites {sorted(markers)} and the scripts {sorted(scripts)}. Either the job "
+        "no longer needs the depth and the setting is dead, or it needs it for a reason "
+        "`_NEEDS_HISTORY` / `_READS_HISTORY` do not match — and the second is the dangerous one, "
+        "because the assertion in this file that checks the other direction walks only the jobs "
+        "this scan already found. Widen the pattern; do not delete the depth to make this pass."
+    )
 
 
 def test_every_job_that_reads_history_fetches_it():

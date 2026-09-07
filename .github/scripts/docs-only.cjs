@@ -56,48 +56,70 @@ module.exports = async function decide({ github, context, core }) {
     return { docsOnly: false, fullSuite: true, reason: 'dependency bump — full suite' };
   }
 
-  // A PR into the release branch is a release candidate — where the base
-  // branch and the release branch are different. **This tree was scaffolded
-  // `--base-branch develop --release-branch main`**, and
-  // if those read the same, every pull request here takes this branch and
-  // everything below it is unreachable: `DOC_PATTERNS`, the `listFiles` call,
-  // the whole classification half. A README edit runs the full suite.
+  // A PR into the release branch is a release candidate — **where the base
+  // branch and the release branch are different.** This tree was scaffolded
+  // `--base-branch develop --release-branch main`, and
+  // the second half of that condition is why this test compares two rendered
+  // values rather than one.
   //
-  // **Whether that outcome is right depends on a second flag, and two earlier
-  // versions of this comment each keyed it to whichever one the writer's
-  // evidence was about.** The question is whether a push to
-  // `main` cuts a release:
+  // It used to test `base === 'main'` alone. The sentence above
+  // it already named the real condition and the code did not check it, so in a
+  // one-branch tree the test was true for EVERY pull request: `DOC_PATTERNS`,
+  // the `listFiles` call and the whole classification half below were
+  // unreachable, and a README-only change ran integration and UI with no way to
+  // opt out. Three trees were in that state and none could have found it from
+  // inside — an unreachable branch is not an error, it is a branch that never
+  // wins.
   //
-  //   * `--versioning release-please` — it does, so the merge IS the release,
-  //     the pull request is the last chance to run anything, and a cheap path
-  //     would put integration first on already-released code. **This tree is
-  //     `--versioning tag`.**
-  //   * `--versioning tag` — it does not. A push to `main`
-  //     releases nothing; an annotated tag does. So the full suite that runs on
-  //     that push happens BEFORE the release and is itself a gate, which makes
-  //     a cheap path on the pull request affordable — exactly as it is in a
-  //     two-branch tree, where the base branch merging here is the later run.
+  // **The two branch names are substituted, so this is decided at scaffold time
+  // and costs nothing at run time.** A two-branch tree renders
+  // `'main' !== 'develop'` and behaves exactly as it did before this line
+  // changed. A one-branch tree renders `'main' !== 'main'` and falls through to
+  // the classification.
   //
-  // So in a one-branch tag-versioned tree the cost is real and unrecovered:
-  // the full suite runs on a docs-only pull request and there is no way to opt
-  // out, because the classification half this comment sits above is
-  // unreachable. Recovering it means moving the docs-only test above this one,
-  // which changes when a repository's gates run — an adopter's decision rather
-  // than a generator's default, and the trade is *do we accept integration
-  // first running post-merge and pre-tag* rather than *do we release untested
-  // code*.
+  // ## Why falling through is safe, in both versioning modes
   //
-  // The wrong version of this said the merge is always the release. Every tree
-  // that could have made that true was `--versioning tag`, so the reason held
-  // for none of them — a sentence about a two-flag mechanism keyed to one
-  // flag, which is the third time that shape has been written down today.
+  // The obvious worry is that a docs-only pull request now merges without
+  // integration having run on it. It does — and integration still runs before
+  // anything is released, because the merge produces a push, a push takes the
+  // `!pr` branch at the top of this file and earns the full suite, and:
+  //
+  //     release-please:
+  //       needs: [lint, node, unit-tests, integration]
+  //
+  // So the release job is downstream of integration on that push. That holds
+  // for `--versioning release-please`, where the push is what opens the release
+  // pull request, and for `--versioning tag`, where the push releases nothing at
+  // all and the annotated tag comes later. **This tree is
+  // `--versioning tag`.** An earlier version of this comment argued
+  // the trade was `tag`-specific — *integration first running post-merge but
+  // pre-tag* — which understated it: the guarantee is pre-RELEASE, and the
+  // `needs:` edge is what supplies it either way.
+  //
+  // What is genuinely given up is that integration runs after the merge rather
+  // than before it, so the release branch can go briefly red on a pre-existing
+  // break. For a change the classifier says contains no code, integration's
+  // verdict cannot differ from its verdict on the parent commit except by flake
+  // or by external drift — and this is already the status quo for docs pull
+  // requests into the base branch of every two-branch tree.
+  //
+  // The classification half is the safety argument, which is why it fails open
+  // on an API error, an empty file list, or any path it does not recognise.
+  //
+  // ## History, because two earlier versions of this comment were wrong
+  //
+  // The first said the merge is always the release. Every tree that could have
+  // made that true was `--versioning tag`, so the reason held for none of them
+  // — a sentence about a two-flag mechanism keyed to one flag. The second fixed
+  // the reason and left the code testing one flag, which is the same error one
+  // layer down: the comment knew about `develop` and the condition did
+  // not.
   //
   // Found by mind.head, who executed this file with real payload shapes rather
-  // than reading it, and by skyrow-workspace, who surveyed the manifests. Half
-  // the adopters at the time. No test here could have said so: they assert this
-  // workflow's structure, and the dead branch is a fact about an argument
-  // recorded in `.skeletor.json`.
-  if (base === 'main') {
+  // than reading it, and by skyrow-workspace, who surveyed the manifests. No
+  // test here could have said so: they assert this workflow's structure, and a
+  // dead branch is a fact about an argument recorded in `.skeletor.json`.
+  if (base === 'main' && 'main' !== 'develop') {
     return { docsOnly: false, fullSuite: true, reason: 'targets the release branch — full suite' };
   }
 

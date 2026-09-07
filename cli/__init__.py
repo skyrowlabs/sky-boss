@@ -12,9 +12,9 @@ import subprocess
 import sys
 
 # Before the click guard, so the guard can speak in the same voice as everything
-# else. `cli.helpers` reaches `scripts/output.py`, which is stdlib-only —
+# else. `.helpers` reaches `scripts/output.py`, which is stdlib-only —
 # a dependency-missing message that itself needs a dependency is no message.
-from cli.helpers import PROJECT_ROOT, detail, fail
+from .helpers import PROJECT_ROOT, detail, fail
 
 try:
     import click
@@ -109,16 +109,33 @@ _ALIASES = {"test_cmds": "test", "pr_train": "train"}
 
 
 def _discover() -> None:
+    """Register every command group in this package, by finding it.
+
+    **This package never names itself.** `__name__` and `__path__` are what the
+    interpreter already knows about the module it is executing, so the three
+    places that used to spell `cli` as a literal now read the truth instead of
+    repeating it. That is not tidiness — `cli` is the most collided-with package
+    name in a Python monorepo, which is why `./dev` sets `PYTHONSAFEPATH=1`
+    at all, and a shell that hardcodes the name is a shell that cannot be moved
+    out of the way of the product it is shipped alongside.
+
+    Reported by sky.boss, who had to move their own product out of `cli/` to
+    adopt this template and then found the shell sitting in the name they
+    vacated. The rename cost them 119 failing tests mid-flight and a `sed` whose
+    worst artefact was `from cli import cli` becoming `from x import x` — the
+    package and the click group share a name and only one of them was moving.
+    Relative imports leave the group alone by construction.
+    """
     import importlib
     import pkgutil
 
-    import cli as package
+    package = sys.modules[__name__]
 
     for info in sorted(pkgutil.iter_modules(package.__path__), key=lambda m: m.name):
         name = info.name
         if name.startswith("_") or name == "helpers":
             continue
-        module = importlib.import_module(f"cli.{name}")
+        module = importlib.import_module(f"{__name__}.{name}")
         command_name = _ALIASES.get(name, name)
         candidate = getattr(module, command_name, None) or getattr(module, name, None)
         if isinstance(candidate, click.Command):
