@@ -51,6 +51,7 @@ from pathlib import Path
 import pytest
 from narrowing import present
 
+import repo_files
 from skyboss.helpers import PROJECT_ROOT
 
 #: Every test here is host-side and needs no services up.
@@ -72,22 +73,28 @@ ESCAPED_TICK = re.compile(r"\\`")
 CODE_SPAN = re.compile(r"(`+)[\s\S]*?\1")
 HTML_TAG = re.compile(r"<[^>]*>", re.DOTALL)
 
-#: Directories whose contents this repository did not write. `tmp` and
-#: `.pytest_cache` were added on 2026-09-07 after an upgrade's
-#: collected-ID diff came back with 205 spurious additions: `tmp/pre-upgrade`
-#: is the throwaway worktree that comparison itself creates, and
-#: `.pytest_cache/README.md` is pytest's own file, which this gate had been
-#: reading for prose about a product pytest has never heard of.
+#: **There is no skip list any more, and the way the last one failed is the
+#: argument against the next one.** This gate walked the filesystem behind a
+#: set of directory names, and on 2026-09-07 that set gained `tmp` and
+#: `.pytest_cache` — a correct fix for a real defect, which introduced a worse
+#: one within the hour.
 #:
-#: Both are harmless in the sense that they pass. Neither is harmless as a
-#: **population**: the parametrised set changed with whatever scratch happened
-#: to be on disk, so the count moved run to run and a comparison across two
-#: checkouts was measuring the filesystem rather than the tree. A gate whose
-#: subject set is unstable cannot be diffed, and diffing it is exactly what an
-#: upgrade asks you to do.
-SKIPPED_DIRS = {".git", ".venv", "vendor", "node_modules", "__pycache__", "dist", "tmp", ".pytest_cache"}
-# Gitignored; the operator's half, and not published prose.
-SKIPPED_FILES = {"CLAUDE.local.md"}
+#: The membership test was `SKIPPED_DIRS & set(p.parts)`, and `p` is
+#: **absolute**. So the names were matched against every component of the path
+#: to the checkout, not against the path inside it. Check this repository out
+#: under any directory called `tmp`, `dist`, `vendor` or `.venv` — which the
+#: upgrade recipe tells you to do, at `tmp/pre-upgrade` — and every file is
+#: skipped, the parametrised set is empty, and the gate passes having read
+#: **nothing**. Measured: 205 files in the tree, `[NOTSET]` in the worktree.
+#:
+#: That is this repository's own *worked fine, told nobody* wearing a green
+#: tick, and no amount of care about the list's contents would have caught it,
+#: because the bug was in the predicate rather than in the entries.
+#:
+#: `git ls-files` has no list to forget and no opinion about where the checkout
+#: lives. An untracked scratch file is not this repo's claim, which is the
+#: property the list was trying to approximate; `CLAUDE.local.md` is gitignored,
+#: so it drops out for the same reason rather than by being named.
 
 _JS_STRING = re.compile(r"""(?<!\\)(?:'(?:[^'\\\n]|\\.)*'|"(?:[^"\\\n]|\\.)*"|`(?:[^`\\]|\\.)*`)""", re.DOTALL)
 _JS_COMMENT = re.compile(r"//[^\n]*|/\*.*?\*/", re.DOTALL)
@@ -108,11 +115,8 @@ def _blank(text: str) -> str:
 
 
 def tracked(suffix: str) -> list[Path]:
-    return sorted(
-        p
-        for p in PROJECT_ROOT.rglob(f"*{suffix}")
-        if p.is_file() and not SKIPPED_DIRS & set(p.parts) and p.name not in SKIPPED_FILES
-    )
+    """Tracked files with this suffix, at any depth. See the note above."""
+    return sorted(repo_files.tracked(f"*{suffix}"))
 
 
 def _markdown_mask(text: str) -> str:
