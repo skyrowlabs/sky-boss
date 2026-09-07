@@ -8,7 +8,7 @@ in a chat log is how the same argument gets had twice.
 
 | File | The question it holds |
 |---|---|
-| `docs/ideas.md` | *Should we build this at all?* Deleted when spec'd or shelved. |
+| `docs/research/ideas.md` | *Should we build this at all?* Struck through with a pointer when spec'd or shelved, never deleted — see `docs/research/README.md`. |
 | `docs/design/fundamentals.md` | *What is this, at the level of primitives?* Decisions accrete, dated, reversals left visible. |
 | **this file** | *We are building it — how?* Items move out by being answered somewhere else. |
 
@@ -656,6 +656,23 @@ because **a fence is the difference between describing a command and telling you
 that is a **redirect rather than a hole**, removed from one check and held to two others, with
 `assert PAINTED` so it cannot silently become a bypass. That assertion is the whole thing.
 
+**Round 3, 2026-09-06/07 — the docs-lifecycle half of that ruling is reversed in full, and the
+retrofit it declined is done.** The tree was scaffolded on 2026-09-06 (`.skeletor.json`, the
+product moved to `skyboss/` so the shell could own `cli/`), and on 2026-09-07 `docs/features/`
+folded into `docs/TODO/` ↔ `docs/implementations/` with generated indexes, frontmatter and the
+merge drivers. So the sentence quoted two paragraphs up — *"No index machinery yet"* — is no
+longer in `CLAUDE.md` to quote, and *"the split this repo uses instead"* now names one directory
+that no longer exists and one file that has moved to `docs/research/ideas.md`.
+
+The reasoning is left standing rather than edited, because **what was wrong about it was not the
+argument.** The 2026-09-04 ruling was that a different design is not a smaller one, which was true
+of the design and irrelevant to the outcome: two lifecycles were being maintained, one of them had
+no readers, and neither fact is visible from inside the design that has them. What decided it was
+the operator, in one sentence — *"features doesn't have a purpose with implementations and
+TODO"* — and the measurement it invited: every docs gate green while both generated indexes
+reported an empty repository. Recorded as round 16 of [[skeletor-adoption]]. Release Please and a
+tracked `VERSION` are **not** reversed; the version still comes from `git describe`.
+
 ---
 
 ## Watching the agents on this machine
@@ -981,6 +998,6 @@ merely fail silently, it renders the healthy word over a dead stream — *worked
 with the extra step of an affirmative false claim. The only true signal is one line in the footer,
 at the bottom of the screen, nowhere near what the operator is looking at.
 
-Whatever answers the band here answers the alert half of the docked-window idea in `docs/ideas.md`,
+Whatever answers the band here answers the alert half of the docked-window idea in [[ideas]],
 which has the same shape and is strictly harder: a docked window is by definition the one nobody is
 watching.

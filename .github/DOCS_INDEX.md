@@ -19,7 +19,7 @@ and makes the relevant part harder to find, not easier.
 | **Shelved / parked work**  | TODO/README.md               | `docs/TODO/README.md`               |
 | **Was this built before?** | todo_index.json              | `docs/todo_index.json`              |
 | **Reports of any kind**    | reports/README.md            | `docs/reports/README.md`            |
-| **Ideas List** | ideas.md | `docs/ideas.md` |
+| **Should we build it at all?** | research/README.md | `docs/research/README.md` |
 | **Open — decided to build, not yet decided how** | open.md | `docs/open.md` |
 
 <!-- SCAFFOLD: extend as docs are added. `dev check docs` fails on an unregistered doc. -->

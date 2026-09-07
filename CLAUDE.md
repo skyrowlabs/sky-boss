@@ -1070,7 +1070,7 @@ seven docs it had fallen behind by. Same lesson as the workspace guide's worktre
 `N of N` above: **do not keep a copy of what a command will tell you.**
 
 **`docs/open.md` is the running list of what is decided-to-build but not decided-how**, kept
-apart from `docs/ideas.md` (*should we build it*) and fundamentals' Decisions (*settled, with the
+apart from `docs/research/ideas.md` (*should we build it*) and fundamentals' Decisions (*settled, with the
 reasoning*). An item leaves it by being taken over somewhere else, and the line records where it
 went rather than being deleted. It is deliberately **not** the holding tank: the tank holds one
 document per plan, and an item in `open.md` is a paragraph nobody has yet decided is a plan. An

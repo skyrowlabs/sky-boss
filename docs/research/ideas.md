@@ -1,9 +1,15 @@
 # Ideas List
 
-*Note: This is a list of potential ideas to add. Remove them if once spec'd or shelved*
-
 *This file answers **should we build it**. Questions about something already being
-built — decided, but not decided how — live in `docs/open.md`.*
+built — decided, but not decided how — live in `docs/open.md`; once somebody has
+decided **how**, it becomes a plan in `docs/TODO/`. See
+[`README.md`](README.md) for the three boundaries.*
+
+*An entry is **struck through with a pointer**, never removed. The instruction here
+used to read "remove them once spec'd or shelved" and the file had never once obeyed
+it — every resolved entry below names where it went, which is the half worth keeping:
+a deleted memo is an invitation to buy the same investigation twice. Moved from
+`docs/ideas.md` on 2026-09-07; `[[ideas]]` is unchanged.*
 
 - ~~watcher for cron jobs~~ — spec'd as [[file-follow]] round 2 (`sb follow --due 15m <path>`); the
   systemd half needs no code, see the doc

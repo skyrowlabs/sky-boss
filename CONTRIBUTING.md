@@ -78,7 +78,7 @@ Two rules about those documents:
 Cross-document links are `[[slug]]`, never relative paths — including in code comments, because a
 path breaks the moment that feature reopens. `tests/test_docs.py` checks that every slug resolves.
 
-`docs/open.md` is what is decided-to-build but not decided-how; `docs/ideas.md` is *should we build
+`docs/open.md` is what is decided-to-build but not decided-how; `docs/research/ideas.md` is *should we build
 it*; `docs/design/fundamentals.md` is the constitution and settles the primitives.
 
 ## Commits and pull requests
