@@ -403,8 +403,27 @@ at all.
 **We version by tag, so the `release-please` half has no landing site and should
 not have one.** `.skeletor.json` records `--versioning tag`, there is no
 `release-please-config.json`, and no workflow mentions it. The template ships
-the job even for a tag tree — it runs and reports *not configured here* — and a
-job whose only output is that sentence is noise on every push forever.
+the job even for a tag tree, where it emits a `::notice` reading *not configured
+here — this repository versions by git tag* and reports success.
+
+**An earlier version of this paragraph called that "noise on every push
+forever". That was wrong and the error is worth leaving visible**, because it
+was made the same way this round has been diagnosing all afternoon: sourced from
+a *comment* beside the job (*"it runs, it reports, it has nothing to do"*) and
+from the workspace guide, rather than from the job body. The body carries a
+job-level guard —
+
+```yaml
+if: github.event_name == 'push' && github.ref == 'refs/heads/{{RELEASE_BRANCH}}'
+```
+
+— so it runs on pushes to the release branch only. Here that is `main`, which
+receives merges from `develop` when a release is cut, so the true frequency is
+*per release*, not per push. The wrong figure was also the more critical one,
+and it had already been relayed to the fleet and generalised to three trees
+before it was checked. The claim it was supporting does not need it: a job that
+can never do anything in a tag tree is still a job we have no reason to take,
+whatever its cadence.
 
 **The `node:` half fixes a defect this tree does not have.** Its own comment
 upstream says why it exists: *"only the python half was ever run by CI — so a
