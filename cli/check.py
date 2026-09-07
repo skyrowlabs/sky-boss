@@ -209,6 +209,19 @@ def pre_push(quick: bool) -> None:
         # Self-guarding: with no release automation in the tree there is no
         # contract to check and it says so.
         ("commit subjects", script("scripts/check_commit_subjects.py")),
+        # And the one that can actually fail here. The line above checks a
+        # Release Please contract this tree does not have, so it passes on
+        # every commit forever; this checks the conventional-commit rule, by
+        # running the `commit-msg` hook over the same range. Both are kept
+        # because they are two contracts, not two spellings of one — see the
+        # docstring of `check_commit_style.py`, which argues it at length
+        # precisely because the filenames invite deleting one.
+        #
+        # Local duplication with the hook is deliberate and cheap: the hook
+        # binds whoever ran `pre-commit install`, and this repository's own
+        # checkout had no hooks installed at all when the check was written,
+        # which is how four over-length subjects reached `develop` unremarked.
+        ("commit style", script("scripts/check_commit_style.py")),
     ]
     if not quick:
         junit = TMP_DIR / "junit-unit.xml"

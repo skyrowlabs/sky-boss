@@ -949,3 +949,83 @@ The review this tree gave it is recorded because one finding survived into the
 shipped design: `PYTHON_MATRIX` reaches exactly one template file, and that file
 is the declined one, so the consequence-check justifying a valued flag over a
 bare assertion could never fire for the adopter who asked for the flag.
+
+---
+
+### Round 13 — 2026-09-06: the gap round 10 left open, closed on the operator's ruling
+
+Round 10 ended with one item deliberately not taken: *this fork runs no
+commit-subject check in CI*, and restoring it changes what gates the branch,
+which is not an upgrade's call. Jeston ruled it in. It is closed, and two of the
+three decisions in closing it went against the obvious choice.
+
+**The obvious script was the wrong one.** The template runs
+`check_commit_subjects.py` in `gate`, so copying that step across is the
+one-line answer. It would have been a step that never looks at anything: that
+script reads its vocabulary out of a `release-please-config.json`, and a
+`--versioning tag` tree has none, so it self-guards and exits 0 on every commit
+forever. (Named without its directory on purpose, as round 7 names it: the
+sentence is about the file's *absence*, so spelling it as a path would be a
+citation to something no reader can open — which `test_docs_name_real_paths.py`
+objects to, correctly, and which is how this paragraph was caught.) Measured before writing anything —
+
+```
+$ python scripts/check_commit_subjects.py --range HEAD~5..HEAD
+⚠️  no changelog-sections in .github/release-please-config.json — nothing to check against
+exit=0
+```
+
+— which is the *job that gates nothing* from round 7, reinstated by hand and
+wearing a template's authority. The rule this tree keeps meeting: **a check
+copied from a tree that has the contract does not acquire the contract.**
+
+So the instrument is `scripts/hooks/conventional-commit-check.sh`, the
+`commit-msg` hook, which in a tag-versioned tree is the only one of the two that
+*can* fail. `scripts/check_commit_style.py` runs it over a range. It contains no
+vocabulary of its own and shells out to the hook per commit, so a range check
+and a local commit cannot disagree — the hook's own comments record a hardcoded
+list that drifted from the config and let a `style(lint):` subject pass locally
+and fail in CI, which is the failure a second copy here would reproduce.
+**The hook owns the rule; the script owns the range.**
+
+**It found four real violations in its own tree on the first run**, all from the
+day it was written, all on `develop`:
+
+```
+4 of 6 commit(s) in HEAD~6..HEAD fail the hook
+  · subject is 73 chars (max 72)   ... 74 ... 75 ... 78
+```
+
+And the cause is the gap itself, confirmed rather than assumed:
+`.git/hooks/commit-msg` **does not exist in this checkout** — no hooks are
+installed at all, so the rule had never run here on any commit. The check is
+forward-looking and those four are left standing: CI reads the range an event
+carries, so history is not re-litigated, and rewriting pushed commits to satisfy
+a gate added afterwards is the cost this repository refuses elsewhere.
+
+#### One version, and it is the ceiling
+
+`gate` now takes `python-version: '3.14'` rather than the floor it was pinned
+to, and deliberately not a matrix. Nothing in the job is version-sensitive —
+three structural readers and a subprocess to a bash hook — so a second leg buys
+a duplicate rather than a data point.
+
+The floor is not lost, and that was checked rather than argued: the unit suite
+imports these same `scripts/` modules and the `test` job runs it on **3.12 and
+3.14**, so *syntax newer than the floor we promise* is caught where it lives.
+Pinning `gate` to the floor as well would have been a third copy of a promise
+`pyproject.toml` already makes.
+
+#### And the header comment has now been wrong in both directions in one day
+
+It claimed `gate` needed full history for a read this fork did not run; round 10
+removed the depth and rewrote the paragraph to say the job needs no history;
+this round restores both. Rather than a third paragraph asserting the current
+state, it now says the rule:
+
+> **A depth is justified by the line that reads history, never by a paragraph.**
+> If that step ever goes, the `fetch-depth: 0` goes with it in the same edit.
+
+Round 10's removal was correct when it was made and is not retracted. A setting
+with a caller and a setting with only a comment are different objects that look
+identical in a diff.

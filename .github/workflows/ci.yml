@@ -15,17 +15,17 @@
 # decision is published as an output so a future expensive job can consume it
 # without a second copy of the rule.
 #
-# **This paragraph used to say the gate needed `fetch-depth: 0` for the
-# structural checks and a commit-subject read.** Neither is true here: the three
-# scripts touch no history, and this fork does not run the subject check at all
-# — the template runs it in `gate` over the PR range and that step is not in
-# this file. So the depth had a comment justifying it and no caller, and it was
-# skeletor v0.18.0's scanner that asked the question rather than any reader.
+# **Both jobs need `fetch-depth: 0`, and each names its own caller.** This
+# paragraph has been wrong in both directions within one day, so the rule it
+# ended on is: a depth is justified by the line that reads history, never by a
+# paragraph. `gate` reads a commit range (`check_commit_style.py`); `test` asks
+# `git log --all` whether a symbol a doc names was ever ours, and refuses
+# outright against a shallow clone rather than passing having looked at nothing.
 #
-# **`test` is the job that needs the history**, and only it: the pytest matrix
-# asks `git log --all` whether a symbol a doc names was ever ours, and it
-# refuses outright against a shallow clone rather than passing having looked at
-# nothing. Its checkout carries the depth and this one no longer does.
+# The depth was removed from `gate` earlier the same day and that was correct at
+# the time: this fork ran no commit-range read at all, so the setting had a
+# comment justifying it and no caller. Restoring it alongside the caller is the
+# opposite move, not a reversal.
 #
 # The one thing never to add is `paths-ignore`, which makes a required check
 # that never reports and blocks a PR forever.
@@ -83,17 +83,25 @@ jobs:
       full_suite: ${{ steps.decide.outputs.full_suite }}
       docs_only: ${{ steps.decide.outputs.docs_only }}
     steps:
-      # Default depth on purpose. Nothing in this job reads git: `docs-only.cjs`
-      # classifies through the GitHub API, and the three structural checks below
-      # touch no history at all. The depth was here because the template's gate
-      # runs the commit-subject read over the PR range and this fork does not —
-      # so it was configuration kept alive by a comment rather than by a caller.
-      # Restoring that check means restoring this line in the same edit.
+      # Full history, for the commit-range read at the end of this job and
+      # nothing else. `docs-only.cjs` classifies through the GitHub API and the
+      # structural checks touch no history, so if that last step ever goes, this
+      # line goes with it in the same edit.
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
 
+      # The CEILING, not the floor, and deliberately one version rather than a
+      # matrix. Nothing in this job is version-sensitive — three structural
+      # readers and a subprocess to a bash hook — so a second leg would buy a
+      # duplicate rather than a data point, and the two failure modes a matrix
+      # exists to catch are already covered where they live: the unit suite runs
+      # on 3.12 and 3.14 and imports these same `scripts/` modules, so the floor
+      # is exercised there. Pinning this to the floor as well would be a third
+      # copy of a promise `pyproject.toml` already makes.
       - uses: actions/setup-python@v7
         with:
-          python-version: '3.12'
+          python-version: '3.14'
 
       - name: Decide what this change earns
         id: decide
@@ -121,6 +129,33 @@ jobs:
           python scripts/check_doc_tables.py
           python scripts/check_source_doc_refs.py
           python scripts/check_output_discipline.py
+
+      # The `commit-msg` hook, applied to the range this event carries. The hook
+      # binds whoever ran `pre-commit install`; this binds everyone else, which
+      # is the whole reason it is here rather than only in `check pre-push`.
+      #
+      # NOT `check_commit_subjects.py`, which is the neighbouring script and the
+      # obvious-looking choice. That one asks whether Release Please can parse a
+      # subject, reading its vocabulary from a config a `--versioning tag` tree
+      # does not have — so here it finds no contract and exits 0 on every commit
+      # forever. Wiring it in would have been a green step that never looked.
+      - name: Commit subjects the hook would have caught
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          FORCED: ${{ github.event.forced }}
+        run: |
+          # A force-push's `before` names a commit no ref reaches, and a new
+          # branch's is all zeros. Neither is a base, and asking git to resolve
+          # a range against one is an error rather than an empty set — so the
+          # branch that MEANS head alone says so, instead of arriving there by
+          # a failure that happens to look like a pass.
+          if [ "$FORCED" = "true" ] || [ -z "$BASE" ] \
+             || [ "$BASE" = "0000000000000000000000000000000000000000" ]; then
+            echo "no usable base for this event — checking HEAD alone"
+            python scripts/check_commit_style.py --range -1
+          else
+            python scripts/check_commit_style.py --range "$BASE..${{ github.sha }}"
+          fi
 
   test:
     # **The floor of this list is the number the README is allowed to say.**
