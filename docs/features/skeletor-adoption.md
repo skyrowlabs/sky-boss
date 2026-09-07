@@ -869,3 +869,83 @@ rendered. Raised with skeletor rather than fixed, because the question is
 whether amending a recorded argument has a supported route. Recorded here so the
 next reader does not have to rediscover that the manifest and the workflow
 disagree on purpose.
+
+---
+
+### Round 12 — 2026-09-06: v0.20.0, and a coverage reduction that is zero here
+
+`v0.19.0` → `v0.20.0`. Two untouched files updated
+(`.github/scripts/docs-only.cjs`, `tests/test_ci_job_conditions.py`), the
+standing `ci.yml` conflict, nothing else.
+
+It arrived flagged as a **coverage reduction aimed at this tree** — a docs-only
+pull request into the release branch used to earn the full suite in a
+two-branch tree and now earns gate-only, and this is the only tree in the fleet
+with protection on both branches. The advice was to read the consequence off a
+real run rather than off the message. The consequence is readable off the file,
+and it is nil.
+
+**Measured, not reasoned about.** `docs-only.cjs` is executable standalone, so
+the whole truth table was run against this tree's real `develop`/`main` render
+before and after the upgrade. Exactly two rows move:
+
+```
+draft docs-only → develop   docsOnly false → TRUE    fullSuite false (unchanged)
+docs-only       → MAIN      docsOnly false → TRUE    fullSuite TRUE → false
+```
+
+The first is node-zero's bug fix — the draft test used to sit above the
+classifier, so marking a docs-only draft *ready for review* **de-escalated** it,
+which is the one transition that exists to escalate. The second is the flagged
+row. `release-please → MAIN` is unchanged at `fullSuite: true`, confirming that
+`VERSION` and `.release-please-manifest.json` fall outside `DOC_PATTERNS`.
+
+**And neither reaches a job here.** The classifier's verdict gates nothing in
+this fork:
+
+```
+gate     no if:, no needs:            always runs
+test     needs: gate, no if:          pytest 3.12 / pytest 3.14
+lint     needs: gate, no if:          eslint
+verdict  if: always()
+```
+
+The only `if:` in the workflow is `always()`, and `full_suite` reaches exactly
+one consumer — an `echo` in `verdict`, which reports it and does not act on it.
+So no required context can report `skipped`, and the coverage delta in this tree
+is **zero rows**, not one.
+
+> **A change can be correctly identified as landing on you and still have no
+> consequence for you, and the two questions have different owners.** Which row
+> of a classifier moves is a fact about the template. Whether a moved row
+> reaches a job is a fact about this fork. Three relays in a row have got the
+> first right and the second wrong, in the same direction each time — assuming a
+> fork diverges *away* from a finding, when a fork is usually exactly where one
+> lands. This is the case where it genuinely did not.
+
+That is round 11's sentence collecting its other half. The decline put this tree
+outside the reorder's cost **and** outside its improvement: a genuinely
+docs-only pull request here still pays for the full suite, which the template
+now avoids. Nobody should read the zero as a win.
+
+#### `--set-arg` shipped, and the design changed under review
+
+The verb asked for in round 11 exists. It is **not** what was first proposed —
+amending the record and re-deriving every hash — and skeletor's reason for
+abandoning that is worth keeping:
+
+> An amendment that changes nothing is accepted; one that changes something
+> cannot be. The record was never wrong. **What an adopter wants is not a
+> corrected past but a different future.**
+
+So it amends the *head* render's arguments, and the difference then arrives as an
+ordinary template change — untouched file replaced, edited file merged,
+**declined file still declined**. Which costs round 7's ruling nothing, and
+means the `--python-ceiling 3.12` discrepancy is fixed by taking a future
+upgrade rather than by rewriting this tree's history. Not exercised yet; there is
+nothing to spend it on while `ci.yml` is declined.
+
+The review this tree gave it is recorded because one finding survived into the
+shipped design: `PYTHON_MATRIX` reaches exactly one template file, and that file
+is the declined one, so the consequence-check justifying a valued flag over a
+bare assertion could never fire for the adopter who asked for the flag.

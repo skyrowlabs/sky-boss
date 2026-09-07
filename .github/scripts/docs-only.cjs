@@ -31,13 +31,6 @@ module.exports = async function decide({ github, context, core }) {
     return { docsOnly: false, fullSuite: true, reason: 'not a pull request — full suite' };
   }
 
-  // A draft runs the gate alone. Nothing is un-gated by this: GitHub blocks
-  // merging a draft regardless, and `ready_for_review` re-runs the full set
-  // before it can merge.
-  if (pr.draft) {
-    return { docsOnly: false, fullSuite: false, reason: 'draft PR — gate only' };
-  }
-
   const base = pr.base.ref;
   const head = pr.head.ref;
   const author = pr.user.login;
@@ -56,72 +49,90 @@ module.exports = async function decide({ github, context, core }) {
     return { docsOnly: false, fullSuite: true, reason: 'dependency bump — full suite' };
   }
 
-  // A PR into the release branch is a release candidate — **where the base
-  // branch and the release branch are different.** This tree was scaffolded
-  // `--base-branch develop --release-branch main`, and
-  // the second half of that condition is why this test compares two rendered
-  // values rather than one.
+  // ## The order below is the whole design, and it took three measurements
   //
-  // It used to test `base === 'main'` alone. The sentence above
-  // it already named the real condition and the code did not check it, so in a
-  // one-branch tree the test was true for EVERY pull request: `DOC_PATTERNS`,
-  // the `listFiles` call and the whole classification half below were
-  // unreachable, and a README-only change ran integration and UI with no way to
-  // opt out. Three trees were in that state and none could have found it from
-  // inside — an unreachable branch is not an error, it is a branch that never
-  // wins.
+  // Classify FIRST, then ask about the base — and only about a change the
+  // classifier says carries code. The two questions are independent and were
+  // for a long time fused into one test that ran before either was asked.
   //
-  // **The two branch names are substituted, so this is decided at scaffold time
-  // and costs nothing at run time.** A two-branch tree renders
-  // `'main' !== 'develop'` and behaves exactly as it did before this line
-  // changed. A one-branch tree renders `'main' !== 'main'` and falls through to
-  // the classification.
+  // What that cost, in the order it was found. `base === 'main'`
+  // alone was true for EVERY pull request in a tree whose base branch is its
+  // release branch, so `DOC_PATTERNS`, the `listFiles` call and this whole
+  // classification half were unreachable there: a README-only change ran
+  // integration and UI with no way to opt out. Qualifying it with
+  // `'main' !== 'develop'` made the classifier reachable
+  // and took the release-candidate rule away from the trees that need it most
+  // — a one-branch tree merges into the branch it releases from, so a code
+  // change reaching it un-integrated has no other gate in front of it.
   //
-  // ## Why falling through is safe, in both versioning modes
+  // Both were true statements about one axis. Walking the cross product is
+  // what produced this order, and no single tree could have done it: the
+  // docs-only row needs both conditions at once and is exactly where the two
+  // sets overlap, so it was invisible to an analysis anchored on `docsOnly`
+  // and to the correction anchored on `fullSuite`. node-zero's diagnosis, and
+  // the reason this comment describes an order rather than a condition.
   //
-  // The obvious worry is that a docs-only pull request now merges without
-  // integration having run on it. It does — and integration still runs before
-  // anything is released, because the merge produces a push, a push takes the
-  // `!pr` branch at the top of this file and earns the full suite, and:
+  //     event                       two-branch (dev/main)   one-branch (main/main)
+  //     push                        full                    full
+  //     draft PR                    gate only               gate only
+  //     dependency bump             full                    full
+  //     docs-only PR -> base        gate only               gate only
+  //     docs-only PR -> release     gate only               (same PR as above)
+  //     code PR -> base             node + unit + gate      (same PR as below)
+  //     code PR -> release          full                    full
+  //
+  // The two-branch column loses exactly one row against the previous release:
+  // a genuinely docs-only pull request into the release branch now runs the
+  // gate alone. That is this file's entire premise applied to the one base it
+  // used to exempt itself from, and a release pull request is unaffected —
+  // `VERSION` and `.release-please-manifest.json` are not in `DOC_PATTERNS`,
+  // so release-please's own PR classifies as code and takes the row below.
+  //
+  // ## Why running the classifier first is not a cost
+  //
+  // It adds one `listFiles` call to release-candidate pull requests. In
+  // exchange the fail-open paths now cover every pull request rather than
+  // every pull request except the ones going somewhere that matters, which is
+  // the direction you want a fail-open to face.
+  //
+  // ## What is given up, stated per-tree because it is not uniform
+  //
+  // A docs-only pull request merges without integration having run on it, in
+  // every tree and both versioning modes. Integration still runs before
+  // anything is released: the merge produces a push, a push takes the `!pr`
+  // branch at the top of this file and earns the full suite, and
   //
   //     release-please:
   //       needs: [lint, node, unit-tests, integration]
   //
-  // So the release job is downstream of integration on that push. That holds
-  // for `--versioning release-please`, where the push is what opens the release
-  // pull request, and for `--versioning tag`, where the push releases nothing at
-  // all and the annotated tag comes later. **This tree is
-  // `--versioning tag`.** An earlier version of this comment argued
-  // the trade was `tag`-specific — *integration first running post-merge but
-  // pre-tag* — which understated it: the guarantee is pre-RELEASE, and the
-  // `needs:` edge is what supplies it either way.
+  // puts the release job downstream of it. **This tree is
+  // `--versioning tag`.** Under `tag` the push releases nothing and
+  // the annotated tag comes later, which makes that push a real gate rather
+  // than a formality.
   //
-  // What is genuinely given up is that integration runs after the merge rather
-  // than before it, so the release branch can go briefly red on a pre-existing
-  // break. For a change the classifier says contains no code, integration's
-  // verdict cannot differ from its verdict on the parent commit except by flake
-  // or by external drift — and this is already the status quo for docs pull
-  // requests into the base branch of every two-branch tree.
+  // Which jobs that actually costs is a fact about the adopting tree, not
+  // about this file, and the honest answer has ranged from *everything to
+  // nothing* to *nothing at all* on the same commit. dream-doll measured
+  // theirs at zero — their lint gates are duplicated in `check pre-push` and
+  // their integration and UI suites collect no tests, while their real user
+  // interface suite is 107 vitest tests in the `node:` job, which is gated on
+  // `docs_only` and therefore runs. Apply your own `FULL-SUITE-BECAUSE:`
+  // markers to the three jobs below rather than reading a number from here.
   //
-  // The classification half is the safety argument, which is why it fails open
-  // on an API error, an empty file list, or any path it does not recognise.
+  // ## History, because three earlier versions of this comment were wrong
   //
-  // ## History, because two earlier versions of this comment were wrong
+  // The first said the merge is always the release; every tree that could have
+  // made that true was `--versioning tag`, so the reason held for none of them.
+  // The second fixed the reason and left the code testing one flag. The third
+  // fixed the code and put the test in the wrong place, which is this one.
   //
-  // The first said the merge is always the release. Every tree that could have
-  // made that true was `--versioning tag`, so the reason held for none of them
-  // — a sentence about a two-flag mechanism keyed to one flag. The second fixed
-  // the reason and left the code testing one flag, which is the same error one
-  // layer down: the comment knew about `develop` and the condition did
-  // not.
-  //
-  // Found by mind.head, who executed this file with real payload shapes rather
-  // than reading it, and by skyrow-workspace, who surveyed the manifests. No
-  // test here could have said so: they assert this workflow's structure, and a
-  // dead branch is a fact about an argument recorded in `.skeletor.json`.
-  if (base === 'main' && 'main' !== 'develop') {
-    return { docsOnly: false, fullSuite: true, reason: 'targets the release branch — full suite' };
-  }
+  // Found by mind.head and node-zero, both by executing this file with real
+  // payload shapes rather than reading it, and by dream-doll, whose first
+  // execution returned the previous release's answer because their harness
+  // omitted `github.rest` and the script took its failing-open branch. That is
+  // worth knowing about anything downstream of this file: **when a system
+  // fails open, a broken instrument reports the safe answer**, and `reason` is
+  // the only field that distinguishes the two.
 
   let files;
   try {
@@ -140,12 +151,70 @@ module.exports = async function decide({ github, context, core }) {
     return { docsOnly: false, fullSuite: true, reason: 'empty file list — failing open' };
   }
 
+  // **Both fail-opens above are unconditional early returns and must stay
+  // that way.** Now that the classification runs first, the tidy-looking
+  // refactor is to route them into the code verdict below and let the
+  // release-branch rule decide them — which in a two-branch tree turns them
+  // into `gate + node + unit-tests` for anything not aimed at the release
+  // branch. **A fail-open whose answer depends on the base branch is not
+  // failing open**; it is fail-partial, on precisely the event where least is
+  // known about the change. node-zero's finding, from executing both paths.
+  //
+  // This ordering is also what makes the classification safe to run first at
+  // all. A pull request into the release branch used to return before
+  // `listFiles` was ever called, so that path had no API dependency; it has
+  // one now, and these two returns are its entire failure handling.
+
   const nonDoc = files
     .map((f) => f.filename)
     .filter((name) => !DOC_PATTERNS.some((re) => re.test(name)));
 
   if (nonDoc.length === 0) {
     return { docsOnly: true, fullSuite: false, reason: `docs-only (${files.length} files)` };
+  }
+
+  // A draft carrying code runs the gate, the node job and the unit suite —
+  // NOT the gate alone, which is what this comment claimed for three releases
+  // while returning `docsOnly: false` and therefore running both of those.
+  //
+  // **It sits below the classification, and that placement is the fix rather
+  // than an accident of refactoring.** Above it, a docs-only DRAFT never
+  // reached the classifier and landed in the code verdict, so it ran the node
+  // job and the unit suite — and marking it ready for review then dropped it
+  // to the gate alone. Two jobs to zero, on the one transition in GitHub's
+  // model that exists to escalate. node-zero measured it; the sentence that
+  // used to sit here — *`ready_for_review` re-runs the full set before it can
+  // merge* — was the safety argument for the rule it was attached to, and it
+  // was false in the direction that matters.
+  //
+  // Below it, both rules mean *less* and neither can outrank the other in the
+  // wrong direction: a docs-only change is the gate alone whether draft or
+  // ready, and the draft rule applies to code, where escalation on
+  // `ready_for_review` is real.
+  //
+  // Nothing is un-gated by this. GitHub blocks merging a draft regardless.
+  if (pr.draft) {
+    return {
+      docsOnly: false,
+      fullSuite: false,
+      reason: 'draft PR carrying code — gate, node and unit tests',
+    };
+  }
+
+  // A code change entering the released branch is a release candidate. In a
+  // two-branch tree that is the pull request release-please opens; in a
+  // one-branch tree it is every code pull request, which is the point — that
+  // branch is what a stranger clones.
+  //
+  // **Both branch names are substituted, so this is decided at scaffold time
+  // and costs nothing at run time.** A one-branch tree renders
+  // `base === 'main'`, which every pull request satisfies.
+  if (base === 'main') {
+    return {
+      docsOnly: false,
+      fullSuite: true,
+      reason: `code change into the release branch ${base} — full suite (e.g. ${nonDoc[0]})`,
+    };
   }
 
   return {

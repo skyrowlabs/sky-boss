@@ -6,40 +6,59 @@ like it ran, and nothing on the commit says so.
 
 It shipped. The node steps — eslint and prettier — lived at the end of the
 `lint` job, which is gated on `full_suite == 'true'`, and
-`.github/scripts/docs-only.cjs` returns `fullSuite: false` for two cases: a
-**draft** pull request, always; and *a ready pull request carrying code*, in
-every tree. A pull request touching nothing but TypeScript ran neither check —
-they ran on the eventual push to the release branch, after review and after
-merge, where the answer is too late to be a gate.
+`.github/scripts/docs-only.cjs` returns `fullSuite: false` for a **draft**
+pull request carrying code, and for any change it classifies as not earning
+the full suite. A
+pull request touching nothing but TypeScript ran neither check — they ran on
+the eventual push to the release branch, after review and after merge, where
+the answer is too late to be a gate.
 
-**Which base that pull request targets is not part of the rule, and saying it
-was is how this docstring went stale inside one release.** It used to read
-*a code change into a NON-RELEASE base, which exists only where
-`--base-branch` and `--release-branch` differ*, and that was true when it was
-written: `docs-only.cjs` short-circuited on `base === '<release branch>'`, so a
-one-branch tree reached the short-circuit on every pull request and
-`docsOnly: true` was unreachable there. That short-circuit is now qualified —
-it fires only where the two branches differ — so the classification half is
-live in a one-branch tree and the divergence there needs a pull request into
-the release branch, that branch also being the integration branch.
+**This docstring no longer spells out which changes those are, and the
+omission is the fix.** It has now been wrong twice in two releases, in opposite
+directions, on the same clause:
 
-Two things about how that was caught, both worth more than the correction.
+- *a code change into a **non-release** base, which exists only where
+  `--base-branch` and `--release-branch` differ* — over-qualified. True when
+  written; false once the classifier became reachable in a one-branch tree.
+- *a ready pull request carrying code, **in every tree**; which base it targets
+  is not part of the rule* — under-qualified, and worse. The base is still
+  load-bearing in every two-branch tree, so that sentence told a two-branch
+  reader their **release-candidate** pull requests sit those jobs out, when
+  that is the one case which runs everything. A reader deciding whether a job
+  needs a `FULL-SUITE-BECAUSE:` marker reasoned from a false premise, in the
+  direction that understates coverage.
 
-**The assertions never failed.** This file was not in that change set, kept its
-prose, and stayed green — so the suite reported verified while the reason was
-false. A stale comment is inert; **a stale docstring on a passing test
-certifies itself**, because the green and the prose have nothing to do with
-each other and a reader cannot tell which one the run confirmed.
+**The fix for a wrong qualifier was to delete the qualifier**, and the true
+statement was the middle one. What that says about the sentence is that it
+should not be here at all: `docs-only.cjs` owns the classification, is rendered
+with this tree's own branch names, and is the only copy that cannot be wrong
+about them. **A value with an owner elsewhere should not be spelled in a file
+at all — the spelling is the failure, not the staleness.** That rule is
+sky.boss's, and it was quoted approvingly in the commit that broke this
+sentence for the second time.
 
-**And the sentence that broke states its own rule.** The phrasing was adopted
-precisely to name the EVENT rather than a repository property — and
-`non-release base` is a repository property, smuggled back into the sentence
-whose entire purpose was to stop doing that. node-zero, who supplied the
-original phrasing, is who found it in their own words.
+Three things about how it was caught, all worth more than the correction.
 
-**A reason written here has to be true in the tree reading it.** Which is
-`docs-only.cjs`'s question, and this file was spelling out an answer that file
-owns — the spelling being the failure rather than the staleness.
+**The assertions never failed.** This file kept its prose through a change to
+the classifier and stayed green, so the suite reported verified while the
+reason was false — twice. A stale comment is inert; **a stale docstring on a
+passing test certifies itself**, because the green and the prose have nothing
+to do with each other and a reader cannot tell which one the run confirmed.
+
+**Prose adjacent to a passing assertion inherits its credibility without
+inheriting its coverage.** 175 tests, all green, in this file, in this
+paragraph, about this predicate — and nothing in the tree executes the script
+the paragraph describes. stash.flow's framing, and their remedy is what closed
+it: `bin/skeletor-verify` runs `docs-only.cjs` over every event in both branch
+shapes and asserts the `reason` as well as the two booleans, because a
+fail-open returns exactly what a healthy release candidate returns and only
+`reason` separates them.
+
+**And the sentence that broke states its own rule.** *a code change into a
+non-release base* was phrased to name the EVENT rather than a repository
+property, and `non-release base` is a repository property smuggled back into
+the sentence whose entire purpose was to stop doing that. node-zero, who
+supplied the original phrasing, found it in their own words.
 
 **Steps inherit their job's condition and never restate it**, so the defect was
 invisible at the site: four correct-looking steps, and the thing that decided
@@ -127,9 +146,11 @@ def test_every_full_suite_job_says_why():
     unexplained = [job for job, body in job_blocks().items() if _FULL_SUITE.search(body) and not _MARKER.search(body)]
     assert not unexplained, (
         f"these jobs are gated on `full_suite` and give no reason: {unexplained}. "
-        "`full_suite` is false for a DRAFT pull request and for a ready pull request carrying code, "
-        "in every tree — which base it targets is `docs-only.cjs`'s business and not this rule's. So "
-        "such a job does not run on those, and reports `skipped`, which branch protection accepts. "
+        "`full_suite` is false for a DRAFT pull request carrying code, and for whatever "
+        "`.github/scripts/docs-only.cjs` classifies as not earning the full suite — read the "
+        "decision order there rather than a copy of it here, since it is rendered with THIS "
+        "tree's branch names. Such a job does not run on those and reports `skipped`, which "
+        "branch protection accepts. "
         "Add a `FULL-SUITE-BECAUSE:` line at the job, or gate it on `docs_only != 'true'` like the "
         "jobs that run this repository's own code."
     )
