@@ -1579,3 +1579,73 @@ took that one file on trust and advanced the base.
 v0.22.0 passed 279 checks and CI and could not work in this tree. v0.22.1 passes 337
 and one real adopter. That is better and it is not proof; it is one more tree in the
 population, which is the only thing that was ever missing.
+
+### Round 20 — 2026-09-07: v0.22.2, and round 19's fix turning out to be worse than the bug
+
+`v0.22.1 → v0.22.2`, four template test files updated, `pyproject.toml` merged
+cleanly, **no conflicts**, so the base advanced on its own. `dev` up, `sb` up from
+outside the repo, all seven gates.
+
+**The release is round 19's finding, fixed where it did more damage.** skeletor's
+`test_docs_name_real_commands.py` walked `PROJECT_ROOT.rglob("*.md")` behind a skip
+list that did not name `tmp/`, and it asserts every fenced invocation is a real
+command — so **their own documented upgrade recipe turned their own shipped gate red**
+in any tree that followed it and left a fenced command in the worktree. Ours produced
+spurious additions in a diff; theirs produced a failure. Four gates moved to
+`repo_files.reference_docs()`, which is `git ls-files` and has no list to forget.
+
+**And then the collected-ID diff caught round 19's own fix being wrong.** The `before`
+side — this tree at `d3cff3f`, checked out at `tmp/pre-upgrade` — collected a single
+`test_prose_says_sky_boss[NOTSET]`, which is what pytest renders for an **empty**
+parametrised set:
+
+```
+tree at ~/…/sky-boss        205 files
+same tree at tmp/pre-upgrade  [NOTSET]
+```
+
+The predicate was `SKIPPED_DIRS & set(p.parts)`, and `p` is **absolute**. So the
+directory names were matched against the whole path to the checkout rather than
+against the path inside it. Round 19 added `tmp` to stop the gate walking the
+throwaway worktree — and thereby made *checking this repository out anywhere under a
+directory called `tmp`* skip every file in it. Which is precisely what the upgrade
+recipe instructs.
+
+**An empty parametrised set passes.** So the gate reads nothing and reports green:
+this repository's own *worked fine, told nobody* wearing a tick, introduced by the
+commit that fixed the milder version of the same thing, one round earlier, while
+writing up somebody else's version of it.
+
+> **A skip list is a list you can forget** — skeletor's argument, and the reason they
+> moved to `git ls-files`. **It is also a predicate you can get wrong in a way no
+> care about the entries will catch.** Round 19 got the entries exactly right.
+
+`repo_files.tracked()` replaces the walk here too. It has no entries and no opinion
+about where the checkout lives, and the property the list was approximating — *an
+untracked scratch file is not this repo's claim* — is one git already knows.
+`SKIPPED_FILES` went with it: `CLAUDE.local.md` drops out because it is gitignored,
+not because it is named.
+
+Positive control, both arms, in a checkout under `tmp/`:
+
+```
+old skip-set predicate      0 python files
+git ls-files              129 python files
+```
+
+**The shape worth keeping, because three of today's rounds are instances of it.** A
+gate that enumerates has two halves — *what it checks* and *what it checks it on* —
+and only the first is ever reviewed. skeletor's grid measured a population of fresh
+scaffolds; `test_naming.py` measured a population that moved with the scratch on
+disk, then a population that could be empty. Every one of them was green throughout.
+
+> **The subject set of a check is part of the check, and it is the half nobody reads.**
+> A test's assertions get argued over line by line; the glob that decides what they
+> run against is written once and never looked at again.
+
+**One thing to note about the sequencing, since it is the reason this was found at
+all.** The `[NOTSET]` was visible only because the diff compares two checkouts, and
+one of them was deliberately placed somewhere unusual. No single-tree run could have
+produced it — the gate is correct in the tree it normally lives in, and it is
+correct today. What made it observable was the recipe's insistence on comparing, and
+what the recipe was for was something else entirely.
