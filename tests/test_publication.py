@@ -27,7 +27,7 @@ test stays not-a-test**, and that is the cost of the split, stated plainly.
 
 Both halves were needed: this file's patterns found five leaks on 2026-08-30 that four previous audits had
 walked past, in prose that *argued the rule correctly while breaking it* —
-`docs/features/done/state-root.md` called a baked-in workspace layout "the same
+[[state-root]] called a baked-in workspace layout "the same
 class of leak as a host name in a tracked file", two lines under one.
 """
 

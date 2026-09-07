@@ -1,15 +1,14 @@
 ---
-status: complete
-created: 2026-08-23
-updated: 2026-08-23
+title: Roll-call — many projects, one answer
+slug: roll-call
+category: projects
 agent_value: 3
-key_files:
-  - skyboss/rollcall.py
-  - skyboss/data.py
-  - skyboss/view.py
-  - skyboss/output.py
-  - skyboss/canvas/static/render.js
-  - tests/test_rollcall.py
+completed: 2026-08-23
+updated: 2026-08-23
+tags: [observe, projects, federation]
+summary: Asks every declared project how it is and folds the answers without inventing a status vocabulary of its own.
+created: 2026-08-23
+key_files: [skyboss/rollcall.py, skyboss/data.py, skyboss/view.py, skyboss/output.py, skyboss/canvas/static/render.js, tests/test_rollcall.py]
 ---
 
 # Roll-call — many projects, one answer

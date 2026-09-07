@@ -1,8 +1,13 @@
 ---
-status: complete       # round 1 built 2026-08-30; round 2 not scheduled
-created: 2026-08-30
-updated: 2026-08-30
+title: Unwatched — what a resident command can say with no band to say it in
+slug: unwatched
+category: commands
 agent_value: 2
+completed: 2026-08-30
+updated: 2026-08-30
+tags: [residency, stderr, cadence]
+summary: What a resident command may say with no band to say it in — bounded ticks, one line per lapse, and a refusal where there is nothing to count.
+created: 2026-08-30
 key_files: [skyboss/resident.py, skyboss/data.py, skyboss/read.py, skyboss/filefollow.py, skyboss/output.py, skyboss/chrome.py]
 ---
 

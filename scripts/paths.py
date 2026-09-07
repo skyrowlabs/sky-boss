@@ -109,22 +109,6 @@ NARRATIVE = (TODO_DIR, IMPL_DIR, DOCS_DIR / "reports")
 #: that the line was load-bearing, so a whitespace tidy-up would have brought
 #: the conflict back looking like housekeeping.
 
-#: sky.boss's completed feature docs. `docs/features/<slug>.md` is written from
-#: its first sentence to done and then moves here, and from that moment it is a
-#: DATED RECORD rather than a description of the tree. CLAUDE.md is explicit
-#: that docs predating a rename keep the old spelling on purpose, never
-#: scrubbed, because a superseded argument left visible beside its reversal is
-#: what stops the mistake being made twice.
-#:
-#: Without this the archive is read as current, and the two doc gates are right
-#: by their own lights and wrong about this tree: they flagged
-#: `skyboss/tui/watchdog.py`, a surface deliberately removed on 2026-08-20, and
-#: two of jam.sense's ledger paths cited as worked examples.
-#:
-#: An append, per the argument above, and the blank line above it is
-#: load-bearing rather than formatting.
-NARRATIVE += (DOCS_DIR / "features" / "done",)
-
 
 # ── Code and configuration ───────────────────────────────────────────────────
 CLI_DIR = PROJECT_ROOT / "cli"

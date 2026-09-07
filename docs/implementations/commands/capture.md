@@ -1,14 +1,14 @@
 ---
-status: complete
-created: 2026-08-22
-updated: 2026-08-22
+title: "Capture — named formats: parse, transform, present"
+slug: capture
+category: commands
 agent_value: 3
-key_files:
-  - skyboss/capture.py
-  - skyboss/data.py
-  - skyboss/tools.py
-  - tests/test_capture.py
-  - tests/test_data.py
+completed: 2026-08-22
+updated: 2026-08-22
+tags: [data, formats, operator-content]
+summary: Lets the operator declare a foreign tool's output structure by name in formats.toml, so `sb data --from` can table it without sky.boss ever inferring columns.
+created: 2026-08-22
+key_files: [skyboss/capture.py, skyboss/data.py, skyboss/tools.py, tests/test_capture.py, tests/test_data.py]
 ---
 
 # Capture — named formats: parse, transform, present

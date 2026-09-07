@@ -1,17 +1,14 @@
 ---
-status: complete
-created: 2026-08-20
-updated: 2026-08-23
+title: Table views — shaping a foreign CLI's JSON into a table worth reading
+slug: table-views
+category: rendering
 agent_value: 3
-key_files:
-  - skyboss/view.py
-  - skyboss/data.py
-  - skyboss/output.py
-  - skyboss/canvas/static/render.js
-  - skyboss/canvas/static/sb.css
-  - tests/test_view.py
-  - tests/test_data.py
-  - tests/test_output.py
+completed: 2026-08-23
+updated: 2026-08-23
+tags: [rendering, views, contract]
+summary: The shaping contract — a view describes data and never filters it, decided in Python so both renderers draw what they are told.
+created: 2026-08-20
+key_files: [skyboss/view.py, skyboss/data.py, skyboss/output.py, skyboss/canvas/static/render.js, skyboss/canvas/static/sb.css, tests/test_view.py, tests/test_data.py, tests/test_output.py]
 ---
 
 # Table views — shaping a foreign CLI's JSON into a table worth reading

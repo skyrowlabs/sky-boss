@@ -1,19 +1,14 @@
 ---
-status: done
-created: 2026-08-26
-updated: 2026-08-30
+title: Workbench — where a command gets made
+slug: workbench
+category: surfaces
 agent_value: 3
-key_files:
-  - skyboss/canvas/server.py
-  - skyboss/canvas/static/bench.js
-  - skyboss/canvas/catalog.py
-  - skyboss/canvas/static/app.js
-  - skyboss/canvas/static/render.js
-  - skyboss/view.py
-  - skyboss/chrome.py
-  - skyboss/tools.py
-  - docs/design/Workbench.dc.html
-  - skyboss/canvas/static/sb.css
+completed: 2026-08-30
+updated: 2026-08-30
+tags: [surface, workbench, authoring]
+summary: "A second screen where a command is authored rather than invoked: the contract is asserted, the argv drafted, and a trial run draws the real envelope."
+created: 2026-08-26
+key_files: [skyboss/canvas/server.py, skyboss/canvas/static/bench.js, skyboss/canvas/catalog.py, skyboss/canvas/static/app.js, skyboss/canvas/static/render.js, skyboss/view.py, skyboss/chrome.py, skyboss/tools.py, docs/design/Workbench.dc.html, skyboss/canvas/static/sb.css]
 ---
 
 # Workbench — where a command gets made

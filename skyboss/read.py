@@ -17,7 +17,7 @@ run-ness — it is that the *operator named the argv*. `read` names it too.
 
 **Choosing `read` asserts this argv is a read**, exactly as choosing `data`
 over `run` does. sky.boss cannot tell a read from a write by inspecting an argv and
-does not try. See docs/features/done/text-reads.md — or rather [[text-reads]].
+does not try. See [[text-reads]].
 """
 
 from __future__ import annotations

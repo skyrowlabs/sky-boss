@@ -1,8 +1,13 @@
 ---
-status: complete
-created: 2026-08-29
-updated: 2026-09-01
+title: History — how did this go the last seven nights
+slug: history
+category: projects
 agent_value: 2
+completed: 2026-09-01
+updated: 2026-09-01
+tags: [observe, ledger, projects]
+summary: Reads a declared project's own run ledger newest-first — the only observe that looks backwards.
+created: 2026-08-29
 key_files: [skyboss/history.py, tests/test_history.py, skyboss/rollcall.py, skyboss/__init__.py]
 ---
 

@@ -16,9 +16,59 @@ that were dropped, and the constraints that shaped what landed.
 
 **Machine-readable index**: [`../implementation_index.json`](../implementation_index.json).
 
-**0 archived plans** across 0 categories.
+**25 archived plans** across 5 categories.
 
 ---
+
+## Commands
+
+| Value | Plan | Completed | Summary |
+| ----- | ---- | --------- | ------- |
+| ⭐⭐⭐ | [Reading a tool that has no `--json`](commands/text-reads.md) | 2026-08-21 | Shows what a command printed, verbatim, for tools with no `--json`, and refuses to infer columns from whitespace. |
+| ⭐⭐⭐ | [Capture — named formats: parse, transform, present](commands/capture.md) | 2026-08-22 | Lets the operator declare a foreign tool's output structure by name in formats.toml, so `sb data --from` can table it without sky.boss ever inferring columns. |
+| ⭐⭐⭐ | [Once, later — a delayed run you can watch](commands/delay.md) | 2026-08-23 | Adds `sb run --delay 5m`: one run, later, behind a countdown you can cancel. |
+| ⭐⭐⭐ | [Following a file — the native cursor](commands/file-follow.md) | 2026-08-23 | Follows a file with a native stat cursor so quiet and dead are different words, and `--due` makes late a word too. |
+| ⭐⭐⭐ | [Following a command, and live output for everything](commands/follow.md) | 2026-08-28 | The streaming substrate: holds a command's stream open, treats any exit as a visible death, and gives every surface live output. |
+| ⭐⭐⭐ | [The subprocess boundary — what a command sky.boss runs inherits](commands/subprocess-env.md) | 2026-08-28 | Defines what a command sky.boss spawns inherits: the operator's environment minus the two variables the wrapper added. |
+| ⭐⭐⭐ | [Reading a file of records as data](commands/jsonl-reads.md) | 2026-08-29 | Reads a file of records as data, dispatching on argument shape, and reports record variance instead of acting on it. |
+| ⭐⭐⭐ | [Refresh, spelled the same everywhere](commands/refresh.md) | 2026-08-30 | Settles what a cadence means on every path, including a stream of NDJSON envelopes when there is no terminal to draw in. |
+| ⭐⭐⭐ | [The tools — commands the operator saves](commands/tools.md) | 2026-08-30 | The operator's saved commands: one block per tool, spliced rather than rewritten, with the surface allowed to write. |
+| ⭐⭐ | [Unwatched — what a resident command can say with no band to say it in](commands/unwatched.md) | 2026-08-30 | What a resident command may say with no band to say it in — bounded ticks, one line per lapse, and a refusal where there is nothing to count. |
+
+## Projects
+
+| Value | Plan | Completed | Summary |
+| ----- | ---- | --------- | ------- |
+| ⭐⭐⭐ | [Roll-call — many projects, one answer](projects/roll-call.md) | 2026-08-23 | Asks every declared project how it is and folds the answers without inventing a status vocabulary of its own. |
+| ⭐⭐⭐ | [The agent-state root](projects/state-root.md) | 2026-08-29 | Teaches sky.boss where agent state lives and adds `<project>:<path>` as an address rather than a command. |
+| ⭐⭐⭐ | [Agent sessions — who is running right now](projects/agent-sessions.md) | 2026-09-01 | Lists the agent sessions running right now across every provider, behind an adapter seam so a new provider is a new file rather than a new branch. |
+| ⭐⭐⭐ | [Jobs — sky.boss issues a schedule of its own](projects/jobs.md) | 2026-09-01 | Gives sky.boss a schedule of its own with systemd as the daemon, and enforces the act/observe split per subcommand rather than per group. |
+| ⭐⭐⭐ | [The schedule view](projects/schedule.md) | 2026-09-01 | Draws what fires next across projects and sky.boss's own jobs, ordered by an instant Python parsed and the page never re-reads. |
+| ⭐⭐ | [History — how did this go the last seven nights](projects/history.md) | 2026-09-01 | Reads a declared project's own run ledger newest-first — the only observe that looks backwards. |
+
+## Rendering
+
+| Value | Plan | Completed | Summary |
+| ----- | ---- | --------- | ------- |
+| ⭐⭐⭐ | [Chrome — what a window knows about its output](rendering/chrome.md) | 2026-08-23 | Gives a window a band stating what it knows about its own output — quiet, late, dead — so silence and death stop looking alike. |
+| ⭐⭐⭐ | [Table views — shaping a foreign CLI's JSON into a table worth reading](rendering/table-views.md) | 2026-08-23 | The shaping contract — a view describes data and never filters it, decided in Python so both renderers draw what they are told. |
+| ⭐⭐⭐ | [The mark — a header for `sb`](rendering/header.md) | 2026-08-30 | Draws the sky.boss mark from one source so the CLI header, the README banner and the app icon cannot drift apart. |
+| ⭐⭐⭐ | [Highlight — lexical tint for followed lines](rendering/highlight.md) | 2026-08-30 | Tints a followed line by shape rather than by severity, and lets the operator declare their own vocabulary without repainting sky.boss's. |
+| ⭐⭐ | [Wrap — a followed line that fits the window](rendering/wrap.md) | 2026-08-29 | Wraps a followed line to the window with a hanging indent, which is why a rendered line is a block rather than a span plus a newline. |
+
+## Surfaces
+
+| Value | Plan | Completed | Summary |
+| ----- | ---- | --------- | ------- |
+| ⭐⭐⭐ | [The MCP surface — the tools, offered to an agent](surfaces/mcp.md) | 2026-08-23 | Speaks MCP on stdio so an agent gets the same observes the operator does, and nothing that acts. |
+| ⭐⭐⭐ | [Workbench — where a command gets made](surfaces/workbench.md) | 2026-08-30 | A second screen where a command is authored rather than invoked: the contract is asserted, the argv drafted, and a trial run draws the real envelope. |
+| ⭐⭐⭐ | [The canvas — a command palette over a window canvas](surfaces/canvas.md) | 2026-09-01 | Replaces the removed terminal surface with a browser one — a command palette over draggable windows, where a pinned window re-runs itself on a Python-side cadence. |
+
+## Tooling
+
+| Value | Plan | Completed | Summary |
+| ----- | ---- | --------- | ------- |
+| ⭐⭐⭐ | [Adopting skeletor as a scaffold](tooling/skeletor-adoption.md) | 2026-09-06 | Converts sky.boss from a skeletor component consumer into a scaffolded tree, and records what a fork can and cannot learn about itself. |
 
 ---
 

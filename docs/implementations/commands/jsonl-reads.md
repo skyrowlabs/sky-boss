@@ -1,8 +1,13 @@
 ---
-status: complete       # draft | active | complete — the directory follows this
-created: 2026-08-29
+title: Reading a file of records as data
+slug: jsonl-reads
+category: commands
+agent_value: 3
+completed: 2026-08-29
 updated: 2026-08-29
-agent_value: 3         # three rounds shipped; the path form, the kind and the variance rule
+tags: [data, jsonl, files]
+summary: Reads a file of records as data, dispatching on argument shape, and reports record variance instead of acting on it.
+created: 2026-08-29
 key_files: [skyboss/data.py, skyboss/capture.py, skyboss/view.py, tests/test_data.py, tests/test_view.py]
 ---
 

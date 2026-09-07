@@ -462,8 +462,9 @@ nothing declared rather than raising.
 Every `$ sb …` example above is executed by `tests/test_readme.py`, so a README that shows a
 command which no longer works fails the build.
 
-`docs/design/fundamentals.md` is the constitution; `docs/features/done/` holds one doc per feature,
-each with its rounds and a Notes section that accretes rather than rewrites.
+`docs/design/fundamentals.md` is the constitution; `docs/implementations/` holds one doc per
+feature that shipped, each with its rounds and a Notes section that accretes rather than rewrites,
+indexed at `docs/implementations/README.md`. `docs/TODO/` is the same thing, still open.
 
 CI runs that same suite on every push and pull request — `.github/workflows/ci.yml`. It builds a
 `.venv` because the README examples above go through the real `sb` wrapper, which looks for one.

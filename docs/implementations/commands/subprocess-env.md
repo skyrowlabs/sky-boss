@@ -1,18 +1,14 @@
 ---
-status: complete
-created: 2026-08-20
+title: The subprocess boundary — what a command sky.boss runs inherits
+slug: subprocess-env
+category: commands
+agent_value: 3
+completed: 2026-08-28
 updated: 2026-08-28
-agent_value: 3  # four rounds; the tty verdict is the one nobody rediscovers
-key_files:
-  - skyboss/helpers.py
-  - skyboss/run.py
-  - skyboss/read.py
-  - skyboss/data.py
-  - skyboss/follow.py
-  - skyboss/stream.py
-  - skyboss/canvas/runner.py
-  - skyboss/canvas/server.py
-  - tests/test_run.py
+tags: [subprocess, environment, boundary]
+summary: "Defines what a command sky.boss spawns inherits: the operator's environment minus the two variables the wrapper added."
+created: 2026-08-20
+key_files: [skyboss/helpers.py, skyboss/run.py, skyboss/read.py, skyboss/data.py, skyboss/follow.py, skyboss/stream.py, skyboss/canvas/runner.py, skyboss/canvas/server.py, tests/test_run.py]
 ---
 
 # The subprocess boundary — what a command sky.boss runs inherits

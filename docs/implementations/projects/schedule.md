@@ -1,12 +1,14 @@
 ---
-status: complete       # rounds 1, 3-10 built; round 2 still not scheduled
-created: 2026-08-29
+title: The schedule view
+slug: schedule
+category: projects
+agent_value: 3
+completed: 2026-09-01
 updated: 2026-09-01
-agent_value: 3         # ten rounds; the CLI contract, the screen, and six reversals with
-                       # their original reasoning left standing beside them
-key_files: [skyboss/rollcall.py, skyboss/schedule.py, skyboss/view.py, skyboss/output.py, tests/js/plan.test.js,
-            skyboss/canvas/server.py, skyboss/canvas/static/render.js, skyboss/canvas/static/app.js,
-            skyboss/canvas/static/schedule.js, skyboss/canvas/static/sb.css]
+tags: [observe, schedule, surface]
+summary: Draws what fires next across projects and sky.boss's own jobs, ordered by an instant Python parsed and the page never re-reads.
+created: 2026-08-29
+key_files: [skyboss/rollcall.py, skyboss/schedule.py, skyboss/view.py, skyboss/output.py, tests/js/plan.test.js, skyboss/canvas/server.py, skyboss/canvas/static/render.js, skyboss/canvas/static/app.js, skyboss/canvas/static/schedule.js, skyboss/canvas/static/sb.css]
 ---
 
 # The schedule view

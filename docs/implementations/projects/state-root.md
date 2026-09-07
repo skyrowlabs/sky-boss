@@ -1,10 +1,14 @@
 ---
-status: complete       # draft | active | complete — the directory follows this
-created: 2026-08-29
+title: The agent-state root
+slug: state-root
+category: projects
+agent_value: 3
+completed: 2026-08-29
 updated: 2026-08-29
-agent_value: 3         # a new seam, a new declaration, and a new address form
-key_files: [skyboss/agentstate.py, skyboss/rollcall.py, skyboss/data.py, skyboss/follow.py,
-            skyboss/canvas/server.py, tests/test_agentstate.py]
+tags: [projects, state, addressing]
+summary: "Teaches sky.boss where agent state lives and adds `<project>:<path>` as an address rather than a command."
+created: 2026-08-29
+key_files: [skyboss/agentstate.py, skyboss/rollcall.py, skyboss/data.py, skyboss/follow.py, skyboss/canvas/server.py, tests/test_agentstate.py]
 ---
 
 # The agent-state root

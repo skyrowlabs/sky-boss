@@ -1,13 +1,14 @@
 ---
-status: complete
-created: 2026-08-20
-updated: 2026-08-21
+title: Reading a tool that has no `--json`
+slug: text-reads
+category: commands
 agent_value: 3
-key_files:
-  - skyboss/read.py
-  - skyboss/__init__.py
-  - skyboss/output.py
-  - tests/test_read.py
+completed: 2026-08-21
+updated: 2026-08-21
+tags: [read, verbatim]
+summary: Shows what a command printed, verbatim, for tools with no `--json`, and refuses to infer columns from whitespace.
+created: 2026-08-20
+key_files: [skyboss/read.py, skyboss/__init__.py, skyboss/output.py, tests/test_read.py]
 ---
 
 # Reading a tool that has no `--json`

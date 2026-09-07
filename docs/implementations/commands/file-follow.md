@@ -1,18 +1,14 @@
 ---
-status: complete
-created: 2026-08-21
-updated: 2026-08-23
+title: Following a file — the native cursor
+slug: file-follow
+category: commands
 agent_value: 3
-key_files:
-  - skyboss/filefollow.py
-  - skyboss/chrome.py
-  - skyboss/helpers.py
-  - skyboss/follow.py
-  - skyboss/resident.py
-  - skyboss/keys.py
-  - skyboss/canvas/server.py
-  - tests/test_filefollow.py
-  - tests/test_canvas_stream.py
+completed: 2026-08-23
+updated: 2026-08-23
+tags: [follow, files]
+summary: Follows a file with a native stat cursor so quiet and dead are different words, and `--due` makes late a word too.
+created: 2026-08-21
+key_files: [skyboss/filefollow.py, skyboss/chrome.py, skyboss/helpers.py, skyboss/follow.py, skyboss/resident.py, skyboss/keys.py, skyboss/canvas/server.py, tests/test_filefollow.py, tests/test_canvas_stream.py]
 ---
 
 # Following a file — the native cursor
@@ -298,4 +294,3 @@ it lacked was the one number only the operator has.
 The systemd half being free is worth stating loudly, because it is the strongest evidence for
 the [[capture]] design: a whole class of "watch my scheduled jobs" is answered by a declared
 format over a command that has already done the join, with no code shipped at all.
-

@@ -1,21 +1,14 @@
 ---
-status: complete
-created: 2026-08-20
-updated: 2026-09-01
+title: The canvas — a command palette over a window canvas
+slug: canvas
+category: surfaces
 agent_value: 3
-key_files:
-  - skyboss/canvas/server.py
-  - skyboss/canvas/watch.py
-  - skyboss/canvas/runner.py
-  - skyboss/canvas/catalog.py
-  - skyboss/canvas/__init__.py
-  - skyboss/canvas/static/app.js
-  - skyboss/canvas/static/render.js
-  - skyboss/canvas/static/api.js
-  - skyboss/canvas/static/sb.css
-  - skyboss/data.py
-  - skyboss/theme.py
-  - tests/test_theme.py
+completed: 2026-09-01
+updated: 2026-09-01
+tags: [surface, canvas, http]
+summary: Replaces the removed terminal surface with a browser one — a command palette over draggable windows, where a pinned window re-runs itself on a Python-side cadence.
+created: 2026-08-20
+key_files: [skyboss/canvas/server.py, skyboss/canvas/watch.py, skyboss/canvas/runner.py, skyboss/canvas/catalog.py, skyboss/canvas/__init__.py, skyboss/canvas/static/app.js, skyboss/canvas/static/render.js, skyboss/canvas/static/api.js, skyboss/canvas/static/sb.css, skyboss/data.py, skyboss/theme.py, tests/test_theme.py]
 ---
 
 # The canvas — a command palette over a window canvas

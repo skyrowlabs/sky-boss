@@ -1,28 +1,14 @@
 ---
-status: complete
-created: 2026-08-21
-updated: 2026-08-28
+title: Following a command, and live output for everything
+slug: follow
+category: commands
 agent_value: 3
-key_files:
-  - skyboss/stream.py
-  - skyboss/follow.py
-  - skyboss/filefollow.py
-  - skyboss/resident.py
-  - skyboss/keys.py
-  - skyboss/run.py
-  - skyboss/read.py
-  - skyboss/canvas/server.py
-  - skyboss/canvas/runner.py
-  - skyboss/canvas/static/app.js
-  - skyboss/canvas/static/api.js
-  - skyboss/chrome.py
-  - tests/test_canvas_server.py
-  - tests/test_chrome.py
-  - tests/test_stream.py
-  - tests/test_follow.py
-  - tests/test_filefollow.py
-  - tests/test_resident.py
-  - tests/test_canvas_stream.py
+completed: 2026-08-28
+updated: 2026-08-28
+tags: [follow, streaming, substrate]
+summary: "The streaming substrate: holds a command's stream open, treats any exit as a visible death, and gives every surface live output."
+created: 2026-08-21
+key_files: [skyboss/stream.py, skyboss/follow.py, skyboss/filefollow.py, skyboss/resident.py, skyboss/keys.py, skyboss/run.py, skyboss/read.py, skyboss/canvas/server.py, skyboss/canvas/runner.py, skyboss/canvas/static/app.js, skyboss/canvas/static/api.js, skyboss/chrome.py, tests/test_canvas_server.py, tests/test_chrome.py, tests/test_stream.py, tests/test_follow.py, tests/test_filefollow.py, tests/test_resident.py, tests/test_canvas_stream.py]
 ---
 
 # Following a command, and live output for everything

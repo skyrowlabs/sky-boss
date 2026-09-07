@@ -277,7 +277,8 @@ and never feeds it: `--json` output is untouched by chrome existing.
 
 **Every command carries its complete documentation in its own `--help`:** what it does, the
 contract it asserts (acts or observes; snapshot or resident), and at least one runnable example.
-The help *is* the operator's documentation. Feature docs under `docs/features/` are the
+The help *is* the operator's documentation. Feature docs — under `docs/features/` when this was
+written, and in `docs/TODO/` and `docs/implementations/` since 2026-09-07 — are the
 designer's record of why — a thing the operator never needs to read to use the tool. This is the
 resolution of a tension that produced pushback whenever operator docs were proposed as markdown:
 the answer was never "no docs", it was that the doc belongs inside the surface it documents.

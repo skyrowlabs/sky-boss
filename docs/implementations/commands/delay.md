@@ -1,15 +1,14 @@
 ---
-status: complete
-created: 2026-08-22
-updated: 2026-08-23
+title: Once, later — a delayed run you can watch
+slug: delay
+category: commands
 agent_value: 3
-key_files:
-  - skyboss/run.py
-  - tests/conftest.py
-  - skyboss/helpers.py
-  - skyboss/chrome.py
-  - skyboss/resident.py
-  - tests/test_run.py
+completed: 2026-08-23
+updated: 2026-08-23
+tags: [run, scheduling]
+summary: "Adds `sb run --delay 5m`: one run, later, behind a countdown you can cancel."
+created: 2026-08-22
+key_files: [skyboss/run.py, tests/conftest.py, skyboss/helpers.py, skyboss/chrome.py, skyboss/resident.py, tests/test_run.py]
 ---
 
 # Once, later — a delayed run you can watch

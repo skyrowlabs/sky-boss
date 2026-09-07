@@ -1,14 +1,14 @@
 ---
-status: complete
-created: 2026-08-22
-updated: 2026-08-23
+title: The MCP surface — the tools, offered to an agent
+slug: mcp
+category: surfaces
 agent_value: 3
-key_files:
-  - skyboss/mcp.py
-  - skyboss/canvas/catalog.py
-  - skyboss/tools.py
-  - skyboss/output.py
-  - tests/test_mcp.py
+completed: 2026-08-23
+updated: 2026-08-23
+tags: [surface, mcp, agents]
+summary: Speaks MCP on stdio so an agent gets the same observes the operator does, and nothing that acts.
+created: 2026-08-22
+key_files: [skyboss/mcp.py, skyboss/canvas/catalog.py, skyboss/tools.py, skyboss/output.py, tests/test_mcp.py]
 ---
 
 # The MCP surface — the tools, offered to an agent

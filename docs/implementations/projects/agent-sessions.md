@@ -1,8 +1,13 @@
 ---
-status: complete
-created: 2026-08-29
-updated: 2026-09-01
+title: Agent sessions — who is running right now
+slug: agent-sessions
+category: projects
 agent_value: 3
+completed: 2026-09-01
+updated: 2026-09-01
+tags: [observe, agents, adapters]
+summary: Lists the agent sessions running right now across every provider, behind an adapter seam so a new provider is a new file rather than a new branch.
+created: 2026-08-29
 key_files: [skyboss/agents.py, tests/test_agents.py, skyboss/__init__.py]
 ---
 

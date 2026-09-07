@@ -1,16 +1,14 @@
 ---
-status: complete
-created: 2026-08-22
-updated: 2026-08-30
+title: The mark — a header for `sb`
+slug: header
+category: rendering
 agent_value: 3
-key_files:
-  - skyboss/banner.py
-  - skyboss/theme.py
-  - skyboss/__init__.py
-  - docs/design/cli-header.png
-  - docs/design/app-icon.png
-  - docs/design/render-mark.py
-  - tests/test_banner.py
+completed: 2026-08-30
+updated: 2026-08-30
+tags: [branding, cli, rendering]
+summary: Draws the sky.boss mark from one source so the CLI header, the README banner and the app icon cannot drift apart.
+created: 2026-08-22
+key_files: [skyboss/banner.py, skyboss/theme.py, skyboss/__init__.py, docs/design/cli-header.png, docs/design/app-icon.png, docs/design/render-mark.py, tests/test_banner.py]
 ---
 
 # The mark — a header for `sb`

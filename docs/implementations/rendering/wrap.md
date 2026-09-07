@@ -1,8 +1,13 @@
 ---
-status: complete
-created: 2026-08-29
-updated: 2026-08-29
+title: Wrap — a followed line that fits the window
+slug: wrap
+category: rendering
 agent_value: 2
+completed: 2026-08-29
+updated: 2026-08-29
+tags: [rendering, layout, canvas]
+summary: Wraps a followed line to the window with a hanging indent, which is why a rendered line is a block rather than a span plus a newline.
+created: 2026-08-29
 key_files: [skyboss/canvas/static/app.js, skyboss/canvas/static/render.js, skyboss/canvas/static/sb.css]
 ---
 

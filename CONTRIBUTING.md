@@ -61,9 +61,11 @@ These are not style preferences. Each one is load-bearing and most have a test:
 
 ## Docs are part of the change
 
-A feature gets one document at `docs/features/<slug>.md`, from first sentence to done, and it moves
-to `docs/features/done/` when it lands. Sections are **Why** · **Shape** (including an explicit
-*"Does not do"*) · **Phases** · **Notes**.
+A feature gets one document — a **plan** — at `docs/TODO/<slug>.md`, from first sentence to done,
+and `dev docs file <slug> --category <category>` moves it to `docs/implementations/<category>/`
+when it lands. Never a plain `mv`: the filing does the frontmatter and both generated indexes in
+one step. Sections are **Why** · **Shape** (including an explicit *"Does not do"*) · **Phases** ·
+**Notes**, or the equivalent four in `docs/TODO/_TEMPLATE.md`. Full rules in `docs/rules/docs.md`.
 
 Two rules about those documents:
 

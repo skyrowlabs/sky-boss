@@ -1,8 +1,13 @@
 ---
-status: active
-created: 2026-09-06
-updated: 2026-09-06
+title: Adopting skeletor as a scaffold
+slug: skeletor-adoption
+category: tooling
 agent_value: 3
+completed: 2026-09-06
+updated: 2026-09-06
+tags: [skeletor, scaffold, ci]
+summary: Converts sky.boss from a skeletor component consumer into a scaffolded tree, and records what a fork can and cannot learn about itself.
+created: 2026-09-06
 key_files: [.skeletor.json, skyboss/, cli/]
 ---
 
@@ -103,9 +108,9 @@ no adjudication needed.
 Independent of skeletor and correct on its own terms; a scaffold that lands on a
 half-renamed tree is unreviewable.
 
-- [ ] `cli/` → `skyboss/`, 494 import sites, 39 config references, 313 prose
+- [x] `cli/` → `skyboss/`, 494 import sites, 39 config references, 313 prose
       references, and the `sb` wrapper's `python -m`.
-- [ ] Suite green, both gates green, eslint green, and `sb` exercised for real —
+- [x] Suite green, both gates green, eslint green, and `sb` exercised for real —
       not only imported.
 
 ### Round 2 — the scaffold (2026-09-06)
@@ -1189,3 +1194,134 @@ binary in somebody else's checkout, at a time nobody has chosen yet. Round 7's
 finding about branch protection was the first of these, and the family is now
 three — the account's required contexts, the account's Actions permissions, and
 the operator's tool version.
+
+### Round 16 — 2026-09-07: `docs/features/` folds into the scaffold's lifecycle
+
+Rounds 1–15 adopted the scaffold everywhere except the one place this repository
+already had an opinion: **its documentation lifecycle.** `docs/features/` with a
+`done/` beside it, and `docs/TODO/` with `docs/implementations/` beside it, are the
+same lifecycle in two spellings. On the operator's ruling — *"features doesn't have
+a purpose with implementations and TODO"* — the scaffold's half is the one that
+stayed.
+
+**The measurement that says which half, and it is not a preference.** Before
+anything moved:
+
+```
+dev check docs                      → all 5 gates passed
+docs/TODO/README.md                 → 0 open plans
+docs/implementations/README.md      → 0 archived plans
+docs/features/**                    → 25 documents, 62 KB in one of them
+```
+
+Every gate green, both generated indexes describing an empty repository, and the
+whole design record outside all of it. Nothing here is *wrong* — each index is
+accurate about the directory it was told to scan — which is this repository's own
+**worked fine, told nobody** with the polarity that is hardest to catch: the
+healthy answer and the blind answer are the same bytes, and the blind one is
+green.
+
+**Why nothing fired.** `docs/features/` counted as *routed* in
+`scripts/check_doc_tables.py`, which is what should have caught it. It was routed
+by **prose**: `_DOC_DIR` is a regex over whole files, `CLAUDE.md` is one of the
+three tables it scans, and a paragraph in § Feature workflow spelled the path. So
+a directory outside the lifecycle satisfied the routing gate by being *discussed*
+in a file that also happens to be a routing table. The gate is not wrong — a row
+and a sentence are the same characters to a regex — but "routed" and "mentioned"
+are different claims, and only one of them is what the green means.
+
+**Three things the pipeline's frontmatter parser cannot read, all present here,
+all silent.** `scripts/docs/frontmatter.py` is stdlib-only by deliberate choice
+and its docstring scopes it to "the fixed, flat schema emitted by `dumps` in this
+same module". The backfill, however, runs over **hand-written** documents, so its
+input is not restricted to its own output. Measured against the 24 completed docs:
+
+| Written | Parsed as | Consequence |
+|---|---|---|
+| `agent_value: 3  # four rounds…` | `'3  # four rounds…'` | `int()` raises, caught, **rated 1 — "historical only"** |
+| `key_files: [a.py, b.py,`<br>`  c.py]` | `'[a.py, b.py,'` | the rest of the list is silently body text |
+| `key_files:`<br>`  - a.py` | `''` | the whole list vanishes |
+
+Four of the five documents carrying the most reasoning use a trailing comment on
+`agent_value`, so the archive would have sorted exactly the four best documents to
+the bottom, labelled *historical only*, with no error anywhere. Sixteen of
+twenty-four use a `-` block list for `key_files`. All three forms are legal YAML
+and none of them fails — they degrade to a value, and in the `agent_value` case the
+value is a judgment about how much the document is worth reading. **Reported to
+skeletor**; the fix is not a YAML dependency but refusing what it cannot represent,
+since a parser that returns a plausible wrong value is worse than one that raises.
+
+Frontmatter was therefore **rebuilt** rather than edited, and every block verified
+to round-trip through `frontmatter.read` before a single `git mv`.
+
+**What moved.** All 25 into `docs/TODO/` first, then filed one at a time with
+`dev docs file <slug> --category <category>` — never a plain `mv`, per
+`docs/rules/docs.md`, and the two-step is also a positive control on a pipeline
+that had never run against anything:
+
+| Category | Plans |
+|---|---|
+| `commands/` | capture, delay, file-follow, follow, jsonl-reads, refresh, subprocess-env, text-reads, tools, unwatched |
+| `rendering/` | chrome, header, highlight, table-views, wrap |
+| `surfaces/` | canvas, mcp, workbench |
+| `projects/` | agent-sessions, history, jobs, roll-call, schedule, state-root |
+| `tooling/` | this plan |
+
+Each gained a `summary:` — the only thing a reader sees in either index, and blank
+on all 25 before this round. The tank rendered 25 plans, the archive rendered 25
+across 5 categories, and `dev docs file` refused nothing it should have accepted.
+
+**A `status:` field declared to be the truth, with no reader anywhere.** The old
+workflow's first rule was *"`status:` in frontmatter is the truth and the directory
+follows it in both directions"*. Nothing in the tree read that field —
+`tests/test_docs.py` checks slugs, not frontmatter — so `workbench.md` had sat at
+`status: done` for a week, in a vocabulary whose three words are
+`draft | active | complete`, and no instrument existed that could have said so. In
+the scaffold's half **the directory is the status** and both indexes are generated
+from it, so the location cannot disagree with itself. The field was dropped rather
+than translated.
+
+**What `[[slug]]` bought, cashed in.** Twenty-five documents moved, and every one
+of them gained a *category* directory that did not exist in the old layout — the
+worst case for a path. Not one `[[slug]]` needed editing. The three references that
+broke were the three written as paths (`skyboss/mcp.py`, `skyboss/read.py`,
+`tests/test_publication.py`), and `dev check doc-refs` named all three **and the
+new location of each**. One of them read *"See docs/features/done/text-reads.md —
+or rather [[text-reads]]"*: the path and the slug side by side, and only the path
+broke.
+
+**A hand-maintained list, deleted rather than updated.** CLAUDE.md § Feature
+workflow carried eighteen document names with a phrase about each — a hand copy of
+what `docs/implementations/README.md` now generates, without the summaries, without
+the `Value` column, and seven documents behind. Deleting it is the same ruling as
+the workspace guide's worktree list and as `N of N` in § Branches: **do not keep a
+copy of what a command will tell you.** Three copies of that lesson in one file
+now, which is either three too many or exactly right.
+
+**One template divergence removed, which is the round's quiet dividend.**
+`scripts/paths.py` carried a `NARRATIVE += (DOCS_DIR / "features" / "done",)`
+append with sixteen lines of comment justifying it — the mechanism skeletor
+documents for adding a narrative stage, used correctly, and now with no subject.
+It is gone, and this file is byte-identical to the template again. **An adopter's
+divergence can end by the adopter's own layout catching up with the template**,
+not only by upstream absorbing it, and that is the cheaper of the two.
+
+**Deliberately not moved, and each for its own reason.** `docs/open.md` is not the
+tank: the tank holds one document per plan, and an item in `open.md` is a paragraph
+nobody has decided is a plan yet — it graduates *into* `docs/TODO/` when somebody
+decides how, and that boundary is the file's whole value. `docs/ideas.md` is one
+question earlier still (*should we build it*), which `docs/rules/docs.md` routes to
+`docs/research/` — a folder this tree does not have, so nothing is gained by
+creating one to hold a file that already has a routing row. `docs/design/` is the
+constitution and its renders, which are not plans at all.
+
+**`docs/rules/docs.md` was left untouched on purpose.** It is template-owned, and
+the reopening discipline this round documents — a completed plan moves *back* to
+`docs/TODO/`, which the shipped rules describe only in one direction — went into
+`.claude/skills/feature/SKILL.md`, which is ours. Round 7's ruling on the same
+seam: a divergence in a template file is a standing three-way-merge conflict, and
+a rule that lives in a file we own costs nothing.
+
+This round was itself filed by the path it documents: moved back out of the
+archive, extended, and re-filed — so the reopen half of the lifecycle has now been
+run once rather than merely written down.

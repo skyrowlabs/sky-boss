@@ -277,7 +277,7 @@ def mcp() -> None:
     environment, so an agent inherits your reach for exactly the commands you
     curated. That is the trade, stated rather than discovered.
 
-    The boundary is written down in `docs/features/done/mcp.md`.
+    The boundary is written down in [[mcp]].
     """
     serve()
 

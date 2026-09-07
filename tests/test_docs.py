@@ -2,8 +2,12 @@
 
 The convention is `[[slug]]`, never a relative path, and the reason is in
 CLAUDE.md: *a path breaks the moment that feature reopens* — a doc moving
-between `docs/features/` and `docs/features/done/` would invalidate every
-reference to it. Slugs survive that move.
+between `docs/TODO/` and `docs/implementations/<category>/` would invalidate
+every reference to it. Slugs survive that move, and on 2026-09-07 they were
+asked to prove it: twenty-five docs moved into the scaffold's lifecycle,
+gaining a category directory on the way, and **not one `[[slug]]` needed
+editing.** The three references that did break were the three written as
+paths.
 
 **What they do not survive is never having been written.** The rot moved
 rather than went away: on 2026-08-27 this suite gained the check and

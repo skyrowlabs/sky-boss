@@ -1,16 +1,14 @@
 ---
-status: complete
-created: 2026-08-21
-updated: 2026-08-23
+title: Chrome — what a window knows about its output
+slug: chrome
+category: rendering
 agent_value: 3
-key_files:
-  - skyboss/chrome.py
-  - skyboss/output.py
-  - skyboss/resident.py
-  - skyboss/canvas/server.py
-  - skyboss/canvas/static/app.js
-  - tests/test_chrome.py
-  - tests/test_canvas_stream.py
+completed: 2026-08-23
+updated: 2026-08-23
+tags: [rendering, follow, status]
+summary: Gives a window a band stating what it knows about its own output — quiet, late, dead — so silence and death stop looking alike.
+created: 2026-08-21
+key_files: [skyboss/chrome.py, skyboss/output.py, skyboss/resident.py, skyboss/canvas/server.py, skyboss/canvas/static/app.js, tests/test_chrome.py, tests/test_canvas_stream.py]
 ---
 
 # Chrome — what a window knows about its output

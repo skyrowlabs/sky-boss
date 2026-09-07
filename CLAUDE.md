@@ -194,7 +194,7 @@ commands. If groups come back, group them that way and be slower to add one.
 window and a pinned window re-runs itself on a cadence, with the operator's saved commands down
 the left. It is a consumer of the output contract,
 not a second CLI. It replaced `sb tui` on 2026-08-20 — the terminal could not do overlapping
-draggable windows, which is the central metaphor. `docs/features/done/canvas.md` records the whole
+draggable windows, which is the central metaphor. [[canvas]] records the whole
 design, and `docs/design/sky-boss-demo.html` is the mockup it was built from.
 
 **It has a second screen as of 2026-08-27: the workbench**, where a command gets *authored* rather
@@ -636,7 +636,7 @@ its own, which is the thing that caused this. `.html` is out, for the reason it 
 stops matching its source.
 
 **`[[slug]]` references are checked** — `tests/test_docs.py`. Slugs exist so a doc can move between
-`docs/features/` and `done/` without breaking a link, which they do; what they cannot survive is
+`docs/TODO/` and `docs/implementations/<category>/` without breaking a link, which they do; what they cannot survive is
 naming a doc nobody wrote. The check found two dead on its first run (`keys` and `theme`, cited
 from `skyboss/resident.py`, `skyboss/banner.py` and a test), both dead long enough that nothing recorded
 when they broke. A slug that resolves to nothing is worse than a broken path, because it *looks*
@@ -1044,39 +1044,64 @@ Shared with sibling CLIs so the family feels like one tool.
 
 `docs/design/fundamentals.md` is **the constitution**: the 2026-08-21 pass that treated the
 built surface as pure concept and decided the eight primitives, with dated decisions and
-visible reversals. Feature specs convert it into buildable rounds; read it before proposing a
-primitive-level change. `docs/features/done/` holds the completed docs — `canvas.md` (the
-surface, five rounds), `follow.md` (the streaming substrate, four rounds), `tools.md` (saved commands, three
-rounds), `highlight.md` (lexical tint, four rounds), `capture.md` (declared structure),
-`refresh.md`, `header.md` (the mark, two rounds), `text-reads.md`, `subprocess-env.md`, `table-views.md` (the
-shaping contract, five rounds), `roll-call.md` (federating over projects), `agent-sessions.md` (who is running, and the adapter
-seam), `history.md` (a provider's ledger, backwards),
-`jobs.md` (a schedule sky.boss issues), `file-follow.md` (the
-native cursor, two rounds), `chrome.md` (what a window knows about its output, three rounds), `mcp.md` (the tools offered to
-an agent), `delay.md` (once, later), `workbench.md` (the authoring surface, three rounds — opened
-and finished 2026-08-26/27), and the constitution's rounds as they land.
-**`docs/features/` is empty**: everything written so far has been executed. Every earlier spec was deleted with the
-system it described; the docs that predate the 2026-08-21 renames say `wrap`/`every` on purpose —
-dated, never scrubbed.
+visible reversals. Read it before proposing a primitive-level change.
+
+**One doc per feature — and since 2026-09-07 that doc is a plan in the scaffold's lifecycle
+rather than a file in a directory of this repo's own.** `docs/TODO/` is what is open,
+`docs/implementations/<category>/` is what shipped, a plan **moves** between them with
+`dev docs file <slug> --category <category>`, and both indexes are generated from frontmatter.
+`docs/rules/docs.md` is the reference; `.claude/skills/feature/SKILL.md` drives the authoring.
+
+**`docs/features/` is gone, and it was not a directory being tidied away.** It was this same
+lifecycle in a second spelling — open work, with a `done/` beside it — carrying its own template,
+its own frontmatter schema and no index, and it predated the scaffold by two weeks. The cost of
+two vocabularies for one lifecycle was already being paid rather than merely risked: the workflow
+declared *`status:` in frontmatter is the truth*, **nothing anywhere read that field**, and one
+doc consequently sat at `status: done` in a vocabulary whose three words are `draft | active |
+complete` for a week, with no reader to notice. The scaffold's half is the one with the readers,
+so it is the half that survived. The 24 completed docs moved unedited except in their frontmatter;
+`[[slug]]` links needed no change, which is the entire argument for slugs, arriving as a bill
+somebody else paid.
+
+**The list of completed docs that used to sit here is gone too, and its absence is the point.**
+It named eighteen of them and what each was about, hand-maintained — a copy of what
+`docs/implementations/README.md` now generates, minus the `Value` column, the summaries and the
+seven docs it had fallen behind by. Same lesson as the workspace guide's worktree list and the
+`N of N` above: **do not keep a copy of what a command will tell you.**
 
 **`docs/open.md` is the running list of what is decided-to-build but not decided-how**, kept
 apart from `docs/ideas.md` (*should we build it*) and fundamentals' Decisions (*settled, with the
 reasoning*). An item leaves it by being taken over somewhere else, and the line records where it
-went rather than being deleted.
+went rather than being deleted. It is deliberately **not** the holding tank: the tank holds one
+document per plan, and an item in `open.md` is a paragraph nobody has yet decided is a plan. An
+item graduates from the file into `docs/TODO/` when somebody decides how.
 
-One doc per feature at `docs/features/<slug>.md`, from first sentence to done; completed docs move
-to `docs/features/done/`. `.claude/skills/feature/SKILL.md` drives it. The rules that earned their
-place:
+The rules that earned their place:
 
 - Sections are **Why** · **Shape** (including an explicit *"Does not do"*) · **Phases** · **Notes**.
+  The tank's `_TEMPLATE.md` spells the same four as **Problem** · **Approach** · **Phases** ·
+  **Dropped, and why**, and a plan may use either — what is not optional is the boundary section
+  and the record of what was ruled out.
 - **Expand the existing doc rather than adding a new one.** A change, a new capability or a defect
-  worth designing around is a new *round* in the doc that already owns the feature. The failure
+  worth designing around is a new *round* in the plan that already owns the feature. The failure
   this prevents is a directory where four files describe one thing and none is the one to read.
+  A completed plan reopens by moving **back** to `docs/TODO/`; the archive is for what is finished,
+  not for what was finished once.
 - **Notes accretes, never rewrites** — one dated entry per round. A superseded argument left
   visible beside its reversal is the most useful thing in one of these files; deleting it is how a
   doc loses the ability to stop someone making the same mistake again.
 - Cross-document links are `[[slug]]`, never relative paths. Reference a doc **by slug in code
-  comments too** — a path breaks the moment that feature reopens.
-- **No index machinery yet.** There was a generated one; it went with the docs. `ls` is an
-  adequate index for a directory with one file in it, and the test that kept the old one honest is the model to
-  copy if volume ever demands one again.
+  comments too** — a path breaks the moment that feature reopens. Three source references were
+  path-shaped and broke on this very move; `dev check doc-refs` named all three and the new
+  location of each, which is the gate doing precisely the job the slug convention exists to make
+  unnecessary.
+- **A summary is written when the plan is filed, not when it is missed.** The archive's index is
+  a `Summary` column, and a plan that files without one leaves a blank cell in the document whose
+  whole purpose is telling a reader which of twenty-five docs to open.
+- ~~**No index machinery yet.**~~ **Reversed 2026-09-07 — and the terms it was reversed on are
+  the ones it named.** The old bullet said `ls` was an adequate index for a directory with one
+  file in it, and that if volume ever demanded one it should be built *as a generated block
+  checked by a test, never as a hand-maintained list*. Volume arrived (twenty-five), and the
+  machinery arrived from the scaffold already built to that specification — generated indexes in
+  Markdown and JSON, staleness checked by `dev check docs`. The reversal cost nothing because
+  the condition had been written down in advance.

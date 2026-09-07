@@ -1,17 +1,14 @@
 ---
-status: complete
-created: 2026-08-21
-updated: 2026-08-30
+title: Refresh, spelled the same everywhere
+slug: refresh
+category: commands
 agent_value: 3
-key_files:
-  - skyboss/data.py
-  - skyboss/keys.py
-  - skyboss/read.py
-  - skyboss/resident.py
-  - skyboss/tools.py
-  - tests/test_data.py
-  - tests/test_resident.py
-  - tests/test_help.py
+completed: 2026-08-30
+updated: 2026-08-30
+tags: [residency, cadence, json]
+summary: Settles what a cadence means on every path, including a stream of NDJSON envelopes when there is no terminal to draw in.
+created: 2026-08-21
+key_files: [skyboss/data.py, skyboss/keys.py, skyboss/read.py, skyboss/resident.py, skyboss/tools.py, tests/test_data.py, tests/test_resident.py, tests/test_help.py]
 ---
 
 # Refresh, spelled the same everywhere

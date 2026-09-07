@@ -1,8 +1,13 @@
 ---
-status: complete
-created: 2026-09-01
-updated: 2026-09-01
+title: Jobs — sky.boss issues a schedule of its own
+slug: jobs
+category: projects
 agent_value: 3
+completed: 2026-09-01
+updated: 2026-09-01
+tags: [jobs, systemd, act-observe]
+summary: Gives sky.boss a schedule of its own with systemd as the daemon, and enforces the act/observe split per subcommand rather than per group.
+created: 2026-09-01
 key_files: [skyboss/jobs.py, tests/test_jobs.py, skyboss/__init__.py, docs/design/fundamentals.md]
 ---
 

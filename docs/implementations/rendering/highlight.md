@@ -1,22 +1,14 @@
 ---
-status: complete
-created: 2026-08-22
-updated: 2026-08-30
+title: Highlight — lexical tint for followed lines
+slug: highlight
+category: rendering
 agent_value: 3
-key_files:
-  - skyboss/highlight.py
-  - skyboss/resident.py
-  - skyboss/tools.py
-  - skyboss/follow.py
-  - skyboss/filefollow.py
-  - skyboss/canvas/server.py
-  - skyboss/canvas/catalog.py
-  - skyboss/canvas/static/api.js
-  - skyboss/canvas/static/app.js
-  - skyboss/canvas/static/bench.js
-  - skyboss/canvas/static/sb.css
-  - tests/test_canvas_catalog.py
-  - tests/test_highlight.py
+completed: 2026-08-30
+updated: 2026-08-30
+tags: [rendering, highlight, theme]
+summary: Tints a followed line by shape rather than by severity, and lets the operator declare their own vocabulary without repainting sky.boss's.
+created: 2026-08-22
+key_files: [skyboss/highlight.py, skyboss/resident.py, skyboss/tools.py, skyboss/follow.py, skyboss/filefollow.py, skyboss/canvas/server.py, skyboss/canvas/catalog.py, skyboss/canvas/static/api.js, skyboss/canvas/static/app.js, skyboss/canvas/static/bench.js, skyboss/canvas/static/sb.css, tests/test_canvas_catalog.py, tests/test_highlight.py]
 ---
 
 # Highlight — lexical tint for followed lines
