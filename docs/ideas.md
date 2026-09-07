@@ -112,11 +112,14 @@ built — decided, but not decided how — live in `docs/open.md`.*
   checkout is modified at all. Same spelling, two questions, and a consumer filtering on the
   suffix inherits both of the string's errors silently.
 
-  **Two sources, not one, and this repo is the proof.** `skeletor-upgrade` answers only for a tree
-  with a `.skeletor.json`. sky.boss has none and will not — it consumes components, recorded in
-  `.skeletor-components.json`, where the question is `skeletor-components report`. Those answer
-  genuinely different things: *does this tree still reproduce a render*, versus *has anything I
-  copied moved since*. A view that ran only the first would report its own author as absent.
+  **Two sources, not one — and this repo has stopped being the proof.** It read: *sky.boss has no
+  `.skeletor.json` and will not — it consumes components*. Both halves are now false. It was
+  scaffolded on 2026-09-06 and the components manifest was deleted on 2026-09-07, so this tree
+  answers to `skeletor-upgrade` alone. The underlying point survives and needs a different
+  example: the two tools answer genuinely different questions — *does this tree still reproduce a
+  render* versus *has anything I copied moved since* — and a fleet view that ran only the first
+  would be blind to every component consumer. A tree that is both is the case that needs both,
+  and this one is no longer one.
 
   Unresolved, and the reason this is an idea rather than a plan: it is a **third** provider shape
   next to [[roll-call]]'s argv and path, and one whose answer is about a *relationship* between

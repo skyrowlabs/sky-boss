@@ -3,7 +3,7 @@ status: active
 created: 2026-09-06
 updated: 2026-09-06
 agent_value: 3
-key_files: [.skeletor.json, .skeletor-components.json, skyboss/, cli/]
+key_files: [.skeletor.json, skyboss/, cli/]
 ---
 
 # Adopting skeletor as a scaffold
@@ -93,6 +93,8 @@ no adjudication needed.
 - **No history rewrite** and no re-recording of what the components already say.
   `.skeletor-components.json` stays: it records what was taken before there was a
   manifest, and deleting it would make nine files look scaffolded that were not.
+  *(Reversed in round 8 — the scaffold manifest turned out to track all eleven of
+  those files itself, at a newer ref, so nothing was lost by deleting it.)*
 
 ## Phases
 
@@ -499,3 +501,45 @@ Declining to ship a fuzzy predicate rather than declining to look: an in-tree
 declaration of the required contexts would be a second belief about a value that
 lives elsewhere, and it would go stale silently — which is the failure this
 whole round is about, installed on purpose.
+
+---
+
+### Round 8 — 2026-09-07: the components manifest goes, and round 2 was wrong to keep it
+
+Round 2 ruled that `.skeletor-components.json` stays, on the reasoning that
+*"deleting it would make nine files look scaffolded that were not."* That was
+wrong, and the measurement is one line:
+
+```
+files in BOTH manifests: 11        component-only: none
+```
+
+Every file it tracked is also in `.skeletor.json`, at **v0.16.0** — newer than
+every component pin, which are v0.7.0, v0.10.2 and `v0.15.0-2-g2b64bf9`. Nine of
+the eleven match the v0.16.0 record byte-for-byte. The two that do not
+(`scripts/paths.py`, `scripts/check_skip_budget.py`) are ours by decision and
+recorded as such. So the files were not "made to look scaffolded" by deleting
+it — **they are scaffolded, and have been since the scaffold landed.**
+
+**And keeping it was not neutral, which is why this is a fix rather than a
+tidy.** `skeletor-components report` answered from the older pin and called
+three files *moved upstream* — `output.py`, `check_commit_subjects.py`,
+`conventional-commit-check.sh` — when the scaffold already held every one of
+those moves at v0.16.0. Nothing was stale; the reporter was answering a question
+that had been superseded, and it was the louder of two manifests. That verdict
+was relayed to the operator as "three clean takes available" before anybody
+compared the two files.
+
+Not silence, but **a confident answer to a superseded question** — this repo's
+own *worked fine, told nobody* with the polarity turned over. Reported upstream;
+skeletor is making `record` refuse a path `.skeletor.json` already tracks, and
+`report` name the overlap rather than answer from the older pin. Their own
+finding on it is sharper: `bin/skeletor-components` writes three paragraphs about
+`.skeletor.json` in its module docstring and **never opens the file**, so the two
+manifests have no relationship in code at all.
+
+Four references updated with it, none of them code: this doc's frontmatter and
+its round-2 note, `ci.yml`'s comment above the gate steps, and an entry in
+[[ideas]] whose premise was *"sky.boss has no `.skeletor.json` and will not"* —
+false in both halves as of yesterday, and left visible rather than deleted
+because the idea it supports is still good and now needs a different example.

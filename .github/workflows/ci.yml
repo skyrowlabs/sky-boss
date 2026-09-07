@@ -196,9 +196,9 @@ jobs:
       - name: Suite
         run: .venv/bin/python -m pytest -q -m "unit" --junitxml=tmp/junit.xml
 
-      # Gates taken from skeletor as components — see `.skeletor-components.json`
-      # for what came from where, and `bin/skeletor-components report` for
-      # whether any of it has moved upstream since.
+      # Gates that came from skeletor. They arrived as components and are now
+      # the scaffold's — `.skeletor.json` tracks them with everything else, and
+      # `bin/skeletor-upgrade --dry-run` is the one question to ask about them.
       #
       # They are steps in this job rather than a job of their own on purpose. A
       # required check is *named* in branch protection, not discovered, so a new
