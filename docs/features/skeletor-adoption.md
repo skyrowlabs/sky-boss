@@ -804,3 +804,68 @@ matrix.python }}`, `strategy.matrix.python`, `python-version: ${{ matrix.python
 when it asked for the feature. So there was nothing to port, and the branch
 protection edit the release warns adopters about costs this tree nothing. That
 was checked against the remote rather than against the release note.
+
+---
+
+### Round 11 — 2026-09-06: v0.19.0, and the fork turning out to be the defence
+
+`v0.18.0` → `v0.19.0`. One file updated, one standing conflict, nothing else:
+`tests/test_ci_job_conditions.py`, a docstring that went stale inside one
+release because the behaviour it described was qualified underneath it. No
+action here beyond taking it.
+
+Two things were checked rather than accepted, and both were relayed as *nothing
+owed*.
+
+**The `store_true` manifest bug does not touch us.** v0.19.0 fixes
+`manifest_args` recording a flag as `--reproducing False`, which renders a fresh
+scaffold permanently unupgradable. The relay said the fleet was clear. Verified
+against our own record rather than trusting it — no bare `True`/`False` token in
+`.skeletor.json`'s `args`. It holds.
+
+The gate that was green throughout that bug is the interesting half, and it is
+this repo's own rule arriving at a generator: all four of its checks asked
+*which flags reach the record*, and none asked whether the record **parses
+back**. A record that does not parse is indistinguishable in consequence from a
+record that is missing an entry. It now replays the record through the parser
+and — the part worth copying — **names the eleven flags it could not move**,
+those being exactly the ones it proves nothing about. *A check that cannot speak
+for something says so, rather than letting green imply coverage.*
+
+**The gating change cannot reach our required contexts, and the reason is the
+fork.** The docstring's subject is `docs-only.cjs` returning `fullSuite: false`
+for a ready pull request carrying code, which in the template leaves the node
+steps ungated because they live at the end of a `full_suite`-conditioned `lint`
+job. The relay flagged it as ours to care about first, since this is the only
+tree with protection on both branches.
+
+Measured instead of reasoned about: in this fork the `eslint` job and the
+`pytest` matrix carry **no `if:` at all**. Neither is gated on `full_suite` or
+`docs_only`, so no classification change can make a required context report
+`skipped` — which branch protection accepts, and which is the failure the whole
+condition family risks. The header comment claims exactly this and it is now
+checked rather than believed.
+
+> **Round 7 declined the template's job graph on cost, and the decline turns out
+> to have bought the immunity.** That is worth stating without over-claiming it:
+> the decline was not made for this reason and does not become better reasoned
+> in hindsight. A fork is not a safety property. What is true is narrower — a
+> tree that diverges from a mechanism is outside the blast radius of changes to
+> it, and it pays for that by being outside the fixes too.
+
+The standing `ci.yml` conflict is expected every run and is not a regression.
+
+#### One thing the manifest now records that is not true
+
+`--python-ceiling 3.12` is in `args`, added when v0.17.0 gave the flag a default
+of `--python`. This tree's matrix is `['3.12', '3.14']` and has been since
+before the flag existed. So the recorded render would produce a one-leg matrix
+where the tree runs two.
+
+It costs nothing today — `ci.yml` is declined, so the base render's matrix never
+reaches the file — and it is not hand-editable: the manifest says *do not
+hand-edit*, and a value invented here is a second opinion about how the tree was
+rendered. Raised with skeletor rather than fixed, because the question is
+whether amending a recorded argument has a supported route. Recorded here so the
+next reader does not have to rediscover that the manifest and the workflow
+disagree on purpose.

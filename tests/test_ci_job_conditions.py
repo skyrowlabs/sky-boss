@@ -7,21 +7,39 @@ like it ran, and nothing on the commit says so.
 It shipped. The node steps — eslint and prettier — lived at the end of the
 `lint` job, which is gated on `full_suite == 'true'`, and
 `.github/scripts/docs-only.cjs` returns `fullSuite: false` for two cases: a
-**draft** pull request, always; and *a code change into a non-release base*,
-which exists only where `--base-branch` and `--release-branch` differ. In a
-repository where those differ, a pull request touching nothing but TypeScript
-ran neither check — they ran on the eventual push to the release branch, after
-review and after merge, where the answer is too late to be a gate.
+**draft** pull request, always; and *a ready pull request carrying code*, in
+every tree. A pull request touching nothing but TypeScript ran neither check —
+they ran on the eventual push to the release branch, after review and after
+merge, where the answer is too late to be a gate.
 
-**In a tree whose base branch IS its release branch the two conditions differ
-on drafts and nothing else**, because `docs-only.cjs` returns
-`fullSuite: true` on `base === '<release branch>'` before it reaches its
-classification half at all — so `docsOnly: true` is unreachable there and this
-gate is about drafts. Measured by executing that file with real payloads in a
-`main`/`main` tree rather than read out of it; mind.head's finding, and the
-reason the assertion below names the draft case first. **A reason written here
-has to be true in the tree reading it**, and the first draft of this file gave
-one that half the fleet cannot exercise.
+**Which base that pull request targets is not part of the rule, and saying it
+was is how this docstring went stale inside one release.** It used to read
+*a code change into a NON-RELEASE base, which exists only where
+`--base-branch` and `--release-branch` differ*, and that was true when it was
+written: `docs-only.cjs` short-circuited on `base === '<release branch>'`, so a
+one-branch tree reached the short-circuit on every pull request and
+`docsOnly: true` was unreachable there. That short-circuit is now qualified —
+it fires only where the two branches differ — so the classification half is
+live in a one-branch tree and the divergence there needs a pull request into
+the release branch, that branch also being the integration branch.
+
+Two things about how that was caught, both worth more than the correction.
+
+**The assertions never failed.** This file was not in that change set, kept its
+prose, and stayed green — so the suite reported verified while the reason was
+false. A stale comment is inert; **a stale docstring on a passing test
+certifies itself**, because the green and the prose have nothing to do with
+each other and a reader cannot tell which one the run confirmed.
+
+**And the sentence that broke states its own rule.** The phrasing was adopted
+precisely to name the EVENT rather than a repository property — and
+`non-release base` is a repository property, smuggled back into the sentence
+whose entire purpose was to stop doing that. node-zero, who supplied the
+original phrasing, is who found it in their own words.
+
+**A reason written here has to be true in the tree reading it.** Which is
+`docs-only.cjs`'s question, and this file was spelling out an answer that file
+owns — the spelling being the failure rather than the staleness.
 
 **Steps inherit their job's condition and never restate it**, so the defect was
 invisible at the site: four correct-looking steps, and the thing that decided
@@ -109,8 +127,8 @@ def test_every_full_suite_job_says_why():
     unexplained = [job for job, body in job_blocks().items() if _FULL_SUITE.search(body) and not _MARKER.search(body)]
     assert not unexplained, (
         f"these jobs are gated on `full_suite` and give no reason: {unexplained}. "
-        "`full_suite` is false for a DRAFT pull request in every tree, and additionally for a code "
-        "change into a non-release base wherever `--base-branch` and `--release-branch` differ — so "
+        "`full_suite` is false for a DRAFT pull request and for a ready pull request carrying code, "
+        "in every tree — which base it targets is `docs-only.cjs`'s business and not this rule's. So "
         "such a job does not run on those, and reports `skipped`, which branch protection accepts. "
         "Add a `FULL-SUITE-BECAUSE:` line at the job, or gate it on `docs_only != 'true'` like the "
         "jobs that run this repository's own code."
