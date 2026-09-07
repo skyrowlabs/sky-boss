@@ -38,10 +38,16 @@ pytestmark = [pytest.mark.unit]
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from cli import cli as root  # noqa: E402
 from scanning import scanned  # noqa: E402
 from scripts import allowlist  # noqa: E402
 from scripts.paths import CLI_DIR  # noqa: E402
+from tests.shell import SHELL_PACKAGE, group  # noqa: E402
+
+#: The root click group, reached through the shell helper rather than imported.
+#: `--shell-package` moves the package and not the group — it is named `cli`
+#: inside whatever the package is called — so a static `from cli import cli` is
+#: wrong in two ways at once, which is the artefact sky.boss's own rename made.
+root = group()
 
 ALLOWLIST = Path(__file__).resolve().parent / "cli_smoke_allowlist.yaml"
 
@@ -110,7 +116,7 @@ def _run(args: List[str], timeout: int = 90) -> subprocess.CompletedProcess:
     env = dict(os.environ)
     env["PYTHONPATH"] = str(PROJECT_ROOT)
     return subprocess.run(
-        [sys.executable, "-m", "cli", *args],
+        [sys.executable, "-m", SHELL_PACKAGE, *args],
         cwd=str(PROJECT_ROOT),
         capture_output=True,
         text=True,
@@ -232,9 +238,9 @@ def test_forwarded_flags_are_accepted(case: Tuple[str, str, str]):
     """
     module, target, flag = case
     script_path = PROJECT_ROOT / target
-    assert script_path.exists(), f"cli/{module} forwards to {target}, which does not exist"
+    assert script_path.exists(), f"{SHELL_PACKAGE}/{module} forwards to {target}, which does not exist"
     accepted = _accepted_flags(script_path)
     assert flag in accepted, (
-        f"cli/{module} passes `{flag}` to {target}, which does not define it.\n"
+        f"{SHELL_PACKAGE}/{module} passes `{flag}` to {target}, which does not define it.\n"
         f"{target} accepts: {sorted(accepted) or '(none)'}"
     )

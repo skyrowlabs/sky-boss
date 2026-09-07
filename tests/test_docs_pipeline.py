@@ -19,7 +19,7 @@ pytestmark = [pytest.mark.unit]
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts import check_doc_tables as tables  # noqa: E402
-from scripts.docs import plans  # noqa: E402
+from scripts.docs import frontmatter, plans  # noqa: E402
 from scripts.docs.queue_order import UNORDERED, queue_position, run_order  # noqa: E402
 from scripts.paths import IMPL_DIR, PROJECT_ROOT, TODO_DIR  # noqa: E402
 
@@ -194,3 +194,69 @@ def test_no_plan_exists_in_both_trees():
     archive_slugs = {p.slug for p in plans.scan(IMPL_DIR, recursive=True)}
     both = tank_slugs & archive_slugs
     assert not both, f"Plans present in BOTH docs/TODO/ and docs/implementations/: {sorted(both)}"
+
+
+#: The three shapes a hand-written frontmatter block takes that this parser can
+#: read and cannot represent. Reported by sky.boss from 24 real documents folded
+#: into a scaffolded tree; **none of the three failed**, and each returned a
+#: value a caller could not tell from the real thing.
+#:
+#: Written here as data rather than three tests because they are one claim —
+#: *"I could not read this" and "this key is empty" are different answers* — and
+#: the parser's job is to give the first when it means the first.
+UNREPRESENTABLE = [
+    ("a block sequence", "key_files:\n  - a.py\n  - b.py", "block sequences"),
+    ("a wrapped inline list", "key_files: [a.py, b.py,\n  c.py]", "does not close"),
+]
+
+
+@pytest.mark.parametrize("case", UNREPRESENTABLE, ids=lambda c: c[0])
+def test_frontmatter_refuses_what_it_cannot_represent(case):
+    """It raises, and the refusal names the document.
+
+    The refusal is the point. Before this, the block sequence returned `''` and
+    the wrapped list returned `'[a.py, b.py,'` — a caller sees an empty field
+    and a truncated one, and both read as the document's own content.
+    """
+    _, block, expected = case
+    with pytest.raises(frontmatter.FrontmatterError) as raised:
+        frontmatter.parse(f"---\n{block}\n---\nbody\n", where_from="plans/example.md")
+    message = str(raised.value)
+    assert expected in message, message
+    assert "plans/example.md" in message, f"the refusal must name the document: {message}"
+
+
+def test_a_trailing_comment_is_stripped_and_not_read_as_the_value():
+    """`agent_value: 3  # why` is a 3, not the string `'3  # why'`.
+
+    This one is stripped rather than refused, because that is what YAML means
+    and this schema is flat enough for the rule to be unambiguous — and because
+    it is a habit the template itself teaches, on the header lines in
+    `docs/TODO/_TEMPLATE.md`.
+
+    It is the shape that mattered most and looked least like a bug: the string
+    reached `gen_impl_index.py`, whose `int()` sits inside an `except ValueError`
+    that defaults to `1` — *historical only*. So a comment explaining why a
+    document was rated highest was the thing that rated it lowest.
+    """
+    data, _ = frontmatter.parse("---\nagent_value: 3  # four rounds; the tty verdict\n---\nb\n")
+    assert data["agent_value"] == 3, data
+
+    # And the round trip holds, which is what stops the fix trading one silent
+    # corruption for another: a value that really contains a `#` is quoted on
+    # the way out and survives on the way back.
+    for value in ("Fix # 42", "a#b", "plain"):
+        back, _ = frontmatter.parse(f"---\ntitle: {frontmatter._emit(value)}\n---\nb\n")
+        assert back["title"] == value, f"{value!r} did not survive the round trip: {back}"
+
+
+def test_a_block_it_cannot_find_is_still_tolerated():
+    """The tolerance that was already there, kept — and this is the line between.
+
+    A missing or unterminated block is an *absence*, and one unreadable document
+    must not crash an index build for every other one. What changed is that the
+    same tolerance was covering constructs the parser could read and misrepresent,
+    which is not an absence but a claim.
+    """
+    assert frontmatter.parse("just a body\n") == ({}, "just a body\n")
+    assert frontmatter.parse("---\ntitle: x\nnever closed\n")[0] == {}

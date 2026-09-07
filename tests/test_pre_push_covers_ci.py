@@ -22,7 +22,7 @@ it, then withdrew it on exactly that ground.
 
 So each blocking check is in one of two sets, and **a check in neither is the
 failure**. That makes it a partition rather than an allowlist, and it is the
-same shape `cli/test_cmds.py` uses for `scheduled` / `UNSCHEDULED`: an exemption
+same shape the shell's `test_cmds.py` uses for `scheduled` / `UNSCHEDULED`: an exemption
 has to say which kind it is, and it expires when it stops being true.
 
 ## Scope, stated because it is narrower than the docstring it guards
@@ -190,7 +190,7 @@ def test_every_blocking_check_is_run_or_declared():
     orphans = sorted(set(blocking) - reached - set(UNREACHABLE))
     assert not orphans, (
         f"CI blocks on these and `check pre-push` neither runs them nor declares them: {orphans}.\n"
-        "Add them to cli/check.py::pre_push, or add an entry to UNREACHABLE saying why this host "
+        "Add them to the shell's check.py::pre_push, or add an entry to UNREACHABLE saying why this host "
         "cannot. A gate in neither set is one somebody finds out about from a red CI run."
     )
 

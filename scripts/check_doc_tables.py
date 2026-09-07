@@ -40,7 +40,7 @@ import argparse
 import re
 import sys
 from pathlib import Path
-from typing import Set
+from typing import Set, Tuple
 
 # Bootstrap only: put the package on sys.path so `scripts.paths` — which
 # owns every path below — can be imported. See scripts/paths.py.
@@ -115,22 +115,42 @@ def referenced() -> Set[str]:
     return seen
 
 
-def unrouted(directory: Path, listed: Set[str]) -> list:
-    """Subfolders holding docs that no table row reaches.
+def unrouted(directory: Path, listed: Set[str]) -> Tuple[list, list]:
+    """`(stranded, routed)` — subfolders no table row reaches, and the ones it does.
 
     A folder is routed by its own `README.md` or by its own path — checked
     exactly, never by a row for something inside it. A routed folder is not
     descended into, because its README owns what is below it.
+
+    **Both halves are returned, and the second is why.** This used to return the
+    stranded list alone, and the success line then reported `N subfolder(s)
+    routed` where `N` was every directory under `docs/` counted off the disk,
+    minus the stranded ones. That number is not the answer to any question this
+    function asked: it includes folders under a routed parent, which the
+    recursion deliberately never descends into and therefore never examined at
+    all. It was arithmetic wearing a verdict's clothes — and it would have gone
+    on printing "everything routed" if the matching predicate had narrowed to
+    nothing, because the disk does not care what `listed` says.
+
+    Reported by sky.boss, from a tree where `docs/features/` read as routed for
+    a week: `_DOC_DIR` regexes a whole table file, and a paragraph of prose
+    naming a path is the same characters as a row naming it. That half is not
+    fixed here — it needs the tables to parse as tables — but a count derived
+    from the check rather than from the filesystem is what makes it *visible*,
+    since the printed number now moves when the matching does.
     """
-    found = []
+    stranded, routed = [], []
     for child in sorted(p for p in directory.iterdir() if p.is_dir() and not p.name.startswith(".")):
         rel = child.relative_to(PROJECT_ROOT).as_posix()
         if f"{rel}/README.md" in listed or rel in listed:
+            routed.append(rel)
             continue
         if any(child.glob("*.md")):
-            found.append(rel)
-        found += unrouted(child, listed)
-    return found
+            stranded.append(rel)
+        deeper_stranded, deeper_routed = unrouted(child, listed)
+        stranded += deeper_stranded
+        routed += deeper_routed
+    return stranded, routed
 
 
 def main() -> int:
@@ -142,14 +162,18 @@ def main() -> int:
     listed = referenced()
 
     unregistered = sorted(on_disk - listed)
-    stranded = sorted(unrouted(DOCS_DIR, listed))
+    stranded_found, routed_found = unrouted(DOCS_DIR, listed)
+    stranded = sorted(stranded_found)
+    routed = sorted(routed_found)
     dangling = sorted(ref for ref in listed - on_disk if ref.endswith(".md") and not (PROJECT_ROOT / ref).exists())
 
     if args.json:
         emit(
             {
                 "registered": len(on_disk),
-                "routed_folders": sum(1 for p in DOCS_DIR.rglob("*") if p.is_dir()) - len(stranded),
+                # The folders a table row actually reached, not every folder on disk
+                # minus the failures. See `unrouted`.
+                "routed_folders": routed,
                 "unregistered": unregistered,
                 "stranded": stranded,
                 "dangling": dangling,
@@ -176,8 +200,7 @@ def main() -> int:
             item(ref)
         status = 1
     if not status:
-        folders = sum(1 for p in DOCS_DIR.rglob("*") if p.is_dir() and not p.name.startswith("."))
-        ok(f"{len(on_disk)} loose doc(s) registered, {folders} subfolder(s) routed")
+        ok(f"{len(on_disk)} loose doc(s) registered, {len(routed)} subfolder(s) routed")
     return status
 
 

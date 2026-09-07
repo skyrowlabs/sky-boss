@@ -251,7 +251,11 @@ def _is_header_for(line: str, keys: set) -> bool:
 
 def load(path: Path) -> Plan:
     text = path.read_text(encoding="utf-8")
-    fm, body = frontmatter.parse(text)
+    # The path is passed so a `FrontmatterError` names the document. This is the
+    # only caller, and it is the only one holding the name — a refusal that says
+    # "line 4" and not which file is a refusal somebody has to hunt for across
+    # every plan in the tree.
+    fm, body = frontmatter.parse(text, where_from=str(path))
     headers = {m.group("key").lower(): m.group("value") for m in _HEADER.finditer(body)}
     h1 = _H1.search(body)
     title = str(fm.get("title") or (h1.group("title") if h1 else path.stem.replace("-", " ").title()))

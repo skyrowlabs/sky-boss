@@ -63,9 +63,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import click  # noqa: E402
 
-from cli import cli as ROOT  # noqa: E402
 from scanning import scanned  # noqa: E402
 from scripts.paths import PROJECT_ROOT, TODO_DIR  # noqa: E402
+from tests.shell import group  # noqa: E402
+
+#: `--shell-package` moves the package, never the group inside it — see
+#: `tests/shell.py`.
+ROOT = group()
 
 CLI_NAME = "dev"
 

@@ -8,7 +8,7 @@ A marker is how a test file joins a suite, and it is also how a test file
 > check reports green over a smaller set. Nothing is red at any point, and no
 > output anywhere distinguishes the smaller set from the whole one.
 
-That shipped. `ui` was added to `cli/test_cmds.py` with a row, a CLI command
+That shipped. `ui` was added to the shell's `test_cmds.py` with a row, a CLI command
 and a documented description, and no job in `.github/workflows/` ran `-m ui`.
 proto.pilot adopted the marker holding 36 Textual pilot tests that match its
 description word for word; using it as documented would have dropped all 36
@@ -42,10 +42,14 @@ pytestmark = [pytest.mark.unit]
 # owns every path below — can be imported. See scripts/paths.py.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from cli.test_cmds import SUITES, UNSCHEDULED  # noqa: E402
 from scanning import scanned  # noqa: E402
 from scripts.paths import GITHUB_DIR  # noqa: E402
 from scripts.yaml_text import read_uncommented  # noqa: E402
+from tests.shell import SHELL_PACKAGE, module  # noqa: E402
+
+_test_cmds = module("test_cmds")
+SUITES = _test_cmds.SUITES
+UNSCHEDULED = _test_cmds.UNSCHEDULED
 
 WORKFLOWS = GITHUB_DIR / "workflows"
 TESTS_DIR = Path(__file__).resolve().parent
@@ -116,7 +120,7 @@ def test_every_scheduled_suite_is_run_by_a_workflow():
     missing = sorted(obliged - set(selected_markers()))
 
     assert not missing, (
-        f"`cli/test_cmds.py` offers {missing} and no workflow in .github/workflows/ selects them. "
+        f"`{SHELL_PACKAGE}/test_cmds.py` offers {missing} and no workflow in .github/workflows/ selects them. "
         "A test marked with one is DESELECTED by every job that runs and selected by none, so it "
         "leaves CI silently and every check stays green over the smaller set. Either add a job "
         "that runs it, or set `scheduled=False` on the row and say why."
@@ -140,7 +144,7 @@ def test_an_unscheduled_suite_is_not_quietly_running():
     # line, no arrangement that satisfies both.
     offenders = {m: selected_markers()[m] for m in running}
     assert not running, (
-        f"{running} declare `scheduled=False` in cli/test_cmds.py but a workflow selects them: "
+        f"{running} declare `scheduled=False` in {SHELL_PACKAGE}/test_cmds.py but a workflow selects them: "
         f"{offenders}. Fix the row or the workflow."
     )
 

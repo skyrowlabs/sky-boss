@@ -42,13 +42,16 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts import allowlist  # noqa: E402
 from scripts.output import STATE_SYMBOLS, detail, emit, fail, item, ok  # noqa: E402
-from scripts.paths import PROJECT_ROOT, SCRIPTS_DIR  # noqa: E402
+from scripts.paths import CLI_DIR, PROJECT_ROOT, SCRIPTS_DIR  # noqa: E402
 
 ALLOWLIST = SCRIPTS_DIR / "output_allowlist.yaml"
 
 #: Where emissions are allowed to originate. `scripts/output.py` owns the
 #: streams; it is the one file that must write to them directly.
-SCAN_DIRS = ["cli", "scripts"]
+#: Read from `paths` rather than spelled: the shell package is renameable
+#: (`--shell-package`) and a literal here would scan a directory that is not
+#: there, which is a gate passing over zero files.
+SCAN_DIRS = [CLI_DIR.name, "scripts"]
 OWNER = "scripts/output.py"
 
 #: Anything that puts characters in front of a person or a pipe.

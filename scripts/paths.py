@@ -111,7 +111,43 @@ NARRATIVE = (TODO_DIR, IMPL_DIR, DOCS_DIR / "reports")
 
 
 # ── Code and configuration ───────────────────────────────────────────────────
-CLI_DIR = PROJECT_ROOT / "cli"
+
+
+#: The shell's package, written here by the scaffolder.
+#:
+#: It ships as `cli/` and `--shell-package` renames it, because `cli` is the
+#: most collided-with package name in a python monorepo and a shell that cannot
+#: move out of the way costs an adopter a rename mid-flight.
+#:
+#: ## This was discovered by walking for `__main__.py`, and that shipped broken
+#:
+#: The first version took the one root directory containing a `__main__.py` and
+#: raised when there was not exactly one. Its comment named the ambiguous case
+#: and treated it as unreachable. It is the **ordinary** case: `__main__.py` is
+#: what `python -m` needs, so any adopter whose own product is a `python -m`
+#: CLI has a second one — and the failure was not a wrong answer but a dead
+#: tree, since this module is imported by the CLI, every gate and the suite's
+#: collection. sky.boss upgraded, lost the whole toolchain, and reverted.
+#:
+#: The record beats the inference, which is their sentence: an inference that
+#: can be ambiguous must not outrank a record that cannot. The record is here
+#: rather than in `.skeletor.json` because that file is a **supported
+#: deletion** (see `SCAFFOLD_MANIFEST` below) and because reading its arg list
+#: would make this a second reader of the generator's format. A rendered
+#: literal is written by the same render that created the directory and
+#: survives both.
+#:
+#: ## Why it was not simply substituted the first time
+#:
+#: Because a placeholder cannot go in an *import statement* — `from <token>.x
+#: import y` does not parse, and this template's python is read with `ast`.
+#: That is true, and it was carried to every construct instead of the one it
+#: was proven about. It was never true of a string constant. Nothing imports
+#: through this name: the package finds its own command groups via `__name__`
+#: and `__path__`, `__main__.py` imports relatively, and `tests/shell.py` goes
+#: through `importlib`.
+SHELL_PACKAGE = "cli"
+CLI_DIR = PROJECT_ROOT / SHELL_PACKAGE
 SCRIPTS_DIR = PROJECT_ROOT / "scripts"
 TESTS_DIR = PROJECT_ROOT / "tests"
 GITHUB_DIR = PROJECT_ROOT / ".github"

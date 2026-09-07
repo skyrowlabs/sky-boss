@@ -10,7 +10,7 @@ somebody having run it by hand.
 The other tests here read the plan tree; this one *changes* it, so it works on a
 disposable copy rather than the real repository. That is possible at all because
 `scripts/paths.py` derives every path from the location of the package: copy
-`cli/` and `scripts/` into a temporary directory and the whole tool operates on
+the shell package and `scripts/` into a temporary directory and the whole tool operates on
 that directory instead, with nothing to patch.
 
 What it pins is the invariant the whole lifecycle rests on: **a plan exists in
@@ -28,6 +28,8 @@ import sys
 from pathlib import Path
 
 import pytest
+
+from tests.shell import SHELL_PACKAGE  # noqa: E402
 
 pytestmark = [pytest.mark.unit]
 
@@ -64,7 +66,7 @@ Nothing yet.
 @pytest.fixture
 def tree(tmp_path):
     """A disposable project: the real tooling, an empty docs tree."""
-    for package in ("cli", "scripts"):
+    for package in (SHELL_PACKAGE, "scripts"):
         shutil.copytree(
             PROJECT_ROOT / package,
             tmp_path / package,
@@ -80,7 +82,7 @@ def run(tree: Path, *args: str) -> subprocess.CompletedProcess:
     env = dict(os.environ)
     env["PYTHONPATH"] = str(tree)
     result = subprocess.run(
-        [sys.executable, "-m", "cli", *args],
+        [sys.executable, "-m", SHELL_PACKAGE, *args],
         cwd=str(tree),
         capture_output=True,
         text=True,

@@ -29,12 +29,13 @@ pytestmark = [pytest.mark.unit]
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts import check_coverage_budget as budget  # noqa: E402
+from tests.shell import SHELL_PACKAGE  # noqa: E402
 
 #: Two scaffold files and one of the project's own. Two rather than one on
 #: purpose: with a single scaffold file, "every measured file is scaffolded" and
 #: "the one file matched" are the same set, so the filter would pass whether it
 #: filtered or not.
-SCAFFOLDED = {"cli/check.py": 4, "scripts/output.py": 6}
+SCAFFOLDED = {f"{SHELL_PACKAGE}/check.py": 4, "scripts/output.py": 6}
 OURS = {"app/engine.py": 5}
 
 

@@ -10,6 +10,45 @@ in CI jobs that would otherwise need one.
 
 If the schema ever needs nesting, replace this module rather than extending it:
 half a YAML parser is worse than either whole thing.
+
+## What it refuses, and why refusing is not the same as being tolerant
+
+`parse()` is tolerant of a block it cannot **find** — no frontmatter, or an
+unterminated one — and returns `({}, text)`, so one unreadable document does not
+crash an index build for every other one. That tolerance was written for
+*absence*, and it was silently doing a second job: covering constructs this
+parser can read and cannot represent, where it returned a **plausible wrong
+value** instead of nothing.
+
+Reported by sky.boss, from 24 documents they folded into a scaffolded tree, and
+reproduced here. Three shapes, all legal YAML, none of which failed:
+
+===  written                      this returned              consequence
+  `agent_value: 3  # four rounds`  `'3  # four rounds'`     `gen_impl_index.py` does
+                                                            `int(...)` inside an
+                                                            `except ValueError` that
+                                                            defaults to 1 — so the
+                                                            archive labelled its four
+                                                            densest documents
+                                                            "historical only"
+  `key_files: [a, b,` / `  c]`     `'[a, b,'`               rest of the list read as body
+  `key_files:` / `  - a` / `  - b` `''`                     the whole list, gone
+
+The first is the one that matters, and not because it loses data: it
+**manufactures a judgment about how much a document is worth reading**, out of a
+`try/except` written to be forgiving. A trailing `#` comment is the one scalar
+decoration `_scalar` did not handle, and `int()` failing is where the silence
+got installed.
+
+So: a trailing comment is *stripped*, because that is what YAML means and this
+schema is flat enough for the rule to be unambiguous. Everything else this
+cannot represent raises `FrontmatterError` naming the file, the line and the
+key. **"I could not read this" and "this key is empty" are different answers**,
+and only one of them can be noticed.
+
+(A trailing comment is a habit this template teaches: `docs/TODO/_TEMPLATE.md`
+shows `> **Queue-Order**: 40   # only on a ready plan` on a header line, where it
+is fine, four lines under a frontmatter block where it was not.)
 """
 
 from __future__ import annotations
@@ -22,6 +61,34 @@ DELIM = "---"
 
 _TRUE = {"true", "yes", "on"}
 _FALSE = {"false", "no", "off"}
+
+
+class FrontmatterError(ValueError):
+    """A frontmatter block this parser can read and cannot represent.
+
+    Raised rather than returned, because the alternative is a value: an empty
+    string for a list that has items, a string for a number. A caller cannot
+    tell those from the real thing, which is the whole defect.
+    """
+
+
+def _strip_comment(raw: str) -> str:
+    """Drop a trailing YAML comment — a `#` at the start or after whitespace.
+
+    Quote-aware, because a value that genuinely contains a `#` is quoted (see
+    :func:`_emit`, which quotes for exactly this reason), and stripping inside
+    the quotes would trade one silent corruption for another.
+    """
+    quote = ""
+    for index, char in enumerate(raw):
+        if quote:
+            if char == quote:
+                quote = ""
+        elif char in "\"'":
+            quote = char
+        elif char == "#" and (index == 0 or raw[index - 1].isspace()):
+            return raw[:index].rstrip()
+    return raw
 
 
 def _scalar(raw: str) -> Any:
@@ -67,7 +134,7 @@ def _inline_list(raw: str) -> list:
     return [_scalar(p) for p in parts if p.strip()]
 
 
-def parse(text: str) -> Tuple[Dict[str, Any], str]:
+def parse(text: str, where_from: str = "") -> Tuple[Dict[str, Any], str]:
     """Split a document into ``(frontmatter, body)``.
 
     A document with no frontmatter returns ``({}, text)`` — never an error. A
@@ -82,17 +149,34 @@ def parse(text: str) -> Tuple[Dict[str, Any], str]:
         return {}, text
     block = text[len(DELIM) + 1 : end]
     body = text[end + len(DELIM) + 2 :].lstrip("\n")
+    last_key = ""
 
     data: Dict[str, Any] = {}
-    for line in block.splitlines():
-        if not line.strip() or line.lstrip().startswith("#"):
+    for number, line in enumerate(block.splitlines(), start=2):
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
             continue
-        if ":" not in line:
-            continue
+        where = f"{where_from} line {number}: " if where_from else f"line {number}: "
+        if stripped.startswith("- "):
+            raise FrontmatterError(
+                f"{where}block sequences are not supported. This schema is flat and one level of "
+                f"INLINE list — write `{last_key or 'key'}: [a, b]` on one line."
+            )
+        if ":" not in stripped:
+            raise FrontmatterError(
+                f"{where}{stripped!r} is not `key: value`. A continuation line (a wrapped list, a "
+                "folded string) is not supported — keep each value on its own line."
+            )
         key, _, raw = line.partition(":")
         key = key.strip()
-        raw = raw.strip()
+        raw = _strip_comment(raw.strip())
+        if raw.startswith("[") and not raw.endswith("]"):
+            raise FrontmatterError(
+                f"{where}`{key}` opens an inline list that does not close on the same line. "
+                "This schema has no multi-line values."
+            )
         data[key] = _inline_list(raw) if raw.startswith("[") and raw.endswith("]") else _scalar(raw)
+        last_key = key
     return data, body
 
 
@@ -109,6 +193,8 @@ def _emit(value: Any) -> str:
         text == ""
         or text[0] in "[{#\"'"
         or ":" in text
+        # ` #` would be read back as the start of a comment — see `_strip_comment`.
+        or "#" in text
         or text.lower() in _TRUE | _FALSE
         or re.fullmatch(r"-?\d+", text)
     ):

@@ -6,7 +6,6 @@
 # on the same file is otherwise unexplainable.
 
 click>=8.1
-requests>=2.31
 
 pytest>=8.0
 pytest-timeout>=2.3
