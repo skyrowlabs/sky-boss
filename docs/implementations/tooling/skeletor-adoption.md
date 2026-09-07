@@ -1392,3 +1392,113 @@ is not evidence, and the fix is to manufacture the case rather than to look hard
 absences the screen had to distinguish. Same move, pointed at a gate instead of a
 screen: **do not ask whether the green is trustworthy, ask whether you can make it go
 red on purpose.** A gate that cannot be made to fail has not been shown to pass.
+
+### Round 18 — 2026-09-07: v0.22.0, the first upgrade that had to be reverted
+
+`v0.21.0` and `v0.22.0` landed. Run for real from a `v0.22.0` checkout, and
+**the tree did not survive it**:
+
+```
+$ .venv/bin/python -m cli --help
+❌ expected exactly one shell package (a root directory with __main__.py),
+   found ['cli', 'skyboss'].
+
+$ pytest
+INTERNALERROR> SystemExit: … found ['cli', 'skyboss']
+no tests ran in 0.13s
+```
+
+`dev` dead, the suite unable to collect, every gate with it. `sb` survived,
+because the product does not import `scripts.paths` — which is the only reason
+this was an inconvenience rather than an outage.
+
+**The mechanism, and why this tree is the one that found it.** v0.22.0 ships
+`--shell-package`, and with it a `tests/shell.py` that reaches the shell through
+`scripts.paths._shell_package()`. That function identified the shell as *the one
+root directory containing `__main__.py`*, and raised on anything but exactly one.
+Here there are two: `cli/` is skeletor's shell, and `skyboss/__main__.py` exists
+because `sb` is a wrapper ending in `exec python -m skyboss`. **Round 1 moved the
+product to `skyboss/` precisely so the shell could keep `cli/`** — so the rename
+that motivated the flag is the same act that put two `__main__.py` files at this
+root.
+
+The comment at the site had already written the failure down: *"two means the tell
+has stopped identifying anything, which is worse than a wrong answer because every
+caller would get a plausible one."* It was treated as the unreachable branch. It is
+the ordinary case for any adopter whose **product** is also a `python -m` CLI.
+
+**Not a flag defect, which is the part that made it urgent.** skeletor reproduced
+it by planting a `__main__.py` package in a fresh tree **without passing
+`--shell-package` at all**. Any scaffolded tree with a second root-level `python -m`
+package breaks identically, renamed or not.
+
+**Reverted rather than worked around.** `git restore` over the fourteen files the
+upgrade touched, `rm tests/shell.py`, back to `v0.20.0` with all seven gates green.
+The manifest never advanced — `skeletor_ref` still reads `v0.20.0` — because the
+standing `ci.yml` conflict means the run does not write it, which here was the right
+accident. **A tree that had patched `_shell_package()` locally would have been
+green, current, and carrying a divergence in a template file** — round 7's standing
+conflict, self-inflicted — and it would have made the next adopter's report harder
+to believe.
+
+**Round 17's standing check ran, was correct, and did not predict this.** The
+`--dry-run --json` asked *does a new argument decide a path*, and answered honestly:
+one new file, no rename, nothing reporting `cli/*` as no longer shipped. That was
+the right answer to the right question. The check bounds what the **merge** will
+move; it says nothing about whether the merged code **runs here**. So round 17's
+line needs its limit written beside it rather than being trusted further than it
+goes:
+
+> `--dry-run` answers *what will change on disk*. Only running the tree answers
+> *what still works*. The first is cheap and predictive; the second is the only one
+> that has ever caught anything, and there is no version of the first that grows
+> into it.
+
+**Upstream cause, recorded because it is a reasoning shape rather than a slip.**
+The package name genuinely cannot be substituted into an `import` statement —
+`from <token>.x import y` does not parse, and skeletor's own gates read the template
+with `ast`. That proof is correct. It was then carried to *every* construct, and it
+was never true of a **string constant**. The fix is `SHELL_PACKAGE = "<rendered>"`,
+a literal written by the same render that made the directory, with discovery removed
+entirely.
+
+> **A constraint proven about one syntactic position, generalised to all positions.**
+> The proof stays correct and the conclusion is wrong everywhere it was carried to.
+
+That satisfies *record beats inference* — the ordering this session argued for — at a
+different address than the one proposed here. Reading `.skeletor.json` was the obvious
+record and is ruled out twice by `scripts/paths.py`'s own comment: the manifest is a
+**supported deletion**, so manifest-primary breaks every tree that took that choice,
+and *"never read it for anything an upgrade owns"* forbids a consumer in the tree from
+parsing the generator's arg list. The rendered literal has neither cost.
+
+**And the population sentence, which was already in the file two screens below the
+bug.** *A measurement over a population that contains none of the subject is not a
+measurement of the subject* — `scripts/paths.py`, about `SCAFFOLD_MANIFEST`. Every
+fixture in skeletor's grid is a fresh scaffold, so every tree it has ever built has
+exactly one root `__main__.py`. 279 checks green on a release that could not work
+here. The missing population was an actual adopter, which is the instrument no grid
+contains. Their new `product_package_gate` plants one and measured **22 of 251 failed,
+every failure inside the new gate** — which measures the gate and simultaneously
+measures that no existing gate was ever going to see it.
+
+**One thing was kept from the upgrade, and it found a live defect here.** The
+`.github/workflows/ci.yml` patch is comments only, so it was ported by hand. Its new
+header names a class — *requiring only the leaves is requiring nothing* — and this
+repository was in it. `ci.yml` claimed the pytest matrix and eslint *"run
+unconditionally"* as the mitigation for `skipped`-satisfies-protection; both carry
+`needs: gate`, which is exactly how a job comes to report `skipped`. Asked the
+account:
+
+```
+develop → eslint, pytest 3.12, pytest 3.14        (no CI Gate)
+main    → eslint, pytest 3.12, pytest 3.14        (no CI Gate)
+```
+
+A gate failure skipped all three required contexts, protection accepted three skips,
+and a pull request merged having proven nothing. Closed on the operator's ruling by
+requiring `CI Gate` on both branches; `All checks` alone was rejected because
+`verdict` tests `contains(needs.*.result, 'failure')` and a *cancelled* gate passes
+it. **The hazard was written in this tree's own `ci.yml`, two screens above the graph
+that fell into it** — and what surfaced it was a comment arriving from another
+repository, in the one upgrade this tree could not otherwise use.
