@@ -387,3 +387,81 @@ The general shape, which is not this file's: **a finding sent upstream becomes a
 conflict downstream if you also fix it locally.** Worth the conflict when the
 failure is silent, not worth it when the failure is loud — a loud one can wait
 for the release, because you will know if it fires.
+
+---
+
+### Round 7 — 2026-09-06: the ruling on skeletor's job graph, which is no
+
+skeletor's pending v0.17.0 adds a `node:` job and a `release-please: needs: […,
+node, …]` edge that gates on it. Two edits that must move together. This tree
+takes `ci.yml` as a three-way merge rather than a replacement, so the pair does
+not arrive atomically, and the question put to us was whether we want the graph
+at all.
+
+**We do not.** Three reasons, each checked rather than assumed.
+
+**We version by tag, so the `release-please` half has no landing site and should
+not have one.** `.skeletor.json` records `--versioning tag`, there is no
+`release-please-config.json`, and no workflow mentions it. The template ships
+the job even for a tag tree — it runs and reports *not configured here* — and a
+job whose only output is that sentence is noise on every push forever.
+
+**The `node:` half fixes a defect this tree does not have.** Its own comment
+upstream says why it exists: *"only the python half was ever run by CI — so a
+`--language node` tree lint-checked its product on the author's laptop and
+nowhere else."* Ours does not. The `lint` job runs `npm ci`, `npm run
+lint:check` and `npm test`, and has since the frontend got a runner.
+
+**And taking it would cost a branch-protection edit for nothing.** That job
+produces the required context **`eslint`**. Splitting node work out of it either
+duplicates the npm steps across two jobs or empties the one that carries the
+name. A required context is *named, not discovered*, so the second reading means
+editing protection on `develop` **and** `main` in the same sitting, with a
+window in which a required context reports nothing and every pull request blocks
+forever. That hazard is already the first thing this workflow's header warns
+about.
+
+#### What declining costs, measured rather than assumed
+
+Planted the reverse partial take — a `node:` job that runs with nothing in
+anyone's `needs:` — and ran everything:
+
+```
+19 CI-shape tests            pass
+dev check pre-push, 6 gates  pass
+```
+
+**Nothing here reports it.** A job that runs and gates nothing is green forever,
+which is *worked fine, told nobody* wearing a workflow's clothes. So the ruling
+above is not free, and the honest form of it is: we decline the graph *and* we
+cannot currently detect having taken half of it by accident.
+
+#### The gate that would close it cannot be written here, and that is the finding
+
+The obvious assertion is *every job must be in some job's `needs:`*. It is
+false, and the reason is structural rather than an oversight:
+
+| workflow | terminal jobs — nothing needs them |
+|---|---|
+| `ci.yml` | `verdict` |
+| `docs-validation.yml` | `validate` |
+| `pr-draft-discipline.yml` | `advise` |
+
+A planted `node:` that gates nothing is **structurally identical** to `validate`
+and `advise`, which gate plenty. The fact that separates them — *which contexts
+branch protection requires* — is not in any file: it is
+`["eslint","pytest 3.12","pytest 3.14"]` read from the GitHub API, and this
+suite is deliberately network-free.
+
+So this is the workspace's *unit of observation* argument arriving on a new
+face. `test_workflow_job_graph.py` can say a `needs:` names a job that does not
+exist, because both halves are in the file. Nothing in the tree can say a job
+gates nothing, because **gating is a relationship between the workflow and the
+account**, and a tree sees one. A repo that is entirely green ships a job that
+blocks nobody, and the only instrument that sees it is somebody reading branch
+protection.
+
+Declining to ship a fuzzy predicate rather than declining to look: an in-tree
+declaration of the required contexts would be a second belief about a value that
+lives elsewhere, and it would go stale silently — which is the failure this
+whole round is about, installed on purpose.
