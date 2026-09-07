@@ -21,8 +21,9 @@
 #     gh api repos/OWNER/REPO/branches/develop/protection/required_status_checks \
 #       --jq '.contexts[]'      # → eslint, pytest 3.12, pytest 3.14
 #
-# The remedy is in the account, not here: the required list has to name `CI
-# Gate` itself, or a job that transitively depends on every other. Dropping the
+# The remedy was in the account, not here, and was applied on 2026-09-07: the
+# required list now names `CI Gate` itself. It had to name that, or a job that
+# transitively depends on every other. Dropping the
 # `needs:` edges would also make the old sentence true and is the wrong trade —
 # the edge is what `tests/test_workflow_job_graph.py` reads to see which jobs
 # block, and losing it to fix a setting outside the tree spends a mechanism to
@@ -224,9 +225,10 @@ jobs:
     # Depends on the gate, gated by nothing — no step here is conditional on
     # its output. But `needs:` is itself how a job comes to report `skipped`,
     # and `skipped` satisfies branch protection: see the header, which used to
-    # claim this job ran unconditionally and did not. The hole is **open** as of
-    # 2026-09-07 and closes in the account by requiring `CI Gate`, never here by
-    # cutting this edge — ask the API rather than trusting this comment.
+    # claim this job ran unconditionally and did not. Closed on 2026-09-07 by
+    # adding `CI Gate` to the required set on both branches — in the account,
+    # never here by cutting this edge. Ask the API rather than trusting this
+    # comment; it is a list this file cannot see and cannot keep.
     needs: gate
     runs-on: ubuntu-latest
     strategy:

@@ -721,10 +721,31 @@ does: an audience that is not the author.
 
 - **Cut from `develop`, open the pull request into `develop`.** A change reaches `main` only by
   `develop` merging into it. A pull request targeting `main` is almost always a mistake.
-- **Both branches are protected**, with the same three checks — `eslint` and `pytest` on 3.12 and
-  3.14, the floor `README.md` promises and the newest release. `main` is not given a weaker gate
-  than `develop` on the argument that it only ever receives reviewed work: a release branch that
-  trusts its input is a release branch with no gate.
+- **Both branches are protected, with the same required set** — the pytest matrix at the floor
+  `README.md` promises and the newest release, `eslint`, and **`CI Gate`**. `main` is not given a
+  weaker gate than `develop` on the argument that it only ever receives reviewed work: a release
+  branch that trusts its input is a release branch with no gate.
+
+  **The set is not spelled here.** This bullet said *"the same three checks"* until 2026-09-07 and
+  was wrong within an hour of the fourth being added — the same copied count as `N of N` below and
+  as the workspace's worktree list. Ask:
+
+  ```bash
+  gh api repos/OWNER/REPO/branches/develop/protection/required_status_checks --jq '.contexts[]'
+  ```
+
+  **`CI Gate` is in the set for a reason worth stating, because leaving it out looked harmless.**
+  Every other job carries `needs: gate`, and a `needs:` edge is how a job comes to report
+  `skipped` — which branch protection **accepts**. So with only the leaves required, a gate failure
+  skipped all three, protection took the three skips, and a pull request could merge having proven
+  nothing. Open until 2026-09-07 and closed by adding the one context every other job depends on.
+  skeletor's v0.22.0 header named the class — *requiring only the leaves is requiring nothing* —
+  and `ci.yml` here had written the hazard down two screens above the graph that fell into it,
+  claiming the matrix ran "unconditionally" when it does not.
+
+  **Nothing in this tree could have found it.** Which contexts are required is a list in the
+  account, in no file here — the same class as the enterprise Actions pull-request switch, and the
+  reason the remedy is a command rather than a sentence.
 
   **A required check is named, not discovered**, so narrowing the matrix means editing branch
   protection on *both* branches in the same sitting. A context that no job reports is a check that
