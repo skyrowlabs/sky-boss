@@ -80,7 +80,26 @@ RELEASES_DIR = DOCS_DIR / "reports" / "releases"
 #:
 #: `reports` is taken at its parent so the regular, release and occasional
 #: editions are covered without naming three constants.
-NARRATIVE = (TODO_DIR, IMPL_DIR, DOCS_DIR / "reports")
+#:
+#: `research` is here for exactly the reason `reports` is, and its absence was
+#: an oversight rather than a decision. stash.flow filed 17 documents of concept
+#: work into the folder `docs/rules/docs.md` tells them to use, and watched
+#: `test_docs_name_real_paths` redden on one of them for citing a path that is
+#: *supposed* to be dead. That folder's own description is the whole argument:
+#: it holds "a thing that is **not a plan**", where "rejected ideas keep their
+#: memo rather than being deleted" — and a memo about what was ruled out names
+#: the code it ruled out.
+#:
+#: `docs/business-planning/` is the other folder in that table and is
+#: deliberately NOT here, stated so its absence is a decision somebody can
+#: disagree with rather than the same oversight one folder over. It is not a
+#: stage of the *document* lifecycle — nothing moves into or out of it — and
+#: market or pricing work does not cite the tree. An adopter who keeps
+#: code-shaped proposals there should append it, which is what the block below
+#: is for. `tests/test_narrative_covers_lifecycle_folders.py` holds that
+#: partition, so a folder added to the table later cannot be silently
+#: unclassified the way this one was.
+NARRATIVE = (TODO_DIR, IMPL_DIR, DOCS_DIR / "reports", DOCS_DIR / "research")
 
 #: **Add your own stages below, as an append. Do not edit the tuple above.**
 #:

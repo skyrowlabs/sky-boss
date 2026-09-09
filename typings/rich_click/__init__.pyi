@@ -32,6 +32,7 @@ from typing import Any, TypeVar
 # Redundant `X as X` form on purpose: in a stub, a plain `from … import X`
 # marks X *private* to the stub and overrides what the star re-exported, so
 # `click.Context` stops resolving. The alias is what re-exports.
+from click import *  # noqa: F403
 from click import Argument as Argument
 from click import Command as Command
 from click import CommandCollection as CommandCollection
@@ -39,7 +40,6 @@ from click import Context as Context
 from click import Group as Group
 from click import Option as Option
 from click import Parameter as Parameter
-from click import *  # noqa: F403
 
 class RichContext(Context): ...
 class RichCommand(Command): ...

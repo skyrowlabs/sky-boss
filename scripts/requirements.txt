@@ -13,6 +13,6 @@ pytest-cov>=5.0
 
 flake8==7.3.0
 black==26.5.1
-isort==8.0.1
+isort==9.0.1
 pyright==1.1.411
 pre-commit>=4.0

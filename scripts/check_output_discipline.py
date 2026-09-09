@@ -96,7 +96,7 @@ def _sources() -> List[Path]:
     for directory in SCAN_DIRS:
         root = PROJECT_ROOT / directory
         if root.exists():
-            found.extend(sorted(p for p in root.rglob("*.py") if "__pycache__" not in p.parts))
+            found.extend(sorted(p for p in root.rglob("*.py") if "__pycache__" not in p.relative_to(root).parts))
     return found
 
 

@@ -151,7 +151,7 @@ def history_dependent_markers() -> set:
     """Markers of every suite holding a test that refuses a shallow clone."""
     markers = set()
     for path in sorted(TESTS_DIR.rglob("test_*.py")):
-        if "__pycache__" in path.parts:
+        if "__pycache__" in path.relative_to(TESTS_DIR).parts:
             continue
         text = path.read_text(encoding="utf-8")
         if _NEEDS_HISTORY.search(text) and ".git" in text:
@@ -164,7 +164,8 @@ def history_dependent_scripts() -> set:
     return {
         path.relative_to(SCRIPTS_ROOT.parent).as_posix()
         for path in sorted(SCRIPTS_ROOT.rglob("*.py"))
-        if "__pycache__" not in path.parts and _READS_HISTORY.search(path.read_text(encoding="utf-8"))
+        if "__pycache__" not in path.relative_to(SCRIPTS_ROOT).parts
+        and _READS_HISTORY.search(path.read_text(encoding="utf-8"))
     }
 
 

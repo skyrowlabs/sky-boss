@@ -61,7 +61,17 @@ def read(path: Path) -> Dict[str, str]:
             # module docstring: an exemption with nothing behind it should
             # fail loudly at the check rather than quietly at the allowlist.
             continue
-        out[match.group(1).strip()] = match.group(2).strip().strip("\"'")
+        # Quotes come off BEFORE the emptiness test, because `key: ""` is the
+        # spelling that got past this. `_ENTRY` needs a space after the colon,
+        # so `key:` alone never matched and the rule above looked enforced —
+        # but a quoted-empty or quoted-whitespace reason matched, survived
+        # `.strip("\"'")` as `""`, and was honoured as a decision nobody wrote.
+        # A blank reason is not a shorter reason; it is the absence the
+        # docstring says to drop, wearing punctuation.
+        reason = match.group(2).strip().strip("\"'").strip()
+        if not reason:
+            continue
+        out[match.group(1).strip()] = reason
     return out
 
 

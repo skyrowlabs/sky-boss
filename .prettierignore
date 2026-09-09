@@ -18,3 +18,9 @@
 # Generated artifacts. Their generator owns their bytes; a formatter that
 # rewrites them makes every regeneration a diff and every commit a fight.
 docs/implementation_index.json
+
+# Same rule, second generator. `scripts/gen_vscode_queries.py` owns the region
+# between the markers in this file; Prettier reformats JSON, so leaving it
+# un-ignored makes `format:check` and `dev check docs` disagree about the
+# same bytes — one of them red whichever way you resolve it.
+.vscode/settings.json

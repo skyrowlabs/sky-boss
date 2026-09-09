@@ -1649,3 +1649,115 @@ one of them was deliberately placed somewhere unusual. No single-tree run could 
 produced it — the gate is correct in the tree it normally lives in, and it is
 correct today. What made it observable was the recipe's insistence on comparing, and
 what the recipe was for was something else entirely.
+
+### Round 21 — 2026-09-09: v0.24.0, and a gate arriving for a job this tree does not have
+
+`v0.22.2 → v0.24.0`, three releases and two minor series in one step. Run from a
+clone pinned at the tag in scratch, per round 19 — the sibling checkout was on
+`main`, one commit past `v0.24.0`, and belongs to somebody else's session.
+
+**Zero conflicts, including `ci.yml`.** The standing divergence is still standing
+— 23 files now report as *skeletor wrote and you have edited* — but the template
+changed nothing in that file across these three releases, so there was no patch to
+refuse and the base advanced on its own. Thirteen files added, fifteen updated,
+four merged cleanly. Round 17's standing check ran first and came back empty in
+the useful direction: `--dry-run --json` reports `dropped: 0` and no rename, and
+diffing `bin/skeletor-new`'s flag set across the two tags finds **no new scaffold
+argument at all**, so there was no default to inherit and no `--set-arg` owed.
+
+Round 10's duplicate-definition check ran over all ten merged Python files: none.
+
+#### The one thing that could not be taken, and it is round 7's decline growing a gate
+
+`tests/test_pyright_deps.py` arrives with v0.24.0 and fails here on its own
+positive control:
+
+```
+found 0 workflow jobs running pyright, expected at least 1 — the scan matched
+too little to assert anything.
+```
+
+That is the correct answer. **No workflow in this tree runs pyright.** The gate is
+written against the template's type-check job, and round 7 declined the template's
+job graph; this is the first release where that decline has grown a gate of its
+own, which is that round's own sentence — *a tree that diverges from a mechanism is
+outside the blast radius of changes to it, and it pays for that by being outside
+the fixes too* — arriving with a bill.
+
+Its second assertion failed for a different and more interesting reason:
+
+```
+pyright-deps.txt does not reach every requirements file the test jobs install:
+    requirements-dev.txt — installed by ci.yml:test
+    requirements.txt — installed by ci.yml:test
+```
+
+**`.github/pyright-deps.txt` has never had a caller in this tree.** It was taken
+with the scaffold, its header comment describes a workflow job that does not exist
+here, and nothing installs from it. Round 10's finding, one file over and a
+release later: *configuration justified by a comment rather than by a caller
+survives every reader and fails only to a question.* Nobody had asked the question
+until skeletor shipped the instrument that asks it.
+
+**Declined as a deletion rather than patched as a divergence**, which is the whole
+of the choice. Editing the file to exempt this tree would be round 7's standing
+conflict self-inflicted on a template file — the thing round 18 names as making the
+next adopter's report harder to believe. A deletion is first-class: the manifest
+keeps the hash, and every future run prints it under *skeletor wrote and you
+deleted — NOT restored*, which is standing state the tool reports without needing
+anyone to find this paragraph. This tree now has two such deletions;
+`.github/CONTRIBUTING.md` is the other.
+
+**What is not decided here, and deliberately.** Whether this repository's CI should
+type-check at all is a change to what gates the branch, and round 10 already ruled
+that class the operator's rather than an upgrade's — the commit-subject step is
+still open on identical reasoning. The shape it would take is written in `ci.yml`'s
+own voice and costs no branch-protection edit: a pyright **step** inside the
+existing `test` job, which already installs all three requirements files, because
+*a required check is named in branch protection, not discovered*, and steps gate
+exactly as hard as jobs. Answering yes restores `tests/test_pyright_deps.py` and
+makes `pyright-deps.txt` live; answering no means deleting that file too, since
+nothing else reads it. Raised with the operator, not taken.
+
+#### pyright stopped resolving its interpreter from PATH, and the venv is now the pin
+
+The release's substance is that `pyrightconfig.json` gains `venvPath`/`venv` and
+every commit-time caller routes through `scripts/lint_pyright_gate.py`, a wrapper
+that proves the resolved interpreter can import `click` and `pytest` *before*
+running pyright. With `reportMissingImports: none`, a bare interpreter never fails
+— it degrades every name those packages define to `Unknown` and reports the
+fallout in files the commit never touched. Losing `click` alone is 24 errors, none
+of which name click.
+
+Verified by making it go red on purpose rather than by reading the green, which is
+this file's standing practice for somebody else's fix:
+
+```
+planted `def _probe(x: int) -> str: return x` in skyboss/helpers.py
+  → skyboss/helpers.py:281:12 - error: Type "int" is not assignable to return type "str"
+  → ❌ pyright
+```
+
+#### The pin bump was the only local breakage, and it was invisible until the venv agreed with CI
+
+`scripts/requirements.txt` moves isort `8.0.1 → 9.0.1`. The gates were green
+before that reached the local `.venv`, because `dev check lint` runs whatever is
+installed and CI installs the pin — the *fail-only-on-a-runner* shape `CLAUDE.md`
+already names, arriving through a dependency bump rather than through an
+environment variable. Installing the pin first turned lint red on
+`typings/rich_click/__init__.pyi`: 9.0.1 sorts a star import ahead of the named
+re-export aliases where 8.0.1 sorted it after. Applied, and the stub still does
+its job — pyright resolves `click.Context` and all five lint gates pass.
+
+> **A pinned tool version is part of the check, and upgrading the pin without
+> upgrading the environment leaves you reporting your machine's answer.** The
+> subject set of a check is the half nobody reads (round 20); the *version* of the
+> check is the half nobody reinstalls.
+
+**Collected-ID diff: 38 additions, zero removals** — 1527 → 1565, and the four
+declined tests are the only thing absent. Round 20's `repo_files.tracked()` fix
+held; nothing spurious, and the comparison needed no worktree this time because
+the tree was clean on a fresh branch.
+
+All seven gates green, `dev` up with a new `task` command, `sb` up from outside
+the repo.

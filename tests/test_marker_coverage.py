@@ -54,7 +54,7 @@ _MARKER = re.compile(r"pytest\.mark\.(?P<name>\w+)")
 
 def _test_files():
     return scanned(
-        sorted(p for p in TESTS_DIR.rglob("test_*.py") if "__pycache__" not in p.parts),
+        sorted(p for p in TESTS_DIR.rglob("test_*.py") if "__pycache__" not in p.relative_to(TESTS_DIR).parts),
         f"test_*.py under {TESTS_DIR}",
     )
 

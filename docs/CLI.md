@@ -14,7 +14,8 @@ and the second person to need it writes it again.
 | `dev check`  | Every validation gate CI blocks on, runnable locally |
 | `dev test`   | Marker-driven suite selection                        |
 | `dev docs`   | Index regeneration, plan filing, report windows      |
-| `dev bug`    | Capture an out-of-scope bug without widening scope    |
+| `dev bug`    | Capture an out-of-scope defect without widening scope |
+| `dev task`   | Capture small work that is not a defect              |
 
 Run `./dev <group> --help` for the current commands — the help is generated
 from the code, so it cannot go stale the way this table can.

@@ -39,7 +39,8 @@ Because this hunts for a *requirement*, and the string most likely to appear in
 a job that has not done the thing is a comment saying it should.
 `# TODO: add --junitxml here` satisfies a substring check perfectly, so the
 false pass would be exactly correlated with the defect. `scripts/yaml_text.py`
-owns the masking and carries the two gates that learned it the expensive way.
+owns the masking and carries the two gates that learned it the expensive way;
+`tests/workflows.py` owns the split into jobs that applies it.
 """
 
 from __future__ import annotations
@@ -58,7 +59,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scanning import scanned  # noqa: E402
 from scripts.paths import GITHUB_DIR, SCRIPTS_DIR  # noqa: E402
-from scripts.yaml_text import read_uncommented  # noqa: E402
+from tests.workflows import jobs  # noqa: E402
 
 WORKFLOWS = GITHUB_DIR / "workflows"
 
@@ -73,9 +74,6 @@ _ARTIFACT = re.compile(r"""TMP_DIR\s*/\s*["'](?P<artifact>[^"'/]+)["']""")
 #: second list of them would be the thing Rule 2 forbids.
 _OVERRIDE = re.compile(r"tmp/(?P<artifact>[\w.\-]+)")
 
-#: A job header: two spaces, an identifier, a colon, nothing else on the line.
-_JOB = re.compile(r"^  (?P<id>[A-Za-z_][A-Za-z0-9_-]*):\s*$", re.MULTILINE)
-
 
 def ratchets() -> dict:
     """`{script filename: artifact filename}` for every ratchet that reads one."""
@@ -85,16 +83,6 @@ def ratchets() -> dict:
         if match:
             found[script.name] = match.group("artifact")
     return found
-
-
-def jobs(path: Path) -> dict:
-    """`{job id: the job's text}`, split on the job headers, comments blanked."""
-    text = read_uncommented(path)
-    starts = [(m.group("id"), m.start()) for m in _JOB.finditer(text)]
-    bounds = [
-        (name, start, starts[i + 1][1] if i + 1 < len(starts) else len(text)) for i, (name, start) in enumerate(starts)
-    ]
-    return {name: text[start:end] for name, start, end in bounds}
 
 
 def invocations() -> list:

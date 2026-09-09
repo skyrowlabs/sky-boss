@@ -7,75 +7,36 @@ that is about to end, and your memory. This gives it a fourth.
 All four sections are **required**. A capture without a reproduction is a rumour;
 one without acceptance criteria cannot be closed by anyone but its author; one
 without a scope grows into a refactor. The refusal is the feature.
+
+The command itself is built from ``scripts/lanes.py`` — the label, the sections
+and the refusal all come from the registry, so this module is the prose and the
+binding and nothing else. See ``cli/_capture.py`` for the mechanism, and
+``dev task`` for the intake that takes work which is not a defect.
 """
 
-from __future__ import annotations
+from scripts.lanes import LANES_BY_KEY
 
-import json
-import subprocess
-from datetime import datetime, timezone
+from ._capture import capture_command
 
-import click
+bug = capture_command(
+    LANES_BY_KEY["bug"],
+    help_text="""File a bug found outside the scope of what you were doing.
 
-from scripts.paths import TMP_DIR
-
-from .helpers import PROJECT_ROOT, current_branch, detail, git, ok, warn
-
-QUEUE = TMP_DIR / "bugs"
-
-
-@click.command()
-@click.argument("summary")
-@click.option("--finding", required=True, help="path:line + what is wrong")
-@click.option("--reproduce", required=True, help="exact command; observed vs expected")
-@click.option("--scope", required=True, help="what is in, and what is explicitly out")
-@click.option("--acceptance", required=True, help="the assertions; the command that must pass")
-@click.option("--label", default="agent-bug", show_default=True)
-@click.option("--local", is_flag=True, help="write to tmp/bugs/ instead of opening an issue")
-def bug(summary: str, finding: str, reproduce: str, scope: str, acceptance: str, label: str, local: bool) -> None:
-    """File a bug found outside the scope of what you were doing."""
-    body = "\n".join(
-        [
-            "## Finding",
-            finding,
-            "",
-            "## Reproduce",
-            f"```\n{reproduce}\n```",
-            "",
-            "## Scope",
-            scope,
-            "",
-            "## Acceptance",
-            acceptance,
-            "",
-            "---",
-            f"_Captured on `{current_branch()}` at `{git('rev-parse', '--short', 'HEAD')}`_",
-        ]
-    )
-
-    if not local:
-        result = subprocess.run(
-            ["gh", "issue", "create", "--title", summary, "--body", body, "--label", label],
-            cwd=str(PROJECT_ROOT),
-            capture_output=True,
-            text=True,
-        )
-        if result.returncode == 0:
-            ok(f"captured: {result.stdout.strip()}")
-            detail("Mention this in your response so the user can kill it if they disagree.")
-            return
-        stderr = result.stderr.strip()
-        why = stderr.splitlines()[-1] if stderr else "unknown"
-        warn(f"gh failed ({why}) — falling back to a local capture")
-
-    QUEUE.mkdir(parents=True, exist_ok=True)
-    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    path = QUEUE / f"{stamp}.json"
-    path.write_text(
-        json.dumps(
-            {"summary": summary, "finding": finding, "reproduce": reproduce, "scope": scope, "acceptance": acceptance},
-            indent=2,
-        ),
-        encoding="utf-8",
-    )
-    ok(f"captured locally: {path.relative_to(PROJECT_ROOT)}")
+    \b
+    Files a GitHub issue labelled `agent-bug`. Every section is required, and
+    `--reproduce` is the one that separates a bug report from a rumour: if
+    there is no failure to reproduce, this is not the intake — see
+    `dev task`.
+    """,
+    epilog=(
+        "\b\n"
+        "Example:\n"
+        '  dev bug "check docs is green over an empty scan" \\\n'
+        '      --finding "scripts/check_doc_links.py:88 — skips by name, so a parent '
+        'directory sharing one empties the scan" \\\n'
+        '      --reproduce "mkdir -p node_modules/x && cp -r . node_modules/x && '
+        'cd node_modules/x && ./dev check docs" \\\n'
+        '      --scope "the scan filter only; the fix flag is out" \\\n'
+        '      --acceptance "the run reports the real document count; dev test unit green"'
+    ),
+)

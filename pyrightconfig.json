@@ -7,12 +7,36 @@
   // path and the count went DOWN, which reads exactly like progress.
   "include": ["skyboss", "cli", "scripts", "tests"],
 
+  // venvPath + venv pin the INTERPRETER, and that is the load-bearing pair here.
+  // pyright resolves the interpreter it imports through from PATH unless it is
+  // told otherwise — `.venv/bin/pyright` is only a wrapper and changes nothing —
+  // so without this every caller checks whatever python the machine happened to
+  // offer. Setting it in the config rather than at each call site is deliberate:
+  // the pre-commit hook is `language: node` with `pass_filenames: false` and
+  // cannot name a per-machine path at all, so the config is the only place that
+  // reaches every caller. tests/test_pyright_scope.py holds the rule.
+  //
+  // Safe where no virtualenv exists: pyright prints `venv .venv subdirectory not
+  // found`, falls back to PATH, and leaves the exit code alone.
+  //
+  // THE LIMIT, written here because a green run does not show it: `venvPath` is
+  // resolved relative to THIS FILE, so it names the checkout rather than the
+  // repository. A linked worktree has its own copy of this file and no `.venv`
+  // beside it, so the pin falls through there and the check is back on PATH —
+  // 0 errors in the primary and 27 in a fresh worktree of the same commit, with
+  // one line of explanation between them. `dev worktree new` links a `.venv`
+  // for that reason; a worktree made with plain `git worktree add` needs one,
+  // or `--pythonpath` on the call. Nothing in a single checkout can tell you
+  // which of these you are in, which is why it is a comment and not a gate.
+  "venvPath": ".",
+  "venv": ".venv",
+
   // reportMissingImports is `none` on purpose: a package pyright cannot import
   // becomes Unknown and stops constraining anything, which keeps the check
-  // runnable in a bare checkout. The consequence is that a LEANER environment
-  // is not a more permissive check, just a different one — errors that appear
-  // for only some people are almost always this. Reproduce a CI result with
-  // `pyright --pythonpath <the CI interpreter>`.
+  // runnable in a bare checkout. It is also what makes an unpinned interpreter
+  // expensive rather than obvious — the root cause is suppressed and only its
+  // consequences surface, as errors in files the commit never touched, so a
+  // LEANER environment is not a stricter check but a differently-wrong one.
   //
   // These are `//` line comments, not a `"//"` key: pyright parses this file as
   // JSONC, and a key it does not recognise makes it print

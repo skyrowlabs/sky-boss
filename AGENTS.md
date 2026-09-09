@@ -149,7 +149,7 @@ pre-exempted, which is an exemption nobody made. When a check reports a stale en
 it**; do not rewrite the reason to keep it alive. Every allowlist in this repository is read by
 `scripts/allowlist.py`, which is also where that rule is written down.
 
-### 12. Found an Unrelated Bug? Capture It — Don't Widen Your Scope
+### 12. Found Something Unrelated? Capture It — Don't Widen Your Scope
 
 A bug you hit that is **not** what you were asked to work on goes to the capture command, not
 into your current change and not into a sentence the user will lose when the session ends:
@@ -165,6 +165,26 @@ into your current change and not into a sentence the user will lose when the ses
 All four sections are required — a capture missing any of them is refused, because a capture
 nobody can act on is a note, not a task. Mention what you captured in your response so the
 user can kill it if they disagree.
+
+**If it is not a defect, it is the other lane.** `dev bug` demands `--reproduce`, and for
+"rename this helper", "add the missing test", "delete the flag nothing reads" there is no
+honest answer to it — so you either write something false or you file nothing. That is the
+same loss one size down:
+
+```bash
+./dev task "<one-line summary>" \
+    --what "<the change, in terms of the files it touches>" \
+    --why "<what is worse today because this has not been done>" \
+    --acceptance "<assertions; the command that must pass>"
+```
+
+`--why` is not decoration. It is what stops a task queue becoming a wish list.
+
+Both lanes are labels, and `scripts/lanes.py` is the registry that owns them. The editor's
+issue views are generated from it — see `scripts/gen_vscode_queries.py` — so a queue you can
+file into is a queue you can see. Adding a lane means adding its intake in the same change;
+`tests/test_lanes.py` refuses a lane nothing files into, because a pane that is empty forever
+looks exactly like one you have kept clear.
 
 ### 13. One Voice, Two Streams
 

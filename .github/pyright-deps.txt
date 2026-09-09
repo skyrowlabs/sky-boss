@@ -6,7 +6,8 @@
 # permissive check, just a DIFFERENT one. Errors that appear only for some
 # people are almost always this.
 #
-# tests/test_pyright_deps.py asserts every type-checking workflow installs from
-# this file rather than inlining a package list.
+# tests/test_pyright_deps.py holds both halves: that every job running pyright
+# installs from this file rather than inlining its own list, and that the `-r`
+# chain below reaches every requirements file the test jobs install.
 
 -r ../scripts/requirements.txt

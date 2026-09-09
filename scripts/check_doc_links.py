@@ -124,7 +124,19 @@ def markdown_files() -> List[Path]:
     for root in SCAN_ROOTS:
         out.extend(sorted((PROJECT_ROOT / root).rglob("*.md")))
     out.extend(sorted(PROJECT_ROOT.glob("*.md")))
-    return [p for p in out if "node_modules" not in p.parts]
+    # `relative_to(PROJECT_ROOT)`, and that is the whole of the fix. These paths
+    # are ABSOLUTE, so matching a name against `p.parts` matched it against the
+    # path *to* the checkout as well as the path inside it: a tree cloned under
+    # any directory called `node_modules` skipped every file it owns. Measured —
+    # 32 documents found, 0 kept — and the gate then reported
+    # `broken links: 0 (at the ceiling)`, which is character-for-character what
+    # a healthy tree prints.
+    #
+    # sky.boss hit the identical predicate with `tmp` in the list, where it is
+    # far likelier, and their parametrised version rendered as `[NOTSET]` — an
+    # empty parameter set, passing. The entries were right both times; the
+    # predicate was wrong, and no amount of care about the entries reaches that.
+    return [p for p in out if "node_modules" not in p.relative_to(PROJECT_ROOT).parts]
 
 
 def _mask(text: str) -> str:
@@ -324,6 +336,28 @@ def repoint_fragments() -> List[str]:
     return sorted(repointed)
 
 
+def _repoint_and_report() -> List[str]:
+    """`--fix`'s repair pass and its report, lifted out of `main`.
+
+    Not a stylistic split: `main` is measured by `flake8 --max-complexity=15` in
+    `ci.yml`'s informational step, and the empty-scan guard below pushed it to
+    16. That step is `|| true`, so it would not have failed CI — the check that
+    caught it is `bin/skeletor-verify`'s bait gate, which plants bad python and
+    then requires the tree to be clean once the bait is removed. Debt a
+    non-blocking step reports is still debt, and this is where it was cheapest
+    to pay.
+    """
+    repointed = repoint_fragments()
+    if repointed:
+        ok(f"repointed {len(repointed)} fragment(s) — nothing was committed, read the diff")
+        for entry in repointed:
+            item(entry)
+    else:
+        ok("no dead fragment had exactly one obvious successor — nothing changed")
+        detail("A fragment with two candidates, or none, is a sentence for a human to rewrite.")
+    return repointed
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--fix", action="store_true", help="repoint fragments with exactly one matching heading")
@@ -334,16 +368,24 @@ def main() -> int:
     # Before the scan, so the counts below describe the tree as it now is —
     # reporting a ceiling breach the same run just repaired would send somebody
     # to fix a link that is already fixed.
-    repointed: List[str] = []
-    if args.fix:
-        repointed = repoint_fragments()
-        if repointed:
-            ok(f"repointed {len(repointed)} fragment(s) — nothing was committed, read the diff")
-            for entry in repointed:
-                item(entry)
-        else:
-            ok("no dead fragment had exactly one obvious successor — nothing changed")
-            detail("A fragment with two candidates, or none, is a sentence for a human to rewrite.")
+    repointed = _repoint_and_report() if args.fix else []
+
+    # A ratchet at 0 passes over an empty document set exactly as it passes over
+    # a healthy one — `broken links: 0 (at the ceiling)` character for character.
+    # That is not hypothetical: this scan filtered `node_modules` out of an
+    # ABSOLUTE path, so a tree cloned under any directory of that name found 32
+    # documents and kept none, and said the same thing either way.
+    #
+    # The predicate is relative now, which fixes that instance. This refuses the
+    # CLASS: no arrangement of skip entries, and no future filter, can make this
+    # gate silently vacuous. sky.boss's version of the same bug rendered as a
+    # `[NOTSET]` parameter id — an empty parametrised set, passing — and was
+    # introduced by the commit that fixed a milder form of it.
+    if not markdown_files():
+        fail("no documents to check — this gate would pass having read nothing")
+        detail("Every scan root is empty or filtered away. A ratchet at 0 cannot")
+        detail("distinguish that from a clean tree, so it is refused rather than reported.")
+        return 1
 
     dead_paths, dead_anchors, outside = scan()
     if outside:

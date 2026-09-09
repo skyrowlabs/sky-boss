@@ -26,7 +26,7 @@ commits wearing one hat, and the changelog generator will take only the first.
    whole task is complete and checks pass, push autonomously. Never push half-finished work.
 6. **These subjects are the changelog.** Nothing generates one here, so
    `git log <old-tag>..<new-tag> --format='%s'` is what a reader gets.
-7. **`docs:` for changes under `docs/**` only** — never `feat:`, which would trigger a
+7. **`docs:` for hand-written documentation** — never `feat:`, which would trigger a
    version bump for a prose edit.
 
 ## Types
@@ -37,7 +37,7 @@ commits wearing one hat, and the changelog generator will take only the first.
 | `fix`      | Bug fix                     | patch        |
 | `perf`     | Performance improvement     | patch        |
 | `refactor` | Restructure, no behaviour   | none         |
-| `docs`     | Documentation only          | none         |
+| `docs`     | Hand-written documentation  | none         |
 | `test`     | Tests only                  | none         |
 | `chore`    | Maintenance                 | none         |
 | `ci`       | CI/CD config                | none         |
@@ -45,6 +45,26 @@ commits wearing one hat, and the changelog generator will take only the first.
 
 A breaking change adds `!` after the type/scope **and** a `BREAKING CHANGE:` paragraph in the
 body: `feat(api)!: redesign the training endpoints`.
+
+### `docs:` Is About Authorship, Not Path
+
+**Most documentation lives under `docs/`, but the path is the hint, not the test.** This
+repository ships hand-written prose outside it — `README.md`, `AGENTS.md` and
+`.github/CONTRIBUTING.md` — and a commit whose whole diff is one of those is `docs:`, not
+`chore:`. Whatever agent tooling this tree carries adds more of it in its own directory.
+
+The test is whether **a human wrote prose for a human to read**. Files that merely sit
+beside documentation and are not prose — a settings file, an agent definition, a generated
+index — are not documentation and take the type their content earns.
+
+A path predicate fails in the direction that costs a release: it pushes real documentation
+into `chore:`, where it is indistinguishable from maintenance, and it makes the rule read as
+satisfied by a `git diff --name-only` that nobody runs.
+
+The one thing that *is* excluded is a **generated** artifact. The READMEs and JSON indexes
+under `docs/` are written by `scripts/docs/` and are never hand-edited (see
+[docs.md](docs.md)) — regenerating one is `chore:`, because nobody authored the diff. That
+exclusion turns on generation, never on where the file sits.
 
 ## When to Commit
 
