@@ -91,12 +91,31 @@ thing are worse than none, because they read as a broken tree. It fails **closed
 interpreter that cannot be resolved at all is an error, never a skip, since a gate that
 could not run is not a gate that passed.
 
-CI does not call it and should not: that job installs `.github/pyright-deps.txt` onto the
-runner's interpreter with no `.venv` in the checkout, so it answers every interpreter
-question already, and a wrapper there would add a moving part to the one caller that never
-had the problem. The unit suite holds the routing, the fail-closed
-behaviour, and that every sentinel stays reachable from `.github/pyright-deps.txt` — a
-sentinel outside it would block a commit on a correctly provisioned runner.
+**CI calls it here too, which is the reverse of what this paragraph used to say, because the
+reason for the rule is false in this tree.** The rule was: CI should call pyright directly,
+since the template's type-check job installs `.github/pyright-deps.txt` onto the runner's
+interpreter with no `.venv` in the checkout — so it answers every interpreter question
+already, and a wrapper would add a moving part to the one caller that never had the problem.
+
+That premise does not hold here. This repository declined the template's job graph, so the
+type check is a **step inside the pytest job**, and that job builds a `.venv` and installs
+everything into it. The runner's own interpreter is therefore *bare*. A fall-through —
+`venvPath`/`venv` dropped from `pyrightconfig.json`, or the steps reordered — lands on an
+interpreter with no `click`, in the one configuration where the template's argument assumed
+it could not. So the wrapper is worth **more** here than at a commit, not less: it is the
+difference between one line naming an environment fault and two dozen diagnostics naming
+the wrong thing.
+
+Read that as the general shape rather than as a local exception. **A rule and its reason
+travel together, and only the reason survives being copied into a tree the rule was not
+written for.** The conclusion here inverted while the reasoning behind it was taken
+unchanged.
+
+The unit suite holds the routing, the fail-closed behaviour, and that every sentinel stays
+reachable from `.github/pyright-deps.txt` — a sentinel outside it would block a commit on a
+correctly provisioned runner. `tests/test_pyright_deps_reach_ci.py` holds the other half
+that only matters once CI type-checks: that the declaration has a caller at all, and that
+its `-r` chain reaches every requirements file the job installs.
 
 ## Pin the Lint Tools in One Place
 

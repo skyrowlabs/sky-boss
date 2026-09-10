@@ -4,7 +4,7 @@ slug: skeletor-adoption
 category: tooling
 agent_value: 3
 completed: 2026-09-06
-updated: 2026-09-06
+updated: 2026-09-09
 tags: [skeletor, scaffold, ci]
 summary: Converts sky.boss from a skeletor component consumer into a scaffolded tree, and records what a fork can and cannot learn about itself.
 created: 2026-09-06
@@ -1905,3 +1905,149 @@ the wrong edit, and it points there in the one direction that costs a permanent
 conflict.
 
 All seven gates green, 1576 collected, `dev` up, `sb` up from outside the repo.
+
+### Round 23 — 2026-09-09: CI type-checks, and a rule that inverted when its reason travelled
+
+Not an upgrade. Round 22 left one question explicitly with the operator —
+*should this repository's CI type-check at all* — on the ground that what gates a
+branch is not an upgrade's decision. **The ruling is yes**, and this round is that
+ruling executed against v0.25.0.
+
+The reasoning is worth recording because it is not the one this file had been
+weighing. The case for *no* was that pyright already blocks every local commit
+twice over, through the pre-commit hook and `dev check pre-push`, leaving a hole
+only for a contributor who uses neither. That is true, and it is an argument about
+*this operator's* machine:
+
+> **sky.boss is the one public tree here, so the contributor who uses neither hook
+> is a real path rather than a hypothetical — and the commit-time-only argument is
+> weakest exactly where the audience is.**
+
+#### The shape, which cost no branch-protection edit
+
+A pyright **step** inside the existing `test` job, exactly as round 22 sketched it
+in `ci.yml`'s own voice. A required check is *named* in branch protection and not
+discovered, so a job would have meant editing protection on `develop` and `main`
+in the same sitting, and a context no job ever reports blocks every pull request
+for ever. A step gates as hard and changes no context — which matters more this
+week than last, since the required set has since grown `All checks` alongside
+`CI Gate`, `eslint` and the two pytest legs.
+
+Pinned to the 3.12 leg on the flake8 precedent, and the argument is stronger here:
+`pyrightconfig.json` sets `pythonVersion: "3.12"`, so the analysis does not vary
+with the interpreter running it at all.
+
+#### `.github/pyright-deps.txt` is live, six releases after it arrived
+
+It gains `-r ../requirements.txt` and `-r ../requirements-dev.txt` beside the
+`scripts/requirements.txt` it already had, and the step installs it. Round 21
+found the file had **never had a caller in this tree** — its header describing a
+workflow job that does not exist here — and named the class: *configuration
+justified by a comment rather than by a caller survives every reader and fails
+only to a question.* This is the question finally being asked.
+
+The install is a no-op today and that is the point rather than an apology for it.
+The three files resolve to exactly what the Install step above already put in the
+venv, so nothing changes; what changes is that the set pyright is entitled to is
+now **stated where a later trim of the Install step cannot silently take a package
+away from it.**
+
+#### The rule that inverted, which is the finding
+
+`docs/rules/python.md` said, in the template's voice and correctly:
+
+> CI does not call the wrapper and should not: that job installs
+> `.github/pyright-deps.txt` onto the runner's interpreter with no `.venv` in the
+> checkout, so it answers every interpreter question already.
+
+Every clause of that reason is false here, and it is false *because* of round 7's
+decline. The type check rides inside the pytest job; that job builds a `.venv` and
+installs everything into it; so **the runner's own interpreter is bare.** A
+fall-through — `venvPath`/`venv` dropped from the config, or these steps reordered
+— lands on an interpreter with no `click`, and `reportMissingImports` is `none`,
+so pyright would not say so. It would report ~27 errors in files the commit never
+touched, none of them naming click.
+
+So the wrapper is worth **more** in this tree's CI than at a commit, and the rule
+came out backwards:
+
+> **A rule and its reason travel together, and only the reason survives being
+> copied into a tree the rule was not written for.** The conclusion inverted while
+> the reasoning behind it was taken unchanged and stayed true the whole time.
+
+That is a different failure from the ones this file keeps recording. A stale copy
+is a sentence that *was* right; this sentence was never right here, arrived
+already wrong, and read as authoritative for six releases because its reasoning is
+sound — just about somebody else's job graph.
+
+#### The gate, because Rule 11 requires one
+
+`ci.yml`'s install steps and `.github/pyright-deps.txt` now describe the same
+environment, and `AGENTS.md` Rule 11 says a drift check owns that pair.
+`tests/test_pyright_deps_reach_ci.py` asks two things: that the declaration has a
+caller at all, and that its `-r` chain reaches every requirements file the
+type-checking job installs. The direction is deliberate — extra packages are free,
+and a *leaner* declared set is the failure, because the header promises a superset
+and `reportMissingImports: none` guarantees pyright will report the consequences
+rather than the shortfall.
+
+Verified by making each half go red on purpose rather than by reading the green:
+
+```
+drop `-r ../requirements.txt`     → ci.yml:test installs these, and
+                                    `.github/pyright-deps.txt` does not reach them:
+                                      requirements.txt
+drop the `pip install` line       → these jobs run pyright without installing
+                                    `.github/pyright-deps.txt`: ['ci.yml:test']
+comment out the pyright call      → found 0 workflow jobs running pyright,
+                                    expected at least 1
+```
+
+The third is the masking half doing its job: a commented-out call enrols nothing,
+where a naive substring scan would have held a real file against an imaginary job.
+
+**The name is not the template's, on purpose.** skeletor ships
+`tests/test_pyright_deps.py`, which is declined here and still cannot run — its
+scan wants two workflow jobs running pyright and this tree has one, a python
+matrix rather than several marker jobs. v0.25.1 fixed the assertion round 21
+reported, but not that floor, and this tree is not taking v0.25.1 anyway (the
+minor-and-above policy is the operator's). Under a different name, the template's
+gate arrives as a visible addition if it ever becomes satisfiable, and somebody
+chooses. `tests/test_pyright_scope.py` records why that matters: the manifest
+classifies by hash, so a file new upstream and old here lands as a clean addition
+backed by nothing, and no diff of bytes can see that two files have the same
+*purpose*. **Keep one of the two.**
+
+#### A count went false in `AGENTS.md`, and no gate could see it
+
+§ 8 said *"the only `if:` in the file pins flake8 to one matrix leg."* The pyright
+step made that false — and reading it to check found it had **already** been
+wrong, having never counted the `verdict` job's `if: always()`. Wrong in two
+directions at once, in the file every agent session reads first.
+
+The sharp part is where it sat: two paragraphs below is this tree's own ruling
+that **job names must not be stated here on the template's authority, because
+`ci.yml` is adopter-owned and the copy does not know it is one.** A *count* of
+that file's conditions is the same copy in a smaller font, and it survived the
+round that wrote the rule directly above it. Naming a failure mode does not
+immunise the paragraph it is written in. Replaced with the shape and a pointer to
+the file rather than a corrected number.
+
+#### Standing divergences: 22 → 24
+
+`.github/pyright-deps.txt` and `docs/rules/python.md` both leave the clean set;
+`ci.yml` and `AGENTS.md` were already on it. Both new ones are the *deliberate*
+kind — a tree whose CI does not type-check is a configuration rather than a
+defect, and this tree has stopped being one, so both files are describing a
+decision skeletor cannot make for an adopter.
+
+**And one may be resolvable rather than permanent.** § 8's divergence was reported
+upstream in round 22, and skeletor has since rewritten that template paragraph in
+the direction asked for — in v0.25.1, which this tree is not taking. Worth
+re-reading § 8 against the template at **v0.26.0** before assuming the fork is
+still needed; it may fold back.
+
+All seven gates green, 1581 collected, `dev` up, `sb` up from outside the repo.
+The CI step's two commands were run verbatim here — `pip install -r
+.github/pyright-deps.txt` then the wrapper — and report `0 errors, 0 warnings, 0
+informations`.

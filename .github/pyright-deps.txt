@@ -11,5 +11,31 @@
 # reaches every requirements file the test jobs install. Described rather than
 # cited by path — a tree whose CI does not type-check is a configuration, not a
 # defect, and this header must not name a file such a tree has deleted.
+#
+# ── This tree, which is one of the corners that header is written around ──
+#
+# It WAS such a tree until 2026-09-09: round 7 declined the template's job graph,
+# so no workflow here ran pyright, and this file sat for six releases with no
+# caller at all — configuration justified by a comment rather than by a caller.
+# The operator ruled that CI should type-check, and the shape is a pyright STEP
+# inside the existing `test` job rather than a job of its own, because a required
+# check is named in branch protection and not discovered.
+#
+# That shape is what makes the three lines below the right ones. The template's
+# type-check job installs this file onto the RUNNER's interpreter; this tree's
+# pyright runs inside a job that has already built a `.venv`, and
+# `pyrightconfig.json` pins `venvPath`/`venv` at it, so the interpreter pyright
+# resolves is that venv. Every requirements file the venv installs therefore has
+# to be reachable from here, or this file would declare a LEANER set than the one
+# pyright actually reads — which is the differently-wrong check the header is
+# about, with this file as the thing telling the lie.
+#
+# `tests/test_pyright_deps_reach_ci.py` is what holds it, because the template's
+# own `tests/test_pyright_deps.py` is declined here and cannot run (it wants two
+# test jobs; this tree has one pytest matrix). Named differently on purpose so
+# that if the template's gate ever becomes satisfiable it arrives as a visible
+# addition rather than silently overlapping this one. Keep one of the two.
 
+-r ../requirements.txt
+-r ../requirements-dev.txt
 -r ../scripts/requirements.txt

@@ -113,10 +113,17 @@ Never commit directly to `main`.
 `gh pr create --draft`. Mark it ready only when you believe it is green.
 
 **Nothing here is gated on draft status, and the template's paragraph is deliberately not
-taken.** It names `node`, `unit-tests`, `integration` and `ui`; this workflow's jobs are
-`gate`, `test`, `lint` and `verdict`, and the only `if:` in the file pins flake8 to one
-matrix leg. A draft PR runs everything a ready one runs, so drafting is a courtesy to
-reviewers rather than a way to pay less.
+taken.** It names four jobs that gate on it, and this workflow has none of them. A draft PR
+runs everything a ready one runs, so drafting is a courtesy to reviewers rather than a way
+to pay less.
+
+No `if:` in the workflow selects a class of pull request — each one pins a step to a matrix
+leg, or holds a job open with `always()`. **Do not read a count out of this paragraph.** It
+said *the only `if:` in the file pins flake8 to one matrix leg* until 2026-09-09, and that
+was wrong in both directions at once: it had never counted the `always()`, and adding the
+pyright step made the flake8 half false as well. A sentence one paragraph below says job
+names must not be stated here on the template's authority; a *count* of that file's
+conditions is the same copy in a smaller font. Ask the file.
 
 That is round 7's decline of the template's job graph showing up in the prose rather than in
 the workflow. `ready_for_review` is still in `on.pull_request.types`, and it is still

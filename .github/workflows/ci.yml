@@ -322,6 +322,52 @@ jobs:
         if: matrix.python == '3.12'
         run: .venv/bin/python -m flake8 . --select=E9,F63,F7,F82,F401 --show-source --statistics
 
+      # The type check. A STEP for the reason the Gates step above is one — a
+      # required check is *named* in branch protection, not discovered, so a job
+      # would mean editing protection on `develop` and `main` in the same
+      # sitting, and a context no job reports blocks every pull request for ever.
+      # A step gates exactly as hard and changes no context.
+      #
+      # Until 2026-09-09 nothing in this workflow ran pyright at all: round 7
+      # declined the template's job graph, and the type check was left blocking
+      # every local commit — the pre-commit hook and `dev check pre-push` — and
+      # nothing else. That hole is only reachable by a contributor who uses
+      # neither, which is precisely the contributor this repository has, being
+      # the one public tree here. The operator's ruling, and it is his to make:
+      # what gates the branch is not an upgrade's decision.
+      #
+      # **Through the wrapper, which is the opposite of what `docs/rules/python.md`
+      # prescribes, because that rule's premise is false in this tree.** It says
+      # CI should call pyright directly, on the grounds that the template's
+      # type-check job installs `.github/pyright-deps.txt` onto the runner's
+      # interpreter with no `.venv` in the checkout — so the interpreter question
+      # is answered by construction and a wrapper adds a moving part. Here the
+      # type check rides inside the pytest job, which builds a `.venv` and
+      # installs everything into it; the runner's own interpreter is therefore
+      # BARE. So a fall-through — `venvPath`/`venv` removed from
+      # pyrightconfig.json, or these steps reordered — lands on an interpreter
+      # with no `click`, and `reportMissingImports` is `none`, so pyright would
+      # not say so. It would report ~27 errors in files the commit never touched,
+      # none of them naming click. The wrapper turns exactly that into one line
+      # saying ENVIRONMENT fault, and does not run pyright. The premise is
+      # inverted here, so the conclusion is too.
+      #
+      # Pinned to one matrix leg on the same argument as flake8, and this one is
+      # stronger: `pyrightconfig.json` sets `pythonVersion: "3.12"`, so the
+      # analysis does not vary with the interpreter running it at all.
+      #
+      # `pip install -r .github/pyright-deps.txt` is what makes that file live
+      # rather than decorative. It resolves to the three requirements files the
+      # step above already installed, so today it changes nothing — that is the
+      # point. It states the set pyright is entitled to, so a later trim of the
+      # Install step cannot silently take a package away from the type checker,
+      # and `tests/test_pyright_deps_reach_ci.py` holds the two to each other.
+      - name: pyright
+        if: matrix.python == '3.12'
+        run: |
+          .venv/bin/pip install -r .github/pyright-deps.txt
+          PATH="$PWD/.venv/bin:$PATH" .venv/bin/python scripts/lint_pyright_gate.py --project pyrightconfig.json
+
   lint:
     name: eslint
     needs: gate
