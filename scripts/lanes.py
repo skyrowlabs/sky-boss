@@ -38,7 +38,7 @@ schedule with no second edit.
 
 from __future__ import annotations
 
-from typing import List, NamedTuple, Optional, Tuple
+from typing import Any, List, NamedTuple, Optional, Tuple
 
 from scripts.paths import SCRIPTS_DIR
 
@@ -143,26 +143,58 @@ def labels() -> List[str]:
     return [lane.label for lane in LANES]
 
 
-def drainer_of(lane: Lane) -> Optional[object]:
-    """The registered job that drains this lane, or ``None`` if nothing does.
+def job_registry() -> Optional[Any]:
+    """`scripts.reporting.jobs` if this tree ships it, else ``None``.
 
-    Two ways to get ``None`` and they are deliberately the same answer, because
-    they are the same fact to everyone downstream: this tier ships no job
-    registry at all (`scripts/reporting/` arrives with the agentic tier), or it
-    ships one and no job has claimed this lane's key. Either way the queue is
-    drained by a person, and every consumer says so in those words.
+    Typed `Optional[Any]` rather than `Optional[object]`, and that is a real
+    choice rather than laziness: the module is resolvable at some tiers and not
+    others, so there is no annotation that is true everywhere, and `object`
+    makes every attribute access on the result an error at every tier —
+    including the ones that ship the module. `Any` says *this is decided at
+    runtime*, which is what the `.exists()` guard above already says.
 
-    Imported here rather than at module scope for two reasons, and only the
-    second survives a tier change: the registry is optional (true at `core`,
-    false above it), and a lane is a fact about labels that must not acquire a
-    dependency on the scheduler to be read. `gh label create` at setup time
-    needs this module and has no business importing a cron registry.
+    **The one place this template imports a module it may not ship**, and it is
+    one place on purpose. `scripts/reporting/` arrives with the agentic tier, so
+    at `core` the import below is unresolvable — and it was written twice, here
+    and in `gen_vscode_queries.py`, which is two sites for a construct that
+    needs a paragraph of explanation each.
+
+    Imported inside a function rather than at module scope for two reasons, and
+    only the second survives a tier change: the registry is optional, and a lane
+    is a fact about labels that must not acquire a dependency on the scheduler
+    to be read. `gh label create` at setup time needs this module and has no
+    business importing a cron registry.
+
+    **THE LIMIT, and this tree cannot see it.** A `.exists()` guard is a runtime
+    fact; the `import` under it is syntax, and every static checker reads it
+    unconditionally. pyright says nothing here only because
+    `reportMissingImports` is `none` in `pyrightconfig.json` — so the tool this
+    template ships is the reason the template cannot observe its own hazard, and
+    an adopter who runs mypy blocking gets a hard error at `core` on a clean
+    upgrade. mind.head reported it from exactly that tree. Two doors if it bites
+    you: silence the one line for your checker, or scaffold at a tier that ships
+    the registry. It is deliberately not routed through `importlib` to hide it —
+    that trades a false error at `core` for no type information at `agentic`,
+    which is paying at the tier that has something to check.
     """
     if not (SCRIPTS_DIR / "reporting" / "jobs.py").exists():
         return None
     from scripts.reporting import jobs  # noqa: PLC0415  (see docstring)
 
-    return jobs.JOBS_BY_KEY.get(lane.drainer_job)
+    return jobs
+
+
+def drainer_of(lane: Lane) -> Optional[object]:
+    """The registered job that drains this lane, or ``None`` if nothing does.
+
+    Two ways to get ``None`` and they are deliberately the same answer, because
+    they are the same fact to everyone downstream: this tier ships no job
+    registry at all, or it ships one and no job has claimed this lane's key.
+    Either way the queue is drained by a person, and every consumer says so in
+    those words.
+    """
+    registry = job_registry()
+    return None if registry is None else registry.JOBS_BY_KEY.get(lane.drainer_job)
 
 
 def drain_note(lane: Lane) -> str:

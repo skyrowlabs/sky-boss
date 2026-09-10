@@ -74,7 +74,7 @@ module.exports = async function decide({ github, context, core }) {
   //
   //     event                       two-branch (dev/main)   one-branch (main/main)
   //     push                        full                    full
-  //     draft PR                    gate only               gate only
+  //     draft PR carrying code      node + unit + gate      node + unit + gate
   //     dependency bump             full                    full
   //     docs-only PR -> base        gate only               gate only
   //     docs-only PR -> release     gate only               (same PR as above)

@@ -42,6 +42,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import subprocess
 import sys
 from pathlib import Path
 from typing import Dict, List
@@ -50,9 +51,9 @@ from typing import Dict, List
 # every path below — can be imported. See scripts/paths.py.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts.lanes import LANES, drain_note, labels  # noqa: E402
+from scripts.lanes import LANES, drain_note, job_registry, labels  # noqa: E402
 from scripts.output import detail, emit, fail, item, ok  # noqa: E402
-from scripts.paths import PROJECT_ROOT, SCRIPTS_DIR  # noqa: E402
+from scripts.paths import PROJECT_ROOT  # noqa: E402
 
 SETTINGS = PROJECT_ROOT / ".vscode" / "settings.json"
 
@@ -134,12 +135,14 @@ def _has_unattended_committer() -> bool:
     False at every tier that ships no job registry, which is the honest answer
     rather than a degraded one: a tree with no scheduler has nothing running
     overnight, so the drafts in it are the ones a person left open.
-    """
-    if not (SCRIPTS_DIR / "reporting" / "jobs.py").exists():
-        return False
-    from scripts.reporting import jobs  # noqa: PLC0415
 
-    return any(getattr(job, "commits", False) for job in jobs.JOBS)
+    The optional import lives in `scripts/lanes.py::job_registry`, which carries
+    the reason and the static-checker limit. This used to be a second copy of
+    that construct — and mind.head reported the limit from the copy rather than
+    the original, which is what two homes buys you.
+    """
+    registry = job_registry()
+    return registry is not None and any(getattr(job, "commits", False) for job in registry.JOBS)
 
 
 #: These keys sit INSIDE the settings object, so every line after the first
@@ -294,6 +297,28 @@ def splice(text: str, generated: str) -> str:
     return text[:start] + generated + text[end + len(END) :]
 
 
+def _is_ignored(path: Path) -> bool:
+    """Does git ignore this path *and* not track it? ``False`` when git cannot say.
+
+    `check-ignore` exits 0 for ignored, 1 for not, and non-zero-not-1 for "this
+    is not a repository" — which is a scaffold before its first commit, and not
+    a diagnosis worth printing. Silence is the right answer there: the caller
+    falls through to the ordinary instruction, which is correct in that tree.
+
+    **It consults the index, and that is the load-bearing half.** A tracked path
+    reports *not ignored* even when a rule matches it, because tracking wins — so
+    a file that is tracked and merely deleted from the working tree falls through
+    to `create it`, correctly, and only a path that is ignored *and* untracked
+    gets the other message. That conjunction is exactly the claim being made, and
+    it comes free rather than being assembled here. Measured in both states.
+    """
+    result = subprocess.run(
+        ["git", "-C", str(PROJECT_ROOT), "check-ignore", "-q", str(path)],
+        capture_output=True,
+    )
+    return result.returncode == 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true", help="fail if the file is not current; write nothing")
@@ -302,7 +327,25 @@ def main() -> int:
 
     if not SETTINGS.exists():
         if args.check:
-            fail(f"{SETTINGS.relative_to(PROJECT_ROOT)} is missing")
+            rel = SETTINGS.relative_to(PROJECT_ROOT)
+            fail(f"{rel} is missing")
+            if _is_ignored(SETTINGS):
+                # The two ways this file can be absent look identical from the
+                # filesystem and have opposite remedies, and the wrong one is
+                # the reassuring one: `create it` succeeds, this check passes,
+                # and the next fresh clone is red again because the file was
+                # never committed. mind.head reported it from a tree whose
+                # `.gitignore` predated this generator. This template does NOT
+                # ignore `.vscode/` — it ignores `.idea/` and stops — so the
+                # collision is invisible here by construction, which is why the
+                # probe is a `git` question rather than a rule about our own
+                # ignore file.
+                detail("...and your .gitignore ignores it, which is why a clean checkout has none.")
+                detail("Generating it again will not change that. Decide which you want:")
+                detail("  * tracked — un-ignore the path, generate, and commit it; or")
+                detail("  * untracked — drop this check from `dev check docs`, and every")
+                detail("    reader generates their own.")
+                return 1
             detail("Create it with: python3 scripts/gen_vscode_queries.py")
             return 1
         SETTINGS.parent.mkdir(parents=True, exist_ok=True)

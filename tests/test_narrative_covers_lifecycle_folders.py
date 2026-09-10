@@ -17,8 +17,17 @@ dead. Nothing failed upstream, because a fresh scaffold ships that folder empty
 **A partition, not a list.** Every folder in the table is either narrative or
 declared present-tense with a reason. The alternative is what happened: a folder
 whose absence from `NARRATIVE` is indistinguishable from a decision that it does
-not belong there. Both directions are checked, so an entry below that stops
-being true fails rather than sitting as a decision nobody re-made.
+not belong there. Both directions are checked, so an entry that stops being true
+fails rather than sitting as a decision nobody re-made.
+
+**Both halves of the partition live in `scripts/paths.py`, and this file reads
+them.** `PRESENT_TENSE` shipped here for one release and was a second home for a
+ruling `NARRATIVE`'s own comment already carries — so an adopter who accepted
+that comment's invitation and appended a folder found this file red, telling
+them to delete an entry inside a shipped test. That edit is precisely the
+divergence the append seam next to `NARRATIVE` exists to prevent. dream.doll and
+stash.flow hit the two assertions independently, from real runs, on the same
+day. Classify a folder once, in the file that argues the case.
 """
 
 from __future__ import annotations
@@ -35,21 +44,10 @@ pytestmark = [pytest.mark.unit]
 # every path below — can be imported. See scripts/paths.py.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts.paths import DOCS_DIR, NARRATIVE, PROJECT_ROOT  # noqa: E402
+from scripts.paths import DOCS_DIR, NARRATIVE, PRESENT_TENSE, PROJECT_ROOT  # noqa: E402
 from tests.scanning import scanned  # noqa: E402
 
 RULES = DOCS_DIR / "rules" / "docs.md"
-
-#: Folders in the table that describe the PRESENT, with the reason. An entry
-#: here is a decision; `test_no_present_tense_entry_has_gone_stale` is what
-#: keeps it one.
-PRESENT_TENSE = {
-    "docs/business-planning": (
-        "Not a stage of the document lifecycle — nothing moves into or out of "
-        "it — and market or pricing work does not cite the tree. An adopter who "
-        "keeps code-shaped proposals here should append it to NARRATIVE."
-    ),
-}
 
 
 def _table_folders() -> list:
@@ -84,7 +82,7 @@ def test_every_lifecycle_folder_is_classified() -> None:
     assert not unclassified, (
         f"{RULES.name} tells an adopter to file in {unclassified}, and "
         f"scripts/paths.py says nothing about whether those describe the present. "
-        f"Add them to NARRATIVE, or to PRESENT_TENSE here with the reason."
+        f"Append them to NARRATIVE there, or to PRESENT_TENSE beside it with the reason."
     )
 
 
@@ -92,6 +90,13 @@ def test_no_present_tense_entry_has_gone_stale() -> None:
     """An exemption is checked against the thing it exempts, on every run."""
     folders = _table_folders()
     gone = [f for f in PRESENT_TENSE if f not in folders]
-    assert not gone, f"PRESENT_TENSE names {gone}, which {RULES.name} no longer lists — delete the entry"
+    assert not gone, (
+        f"PRESENT_TENSE (scripts/paths.py) names {gone}, which {RULES.name} no longer lists — "
+        f"delete the entry: an exemption is a decision only while the thing it exempts exists"
+    )
     both = [f for f in PRESENT_TENSE if _is_narrative(f)]
-    assert not both, f"PRESENT_TENSE names {both}, which NARRATIVE now covers — delete the entry"
+    assert not both, (
+        f"PRESENT_TENSE (scripts/paths.py) names {both}, which NARRATIVE now covers. One "
+        f"folder, one role: drop it from PRESENT_TENSE. Both constants are in that one file, "
+        f"so this is the second half of an edit you have already started."
+    )

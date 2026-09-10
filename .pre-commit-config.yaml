@@ -46,9 +46,15 @@ repos:
         #
         # This is a list of two, so it is the kind that goes stale by addition:
         # a third tracked JSONC file fails this hook on the commit that adds it.
-        # skeletor's `json_hook_gate` is what makes that loud there rather than
-        # here — it parses every tracked .json a scaffold ships and requires the
-        # unparseable ones to be exactly the ones this line names.
+        # `tests/test_json_hook_covers_tracked_files.py` is what makes that loud,
+        # in this repository, on your own files: every tracked .json not excluded
+        # here must parse, and every exclusion must still be a file that does not.
+        # Both directions, so an entry that outlived its reason fails too.
+        #
+        # skeletor runs the same partition across every tier it generates, which
+        # is the half no single tree can ask — but that is the generator's
+        # problem, and this line said so first for a reader who may not have that
+        # repository at all. node-zero's correction, taken verbatim.
         exclude: '^(pyrightconfig\.json|\.vscode/settings\.json)$'
       - id: check-added-large-files
         args: ['--maxkb=512']

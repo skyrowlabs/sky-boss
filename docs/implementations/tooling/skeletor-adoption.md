@@ -1761,3 +1761,147 @@ the tree was clean on a fresh branch.
 
 All seven gates green, `dev` up with a new `task` command, `sb` up from outside
 the repo.
+
+### Round 22 — 2026-09-09: v0.25.0, and the recipe's own blind spot
+
+`v0.24.0 → v0.25.0`, run with the new `--ref v0.25.0` from a clone pinned at the
+tag. Three of round 21's four findings came back as releases, which is the first
+time this file has had that to record. Nine files updated, two merged cleanly,
+**two conflicts** — the first real ones since round 19.
+
+**`--ref` works and the manifest reads `v0.25.0` exactly.** Worth stating because
+the sibling checkout sits one commit past the tag and, without the flag, a render
+stamps `v0.24.0-1-g6f4a54e`, which no ledger can compute a distance from.
+
+#### The conflict that was one blank line
+
+`scripts/paths.py` conflicted, and the whole local divergence was **two blank
+lines where the template has one** — a leftover from round 16 deleting the
+`NARRATIVE +=` append. Diffing our file against a rendered v0.25.0 template shows
+*no other difference at all*: not a constant, not a comment, nothing. The
+template's 37-line `PRESENT_TENSE` block inserts into exactly that gap.
+
+The template's own comment two lines above predicted it — *"proto.pilot's landed
+clean on one blank line — and nothing recorded that the line was load-bearing, so
+a whitespace tidy-up would have brought the conflict back looking like
+housekeeping."* What it does not say, and what this tree found, is the other
+direction:
+
+> **Removing an append is as load-bearing as adding one.** Round 16 deleted its
+> `NARRATIVE +=` and left the separator behind, and that orphaned blank line sat
+> for six releases as a conflict waiting for the template to edit its own region.
+
+Resolved by taking the template's file whole, because there was nothing of ours in
+it. `scripts/paths.py` has left the standing-divergence list entirely — 23 → 22.
+
+**The entanglement warning is new and it earned itself immediately.** Four files
+applied cleanly while importing the one that conflicted, and
+`tests/test_narrative_covers_lifecycle_folders.py` was among them — written
+against a `PRESENT_TENSE` that did not exist yet, so the suite failed on an
+`ImportError` at collection. *A merge status describes one file and says nothing
+about what it depends on.* That is the only gate this upgrade broke on arrival.
+
+#### The other conflict was a patch for a sentence this fork does not have
+
+`ci.yml`'s patch is comments only, correcting *"draft PRs run the gate job
+alone."* This fork has no such sentence, no `node` job, and nothing gated on draft
+status. Declined as not applicable rather than ported.
+
+**But the same sweep reached `AGENTS.md`, which merged cleanly, and made it worse
+here.** It replaced one vague false sentence with a precise one:
+
+```
+before: a draft PR runs the cheap gate job alone.
+after:  a draft PR carrying code runs `node`, `unit-tests` and the gate,
+        and skips `lint`, `integration` and `ui`.
+```
+
+This tree's jobs are `gate`, `test`, `lint`, `verdict`. Four of the five named
+jobs **do not exist here**, and the one that does is never skipped. So a paragraph
+that was wrong-and-vague became wrong-and-specific, in the file every agent
+session reads first, delivered by the release whose own lesson is *the copies do
+not know they are copies*.
+
+Diverged deliberately, and the rule written beside it generalises past this
+paragraph: **`ci.yml` is an adopter-owned file, so a sentence in a template-owned
+document naming its jobs is a copy of something the adopter decides.** Reported.
+
+#### The declined gate came back fixed, and still cannot run here
+
+v0.25.0 rewrites `tests/test_pyright_deps.py` around a 2×2 — round 21's finding,
+named in its docstring. *Zero type-check jobs is a configuration, not a broken
+scan.* The remedy it prescribes for this tree's corner is to delete
+`.github/pyright-deps.txt`, so that was tried rather than reasoned about:
+
+```
+restore the gate + delete pyright-deps.txt
+  → test_pyright_deps.py::test_the_scan_finds_the_test_jobs                    FAILED
+  → test_pyright_gate_preflight.py::test_the_sentinels_are_installed_…         FAILED
+```
+
+Two independent blockers, neither the one that was fixed. `least=2` on the test
+side is unsatisfiable here — this tree has **one** pytest job, a python matrix
+rather than several marker jobs, which is round 7's *steps rather than jobs*
+showing up in a scan. And the preflight, shipped in the same release, sizes
+`pyright-deps.txt` at `least=2` packages, so the file the deps gate tells you to
+delete is one a sibling gate requires.
+
+**The decline stands, and it is explicitly not a recurrence.** Both findings from
+round 21 were fixed as stated and verified here. What blocks the file now is a
+third assumption that was always there and was masked by the first two. Keeping
+that distinction is the whole value of saying a thing recurred.
+
+#### The recipe's order hides every file the upgrade adds
+
+Round 21 reported *38 additions, zero removals* and the suite at 1565. The same
+commit collects **1576** today, with no test logic changed in between. The
+eleven are exactly the files v0.24.0 added that fall inside a tracked-file gate's
+subject set — twelve added, minus `.vscode/settings.json`, which is JSON and
+outside `test_naming.py`'s.
+
+The cause is `git ls-files`. Positive control, on one planted file:
+
+```
+untracked                 tests/test_naming.py collects 220
+after `git add -N`        tests/test_naming.py collects 221
+```
+
+Round 20 moved these gates *to* `git ls-files` precisely so the population would
+stop moving with the scratch on disk, and skeletor moved four of its own the same
+way. The fix is right. It also means that in the window the upgrade recipe
+defines — **upgrade, run your gates, then commit** — every file the upgrade just
+added is untracked, and therefore outside the population of every gate
+parametrised that way.
+
+> **The subject set of a check is part of the check** (round 20), and `git
+> ls-files` makes that set a function of *the index*, not of the tree. An upgrade
+> is precisely the moment those two disagree.
+
+So round 21's gates were green over a population missing eleven of the files the
+round had installed, and nothing anywhere said so. The remedy is one command —
+`git add -A` before running the gates, not after — and it costs nothing. This
+round's green is complete, because v0.25.0 added no files and v0.24.0's are now
+tracked.
+
+#### `docs/business-planning/` — the ruling is right, the instruction is not
+
+Both halves of the partition now live in `scripts/paths.py` and the test reads
+them, which is the correct home. This tree has no `docs/business-planning/`
+directory, so the entry is inert here and both assertions pass.
+
+The argument, since it was asked for rather than assumed: **the removal half
+cannot be spelled the way the block tells you to spell it.** The comment says
+*"drop this entry"* and *"dropping this entry"*, which reads as editing the dict
+literal — a template-owned line, and exactly the divergence the append seam three
+paragraphs up exists to prevent. There is an append-shaped spelling and it works:
+
+```python
+NARRATIVE += (BUSINESS_DIR,)
+PRESENT_TENSE.pop("docs/business-planning", None)   # both assertions pass
+```
+
+Measured, not reasoned about. The mechanism is sound; only the sentence points at
+the wrong edit, and it points there in the one direction that costs a permanent
+conflict.
+
+All seven gates green, 1576 collected, `dev` up, `sb` up from outside the repo.

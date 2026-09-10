@@ -40,7 +40,7 @@ jobs:
                 '',
                 '```bash',
                 'gh pr ready --undo ' + context.payload.pull_request.number + '   # back to draft',
-                '# ...iterate; a draft runs the gate job alone...',
+                '# ...iterate; a draft skips lint, integration and ui...',
                 'gh pr ready ' + context.payload.pull_request.number + '          # once, when it is done',
                 '```',
                 '',

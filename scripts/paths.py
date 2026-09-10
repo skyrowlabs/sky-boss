@@ -96,7 +96,8 @@ RELEASES_DIR = DOCS_DIR / "reports" / "releases"
 #: stage of the *document* lifecycle — nothing moves into or out of it — and
 #: market or pricing work does not cite the tree. An adopter who keeps
 #: code-shaped proposals there should append it, which is what the block below
-#: is for. `tests/test_narrative_covers_lifecycle_folders.py` holds that
+#: is for — and drop it from `PRESENT_TENSE` further down, since one folder gets
+#: one role. `tests/test_narrative_covers_lifecycle_folders.py` holds that
 #: partition, so a folder added to the table later cannot be silently
 #: unclassified the way this one was.
 NARRATIVE = (TODO_DIR, IMPL_DIR, DOCS_DIR / "reports", DOCS_DIR / "research")
@@ -127,6 +128,42 @@ NARRATIVE = (TODO_DIR, IMPL_DIR, DOCS_DIR / "reports", DOCS_DIR / "research")
 #: same. proto.pilot's landed clean on one blank line — and nothing recorded
 #: that the line was load-bearing, so a whitespace tidy-up would have brought
 #: the conflict back looking like housekeeping.
+
+#: The other half of the partition: folders in that table that describe the
+#: PRESENT, with the reason each one does.
+#:
+#: **This lived in `tests/test_narrative_covers_lifecycle_folders.py` and was a
+#: second home for the decision the block above already argues.** The comment on
+#: `NARRATIVE` says `docs/business-planning/` is deliberately not narrative and
+#: says why; the test shipped the same ruling again, in its own dict, in a file
+#: an adopter has no other reason to open. So accepting the invitation two
+#: paragraphs up — append your stage, do not edit the tuple — turned that test
+#: red with `delete the entry`, and the only way to close it was editing a
+#: template-owned literal inside a shipped test: the divergence the append seam
+#: exists to avoid, one file over. dream.doll and stash.flow each hit a
+#: different one of the two assertions, independently, from real runs.
+#:
+#: Both halves live here now, so a folder is classified once, in the file that
+#: carries the argument, and an adopter's edit is an append either way:
+#:
+#:     PRESENT_TENSE |= {"docs/pricing": "market work; it does not cite the tree"}
+#:
+#: An entry is a decision and nothing keeps a decision true, so
+#: `tests/test_narrative_covers_lifecycle_folders.py` checks every entry against
+#: the table on every run, in both directions.
+PRESENT_TENSE = {
+    "docs/business-planning": (
+        "Not a stage of the document lifecycle — nothing moves into or out of "
+        "it — and market or pricing work does not cite the tree. An adopter who "
+        "keeps code-shaped proposals here should move it to NARRATIVE instead, "
+        "which means appending it there AND dropping this entry: one folder, "
+        "one role, and the check below fails while both name it."
+    ),
+}
+
+#: **Add your own present-tense folders below, as an append**, for the reason
+#: the `NARRATIVE` block gives: an append is a different line from the
+#: template's and stays clean when upstream edits its own.
 
 
 # ── Code and configuration ───────────────────────────────────────────────────

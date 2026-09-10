@@ -112,13 +112,21 @@ Never commit directly to `main`.
 
 `gh pr create --draft`. Mark it ready only when you believe it is green.
 
-The expensive CI jobs are gated on draft status: a draft PR runs the cheap gate job alone.
-Nothing is un-gated by this — GitHub blocks merging a draft regardless, and marking it ready
-fires `ready_for_review`, which runs the full set before it can merge.
+**Nothing here is gated on draft status, and the template's paragraph is deliberately not
+taken.** It names `node`, `unit-tests`, `integration` and `ui`; this workflow's jobs are
+`gate`, `test`, `lint` and `verdict`, and the only `if:` in the file pins flake8 to one
+matrix leg. A draft PR runs everything a ready one runs, so drafting is a courtesy to
+reviewers rather than a way to pay less.
 
-**Flip back to draft before pushing a fix** — `gh pr ready --undo <n>`. A `synchronize` event
-on a *ready* PR re-runs everything that PR earns; iterating in draft pays once, when the work
-is actually done.
+That is round 7's decline of the template's job graph showing up in the prose rather than in
+the workflow. `ready_for_review` is still in `on.pull_request.types`, and it is still
+load-bearing: a job gated on *anything* that never re-runs when a PR leaves draft stays
+`skipped`, and branch protection accepts a skip.
+
+**Job names are the one thing this file must not state on the template's authority.**
+`.github/workflows/ci.yml` is an adopter-owned file, so a sentence here naming its jobs is a
+copy of something this repository decides — and the copy does not know it is one. Read the
+workflow.
 
 ### 9. Docs Are Part of the Change, Not a Follow-Up
 
@@ -249,5 +257,6 @@ Load on-demand only. Full mapping in `.github/DOCS_INDEX.md`.
 
 `feat` / `fix` / `perf` / `docs` / `refactor` / `chore` / `ci` / `test` / `build`
 
-> `docs:` for `docs/**` changes only — never `feat:`. These subjects are the only
-> changelog this repository has.
+> `docs:` for hand-written prose wherever it lives — this file and `README.md`
+> included — never `feat:`. The path is the hint, not the test; `docs/rules/commits.md`
+> holds the rule. These subjects are the only changelog this repository has.

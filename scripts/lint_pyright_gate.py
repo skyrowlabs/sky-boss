@@ -79,8 +79,8 @@ DEFAULT_CONFIG = PROJECT_ROOT / "pyrightconfig.json"
 #: template's `pyrightconfig.json` uses `//` rather than a `"//"` key
 #: deliberately — see that file's own comment. Only whole-line comments are
 #: stripped: a `//` inside a string would need a real JSONC parser, and adding
-#: one to read three keys is not the trade. `tests/test_pyright_scope.py` reads
-#: the same file the same way.
+#: one to read three keys is not the trade. The unit suite's pyright-scope tests
+#: read the same file the same way.
 _COMMENT = re.compile(r"^\s*//")
 
 #: The smallest set that separates a project-capable interpreter from a bare one.
@@ -90,7 +90,7 @@ _COMMENT = re.compile(r"^\s*//")
 #: a clean tree into 24 errors. `pytest` covers `tests/`, which
 #: `pyrightconfig.json` also includes.
 #:
-#: HARD CONSTRAINT, pinned by `tests/test_pyright_gate_preflight.py`: every
+#: HARD CONSTRAINT, pinned by this gate's own tests in the unit suite: every
 #: sentinel must be reachable from `.github/pyright-deps.txt`. That file is what
 #: CI installs, so a sentinel outside it is a gate that fails on a correctly
 #: provisioned runner. Growing this tuple is a deliberate act with a test behind

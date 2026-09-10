@@ -14,7 +14,11 @@
   // offer. Setting it in the config rather than at each call site is deliberate:
   // the pre-commit hook is `language: node` with `pass_filenames: false` and
   // cannot name a per-machine path at all, so the config is the only place that
-  // reaches every caller. tests/test_pyright_scope.py holds the rule.
+  // reaches every caller. The unit suite holds that rule — no caller may take
+  // its interpreter from PATH unless this file pins it. Described rather than
+  // cited by path: pyright is the one toolchain an adopter legitimately drops,
+  // and a comment naming the test that enforces it then names a file they
+  // deleted on purpose. proto.pilot's, from a tree that had.
   //
   // Safe where no virtualenv exists: pyright prints `venv .venv subdirectory not
   // found`, falls back to PATH, and leaves the exit code alone.

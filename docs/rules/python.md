@@ -46,7 +46,7 @@ Pyright resolves its interpreter from `PATH` and does **not** read a virtualenv 
 `.venv/bin/pyright` is a wrapper and changes nothing. `pyrightconfig.json` therefore pins it
 with `venvPath` + `venv`, which is the one place that reaches every caller — the pre-commit
 hook is `language: node` with `pass_filenames: false` and cannot pass a per-machine path.
-`tests/test_pyright_scope.py` holds that rule: the config pins, **or** every caller passes
+The unit suite holds that rule: the config pins, **or** every caller passes
 `--pythonpath`. CI pins its dependency set in `.github/pyright-deps.txt`; keep that a
 superset of the unit-test job's installs.
 
@@ -94,7 +94,7 @@ could not run is not a gate that passed.
 CI does not call it and should not: that job installs `.github/pyright-deps.txt` onto the
 runner's interpreter with no `.venv` in the checkout, so it answers every interpreter
 question already, and a wrapper there would add a moving part to the one caller that never
-had the problem. `tests/test_pyright_gate_preflight.py` holds the routing, the fail-closed
+had the problem. The unit suite holds the routing, the fail-closed
 behaviour, and that every sentinel stays reachable from `.github/pyright-deps.txt` — a
 sentinel outside it would block a commit on a correctly provisioned runner.
 

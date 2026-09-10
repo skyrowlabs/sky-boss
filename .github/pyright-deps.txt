@@ -6,8 +6,10 @@
 # permissive check, just a DIFFERENT one. Errors that appear only for some
 # people are almost always this.
 #
-# tests/test_pyright_deps.py holds both halves: that every job running pyright
-# installs from this file rather than inlining its own list, and that the `-r`
-# chain below reaches every requirements file the test jobs install.
+# The unit suite holds both halves: that every job running pyright installs from
+# this file rather than inlining its own list, and that the `-r` chain below
+# reaches every requirements file the test jobs install. Described rather than
+# cited by path — a tree whose CI does not type-check is a configuration, not a
+# defect, and this header must not name a file such a tree has deleted.
 
 -r ../scripts/requirements.txt
