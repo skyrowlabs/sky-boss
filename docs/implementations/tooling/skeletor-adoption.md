@@ -4,7 +4,7 @@ slug: skeletor-adoption
 category: tooling
 agent_value: 3
 completed: 2026-09-06
-updated: 2026-09-09
+updated: 2026-09-11
 tags: [skeletor, scaffold, ci]
 summary: Converts sky.boss from a skeletor component consumer into a scaffolded tree, and records what a fork can and cannot learn about itself.
 created: 2026-09-06
@@ -2051,3 +2051,115 @@ All seven gates green, 1581 collected, `dev` up, `sb` up from outside the repo.
 The CI step's two commands were run verbatim here — `pip install -r
 .github/pyright-deps.txt` then the wrapper — and report `0 errors, 0 warnings, 0
 informations`.
+
+### Round 24 — 2026-09-11: v0.26.0, and two of this tree's own findings arriving as fixes
+
+Both conflicts were prose about the job graph round 7 declined, and both were
+held. What was worth the round is everything that merged *cleanly* and was still
+wrong.
+
+#### A shared helper's rename is an adopter's collection failure
+
+`repo_files.tracked` became `repo_files.present` — round 21's finding from here,
+landing as `skeletor@419b6fc`, and the right fix: the index is the wrong
+population during an upgrade, which is exactly when these gates run.
+
+It merged cleanly and took the suite down at **collection**. `tests/test_naming.py`
+is adopter-owned, it was the only caller left holding the old name, and pyright
+and pytest both went red on arrival — one root cause, two gates.
+
+The file's own docstring reasons, at length and correctly, that a shipped *module*
+must not be renamed in the release that changes a shared helper's API, because
+`bin/skeletor-upgrade` never deletes and the stale copy would fail to import. It
+then concludes that changing the API alone is safe. **It is not, and the
+counter-example is the tree the finding came from**: every template caller was
+updated in the same commit, so nothing upstream could see it, and an adopter file
+calling the helper is invisible from the template by construction. Reported.
+
+Our wrapper was also called `tracked`. It is `in_tree` now — keeping the old name
+would have reinstated the defect skeletor had just removed, one layer down, in the
+file that reads the result.
+
+#### The new gate was right and we were wrong
+
+`tests/test_ci_pipeline_table.py` arrived and went red, and the defect was ours.
+The CI table in `docs/DEVELOPMENT.md` was the template's placeholder, never
+adapted: it named a `Node` job this workflow has not got, gave a draft PR three
+jobs and a `main` PR "everything", and priced a docs-only event at a minute. Every
+row was a claim about the job graph § 7 declined. **Nothing had ever read the
+table, so nothing had ever disagreed with it** — six releases of a document
+describing somebody else's CI.
+
+Rewritten to what runs, which is everything on every event. The column is now
+identical on every row, and that is the honest shape rather than a formatting
+failure: with no job gated on event class there is nothing for the rows to differ
+about, and a reader was previously inferring a cost model from a workflow that has
+none.
+
+**One divergence was held inside the new file**, which parts company with this
+tree's usual answer to a gate carrying a declined mechanism. `release_branch()`
+asserts a Release Please job exists, and `test_every_job_the_table_names_exists`
+calls it unconditionally just to get branch names to exclude. This fork has no
+such job. Upstream the *job* is rendered into every tree — only its two config
+files sit behind `SCAFFOLD-OPTIONAL` — so even a `--versioning tag` tree keeps a
+job that can never fire, the regex matches it, and the gate is green for a reason
+unrelated to what it checks. Deleting the dead job is what exposes the coupling.
+
+The rule the last three rounds were applying was *delete a gate whose mechanism
+you declined, never patch it*. It needs the qualifier this round supplies:
+
+> **Delete when the file's subject is the declined mechanism. Hold the smallest
+> divergence when one helper touches it and the rest of the file is live.** Here
+> deleting would have cost two non-vacuous checks over a table and a workflow this
+> tree owns — and one of them had just found a six-release-old defect.
+
+#### A decline whose reason expired without a red run
+
+`tests/test_pyright_deps.py`, declined since round 21, was restored and run.
+**It passes, all four tests.** Round 23's paragraph above — that its scan wants two
+workflow jobs and this tree has one — was measured at v0.25.0 and was true then;
+skeletor fixed it in **v0.25.1** (`least=2` → `least=1`, plus the sibling gate that
+demanded the file this one says to delete). A patch release is invisible under a
+minor-and-above policy, so the sentence outlived its subject with nothing able to
+notice, and round 23 repeated it in good faith from round 22's report.
+
+The decline is held anyway, on a narrower reason: it is now a near-duplicate of
+`tests/test_pyright_deps_reach_ci.py`, which carries a positive control on its own
+reachability walk that the template's does not. The template asserts a superset
+using the same kind of walk and never checks the walk works, so its green covers
+the case where it silently returns everything. The standing rule is one version,
+the newest that applies, and a second only where it catches what the first
+cannot; here the answer runs the other way — the older file is the one carrying
+the instrument for its own null.
+
+**Two reasons for one decline have now expired with no run going red.** That is
+what a decline costs, and it is why the tool printing the file under *skeletor
+wrote and you deleted* on every run is the mechanism rather than a nag. Restore it
+and run it; never infer from a release note.
+
+#### The advisory that advised a saving this tree does not offer
+
+`.github/workflows/pr-draft-discipline.yml` merged cleanly and posts a comment on
+contributors' pull requests. It told them a draft "skips the expensive jobs".
+Nothing here is gated on draft, so that is advice which cannot pay out — on a
+**public** repo, to a reader with no way to check it. The old text was worse and
+equally unnoticed, naming three jobs this workflow has not got.
+
+Rewritten to say what is true: drafting costs and saves nothing here, and is worth
+doing for the reviewer rather than for the runner. Whether the workflow should
+exist at all is a live question — its whole premise is the saving — and it is the
+operator's, because what lands on a contributor's PR is not a gate decision.
+
+#### Round 23's standing check, discharged
+
+Round 23 asked whoever ran this upgrade to re-read § 8's divergence against the
+template at v0.26.0, expecting it might fold back. It does not:
+`template/core/docs/rules/python.md` is **unchanged since v0.24.0**, so the
+paragraph it was waiting on has not moved and the fork stands. The expectation was
+recorded from a release note rather than a diff — the same substitution as the
+pyright decline above, in the same round, pointing the other way.
+
+Standing divergences: 24 → 25 (`tests/test_ci_pipeline_table.py` joins). All seven
+gates green, 1586 collected. `--ref v0.26.0` was passed on the applying run: the
+generator checkout described itself as `v0.26.0-dirty`, and that string is what the
+manifest would otherwise have recorded.
