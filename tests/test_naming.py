@@ -91,10 +91,26 @@ HTML_TAG = re.compile(r"<[^>]*>", re.DOTALL)
 #: tick, and no amount of care about the list's contents would have caught it,
 #: because the bug was in the predicate rather than in the entries.
 #:
-#: `git ls-files` has no list to forget and no opinion about where the checkout
-#: lives. An untracked scratch file is not this repo's claim, which is the
-#: property the list was trying to approximate; `CLAUDE.local.md` is gitignored,
-#: so it drops out for the same reason rather than by being named.
+#: Asking git has no list to forget and no opinion about where the checkout
+#: lives. The population is what `.gitignore` does **not** disclaim — tracked or
+#: not — so `CLAUDE.local.md` still drops out by that mechanism rather than by
+#: being named, which was always the property the skip list was approximating.
+#:
+#: **It was `ls-files` alone until skeletor v0.26.0, and the index is the wrong
+#: population for the one window this gate most needs to cover.** `git ls-files`
+#: makes the subject set a function of what is *staged*, and an upgrade is
+#: precisely when the index and the tree disagree: every file a template
+#: delivered is untracked until somebody runs `git add`, so the gate reads past
+#: it, passes, and fails later on the commit — where it reads as the committer's
+#: mistake rather than as a check that never covered them. Reported from here
+#: after round 21 declared seven gates green over a subject set missing eleven
+#: of the twelve files the upgrade had just installed; fixed upstream in
+#: `repo_files.present`.
+#:
+#: A genuine scratch file is in scope now, and that is the right trade: a false
+#: positive is reported and fixed by whoever made the file, where a false
+#: negative is this repository's own *worked fine, told nobody* wearing a green
+#: tick — which is the paragraph above.
 
 _JS_STRING = re.compile(r"""(?<!\\)(?:'(?:[^'\\\n]|\\.)*'|"(?:[^"\\\n]|\\.)*"|`(?:[^`\\]|\\.)*`)""", re.DOTALL)
 _JS_COMMENT = re.compile(r"//[^\n]*|/\*.*?\*/", re.DOTALL)
@@ -114,9 +130,17 @@ def _blank(text: str) -> str:
     return "".join("\n" if c == "\n" else " " for c in text)
 
 
-def tracked(suffix: str) -> list[Path]:
-    """Tracked files with this suffix, at any depth. See the note above."""
-    return sorted(repo_files.tracked(f"*{suffix}"))
+def in_tree(suffix: str) -> list[Path]:
+    """Files with this suffix git does not disclaim, at any depth.
+
+    Named for what it returns. It was `tracked`, wrapping `repo_files.tracked`,
+    and that helper was renamed to `present` in skeletor v0.26.0 for the reason
+    the note above gives — so keeping the old name here would reintroduce the
+    defect one layer down, in the file that reads the result. `present` is
+    already taken in this module by `narrowing.present`, which asserts a value
+    is not None and has nothing to do with files.
+    """
+    return sorted(repo_files.present(f"*{suffix}"))
 
 
 def _markdown_mask(text: str) -> str:
@@ -235,7 +259,7 @@ def _report(path: Path, mask: str, hits: list[int]) -> str:
 
 @pytest.mark.parametrize(
     "path",
-    [p for suffix in MASKS for p in tracked(suffix)],
+    [p for suffix in MASKS for p in in_tree(suffix)],
     ids=lambda p: str(p.relative_to(PROJECT_ROOT)),
 )
 def test_prose_says_sky_boss(path: Path):
@@ -270,5 +294,5 @@ def test_the_mask_is_the_same_length_as_the_file():
     newlines in the mask, so a strip that shortened it would point at the
     wrong one — and silently, which is the only kind of wrong that matters."""
     for suffix, mask_of in MASKS.items():
-        for path in tracked(suffix)[:8]:
+        for path in in_tree(suffix)[:8]:
             assert len(mask_of(path)) == len(path.read_text()), path

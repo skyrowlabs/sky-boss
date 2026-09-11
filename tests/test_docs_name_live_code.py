@@ -73,7 +73,7 @@ pytestmark = [pytest.mark.unit]
 # every path below — can be imported. See scripts/paths.py.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from repo_files import reference_docs, tracked  # noqa: E402
+from repo_files import present, reference_docs  # noqa: E402
 from scripts.paths import PROJECT_ROOT  # noqa: E402
 
 #: A backticked call. The parentheses are the whole signal — they are what
@@ -91,7 +91,7 @@ def _git(*args: str, root: Path = PROJECT_ROOT) -> str:
 def defined_now(root: Path = PROJECT_ROOT) -> set[str]:
     """Every callable this repo currently defines."""
     names: set[str] = set()
-    for path in tracked("*.py", root=root):
+    for path in present("*.py", root=root):
         names.update(DEFINITION.findall(path.read_text(encoding="utf-8", errors="replace")))
     return names
 

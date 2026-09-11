@@ -3,9 +3,21 @@
 Two of them look like boilerplate and are not:
 
 * `ready_for_review` in ci.yml's trigger types. Remove it and the gated jobs
-  never re-run when a PR flips out of draft — they stay `skipped`, branch
-  protection ACCEPTS a skipped required context, and the PR merges having run
-  only the gate job.
+  never re-evaluate when a PR flips out of draft — they stay `skipped`, and
+  branch protection ACCEPTS a skipped required context.
+
+  **Where that matters is where the verdict changes on the transition**, which
+  is a pull request into the release branch, and therefore every pull request in
+  a tree whose base and release branch are the same. This said *the PR merges
+  having run only the gate job*, unqualified, and that is false for the ordinary
+  case in a two-branch tree: the classifier returns the same verdict for a draft
+  carrying code and for a ready code change into the base branch, so the
+  statuses already standing are the correct ones and nothing escalated. Four
+  other files carried the same over-claim, including the bot comment that tells
+  a contributor marking a PR ready "runs everything before it can merge".
+  mind.head found it. The repository's own verdict table had the two rows
+  adjacent and identical, which is the tell worth remembering: a table that
+  answers a question is not the same as anybody having asked it.
 
 * The shared docs-only definition. Two copies of that rule drift, and the copy
   that is wrong is the one deciding whether tests run.
@@ -51,9 +63,11 @@ def ci_text() -> str:
 
 def test_ready_for_review_is_a_trigger():
     assert "ready_for_review" in ci_text(), (
-        "ci.yml no longer triggers on `ready_for_review`. Gated jobs will never re-run when a PR "
-        "leaves draft — they stay `skipped`, which branch protection accepts, and the PR merges "
-        "having proven nothing."
+        "ci.yml no longer triggers on `ready_for_review`. Gated jobs will never re-evaluate when a "
+        "PR leaves draft — they stay `skipped`, which branch protection accepts. That is harmless "
+        "wherever the verdict does not change on the transition and unsafe where it does: a code "
+        "change entering the release branch earns the full suite, and in a one-branch tree that is "
+        "every code change."
     )
 
 

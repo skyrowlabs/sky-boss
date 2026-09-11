@@ -78,9 +78,25 @@ on:
     branches: [main, develop]
   pull_request:
     branches: [main, develop]
-    # `ready_for_review` is load-bearing. Without it a job gated on anything
-    # never re-runs when a PR leaves draft: it stays `skipped`, branch
-    # protection accepts that, and the PR merges having proven nothing.
+    # `ready_for_review` is load-bearing **only where the verdict changes on
+    # that transition**, and in this fork there is no such transition: no job
+    # here is gated on draft status or on the gate's output, so a draft PR
+    # already runs everything a ready one runs. Removing it today would cost
+    # nothing, and the sentence that used to stand here — that the PR would
+    # otherwise merge having proven nothing — was a conditional dressed as an
+    # assertion, with an antecedent this workflow does not satisfy.
+    #
+    # It stays because the cost of keeping it is zero and the cost of the
+    # reverse mistake is not: the day a job *is* gated, the event it needs would
+    # have to be re-added by whoever adds the job, and nothing would fail to
+    # remind them. `tests/test_ci_draft_gate.py` fails if it disappears.
+    #
+    # skeletor corrected the same sentence in v0.26.0, arriving at the same rule
+    # from its own graph — where the classifier returns one verdict for a draft
+    # carrying code and for a ready code change into `develop`. That paragraph
+    # is not ported: it reasons about jobs round 7 declined, and a prose
+    # divergence in a file the template actively revises is a standing conflict
+    # bought for nothing. The rule is the same; the reason here is stronger.
     types: [opened, synchronize, reopened, ready_for_review]
   workflow_dispatch:
 

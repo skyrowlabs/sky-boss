@@ -126,9 +126,16 @@ names must not be stated here on the template's authority; a *count* of that fil
 conditions is the same copy in a smaller font. Ask the file.
 
 That is round 7's decline of the template's job graph showing up in the prose rather than in
-the workflow. `ready_for_review` is still in `on.pull_request.types`, and it is still
-load-bearing: a job gated on *anything* that never re-runs when a PR leaves draft stays
-`skipped`, and branch protection accepts a skip.
+the workflow. `ready_for_review` is still in `on.pull_request.types`, and **it is load-bearing
+for nothing here today** — that sentence said "it is still load-bearing" until 2026-09-11, which
+is a conditional (*a job gated on anything* would stay `skipped`) written as an assertion about a
+workflow that has no such job. It is kept because keeping it is free and the day a gated job
+arrives nothing would remind whoever adds it.
+
+skeletor reached the same rule in v0.26.0 from the opposite direction — its own jobs *are* gated,
+and the classifier still returns one verdict either side of the transition, so leaving draft
+escalates nothing there either. Its paragraph is not taken, for the reason the paragraph above
+gives; the agreement is worth recording because two different graphs produced one rule.
 
 **Job names are the one thing this file must not state on the template's authority.**
 `.github/workflows/ci.yml` is an adopter-owned file, so a sentence here naming its jobs is a

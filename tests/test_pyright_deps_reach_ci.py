@@ -22,12 +22,30 @@ worth having if something recomputes it.
 
 ## Why the template's own gate is not what runs here
 
-`tests/test_pyright_deps.py` ships with skeletor and is declined in this tree:
-its scan wants at least two workflow jobs running pyright, and this tree has one
-pytest job — a python matrix rather than several marker jobs, which is round 7's
-*steps rather than jobs* showing up in somebody else's scan. Round 22 tried
-restoring it and got two independent failures, neither of them the assertion it
-was interested in.
+`tests/test_pyright_deps.py` ships with skeletor and is declined in this tree.
+**The reason changed on 2026-09-11 and the old one is retired, which matters more
+than the decline it supports.** It used to read: *its scan wants at least two
+workflow jobs running pyright, and this tree has one pytest job — round 7's*
+steps rather than jobs *showing up in somebody else's scan*. That was measured
+at v0.25.0 and was true then. skeletor fixed it in **v0.25.1** — `least=2` became
+`least=1`, and the sibling gate that demanded the file this one says to delete
+went at the same time — and a patch release is invisible under a
+minor-and-above upgrade policy, so the sentence outlived its subject with nothing
+able to notice.
+
+Restored and run at v0.26.0: **it passes, all four tests.** The decline is no
+longer forced, and it is held anyway, on a narrower and better reason — the two
+files are now near-duplicates, and this one has a positive control the
+template's does not. `test_the_closure_follows_more_than_one_hop` asks whether
+the reachability walk can see past depth one; the template asserts the superset
+using the same kind of walk and never checks that the walk works, so its green
+covers the case where it silently returns everything. One of the two, and this is
+the one carrying the instrument for its own null.
+
+**Retest this every upgrade rather than reading this paragraph.** The last two
+reasons each expired without a red run — that is what a decline costs, and the
+tool prints the file under *skeletor wrote and you deleted* on every run
+precisely so somebody asks again.
 
 The name is deliberately not the template's. `tests/test_pyright_scope.py`
 records what happens when a gate written locally and a gate shipped upstream

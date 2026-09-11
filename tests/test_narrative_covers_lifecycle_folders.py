@@ -92,11 +92,14 @@ def test_no_present_tense_entry_has_gone_stale() -> None:
     gone = [f for f in PRESENT_TENSE if f not in folders]
     assert not gone, (
         f"PRESENT_TENSE (scripts/paths.py) names {gone}, which {RULES.name} no longer lists — "
-        f"delete the entry: an exemption is a decision only while the thing it exempts exists"
+        f"an exemption is a decision only while the thing it exempts exists. Remove it the way "
+        f"the seam below that constant documents, as an append rather than an edit to the "
+        f"literal:\n" + "".join(f"    PRESENT_TENSE.pop({f!r}, None)\n" for f in gone)
     )
     both = [f for f in PRESENT_TENSE if _is_narrative(f)]
     assert not both, (
-        f"PRESENT_TENSE (scripts/paths.py) names {both}, which NARRATIVE now covers. One "
-        f"folder, one role: drop it from PRESENT_TENSE. Both constants are in that one file, "
-        f"so this is the second half of an edit you have already started."
+        f"PRESENT_TENSE (scripts/paths.py) names {both}, which NARRATIVE now covers. One folder, "
+        f"one role. Remove it as an append — the template owns the lines inside that literal and "
+        f"edits them, so a removal spelled there conflicts on every upgrade:\n"
+        + "".join(f"    PRESENT_TENSE.pop({f!r}, None)\n" for f in both)
     )

@@ -1,9 +1,22 @@
 name: PR Draft Discipline
 
-# Nudges the habit that saves the most Actions minutes: open as a draft, iterate
-# in draft, flip to ready once. It comments; it never blocks — a gate that
-# refuses a ready PR would be worked around by opening it ready in the first
-# place, which is the behaviour this exists to change.
+# Nudges the habit of opening as a draft, iterating, and flipping to ready once.
+# It comments; it never blocks — a gate that refuses a ready PR would be worked
+# around by opening it ready in the first place, which is the behaviour this
+# exists to change.
+#
+# **In the template this saves Actions minutes. Here it saves none**, and the
+# text below says so rather than repeating the template's claim. Round 7 of
+# [[skeletor-adoption]] declined the template's job graph, so nothing in
+# `ci.yml` is gated on draft status: a draft PR runs exactly what a ready one
+# runs. The upstream comment told a contributor that drafting "skips the
+# expensive jobs", which on this repository is advice that cannot pay out — and
+# it is public, so the reader is somebody with no way to check it.
+#
+# Whether this workflow should exist here at all is a live question and is not
+# this file's to answer: its whole premise is a saving this fork does not offer.
+# Raised with the operator rather than resolved by deleting it, because what
+# arrives on a contributor's pull request is theirs to decide.
 
 on:
   pull_request_target:
@@ -34,17 +47,20 @@ jobs:
               repo: context.repo.repo,
               issue_number: context.payload.pull_request.number,
               body: [
-                '👋 This PR was opened **ready**, which means every push to it re-runs the full suite.',
+                '👋 This PR was opened **ready**. Every push to it runs the full suite —',
+                'though so does every push to a draft: nothing in this repository\'s CI is',
+                'gated on draft status, so drafting costs and saves exactly nothing here.',
                 '',
-                'Cheaper loop:',
+                'Drafting is still worth doing, for the other reason:',
                 '',
                 '```bash',
                 'gh pr ready --undo ' + context.payload.pull_request.number + '   # back to draft',
-                '# ...iterate; a draft skips lint, integration and ui...',
-                'gh pr ready ' + context.payload.pull_request.number + '          # once, when it is done',
+                '# ...iterate without asking anyone to read a moving target...',
+                'gh pr ready ' + context.payload.pull_request.number + '          # once, when you believe it is green',
                 '```',
                 '',
-                'Nothing is un-gated by drafting: GitHub blocks merging a draft regardless, and',
-                'marking it ready fires `ready_for_review`, which runs everything before it can merge.',
+                'It tells a reviewer when you want their time, and GitHub blocks merging a draft',
+                'regardless. The suite is under two minutes and free on a public repo, which is why',
+                'it is not gated — see `docs/DEVELOPMENT.md`.',
               ].join('\n'),
             });

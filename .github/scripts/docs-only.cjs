@@ -26,7 +26,17 @@ const ALWAYS_FULL_SUITE_HEADS = [/^chore\/combined-dependabot$/];
 module.exports = async function decide({ github, context, core }) {
   const pr = context.payload.pull_request;
 
-  // A push to the release branch is a release. Everything runs.
+  // Any non-PR event earns the full suite — which is a push to ANY long-lived
+  // branch, not only the release branch. `ci.yml`'s `push:` trigger decides
+  // which branches those are, and this rule does not read it: whatever reaches
+  // here without a pull request runs everything.
+  //
+  // The narrower sentence that used to sit here — *a push to the release branch
+  // is a release* — was a true statement about one of the branches this fires
+  // on, one line above the code that refutes it. It survived into
+  // `docs/DEVELOPMENT.md`'s pipeline table, where it told a two-branch reader
+  // that pushes to the branch they actually work on ran nothing.
+  // `tests/test_ci_pipeline_table.py` now holds the table against the trigger.
   if (!pr) {
     return { docsOnly: false, fullSuite: true, reason: 'not a pull request — full suite' };
   }

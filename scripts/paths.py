@@ -164,6 +164,34 @@ PRESENT_TENSE = {
 #: **Add your own present-tense folders below, as an append**, for the reason
 #: the `NARRATIVE` block gives: an append is a different line from the
 #: template's and stays clean when upstream edits its own.
+#:
+#: ## Removing one is an append too, and it did not used to be
+#:
+#: The seam above was built for the adopter who **adds** a folder, and nobody
+#: walked the one who **takes a shipped entry out**. Both constants ship with
+#: content, so that is not a hypothetical adopter: `docs/business-planning`'s
+#: own reason ends by telling you to move it to `NARRATIVE`, which means
+#: dropping it from here — and the only spelling on offer was editing the
+#: literal above. **The seam sent its reader into the exact divergence it
+#: exists to prevent**, and the two shipped checks below said `drop it` and
+#: `delete the entry` in as many words.
+#:
+#: A removal has an append-shaped spelling in both cases, and it is the one to
+#: use. It is a different line from the template's, so it survives upstream
+#: editing its own:
+#:
+#:     PRESENT_TENSE.pop("docs/business-planning", None)
+#:     NARRATIVE = tuple(role for role in NARRATIVE if role is not IMPL_DIR)
+#:
+#: `pop` takes a default so the line is idempotent — an entry the template
+#: later stops shipping must not turn an adopter's removal into a `KeyError`,
+#: which is the same failure one release further on.
+#:
+#: The rebuilt tuple reads as editing `NARRATIVE` and is not: the name on the
+#: left is assigned on a **new line below the template's**, and git merges
+#: lines. `is not` rather than `!=` because these are directory objects whose
+#: equality is by path, and identity is what an adopter means when they name
+#: the constant the template defined.
 
 
 # ── Code and configuration ───────────────────────────────────────────────────

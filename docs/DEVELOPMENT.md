@@ -99,24 +99,49 @@ Full rules: [`docs/rules/testing.md`](rules/testing.md).
 
 ## CI/CD Pipeline
 
-| Event                          | What runs                              | ~min |
-| ------------------------------ | -------------------------------------- | ---- |
-| Draft PR                       | `CI Gate` alone                        | ~1   |
-| Ready PR → `develop`, docs-only | `CI Gate` alone               | ~1   |
-| Ready PR → `develop`, code      | `CI Gate` + `Node` + `pytest` | ~5   |
-| Ready PR opened by Dependabot  | **everything** — deliberately exempt   | full |
-| Push to `main`   | **everything**                         | full |
+**Every event runs everything.** The column is the same on every row, and that
+is the finding rather than a formatting accident — this fork gates no job on
+event class, so the table's only job is to say so per event rather than leave a
+reader inferring a cost model from a workflow that has none.
 
-Three things about this table are load-bearing:
+| Event                          | What runs                                        | ~min |
+| ------------------------------ | ------------------------------------------------ | ---- |
+| Draft PR, docs-only            | `CI Gate` + `pytest` + `eslint` + `All checks`   | ~2   |
+| Draft PR carrying code         | `CI Gate` + `pytest` + `eslint` + `All checks`   | ~2   |
+| Ready PR → `develop`           | `CI Gate` + `pytest` + `eslint` + `All checks`   | ~2   |
+| Ready PR → `main`              | `CI Gate` + `pytest` + `eslint` + `All checks`   | ~2   |
+| Ready PR opened by Dependabot  | `CI Gate` + `pytest` + `eslint` + `All checks`   | ~2   |
+| Push to `develop` or `main`    | `CI Gate` + `pytest` + `eslint` + `All checks`   | ~2   |
+
+**This table said something else until 2026-09-11, and it had never been true
+here.** It arrived as the template's placeholder and was never adapted: it named
+a `Node` job this workflow does not have, gave a draft PR three jobs and a
+`main` PR "everything", and priced a docs-only event at one minute. Every one of
+those is a claim about the template's job graph, which round 7 of
+[[skeletor-adoption]] declined. Nothing read the table, so nothing disagreed with
+it — `tests/test_ci_pipeline_table.py` arrived in skeletor v0.26.0 and failed on
+the first run, which is the check doing exactly what it was written for.
+
+`docs-only.cjs` still runs and still classifies, and the `All checks` job prints
+its verdict. It **reports**; it gates nothing. When a genuinely expensive job
+arrives it is that output the job should be gated on, and this table gets rows
+that differ from each other for the first time.
+
+Three things are load-bearing, and only the first two are about this tree today:
 
 1. **A required context that reports `skipped` satisfies branch protection.**
    So gating is done with `if:` on the job, never `paths-ignore` on the trigger
-   — a required check that never reports at all blocks the PR forever.
+   — a required check that never reports at all blocks the PR forever. This is
+   not hypothetical here: `needs:` is itself a way to report `skipped`, which is
+   why `CI Gate` is in the required list rather than the leaves alone.
 2. **Requiring a context costs nothing; only running a job does.** Size the
    required list for what must gate. Never trim it to save minutes.
-3. **The Dependabot exemption is a mechanism, not a courtesy.** Auto-merge fires
-   the moment branch protection is satisfied, so without the exemption every
-   eligible bump merges having never run the suite it exists to be checked by.
+3. **The Dependabot exemption is a mechanism, not a courtesy** — where one is
+   needed. `docs-only.cjs` implements it and nothing here consumes it, because
+   with no gating there is nothing for a bump to be exempt *from*. It becomes
+   load-bearing the moment rule 1 gets a second job to apply to: auto-merge
+   fires as soon as branch protection is satisfied, so an exemption that is
+   missing then lets every eligible bump merge having run nothing.
 
 ## Releases
 

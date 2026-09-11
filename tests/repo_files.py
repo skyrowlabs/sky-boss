@@ -4,7 +4,7 @@ Two questions every doc check has to answer before it can assert anything, and
 both were answered once, in `test_docs_name_live_code.py`, where the second gate
 to need them could not see them.
 
-## Tracked, not walked
+## Asked of git, not walked
 
 `rglob` reads whatever is on the disk. In a working tree that includes
 `.venv/lib/.../pyright/dist/README.md` and `.pytest_cache/README.md` — files
@@ -52,12 +52,54 @@ def git(*args: str, root: Path = PROJECT_ROOT) -> str:
     return subprocess.run(["git", *args], cwd=str(root), capture_output=True, text=True, check=True).stdout
 
 
-def tracked(pattern: str, root: Path = PROJECT_ROOT) -> list:
-    """Tracked files only. An untracked scratch file is not this repo's claim."""
-    return [root / line for line in git("ls-files", pattern, root=root).splitlines() if line.strip()]
+def present(pattern: str, root: Path = PROJECT_ROOT) -> list:
+    """Files in the working tree that git does not disclaim — tracked or not.
+
+    **The index is the wrong population, and this was named `tracked` for one
+    release while being read as "what is in the tree".** Those differ for
+    exactly one set of files and it is the set that matters: everything an
+    upgrade has just written. `bin/skeletor-upgrade` writes and never stages, so
+    a file it delivered is untracked until somebody runs `git add` — and a gate
+    enrolling by `ls-files` looks straight past it, passes, and then fails on
+    the adopter's commit, where it reads as their mistake rather than as a check
+    that never covered them.
+
+    That is `test_json_hook_covers_tracked_files.py`'s own documented failure,
+    arriving through the enrolment instead of the exclude. sky.boss found it.
+
+    `--others --exclude-standard` is what makes the two halves agree. The
+    original reason for asking git at all was that `rglob` reads
+    `.venv/lib/.../pyright/dist/README.md` and `.pytest_cache/README.md`, so the
+    verdict became a function of what the dependency tree happened to ship —
+    machine-dependent, and worse than a false positive everybody sees. Those are
+    gitignored, so `--exclude-standard` still excludes them; what comes back is
+    what `.gitignore` does **not** disclaim.
+
+    A genuine scratch file is now in scope, and that is the right trade rather
+    than a regression. A false positive is reported and fixed in the session
+    that created it; a false negative is silence. `scripts/yaml_text.py` states
+    that asymmetry for comment masking, and it is the same one.
+
+    **The file above kept its name on purpose, and the reason is worth more than
+    the tidiness.** `test_json_hook_covers_tracked_files.py` now describes its
+    population slightly wrong, and renaming it was drafted and reverted:
+    `bin/skeletor-upgrade` never deletes, so a renamed module arrives beside the
+    one it replaces, and the old copy imports a helper this release removed.
+    Measured — every adopter's `pytest` would have stopped at
+    `ImportError: cannot import name 'tracked'`, at COLLECTION, which takes the
+    whole suite rather than one test.
+
+    So renaming a shipped module and changing a shared helper's API in one
+    release are each safe and are not safe together. A cosmetic rename is never
+    worth that, and where one is genuinely needed the old module has to keep
+    importing successfully — which is a deprecation, not a rename.
+    """
+    names = git("ls-files", pattern, root=root).splitlines()
+    names += git("ls-files", "--others", "--exclude-standard", pattern, root=root).splitlines()
+    return [root / line for line in dict.fromkeys(names) if line.strip()]
 
 
 def reference_docs(root: Path = PROJECT_ROOT) -> list:
-    """Tracked markdown that is meant to describe the tree as it is now."""
+    """Markdown in the tree that is meant to describe it as it is now."""
     narrative = tuple(str(directory.relative_to(PROJECT_ROOT)) for directory in NARRATIVE)
-    return [path for path in tracked("*.md", root=root) if not str(path.relative_to(root)).startswith(narrative)]
+    return [path for path in present("*.md", root=root) if not str(path.relative_to(root)).startswith(narrative)]

@@ -37,15 +37,20 @@ pytestmark = [pytest.mark.unit]
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts.paths import PROJECT_ROOT  # noqa: E402
-from tests.repo_files import tracked  # noqa: E402
+from tests.repo_files import present  # noqa: E402
 from tests.scanning import scanned  # noqa: E402
 
 PRECOMMIT = PROJECT_ROOT / ".pre-commit-config.yaml"
 
 
 def _tracked_json() -> list:
-    """Tracked `.json`, as the repo-relative names pre-commit matches against."""
-    return [path.relative_to(PROJECT_ROOT).as_posix() for path in tracked("*.json")]
+    """Every `.json` in the tree, as the repo-relative names pre-commit matches against.
+
+    Not the index: a file `bin/skeletor-upgrade` has just delivered is untracked
+    until somebody stages it, and that is precisely the file this gate exists to
+    catch before the commit rather than during it. See `repo_files.present`.
+    """
+    return [path.relative_to(PROJECT_ROOT).as_posix() for path in present("*.json")]
 
 
 def _check_json_exclude() -> str:
@@ -95,7 +100,7 @@ def test_no_exclusion_has_outlived_its_reason() -> None:
     # Not `scanned`: an exclude that matches nothing tracked is itself the
     # finding this test reports, and asserting non-empty first would raise the
     # wrong error for it.
-    assert excluded, f"check-json excludes {exclude!r}, which matches no tracked file — a dead entry"
+    assert excluded, f"check-json excludes {exclude!r}, which matches no file in the tree — a dead entry"
     stale = [name for name in excluded if _parses(PROJECT_ROOT / name)]
     assert not stale, (
         f"these are excluded from check-json but parse as strict JSON, so the "
