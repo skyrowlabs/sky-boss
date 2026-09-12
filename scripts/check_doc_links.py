@@ -54,8 +54,9 @@ IGNORE_FILE = GITHUB_DIR / "scripts" / ".validate-ignore"
 
 SCAN_ROOTS = ["docs", ".claude", ".github"]
 
-#: **Add your own roots as an append, in the `Your own scan roots` region below.
-#: Do not edit the list above.**
+#: **Add your own roots as an append, below the
+#: `Nothing below this line is skeletor's` rule at the end of this section. Do
+#: not edit the list above.**
 #: A root written into the literal conflicts with every upstream change to it;
 #: an append is a different line and merges clean. See the same note beside
 #: `NARRATIVE` in `scripts/paths.py`, where the two spellings were measured.
@@ -70,11 +71,12 @@ SCAN_ROOTS = ["docs", ".claude", ".github"]
 #: the separation itself; `scripts/paths.py` carries the measurement.
 
 
-# ── Your own scan roots ──────────────────────────────────────────────────────
+# ── Extending SCAN_ROOTS ─────────────────────────────────────────────────────
 #
-# **Put every append to SCAN_ROOTS below this line.** This module ships the
-# region empty and never adds a line to it, so an upgrade has no change here to
-# collide with and your line is never at the template's insertion point.
+# **Put every append to SCAN_ROOTS below the frozen rule at the bottom of this
+# block**, not directly under this heading. This module ships that region empty
+# and never adds a line to it, so an upgrade has no change there to collide with
+# and your line is never at the template's insertion point.
 #
 # This seam existed for three releases with only the blank-line rule, and the
 # region reached `scripts/paths.py` one release before it reached here — because
@@ -82,6 +84,14 @@ SCAN_ROOTS = ["docs", ".claude", ".github"]
 # proto.pilot found it with `git grep` at v0.27.0.
 # `bin/skeletor-verify`'s `append_seam_gate` enumerates seams by their
 # invitation now, so a fourth arrives covered or arrives red.
+#
+# ── Nothing below this line is skeletor's ────────────────────────────────────
+#
+# Put your appends below this block. The block itself is frozen — skeletor does
+# not rewrite these lines and renders nothing below them, so your insertion point
+# is never adjacent to template text a release might edit. The explanation above
+# is ordinary prose and does get rewritten; that is why the rule sits at the
+# bottom of it rather than at the top.
 
 
 # ── Link syntax ──────────────────────────────────────────────────────────────

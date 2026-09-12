@@ -2386,3 +2386,82 @@ delta is attributed rather than waved at: `test_narrative_covers_lifecycle_folde
 goes 2 tests to 3, gaining `test_your_appends_are_inside_the_region`, which is the
 gate for the region above. `dev` up, `sb` up from outside the repo, 45 frontend
 tests pass. `git ls-remote origin v0.28.0` resolves.
+
+### Round 27 — 2026-09-12: v0.29.0, a decline arriving as documentation
+
+`v0.28.0 → v0.29.0`. One conflict — round 26's held divergence, for the fourth
+consecutive round — three files merged clean, seven gates green on arrival,
+nothing to fix. The release moves the append seam and this tree pays nothing for
+it again, which is round 22's decision still earning.
+
+#### skeletor declined our proposal and shipped the argument, not the verdict
+
+Round 26 reported that `pr-draft-discipline.yml` branches its headline on
+`fullSuite` — a property of the pull request — where the sentence is about
+`ci.yml`, and proposed a scaffold-time boolean instead. v0.29.0 declines that and
+adds 41 lines of comment walking the four cases, by name, with this tree's other
+point recorded as a limit.
+
+**The decline is well-reasoned and does not move this tree**, and the reason is
+one column of their own table. Their four cases price *what drafting saves*, read
+off the template's job graph. Round 7 declined that graph. Their row three — a
+human hotfix straight to `main`, where `fullSuite` is true and they say drafting
+saves the full suite — saves nothing here, because no job carries an `if:` on the
+verdict on any path. Re-measured rather than recalled: `full_suite` is computed at
+`ci.yml:155`, exported at `:124`, and consumed once at `:439` as an env var. So
+the case that makes an unconditional negative false upstream is a case this tree
+does not have, and the single sentence stays true across all four rows.
+
+> **A decline can be right about the mechanism and still be arguing from a
+> configuration the adopter removed.** skeletor walked the cases correctly; the
+> last column is the declined job graph, so the table proves the general claim and
+> not the local one.
+
+#### The resolution was a port, not a hold, and the difference is the false half
+
+Taking the block whole would have installed three sentences that are false here:
+it cites a `main` literal *in this block* as proof substitution reaches it — this
+fork never reads `fullSuite`, so there is no such literal — and its closing
+instruction to sweep "this file and `docs-only.cjs`" names one file too many.
+
+So the divergence is held and the *applicable* half ported into our header in our
+voice: the decline itself, so round 28 does not re-propose what was already
+refused, and the release-branch limit, which is real here and lands in
+`.github/scripts/docs-only.cjs:222` and `ci.yml:78,80` rather than in this file.
+Advanced with `--ported`.
+
+#### The seam moved under an append this tree does not have
+
+`scripts/paths.py`'s safe slot is now below a frozen rule at the bottom of the
+block rather than under the heading, so an append correctly placed at v0.28.0 can
+be wrongly placed at v0.29.0 without moving. Round 22 took this file whole and
+round 26 took `check_doc_links.py` whole, so there is no append in either and
+nothing to move. Verified rather than assumed: both files carry the frozen rule,
+and `paths.py` ends in template content.
+
+**The new gate carries its own null**, which is worth naming because this file
+keeps recording gates that are green for unrelated reasons.
+`test_your_appends_are_below_the_frozen_rule` discovers seam files by their
+invitation text with a `least=2` floor instead of hardcoding `paths.py` — so a
+release that renames a heading fails the discovery rather than silently checking
+nothing.
+
+#### Both declines restored, run, and re-measured
+
+Neither file changed in this release (`git diff v0.28.0 v0.29.0` over both paths
+is empty) — and the practice is to run them anyway, because a *reason* expires
+without touching the file. `tests/test_pyright_deps.py` passes all four again and
+is held on the unchanged narrower reason, re-measured: our
+`tests/test_pyright_deps_reach_ci.py` carries a positive control on its own
+reachability walk and the template's still does not, 2 occurrences against 0.
+`.github/CONTRIBUTING.md` stays deleted; the root `CONTRIBUTING.md` is 6.4K of
+this repo's own.
+
+Standing divergences: 25 → 25. All seven gates green, **1588 collected against
+round 26's 1587** — attributed rather than waved at:
+`test_narrative_covers_lifecycle_folders.py` goes 3 tests to 4, gaining
+`test_the_seam_examples_actually_do_something`, which executes the seam's own
+documented examples. Pyright `0 errors`, 45 frontend tests pass, `dev` up, `sb` up
+from outside the repo. `--ref v0.29.0` on every run, dry and applying both; the
+generator checkout was clean and exactly on the tag this time, and
+`git ls-remote origin v0.29.0` resolves.

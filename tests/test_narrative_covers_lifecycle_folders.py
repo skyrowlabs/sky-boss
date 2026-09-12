@@ -32,6 +32,8 @@ day. Classify a folder once, in the file that argues the case.
 
 from __future__ import annotations
 
+import ast
+import copy
 import re
 import sys
 from pathlib import Path
@@ -44,14 +46,50 @@ pytestmark = [pytest.mark.unit]
 # every path below — can be imported. See scripts/paths.py.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts.paths import DOCS_DIR, NARRATIVE, PRESENT_TENSE, PROJECT_ROOT, SCRIPTS_DIR  # noqa: E402
+from scripts.paths import DOCS_DIR, NARRATIVE, PRESENT_TENSE, PROJECT_ROOT  # noqa: E402
+from tests.repo_files import present  # noqa: E402
 from tests.scanning import scanned  # noqa: E402
 
-#: The file the seam and the region live in. Read as text, not imported: the
-#: question is where a line SITS, which importing the module cannot answer.
-PATHS_FILE = SCRIPTS_DIR / "paths.py"
-
 RULES = DOCS_DIR / "rules" / "docs.md"
+
+#: The line below which nothing the template renders is ever written. An append
+#: goes under it; the block it heads is frozen so that the prose above — which
+#: does get rewritten — is never adjacent to your line.
+#:
+#: **Assembled from parts, never spelled**, and so is the invitation below. A
+#: detector that contains its own needle is its own first finding: spelled
+#: contiguously, this file matched `seam_files()` and the suite failed reporting
+#: itself. The alternative is an allowlist entry for the detector's source, which
+#: is the second entry that means the predicate is wrong —
+#: `bin/skeletor-verify`'s `checkout_path_literal_gate` states the same rule
+#: about the same hazard, and assembles its needle for the same reason.
+TERMINATOR = "# ── " + " ".join(("Nothing below", "this line is", "skeletor's"))
+
+#: What makes a file a seam: it invites an append, in those words. The same
+#: predicate `bin/skeletor-verify`'s `append_seam_gate` enumerates seams by, so
+#: a third seam is covered here by arriving rather than by being listed.
+#:
+#: **This file used to name `scripts/paths.py` and nothing else**, while the
+#: generator discovered its seams — so the adopter was handed a list of one, and
+#: `SCAN_ROOTS += ["src"]` immediately above `check_doc_links.py`'s marker passed
+#: the whole suite. dream.doll measured that and filed it: a check whose
+#: population is written down covers the seam it was written for and goes quiet
+#: on the next one, which is Rule 2 at the one artifact meant to enforce Rule 2.
+_INVITATION = (" ".join(("**Add", "your own")), " ".join(("as an", "append")))
+
+
+def seam_files() -> list:
+    """Every file in this tree that invites an append below a frozen rule.
+
+    Read as text and parsed, never imported: the question is where a statement
+    SITS, which importing the module cannot answer.
+    """
+    found = []
+    for path in present("*.py"):
+        text = path.read_text(encoding="utf-8", errors="replace")
+        if all(mark in text for mark in _INVITATION) and TERMINATOR in text:
+            found.append(path)
+    return sorted(found)
 
 
 def _table_folders() -> list:
@@ -86,8 +124,8 @@ def test_every_lifecycle_folder_is_classified() -> None:
     assert not unclassified, (
         f"{RULES.name} tells an adopter to file in {unclassified}, and "
         f"scripts/paths.py says nothing about whether those describe the present. "
-        f"Append them to NARRATIVE or PRESENT_TENSE in that file's "
-        f"`Your own lifecycle folders` region, with the reason."
+        f"Append them to NARRATIVE or PRESENT_TENSE below that file's "
+        f"`{TERMINATOR}` rule, with the reason."
     )
 
 
@@ -98,43 +136,102 @@ def test_no_present_tense_entry_has_gone_stale() -> None:
     assert not gone, (
         f"PRESENT_TENSE (scripts/paths.py) names {gone}, which {RULES.name} no longer lists — "
         f"an exemption is a decision only while the thing it exempts exists. Remove it as an "
-        f"append in that file's `Your own lifecycle folders` region, rather than as an edit to "
+        f"append below that file's `{TERMINATOR}` rule, rather than as an edit to "
         f"the literal:\n" + "".join(f"    PRESENT_TENSE.pop({f!r}, None)\n" for f in gone)
     )
     both = [f for f in PRESENT_TENSE if _is_narrative(f)]
     assert not both, (
         f"PRESENT_TENSE (scripts/paths.py) names {both}, which NARRATIVE now covers. One folder, "
-        f"one role. Remove it as an append in that file's `Your own lifecycle folders` region — "
-        f"the template owns the lines inside that literal and edits them, so a removal spelled "
+        f"one role. Remove it as an append below that file's `{TERMINATOR}` rule — the template "
+        f"owns the lines inside that literal and edits them, so a removal spelled "
         f"there conflicts on every upgrade:\n" + "".join(f"    PRESENT_TENSE.pop({f!r}, None)\n" for f in both)
     )
 
 
-#: Append-shaped lines, which are the ones the region exists to hold. The set is
-#: the spellings `scripts/paths.py` offers, and it is deliberately not a general
-#: python parse: an adopter writes one of these idioms or they are not following
-#: the seam at all, and a regex that matched more would start firing on the
-#: template's own prose about them.
-_APPEND_IDIOMS = (
-    re.compile(r"^\s*NARRATIVE\s*\+="),
-    re.compile(r"^\s*NARRATIVE\s*=\s*tuple\("),
-    re.compile(r"^\s*PRESENT_TENSE\s*\|="),
-    re.compile(r"^\s*PRESENT_TENSE\s*\.(update|pop)\("),
-    re.compile(r"^\s*PRESENT_TENSE\["),
-)
+def _touched(node) -> list:
+    """The names this top-level statement binds or mutates, in mutation position.
 
-_REGION_MARKER = "# ── Your own lifecycle folders"
+    One predicate, two populations, which is what makes both ends discovered.
+    Run over the seam's documented examples it answers *which constants does this
+    file invite appends to*; run over the file's own body it answers *which
+    statements are appends*. A name in a value position — `DOCS_DIR` inside a
+    tuple — is neither, and is excluded by construction rather than by a list.
+    """
+
+    def target(expr) -> list:
+        if isinstance(expr, ast.Name):
+            return [expr.id]
+        if isinstance(expr, ast.Subscript):
+            return target(expr.value)
+        if isinstance(expr, (ast.Tuple, ast.List)):
+            return [name for element in expr.elts for name in target(element)]
+        return []
+
+    if isinstance(node, ast.Assign):
+        return [name for expr in node.targets for name in target(expr)]
+    if isinstance(node, (ast.AugAssign, ast.AnnAssign)):
+        return target(node.target)
+    if isinstance(node, ast.Expr) and isinstance(node.value, ast.Call):
+        call = node.value.func
+        if isinstance(call, ast.Attribute):
+            return target(call.value)
+    return []
 
 
-def test_your_appends_are_inside_the_region() -> None:
-    """An append above the marker keeps the old behaviour and says nothing about it.
+def _module_constants(tree) -> set:
+    """Every ALL_CAPS name this module binds at top level."""
+    return {
+        name
+        for node in tree.body
+        for name in _touched(node)
+        if name.isupper() and isinstance(node, (ast.Assign, ast.AnnAssign))
+    }
 
-    **The silent state this exists for.** When the region arrived, an existing
-    append merged cleanly and git ordered it either side of the marker depending
-    on exactly where it sat — so a tree could take the release, see zero
-    conflicts, and still be holding its append hard against the prose block the
-    template edits. It keeps the pre-region behaviour, a clean first merge and a
-    conflict on the next re-run, while every signal says it is covered.
+
+def _seam_constants(path: Path, tree) -> set:
+    """The constants this seam's own documented examples tell you to append to."""
+    shipped = _module_constants(tree)
+    named = set()
+    for block in _example_blocks(path):
+        for statement in block:
+            try:
+                parsed = ast.parse(statement)
+            except SyntaxError:
+                continue
+            named |= {name for node in parsed.body for name in _touched(node)}
+    return named & shipped
+
+
+def _appends(path: Path, tree) -> list:
+    """Top-level statements that extend a seam constant after it is defined.
+
+    The first statement touching a constant is the template's definition; every
+    later one is an append. **That holds for the template too** — if a release
+    ever shipped a second statement extending one of these constants, it would be
+    putting its own line at the adopter's insertion point, and this reports it.
+    """
+    constants = _seam_constants(path, tree)
+    seen, found = set(), []
+    for node in tree.body:
+        for name in _touched(node):
+            if name not in constants:
+                continue
+            if name in seen:
+                found.append(node)
+                break
+            seen.add(name)
+    return found
+
+
+def test_your_appends_are_below_the_frozen_rule() -> None:
+    """An append above the rule keeps the old behaviour and says nothing about it.
+
+    **The silent state this exists for.** An existing append merges cleanly and
+    git orders it either side of the template's own new lines depending on exactly
+    where it sat — so a tree takes the release, sees zero conflicts, and is still
+    holding its append inside the prose block the template edits. It keeps the
+    pre-rule behaviour, a clean first merge and a conflict on the next re-run,
+    while every signal says it is covered.
 
     `scripts/paths.py` claimed the append always landed below. It does not, and
     the claim was generalised from one synthetic case. dream.doll measured the
@@ -143,28 +240,149 @@ def test_your_appends_are_inside_the_region() -> None:
     own suite can settle it and nobody has to believe a release note.
 
     Vacuous on a fresh scaffold, which ships no appends — so what is asserted is
-    that the MARKER was found. Without that this passes on a file the region was
-    deleted from, which is the one edit that would make it matter.
+    that the seams and their rules were FOUND. Without that this passes on a file
+    the rule was deleted from, which is the one edit that would make it matter.
     """
-    lines = PATHS_FILE.read_text(encoding="utf-8").splitlines()
-    marker = [i for i, line in enumerate(lines) if line.startswith(_REGION_MARKER)]
-    scanned(marker, f"`{_REGION_MARKER}` markers in {PATHS_FILE.name}", least=1)
-    assert len(marker) == 1, (
-        f"{PATHS_FILE.name} has {len(marker)} region markers. An adopter cannot be told to append "
-        f"below `the` marker unless there is exactly one."
-    )
-
-    above = [
-        f"{PATHS_FILE.name}:{number}: {line.strip()}"
-        for number, line in enumerate(lines[: marker[0]], start=1)
-        if any(idiom.match(line) for idiom in _APPEND_IDIOMS)
-    ]
+    seams = scanned(seam_files(), "append seams in this tree", least=2)
+    above = []
+    for path in seams:
+        lines = path.read_text(encoding="utf-8").splitlines()
+        rules = [number for number, line in enumerate(lines, start=1) if line.startswith(TERMINATOR)]
+        assert len(rules) == 1, (
+            f"{path.name} has {len(rules)} `{TERMINATOR}` rules. An adopter cannot be told to append "
+            f"below `the` rule unless there is exactly one."
+        )
+        tree = ast.parse("".join(line + chr(10) for line in lines))
+        above += [
+            f"{path.relative_to(PROJECT_ROOT)}:{node.lineno}: {lines[node.lineno - 1].strip()}"
+            for node in _appends(path, tree)
+            if node.lineno < rules[0]
+        ]
     assert not above, (
-        "these appends sit ABOVE the `Your own lifecycle folders` marker:\n  "
+        f"these appends sit ABOVE the `{TERMINATOR}` rule:\n  "
         + "\n  ".join(above)
         + "\n\nThey work today and will conflict on the next upgrade that re-runs before the base "
         "advances, because they share an insertion point with the template's own text. Move them "
-        "below the marker — it is a cut and paste, and nothing else has to change. If one arrived "
+        "below the rule — it is a cut and paste, and nothing else has to change. If one arrived "
         "there by an upgrade rather than by you, that is expected: git placed it, and moving it is "
         "the whole remedy."
+    )
+
+
+#: An indented example inside a `#:` block — the spelling the seam hands an
+#: adopter to paste. Grouped into contiguous blocks because one example defines a
+#: name the next one uses.
+_EXAMPLE = re.compile(r"^#:(?P<indent> {4,})(?P<code>\S.*)$")
+
+
+def _example_blocks(path: Path) -> list:
+    """Every contiguous run of indented examples in a seam file, as source."""
+    blocks, current = [], []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        found = _EXAMPLE.match(line)
+        if found:
+            current.append(found.group("code"))
+        elif current:
+            blocks.append(current)
+            current = []
+    if current:
+        blocks.append(current)
+    return blocks
+
+
+def _shipped_namespace(path: Path) -> dict:
+    """The seam file's own source ABOVE the frozen rule, executed fresh.
+
+    **Not the imported module, and an adopter action is what proved it.** The
+    examples are evaluated to answer *is this spelling correct*, which is a
+    question about the spelling. Evaluated against the live module it becomes *does
+    this do something in my tree*, and those differ the moment somebody accepts the
+    seam's invitation: the removal example names the seeded `PRESENT_TENSE` key, so
+    an adopter who pops that key — following the instruction the failing staleness
+    check prints, verbatim — makes the template's own example a no-op and turns
+    this test red for doing exactly as they were told.
+
+    `pop` takes a default *because* a no-op is correct once the key is gone. The
+    defect this test exists for is different and is never correct: a filter on
+    `is not` against an anonymous entry cannot remove anything for anybody.
+
+    Everything above the rule is the template's and everything below is the
+    adopter's, so the same line that keeps merges clean draws the boundary this
+    needs.
+    """
+    lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
+    rule = next(i for i, line in enumerate(lines) if line.startswith(TERMINATOR))
+    # `__file__`, because these modules derive PROJECT_ROOT from it and an exec
+    # namespace has none — the first run of this helper failed with a NameError
+    # rather than a finding, which is the right failure and the wrong report.
+    namespace: dict = {"__file__": str(path)}
+    exec("".join(lines[:rule]), namespace)  # noqa: S102 - this tree's own source
+    return namespace
+
+
+def test_the_seam_examples_actually_do_something() -> None:
+    """A spelling that no-ops is worse than one that errors, and one of these did.
+
+    **`is not` silently did nothing for half the shipped tuple.** The removal
+    idiom was `role is not IMPL_DIR`, argued for over `!=` on the grounds that
+    these are directory objects whose equality is by path, so identity is what an
+    adopter means. True about intent, false about the objects: `DOCS_DIR /
+    "reports"` builds a new `Path` on every evaluation, so the comparison is true
+    for every element, the filter runs, and the tuple comes back unchanged. Two of
+    four entries are anonymous expressions, so the idiom worked for the half
+    somebody reaches for first and was inert for the rest. proto.pilot found it.
+
+    So the examples are **executed** rather than read, one statement at a time,
+    in every seam file rather than in the one this check was written for.
+
+    ## Per statement, because a block hid the bug it was written to catch
+
+    The first version checked whether a BLOCK left either constant changed. The
+    removal block touches both — `PRESENT_TENSE.pop(...)` then the `NARRATIVE`
+    rebuild — so the working half satisfied the assertion for the broken half and
+    the exact defect under test passed. Two statements, one verdict, and the
+    verdict went to whichever succeeded.
+
+    ## What is skipped, and why that cannot go quiet
+
+    A statement that raises is illustrative rather than pasteable: the seam
+    carries a comparison of two spellings with `CONFLICT` and `clean` annotated in
+    a column, which is prose in code shape and not valid python, and one example
+    names a constant defined only in a neighbouring block. Neither is this
+    check's business. But "skip what raises" is how a check stops checking, so
+    what is asserted is the number of statements that actually RAN — not the
+    number found.
+    """
+    seams = scanned(seam_files(), "append seams in this tree", least=2)
+    inert, executed = [], []
+    for path in seams:
+        blocks = scanned(_example_blocks(path), f"indented examples in {path.name}", least=1)
+        shipped = _shipped_namespace(path)
+        constants = _seam_constants(path, ast.parse(path.read_text(encoding="utf-8")))
+        for block in blocks:
+            namespace = dict(shipped)
+            namespace.update({name: copy.copy(shipped[name]) for name in constants})
+            for statement in block:
+                touches = [name for name in constants if name in statement]
+                # `copy`, not a reference. `PRESENT_TENSE |= {...}` mutates the dict
+                # in place, so a snapshot that aliases it compares the object with
+                # itself and every mapping example reads as inert — the harness
+                # reporting its own aliasing as a finding about the seam, which it
+                # did on first run.
+                before = {name: copy.copy(namespace[name]) for name in touches}
+                try:
+                    exec(statement, namespace)  # noqa: S102 - the file under test is this tree's own
+                except Exception:  # noqa: BLE001 - illustrative or context-dependent; see the docstring
+                    break
+                executed.append(statement)
+                unchanged = [name for name in touches if namespace[name] == before[name]]
+                if unchanged:
+                    inert.append(f"{path.name}: {statement}   ->   {', '.join(unchanged)} unchanged")
+    scanned(executed, "seam example statements that ran", least=3)
+    assert not inert, (
+        "these example statements name a constant and leave it as it was:\n  "
+        + "\n  ".join(inert)
+        + "\n\nAn adopter pastes one and nothing happens, silently. A removal that filters on identity "
+        'is the known case: an anonymous entry like `DOCS_DIR / "reports"` builds a new object on every '
+        "evaluation, so `is not` is true for every element. Use `!=`."
     )

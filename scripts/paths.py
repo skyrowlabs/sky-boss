@@ -102,8 +102,9 @@ RELEASES_DIR = DOCS_DIR / "reports" / "releases"
 #: unclassified the way this one was.
 NARRATIVE = (TODO_DIR, IMPL_DIR, DOCS_DIR / "reports", DOCS_DIR / "research")
 
-#: **Add your own stages as an append, in the `Your own lifecycle folders`
-#: region at the end of this section. Do not edit the tuple above.**
+#: **Add your own stages as an append, below the
+#: `Nothing below this line is skeletor's` rule at the end of this section. Do
+#: not edit the tuple above.**
 #:
 #: This used to read "extending this tuple is a one-line change to a file you
 #: own", which was true about permission and wrong about merging. stash.flow
@@ -122,11 +123,12 @@ NARRATIVE = (TODO_DIR, IMPL_DIR, DOCS_DIR / "reports", DOCS_DIR / "research")
 #:     EXPLORE_DIR = PROJECT_ROOT / "explore"
 #:     NARRATIVE += (EXPLORE_DIR,)
 #:
-#: **Put it in the `Your own lifecycle folders` region at the end of this
-#: section, not here.** The reason is written there. Briefly: a blank line
+#: **Put it below the `Nothing below this line is skeletor's` rule at the end of
+#: this section, not here.** The reason is written there. Briefly: a blank line
 #: between your block and the template's does work — measured — and it is a
-#: first-merge guarantee that nothing can enforce, so the region replaces it
-#: with the separation itself.
+#: first-merge guarantee that nothing can enforce, so a frozen rule with nothing
+#: below it replaces the separation somebody has to remember with the separation
+#: itself.
 #:
 #: The per-line audit that used to be the rule is why: the unit of collision is
 #: the line, so stash.flow's five-line explanation sat hard against the constant
@@ -166,11 +168,11 @@ PRESENT_TENSE = {
     ),
 }
 
-#: **Add your own present-tense folders as an append, in the
-#: `Your own lifecycle folders` region at the end of this section.** An append is
-#: a different line from the template's and stays clean when upstream edits its
-#: own; the region is what keeps the two from arriving at one insertion point on
-#: a re-merge. The reason is written once, there.
+#: **Add your own present-tense folders as an append, below the
+#: `Nothing below this line is skeletor's` rule at the end of this section.** An
+#: append is a different line from the template's and stays clean when upstream
+#: edits its own; the frozen rule is what keeps the two from arriving at one
+#: insertion point on a re-merge. The reason is written once, there.
 #:
 #: This block used to say *"for the reason the `NARRATIVE` block gives"* and
 #: never repeat it — so the load-bearing half of the rule was stated at one of
@@ -195,7 +197,7 @@ PRESENT_TENSE = {
 #: editing its own:
 #:
 #:     PRESENT_TENSE.pop("docs/business-planning", None)
-#:     NARRATIVE = tuple(role for role in NARRATIVE if role is not IMPL_DIR)
+#:     NARRATIVE = tuple(role for role in NARRATIVE if role != DOCS_DIR / "reports")
 #:
 #: `pop` takes a default so the line is idempotent — an entry the template
 #: later stops shipping must not turn an adopter's removal into a `KeyError`,
@@ -203,21 +205,43 @@ PRESENT_TENSE = {
 #:
 #: The rebuilt tuple reads as editing `NARRATIVE` and is not: the name on the
 #: left is assigned on a **new line below the template's**, and git merges
-#: lines. `is not` rather than `!=` because these are directory objects whose
-#: equality is by path, and identity is what an adopter means when they name
-#: the constant the template defined.
+#: lines.
+#:
+#: ## `!=`, and this line shipped as `is not` for a release
+#:
+#: The argument for identity was that these are directory objects whose equality
+#: is by path, so identity is what an adopter means when they name the constant
+#: the template defined. That is true about **intent** and false about the
+#: objects: half the tuple above has no name to be identical to.
+#: `DOCS_DIR / "reports"` builds a new `Path` on every evaluation, so
+#: `role is not DOCS_DIR / "reports"` is true for every element and the removal
+#: **silently does nothing** — the filter runs, the tuple comes back the same
+#: length, and nothing anywhere says so.
+#:
+#: Measured on a fresh tree, 2 of the 4 shipped entries are anonymous
+#: expressions and 2 are named constants. `is not` works for the named half;
+#: `!=` works for all four. So the idiom that reads as more precise was correct
+#: for the entries somebody would reach for first and inert for the rest, which
+#: is the shape this repository keeps meeting: the convenient example cannot
+#: discriminate. proto.pilot found it.
+#:
+#: `tests/test_narrative_covers_lifecycle_folders.py` executes the spellings in
+#: this comment against the real constants now, so an example that stops working
+#: fails rather than waiting for somebody to paste it.
 
 
-# ── Your own lifecycle folders ───────────────────────────────────────────────
+# ── Extending NARRATIVE and PRESENT_TENSE ────────────────────────────────────
 #
-# **Put every append to NARRATIVE and PRESENT_TENSE below this line.** Both
-# constants are defined above it, so both spellings reach from here.
+# **Put every append to NARRATIVE and PRESENT_TENSE below the frozen rule at the
+# bottom of this block**, not directly under this heading. Both constants are
+# defined above, so both spellings reach from there.
 #
-# skeletor ships this region empty and never adds a line to it. That is the
-# whole mechanism: a three-way merge collides when two changes land at one
-# insertion point, and an upgrade has no change here to collide with — so your
-# line is never adjacent to a template line, whatever the template does to its
-# own text above.
+# skeletor renders nothing below that rule, ever. That is the whole mechanism: a
+# three-way merge collides when two changes land at one insertion point, and an
+# upgrade has no change down there to collide with — so your line is never
+# adjacent to a template line, whatever the template does to its own text above.
+# The rule is at the bottom of this block rather than the top for the reason the
+# next section measures.
 #
 # ## What this replaces, because the old rule worked and could not be enforced
 #
@@ -237,49 +261,59 @@ PRESENT_TENSE = {
 # `--ported` and not a hand-port. Both land on the same shape — the blank line
 # survives one merge, and the insertion points coincide again on the next.
 #
-# A marked region is a first-merge guarantee that holds on every merge after it,
-# because the separation stops being a blank line somebody has to remember and
-# becomes where the two changes are.
+# A frozen rule with nothing below it is that same guarantee holding on every
+# merge after the first, because the separation stops being a blank line somebody
+# has to remember and becomes where the two changes are.
 #
-# ## What it cost the trees that were already extending this file, measured
+# ## Where your existing append lands is NOT guaranteed — move it, and check
 #
-# Six real adopter trees, each at base `v0.26.0` with its own divergence, run
-# through `bin/skeletor-upgrade --dry-run` with and without this region:
+# This block used to be *headed* by the rule, with the explanation between it and
+# your append. **That layout could not give safe advice**, because "below this
+# line" then named a position inside template prose, and which position is safe
+# turns on which paragraph the last release rewrote. Measured, same append, same
+# two merges, base `v0.27.0`: against `v0.28.0` the position just under the old
+# marker re-conflicted while the end of the prose was clean, and against the
+# release after it the two swapped. proto.pilot measured the first pair; the
+# inversion turned up while reproducing it, and both readings were correct.
 #
-#     four trees        clean either way
-#     one tree          conflicts either way, for an unrelated reason
-#     one tree          clean before, conflicts once when this line arrives
+# An earlier version of this section also claimed an append that merged cleanly
+# ended up below the marker and needed no moving. That was generalised from one
+# synthetic case and is false: git orders the two additions at a shared anchor
+# rather than colliding on them, and which side yours lands on depends on where
+# exactly it sits. dream.doll merged cleanly and landed above; mind.head found
+# the same from a tree that conflicted.
 #
-# So the cost is one conflict in one tree, once, and it is **inherent rather
-# than a placement mistake**: that tree's append occupies exactly this position,
-# and a marker whose entire purpose is to hold this position cannot arrive
-# without landing on it.
+# **If you extended this file before the rule moved, your appends are interleaved
+# with this prose and have to be moved below it.** The bad outcome is silent,
+# which is why it earns a check rather than a sentence: an append above the rule
+# keeps the pre-region behaviour — clean first merge, conflict on the next re-run
+# — while the release notes say you are covered, so it is paid for later as a
+# conflict that looks new. `tests/test_narrative_covers_lifecycle_folders.py`
+# asserts every append is below the rule, making placement a question your own
+# suite answers rather than a claim you are asked to believe. dream.doll's
+# remedy, and the right shape: placement is a fact about your file.
 #
-# ## Where your existing append lands is NOT guaranteed — check it
+# ## What the move costs, measured against the real trees
 #
-# This used to say an append that merged cleanly ended up below the marker, so it
-# was already in the region and needed no moving. **That is false, and it was
-# generalised from one synthetic case.** git orders the two additions at a shared
-# anchor rather than colliding on them, and which side yours lands on depends on
-# where exactly your append sits. dream.doll merged cleanly and landed **above**;
-# mind.head found the same from a tree that conflicted.
+# Six real adopter trees, each at its own recorded base of `v0.28.0`, dry-run
+# through `bin/skeletor-upgrade` against this release and against `v0.28.0`:
 #
-# The bad outcome is silent, which is why it earns a check rather than a sentence.
-# An append above the marker keeps the pre-region behaviour — a clean first merge
-# and a conflict on the next re-run — while the release notes say you are covered,
-# so it is paid for later as a conflict that looks new.
-# `tests/test_narrative_covers_lifecycle_folders.py` asserts your appends are
-# below this line, making placement a question your own suite answers rather than
-# a claim you are asked to believe. dream.doll's remedy, and the right shape:
-# placement is a fact about your file.
+#     four trees   extend this file; two of those four conflict on it
+#     two trees    ship it unextended and are clean
 #
-# ## What the region buys, narrowly, because the wider claim measured false
+# Which two is **not** a function of how far down the append sits — one
+# conflicting append is two lines above the old block's end and two clean ones
+# are three. It is a function of which prose this release happened to rewrite
+# next to them, which is the whole argument for moving the rule: afterwards there
+# is no template prose below your appends for a later release to edit.
+#
+# ## What the rule buys, narrowly, because the wider claim measured false
 #
 # **The re-run, and nothing on a first merge.** Measured in both layouts against
-# every upstream edit that is legal above the marker:
+# every upstream edit that is legal above the rule:
 #
-#     old layout   first merge clean, re-run before the base advances CONFLICTS
-#     region       first merge clean, re-run clean
+#     blank line only   first merge clean, re-run before the base advances CONFLICTS
+#     frozen rule       first merge clean, re-run clean
 #
 # A first-merge probe cannot tell the layouts apart, because there is nothing
 # there to buy. proto.pilot established that with three probes, and it is why the
@@ -288,11 +322,19 @@ PRESENT_TENSE = {
 # parameter varied nothing — *undistinguished, not confirmed*, in a harness
 # rather than in a flag.
 #
-# The earlier estimate of this cost was "all six, including the four that are
+# One earlier estimate of the cost said "all six, including the four that are
 # clean", and it was wrong because the harness measuring it appended at the wrong
 # line — outside the block the template keeps editing, on the far side of the
-# 28 lines the previous release inserted into precisely that gap. The number
-# above comes from running the real tool against the real trees instead.
+# lines the previous release had inserted into precisely that gap. Every number
+# here comes from running the real tool against the real trees instead.
+#
+# ── Nothing below this line is skeletor's ────────────────────────────────────
+#
+# Put your appends below this block. The block itself is frozen — skeletor does
+# not rewrite these lines and renders nothing below them, so your insertion point
+# is never adjacent to template text a release might edit. The explanation above
+# is ordinary prose and does get rewritten; that is why the rule sits at the
+# bottom of it rather than at the top.
 
 
 # ── Code and configuration ───────────────────────────────────────────────────

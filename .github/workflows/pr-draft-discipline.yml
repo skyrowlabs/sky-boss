@@ -27,6 +27,27 @@ name: PR Draft Discipline
 # ever read, so all four weekly bump PRs would be told that drafting "skips the
 # rest" on a repository where nothing is ever skipped. The single sentence below
 # is true on every path. See [[skeletor-adoption]] round 26.
+#
+# **v0.29.0 answered that and declined, and the decline does not move this tree.**
+# skeletor walked the four cases rather than arguing them, and their table's last
+# column — *what drafting saves* — is read off the template's job graph, which
+# round 7 declined here. Their row three is a human hotfix straight to `main`,
+# where `fullSuite` is true and they say drafting saves the full suite; here it
+# saves nothing, because nothing in `ci.yml` is gated on the verdict on any path.
+# So the case that makes their negative branch false upstream is a case this tree
+# does not have, and the sentence below stays true across all four rows. Do not
+# re-propose a scaffold-time boolean either — that was this tree's round-26 ask
+# and skeletor declined it on the cases, not on the means. See
+# [[skeletor-adoption]] round 27.
+#
+# **Their other point is recorded rather than solved, and it is real here.** The
+# release branch is a scaffold-time literal: `.github/scripts/docs-only.cjs`
+# compares `base === 'main'` and `ci.yml` names it in both `branches:` lists. A
+# rename afterwards leaves every one of them advising against a branch that no
+# longer releases, and no gate in the tree can see it — the real release branch
+# is a fact about the repository's settings, and every gate here asks whether the
+# tree is consistent with itself. It is **not** a literal in this file, because
+# this fork never reads `fullSuite`; renaming means sweeping those two.
 
 on:
   pull_request_target:
