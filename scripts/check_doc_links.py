@@ -87,13 +87,21 @@ SCAN_ROOTS = ["docs", ".claude", ".github"]
 #
 # ── Nothing below this line is skeletor's ────────────────────────────────────
 #
-# Put your appends below this block. The block itself is frozen — skeletor does
-# not rewrite these lines and renders nothing below them, so your insertion point
-# is never adjacent to template text a release might edit. The explanation above
-# is ordinary prose and does get rewritten; that is why the rule sits at the
-# bottom of it rather than at the top.
+# Everything of yours goes between this rule and the closing one below: appends,
+# and any prose you write about them. Both rules are frozen — skeletor does not
+# rewrite either block and renders nothing between them, so your insertion point
+# is never adjacent to a template line that a release might edit. The
+# explanation above IS ordinary prose and does get rewritten, which is why the
+# rule sits at the bottom of it rather than at the top.
 
 
+# ── Skeletor's again below this line ─────────────────────────────────────────
+#
+# The region is bounded on both sides because the opening rule was not a boundary:
+# for one release it claimed skeletor renders nothing below it, and this file
+# carries template-owned sections further down. `scripts/paths.py` records the
+# measurement, why the next `# ── ` heading could not serve as the boundary, and
+# why this block is glued to the heading beneath it.
 # ── Link syntax ──────────────────────────────────────────────────────────────
 
 _LINK = re.compile(r"(?<!!)\[(?P<text>[^\]]*)\]\((?P<href>[^)\s]+)(?:\s+\"[^\"]*\")?\)")

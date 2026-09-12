@@ -52,9 +52,16 @@ from tests.scanning import scanned  # noqa: E402
 
 RULES = DOCS_DIR / "rules" / "docs.md"
 
-#: The line below which nothing the template renders is ever written. An append
-#: goes under it; the block it heads is frozen so that the prose above — which
-#: does get rewritten — is never adjacent to your line.
+#: The two rules that bound your space. Everything of yours goes between them —
+#: appends, and any prose you write about them — and the template renders nothing
+#: in there, so your insertion point is never adjacent to a line a release edits.
+#:
+#: **There are two because one was not a boundary.** For a release the opening
+#: rule was the whole mechanism and the seam claimed the template rendered nothing
+#: below it, which is false about a file with template-owned sections further
+#: down: mind.head found it latent from their own append's lower edge, stash.flow
+#: found it by planting below the seam and watching four tests pass. So *below the
+#: opening rule* certified the state section eighty lines on.
 #:
 #: **Assembled from parts, never spelled**, and so is the invitation below. A
 #: detector that contains its own needle is its own first finding: spelled
@@ -64,6 +71,7 @@ RULES = DOCS_DIR / "rules" / "docs.md"
 #: `bin/skeletor-verify`'s `checkout_path_literal_gate` states the same rule
 #: about the same hazard, and assembles its needle for the same reason.
 TERMINATOR = "# ── " + " ".join(("Nothing below", "this line is", "skeletor's"))
+CLOSER = "# ── " + " ".join(("Skeletor's again", "below this line"))
 
 #: What makes a file a seam: it invites an append, in those words. The same
 #: predicate `bin/skeletor-verify`'s `append_seam_gate` enumerates seams by, so
@@ -78,18 +86,46 @@ TERMINATOR = "# ── " + " ".join(("Nothing below", "this line is", "skeletor'
 _INVITATION = (" ".join(("**Add", "your own")), " ".join(("as an", "append")))
 
 
-def seam_files() -> list:
-    """Every file in this tree that invites an append below a frozen rule.
+def invited_files() -> list:
+    """Every file in this tree that invites an append, in those words.
 
     Read as text and parsed, never imported: the question is where a statement
     SITS, which importing the module cannot answer.
+
+    **This is the population; carrying the rules is the assertion.** The two used
+    to be one predicate — invitation `and` terminator — so a seam file that
+    shipped the invitation without the rule left the population instead of
+    failing, and the only thing between that and silence was `least=2`, a copy of
+    today's seam count. dream.doll priced it: stripping the terminator fails today
+    through the floor (2 → 1), and with a third seam a fourth arriving without its
+    rule leaves 3 ≥ 2 and goes quiet — so keeping the floor honest would mean
+    bumping an integer on every new seam, **which is the hardcoded list the
+    discovery rewrite just removed, relocated to a number.**
     """
     found = []
     for path in present("*.py"):
         text = path.read_text(encoding="utf-8", errors="replace")
-        if all(mark in text for mark in _INVITATION) and TERMINATOR in text:
+        if all(mark in text for mark in _INVITATION):
             found.append(path)
     return sorted(found)
+
+
+def seam_files() -> list:
+    """The invited files, each of which must carry both rules — asserted, not filtered."""
+    invited = scanned(invited_files(), "files inviting an append in this tree", least=2)
+    missing = []
+    for path in invited:
+        text = path.read_text(encoding="utf-8")
+        absent = [name for name, rule in (("opening", TERMINATOR), ("closing", CLOSER)) if rule not in text]
+        if absent:
+            missing.append(f"{path.name}: no {' or '.join(absent)} rule")
+    assert not missing, (
+        "these files invite an append and do not bound a space to put it in:\n  "
+        + "\n  ".join(missing)
+        + f"\n\nAn invitation without both rules is an invitation to append into template prose. "
+        f"Add the `{TERMINATOR}` and `{CLOSER}` blocks, or stop inviting."
+    )
+    return invited
 
 
 def _table_folders() -> list:
@@ -223,8 +259,8 @@ def _appends(path: Path, tree) -> list:
     return found
 
 
-def test_your_appends_are_below_the_frozen_rule() -> None:
-    """An append above the rule keeps the old behaviour and says nothing about it.
+def test_your_appends_are_inside_your_own_space() -> None:
+    """An append outside the two rules keeps the old behaviour and says nothing about it.
 
     **The silent state this exists for.** An existing append merges cleanly and
     git orders it either side of the template's own new lines depending on exactly
@@ -243,29 +279,40 @@ def test_your_appends_are_below_the_frozen_rule() -> None:
     that the seams and their rules were FOUND. Without that this passes on a file
     the rule was deleted from, which is the one edit that would make it matter.
     """
-    seams = scanned(seam_files(), "append seams in this tree", least=2)
-    above = []
+    seams = seam_files()
+    outside = []
     for path in seams:
         lines = path.read_text(encoding="utf-8").splitlines()
-        rules = [number for number, line in enumerate(lines, start=1) if line.startswith(TERMINATOR)]
-        assert len(rules) == 1, (
-            f"{path.name} has {len(rules)} `{TERMINATOR}` rules. An adopter cannot be told to append "
-            f"below `the` rule unless there is exactly one."
-        )
+        where = {}
+        for name, rule in (("opening", TERMINATOR), ("closing", CLOSER)):
+            found = [number for number, line in enumerate(lines, start=1) if line.startswith(rule)]
+            # **The message names the likely cause, which is usually not the template.**
+            # It used to read "An adopter cannot be told to append below `the` rule
+            # unless there is exactly one" — a description of a template defect, for a
+            # condition an adopter's own box rule can create by starting with the same
+            # words. node-zero reproduced it and pointed out the reader's first move is
+            # to look upstream at a file that is fine.
+            assert len(found) == 1, (
+                f"{path.name} has {len(found)} lines starting with the {name} rule `{rule}`, and there "
+                f"must be exactly one for `between the rules` to mean anything. If you wrote your own "
+                f"section heading in this file, give it different words — this rule's text is how the "
+                f"boundary is found. If you did not, the template shipped two and that is our bug."
+            )
+            where[name] = found[0]
         tree = ast.parse("".join(line + chr(10) for line in lines))
-        above += [
+        outside += [
             f"{path.relative_to(PROJECT_ROOT)}:{node.lineno}: {lines[node.lineno - 1].strip()}"
             for node in _appends(path, tree)
-            if node.lineno < rules[0]
+            if not where["opening"] < node.lineno < where["closing"]
         ]
-    assert not above, (
-        f"these appends sit ABOVE the `{TERMINATOR}` rule:\n  "
-        + "\n  ".join(above)
+    assert not outside, (
+        f"these appends sit OUTSIDE the space between `{TERMINATOR}` and `{CLOSER}`:\n  "
+        + "\n  ".join(outside)
         + "\n\nThey work today and will conflict on the next upgrade that re-runs before the base "
         "advances, because they share an insertion point with the template's own text. Move them "
-        "below the rule — it is a cut and paste, and nothing else has to change. If one arrived "
-        "there by an upgrade rather than by you, that is expected: git placed it, and moving it is "
-        "the whole remedy."
+        "between the two rules — it is a cut and paste, and nothing else has to change. If one "
+        "arrived there by an upgrade rather than by you, that is expected: git placed it, and moving "
+        "it is the whole remedy."
     )
 
 
@@ -343,6 +390,15 @@ def test_the_seam_examples_actually_do_something() -> None:
     the exact defect under test passed. Two statements, one verdict, and the
     verdict went to whichever succeeded.
 
+    ## One mistake, two red tests — worth knowing before you debug
+
+    This execs the seam file's source **above the opening rule**, so an append that
+    landed on the wrong side of it joins that namespace. It can then satisfy the
+    template's own documented `PRESENT_TENSE.pop(...)` example in advance and make
+    it a no-op — so a misplaced append turns this test red *as well as* the
+    placement check, and the finding here is a symptom of the one there. Fix the
+    placement first. dream.doll recorded the coupling after meeting it.
+
     ## What is skipped, and why that cannot go quiet
 
     A statement that raises is illustrative rather than pasteable: the seam
@@ -353,7 +409,7 @@ def test_the_seam_examples_actually_do_something() -> None:
     what is asserted is the number of statements that actually RAN — not the
     number found.
     """
-    seams = scanned(seam_files(), "append seams in this tree", least=2)
+    seams = seam_files()
     inert, executed = [], []
     for path in seams:
         blocks = scanned(_example_blocks(path), f"indented examples in {path.name}", least=1)

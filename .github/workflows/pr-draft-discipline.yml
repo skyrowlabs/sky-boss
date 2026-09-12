@@ -40,14 +40,35 @@ name: PR Draft Discipline
 # and skeletor declined it on the cases, not on the means. See
 # [[skeletor-adoption]] round 27.
 #
+# **v0.30.0 granted the clause this tree asked for, so the disagreement is
+# recorded upstream and is no longer open.** The template's table now says in as
+# many words that its last column — *what drafting saves* — is a property of its
+# own job graph and does not reach a tree that gates nothing on the classifier.
+# That is this fork's whole argument, conceded at the root. The sentence below
+# stays as it is: a conceded premise does not make the template's branching text
+# true here, it makes this file's text the one skeletor expects such a tree to
+# have. See [[skeletor-adoption]] round 28.
+#
 # **Their other point is recorded rather than solved, and it is real here.** The
-# release branch is a scaffold-time literal: `.github/scripts/docs-only.cjs`
-# compares `base === 'main'` and `ci.yml` names it in both `branches:` lists. A
-# rename afterwards leaves every one of them advising against a branch that no
-# longer releases, and no gate in the tree can see it — the real release branch
-# is a fact about the repository's settings, and every gate here asks whether the
-# tree is consistent with itself. It is **not** a literal in this file, because
-# this fork never reads `fullSuite`; renaming means sweeping those two.
+# release branch is a scaffold-time literal, and a rename afterwards leaves every
+# spelling of it advising against a branch that no longer releases. No gate in
+# the tree can see that — the real release branch is a fact about the
+# repository's settings, and every gate here asks whether the tree is consistent
+# with itself. It is **not** a literal in this file, because this fork never
+# reads `fullSuite`.
+#
+# **So the instruction is a command, not a file list**, which is skeletor's own
+# correction in v0.30.0 and this repo's standing rule about keeping a copy of
+# what a command will tell you:
+#
+#     git grep -n <release-branch> -- .github
+#
+# Measured that way on 2026-09-12, with `main` as the name, it returns
+# `.github/scripts/docs-only.cjs`, which compares `base === 'main'`, and
+# `ci.yml`'s two `branches:` lists. That result is dated because it is an
+# observation; the command is not. Note that the *name* is the one input the
+# grep cannot supply itself — it lives in the repository's settings, which is
+# the same reason no gate here can check any of this.
 
 on:
   pull_request_target:

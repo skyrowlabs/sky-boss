@@ -4,7 +4,7 @@ slug: skeletor-adoption
 category: tooling
 agent_value: 3
 completed: 2026-09-06
-updated: 2026-09-11
+updated: 2026-09-12
 tags: [skeletor, scaffold, ci]
 summary: Converts sky.boss from a skeletor component consumer into a scaffolded tree, and records what a fork can and cannot learn about itself.
 created: 2026-09-06
@@ -2465,3 +2465,73 @@ documented examples. Pyright `0 errors`, 45 frontend tests pass, `dev` up, `sb` 
 from outside the repo. `--ref v0.29.0` on every run, dry and applying both; the
 generator checkout was clean and exactly on the tag this time, and
 `git ls-remote origin v0.29.0` resolves.
+
+### Round 28 — 2026-09-12: v0.30.0, the ask granted, and a seam that closed on nothing
+
+v0.30.0 is one commit, `skeletor@bd44833`, *"the append rule had only one side"*.
+It lands all three of round 27's findings and bounds the append region at both
+ends. Three template files here were untouched and merged clean;
+`pr-draft-discipline.yml` conflicted for the fifth consecutive round.
+
+#### The clause this tree asked for is now in the template, and that changes the fork's status rather than its text
+
+Round 27 declined skeletor's decline on one ground: their four-case table prices
+*what drafting saves* off the template's job graph, and round 7 declined that
+graph here. v0.30.0 writes that ground into the table as a clause of its own,
+naming this tree and the position it is written for. So the premise is conceded
+at the root.
+
+**A conceded premise is not a reason to take the file.** The template still ships
+a run-time branch on `fullSuite`, and `fullSuite` is still the wrong input for a
+sentence about `ci.yml`. What changed is that the template now says, in as many
+words, that a tree gating nothing on the classifier is outside its argument — so
+this fork stops being a disagreement and becomes the text skeletor expects such a
+tree to have. Held, ported, advanced with `--ported`.
+
+The other two findings landed as the general rules they were rather than as
+patches. `[rationale-block-asserts-its-own-file]` is quoted nearly verbatim
+upstream — *"A comment addressed to the tree most likely to have diverged from it
+cannot safely assert what is beside it"* — and the rename-sweep instruction is a
+`git grep` rather than a file list. Both were ported into our header, the second
+with the command written out and its result dated, because the result is an
+observation and the command is not. Re-measured while porting: `main` appears at
+`.github/scripts/docs-only.cjs:222` and in `ci.yml`'s two `branches:` lists, which
+is what our v0.29.0 text already claimed.
+
+#### The seam closed on an empty region, and the check is what says so
+
+The relay's warning was that a clean merge on `paths.py` is the case to *check* —
+four of six trees merge it cleanly and which side git puts an existing append on
+is not predictable. That question does not arise here and the reason is worth
+recording rather than assumed: rounds 22 and 26 took `paths.py` and
+`check_doc_links.py` whole, so **this tree has no append in either seam**, and both
+files came out of this merge byte-identical to the v0.30.0 render modulo four
+placeholder substitutions.
+
+The gate is `test_your_appends_are_inside_your_own_space` now, and it is vacuous
+here in exactly the way its own docstring declares — no appends to place. What it
+is not vacuous about is discovery: it asserts both rules were **found**, exactly
+once each, in every seam file. Measured: `paths.py:346` and `:356`,
+`check_doc_links.py:88` and `:98`. A gate that passed on a file the rule had been
+deleted from would be the failure this tree keeps naming, and this one cannot.
+
+#### Both declines re-measured again, and neither release touched them
+
+`git diff v0.29.0 v0.30.0` over `tests/test_pyright_deps.py` and
+`.github/CONTRIBUTING.md` is empty, which the tool states for itself by naming
+neither under *skeletor wrote and you deleted* — that list prints a count always
+and names only the subset the template has moved since. The reasons were
+re-measured anyway, since a reason expires without touching a file: our
+`tests/test_pyright_deps_reach_ci.py` still carries a positive control on its own
+reachability walk (2 occurrences) where the template's carries none (0), and the
+root `CONTRIBUTING.md` is still 6.4K of this repo's own.
+
+Standing divergences: 25 → 25. All seven pre-push gates green, **1588 collected**,
+unchanged from round 27 — the seam gate was renamed, not added to. Lint 5/5,
+pyright `0 errors`, 45 frontend tests, docs 6/6, `dev` up, `sb` up from outside the
+repo. No pin moved in this release, so the venv-versus-pin check was inapplicable
+rather than skipped. `--ref v0.30.0` on all three runs; the generator checkout was
+clean and exactly on the tag, and `git ls-remote --tags origin v0.30.0` resolves.
+The two-applying-runs mechanic held again — the first run left `skeletor_ref` at
+v0.29.0 with its reasoning printed above the summary, and `--ported` recorded the
+tag.

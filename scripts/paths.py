@@ -283,15 +283,30 @@ PRESENT_TENSE = {
 # exactly it sits. dream.doll merged cleanly and landed above; mind.head found
 # the same from a tree that conflicted.
 #
-# **If you extended this file before the rule moved, your appends are interleaved
-# with this prose and have to be moved below it.** The bad outcome is silent,
-# which is why it earns a check rather than a sentence: an append above the rule
-# keeps the pre-region behaviour — clean first merge, conflict on the next re-run
-# — while the release notes say you are covered, so it is paid for later as a
-# conflict that looks new. `tests/test_narrative_covers_lifecycle_folders.py`
-# asserts every append is below the rule, making placement a question your own
-# suite answers rather than a claim you are asked to believe. dream.doll's
-# remedy, and the right shape: placement is a fact about your file.
+# **Where your existing append ends up is not predicted here. Run the check.**
+# `tests/test_narrative_covers_lifecycle_folders.py` answers it for your file, in
+# your tree, and that is the only place the answer exists.
+#
+# This paragraph has twice told adopters what git would do with their line, and
+# the two claims were **opposites**: v0.27.0 said a clean merge left the append
+# already in the region and needed no moving; v0.28.0 retracted that; v0.29.0 said
+# appends were interleaved with this prose and had to be moved. Measured across the
+# four trees that carry one, two moved theirs and two did not — so the v0.29.0
+# sentence was false for half its audience, and it reached them amplified into a
+# workspace dispatch that told every tree to expect a hand move.
+#
+# dream.doll filed the recurrence with the sign flipped and named the shape: the
+# defect is not either claim, it is that the file keeps stating in prose what it
+# also ships a check to answer per tree. node-zero filed the same sentence
+# independently, noting that the lines directly below it defer to the check
+# correctly while the bold claim above them does not.
+#
+# The conditional is what is true, and it is all that is said now: *if* your append
+# sits outside the two rules it has to move, and your own gate is what tells you
+# which you have. The bad outcome is silent — an append outside keeps the
+# pre-region behaviour, a clean first merge and a conflict on the next re-run,
+# while every other signal says you are covered — which is why it earns a check
+# and not a sentence.
 #
 # ## What the move costs, measured against the real trees
 #
@@ -330,13 +345,45 @@ PRESENT_TENSE = {
 #
 # ── Nothing below this line is skeletor's ────────────────────────────────────
 #
-# Put your appends below this block. The block itself is frozen — skeletor does
-# not rewrite these lines and renders nothing below them, so your insertion point
-# is never adjacent to template text a release might edit. The explanation above
-# is ordinary prose and does get rewritten; that is why the rule sits at the
-# bottom of it rather than at the top.
+# Everything of yours goes between this rule and the closing one below: appends,
+# and any prose you write about them. Both rules are frozen — skeletor does not
+# rewrite either block and renders nothing between them, so your insertion point
+# is never adjacent to a template line that a release might edit. The
+# explanation above IS ordinary prose and does get rewritten, which is why the
+# rule sits at the bottom of it rather than at the top.
 
 
+# ── Skeletor's again below this line ─────────────────────────────────────────
+#
+# **The closing rule exists because the opening one was not a boundary.** For one
+# release the opening block claimed skeletor "renders nothing below them" — false
+# about the file, which carries template-owned sections further down and keeps
+# editing them. An adopter following that instruction landed a few lines above a
+# template heading, on the blank-line separation this very seam argues is an
+# unenforceable first-merge guarantee: the same defect, reproduced on the lower
+# edge of the append instead of the upper.
+#
+# mind.head found it latent from their own append's lower edge and measured the
+# region below as unchanged across v0.25.0..v0.29.0; stash.flow found it by
+# planting below the seam and watching it pass, and measured that same region
+# moving in v0.2.0, v0.9.0, v0.13.0, v0.22.0 and v0.22.1. Both are right, and
+# together they say the guarantee was stated universally and held contingently.
+#
+# It could not be closed by "the next `# ── ` heading" either. node-zero writes
+# their own box rules inside this space — which this seam invites — so a boundary
+# read from the next heading would shrink with the adopter's own headings and
+# make their append a violation for doing exactly what they were told.
+#
+# **This block is glued to the heading below it on purpose, and the placement was
+# priced.** Sitting directly under the opening block instead, it merges CLEANLY
+# into every tree that already appends here and leaves all of their appends below
+# it — outside the region, gate red, nothing in the output saying so. Here, a tree
+# that already appends either merges clean with its appends in the right place or
+# conflicts on this file once, with the template's version in `tmp/upgrade/` to
+# port. Which of the two you get is decided by whether this release rewrote the
+# prose next to your line, not by how far down it sits. A clean merge that
+# silently relocates somebody's line is the worst of the three outcomes measured,
+# and it is the one that looks best from upstream.
 # ── Code and configuration ───────────────────────────────────────────────────
 
 
