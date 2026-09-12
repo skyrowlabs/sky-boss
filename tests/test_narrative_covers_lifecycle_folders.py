@@ -44,8 +44,12 @@ pytestmark = [pytest.mark.unit]
 # every path below — can be imported. See scripts/paths.py.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts.paths import DOCS_DIR, NARRATIVE, PRESENT_TENSE, PROJECT_ROOT  # noqa: E402
+from scripts.paths import DOCS_DIR, NARRATIVE, PRESENT_TENSE, PROJECT_ROOT, SCRIPTS_DIR  # noqa: E402
 from tests.scanning import scanned  # noqa: E402
+
+#: The file the seam and the region live in. Read as text, not imported: the
+#: question is where a line SITS, which importing the module cannot answer.
+PATHS_FILE = SCRIPTS_DIR / "paths.py"
 
 RULES = DOCS_DIR / "rules" / "docs.md"
 
@@ -82,7 +86,8 @@ def test_every_lifecycle_folder_is_classified() -> None:
     assert not unclassified, (
         f"{RULES.name} tells an adopter to file in {unclassified}, and "
         f"scripts/paths.py says nothing about whether those describe the present. "
-        f"Append them to NARRATIVE there, or to PRESENT_TENSE beside it with the reason."
+        f"Append them to NARRATIVE or PRESENT_TENSE in that file's "
+        f"`Your own lifecycle folders` region, with the reason."
     )
 
 
@@ -92,14 +97,74 @@ def test_no_present_tense_entry_has_gone_stale() -> None:
     gone = [f for f in PRESENT_TENSE if f not in folders]
     assert not gone, (
         f"PRESENT_TENSE (scripts/paths.py) names {gone}, which {RULES.name} no longer lists — "
-        f"an exemption is a decision only while the thing it exempts exists. Remove it the way "
-        f"the seam below that constant documents, as an append rather than an edit to the "
-        f"literal:\n" + "".join(f"    PRESENT_TENSE.pop({f!r}, None)\n" for f in gone)
+        f"an exemption is a decision only while the thing it exempts exists. Remove it as an "
+        f"append in that file's `Your own lifecycle folders` region, rather than as an edit to "
+        f"the literal:\n" + "".join(f"    PRESENT_TENSE.pop({f!r}, None)\n" for f in gone)
     )
     both = [f for f in PRESENT_TENSE if _is_narrative(f)]
     assert not both, (
         f"PRESENT_TENSE (scripts/paths.py) names {both}, which NARRATIVE now covers. One folder, "
-        f"one role. Remove it as an append — the template owns the lines inside that literal and "
-        f"edits them, so a removal spelled there conflicts on every upgrade:\n"
-        + "".join(f"    PRESENT_TENSE.pop({f!r}, None)\n" for f in both)
+        f"one role. Remove it as an append in that file's `Your own lifecycle folders` region — "
+        f"the template owns the lines inside that literal and edits them, so a removal spelled "
+        f"there conflicts on every upgrade:\n" + "".join(f"    PRESENT_TENSE.pop({f!r}, None)\n" for f in both)
+    )
+
+
+#: Append-shaped lines, which are the ones the region exists to hold. The set is
+#: the spellings `scripts/paths.py` offers, and it is deliberately not a general
+#: python parse: an adopter writes one of these idioms or they are not following
+#: the seam at all, and a regex that matched more would start firing on the
+#: template's own prose about them.
+_APPEND_IDIOMS = (
+    re.compile(r"^\s*NARRATIVE\s*\+="),
+    re.compile(r"^\s*NARRATIVE\s*=\s*tuple\("),
+    re.compile(r"^\s*PRESENT_TENSE\s*\|="),
+    re.compile(r"^\s*PRESENT_TENSE\s*\.(update|pop)\("),
+    re.compile(r"^\s*PRESENT_TENSE\["),
+)
+
+_REGION_MARKER = "# ── Your own lifecycle folders"
+
+
+def test_your_appends_are_inside_the_region() -> None:
+    """An append above the marker keeps the old behaviour and says nothing about it.
+
+    **The silent state this exists for.** When the region arrived, an existing
+    append merged cleanly and git ordered it either side of the marker depending
+    on exactly where it sat — so a tree could take the release, see zero
+    conflicts, and still be holding its append hard against the prose block the
+    template edits. It keeps the pre-region behaviour, a clean first merge and a
+    conflict on the next re-run, while every signal says it is covered.
+
+    `scripts/paths.py` claimed the append always landed below. It does not, and
+    the claim was generalised from one synthetic case. dream.doll measured the
+    counterexample and asked for this check instead of a corrected sentence,
+    which is the right trade: placement is a fact about this file, so this file's
+    own suite can settle it and nobody has to believe a release note.
+
+    Vacuous on a fresh scaffold, which ships no appends — so what is asserted is
+    that the MARKER was found. Without that this passes on a file the region was
+    deleted from, which is the one edit that would make it matter.
+    """
+    lines = PATHS_FILE.read_text(encoding="utf-8").splitlines()
+    marker = [i for i, line in enumerate(lines) if line.startswith(_REGION_MARKER)]
+    scanned(marker, f"`{_REGION_MARKER}` markers in {PATHS_FILE.name}", least=1)
+    assert len(marker) == 1, (
+        f"{PATHS_FILE.name} has {len(marker)} region markers. An adopter cannot be told to append "
+        f"below `the` marker unless there is exactly one."
+    )
+
+    above = [
+        f"{PATHS_FILE.name}:{number}: {line.strip()}"
+        for number, line in enumerate(lines[: marker[0]], start=1)
+        if any(idiom.match(line) for idiom in _APPEND_IDIOMS)
+    ]
+    assert not above, (
+        "these appends sit ABOVE the `Your own lifecycle folders` marker:\n  "
+        + "\n  ".join(above)
+        + "\n\nThey work today and will conflict on the next upgrade that re-runs before the base "
+        "advances, because they share an insertion point with the template's own text. Move them "
+        "below the marker — it is a cut and paste, and nothing else has to change. If one arrived "
+        "there by an upgrade rather than by you, that is expected: git placed it, and moving it is "
+        "the whole remedy."
     )

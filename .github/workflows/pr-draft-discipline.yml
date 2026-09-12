@@ -13,10 +13,20 @@ name: PR Draft Discipline
 # expensive jobs", which on this repository is advice that cannot pay out — and
 # it is public, so the reader is somebody with no way to check it.
 #
-# Whether this workflow should exist here at all is a live question and is not
-# this file's to answer: its whole premise is a saving this fork does not offer.
-# Raised with the operator rather than resolved by deleting it, because what
-# arrives on a contributor's pull request is theirs to decide.
+# **Jeston ruled the file stays** (round 25), on the ground that it ships in all
+# seven repos whether or not a tree gates on drafts. So the open question is
+# closed, and what is left is not *should this exist* but *what may it claim*.
+#
+# **v0.28.0 branched the headline at run time on `fullSuite` and this tree still
+# holds its own text, because that branches on the wrong fact.** `fullSuite` is a
+# property of the pull request — its base and its author — where the sentence is
+# about `ci.yml`: whether any job is gated on the classifier's verdict. Here that
+# is a constant `false`, so the template's negative branch is true and its
+# positive branch is false, and the positive one is the common case rather than
+# the rare one. Dependabot short-circuits to `fullSuite: true` before the base is
+# ever read, so all four weekly bump PRs would be told that drafting "skips the
+# rest" on a repository where nothing is ever skipped. The single sentence below
+# is true on every path. See [[skeletor-adoption]] round 26.
 
 on:
   pull_request_target:

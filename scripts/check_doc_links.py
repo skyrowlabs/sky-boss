@@ -54,18 +54,37 @@ IGNORE_FILE = GITHUB_DIR / "scripts" / ".validate-ignore"
 
 SCAN_ROOTS = ["docs", ".claude", ".github"]
 
-#: **Add your own roots below, as an append. Do not edit the list above.**
+#: **Add your own roots as an append, in the `Your own scan roots` region below.
+#: Do not edit the list above.**
 #: A root written into the literal conflicts with every upstream change to it;
 #: an append is a different line and merges clean. See the same note beside
 #: `NARRATIVE` in `scripts/paths.py`, where the two spellings were measured.
 #:
 #:     SCAN_ROOTS += ["strategy"]
 #:
-#: **Keep a blank line between your block and the template's**, and audit it per
-#: line rather than per block. The unit of collision is the line: a single `#:`
-#: separator left above the list costs exactly what a five-line explanation
-#: does. Both were measured, in two adopted trees, on this constant and on
-#: `NARRATIVE`.
+#: The rule that used to end this block — keep a blank line between your block
+#: and the template's — was correct and was a FIRST-merge guarantee. It survives
+#: one merge and the two insertion points coincide again on the next, so any
+#: re-run before the base advances re-conflicts a file the previous run merged
+#: cleanly. The region below replaces a separation somebody has to remember with
+#: the separation itself; `scripts/paths.py` carries the measurement.
+
+
+# ── Your own scan roots ──────────────────────────────────────────────────────
+#
+# **Put every append to SCAN_ROOTS below this line.** This module ships the
+# region empty and never adds a line to it, so an upgrade has no change here to
+# collide with and your line is never at the template's insertion point.
+#
+# This seam existed for three releases with only the blank-line rule, and the
+# region reached `scripts/paths.py` one release before it reached here — because
+# that fix named two seams instead of discovering them, and this was the third.
+# proto.pilot found it with `git grep` at v0.27.0.
+# `bin/skeletor-verify`'s `append_seam_gate` enumerates seams by their
+# invitation now, so a fourth arrives covered or arrives red.
+
+
+# ── Link syntax ──────────────────────────────────────────────────────────────
 
 _LINK = re.compile(r"(?<!!)\[(?P<text>[^\]]*)\]\((?P<href>[^)\s]+)(?:\s+\"[^\"]*\")?\)")
 _HEADING = re.compile(r"^(#{1,6})\s+(?P<text>.+?)\s*$", re.MULTILINE)

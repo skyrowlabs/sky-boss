@@ -2271,3 +2271,118 @@ release that added no tests. `dev` up, `sb` up from outside the repo, 45 fronten
 tests pass. `--ref v0.27.0` was passed on both applying runs and the manifest
 records the tag exactly; `git ls-remote origin v0.27.0` resolves, which is the
 check the tool declines to make for you.
+
+### Round 26 — 2026-09-11: v0.28.0, and a branch on the wrong fact
+
+`v0.27.0 → v0.28.0`. One conflict, predicted by the workspace relay and — this
+time — *not* accompanied by a prescribed resolution, because round 25's rule was
+adopted upstream between the rounds. Three files merged, seven gates green on
+arrival, nothing to fix.
+
+#### skeletor asked whether their fix is true here, and the answer is half
+
+`.github/workflows/pr-draft-discipline.yml` was round 25's held divergence, and
+v0.28.0 is the fix it asked for: `skeletor@13ff5b6` branches the headline at run
+time on `fullSuite` instead of asserting a universal. skeletor's ask was explicit
+— *"read the new branch first and tell me whether it is true in their tree; I
+would rather have that answer than guess."* Measured rather than reasoned:
+
+| `fullSuite` | What the template says | True here? |
+|---|---|---|
+| `false` | a draft runs the same jobs, drafting costs no CI time | **yes** |
+| `true` | runs gate + node + unit *"and skips the rest"* | **no** — nothing is ever skipped |
+
+So the fix resolves the case this tree does not have and introduces a false claim
+on the case it does. **The divergence is held**, and the base advanced with
+`--ported` so the same string array does not conflict a fourth time.
+
+#### Why it is half, stated as the finding rather than as our exception
+
+`fullSuite` is a property of the **pull request** — its base branch and its
+author. The sentence is about **`ci.yml`**: whether any job is gated on the
+classifier's verdict. Those are different facts, and `decide()` cannot see the
+second one.
+
+Here the second is a constant `false`. Round 7 declined the job graph, so
+`full_suite` is computed, exported as a gate output, and **reported rather than
+gated on** — `ci.yml:439` says so in as many words, and no job carries an `if:`
+on it. A draft and a ready pull request run identical jobs on every path.
+
+**The false branch is the common one, not the rare one**, which is what moves
+this from a footnote to a finding. `isDependabot` short-circuits to
+`fullSuite: true` *before* the base branch is ever read, and this repository runs
+four weekly Dependabot ecosystems with no `target-branch`. Every one of those
+pull requests is opened ready and non-draft, hits the positive branch, and would
+be told that drafting skips jobs — on a public repo, to a reader with no way to
+check it. The `develop → main` release pull request lands there too.
+
+> **A run-time branch is only better than a prose universal when it branches on
+> the fact the sentence is about.** Branching on an adjacent fact that usually
+> correlates is a universal with extra steps, and it fails exactly where the
+> correlation breaks — which is the configuration the adopter diverged over in
+> the first place.
+
+Round 25 said this was *"skeletor's to fix at run time rather than ours to reword
+again."* That was right about the mechanism and wrong to assume the mechanism
+picked its own input. Reported back rather than reworded a third time.
+
+#### The header comment was carrying a question Jeston had already closed
+
+Our fork still read *"whether this workflow should exist here at all is a live
+question."* Jeston ruled in round 25 that the file stays. A question recorded as
+open after it has been answered is a false claim in our own file — the same class
+as the two template sentences this round is about, one tree closer to home, and
+nothing fires when it expires. Rewritten to record the ruling and the v0.28.0
+measurement, so the next round inherits the reason rather than re-deriving it.
+
+#### `--ref` earned itself against a generator checkout that had moved
+
+The skeletor checkout was **one commit past `v0.28.0` and dirty**, and that WIP
+commit touched `template/core/scripts/paths.py` and
+`template/core/tests/test_narrative_covers_lifecycle_folders.py` — two of the
+three files this release updates here. Rendering from the live tree would have
+installed unreleased template content under a manifest recording `v0.28.0`.
+
+`--ref` renders *theirs* from a detached worktree at the tag
+(`bin/skeletor-upgrade:1663`), so it does not. Verified rather than trusted:
+`test_narrative_covers_lifecycle_folders.py` is byte-identical to the v0.28.0
+render and 117 lines from the WIP one; `scripts/paths.py` differs from the tag by
+exactly four placeholder substitutions and from the WIP by 36 lines.
+
+**The dry run was given `--ref` too**, which the dispatch did not ask for. Without
+it the preview reads the live checkout and the apply reads the tag, so the two
+describe different releases — a dry run that does not preview the run is worse
+than none.
+
+#### The conflict blocks the ref, which costs a second run
+
+The applying run installed three files and left `skeletor_ref` at `v0.27.0`,
+because an outstanding conflict holds the base where it is. The tag is recorded
+only by the follow-up `--ported` run. Worth knowing in advance: a round with a
+standing divergence always takes two applying runs to record its ref, and a
+session that stops after the first commits a manifest a release behind the tree.
+
+#### Both declines restored, run, and re-measured
+
+Neither declined file changed in this release — but the standing practice from
+round 24 is to run them rather than infer, because a *reason* expires without
+touching the file. `tests/test_pyright_deps.py` passes all four again and is held
+on the narrower reason, re-measured this round: our
+`tests/test_pyright_deps_reach_ci.py` carries a positive control on its own
+reachability walk and the template's still does not (2 occurrences against 0).
+`.github/CONTRIBUTING.md` stays deleted; the root `CONTRIBUTING.md` is 6.4K of
+this repo's own.
+
+#### The append seam reached `check_doc_links.py`, and this tree pays nothing
+
+`scripts/check_doc_links.py` gains the marked `Your own scan roots` region that
+`scripts/paths.py` got in v0.27.0 — proto.pilot found the third seam with
+`git grep`, and `bin/skeletor-verify` now enumerates seams by their invitation so
+a fourth arrives covered. This tree took both files whole, so it has no append and
+no collision either way.
+
+All seven gates green on arrival, **1587 collected against round 25's 1586**. The
+delta is attributed rather than waved at: `test_narrative_covers_lifecycle_folders.py`
+goes 2 tests to 3, gaining `test_your_appends_are_inside_the_region`, which is the
+gate for the region above. `dev` up, `sb` up from outside the repo, 45 frontend
+tests pass. `git ls-remote origin v0.28.0` resolves.
