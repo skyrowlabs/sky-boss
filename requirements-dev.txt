@@ -1,4 +1,4 @@
-pytest>=8.0
+pytest>=9.1.1
 
 # Starlette's TestClient refuses to import without it.
 httpx2>=2.12
