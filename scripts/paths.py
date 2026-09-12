@@ -121,13 +121,17 @@ NARRATIVE = (TODO_DIR, IMPL_DIR, DOCS_DIR / "reports", DOCS_DIR / "research")
 #:     EXPLORE_DIR = PROJECT_ROOT / "explore"
 #:     NARRATIVE += (EXPLORE_DIR,)
 #:
-#: **Keep a blank line between your block and the template's**, and audit it per
-#: line rather than per block. The unit of collision is the line: stash.flow's
-#: five-line explanation sat hard against the constant above and conflicted
-#: anyway, and mind.head's was a single `#:` separator, which cost exactly the
-#: same. proto.pilot's landed clean on one blank line — and nothing recorded
-#: that the line was load-bearing, so a whitespace tidy-up would have brought
-#: the conflict back looking like housekeeping.
+#: **Put it in the `Your own lifecycle folders` region at the end of this
+#: section, not here.** The reason is written there. Briefly: a blank line
+#: between your block and the template's does work — measured — and it is a
+#: first-merge guarantee that nothing can enforce, so the region replaces it
+#: with the separation itself.
+#:
+#: The per-line audit that used to be the rule is why: the unit of collision is
+#: the line, so stash.flow's five-line explanation sat hard against the constant
+#: above and conflicted anyway, and mind.head's single `#:` separator cost
+#: exactly the same. proto.pilot's landed clean on one blank line, and nothing
+#: recorded that the line was load-bearing.
 
 #: The other half of the partition: folders in that table that describe the
 #: PRESENT, with the reason each one does.
@@ -161,9 +165,18 @@ PRESENT_TENSE = {
     ),
 }
 
-#: **Add your own present-tense folders below, as an append**, for the reason
-#: the `NARRATIVE` block gives: an append is a different line from the
-#: template's and stays clean when upstream edits its own.
+#: **Add your own present-tense folders as an append, in the
+#: `Your own lifecycle folders` region at the end of this section.** An append is
+#: a different line from the template's and stays clean when upstream edits its
+#: own; the region is what keeps the two from arriving at one insertion point on
+#: a re-merge. The reason is written once, there.
+#:
+#: This block used to say *"for the reason the `NARRATIVE` block gives"* and
+#: never repeat it — so the load-bearing half of the rule was stated at one of
+#: the two sites that needed it, and an adopter reading only this one got the
+#: invitation without the constraint. skyrow-workspace found that; it is the
+#: same second-home failure the `PRESENT_TENSE` table itself was moved here to
+#: fix, in the prose rather than in the data.
 #:
 #: ## Removing one is an append too, and it did not used to be
 #:
@@ -192,6 +205,65 @@ PRESENT_TENSE = {
 #: lines. `is not` rather than `!=` because these are directory objects whose
 #: equality is by path, and identity is what an adopter means when they name
 #: the constant the template defined.
+
+
+# ── Your own lifecycle folders ───────────────────────────────────────────────
+#
+# **Put every append to NARRATIVE and PRESENT_TENSE below this line.** Both
+# constants are defined above it, so both spellings reach from here.
+#
+# skeletor ships this region empty and never adds a line to it. That is the
+# whole mechanism: a three-way merge collides when two changes land at one
+# insertion point, and an upgrade has no change here to collide with — so your
+# line is never adjacent to a template line, whatever the template does to its
+# own text above.
+#
+# ## What this replaces, because the old rule worked and could not be enforced
+#
+# The seams above used to end with an invitation and a request to keep a blank
+# line between your block and the template's. Measured, that rule is correct:
+# an adjacent append conflicts and a blank-line append merges clean. It had two
+# problems and neither was the rule.
+#
+# It was unenforceable. Nothing could check it, and a whitespace tidy-up would
+# have brought the conflict back looking like housekeeping — which the NARRATIVE
+# block said in as many words, one release before this arrived.
+#
+# And it was a FIRST-merge guarantee. Two adopters found the second half
+# independently: dream.doll, that a round with a conflict anywhere forces a
+# re-run, and re-running re-merges a file the previous run had merged cleanly;
+# proto.pilot, that the trigger is any re-run before the base advances, not
+# `--ported` and not a hand-port. Both land on the same shape — the blank line
+# survives one merge, and the insertion points coincide again on the next.
+#
+# A marked region is a first-merge guarantee that holds on every merge after it,
+# because the separation stops being a blank line somebody has to remember and
+# becomes where the two changes are.
+#
+# ## What it cost the trees that were already extending this file, measured
+#
+# Six real adopter trees, each at base `v0.26.0` with its own divergence, run
+# through `bin/skeletor-upgrade --dry-run` with and without this region:
+#
+#     four trees        clean either way
+#     one tree          conflicts either way, for an unrelated reason
+#     one tree          clean before, conflicts once when this line arrives
+#
+# So the cost is one conflict in one tree, once, and it is **inherent rather
+# than a placement mistake**: that tree's append occupies exactly this position,
+# and a marker whose entire purpose is to hold this position cannot arrive
+# without landing on it. Choosing a different anchor moves the collision onto a
+# different spelling rather than removing it — measured across five offsets.
+#
+# An append that merged cleanly when this line arrived ended up **below** it, so
+# it is already in the region and needs no moving. That was measured too, in both
+# the one-blank and two-blank spellings.
+#
+# The earlier estimate of this cost was "all six, including the four that are
+# clean", and it was wrong because the harness measuring it appended at the wrong
+# line — outside the block the template keeps editing, on the far side of the
+# 28 lines the previous release inserted into precisely that gap. The number
+# above comes from running the real tool against the real trees instead.
 
 
 # ── Code and configuration ───────────────────────────────────────────────────

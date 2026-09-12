@@ -103,46 +103,23 @@ def trigger_branches() -> set:
     return {name.strip().strip("'\"") for name in block.group("list").split(",") if name.strip()}
 
 
-def release_ref() -> str | None:
-    """The branch a Release Please job gates itself on, or `None` if there is no such job.
+def release_branch():
+    """The branch the Release Please job gates itself on, or `None` if no job does.
 
-    **This split is a divergence from the template, and it is the only one in
-    this file.** Upstream there is one `release_branch()` that asserts the match
-    exists, and two callers read it: the Release Please test, which reaches it
-    only after confirming `release-please-config.json` is present, and
-    `test_every_job_the_table_names_exists`, which reaches it unconditionally
-    and only wants a set of branch names to exclude from the table's labels.
+    **Optional because the job is a supported deletion and the config is not the
+    predicate.** This asserted, and the assertion was red in the one tree that
+    had dropped the release job from its graph — a tree with no Release Please
+    row anywhere in the table, failing a test about job *labels*.
 
-    That second call fails here. This fork has no `release-please` job at all —
-    round 7 of `[[skeletor-adoption]]` declined the template's job graph, and
-    `--versioning tag` means the release is an annotated tag — so the regex
-    matches nothing and an assertion about a job we deliberately do not have
-    takes down a test about job *labels*.
-
-    **It does not fire upstream, and the reason is worth recording rather than
-    the symptom.** The release-please *job* is rendered into every tree; only
-    the two config files sit behind `SCAFFOLD-OPTIONAL`. So a stock
-    `--versioning tag` tree — including the one `bin/skeletor-verify` scaffolds
-    and runs these gates against — keeps a job that can never do anything, the
-    regex matches it, and the gate is green for a reason unrelated to what it
-    checks. Deleting the dead job is what exposes the coupling.
-
-    Reported upstream. The file is kept rather than deleted, which parts company
-    with this tree's usual answer to a gate holding a declined mechanism: there,
-    the whole file's subject was the mechanism and deleting cost nothing. Here
-    one helper touches it and the other two tests are live and non-vacuous over
-    a table and a workflow this tree owns, so the smallest divergence that keeps
-    them is the cheaper trade.
+    Gating on the release config's presence is the fix that suggests itself and
+    it is wrong. Measured across four `--versioning tag` trees: all four lack the
+    config and three still render the job, deliberately — `ci.yml` says why, a
+    required status context that never reports blocks a pull request forever. So
+    the config is absent in trees that have the job, and what this function reads
+    is the job. Return `None` and let each caller say what that means for it.
     """
     ref = re.search(r"github\.ref\s*==\s*'refs/heads/(?P<branch>[^']+)'", ci_text())
     return ref.group("branch") if ref else None
-
-
-def release_branch() -> str:
-    """The branch the Release Please job gates itself on."""
-    branch = release_ref()
-    assert branch, f"the release job in {CI.name} no longer gates on a `refs/heads/<branch>` ref"
-    return branch
 
 
 def job_names() -> set:
@@ -192,17 +169,23 @@ def test_release_please_is_claimed_for_one_branch_and_only_when_configured():
         f"this tree has `{RELEASE_CONFIG.name}` and no push row mentions Release Please, so the table "
         f"omits the job that makes the release."
     )
+    released = release_branch()
+    assert released, (
+        f"this tree has `{RELEASE_CONFIG.name}` and the table claims Release Please, but no job in "
+        f"`{CI.name}` gates itself on a `refs/heads/<branch>` ref — so nothing decides which branch "
+        f"releases. Either the job was removed and the config should go with it, or its `if:` was."
+    )
     for event, runs in claims:
         pushed = set(_BACKTICKED.findall(event))
-        if pushed == {release_branch()}:
+        if pushed == {released}:
             # One long-lived branch, so the two predicates coincide and the row
             # cannot attribute the job to the wrong one. Nothing to separate.
             continue
-        assert release_branch() in set(_BACKTICKED.findall(runs)), (
+        assert released in set(_BACKTICKED.findall(runs)), (
             f"this row documents pushes to {sorted(pushed)} and claims Release Please for all of them: "
             f"{'|' + event + '|' + runs + '|'!r}. The job is gated on "
-            f"`github.ref == 'refs/heads/{release_branch()}'`, so it runs on that branch alone. Naming "
-            f"`{release_branch()}` in the branch list is not enough — the branch list is the *push* "
+            f"`github.ref == 'refs/heads/{released}'`, so it runs on that branch alone. Naming "
+            f"`{released}` in the branch list is not enough — the branch list is the *push* "
             f"predicate, which is broader. Say which branch releases, in the cell that makes the claim."
         )
 
@@ -218,8 +201,11 @@ def test_every_job_the_table_names_exists():
     exclusion is derived rather than written down. A job named exactly after a
     branch would be skipped here; nothing prevents that and a list would not
     help, since a list is the thing that goes stale when the job is renamed.
+
+    A tree shipping no Release Please job contributes nothing to the exclusion,
+    and that is not a failure of this test — see `release_branch`.
     """
-    branches = trigger_branches() | {ref for ref in (release_ref(),) if ref}
+    branches = trigger_branches() | {branch for branch in [release_branch()] if branch}
     labels = {label for _, runs in rows() for label in _BACKTICKED.findall(runs)} - branches
     unknown = sorted(label for label in labels if not any(name.startswith(label) for name in job_names()))
     assert not unknown, (

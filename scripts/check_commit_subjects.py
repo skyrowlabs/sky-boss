@@ -201,15 +201,39 @@ def main() -> int:
             {
                 "range": commit_range,
                 "inspected": len(inspected),
+                "release_please_configured": RELEASE_CONFIG.exists(),
                 "configured_types": sorted(types),
                 "unreadable": [{"sha": s, "subject": t, "why": w} for s, t, w in findings],
             }
         )
 
     if not types:
+        # **Two states, and they were reported as one.** An empty `types` means
+        # either that there is no Release Please config — correct and expected
+        # under `--versioning tag`, where the annotated git tag is the version
+        # and nothing parses these subjects — or that there is one and it gives
+        # no type a changelog section, which is a real finding about the config.
+        #
+        # Reported as a warning in both, so a tag tree warned on every run about
+        # a file that must not exist, and said "that is a finding about the
+        # config" 150 lines below the `RELEASE_CONFIG` comment stating the
+        # absence is deliberate. Self-contradictory inside one file, and it
+        # trains a reader to skip this script's warnings, which is the cost.
+        #
+        # This is the `absent` versus `empty` split `frontmatter.py` documents
+        # and `check_skip_budget.py` documents: *"I could not read this" and
+        # "this key is empty" are different answers, and only one of them can be
+        # noticed.* node-zero's finding, from a `--versioning tag` tree.
+        if not RELEASE_CONFIG.exists():
+            ok(f"no {RELEASE_CONFIG.name} — this repository versions by annotated git tag")
+            detail("Nothing parses commit subjects for a changelog here, so there is no")
+            detail("contract for this check to enforce. Subject discipline is still enforced")
+            detail("by the commit hook and the CI gate; only the changelog mapping is absent.")
+            return 0
         warn(f"no changelog-sections in {RELEASE_CONFIG.relative_to(PROJECT_ROOT)} — nothing to check against")
-        detail("Release Please is not configured to read commit subjects here, so this")
-        detail("check has no contract to enforce. That is a finding about the config.")
+        detail("Release Please is configured here and gives no commit type a changelog")
+        detail("section, so every subject is silently ignored by the release automation.")
+        detail("That is a finding about the config.")
         return 0
 
     if findings:

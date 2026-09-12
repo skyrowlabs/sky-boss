@@ -2163,3 +2163,111 @@ Standing divergences: 24 → 25 (`tests/test_ci_pipeline_table.py` joins). All s
 gates green, 1586 collected. `--ref v0.26.0` was passed on the applying run: the
 generator checkout described itself as `v0.26.0-dirty`, and that string is what the
 manifest would otherwise have recorded.
+
+### Round 25 — 2026-09-11: v0.27.0, and a fork that folded back
+
+`v0.26.0 → v0.27.0`. Two conflicts, both predicted before the round opened by a
+workspace relay, and the relay was **half wrong in the direction that matters**.
+Four files merged, one divergence left the standing list, seven gates green on
+arrival with nothing to fix.
+
+#### Both conflicts were this tree's own findings arriving as fixes — and they resolved opposite ways
+
+The relay said both resolved as *take ours*. Measured, one did and one did not,
+and the one that did not is the more interesting half.
+
+`tests/test_ci_pipeline_table.py` was round 24's held divergence: `release_ref()`,
+a split of the template's `release_branch()` so a tree with no Release Please job
+could still run a test about job *labels*. v0.27.0 fixes it at the root — the
+template's own `release_branch()` now returns `None` and each caller says what
+that means. Diffing our file against a rendered v0.27.0 shows the stopgap was
+**the entire divergence**, so taking the template whole removes it rather than
+porting anything.
+
+The template's version is also strictly better than ours, which is the part a
+*take ours* would have cost. Our split kept `release_branch()` asserting, so the
+Release Please test reached it only through `RELEASE_CONFIG.exists()`; the
+template adds a **positive assertion** in that branch — a tree that has the config
+and no job gating on a ref is now a failure with a sentence naming both repairs.
+We would have held a fork that was missing a check.
+
+> **An adopter's stopgap is not a divergence to defend, it is a defect report
+> with a copy of the bug attached.** When the fix lands, the fork's whole subject
+> is gone — and holding it on reflex keeps whatever the real fix also brought.
+
+Standing divergences 26 → 25. This is the second file to leave the list by being
+fixed upstream (`scripts/paths.py` was round 22's).
+
+`.github/workflows/pr-draft-discipline.yml` is the other way. The template's new
+text — *"it carries code, so that is strictly more than a draft would run"* — is
+a universal claim fixed for mind.head, and it is **false here**: round 7 declined
+the job graph, nothing is gated on draft, and a draft runs exactly what a ready
+pull request runs. Our round-24 wording already says that. Held, and advanced with
+`--ported` rather than re-patched, so the base moves and the same string array
+does not conflict a third time.
+
+**Jeston has ruled the file stays**, on the ground that it ships in all seven repos
+whether or not a tree gates on drafts. That converts it from *this tree is unusual*
+into *the template guarantees an advisory whose premise is configuration-dependent*
+— which is the finding, and it is skeletor's to fix at run time rather than ours to
+reword again.
+
+#### The relay was a second-hand reading, and that is the class
+
+The two conflicts were named correctly, from a real `--dry-run`. The *resolutions*
+were not measured, and one inverted. Nothing was lost, because the patch was read
+before it was applied — but the recipe that saved it is the one this file keeps
+arriving at from new directions:
+
+> **A prediction about which files conflict is cheap and travels well. A
+> prediction about how to resolve one does not travel at all**, because the
+> resolution is a fact about the fork's reason, and the reason lives in the tree
+> that wrote it.
+
+Read the sidecar patch and diff against a rendered template even when a trusted
+source has already told you the answer. It cost one `diff` here.
+
+#### The warning that was a finding about a file that must not exist
+
+`scripts/check_commit_subjects.py` now splits *absent* from *empty*: a
+`--versioning tag` tree with no `release-please-config.json` gets
+
+```
+✅ no release-please-config.json — this repository versions by annotated git tag
+```
+
+where it previously warned, on every run, that a file this tree deliberately does
+not have had no changelog sections — and then said *"that is a finding about the
+config"* about a config whose absence is the configuration. node-zero's finding,
+and it retires a standing piece of noise in this tree's own `pre-push`.
+
+#### Round 24's finding came back as an alias, with the counter-example in the docstring
+
+`tests/repo_files.py` gains `tracked = present`. The docstring now carries this
+tree's round-24 breakage as the counter-example to its own previous conclusion,
+by name, and `bin/skeletor-verify` gained a `shared_helper_api_gate` holding it
+against every released tag. Our wrapper is `in_tree` and does not need the alias;
+it is the right fix for every adopter who has not had the failure yet.
+
+#### `scripts/paths.py` grew a region, and this tree pays nothing for it
+
+The template replaces *"keep a blank line between your block and the template's"*
+with a marked `Your own lifecycle folders` region, on the finding that a blank
+line is a **first-merge** guarantee — a re-run before the base advances re-merges a
+file that merged cleanly, and the insertion points coincide again. Round 22 took
+this file whole, so this tree has no append and is one of the four measured trees
+that are clean either way.
+
+**Both declines were restored and run rather than inferred**, which round 24 made
+standing practice after two reasons expired with no red run. `tests/test_pyright_deps.py`
+passes all four again and is held on the unchanged narrower reason — it is a
+near-duplicate of `tests/test_pyright_deps_reach_ci.py`, which carries a positive
+control on its own reachability walk that the template's still lacks (measured
+this round: 2 occurrences against 0). `.github/CONTRIBUTING.md` stays deleted
+because the root `CONTRIBUTING.md` is 6.4K of this repo's own.
+
+All seven gates green on arrival, 1586 collected — unchanged, as expected from a
+release that added no tests. `dev` up, `sb` up from outside the repo, 45 frontend
+tests pass. `--ref v0.27.0` was passed on both applying runs and the manifest
+records the tag exactly; `git ls-remote origin v0.27.0` resolves, which is the
+check the tool declines to make for you.

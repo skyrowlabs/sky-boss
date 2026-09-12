@@ -93,10 +93,36 @@ def present(pattern: str, root: Path = PROJECT_ROOT) -> list:
     release are each safe and are not safe together. A cosmetic rename is never
     worth that, and where one is genuinely needed the old module has to keep
     importing successfully — which is a deprecation, not a rename.
+
+    **That conclusion was wrong in the direction that costs most: the API change
+    is not safe alone either.** It reasoned about the callers it could see — the
+    template's, which moved in the same commit — and a shared helper's callers
+    are not all in the template. sky.boss's `tests/test_naming.py` is their own
+    file, was the last caller of the old name, and broke at collection on
+    `AttributeError`, which takes the whole suite. The failure mode this
+    paragraph describes arrived by the other door, in the release that wrote the
+    paragraph, in the tree that reported the bug the rename fixes.
+
+    So the rule is the one below and it has no schedule attached: **a public name
+    in a shared helper is released API, and a release cannot withdraw one.** The
+    template can see who calls a name inside itself and can never see who calls
+    it outside, so there is no measurement that makes a removal safe — which is
+    why the answer is an alias rather than a deprecation window. A window would
+    be a decision to re-make later with no more information than there is now.
+    `bin/skeletor-verify`'s `shared_helper_api_gate` holds it against every
+    released tag.
     """
     names = git("ls-files", pattern, root=root).splitlines()
     names += git("ls-files", "--others", "--exclude-standard", pattern, root=root).splitlines()
     return [root / line for line in dict.fromkeys(names) if line.strip()]
+
+
+# Released as the name of the function above, and therefore permanent: adopter
+# test files import it and neither this repository nor the generator that wrote
+# it can enumerate them. It describes the population slightly wrong, which is
+# the whole reason for the rename and a smaller cost than a suite that stops at
+# collection. See `present`'s docstring.
+tracked = present
 
 
 def reference_docs(root: Path = PROJECT_ROOT) -> list:
