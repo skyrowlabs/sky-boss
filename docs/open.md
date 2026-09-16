@@ -78,6 +78,12 @@ affordance was drawn against and which still needs item 6. So the item splits: r
 ledger is unblocked and cheap; remembering what sky.boss itself did is still downstream of job
 identity. Worth deciding which one the affordance is for before either is built.
 
+*Exited 2026-09-16 → [[history]] round 3, which already owns the sky.boss half and already names
+its blocker.* The residual was never a second feature — it is the question round 3 exists to
+answer, and leaving it here as well made one decision look like two. This is the workflow rule
+arriving as bookkeeping: **expand the doc that owns the feature**, and a completed plan reopens by
+moving back to `docs/TODO/` rather than by growing a second file beside it.
+
 **19. The tools rail does not scale past a handful.** Raised by the operator 2026-08-29,
 watching the live agent-fix run. The rail is a fixed-width column down the left of the canvas and a
 tool name longer than it gets clipped — `jam-agent-fix-log` renders as `jam-agent-fix-l…`. Four
@@ -113,6 +119,14 @@ Two constraints that are already known and would bite here:
 Not urgent: four tools fit. It becomes real at roughly a dozen, or the first time a name is long
 enough that two tools clip to the same string — which is the actual failure, since the rail is how
 you tell them apart.
+
+*Exited 2026-09-16 → [[tools]], which owns the rail and already took the two halves that are
+answered — the draggable width in round 7, the text filter and tags in round 8. The expandable
+candidate reopens there as its next round, not as a plan of its own* — and the cheapest move is
+still the one this item already prescribed: the catalog reports
+`groups: 0`, so **try the grouped rail before designing anything**, because a grouped rail may be
+most of the answer already built. Note what the exit does not claim: the residual is unbuilt, and a
+filter may have removed the need for it entirely.
 
 **20. Five tweaks to the followed line's tint.** *Closed 2026-08-29 → [[highlight]] rounds 5 and 6.* Round 5 answered everything **weight** could
 answer — glyphs widened and emphasised, ALL CAPS split into an identifier and a shout, and the
@@ -207,6 +221,34 @@ the wrapped rows.
 - **Check it at more than one `--scale`.** A hanging indent is a length derived from a character
   count, and a character is a different width at 1.15 and at 2.4. `ch` units are the obvious answer
   and the obvious answer is what has to be measured.
+
+**23. A dock for a canvas window.** *Arrived 2026-09-16 from [[ideas]], where it had been parked
+behind a blocker that was discharged the day it was written.* A toggle in the window's header bar
+collapses it to a small rectangle near the top of the canvas — the last full message, a little
+activity stat, and a visual alert when something changes; untoggle puts it back. Raised 2026-08-30
+by the operator, from watching a follow window that only mattered when it moved.
+
+**It graduates because its hard half stopped being unanswerable, not because anyone sized it.** The
+alert is the hard half and it deferred to the band: *whatever answers that for the band answers it
+here first*. [[canvas]] round 10 answered the band on 2026-08-30 — item 22 above — and the ruling
+is the one a dock needs: **a window has to carry its own doubt**, so `quiet` over a dead stream is
+an affirmative false claim rather than information that has merely gone stale. A calm dock over a
+dead stream is that same failure with the window shrunk, and it is now a rule to apply rather than
+a question to answer.
+
+**What is still open is where the state lives**, and it is a real fork rather than a detail. The
+canvas has no window state between open and closed — a header carries `＋tag`, `WRAP`, `⟳`, `✕` and
+nothing else — so a dock is the first one, and the question is whether that state belongs to the
+**window** or to a **new strip** that owns docked things. The second is much the larger change and
+is the same shape as item 2's homeless queue strip; whoever takes either should look at both. (The
+*"keeps running while minimized"* comment in `app.js` is about the page being hidden, not a window,
+and is not precedent.)
+
+**The two documents were written the same day and neither pointed at the other**, which is why this
+sat. A pointer between files has no checker — `tests/test_docs.py` proves a `[[slug]]` resolves to
+a document and cannot prove the claim made about it — so a blocker reads as live until somebody
+re-reads both halves. Same class as the jam.sense `-P` note in `CLAUDE.md`: **a fix does not notify
+the document that recorded the hazard.**
 
 ## Primitives the plan and the tower need, none of which exist
 
@@ -751,6 +793,18 @@ Two halves are genuinely open:
   drops it is honest and thin; a per-provider extras bag is useful and is how a common vocabulary
   rots. Undecided. Whichever wins, the tower must render a row from a provider it has never heard
   of without special-casing it, or the modularity was decorative.
+
+*Both halves exited 2026-09-16 → [[agent-sessions]]: **where an adapter lives** is round 2 there,
+named and unscheduled; **what a row shows when the provider knows more than the interface does**
+was ruled in round 1 — thin common record, no extras bag.* Whether `agents` should be offered over
+[[mcp]] is round 1's declined question and stays there too.
+
+**The second half was answered by this item's own opening line, and the bullet below kept saying
+`Undecided` anyway.** The note added on 2026-09-01 records the row-shape ruling; the list two
+paragraphs down still presents it as a live fork between a thin record and an extras bag. One item
+arguing with itself is worse than a stale pointer between two files — a reader who gets as far as
+the bullet has already been told the answer and is now being asked to re-decide it. Same shape as
+the surface arguing with itself when a message outlives the behaviour it described.
 
 **Not in scope, and worth writing down before someone proposes it**: managing these sessions,
 starting them, routing work between them, or reading their transcripts. sky.boss watches what other

@@ -44,10 +44,11 @@ a deleted memo is an invitation to buy the same investigation twice. Moved from
 - ~~two table tests inherit the ambient terminal width instead of pinning one~~ — fixed as
   [[table-views]] round 5. The suite is now clean from 40 to 300 columns; it had passed only at 80
   since it was written
-- **a dock for a canvas window** — a toggle in the window's header bar collapses it to a small
-  rectangle near the top of the canvas: the last full message, a little activity stat, and a
-  visual alert when something changes. Untoggle puts it back. Raised 2026-08-30, from watching a
-  follow window that only mattered when it moved.
+- ~~a dock for a canvas window~~ — *moved 2026-09-16 → [[open]] item 23. The blocker named below
+  was discharged on the day this entry was written, and neither document noticed.* A toggle in the
+  window's header bar collapses it to a small rectangle near the top of the canvas: the last full
+  message, a little activity stat, and a visual alert when something changes. Untoggle puts it
+  back. Raised 2026-08-30, from watching a follow window that only mattered when it moved.
 
   Two things worth knowing before this is spec'd. **The canvas has no window state between open
   and closed** — a header carries `＋tag`, `WRAP`, `⟳`, `✕` and nothing else — so a dock is the
@@ -60,6 +61,16 @@ a deleted memo is an invitation to buy the same investigation twice. Moved from
   *nothing is arriving* — the same distinction a follow's `quiet` band makes, and the same one a
   dropped session breaks today. A calm dock over a dead stream is the worst version of this
   surface's oldest failure. Whatever answers that for the band answers it here first.
+
+  **The precondition is discharged, recorded 2026-09-16.** The band was answered by [[canvas]]
+  round 10 — [[open]] item 22, closed 2026-08-30, the same day this entry was raised: a window has
+  to carry its own doubt, and `quiet` over a dead stream is an affirmative false claim rather than
+  information that has merely gone stale. **Both were written the same day and neither points at
+  the other**, which is this file's own pointer rule failing between two documents instead of
+  inside one — and it is the harder direction, because an entry that names a live blocker reads as
+  more credible the longer the blocker has been dead. What is still open is the *how*: whether dock
+  state belongs to the window or to a new strip that owns docked things. That is a `docs/open.md`
+  question, not a plan.
 
 - a cheap model classifying a followed log — Haiku or similar watching a stream and tinting by what
   a line *means* rather than what shape it has. **Two versions, and the rules already written
@@ -88,10 +99,28 @@ a deleted memo is an invitation to buy the same investigation twice. Moved from
   magnitude, which is the whole argument. Use a stronger model for that one call; cost stops
   mattering when it happens once.
 
-  **This is [[highlight]] round 5**, where round 3's declaration gets a drafting assistant. The
-  inline version belongs to [[open]] item 13 — the governor is already LLM narration over a log,
+  ~~**This is [[highlight]] round 5**, where round 3's declaration gets a drafting assistant.~~
+  **It is round 8 — corrected 2026-09-16, and the correction is worth more than the number.**
+  Round 5 shipped 2026-08-29 as *weight instead of hue*, and rounds 6 and 7 shipped after it — so
+  the number was spent, twice overtaken, and still being claimed here.
+  [[highlight]] itself contains no mention of a model, a sample or a drafted ruleset, so the
+  forward declaration was **never received** — a pointer into another document is a claim about
+  that document, and nothing checks it the way `tests/test_docs.py` checks that the slug resolves.
+  The inline version belongs to [[open]] item 13 — the governor is already LLM narration over a log,
   and already owes the same four answers: who calls it, on what cadence, against what budget, and
-  what it shows when the model cannot run
+  what it shows when the model cannot run.
+
+  **And one question decides whether this can be a plan at all: who holds the credential.** The
+  costs listed above put *"sky.boss would hold a credential for the first time"* under the inline
+  version, but the once-per-log version calls a model too — one call rather than thousands, which
+  cuts the egress and the latency and does nothing whatever to the credential. `CLAUDE.md` lists
+  that under considered-and-deliberately-rejected: **external CLIs keep their own authentication**,
+  sky.boss is never in the credential path, and that is what keeps a future [[mcp]] surface safe to
+  expose. The escape is already in this file, in the *piping commands to agents* entry near the
+  top — `sb follow -- claude -p …` works today, so an argv that shells out to a provider's own CLI puts the key on the far side of the
+  boundary and the rule is satisfied rather than dodged. If that is the mechanism, this entry
+  should say so; if it is not, the idea stands against a standing rejection and is not one somebody
+  can pick up
 
 - an estate-currency view — **which declared projects are behind their scaffold, and by how
   much.** Raised 2026-09-05 by jam.sense's session after skeletor declined to build it, and the
