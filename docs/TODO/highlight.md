@@ -982,6 +982,25 @@ tests were asserting against an error envelope. Fixed by having the child *print
 (`sys.executable -c`) rather than carry it. A test that fails for the reason you expected is not the
 same as a test that exercises what you meant.
 
+**It reached `develop` red, on a hazard this repo had already written down.** One assertion —
+`"--fold needs --shapes" in result.output` — passed on 3.11 locally and failed on both runner legs,
+because rich-click reads `GITHUB_ACTIONS`, calls a runner a terminal, and wraps every option name
+in escapes, so the sentence stops being a substring of itself. `CLAUDE.md` describes this exact
+failure, names the `said` fixture that strips the drawing, and says *which assertion fails is a
+coincidence, the class is not*. Two sibling refusals in the same commit passed only because their
+messages contain no option names.
+
+The fix is the class rather than the instance: `refuse` in `tests/test_read.py` is now a fixture
+that **forces `HELP_CONFIG.force_terminal` and asserts escapes were actually drawn**, so every
+refusal test in that file — these three and any future one — runs under CI's condition and cannot
+pass vacuously. Reproduced before fixing, as a CI fix owes: with `said()` removed the test fails
+locally now, where before the same code passed.
+
+**The lesson is not "read CLAUDE.md harder".** The hazard was documented, the fixture existed, and
+the gate that would have caught it is one this host cannot run the same way the runner does. What
+closes it is making the runner's condition intrinsic to the helper, so the next person writing a
+refusal test inherits it without knowing any of this.
+
 **What the suite cannot see.** 14 tests were added and all of them read values; none of them looks
 at a rendered table. The `details` contract bit once during the build — `"details": ["example"]`
 raised `TypeError: string indices must be integers` from deep inside `_render_view`, because the

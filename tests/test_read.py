@@ -31,7 +31,7 @@ def invoke(args):
     itself is held to — a refusal is a sentence where a silence is not.
 
     A Click usage error is the one case where no envelope is correct, because
-    the refusal happens before any command runs. Those tests call `refuse()`.
+    the refusal happens before any command runs. Those tests take the `refuse` fixture.
     """
     result = CliRunner().invoke(cli, ["--json", "read", *args])
     assert result.stdout.strip(), (
@@ -41,9 +41,36 @@ def invoke(args):
     return result, json.loads(result.stdout)
 
 
-def refuse(args=()):
-    """A Click usage error: exit 2 and no envelope, so the result alone."""
-    return CliRunner().invoke(cli, ["--json", "read", *args])
+@pytest.fixture
+def refuse(monkeypatch):
+    """A Click usage error: exit 2 and no envelope, so the result alone — and
+    **always drawn in colour**, because that is the condition CI runs under and
+    the only one where an assertion about the sentence breaks.
+
+    rich-click reads `GITHUB_ACTIONS` and calls a runner a terminal, so every
+    option name in a usage error arrives wrapped in escapes and
+    `--fold needs --shapes` stops being a substring of itself. That is not a
+    hypothetical: it is how this file first reached `develop` red, having
+    passed on 3.11 locally and failed on both runner legs. The lever is
+    `HELP_CONFIG` rather than the environment variable, which a default factory
+    reads at import, before any test could set it.
+
+    Putting the condition in the helper rather than in one test is the point.
+    Which assertion the escapes break depends on where the wrap lands, so a fix
+    applied to the one that happened to fail leaves the class untouched.
+    """
+    from skyboss import HELP_CONFIG
+
+    monkeypatch.setattr(HELP_CONFIG, "force_terminal", True)
+
+    def go(args=()):
+        result = CliRunner().invoke(cli, ["--json", "read", *args])
+        # Without this the fixture is vacuous — an uncoloured render passes
+        # every assertion below while proving nothing. Count the looking.
+        assert "\x1b[" in result.output, "nothing was drawn in colour; the case is not reproduced"
+        return result
+
+    return go
 
 
 def test_read_is_a_read_so_a_window_may_pin_it():
@@ -158,26 +185,26 @@ def test_shapes_says_how_many_lines_it_sampled():
     assert any("3 non-blank lines" in w for w in env["warnings"])
 
 
-def test_shapes_has_no_cadence():
+def test_shapes_has_no_cadence(refuse, said):
     """A sample is one pass over a whole output. Accepting `--refresh` and
     ignoring it is the wrong-but-looks-right failure."""
     result = refuse(["--shapes", "--refresh", "5", "--", "true"])
     assert result.exit_code == 2
-    assert "no cadence" in result.output
+    assert "no cadence" in said(result)
 
 
-def test_fold_without_shapes_is_refused_rather_than_ignored():
+def test_fold_without_shapes_is_refused_rather_than_ignored(refuse, said):
     """The `--ticks` case one flag over: a modifier with nothing to modify
     reads as a request that was honoured."""
     result = refuse(["--fold", "--", "true"])
     assert result.exit_code == 2
-    assert "--fold needs --shapes" in result.output
+    assert "--fold needs --shapes" in said(result)
 
 
-def test_shapes_cannot_be_saved_because_save_saves_by_example():
+def test_shapes_cannot_be_saved_because_save_saves_by_example(refuse, said):
     result = refuse(["--shapes", "--save", "x", "--", "true"])
     assert result.exit_code == 2
-    assert "cannot be saved" in result.output
+    assert "cannot be saved" in said(result)
 
 
 def test_the_three_empties_are_three_different_sentences():
@@ -187,12 +214,12 @@ def test_the_three_empties_are_three_different_sentences():
     _, silent = invoke(["--shapes", "--", "true"])
     _, blank = invoke(["--shapes", "--", "printf", "\\n\\n"])
 
-    said = [" ".join(e["warnings"]) for e in (failed, silent, blank)]
+    reasons = [" ".join(e["warnings"]) for e in (failed, silent, blank)]
     assert all(e["data"] == [] for e in (failed, silent, blank))
-    assert "the command failed" in said[0]
-    assert "printed nothing at all" in said[1]
-    assert "are blank" in said[2]
-    assert len(set(said)) == 3
+    assert "the command failed" in reasons[0]
+    assert "printed nothing at all" in reasons[1]
+    assert "are blank" in reasons[2]
+    assert len(set(reasons)) == 3
 
 
 def _floods(line: str) -> list[str]:
