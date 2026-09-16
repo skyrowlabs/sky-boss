@@ -110,17 +110,74 @@ a deleted memo is an invitation to buy the same investigation twice. Moved from
   and already owes the same four answers: who calls it, on what cadence, against what budget, and
   what it shows when the model cannot run.
 
-  **And one question decides whether this can be a plan at all: who holds the credential.** The
-  costs listed above put *"sky.boss would hold a credential for the first time"* under the inline
-  version, but the once-per-log version calls a model too — one call rather than thousands, which
-  cuts the egress and the latency and does nothing whatever to the credential. `CLAUDE.md` lists
-  that under considered-and-deliberately-rejected: **external CLIs keep their own authentication**,
-  sky.boss is never in the credential path, and that is what keeps a future [[mcp]] surface safe to
-  expose. The escape is already in this file, in the *piping commands to agents* entry near the
-  top — `sb follow -- claude -p …` works today, so an argv that shells out to a provider's own CLI puts the key on the far side of the
-  boundary and the rule is satisfied rather than dodged. If that is the mechanism, this entry
-  should say so; if it is not, the idea stands against a standing rejection and is not one somebody
-  can pick up
+  **And one question looked like it decided whether this can be a plan at all: who holds the
+  credential.** The costs listed above put *"sky.boss would hold a credential for the first time"*
+  under the inline version, but the once-per-log version calls a model too — one call rather than
+  thousands, which cuts the egress and the latency and does nothing whatever to the credential.
+  `CLAUDE.md` lists that under considered-and-deliberately-rejected: **external CLIs keep their own
+  authentication**, sky.boss is never in the credential path, and that is what keeps a future
+  [[mcp]] surface safe to expose. The escape is already in this file, in the *piping commands to
+  agents* entry near the top: `sb follow -- claude -p …` works today, so an argv that shells out to
+  a provider's own CLI puts the key on the far side of the boundary and the rule is satisfied
+  rather than dodged.
+
+  **Recommended 2026-09-16, awaiting the word: never hold a key — and note that the credential was
+  not the binding gate.** Checking the tree rather than this paragraph turned up three premises
+  that do not hold, and the first of them blocks more than the credential does:
+
+  - **There is no spliced write path for `formats.toml`, and the entry above assumes one.** `backup`,
+    `write_block` and `set_field` all live in `skyboss/tools.py` and are bound to `tools.toml`;
+    every `formats.toml` reference in `skyboss/` is a **read**. So *"write it through the same
+    spliced path the tools rail uses"* names a path that does not reach this file.
+  - **[[highlight]] round 5 ruled that out on purpose**, in its own *Does not do*: `tools.toml`
+    writes are safe because they splice one block and back the file up first, `formats.toml` has
+    neither, and building both was judged a larger round than round 5 was. This idea was gated on a
+    deferred write path before it was ever gated on a credential.
+  - **`check_rules()` does not exist.** The validator is `_check_rule` and `parse_rulesets` in
+    `skyboss/highlight.py`. The intent survives — a validator is there — but the name was written
+    from memory.
+
+  **That is twice this one paragraph has been wrong about [[highlight]], in two different ways**,
+  which is the transferable half: an idea written from a remembered tree ages into a plan nobody
+  can pick up, and the wrongness is invisible because every sentence still reads as confident. The
+  round-5 pointer above was the first; these are the second.
+
+  **So the recommendation is to split the idea at the credential line and build only what sits
+  below it:**
+
+  - **Phase A — the sample, with no model in it at all.** Reduce an hour of log to its few dozen
+    distinct shapes. That is pure computation over data sky.boss already reads, it is an observe,
+    pytest reaches it, and it is worth having *on its own*: forty shapes in front of you is often
+    enough to write the block by hand. No credential, no write path, no rule crossed. **It is worth
+    doing whether or not B or C ever happen, which is the test a first phase should pass.**
+
+    **The shape key is the one real design question in it, and the obvious answer is wrong.** The
+    tempting key is the `marks()` role signature, and it collapses exactly the lines that differ in
+    the interesting way — unclaimed text is precisely what a new rule wants to claim, so two lines
+    with identical signatures are the pair a sample most needs to keep apart. The key wants to mask
+    the *claimed* spans and normalise what is left.
+  - **Phase B — the model call is an argv the operator types.** `sb read … | claude -p …`, or saved
+    as a tool. The key stays with `claude`, which is what *external CLIs keep their own
+    authentication* means, and the draft lands on stdout for the operator to paste. This satisfies
+    round 3 **more** strongly than the original design did: the block is not merely reviewed by the
+    operator, it is installed by them, so *their opinion* is a fact about the file rather than a
+    claim about a workflow. It also survives `CLAUDE.md`'s passthrough test, which asks whether
+    sky.boss does something the wrapped tool cannot express: the sample is that thing, and it is
+    phase A. Note what that means — **B is not a wrapper around `claude`, it is A with a pipe after
+    it**, so there is nothing here for sky.boss to wrap and the test is passed by having no
+    passthrough rather than by justifying one.
+  - **Phase C — sky.boss writes `formats.toml` itself.** Probably never, and last regardless. It
+    needs round 5's deferred splice-and-backup built first, and it is the only step that buys
+    *convenience* rather than capability: A supplies the thing a model cannot, B supplies the model
+    without the key, and C only saves a paste. If it is ever taken, it is a `formats.toml` write
+    round in its own right and not a clause of this one — the backup and the block-splice are the
+    feature, and a drafting assistant riding in on them would be two decisions in one commit.
+
+  **Where it goes next is one call and it is the operator's**: Phase A is a round of [[highlight]],
+  not an idea, so the graduation is reopening that doc into `docs/TODO/` rather than writing
+  anything new. Left here, live and unstruck, until somebody says so — the *whether* has a
+  recommendation and not yet a ruling, and this file is deliberately the place where those are
+  different things
 
 - an estate-currency view — **which declared projects are behind their scaffold, and by how
   much.** Raised 2026-09-05 by jam.sense's session after skeletor declined to build it, and the
