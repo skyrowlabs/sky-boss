@@ -1,7 +1,7 @@
 {
   "_generated_by": "scripts/docs/gen_impl_index.py",
   "_note": "Generated — never hand-edit. Edit the doc's frontmatter and rerun.",
-  "count": 25,
+  "count": 24,
   "by_category": {
     "commands": [
       "capture",
@@ -26,7 +26,6 @@
     "rendering": [
       "chrome",
       "header",
-      "highlight",
       "table-views",
       "wrap"
     ],
@@ -176,24 +175,6 @@
         "rendering"
       ],
       "summary": "Draws the sky.boss mark from one source so the CLI header, the README banner and the app icon cannot drift apart.",
-      "open_tasks": 0,
-      "auto_generated": false,
-      "category": "rendering",
-      "completed": "2026-08-30",
-      "agent_value": 3
-    },
-    {
-      "slug": "highlight",
-      "title": "Highlight — lexical tint for followed lines",
-      "path": "docs/implementations/rendering/highlight.md",
-      "priority": "medium",
-      "updated": "2026-08-30",
-      "tags": [
-        "rendering",
-        "highlight",
-        "theme"
-      ],
-      "summary": "Tints a followed line by shape rather than by severity, and lets the operator declare their own vocabulary without repainting sky.boss's.",
       "open_tasks": 0,
       "auto_generated": false,
       "category": "rendering",

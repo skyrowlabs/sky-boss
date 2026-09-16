@@ -3,15 +3,21 @@ title: Highlight — lexical tint for followed lines
 slug: highlight
 category: rendering
 agent_value: 3
-completed: 2026-08-30
-updated: 2026-08-30
+shelf_status: planned
+priority: low
+updated: 2026-09-16
 tags: [rendering, highlight, theme]
-summary: Tints a followed line by shape rather than by severity, and lets the operator declare their own vocabulary without repainting sky.boss's.
+summary: Tints a followed line by shape rather than by severity, and lets the operator declare their own vocabulary without repainting sky.boss's. Round 8 is open — the sample that makes such a declaration writable against what a log actually contains.
 created: 2026-08-22
 key_files: [skyboss/highlight.py, skyboss/resident.py, skyboss/tools.py, skyboss/follow.py, skyboss/filefollow.py, skyboss/canvas/server.py, skyboss/canvas/catalog.py, skyboss/canvas/static/api.js, skyboss/canvas/static/app.js, skyboss/canvas/static/bench.js, skyboss/canvas/static/sb.css, tests/test_canvas_catalog.py, tests/test_highlight.py]
 ---
 
 # Highlight — lexical tint for followed lines
+
+> **Status**: 🔴 Planned — rounds 1–7 shipped; round 8 is open
+> **Shelf-Status**: planned
+> **Priority**: Low — nothing is broken; round 8 makes an existing declaration easier to write
+> **Updated**: 2026-09-16
 
 ## Why
 
@@ -70,6 +76,13 @@ so the payload the canvas appends is provably the payload the file carried. Role
 role names; the canvas already has every token as a CSS custom property, and no color is named
 outside `skyboss/theme.py` in any language.
 
+**Round 8 adds a second kind of function to the module, and the distinction is worth stating
+before it blurs.** Rounds 1–7 are all *rendering*: a line in, marks out, applied wherever a
+followed line draws. Round 8's shape key is *authoring support* — it consumes `spans()` and
+produces neither marks nor a rendering, and nothing in the render path calls it. It lives here
+because the thing it helps you write is a `[highlight.<name>]` block and its key is defined
+against what this module already claims; it is not a widening of what tint does.
+
 **Does not do:**
 
 - **No filtering, folding, or reordering.** Every line renders, whole, in arrival order. This
@@ -101,7 +114,20 @@ outside `skyboss/theme.py` in any language.
   `` `code` `` and a path, and those already share the literal role.
 - **No editing of `formats.toml` from the bench** (round 5). `tools.toml` writes are safe because
   they splice one block's line range and back the file up first; `formats.toml` has neither, and
-  building both is a larger round than this one.
+  building both is a larger round than this one. **Round 8 does not amend this** — it is the
+  boundary that decided round 8's scope rather than one round 8 argues with.
+- **No model anywhere in this module** (round 8). Round 8 samples a log; it does not classify one.
+  A model in the render path is refused on round 3's ground — sky.boss ships no judgment, the
+  operator declares theirs — and refused again on four costs recorded in [[ideas]], of which the
+  binding one is constitutional: sky.boss would hold a credential for the first time, against
+  `CLAUDE.md`'s rule that **external CLIs keep their own authentication**. The drafting assistant
+  that idea describes reaches the operator as `sb read … | claude -p …`, an argv they type, so the
+  key stays with `claude` and this module never learns what one is.
+- **No writing of the block round 8 helps you write** (round 8). The sample goes to stdout. The
+  operator pastes. That is not a limitation to be lifted later by this doc: writing `formats.toml`
+  needs the splice-and-backup the bullet above defers, and it is a `formats.toml` write round in
+  its own right — the backup and the block-splice are that feature, and a drafting assistant
+  riding in on them would be two decisions in one commit.
 
 ## Phases
 
@@ -463,6 +489,53 @@ background is unknown, and a role that supplies its own removes the unknown.
 - [x] **A mark role paints on the canvas**, and the stylesheet is enumerated off the Python rules
   so the next one cannot ship unpainted. Also not this round's subject, and worse. See Notes.
 
+### Round 8 — the sample, so a ruleset can be written against what is there (2026-09-16)
+
+**Round 3 gave the operator the pen and never gave them the page.** A `[highlight.<name>]` block
+is written against a log the operator has to read first, and the live cron.log is tens of
+thousands of lines. Nothing in this module helps with that: `marks()` tells you what sky.boss
+already claims and is silent on the rest, which is precisely where a new rule goes. So the
+declaration round 3 shipped is easy to *apply* and hard to *author*, and the gap has been filled
+by scrolling.
+
+**The unit is the distinct shape, not the line.** An hour of a chatty stream is tens of thousands
+of lines and perhaps forty shapes. Forty is a page; thirty thousand is not. Reducing one to the
+other is pure computation over data sky.boss already reads, it is an observe, and pytest reaches
+all of it.
+
+**The shape key is the whole design question, and the obvious answer is wrong.** The tempting key
+is the `marks()` role signature — two lines with the same sequence of roles are the same shape.
+It fails in exactly the case the feature exists for: **unclaimed text is what a new rule wants to
+claim**, so two lines that differ only in the text sky.boss has *not* tinted have identical
+signatures and collapse into one sample. The instrument would be blind to its own subject. The key
+masks the **claimed** spans and normalises what is left; `spans()` already returns the claimed and
+unclaimed partition, so the masking half is built.
+
+**Normalising the remainder is the part with a real choice in it**, and it is the one thing this
+round should measure rather than reason about. Too little and every line with a different pid is
+its own shape; too much and two genuinely different messages merge. Digits are the obvious first
+axis. Decide it against the live log and record the measurement — the round-4 lesson that a
+threshold read off real output beats one argued in a doc.
+
+- [ ] **The shape key, pure.** `skyboss/highlight.py`: a function from a line to a key, masking the
+      spans `spans()` already reports as claimed and normalising the remainder. Tests for the
+      collapse case above — two lines identical in their marks and different in their unclaimed
+      text must **not** share a key.
+- [ ] **The normalisation, measured on the live log.** Try at least two aggressiveness settings,
+      report shape counts for each, and record the numbers in Notes with the one chosen. A count
+      nobody looked at is the *measurement that cannot fail* this repo has already paid for once.
+- [ ] **The surface: a sample is an observe.** Reachable from a command that already reads a file,
+      returning shapes with a count and one representative line each. It carries **no** cadence and
+      writes nothing. Follow the act/observe split: `expansion[0]` decides `acts`, so this must not
+      arrive under `run`.
+- [ ] **Say which of the three empties it is.** A log with no lines, a log whose lines all share
+      one shape, and a file that could not be read are different answers and must not render alike
+      — the lesson [[agent-sessions]] round 1 paid for, and *worked fine, told nobody* in the shape
+      this round is most likely to reproduce.
+- [ ] **A test that the sample is lossless about what it drops.** The count per shape is what makes
+      a forty-row table honest about thirty thousand lines; a sample that silently discarded a
+      shape would be a smaller version of the same lie.
+
 ## Notes
 
 ### Round 1 — drafted, awaiting the word (2026-08-22)
@@ -789,3 +862,36 @@ whole rather than swept out with the other two. **A declared rule can also only 
 `PR #1200` renders as two `sb.ref` chips because `_REF` claims the number first, and one span across
 both is not available at any price. That is the ordering working as designed, but it is a shape the
 operator has to see before choosing the role.
+
+### Round 8 — drafted, awaiting the word (2026-09-16)
+
+**Reopened from the archive.** This doc was filed complete on 2026-08-30 and moved back to
+`docs/TODO/` on the operator's ruling, which is the lifecycle working rather than an exception:
+the archive is for what is finished, not for what was finished once. Every `[[slug]]` citing it
+needed no edit, which is the entire argument for slugs arriving as a bill somebody else paid.
+
+**Where it came from, and the two things the source document got wrong.** Round 8 is Phase A of
+the *cheap model classifying a followed log* idea in [[ideas]], split three ways on 2026-09-16 and
+ruled the same day. That entry had claimed to be **round 5** — which shipped as *weight instead of
+hue*, with 6 and 7 landing after it — and had claimed it would write `formats.toml` *"through the
+same spliced path the tools rail uses"*, which does not reach this file: `backup`, `write_block`
+and `set_field` all live in `skyboss/tools.py` and are bound to `tools.toml`. It also cited a
+validator, `check_rules()`, that does not exist; the real one is `_check_rule` and
+`parse_rulesets` here.
+
+**The transferable half is not the three corrections, it is what made them invisible.** That
+paragraph was written from a remembered tree rather than a read one, and every sentence in it
+still read as confident. `tests/test_docs.py` proves a `[[slug]]` resolves to a document; nothing
+proves the *claim made about* that document, so a pointer that was true when written decays in
+silence. Three of the four things corrected across [[ideas]] and [[open]] that day were that exact
+shape — a discharged blocker still named as live, a spent round number, and a function that never
+existed.
+
+**What the split bought.** Phase A is the half that needs no model, no credential and no write
+path, and it is worth having alone: forty shapes in front of you is often enough to write the
+block by hand, which is the *whether* question the idea never asked. Phase B is A with a pipe
+after it — `sb read … | claude -p …` — so there is no wrapper and `CLAUDE.md`'s passthrough test is
+passed by having nothing to pass through. Phase C is sky.boss writing `formats.toml` and is last,
+gated on round 5's deferred splice-and-backup, and buys only a paste. B and C stay in [[ideas]]
+deliberately: taking them into this round would put three decisions in one doc and make the first
+one wait for the other two.

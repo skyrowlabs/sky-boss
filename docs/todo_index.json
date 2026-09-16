@@ -1,8 +1,31 @@
 {
   "_generated_by": "scripts/docs/gen_todo_index.py",
   "_note": "Generated — never hand-edit. Edit the plan's frontmatter or header lines and rerun.",
-  "count": 0,
-  "by_status": {},
+  "count": 1,
+  "by_status": {
+    "planned": [
+      "highlight"
+    ]
+  },
   "ready_queue": [],
-  "plans": []
+  "plans": [
+    {
+      "slug": "highlight",
+      "title": "Highlight — lexical tint for followed lines",
+      "path": "docs/TODO/highlight.md",
+      "shelf_status": "planned",
+      "priority": "low",
+      "queue_order": null,
+      "blocked_on": null,
+      "updated": "2026-09-16",
+      "tags": [
+        "rendering",
+        "highlight",
+        "theme"
+      ],
+      "summary": "Tints a followed line by shape rather than by severity, and lets the operator declare their own vocabulary without repainting sky.boss's. Round 8 is open — the sample that makes such a declaration writable against what a log actually contains.",
+      "open_tasks": 5,
+      "auto_generated": false
+    }
+  ]
 }

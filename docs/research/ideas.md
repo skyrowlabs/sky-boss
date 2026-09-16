@@ -72,8 +72,10 @@ a deleted memo is an invitation to buy the same investigation twice. Moved from
   state belongs to the window or to a new strip that owns docked things. That is a `docs/open.md`
   question, not a plan.
 
-- a cheap model classifying a followed log — Haiku or similar watching a stream and tinting by what
-  a line *means* rather than what shape it has. **Two versions, and the rules already written
+- ~~a cheap model classifying a followed log~~ — **ruled 2026-09-16 on the operator's word, and
+  split three ways.** *Phase A → [[highlight]] round 8, reopened into `docs/TODO/` to take it.
+  Phases B and C stay here, below, as the record of what was deliberately not taken.* Haiku or
+  similar watching a stream and tinting by what a line *means* rather than what shape it has. **Two versions, and the rules already written
   separate them.** *Inline* — a model in the render path, per line — loses three ways. It is a
   judgment, and [[highlight]] round 3 settled whose judgment counts: sky.boss ships none, the
   operator declares theirs in `formats.toml`, and a model is a third party that rule has no slot
@@ -121,7 +123,7 @@ a deleted memo is an invitation to buy the same investigation twice. Moved from
   a provider's own CLI puts the key on the far side of the boundary and the rule is satisfied
   rather than dodged.
 
-  **Recommended 2026-09-16, awaiting the word: never hold a key — and note that the credential was
+  **Ruled 2026-09-16 on the operator's word: never hold a key — and note that the credential was
   not the binding gate.** Checking the tree rather than this paragraph turned up three premises
   that do not hold, and the first of them blocks more than the credential does:
 
@@ -173,11 +175,13 @@ a deleted memo is an invitation to buy the same investigation twice. Moved from
     round in its own right and not a clause of this one — the backup and the block-splice are the
     feature, and a drafting assistant riding in on them would be two decisions in one commit.
 
-  **Where it goes next is one call and it is the operator's**: Phase A is a round of [[highlight]],
-  not an idea, so the graduation is reopening that doc into `docs/TODO/` rather than writing
-  anything new. Left here, live and unstruck, until somebody says so — the *whether* has a
-  recommendation and not yet a ruling, and this file is deliberately the place where those are
-  different things
+  **Phase A left this file on 2026-09-16 → [[highlight]] round 8.** It is a round of that doc and
+  never was an idea, so the graduation was reopening it into `docs/TODO/` rather than writing
+  anything new — and not one `[[slug]]` citing it needed editing, which is what slugs are for.
+  **B and C stay here on purpose**, and not because nobody got to them: taking three phases into
+  one doc would have made the first wait for the other two, and C in particular is a `formats.toml`
+  write round in its own right that would arrive wearing a drafting assistant's clothes. If either
+  is ever taken, it exits from here the same way, with the line recording where it went
 
 - an estate-currency view — **which declared projects are behind their scaffold, and by how
   much.** Raised 2026-09-05 by jam.sense's session after skeletor declined to build it, and the

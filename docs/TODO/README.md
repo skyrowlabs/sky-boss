@@ -12,9 +12,17 @@ checking whether a capability already exists (parked) before rebuilding it.
 
 **Machine-readable index**: [`../todo_index.json`](../todo_index.json).
 
-**0 open plans** · **0 agent-managed**
+**1 open plans** · **0 agent-managed**
 
 ---
+
+## 🔴 Planned
+
+_Not started — intended future work._
+
+| Plan | Priority | Updated | Summary |
+| ---- | -------- | ------- | ------- |
+| [Highlight — lexical tint for followed lines](highlight.md) | low | 2026-09-16 | Tints a followed line by shape rather than by severity, and lets the operator declare their own vocabulary without repainting sky.boss's. Round 8 is open — the sample that makes such a declaration writable against what a log actually contains. |
 
 ---
 

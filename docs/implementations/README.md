@@ -16,7 +16,7 @@ that were dropped, and the constraints that shaped what landed.
 
 **Machine-readable index**: [`../implementation_index.json`](../implementation_index.json).
 
-**25 archived plans** across 5 categories.
+**24 archived plans** across 5 categories.
 
 ---
 
@@ -53,7 +53,6 @@ that were dropped, and the constraints that shaped what landed.
 | ⭐⭐⭐ | [Chrome — what a window knows about its output](rendering/chrome.md) | 2026-08-23 | Gives a window a band stating what it knows about its own output — quiet, late, dead — so silence and death stop looking alike. |
 | ⭐⭐⭐ | [Table views — shaping a foreign CLI's JSON into a table worth reading](rendering/table-views.md) | 2026-08-23 | The shaping contract — a view describes data and never filters it, decided in Python so both renderers draw what they are told. |
 | ⭐⭐⭐ | [The mark — a header for `sb`](rendering/header.md) | 2026-08-30 | Draws the sky.boss mark from one source so the CLI header, the README banner and the app icon cannot drift apart. |
-| ⭐⭐⭐ | [Highlight — lexical tint for followed lines](rendering/highlight.md) | 2026-08-30 | Tints a followed line by shape rather than by severity, and lets the operator declare their own vocabulary without repainting sky.boss's. |
 | ⭐⭐ | [Wrap — a followed line that fits the window](rendering/wrap.md) | 2026-08-29 | Wraps a followed line to the window with a hanging indent, which is why a rendered line is a block rather than a span plus a newline. |
 
 ## Surfaces
