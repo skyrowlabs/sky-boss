@@ -6,12 +6,15 @@ display.
 """
 
 import json
+import sys
 
 import pytest
 from click.testing import CliRunner
 
 from skyboss import cli
-from skyboss.read import MAX_CHARS, strip_ansi
+from skyboss.read import MAX_CHARS
+from skyboss.read import TRUNCATED as MAX_CHARS_NOTICE
+from skyboss.read import strip_ansi
 
 #: Every test here is host-side and needs no services up.
 pytestmark = [pytest.mark.unit]
@@ -124,3 +127,96 @@ def test_envelope_for_is_reads_own_and_not_shared_with_run():
 
     late = envelope_for(Outcome(-1, 60.0, "", "", timed_out=True), 60)
     assert late.ok is False and late.data == "timed out after 60s"
+
+
+# ------------------------------------------------------- --shapes (round 8)
+#
+# A sample of what the command printed, for writing a `[highlight.NAME]` block
+# against a log nobody can read all of. See [[highlight]] round 8.
+
+
+def test_shapes_returns_rows_and_not_verbatim_text():
+    _, env = invoke(["--shapes", "--", "printf", "a 1\\na 2\\nb 3\\n"])
+    rows = env["data"]
+    assert isinstance(rows, list)
+    assert {r["shape"] for r in rows} == {"a «num»", "b «num»"}
+    assert sorted(r["lines"] for r in rows) == [1, 2]
+
+
+def test_shapes_authors_its_view_so_an_inference_cannot_widen_it():
+    """Three columns sky.boss chose. An inferred view would round-trip through
+    `/api/shape` and come back with whatever it found. See [[schedule]] round 3."""
+    _, env = invoke(["--shapes", "--", "printf", "a 1\\n"])
+    assert env["view"]["authored"] is True
+    assert [c["key"] for c in env["view"]["columns"]] == ["lines", "shape"]
+
+
+def test_shapes_says_how_many_lines_it_sampled():
+    """Seven rows must not read as seven lines. The count of the *looking*, not
+    only of the finding — the rule this repo keeps arriving at."""
+    _, env = invoke(["--shapes", "--", "printf", "a 1\\na 2\\nb 3\\n"])
+    assert any("3 non-blank lines" in w for w in env["warnings"])
+
+
+def test_shapes_has_no_cadence():
+    """A sample is one pass over a whole output. Accepting `--refresh` and
+    ignoring it is the wrong-but-looks-right failure."""
+    result = refuse(["--shapes", "--refresh", "5", "--", "true"])
+    assert result.exit_code == 2
+    assert "no cadence" in result.output
+
+
+def test_fold_without_shapes_is_refused_rather_than_ignored():
+    """The `--ticks` case one flag over: a modifier with nothing to modify
+    reads as a request that was honoured."""
+    result = refuse(["--fold", "--", "true"])
+    assert result.exit_code == 2
+    assert "--fold needs --shapes" in result.output
+
+
+def test_shapes_cannot_be_saved_because_save_saves_by_example():
+    result = refuse(["--shapes", "--save", "x", "--", "true"])
+    assert result.exit_code == 2
+    assert "cannot be saved" in result.output
+
+
+def test_the_three_empties_are_three_different_sentences():
+    """A failed command, a command that printed nothing, and output that is all
+    blank lines want different conclusions. See [[agent-sessions]] round 1."""
+    _, failed = invoke(["--shapes", "--", "false"])
+    _, silent = invoke(["--shapes", "--", "true"])
+    _, blank = invoke(["--shapes", "--", "printf", "\\n\\n"])
+
+    said = [" ".join(e["warnings"]) for e in (failed, silent, blank)]
+    assert all(e["data"] == [] for e in (failed, silent, blank))
+    assert "the command failed" in said[0]
+    assert "printed nothing at all" in said[1]
+    assert "are blank" in said[2]
+    assert len(set(said)) == 3
+
+
+def _floods(line: str) -> list[str]:
+    """An argv that *prints* more than `MAX_CHARS`, rather than carrying it.
+
+    Passing the text as an argument is `E2BIG` at about 128k on Linux, which
+    fails the command instead of truncating its output — so the first draft of
+    these two tests was measuring the argument limit and not the sampler.
+    """
+    n = MAX_CHARS // len(line) + 200
+    return [sys.executable, "-c", f"import sys; sys.stdout.write({line!r} * {n})"]
+
+
+def test_a_truncated_read_says_its_sample_is_partial():
+    """`N characters not shown` reads as a display cap. For a sample it means
+    every count describes a prefix of the log, which is a different and much
+    more misleading claim if nobody says it."""
+    _, env = invoke(["--shapes", "--"] + _floods("run 1 ok\n"))
+    assert any(MAX_CHARS_NOTICE in w for w in env["warnings"])
+    assert any("counts are partial" in w for w in env["warnings"])
+
+
+def test_a_truncated_read_drops_its_half_line():
+    """The last surviving line is cut mid-line, and half a line is a shape that
+    exists nowhere in the log."""
+    _, env = invoke(["--shapes", "--"] + _floods("run 1 ok\n"))
+    assert [r["shape"] for r in env["data"]] == ["run «num» ok"]

@@ -10,7 +10,7 @@ import time
 import pytest
 from narrowing import present
 
-from skyboss.highlight import load_rulesets, marks, resolve, spans
+from skyboss.highlight import load_rulesets, marks, resolve, sample, shape_key, spans
 
 #: Every test here is host-side and needs no services up.
 pytestmark = [pytest.mark.unit]
@@ -681,3 +681,74 @@ def test_a_path_segment_that_looks_like_a_fraction_stays_a_path():
         ("2026/08/29/report.md is a path", "2026/08/29/report.md"),
     ):
         assert role_of(text, snippet) == "sb.path", snippet
+
+
+# ------------------------------------------------------- the sample (round 8)
+#
+# Authoring support, not rendering. The property that matters most is the one
+# the obvious implementation gets wrong: a key built from the role signature
+# collapses the lines a rule-writer is trying to tell apart.
+
+
+def test_two_lines_with_identical_marks_and_different_unclaimed_text_differ():
+    """The collapse round 8 exists to avoid. Both lines mark the same way — a
+    timestamp, a tag, a number — and differ only in the words sky.boss has not
+    claimed, which is exactly where the operator's next rule goes.
+
+    Note the words are lowercase on purpose: round 5 claims ALL CAPS as a
+    shout, so `ESCALATE` is already spoken for and would not have tested this.
+    """
+    a = "2026-08-22T14:03:11 [jam] run 7 handing off"
+    b = "2026-08-22T14:03:11 [jam] run 7 finished"
+
+    assert [role for _, _, role in marks(a)] == [role for _, _, role in marks(b)]
+    assert shape_key(a) != shape_key(b)
+
+
+def test_lines_differing_only_in_a_claimed_value_share_a_shape():
+    """The other half of the same rule. A number is already spoken for, so two
+    runs differing only in it are one shape and one row."""
+    assert shape_key("[jam] run 7 ok") == shape_key("[jam] run 812 ok")
+
+
+def test_a_run_of_one_placeholder_collapses_because_arity_is_not_a_pattern():
+    """`a_b_c` and `a_b` are the same shape to somebody writing a rule; what
+    differs is how many words, and nobody declares a pattern for that."""
+    assert shape_key("test_one_two_three passed", fold_words=True) == shape_key(
+        "test_four_five passed", fold_words=True
+    )
+
+
+def test_folding_never_finds_more_shapes_than_the_light_setting():
+    """The aggressiveness ordering, asserted rather than assumed — a fold that
+    split a shape would mean the normalisation was not a normalisation."""
+    lines = [
+        "2026-08-22T14:03:11 [jam] run 7 ESCALATE",
+        "2026-08-22T14:03:12 [jam] run 8 finished",
+        "2026-08-22T14:03:13 [bb] sync 9 finished",
+        "plain prose with no shape at all",
+    ]
+    assert len(sample(lines, fold_words=True)) <= len(sample(lines))
+
+
+def test_the_counts_add_up_to_every_line_that_went_in():
+    """What makes forty rows honest about thirty thousand lines. A sample that
+    silently dropped a shape would be a smaller version of the lie this module
+    refuses."""
+    lines = ["[jam] run 1 ok", "[jam] run 2 ok", "[bb] sync 3 failed", "  ", ""]
+    found = sample(lines)
+    assert sum(s.count for s in found) == 3
+
+
+def test_an_example_is_a_real_line_and_not_the_key():
+    """The key is lossy on purpose; the example is what lets a reader check it."""
+    lines = ["[jam] run 812 ok"]
+    (only,) = sample(lines)
+    assert only.example == "[jam] run 812 ok"
+    assert only.example != only.key
+
+
+def test_a_blank_line_is_not_a_shape():
+    """It carries nothing to write a rule against and would otherwise be the
+    commonest row in most logs."""
+    assert sample(["", "   ", "\t"]) == []

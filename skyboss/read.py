@@ -37,6 +37,11 @@ from skyboss.output import Result, band, emit, refuse_resident_json, refuse_resi
 # substrate changed; the rule did not.
 MAX_CHARS = 200_000
 
+# One spelling, because `_shapes` has to recognise it: a sample of a truncated
+# output is a sample of part of a log, and saying so is the sampler's job and
+# not the display's. See [[highlight]] round 8.
+TRUNCATED = "characters not shown"
+
 # CSI sequences. Stripped rather than interpreted: [[canvas]] rejected an
 # ANSI-to-HTML fallback because rendering an ANSI table gives a *picture* of a
 # table, and that argument still holds — this gives you a picture and says so.
@@ -87,6 +92,16 @@ def strip_ansi(text: str) -> str:
     default=None,
     help="Save this invocation as a saved command called NAME, then run it.",
 )
+@click.option(
+    "--shapes",
+    is_flag=True,
+    help="Summarise what it printed as its distinct shapes, commonest first, instead of verbatim.",
+)
+@click.option(
+    "--fold",
+    is_flag=True,
+    help="With --shapes: fold words too. Smaller sample, and it hides the words you are shopping for.",
+)
 @emit
 def read_(
     argv: tuple[str, ...],
@@ -97,6 +112,8 @@ def read_(
     ticks: int | None,
     screen: bool,
     save: str | None,
+    shapes: bool,
+    fold: bool,
 ) -> Result:
     """Show what a command printed. An observe — a window may pin it and
     refresh it on a cadence, and `--refresh` is the same rule in the terminal:
@@ -110,9 +127,29 @@ def read_(
     `--save` keeps the line you just got right, then runs it:
 
         sb read --save status -- sometool status
+
+    `--shapes` answers a different question about the same bytes — *what kinds
+    of line are in here* — for writing a `[highlight.NAME]` block against a log
+    you cannot read all of:
+
+        sb read --shapes -- cat ~/logs/cron.log
     """
     ctx = click.get_current_context()
     env = parse_env(env_pairs)
+    # `--fold` is a modifier on a flag that has to be there, and on its own it
+    # is a request that was honoured while changing nothing — the `--ticks`
+    # case, one flag over. See [[unwatched]].
+    if fold and not shapes:
+        raise click.UsageError("--fold needs --shapes — it changes how shapes are keyed, nothing else")
+    if shapes and refresh is not None:
+        # A sample is one pass over a whole output. Re-running it on a cadence
+        # is a different feature and nobody has asked for it; accepting the
+        # flag and ignoring it is the "wrong but looks right" failure.
+        raise click.UsageError("--shapes has no cadence — drop --refresh, or drop --shapes")
+    if shapes and save:
+        # `--save` saves by example and the example would be a `read` that no
+        # longer renders what it saved. Refuse rather than save a lie.
+        raise click.UsageError("--shapes cannot be saved — save the read, then add --shapes by hand")
     # Before the write, not inside the resident path — same defect `data` had.
     # See [[workbench]] round 3.
     refuse_resident_json(refresh)
@@ -129,6 +166,10 @@ def read_(
         raise click.UsageError("--ticks needs --refresh — a single read already stops after one")
     if refresh is not None:
         _reside(argv, timeout, cwd, refresh, screen, env, ticks)
+    if shapes:
+        result = _once(argv, timeout, cwd, env)
+        result.saved = saved
+        return _shapes(result, fold=fold)
     if not (ctx.find_root().obj or {}).get("as_json"):
         # Live accrual: output shows while the process runs, exit stamps the
         # status. A Job is a stream that ends — see [[follow]]. The envelope
@@ -270,7 +311,7 @@ def _once(
     if len(text) > MAX_CHARS:
         dropped = len(text) - MAX_CHARS
         text = text[:MAX_CHARS]
-        result.warn(f"{dropped} characters not shown")
+        result.warn(f"{dropped} {TRUNCATED}")
 
     result.data = text
     result.ok = proc.returncode == 0
@@ -301,3 +342,64 @@ def _reside(
     source = f"{ctx.info_name} -- {shlex.join(argv)}"
     resident.reside(source, refresh, lambda: _once(argv, timeout, cwd, env), screen=screen, runs=ticks)
     raise click.exceptions.Exit(0)
+
+
+def _shapes(result: Result, *, fold: bool) -> Result:
+    """`read`'s verbatim text, summarised as its distinct shapes.
+
+    **This does not break [[text-reads]]'s refusal to infer columns.** That
+    refusal is about inferring *the tool's* structure — making the tool's
+    whitespace into the tool's columns, which reads as complete and is not.
+    These three columns are sky.boss's own arithmetic about the text, not a
+    claim about what the tool meant, and the `example` is carried verbatim so
+    the answer can always be checked against a real line.
+
+    **Three empties, three sentences.** A failed command, a command that
+    printed nothing, and output that was all blank lines are different facts,
+    and a table that rendered the same for all three would be the silence this
+    repo keeps naming. See [[agent-sessions]] round 1.
+    """
+    from skyboss.highlight import sample
+    from skyboss.view import describe
+
+    text = result.data if isinstance(result.data, str) else ""
+
+    if not result.ok:
+        # The failure already warned; say why there is no sample as well, or a
+        # reader sees an empty table and blames the sampler.
+        result.data = []
+        result.warn("no shapes — the command failed, so there is nothing to sample")
+        return result
+
+    lines = text.splitlines()
+
+    # **A truncated read makes a partial sample, and the existing warning does
+    # not say that.** `{n} characters not shown` reads as a display cap; here it
+    # means every count below describes a prefix of the log. The last surviving
+    # line is also half a line, and half a line is a shape that does not exist.
+    clipped = any(TRUNCATED in w for w in result.warnings)
+    if clipped and len(lines) > 1:
+        lines = lines[:-1]
+
+    found = sample(lines, fold_words=fold)
+    if not found:
+        result.data = []
+        result.warn(
+            "no shapes — it printed nothing at all"
+            if not lines
+            else f"no shapes — all {len(lines)} lines it printed are blank"
+        )
+        return result
+
+    rows = [{"shape": s.key, "lines": s.count, "example": s.example} for s in found]
+    result.data = rows
+    sampled = sum(s.count for s in found)
+    result.view = {
+        "columns": [describe(key, rows) for key in ("lines", "shape")],
+        "details": [describe("example", rows)],
+        "hidden": [],
+        "authored": True,
+    }
+    seen = f"{len(rows)} shapes in {sampled} non-blank lines"
+    result.warn(f"{seen} — a prefix of the output, not all of it, so these counts are partial" if clipped else seen)
+    return result

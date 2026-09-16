@@ -16,13 +16,13 @@ checking whether a capability already exists (parked) before rebuilding it.
 
 ---
 
-## 🔴 Planned
+## 🔎 Awaiting Your Review
 
-_Not started — intended future work._
+_Implemented and out for review — read the PR, then file the plan (or send it back)._
 
-| Plan | Priority | Updated | Summary |
-| ---- | -------- | ------- | ------- |
-| [Highlight — lexical tint for followed lines](highlight.md) | low | 2026-09-16 | Tints a followed line by shape rather than by severity, and lets the operator declare their own vocabulary without repainting sky.boss's. Round 8 is open — the sample that makes such a declaration writable against what a log actually contains. |
+| Plan | Review PR | Updated | Summary |
+| ---- | --------- | ------- | ------- |
+| [Highlight — lexical tint for followed lines](highlight.md) | pushed to develop | 2026-09-16 | Tints a followed line by shape rather than by severity, and lets the operator declare their own vocabulary without repainting sky.boss's. Round 8 is open — the sample that makes such a declaration writable against what a log actually contains. |
 
 ---
 

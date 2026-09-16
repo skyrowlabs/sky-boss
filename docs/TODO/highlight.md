@@ -9,14 +9,15 @@ updated: 2026-09-16
 tags: [rendering, highlight, theme]
 summary: Tints a followed line by shape rather than by severity, and lets the operator declare their own vocabulary without repainting sky.boss's. Round 8 is open — the sample that makes such a declaration writable against what a log actually contains.
 created: 2026-08-22
-key_files: [skyboss/highlight.py, skyboss/resident.py, skyboss/tools.py, skyboss/follow.py, skyboss/filefollow.py, skyboss/canvas/server.py, skyboss/canvas/catalog.py, skyboss/canvas/static/api.js, skyboss/canvas/static/app.js, skyboss/canvas/static/bench.js, skyboss/canvas/static/sb.css, tests/test_canvas_catalog.py, tests/test_highlight.py]
+key_files: [skyboss/highlight.py, skyboss/read.py, skyboss/resident.py, skyboss/tools.py, skyboss/follow.py, skyboss/filefollow.py, skyboss/canvas/server.py, skyboss/canvas/catalog.py, skyboss/canvas/static/api.js, skyboss/canvas/static/app.js, skyboss/canvas/static/bench.js, skyboss/canvas/static/sb.css, tests/test_canvas_catalog.py, tests/test_highlight.py, tests/test_read.py]
 ---
 
 # Highlight — lexical tint for followed lines
 
-> **Status**: 🔴 Planned — rounds 1–7 shipped; round 8 is open
-> **Shelf-Status**: planned
+> **Status**: 🟡 In progress — rounds 1–8 built; round 8 awaiting review
+> **Shelf-Status**: in-review
 > **Priority**: Low — nothing is broken; round 8 makes an existing declaration easier to write
+> **Review-PR**: pushed to develop
 > **Updated**: 2026-09-16
 
 ## Why
@@ -517,24 +518,24 @@ its own shape; too much and two genuinely different messages merge. Digits are t
 axis. Decide it against the live log and record the measurement — the round-4 lesson that a
 threshold read off real output beats one argued in a doc.
 
-- [ ] **The shape key, pure.** `skyboss/highlight.py`: a function from a line to a key, masking the
-      spans `spans()` already reports as claimed and normalising the remainder. Tests for the
-      collapse case above — two lines identical in their marks and different in their unclaimed
-      text must **not** share a key.
-- [ ] **The normalisation, measured on the live log.** Try at least two aggressiveness settings,
-      report shape counts for each, and record the numbers in Notes with the one chosen. A count
-      nobody looked at is the *measurement that cannot fail* this repo has already paid for once.
-- [ ] **The surface: a sample is an observe.** Reachable from a command that already reads a file,
-      returning shapes with a count and one representative line each. It carries **no** cadence and
-      writes nothing. Follow the act/observe split: `expansion[0]` decides `acts`, so this must not
-      arrive under `run`.
-- [ ] **Say which of the three empties it is.** A log with no lines, a log whose lines all share
-      one shape, and a file that could not be read are different answers and must not render alike
-      — the lesson [[agent-sessions]] round 1 paid for, and *worked fine, told nobody* in the shape
-      this round is most likely to reproduce.
-- [ ] **A test that the sample is lossless about what it drops.** The count per shape is what makes
-      a forty-row table honest about thirty thousand lines; a sample that silently discarded a
-      shape would be a smaller version of the same lie.
+- [x] **The shape key, pure.** `skyboss/highlight.py`: `shape_key()` masks the spans `spans()`
+      already reports as claimed and normalises the remainder; `sample()` folds a sequence of lines
+      into `Shape(key, count, example)`, commonest first. The collapse case is asserted — two lines
+      identical in their marks and different in their unclaimed text do **not** share a key.
+- [x] **The normalisation, measured.** Three settings on 1,658 lines of real machine output:
+      **1,402 shapes light, 324 folding words, 175 folding plus collapsing placeholder runs.** The
+      light setting is the default, and *not* because it sampled best — see Notes, where the
+      measurement reversed the choice it was run to confirm.
+- [x] **The surface: a sample is an observe.** `sb read --shapes`, with `--fold` for the aggressive
+      key. No cadence, no `--save`, writes nothing; all three are refused in words rather than
+      ignored. It hangs off `read` rather than off a file-reading command — see Notes, which
+      records why the spec line said otherwise.
+- [x] **Say which of the three empties it is.** A failed command, a command that printed nothing,
+      and output that is all blank lines are three sentences, and a test asserts all three differ
+      — the lesson [[agent-sessions]] round 1 paid for.
+- [x] **A test that the sample is lossless about what it drops.** The counts sum to every non-blank
+      line that went in. The count per shape is what makes a forty-row table honest about thirty
+      thousand lines.
 
 ## Notes
 
@@ -895,3 +896,95 @@ passed by having nothing to pass through. Phase C is sky.boss writing `formats.t
 gated on round 5's deferred splice-and-backup, and buys only a paste. B and C stay in [[ideas]]
 deliberately: taking them into this round would put three decisions in one doc and make the first
 one wait for the other two.
+
+### Round 8 — built (2026-09-16)
+
+**The measurement reversed the choice it was run to confirm, which is the round's main finding.**
+Three settings over 1,658 lines of real machine output (`pytest -v`, which is a genuine repetitive
+log rather than a corpus written to flatter the algorithm):
+
+| setting | shapes | ratio |
+|---|---|---|
+| light — claimed spans collapse, digits and hex normalise | 1,402 | 0.85 |
+| `fold_words` — alphabetic words fold too | 324 | 0.20 |
+| `fold_words` + collapsing runs of one placeholder | 175 | 0.11 |
+
+Light is barely a sample; folding is a real one. **And folding is not the default**, because the
+setting that samples best hides what the sample is *for*: with every word folded, `Done.` and
+`ESCALATE` are the same shape, and the whole reason to read a sample is to find the words worth
+declaring a rule for. So the light default keeps the vocabulary and `--fold` answers the different
+question *what is the structure here* when the light sample is too big to read. A round that had
+optimised for the ratio would have shipped the aggressive key and quietly defeated its own purpose.
+
+**Collapsing runs was not in the spec and earned its place in one measurement.** `«w»_«w»_«w»` and
+`«w»_«w»` are the same shape to anyone writing a rule — what differs is *arity*, and nobody
+declares a pattern for how many words there are. It takes 324 to 175. It is also **a no-op without
+folding** on this corpus (light and light+run are both 1,402), which is why it is applied
+unconditionally rather than behind its own flag: it only ever fires on runs that folding created.
+
+**The corpus is real but it is not the operator's, and that is a live gap.** `jam-sense:log/cron.log`
+is the log this feature was designed against and it is not on this machine. What was measured is
+real machine output with real repetition, so the ordering of the three settings is trustworthy; the
+*ratios* belong to a corpus of test names, which is unusually identifier-dense. **Re-running the
+grid on the live log is owed**, and it is the kind of thing that changes a default rather than a
+number — if cron.log's light ratio is already 0.1, `--fold` has no reason to exist.
+
+**The surface hangs off `read`, and the spec line that said otherwise was written from a wrong
+premise.** Round 8's task read *"reachable from a command that already reads a file"* — but `sb read`
+takes an argv, not a path, and the two commands that do take a path (`sb follow`, `sb data`) are
+respectively resident-by-nature and records-only. A sample is one pass returning a table, and
+`sb read --shapes -- cat <log>` needs no new dispatch, no new top-level command and no file form to
+design. The task text has been corrected to what was built; the premise is recorded here rather
+than quietly dropped.
+
+**It does not break [[text-reads]]'s refusal to infer columns, and the distinction is worth
+keeping.** That refusal is about inferring *the tool's* structure — making its whitespace into its
+columns, which reads as complete and is not. `shape`, `lines` and `example` are sky.boss's own
+arithmetic about the text, not a claim about what the tool meant, and the example is carried
+verbatim so the answer can always be checked against a real line.
+
+**Three refusals rather than three silences.** `--refresh` (a sample has no cadence), `--fold`
+without `--shapes` (a modifier with nothing to modify), and `--save` (which saves by example, and
+the example would be a `read` that no longer renders what it saved). Each says what to do instead.
+This is the `--ticks` rule from [[unwatched]] arriving three more times in one flag's blast radius.
+
+**Two things the build found that the spec had not.**
+
+- **A test premise was wrong before the code was.** The first collapse test used `ESCALATE` as its
+  unclaimed word — and round 5 claims ALL CAPS as a shout, so it was claimed, and the two lines did
+  not have identical marks at all. The test was measuring nothing. Fixed to lowercase words, with
+  the reason written into the test so the next reader does not re-introduce it.
+- **A git sha that happens to be all digits is a different shape from one that is not**, because
+  `marks()` claims an all-digit run as `sb.num` while `c8ccfee` falls through to the hex
+  normalisation. That looks like a wart and is the feature working: the sample groups by *how the
+  line will render*, and an all-digit sha really does tint as a number. A key that papered over it
+  would be disagreeing with the tint it exists to help you write.
+
+**The bound that was already there made the sample lie, and the existing warning did not say
+so.** `read` truncates at `MAX_CHARS` (200,000) and warns `{n} characters not shown` — which is a
+true sentence about a *display* and a false one about a *sample*: a 2.4 MB cron.log would be
+sampled at 8% of itself and every count in the table would describe that prefix while looking like
+it described the log. This is the round's own acceptance criterion — *the counts add up to every
+line that went in* — passing while being wrong about which lines went in. The sampler now
+recognises the truncation and says it in its own voice, and `TRUNCATED` is one spelling shared by
+the writer and the reader rather than a literal in two places.
+
+**A truncated read also ends in half a line, and half a line is a shape that exists nowhere.**
+Cutting 200,000 characters out of a stream of `run 1 ok` lands mid-word: the final element of
+`splitlines()` is `'ru'`, and it becomes its own row. Dropped, and the test was checked against the
+unfixed behaviour rather than trusted — without the drop the sample reports `['run «num» ok', 'ru']`,
+with it `['run «num» ok']`. *Prove the instrument can see one before believing it saw none*, applied
+to a test instead of a detector.
+
+**Both truncation tests measured the wrong thing first.** Passing 205,000 characters as an *argument*
+is `E2BIG` at about 128k on Linux, so the command failed rather than printing too much, and the
+tests were asserting against an error envelope. Fixed by having the child *print* the flood
+(`sys.executable -c`) rather than carry it. A test that fails for the reason you expected is not the
+same as a test that exercises what you meant.
+
+**What the suite cannot see.** 14 tests were added and all of them read values; none of them looks
+at a rendered table. The `details` contract bit once during the build — `"details": ["example"]`
+raised `TypeError: string indices must be integers` from deep inside `_render_view`, because the
+key wants a `describe()` descriptor and not a bare string. Nothing in the envelope tests would have
+caught it; running the command did, immediately. Same lesson the canvas half of this repo keeps
+paying for, arriving on the terminal side.

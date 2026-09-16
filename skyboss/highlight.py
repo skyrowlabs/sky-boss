@@ -692,3 +692,104 @@ def resolve(name: str, home: Path | None = None) -> tuple[Ruleset | None, str | 
         return None, mine[0]
     known = ", ".join(sorted(r.name for r in found)) or "none declared"
     return None, f"no highlight named {name!r} — declared: {known}"
+
+
+# ============================================================================
+# The sample — authoring support, not rendering. See [[highlight]] round 8.
+# ============================================================================
+#
+# **Round 3 gave the operator the pen and never gave them the page.** A
+# `[highlight.<name>]` block is written against a log, and a live one is tens
+# of thousands of lines. `marks()` reports what sky.boss already claims and is
+# silent on the rest — which is exactly where a new rule goes. So the
+# declaration round 3 shipped is easy to apply and hard to author.
+#
+# Nothing in the render path calls any of this. It consumes `spans()` and
+# produces neither marks nor a rendering: it is a second kind of function in
+# the module and the distinction is deliberate.
+
+
+# What a claimed span collapses to. The role is kept because it is the thing
+# the operator is choosing *around* — a shape reading `«num» failed` says the
+# number is already spoken for and the word beside it is not.
+def _claimed(role: str) -> str:
+    return f"«{role.removeprefix('sb.')}»"
+
+
+# Runs of digits, and the hex/uuid-ish runs a pid or a sha turns into. Both
+# are *values* in unclaimed text: two lines differing only in a pid are the
+# same shape to anyone writing a rule.
+_DIGITS = re.compile(r"\d+")
+_HEXISH = re.compile(r"\b[0-9a-fA-F]{6,}\b")
+_SPACE = re.compile(r"[ \t]+")
+_WORD = re.compile(r"[A-Za-z]{2,}")
+
+# A run of the same placeholder, separated by the characters an identifier or
+# a sentence uses. `«w»_«w»_«w»` and `«w»_«w»` are the same shape to a
+# rule-writer: what differs is arity, and arity is not a pattern.
+_RUN = re.compile(r"«(\w+)»(?:[_\-. ]«\1»)+")
+
+
+def shape_key(text: str, ruleset: "Ruleset | None" = None, *, fold_words: bool = False) -> str:
+    """The line reduced to what a rule-writer is choosing between.
+
+    **The obvious key is wrong and the failure is silent.** Keying on the
+    `marks()` role signature — same sequence of roles, same shape — collapses
+    two lines that differ *only* in text sky.boss has not claimed, which is
+    precisely the text a new rule wants. The instrument would be blind to its
+    own subject. So the claimed spans collapse to their role and the unclaimed
+    text is what survives, normalised.
+
+    **`fold_words` samples better and hides what the sample is for**, which is
+    why it is not the default. Folding every word takes 1,658 lines of real
+    machine output from 1,402 shapes to 175 — a page instead of a wall — and
+    in doing so makes `Done.` and `ESCALATE` the same shape, when the whole
+    reason to read a sample is to find the words worth declaring a rule for.
+    The light default keeps the vocabulary; `fold_words` answers the different
+    question *what is the structure here* when the light sample is too big to
+    read. Both are measured in the round's Notes rather than argued.
+    """
+    out: list[str] = []
+    for chunk, role in spans(text, ruleset):
+        if role is not None:
+            out.append(_claimed(role))
+            continue
+        piece = _HEXISH.sub("«hex»", chunk)
+        piece = _DIGITS.sub("0", piece)
+        if fold_words:
+            piece = _WORD.sub("«w»", piece)
+        out.append(_SPACE.sub(" ", piece))
+    return _RUN.sub(lambda m: f"«{m.group(1)}»+", "".join(out)).strip()
+
+
+@dataclass(frozen=True)
+class Shape:
+    """One distinct shape, how often it appeared, and a line that is one."""
+
+    key: str
+    count: int
+    example: str
+
+
+def sample(lines, ruleset: "Ruleset | None" = None, *, fold_words: bool = False) -> list[Shape]:
+    """Every distinct shape in `lines`, commonest first, with a real example.
+
+    **The count is what makes forty rows honest about thirty thousand lines.**
+    A sample that dropped it would be a smaller version of the lie this whole
+    module refuses — a picture that reads as complete and is not. The sum of
+    the counts is the number of lines that went in, and a test asserts it.
+
+    Blank lines are not a shape. They carry nothing to write a rule against
+    and would otherwise be the commonest row in most logs.
+    """
+    counts: dict[str, int] = {}
+    examples: dict[str, str] = {}
+    for line in lines:
+        text = line.rstrip("\n")
+        if not text.strip():
+            continue
+        key = shape_key(text, ruleset, fold_words=fold_words)
+        counts[key] = counts.get(key, 0) + 1
+        examples.setdefault(key, text)
+    ordered = sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))
+    return [Shape(key=k, count=n, example=examples[k]) for k, n in ordered]
