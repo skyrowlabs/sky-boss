@@ -116,7 +116,7 @@ repos:
         name: Type check with Pyright (whole project)
         language: node
         entry: scripts/lint_pyright_gate.py --project pyrightconfig.json
-        additional_dependencies: ['pyright@1.1.411']
+        additional_dependencies: ['pyright@1.1.414']
         # Whole-project on purpose, and so pass_filenames is false: the check has
         # no per-file scoping, which means ONE stale error anywhere blocks every
         # commit repo-wide. That is the intended pressure — fix errors when you
