@@ -32,12 +32,15 @@ from __future__ import annotations
 import asyncio
 import json
 import secrets
+import shutil
+import subprocess
 import threading
 import time
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
-from typing import NamedTuple
+from typing import Callable, NamedTuple
+from urllib.parse import urlsplit
 
 import rich_click as click
 from starlette.applications import Starlette
@@ -55,7 +58,7 @@ from skyboss import view as view_
 from skyboss.canvas import prefs, runner
 from skyboss.canvas.catalog import catalog, entry_for
 from skyboss.canvas.watch import INTERVALS, Session
-from skyboss.helpers import parse_duration, parse_env
+from skyboss.helpers import child_env, parse_duration, parse_env
 from skyboss.theme import css_root, css_variables
 
 STATIC = Path(__file__).resolve().parent / "static"
@@ -77,10 +80,64 @@ HEARTBEAT_SECONDS = 15.0
 RELOAD_POLL_SECONDS = 0.5
 
 
+#: The schemes `/api/open` will hand the desktop. Two, and that is the whole of
+#: what makes the route safe to have: a wider set is a decision about the
+#: surface's authority, not a convenience. See [[canvas]] round 15.
+LINK_SCHEMES = ("http", "https")
+
+
+def link_problem(url: object) -> str | None:
+    """Why this is not a link the surface may open, or None if it is.
+
+    Parsed rather than prefix-matched: `//elsewhere` has no scheme and would
+    resolve against whatever the opener thinks the base is, and a control
+    character is how a string that starts `https://` stops being one URL.
+    """
+    if not isinstance(url, str) or not url:
+        return "a link is a non-empty string"
+    if any(ch.isspace() or ord(ch) < 32 or ord(ch) == 127 for ch in url):
+        return "a link may not contain whitespace or control characters"
+    parts = urlsplit(url)
+    if parts.scheme not in LINK_SCHEMES:
+        named = f"`{parts.scheme}:`" if parts.scheme else "a link with no scheme"
+        return f"only http and https links open from the surface, not {named}"
+    if not parts.netloc:
+        return "a link names a host"
+    return None
+
+
+def open_link(url: str) -> bool:
+    """Hand an already-checked link to the desktop's browser.
+
+    Not `webbrowser.open`: that inherits sky.boss's environment, and every
+    child this repo spawns gets the operator's instead, via `child_env`. False
+    when the machine has no opener, so the route can say so rather than
+    reporting a link opened that went nowhere.
+    """
+    opener = shutil.which("xdg-open") or shutil.which("open")
+    if opener is None:
+        return False
+    subprocess.Popen(
+        [opener, url],
+        env=child_env(),
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
+    )
+    return True
+
+
 class Canvas:
     """One server instance. Holds the token and the live sessions."""
 
-    def __init__(self, *, token: str | None = None, scale: float = 1.0) -> None:
+    def __init__(
+        self,
+        *,
+        token: str | None = None,
+        scale: float = 1.0,
+        opener: Callable[[str], bool] = open_link,
+    ) -> None:
         self.token = token or secrets.token_urlsafe(32)
         self.sessions: dict[str, Session] = {}
         # How big the surface renders. One number, injected into the page, that
@@ -89,6 +146,9 @@ class Canvas:
         # Set when the page asks to quit. `sb ui` watches it, because the
         # window has no frame of its own and so no close button but ours.
         self.quitting = threading.Event()
+        # How `/api/open` reaches the desktop. A parameter so a test can see
+        # what would have been opened without a browser appearing.
+        self.opener = opener
 
     # ------------------------------------------------------------------ auth
 
@@ -310,6 +370,35 @@ def build(canvas: Canvas | None = None) -> Starlette:
             return _denied()
         canvas.quitting.set()
         return JSONResponse({"quitting": True})
+
+    async def post_open(request: Request) -> Response:
+        """Open a link the operator ctrl-clicked, in the desktop's browser.
+
+        An act, and the page cannot perform it: the native webview has no
+        route to a system browser and a `--kiosk` window has nowhere to put a
+        tab. Guarded like every other route. The guard argument from [[tools]]
+        round 4 — a page past the header check already has `/api/run` — is why
+        this route may *exist*; it is not a reason for it to be wide, so it
+        opens `http` and `https` and refuses everything else with its reason.
+
+        No confirmation, deliberately. [[canvas]] round 11 asks before running
+        a command the operator may not have read; this opens a destination
+        drawn under their own pointer. See round 15.
+        """
+        if not canvas.authorised(request):
+            return _denied()
+        body = await request.json()
+        url = body.get("url") if isinstance(body, dict) else None
+        problem = link_problem(url)
+        if problem:
+            return JSONResponse({"error": problem}, status_code=400)
+        assert isinstance(url, str)
+        if not await asyncio.to_thread(canvas.opener, url):
+            return JSONResponse(
+                {"error": "no desktop opener found — neither xdg-open nor open is on PATH"},
+                status_code=502,
+            )
+        return JSONResponse({"opened": url})
 
     async def get_vocabulary(request: Request) -> Response:
         """What the operator declared about output, and what sky.boss does
@@ -757,6 +846,7 @@ def build(canvas: Canvas | None = None) -> Starlette:
             Route("/api/prefs", get_prefs),
             Route("/api/prefs", post_prefs, methods=["POST"]),
             Route("/api/quit", post_quit, methods=["POST"]),
+            Route("/api/open", post_open, methods=["POST"]),
             Route("/api/stream", stream),
             Mount("/static", NoCacheStatic(directory=STATIC), name="static"),
         ]

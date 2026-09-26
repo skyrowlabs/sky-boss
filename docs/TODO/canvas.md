@@ -9,12 +9,12 @@ updated: 2026-09-26
 tags: [surface, canvas, http]
 summary: Replaces the removed terminal surface with a browser one — a command palette over draggable windows, where a pinned window re-runs itself on a Python-side cadence, and a right-click menu that takes what is on screen out of it.
 created: 2026-08-20
-key_files: [skyboss/canvas/server.py, skyboss/canvas/watch.py, skyboss/canvas/runner.py, skyboss/canvas/catalog.py, skyboss/canvas/__init__.py, skyboss/canvas/static/app.js, skyboss/canvas/static/render.js, skyboss/canvas/static/api.js, skyboss/canvas/static/sb.css, skyboss/data.py, skyboss/theme.py, tests/test_theme.py]
+key_files: [skyboss/canvas/static/menu.js, skyboss/canvas/shell.py, skyboss/highlight.py, tests/js/menu.test.js, tests/test_canvas_shell.py, skyboss/canvas/server.py, skyboss/canvas/watch.py, skyboss/canvas/runner.py, skyboss/canvas/catalog.py, skyboss/canvas/__init__.py, skyboss/canvas/static/app.js, skyboss/canvas/static/render.js, skyboss/canvas/static/api.js, skyboss/canvas/static/sb.css, skyboss/data.py, skyboss/theme.py, tests/test_theme.py]
 ---
 
 # The canvas — a command palette over a window canvas
 
-> **Status**: 🟡 Reopened — shipped 2026-09-01, round 15 open
+> **Status**: ✅ Complete — round 15 shipped 2026-09-26
 > **Shelf-Status**: in-progress
 > **Queue-Order**: 10
 > **Priority**: Medium — the surface draws a location and a link and gives you no way to take either
@@ -219,50 +219,52 @@ prose.
 
 #### Phase 3 — the menu
 
-- [ ] `skyboss/canvas/static/menu.js` — a component taking a point and a list of items, drawn over
+- [x] `skyboss/canvas/static/menu.js` — a component taking a point and a list of items, drawn over
       the canvas. Escape closes it; an outside `mousedown` closes it.
-- [ ] `onContextMenu` on the window body: `preventDefault`, build the items from
+- [x] `onContextMenu` on the window body: `preventDefault`, build the items from
       `event.target.closest(…)` and `window.getSelection()`, open at the pointer.
-- [ ] Clamp to the viewport unconditionally, at the end, on every path.
-- [ ] Items, each present only when it applies: **Copy selection** (a non-empty selection),
+- [x] Clamp to the viewport unconditionally, at the end, on every path.
+- [x] Items, each present only when it applies: **Copy selection** (a non-empty selection),
       **Copy line** (the `.ln` block's own text), **Copy location** (`.mk-path`), **Copy link**
-      and **Open link** (`.mk-url`), **Copy reference** (`.mk-ref`).
-- [ ] A `copy()` helper that awaits `writeText` and reports a rejection in the menu rather than
+      and **Open link** (`.mk-url`), **Copy reference** (`.mk-ref`). *(Shipped as **Copy** with
+      the text beside it for `.mk-path` and `.mk-ref`, and `.mk-url` needed a role that did not
+      exist — both in Notes.)*
+- [x] A `copy()` helper that awaits `writeText` and reports a rejection in the menu rather than
       closing as if it had worked.
-- [ ] Roles the menu offers come from the mark classes `markedLine` actually emits, enumerated
+- [x] Roles the menu offers come from the mark classes `markedLine` actually emits, enumerated
       the way `tests/test_canvas_server.py` enumerates them — not a hand-written list that goes
       quiet when [[highlight]] adds a shape.
 
 #### Phase 4 — open a link
 
-- [ ] `POST /api/open` in `skyboss/canvas/server.py`: guarded like every other route, `http` and
+- [x] `POST /api/open` in `skyboss/canvas/server.py`: guarded like every other route, `http` and
       `https` only, everything else a 400 carrying its reason.
-- [ ] Ctrl-click on a `.mk-url` inside a window body calls it. A plain click does not.
-- [ ] The menu's **Open link** goes down the same route — one way of asking, per round 13.
+- [x] Ctrl-click on a `.mk-url` inside a window body calls it. A plain click does not.
+- [x] The menu's **Open link** goes down the same route — one way of asking, per round 13.
 
 #### Phase 5 — tests
 
-- [ ] `tests/test_canvas_server.py`: `/api/open` refuses an unauthenticated request; refuses
+- [x] `tests/test_canvas_server.py`: `/api/open` refuses an unauthenticated request; refuses
       `file:`, `javascript:` and a scheme-relative `//elsewhere`; accepts an `https:` URL.
-- [ ] `tests/test_canvas_server.py`: `menu.js` added to the declared `static/` inventory.
-- [ ] `tests/js/menu.test.js`: the item list is a **pure function** of the mark class and whether
+- [x] `tests/test_canvas_server.py`: `menu.js` added to the declared `static/` inventory.
+- [x] `tests/js/menu.test.js`: the item list is a **pure function** of the mark class and whether
       a selection exists, so `node --test` reaches the deciding half. Keep the DOM half thin —
       round 12's rule about `main.js` owning the mount applies to the new module too.
-- [ ] A headless render pass that fires a **real** right-click, reads the menu back, and then
+- [x] A headless render pass that fires a **real** right-click, reads the menu back, and then
       clicks a control to prove the app is still updating. Listen for `unhandledrejection` as
       well as `error` before the click, per round 12 and [[schedule]] round 7.
 
 #### Acceptance
 
-- [ ] `./dev test unit` and `./dev test ui` green.
-- [ ] Right-clicking a window body draws sky.boss's menu and not the shell's, in the native window
+- [x] `./dev test unit` and `./dev test ui` green.
+- [x] Right-clicking a window body draws sky.boss's menu and not the shell's, in the native window
       and under `--browser`.
-- [ ] Right-clicking `report.py:75` offers **Copy location**, and the clipboard then holds
+- [x] Right-clicking `report.py:75` offers **Copy location**, and the clipboard then holds
       `report.py:75` — colon and line number included, which is the item's whole reason to exist.
-- [ ] Ctrl-clicking a URL opens it in the desktop's browser; a plain click on the same URL does
+- [ ] (~operator) Ctrl-clicking a URL opens it in the desktop's browser; a plain click on the same URL does
       not, and leaves a caret.
-- [ ] `/api/open` answers 403 unauthenticated and 400 for `file:///etc/passwd`.
-- [ ] A menu opened at the bottom-right corner of the viewport is fully on screen, measured at
+- [x] `/api/open` answers 403 unauthenticated and 400 for `file:///etc/passwd`.
+- [x] A menu opened at the bottom-right corner of the viewport is fully on screen, measured at
       `--scale` 0.9 and 2.4 rather than at whatever the developer's window happened to be.
 
 **Does not do:**
@@ -684,6 +686,49 @@ tasks / windows / watchers / attention counters. This round is the remainder.
       tags, and the status bar counts.
 
 ## Notes
+
+### Round 15 — built, and what the headless pass could and could not reach (2026-09-26)
+
+**Four places the round's text and the build part ways, each recorded rather than smoothed over.**
+*Copy location* shipped as **Copy** with the text beside it, for the `mk-path` reason in the Phase 1
+entry below — an item that says *location* over a SCREAMING constant is a correct-looking lie.
+`sb.url` is a new role the round did not plan, and it is the price of the round's own rule. The
+roles `OFFERS` decides about are checked by a Python test that reads `menu.js`, not by a list in a
+test, so a role [[highlight]] adds fails until somebody chooses — `null` is a choice, absence is
+not. And `/api/open` spawns `xdg-open` (or `open`) through `child_env` rather than calling
+`webbrowser.open`, which would hand the desktop's browser sky.boss's `PYTHONPATH`.
+
+**The headless pass, with real CDP input against `sb ui --no-browser`:** a right-click on
+`report.py:75` offered *Copy* and the clipboard then read back `report.py:75`; a right-click on a
+URL offered *Copy link* and *Open link*, and *Open link* posted `{"url": …}` to `/api/open`
+(intercepted, so no browser appeared); a plain click on the same URL posted nothing and left a
+`Caret`; a ctrl-click posted it; Escape and an outside mousedown both closed the menu; and a click
+on WRAP afterwards still re-rendered, with `error` and `unhandledrejection` listeners installed
+and empty throughout. **The corner at 2.4 exercised the path that matters**: a 1056px menu
+opened at x=891 in a 1400px viewport flipped to −165 and was clamped to 4. At 0.9 it flipped
+without needing the clamp; the unit tests cover the vertical case the viewport never forced. The
+scale was set by overriding `--sb-scale` on the page rather than restarting with `--scale`, which
+is the same number reaching the same stylesheet.
+
+**The native window was checked in-page, not by pointer**, since nothing drives WebKitGTK the way
+CDP drives Chromium: a `contextmenu` dispatched on a marked line was prevented by the surface's
+handler, drew *Copy link / Open link / Copy line*, and *Copy link* put the URL on the system
+clipboard — read back from Klipper over D-Bus, not from the page. The computed `user-select` on a
+line was `text`, where Phase 1 had measured `none`.
+
+**One thing the native probe found that this round did not touch.** A follow window opened
+inside a bare pywebview probe window sat at `starting…` with no lines for ten seconds, while the
+same server streamed to Chromium immediately. The probe is not `shell.py` — no `js_api`, no
+window class — so this may be the probe and not the shell; it is written here rather than fixed
+because a guess at a streaming fault would be a fix for a bug nobody has confirmed.
+
+**Not verified by anything here: the desktop actually opening a link.** The route is tested with
+the opener injected and the spawn is tested with `Popen` replaced; nothing in this session let a
+real `xdg-open` put a tab in front of the operator, so that acceptance line is `(~operator)`.
+
+**The pass is not a committed `ui` test.** The `ui` suite is still empty, and making this its
+first member would oblige CI to stand up a browser — a change to the pipeline's shape, which is a
+round of its own and not a side effect of this one.
 
 ### Round 15 — Phase 1, measured before any CSS (2026-09-26)
 

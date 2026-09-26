@@ -39,6 +39,11 @@ _TIMESTAMP = re.compile(r"\A\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:[.,]\d+)?(?
 _TAG = re.compile(r"\[[^\[\]\s][^\[\]]{0,63}\]")
 
 # A URL. Links are destinations; they should look like it.
+#
+# Its own role, `sb.url`, painted exactly as `sb.path` on both surfaces. The
+# role is not for the colour: it is so the canvas can offer *open* on a link
+# and not on a path without holding a URL pattern of its own — the second
+# opinion this module exists to prevent. See [[canvas]] round 15.
 _URL = re.compile(r"https?://[^\s<>\"]+")
 
 # Punctuation a sentence hangs on a URL's end without meaning it.
@@ -260,7 +265,7 @@ MAX_MARKS = 64
 # glyph keeps the colour its kind already has *and* reads at a glance.
 _RULES: tuple[tuple[re.Pattern, str, bool, bool], ...] = (
     (_CODE, "sb.path", False, False),
-    (_URL, "sb.path", True, False),
+    (_URL, "sb.url", True, False),
     (_OK_GLYPH, "sb.ok", False, True),
     (_OK_EMOJI, "sb.ok", False, True),
     (_FAIL_GLYPH, "sb.fail", False, True),

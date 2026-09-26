@@ -161,6 +161,9 @@ STYLES: dict[str, str] = {
     "sb.warn": CLI_WARN,
     "sb.num": CLI_BRAND,
     "sb.path": CLI_PATH,
+    # A link, drawn as a path. A separate name so the canvas can tell a
+    # destination from a location without a regex; see [[canvas]] round 15.
+    "sb.url": CLI_PATH,
     # The one role that paints its own ground. See § Ground, not hue.
     "sb.ref": f"{CLI_REF} on {CLI_REF_BG}",
 }

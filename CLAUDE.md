@@ -474,6 +474,12 @@ The rules that are not negotiable:
   window-manager rule matched on `WM_CLASS`, which is why the shell sets one (`sb`) — and **nothing
   here writes that rule.** A desktop belongs to whoever runs it, the spelling differs per
   environment, and a tool that edited one would be reaching outside itself.
+- **pywebview edits the page, and only in the native shell.** `create_window`'s `text_select`
+  defaults to `False`, and on `False` it injects `body { user-select: none }` — so from the shell's
+  first day, 2026-08-20, nothing on the surface was selectable in the native window while `sb.css`
+  said nothing of the kind and every browser mode selected fine. Unless `debug` is on it also
+  suppresses WebKit's own context menu, so a right-click there was *nothing* where Chromium drew
+  *its* menu. Measure the page in the shell before blaming the stylesheet. See [[canvas]] round 15.
 - **Drag is not `pywebview-drag-region`.** That is a Cocoa and Windows feature; the GTK backend has
   no drag regions at all, only `easy_drag`, which makes the whole page a handle and would mean
   dragging a window inside the canvas also drags the canvas. The bar calls

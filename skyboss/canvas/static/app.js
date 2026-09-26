@@ -23,6 +23,7 @@ import * as api from "./api.js";
 import { Body, markedLine, summarise } from "./render.js";
 import { BENCH_WINDOW, Bench, RESIDENT, compose, tagPool } from "./bench.js";
 import { Plan } from "./schedule.js";
+import { Menu, contextOf, itemsFor, linkAt } from "./menu.js";
 
 const TILE = "tile";
 const FLOAT = "float";
@@ -907,7 +908,12 @@ function StreamBody({ win, actions }) {
    * did not happen — its ⟳ is in the title bar like every other run's. */
   const dead = win.resident && win.chrome && win.chrome.attention === "dead";
   return html`
-    <div class="body" ref=${bodyRef}>
+    <div
+      class="body"
+      ref=${bodyRef}
+      onContextMenu=${actions.context}
+      onClick=${actions.linkClick}
+    >
       <pre class=${`raw stream ${win.wrap ? "wrap" : ""}`}>
 ${win.streamLines.map((l) => markedLine(l))}</pre
       >
@@ -1148,7 +1154,7 @@ function Window({ win, now, layout, focused, actions, intervals, down }) {
 
       ${win.stream
         ? html`<${StreamBody} win=${win} actions=${actions} />`
-        : html`<div class="body">
+        : html`<div class="body" onContextMenu=${actions.context}>
             <${Body} result=${win.result} warnings=${win.viewWarnings} />
           </div>`}
 
@@ -1217,6 +1223,11 @@ function App() {
    * round 11 — this is the only thing on the surface that reads `acts` to stop
    * an action rather than to label one. */
   const [pending, setPending] = useState(null);
+  /* The right-click menu, or null. `key` is fresh per opening so a second
+   * right-click starts a new menu rather than inheriting the last one's error.
+   * See [[canvas]] round 15. */
+  const [menu, setMenu] = useState(null);
+  const closeMenu = useRef(() => setMenu(null)).current;
   /* What the operator declared about output. Null until the bench is opened
    * for the first time — the canvas never needs it, since the palette *runs*
    * saved tools and only the bench *authors* one. */
@@ -1766,6 +1777,30 @@ function App() {
   }, [screen]);
 
   const actions = {
+    /* A right-click in a window body. Always ours there: the shell's menu
+     * offers Reload, which would take every window with it. Nothing opens
+     * when nothing under the pointer is worth copying. */
+    context: (event) => {
+      event.preventDefault();
+      const selection = String(window.getSelection() || "");
+      const items = itemsFor(contextOf(event.target, selection));
+      setMenu(items.length ? { at: { x: event.clientX, y: event.clientY }, items, key: Date.now() } : null);
+    },
+    /* Ctrl-click on a link opens it; a plain click stays a caret, which is how
+     * a selection starts. No confirm — this is a destination drawn under the
+     * operator's own pointer, not a command they may not have read. A failure
+     * opens the menu at the pointer to say so, since there is nowhere else
+     * this gesture could report into. */
+    linkClick: (event) => {
+      if (!(event.ctrlKey || event.metaKey)) return;
+      const url = linkAt(event.target);
+      if (!url) return;
+      event.preventDefault();
+      const at = { x: event.clientX, y: event.clientY };
+      api.openLink(url).catch((error) =>
+        setMenu({ at, items: [], error: `could not open: ${error.message}`, key: Date.now() })
+      );
+    },
     focus: (id) => {
       setFocus(id);
       if (layout === FLOAT) patch(id, () => ({ z: ++zTop.current }));
@@ -2524,6 +2559,9 @@ function App() {
               </div>
             </div>
           `}
+
+      ${menu &&
+      html`<${Menu} key=${menu.key} at=${menu.at} items=${menu.items} error=${menu.error} onClose=${closeMenu} />`}
 
       ${pending &&
       html`<${ConfirmAct}

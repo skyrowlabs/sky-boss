@@ -52,6 +52,7 @@ GUARDED = [
     ("/api/prefs", "get"),
     ("/api/prefs", "post"),
     ("/api/quit", "post"),
+    ("/api/open", "post"),
     ("/api/stream", "get"),
 ]
 
@@ -195,6 +196,7 @@ def test_the_static_directory_ships_only_what_the_page_needs():
         "api.js",
         "bench.js",
         "render.js",
+        "menu.js",
         "schedule.js",
         "vendor/preact.mjs",
         "vendor/hooks.mjs",
@@ -242,6 +244,118 @@ def test_the_close_button_sets_the_latch_the_launcher_waits_on():
 
     assert client.post("/api/quit", headers=auth(), json={}).json() == {"quitting": True}
     assert canvas.quitting.is_set()
+
+
+def test_the_menu_decides_every_role_the_highlighter_can_emit():
+    """Enumerated off the rules, the way the stylesheet's roles are.
+
+    `menu.js` offers items by a span's `mk-<role>` class, keyed in `OFFERS` —
+    and a role missing from that table gets no item, silently. That is the
+    right outcome for a role that was *decided* against and the wrong one for a
+    role nobody considered, so the table has to name every one, with `null` for
+    no. A shape [[highlight]] adds next fails here until somebody chooses.
+    See [[canvas]] round 15.
+    """
+    import re
+
+    from skyboss import highlight as highlight_
+    from skyboss.canvas.server import STATIC
+
+    roles = {role for _, role, _, _ in highlight_._RULES}
+    roles |= set(highlight_._COLOUR_WORDS.values())
+    roles |= {"sb.muted", "sb.accent"}
+    source = (STATIC / "menu.js").read_text()
+    block = present(re.search(r"export const OFFERS = \{(.*?)\n\};", source, re.S)).group(1)
+    keys = set(re.findall(r"^  (\w+):", block, re.M))
+    missing = sorted(r.removeprefix("sb.") for r in roles if r.removeprefix("sb.") not in keys)
+    assert not missing, f"roles menu.js never decided about: {missing}"
+    # `bold` is a weight on any role and must be decided too, or a composite
+    # span would be read as a role with nothing to offer.
+    assert "bold" in keys
+
+
+# ---------------------------------------------------------------- open a link
+
+
+def _opening():
+    opened = []
+    canvas = Canvas(token="test-token", opener=lambda url: opened.append(url) or True)
+    return TestClient(build(canvas)), opened
+
+
+def test_opening_a_link_is_guarded_like_every_other_route():
+    """An act. A page you did not open must not be able to hand your desktop
+    a URL any more than it may run a command. See [[canvas]] round 15."""
+    client, opened = _opening()
+    assert client.post("/api/open", json={"url": "https://example.com/"}).status_code == 403
+    assert (
+        client.post(
+            "/api/open",
+            json={"url": "https://example.com/"},
+            headers={TOKEN_HEADER: "test-token", "Origin": "https://evil.example"},
+        ).status_code
+        == 403
+    )
+    assert opened == []
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "file:///etc/passwd",
+        "javascript:alert(1)",
+        "//elsewhere.example/x",
+        "mailto:someone@example.com",
+        "https://example.com/a b",
+        "https://example.com/\nx",
+        "https://",
+        "",
+        None,
+        42,
+    ],
+)
+def test_opening_refuses_everything_but_an_http_link(url):
+    """Two schemes, and that is the whole of what makes the route safe. A
+    refusal carries its reason, because a 400 that says nothing is a menu item
+    that silently did nothing."""
+    client, opened = _opening()
+    response = client.post("/api/open", headers=auth(), json={"url": url})
+    assert response.status_code == 400
+    assert response.json()["error"]
+    assert opened == []
+
+
+@pytest.mark.parametrize("url", ["https://example.com/pull/1050", "http://127.0.0.1:8000/docs?q=1"])
+def test_an_http_link_is_handed_to_the_opener(url):
+    client, opened = _opening()
+    response = client.post("/api/open", headers=auth(), json={"url": url})
+    assert response.status_code == 200
+    assert response.json() == {"opened": url}
+    assert opened == [url]
+
+
+def test_a_machine_with_no_opener_says_so():
+    """*Worked fine, told nobody* inverted: reporting a link opened when
+    nothing could open it is the menu closing on a failure."""
+    client = TestClient(build(Canvas(token="test-token", opener=lambda url: False)))
+    response = client.post("/api/open", headers=auth(), json={"url": "https://example.com/"})
+    assert response.status_code == 502
+    assert "opener" in response.json()["error"]
+
+
+def test_the_opener_gets_the_operators_environment(monkeypatch):
+    """Every child sky.boss spawns goes through `child_env`, and the desktop's
+    browser is a child like any other. See [[subprocess-env]]."""
+    from skyboss.canvas import server
+
+    seen = {}
+    monkeypatch.setattr(server.shutil, "which", lambda name: "/usr/bin/xdg-open" if name == "xdg-open" else None)
+    monkeypatch.setattr(server.subprocess, "Popen", lambda argv, **kw: seen.update(argv=argv, **kw))
+    monkeypatch.setenv("PYTHONSAFEPATH", "1")
+
+    assert server.open_link("https://example.com/") is True
+    assert seen["argv"] == ["/usr/bin/xdg-open", "https://example.com/"]
+    assert "PYTHONSAFEPATH" not in seen["env"]
 
 
 def test_the_favicon_is_drawn_from_the_palette():
