@@ -3,9 +3,9 @@ title: The canvas — a command palette over a window canvas
 slug: canvas
 category: surfaces
 agent_value: 3
-shelf_status: ready
+shelf_status: in-progress
 priority: medium
-updated: 2026-09-12
+updated: 2026-09-26
 tags: [surface, canvas, http]
 summary: Replaces the removed terminal surface with a browser one — a command palette over draggable windows, where a pinned window re-runs itself on a Python-side cadence, and a right-click menu that takes what is on screen out of it.
 created: 2026-08-20
@@ -15,10 +15,10 @@ key_files: [skyboss/canvas/server.py, skyboss/canvas/watch.py, skyboss/canvas/ru
 # The canvas — a command palette over a window canvas
 
 > **Status**: 🟡 Reopened — shipped 2026-09-01, round 15 open
-> **Shelf-Status**: ready
+> **Shelf-Status**: in-progress
 > **Queue-Order**: 10
 > **Priority**: Medium — the surface draws a location and a link and gives you no way to take either
-> **Updated**: 2026-09-12
+> **Updated**: 2026-09-26
 
 ## Why
 
@@ -202,10 +202,10 @@ prose.
 
 #### Phase 1 — measure, before writing a line of CSS
 
-- [ ] In each of the three shells — native (`shell.py`), `--browser`, and a plain tab under
+- [x] In each of the three shells — native (`shell.py`), `--browser`, and a plain tab under
       `--no-browser` — record whether a drag across a window body selects text, whether
       `contextmenu` fires on a `.ln`, and what menu the shell draws by default.
-- [ ] Write the finding into Notes **before** Phase 2. If selection already works in all three,
+- [x] Write the finding into Notes **before** Phase 2. If selection already works in all three,
       say so plainly: "make it selectable" may be a no-op and the menu is the entire ask.
 
 #### Phase 2 — selection
@@ -683,6 +683,47 @@ tasks / windows / watchers / attention counters. This round is the remainder.
       tags, and the status bar counts.
 
 ## Notes
+
+### Round 15 — Phase 1, measured before any CSS (2026-09-26)
+
+**Selection was off in exactly one shell, and not because of anything in `sb.css`.** Headless
+Chromium against `sb ui --no-browser`, with real CDP pointer input: a drag across a window body
+selected `build ok at report`, the computed `user-select` of `.body`, `pre.raw` and `.ln` was
+`auto`, and a right-click on a `.ln` fired `contextmenu` with `defaultPrevented: false` — so under
+`--browser` and in a plain tab the shell draws **Chromium's own** menu. The native window was
+probed by loading the same URL in a pywebview window and reading the page back: `body` computed
+`user-select: none`. Nothing in this repo sets that. **pywebview's `create_window` defaults
+`text_select=False`, and on `False` its `customize.js` injects
+`body { user-select: none; cursor: default }`** into every page it loads. So in the shell the
+operator actually uses, nothing on the surface was selectable at all, while every other shell
+selected fine — which is how a complaint about selection can be true and a stylesheet can be
+clean at the same time. The fix is `text_select=True` in `shell.py`, not a rule in `sb.css`.
+
+**The native menu is suppressed, not replaced.** Unless `debug` is on, pywebview's GTK backend
+connects WebKit's `context-menu` signal to a handler returning `True`, which draws nothing. The
+DOM `contextmenu` event still fires, so a page menu works there unchanged — right-click in the
+native window was simply *nothing*, where in Chromium it was *somebody else's menu*. Same symptom
+from the operator's chair, two different causes.
+
+**The plan's premise about links was wrong, and the fix stays on the plan's side of the line.**
+The round says *"`closest(".mk-url")` is the whole test for is this a link"* — but there is no
+`mk-url`. `highlight.py` marks a URL `sb.path`, the same role as a path, a code span and a
+SCREAMING constant, because a role is a *colour* and all four wear the same one. The page therefore
+could not tell a link from a path without a regex, which is the second opinion the round forbids.
+So a URL gets its own role, `sb.url`, painted identically to `sb.path` on both surfaces: the
+decision moves into Python where the rule set lives, and the page still detects nothing. The same
+fact bounds *Copy location*: an `mk-path` is also a code span or a constant, so the item names
+**the text it will copy** rather than claiming every one of them is a location.
+
+**The clipboard is reachable in WebKitGTK, but unproven.** `isSecureContext` is `true` on
+`127.0.0.1` and `navigator.clipboard.writeText` exists (pywebview sets
+`javascript_can_access_clipboard`). Whether the write resolves could not be read back through
+`evaluate_js`, which returns a promise as `{}` — so the await-and-report path is not insurance
+against a hypothetical, it is the only thing that would say.
+
+**`.tools-head` did not set `user-select: none`**, though Phase 2 says it *keeps* it. Harmless while
+pywebview disabled selection page-wide; the moment that goes, the rail caption becomes selectable
+chrome. It gets the rule it was assumed to have.
 
 ### Round 14 — the fix that was already written down (2026-09-01)
 

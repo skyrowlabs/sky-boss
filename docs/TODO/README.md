@@ -24,15 +24,13 @@ _Implemented and out for review — read the PR, then file the plan (or send it 
 | ---- | --------- | ------- | ------- |
 | [Highlight — lexical tint for followed lines](highlight.md) | pushed to develop | 2026-09-16 | Tints a followed line by shape rather than by severity, and lets the operator declare their own vocabulary without repainting sky.boss's. Round 8 is open — the sample that makes such a declaration writable against what a log actually contains. |
 
-## 🚀 Ready for Agent
+## 🟡 In Progress
 
-_Every decision made and the spec complete — ready to hand to an agent end to end._
+_Actively being worked; partially shipped._
 
-| Queue | Plan | Priority | Updated | Summary |
-| ----- | ---- | -------- | ------- | ------- |
-| 10 | [The canvas — a command palette over a window canvas](canvas.md) | medium | 2026-09-12 | Replaces the removed terminal surface with a browser one — a command palette over draggable windows, where a pinned window re-runs itself on a Python-side cadence, and a right-click menu that takes what is on screen out of it. |
-
-> Lower `Queue-Order` runs earlier; `—` means unnumbered, which sorts last.
+| Plan | Priority | Updated | Summary |
+| ---- | -------- | ------- | ------- |
+| [The canvas — a command palette over a window canvas](canvas.md) | medium | 2026-09-26 | Replaces the removed terminal surface with a browser one — a command palette over draggable windows, where a pinned window re-runs itself on a Python-side cadence, and a right-click menu that takes what is on screen out of it. |
 
 ---
 
