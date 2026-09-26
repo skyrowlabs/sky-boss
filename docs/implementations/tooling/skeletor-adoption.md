@@ -2598,3 +2598,39 @@ All seven pre-push gates are green. The collected set only grew: 9 IDs added and
 none removed. 45 frontend tests pass, and `sb` runs from outside the repo. No pin
 moved in this release. `--ref v0.31.0` was passed on all three runs, and
 `git ls-remote --tags origin v0.31.0` resolves.
+
+### Round 30 — 2026-09-26: v0.32.0, and round 29's three findings closed
+
+v0.32.0 is `skeletor@7230e74`. Seven untouched files updated and three edited
+files merged clean: `.pre-commit-config.yaml`, `scripts/requirements.txt` and
+`cli/check.py`. There were no conflicts, so there was only one applying run, and
+it recorded `v0.32.0`.
+
+#### What round 29 reported, checked by running it
+
+- **The `--ported` double merge is fixed.** Checked in a throwaway worktree at
+  `8f220df`: round 29's upgrade was replayed with this release's tool
+  (`--ref v0.31.0`), `ci.yml` was resolved to what we committed, and then
+  `--ported` was run. `tests/repo_files.py` came out byte-identical to the
+  single-merge result, with one `class GitRefused`. There were no sidecars and
+  the exit code was 0.
+- **The interpreter notice is fixed.** `_ci_pythons()` reads `['3.12', '3.14']`
+  out of our forked `ci.yml`, and a 3.14 venv prints no notice. The regex matched
+  our fork's matrix line. That was a real risk, since round 7 re-wrote the job
+  graph.
+- **The *source of truth* headers are gone** from both pin files. Both now say
+  neither file is canonical, so the note about not forking them is retired.
+
+#### Nothing new for this tree
+
+The rewritten scratch-lint test probes every walker `check lint` runs here
+(flake8, isort, black, pyright, eslint) and passes. It found no walker without a
+probe. The anchored dead-comment check passes. The declined
+`tests/test_pyright_deps.py` was restored from the tag and passed 4/4. It stays
+declined for the round-24 reason, which still holds: it duplicates
+`tests/test_pyright_deps_reach_ci.py`, which has a positive control. The template
+changed neither declined file.
+
+All seven pre-push gates are green. The collected set gained one ID and lost
+none. 45 frontend tests pass. No pin moved. `--ref v0.32.0` was passed on both
+runs, and `git ls-remote origin v0.32.0` resolves.

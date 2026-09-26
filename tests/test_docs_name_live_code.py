@@ -115,12 +115,27 @@ def defined_now(root: Path = PROJECT_ROOT) -> set[str]:
 def was_ever_ours(symbol: str, root: Path = PROJECT_ROOT) -> bool:
     """Did this repository ever define `symbol`?
 
-    `-S` against the *definition* line, not the bare name: a symbol merely
+    Against the *definition* line, not the bare name: a symbol merely
     mentioned in some commit was never ours, and matching it would put every
     third-party call back in scope — the false-positive problem this predicate
     exists to avoid.
+
+    **Anchored at both ends, and it was not.** `-S "def str"` is a substring
+    search, so `def structured` made `str()` ours and a real comment went red —
+    proto.pilot's, and the self-test below could not have seen it, because
+    `os.getenv` is a prefix of nothing in its fixture. `-G` takes a pattern, and
+    the name has to be followed by what follows a definition.
+
+    **The other edge is deliberate.** A name this repository never held always
+    passes, even when it names a template symbol from a release this tree never
+    took — only history the tree has can be asked. dream.doll read that off the
+    predicate and judged it the right trade: the alternative is asking about
+    somebody else's history, which is the false-positive problem again.
     """
-    return bool(_git("log", "--all", "-S", f"def {symbol}", "--oneline", "--", "*.py", root=root).strip())
+    for pattern in (f"def {symbol}\\(", f"class {symbol}[(:]"):
+        if _git("log", "--all", "-G", pattern, "--oneline", "--", "*.py", root=root).strip():
+            return True
+    return False
 
 
 def dead_references(root: Path = PROJECT_ROOT, docs: list[Path] | None = None) -> list[tuple[str, str]]:
@@ -200,10 +215,14 @@ def test_the_check_would_actually_catch_one(tmp_path):
     _git("init", "-q", "-b", "main", root=tmp_path)
 
     (tmp_path / "mod.py").write_text(
-        "def gone_away():\n    return 1\n\n\ndef test_old_name():\n    pass\n", encoding="utf-8"
+        "def gone_away():\n    return 1\n\n\ndef test_old_name():\n    pass\n\n\ndef structured():\n    pass\n",
+        encoding="utf-8",
     )
+    # `str()` is the prefix case: `def structured` exists and was never removed,
+    # so a substring search would call `str` ours, removed, and dead.
     (tmp_path / "notes.py").write_text(
-        "# run `test_old_name` and see `gone_away()`; `test_never_ours` was never here\n", encoding="utf-8"
+        "# run `test_old_name` and see `gone_away()`; `test_never_ours` was never here; `str()` is a builtin\n",
+        encoding="utf-8",
     )
     (tmp_path / "REFERENCE.md").write_text(
         "Call `gone_away()` for that, and `os.getenv()` for config.\n", encoding="utf-8"

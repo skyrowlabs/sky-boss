@@ -8,11 +8,13 @@ the code is.
 
 from __future__ import annotations
 
+import re
 import sys
 
 import click
 
 from scripts.paths import TMP_DIR
+from scripts.yaml_text import read_uncommented
 
 from .helpers import PROJECT_ROOT, detail, fail, module, ok, run, script, summarize, warn
 
@@ -244,13 +246,34 @@ def pre_push(quick: bool) -> None:
     sys.exit(summarize(results))
 
 
-#: The python this project was rendered for — what `ci.yml` installs, and what
-#: `pyproject.toml` and `pyrightconfig.json` target.
+#: The python this project was rendered for — what `ci.yml`'s single-version
+#: jobs install, and what `pyproject.toml` and `pyrightconfig.json` target.
 TARGET_PYTHON = "3.12"
 
 
+def _ci_pythons() -> list:
+    """Every version `ci.yml`'s test matrix runs, read from `ci.yml`.
+
+    **Read, not rendered, and it was rendered for a day.** Rendering the matrix
+    into this file made `--python-ceiling` reach a second file, so every tree that
+    has edited this one — two of six, at the round that added it — would conflict
+    here whenever the ceiling moved, and a tree that declined `ci.yml` could no
+    longer record a ceiling without touching this. The workflow is where the
+    matrix lives and what CI actually runs; a copy of it here is one more home
+    for the value. A tree without the workflow falls back to `TARGET_PYTHON`.
+    """
+    workflow = PROJECT_ROOT / ".github" / "workflows" / "ci.yml"
+    if workflow.exists():
+        found = re.search(r"^\s*python:\s*\[([^\]]*)\]", read_uncommented(workflow), re.MULTILINE)
+        if found:
+            versions = [v.strip().strip("'\"") for v in found.group(1).split(",") if v.strip()]
+            if versions:
+                return versions
+    return [TARGET_PYTHON]
+
+
 def _say_if_interpreter_differs() -> None:
-    """Name the interpreter every gate below runs on, when it is not the one CI runs.
+    """Name the interpreter every gate below runs on, when CI runs no job on it.
 
     Every gate here runs on `sys.executable` — the `.venv` the wrapper found —
     and nothing pins what that venv was built from: the setup block, the
@@ -261,15 +284,27 @@ def _say_if_interpreter_differs() -> None:
     on every machine without that exact minor would be a gate that is red for a
     reason that is not a defect.
 
+    **Against the whole matrix, and v0.31.0 compared the floor alone.** On a tree
+    with a `--python-ceiling`, a venv on the ceiling is a version CI tests, and
+    "CI runs 3.12, rebuild with python3.12" pointed away from it — sky.boss filed
+    it, proto.pilot saw it independently. So this fires only outside the matrix,
+    and when it does it says which jobs run what rather than naming one version as
+    the answer. It names no command either: the right interpreter may not be
+    installed on this host (dream.doll's is not), which is a system package, not
+    something a hint here can fix.
+
     The README's setup block stays `python -m venv` on purpose. Pinning it there
     makes line one of the quick start fail on every host that lacks that exact
     minor — most of them — which is the red-on-arrival this template refuses.
-    The hint that prints only when the two differ is the one that can be exact.
     """
     running = f"{sys.version_info.major}.{sys.version_info.minor}"
-    if running != TARGET_PYTHON:
-        warn(f"these gates run on python {running}; CI runs {TARGET_PYTHON}")
-        detail(f"  A result here can differ from CI's. Rebuild with: python{TARGET_PYTHON} -m venv .venv")
+    matrix = _ci_pythons()
+    if running in matrix:
+        return
+    warn(f"these gates run on python {running}, which no CI job runs")
+    detail(f"  CI's test matrix runs {', '.join(matrix)}; its lint and type jobs run {TARGET_PYTHON}.")
+    detail("  A result here can differ from CI's. A .venv built from one of those, if this host has one,")
+    detail("  makes the two agree.")
 
 
 @check.command()

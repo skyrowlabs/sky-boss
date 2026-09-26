@@ -66,8 +66,8 @@ SCAN_ROOTS = ["docs", ".claude", ".github"]
 #: and the template's — was correct and was a FIRST-merge guarantee. It survives
 #: one merge and the two insertion points coincide again on the next, so any
 #: re-run before the base advances re-conflicts a file the previous run merged
-#: cleanly. The region below replaces a separation somebody has to remember with
-#: the separation itself; `scripts/paths.py` carries the measurement.
+#: cleanly. The space between the two rules below replaces a separation somebody
+#: has to remember with the separation itself; `scripts/paths.py` carries the measurement.
 
 
 # ── Extending SCAN_ROOTS ─────────────────────────────────────────────────────

@@ -127,9 +127,9 @@ NARRATIVE = (TODO_DIR, IMPL_DIR, DOCS_DIR / "reports", DOCS_DIR / "research")
 #: **Put it between the two rules at the end of this section, not here.** The
 #: reason is written there. Briefly: a blank line
 #: between your block and the template's does work — measured — and it is a
-#: first-merge guarantee that nothing can enforce, so a frozen rule with nothing
-#: below it replaces the separation somebody has to remember with the separation
-#: itself.
+#: first-merge guarantee that nothing can enforce, so a space between two
+#: frozen rules, with nothing of the template's inside it, replaces the
+#: separation somebody has to remember with the separation itself.
 #:
 #: The per-line audit that used to be the rule is why: the unit of collision is
 #: the line, so stash.flow's five-line explanation sat hard against the constant
@@ -172,8 +172,8 @@ PRESENT_TENSE = {
 #: **Add your own present-tense folders as an append, in the space between the
 #: two frozen rules at the end of this section.** An
 #: append is a different line from the template's and stays clean when upstream
-#: edits its own; the frozen rule is what keeps the two from arriving at one
-#: insertion point on a re-merge. The reason is written once, there.
+#: edits its own; the two frozen rules are what keep the two from arriving at
+#: one insertion point on a re-merge. The reason is written once, there.
 #:
 #: This block used to say *"for the reason the `NARRATIVE` block gives"* and
 #: never repeat it — so the load-bearing half of the rule was stated at one of
@@ -281,9 +281,16 @@ PRESENT_TENSE = {
 # `--ported` and not a hand-port. Both land on the same shape — the blank line
 # survives one merge, and the insertion points coincide again on the next.
 #
-# A frozen rule with nothing below it is that same guarantee holding on every
-# merge after the first, because the separation stops being a blank line somebody
-# has to remember and becomes where the two changes are.
+# A space bounded by two frozen rules, with nothing of the template's inside it,
+# is that same guarantee holding on every merge after the first, because the
+# separation stops being a blank line somebody has to remember and becomes where
+# the two changes are.
+#
+# This paragraph said *a frozen rule with nothing below it* for a release after the
+# closing rule retracted exactly that, and so did one line of the NARRATIVE block.
+# proto.pilot found both by searching for the claim's words rather than for the
+# sentence it had quoted — a retraction is swept by what it retracts, not by how
+# the last copy happened to be phrased.
 #
 # ## Where your existing append lands is NOT guaranteed — move it, and check
 #
@@ -367,10 +374,18 @@ PRESENT_TENSE = {
 # ## What the rule buys, narrowly, because the wider claim measured false
 #
 # **The re-run, and nothing on a first merge.** Measured in both layouts against
-# every upstream edit that is legal above the rule:
+# every upstream edit that is legal above the rule, in the one-rule layout this
+# measurement predates the closing rule for:
 #
 #     blank line only   first merge clean, re-run before the base advances CONFLICTS
 #     frozen rule       first merge clean, re-run clean
+#
+# **That re-run row is history as of v0.32.0.** The re-conflict it measured was
+# the upgrade tool re-merging a change the first run had already applied, and it
+# now recognises an applied change and leaves the file alone — sky.boss found the
+# same re-merge duplicating a class. So on a re-run the layouts no longer differ.
+# What the space still buys is the first merge, where nothing can check a blank
+# line: your line is never adjacent to a template line a release may edit.
 #
 # A first-merge probe cannot tell the layouts apart, because there is nothing
 # there to buy. proto.pilot established that with three probes, and it is why the
@@ -469,8 +484,9 @@ TESTS_DIR = PROJECT_ROOT / "tests"
 GITHUB_DIR = PROJECT_ROOT / ".github"
 
 #: The host toolchain this tree installs — the CLI, the docs pipeline, the lint
-#: gates. `ci.yml` names it as the source of truth at its install step and
-#: `tests/test_lint_tool_parity.py` holds it to `.pre-commit-config.yaml`.
+#: gates. Every python job in `ci.yml` installs from it, and
+#: `tests/test_lint_tool_parity.py` holds it and `.pre-commit-config.yaml` to
+#: each other and to what is installed.
 #:
 #: It lives here because a second test now needs the same file, and two tests
 #: each computing `SCRIPTS_DIR / "requirements.txt"` is the shape that goes

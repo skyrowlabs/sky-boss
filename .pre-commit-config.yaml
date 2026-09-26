@@ -3,10 +3,13 @@
 # Install:  pip install pre-commit && pre-commit install --install-hooks
 # Run all:  pre-commit run --all-files
 #
-# This file is the SOURCE OF TRUTH for lint tool versions. CI installs the same
-# pins, and tests/test_lint_tool_parity.py fails if the two diverge — two
-# versions of a formatter disagree about real formatting, so a local pass and a
-# CI failure on the same file is otherwise unexplainable.
+# Lint tool versions are pinned here AND in scripts/requirements.txt, which CI
+# and the .venv install from. Neither file is canonical — a pip updater can only
+# ever write the other one — so when they disagree, make them agree at whichever
+# version you mean. tests/test_lint_tool_parity.py fails if they diverge, or if
+# what is installed differs: two versions of a formatter disagree about real
+# formatting, so a local pass and a CI failure on the same file is otherwise
+# unexplainable.
 
 default_install_hook_types: [pre-commit, commit-msg]
 

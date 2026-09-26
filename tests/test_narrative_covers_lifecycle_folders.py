@@ -414,7 +414,14 @@ def test_your_prose_is_inside_your_own_space() -> None:
         + "\n\nIf they are yours, move them between the two rules with the appends they describe — a comment "
         "above the opening rule sits against the template's last line of prose, and the next release that "
         "rewrites that line conflicts on it. If you edited a template comment in place, that is the same "
-        "collision one line earlier; put it back and write your note inside the space instead." + _port_first(seams)
+        "collision one line earlier; put it back and write your note inside the space instead.\n\n"
+        # mind.head: a comment explaining a suppression on a template `def` had
+        # nowhere to go but 300 lines away. It does — and the cost is named, so
+        # the choice is the adopter's rather than the message's.
+        "If a comment is about ONE template line — why a check is suppressed there, say — put it at the "
+        "end of that line instead. Only full-line comments are recorded, so an inline one is outside this "
+        "check; the price is that it edits a template line, and conflicts when a release edits that line."
+        + _port_first(seams)
     )
 
 
@@ -440,7 +447,7 @@ def _example_blocks(path: Path) -> list:
 
 
 def _shipped_namespace(path: Path) -> dict:
-    """The seam file's own source ABOVE the frozen rule, executed fresh.
+    """The seam file's own source ABOVE the opening rule, executed fresh.
 
     **Not the imported module, and an adopter action is what proved it.** The
     examples are evaluated to answer *is this spelling correct*, which is a

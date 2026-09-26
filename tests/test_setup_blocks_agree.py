@@ -26,8 +26,8 @@ requirement visible and unmet.
 ## Two checks, because only one half has an authority
 
 **Which requirements file gets installed is checked against the tree**, where
-`scripts/paths.py` names one and `ci.yml` calls it the source of truth at its
-install step. Three documents disagreeing about a filename is a vote with no
+`scripts/paths.py` names one and every python job in `ci.yml` installs from
+it. Three documents disagreeing about a filename is a vote with no
 tiebreaker; a document disagreeing with the toolchain is a defect with a
 direction. Both directions are checked, and they catch opposite mistakes: a doc
 naming a file nothing installs is a *stale* step, and a doc omitting the
@@ -226,7 +226,7 @@ def test_every_setup_block_installs_the_host_toolchain():
     every language — `cli/`, `tests/` and `scripts/` ship at the base tier — so
     a setup block that does not install `scripts/requirements.txt` documents a
     quick start whose next line cannot run. It is checked against the one file
-    `scripts/paths.py` names and `ci.yml` calls the source of truth, rather than
+    `scripts/paths.py` names and every python job in `ci.yml` installs, rather than
     against the other blocks, because "all three agree and all three are wrong"
     is maximally consistent and doc-to-doc has nothing to say about it.
     """

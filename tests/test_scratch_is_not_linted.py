@@ -1,33 +1,55 @@
 """Every linter that walks the tree skips the scratch directory the gates write into.
 
 `scripts/paths.py::TMP_DIR` is where this tree's gates put their reports and where
-its rules send scratch work, and it is gitignored. A linter that walks a directory
-rather than taking filenames from git does not read `.gitignore`, so it needs the
-exclusion spelled in its own config — and three files agreeing on that is an
-agreement nothing held.
+its rules send scratch work. A linter run as `<tool> .` walks it unless its own
+configuration or `.gitignore` handling says otherwise — and whether it does is a
+fact about the tool's behaviour, not about how a config spells an exclusion.
 
-dream.doll hit the gap from the adopter's side, which is the side that matters:
-their `eslint.config.js` was their own, forked before the template's, and lacked
-the `tmp/**` ignore the template has shipped since v0.1.0. Following their own
-rule — scratch goes in `tmp/` — failed their lint gate at `--max-warnings=0`,
-reported as an ordinary lint failure with nothing pointing at the cause, and the
-cheap fix deletes the scratch file along with what it was measuring. The template
-was consistent the whole time; the broken party was a config the template never
-saw. So this is phrased over the tree's own configs, whoever wrote them.
+dream.doll hit the gap from the adopter's side: their own `eslint.config.js`
+lacked the `tmp/**` ignore the template has shipped since v0.1.0, so following
+their rule — scratch goes in `tmp/` — failed `--max-warnings=0` as an ordinary
+lint finding.
 
-**The linters are listed, and that is a known cost.** Which tools walk directories
-is a fact about how `dev check` and CI invoke them — `flake8 .`, `eslint .`,
-`black .` — and not something a pattern can find in a config file. What is
-discovered is presence: a config that does not exist is not asserted, so a tree
-without node is not told about eslint.
+## Behaviour, because the first version read spelling and was wrong both ways
+
+v0.31.0 checked config text. dream.doll's ignore said `'tmp'`, which eslint
+honours — they planted a file with errors and it was skipped — and the check
+failed them anyway, on the tree whose incident it was written for, after the fix.
+mind.head's tree runs ruff and mypy, measured both skipping `tmp/`, and was failed
+because `pyproject.toml` existing was read as black being configured. Here,
+black skips `tmp/` because it honours `.gitignore`, so the `extend-exclude` line
+v0.31.0 required is not what decides it either. Three readings of a declaration,
+three wrong answers, with the deciding value one call away each time — the shape
+`least=2` and the lint-parity check were fixed for.
+
+So each walker is **run**: a probe file it would flag is planted under
+`tmp/`, the tool walks the tree the way `dev check lint` runs it, and the
+question is whether its output names the probe.
+
+## Which tools walk is discovered; how to probe one is written down
+
+The walkers are read from `cli/check.py` — a `run([tool, ..., "."])`
+call — and from `package.json`'s scripts. A probe is per-tool by nature (what
+each would flag differs), so `PROBES` is a table, and it is checked against the
+discovered set in both directions: a walker with no probe fails, and so does a
+probe for a tool nothing walks with any more.
+
+eslint is measured only where it is installed. A python CI job has no
+`node_modules`, and "could not ask" is reported as exactly that rather than
+passed: the verdict falls back to reading the config, **named as a reading** in
+the result, and accepts every spelling eslint's flat config treats as the
+directory.
 """
 
 from __future__ import annotations
 
-import configparser
+import json
 import re
+import shutil
+import subprocess
 import sys
 from pathlib import Path
+from typing import Callable, Dict, List, Optional, Tuple
 
 import pytest
 
@@ -37,38 +59,90 @@ pytestmark = [pytest.mark.unit]
 # every path below — can be imported. See scripts/paths.py.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts.paths import PROJECT_ROOT, TMP_DIR  # noqa: E402
+from scripts.paths import PROJECT_ROOT, SHELL_PACKAGE, TMP_DIR  # noqa: E402
 
 SCRATCH = TMP_DIR.relative_to(PROJECT_ROOT).as_posix()
+PROBE_DIR = TMP_DIR / "_scratch_lint_probe"
+CHECK = PROJECT_ROOT / SHELL_PACKAGE / "check.py"
+PACKAGE = PROJECT_ROOT / "package.json"
 
 
-def _flake8(text: str) -> bool:
-    parser = configparser.ConfigParser(inline_comment_prefixes=("#",))
-    parser.read_string(text)
-    entries = [entry.strip() for entry in parser.get("flake8", "exclude", fallback="").replace("\n", ",").split(",")]
-    return SCRATCH in entries or f"./{SCRATCH}" in entries
+def _walkers() -> List[str]:
+    """Tools this tree runs over the whole directory: `run(["tool", ..., "."])`, and `<tool> .` in npm scripts."""
+    found = []
+    if CHECK.exists():
+        found += re.findall(r"""run\(\[\s*["']([\w-]+)["'][^\]]*["']\.["']""", CHECK.read_text(encoding="utf-8"))
+    if PACKAGE.exists():
+        scripts = json.loads(PACKAGE.read_text(encoding="utf-8")).get("scripts", {})
+        walking = re.compile(r"(?:^|&&\s*)([\w-]+) \.(?:\s|$)")
+        found += [match for command in scripts.values() for match in walking.findall(command)]
+    return sorted(set(found))
 
 
-def _black(text: str) -> bool:
-    block = re.search(r"\[tool\.black\](.*?)(?:\n\[|\Z)", text, re.S)
-    return bool(block and re.search(rf"exclude\s*=.*?\b{re.escape(SCRATCH)}\b", block.group(1), re.S))
+def _python_tool(module: str, args: List[str], source: str) -> Callable[[], Tuple[Optional[bool], str]]:
+    def probe() -> Tuple[Optional[bool], str]:
+        (PROBE_DIR / "probe.py").write_text(source, encoding="utf-8")
+        done = subprocess.run(
+            [sys.executable, "-m", module, *args, "."], cwd=str(PROJECT_ROOT), capture_output=True, text=True
+        )
+        return PROBE_DIR.name in done.stdout + done.stderr, f"ran `{module} {' '.join(args)} .`"
+
+    return probe
 
 
-def _eslint(text: str) -> bool:
-    return f"'{SCRATCH}/**'" in text or f'"{SCRATCH}/**"' in text
+def _eslint() -> Tuple[Optional[bool], str]:
+    """Ask eslint when it is installed; otherwise read the config, and say so."""
+    if shutil.which("node") and (PROJECT_ROOT / "node_modules" / "eslint").is_dir():
+        script = (
+            "const {ESLint}=require('eslint');"
+            f"new ESLint().isPathIgnored('{SCRATCH}/{PROBE_DIR.name}/probe.js')"
+            ".then(i=>{process.stdout.write(i?'ignored':'linted')})"
+        )
+        (PROBE_DIR / "probe.js").write_text("var unused = 1;\n", encoding="utf-8")
+        done = subprocess.run(["node", "-e", script], cwd=str(PROJECT_ROOT), capture_output=True, text=True)
+        if done.stdout in ("ignored", "linted"):
+            return done.stdout == "linted", "asked eslint (isPathIgnored)"
+    config = PROJECT_ROOT / "eslint.config.js"
+    text = config.read_text(encoding="utf-8") if config.exists() else ""
+    spellings = re.findall(r"""["'](?:\./)?(?:\*\*/)?([\w.-]+)(?:/(?:\*\*)?)?["']""", text)
+    return SCRATCH not in spellings, "READ eslint.config.js — eslint is not installed here, so it could not be asked"
 
 
-#: `config file -> does it exclude the scratch directory`. A walking linter per row.
-WALKERS = {".flake8": _flake8, "pyproject.toml": _black, "eslint.config.js": _eslint}
+#: How to find out whether one walker lints scratch. Returns (walks it?, how that was established).
+PROBES: Dict[str, Callable[[], Tuple[Optional[bool], str]]] = {
+    "flake8": _python_tool("flake8", ["--select=F401"], "import os\n"),
+    "isort": _python_tool("isort", ["--check-only"], "import sys\nimport os\n"),
+    "black": _python_tool("black", ["--check"], "x=1\n"),
+    "eslint": _eslint,
+}
+
+
+def test_every_walker_has_a_probe_and_every_probe_a_walker():
+    walkers = _walkers()
+    assert walkers, f"found no tool run over `.` in {CHECK.relative_to(PROJECT_ROOT)} or package.json"
+    assert not set(walkers) - set(PROBES), (
+        f"these tools walk the tree and nothing here asks whether they skip `{SCRATCH}/`: "
+        f"{sorted(set(walkers) - set(PROBES))}. Add a probe to PROBES — a file that tool would flag."
+    )
+    # A probe for a tool the tree never runs is only stale when that tool is the
+    # template's own; a python-only tree simply has no eslint to walk.
+    stale = sorted(set(PROBES) - set(walkers) - {"eslint"})
+    assert not stale, f"PROBES names tools nothing here walks with: {stale}. Delete the entry."
 
 
 def test_every_walking_linter_skips_scratch():
-    present = {name: check for name, check in WALKERS.items() if (PROJECT_ROOT / name).exists()}
-    assert present, "found none of the linter configs this knows about, so this checked nothing"
-    lints_scratch = [name for name, check in present.items() if not check((PROJECT_ROOT / name).read_text("utf-8"))]
+    walkers = [tool for tool in _walkers() if tool in PROBES]
+    assert walkers, "no walking linter to probe, so this measured nothing"
+    PROBE_DIR.mkdir(parents=True, exist_ok=True)
+    try:
+        verdicts = {tool: PROBES[tool]() for tool in walkers}
+    finally:
+        shutil.rmtree(PROBE_DIR, ignore_errors=True)
+    lints_scratch = {tool: how for tool, (walked, how) in verdicts.items() if walked}
     assert not lints_scratch, (
-        f"these configs do not exclude `{SCRATCH}/`, where this tree's gates write their reports and its "
-        f"rules send scratch work: {lints_scratch}\n"
-        f"The linter walks the directory and does not read .gitignore, so scratch fails the lint gate "
-        f"as an ordinary finding. Add `{SCRATCH}` to its exclude (for eslint, `'{SCRATCH}/**'` in ignores)."
+        f"these linters walk into `{SCRATCH}/`, where this tree's gates write their reports and its rules "
+        f"send scratch work:\n"
+        + "\n".join(f"  {tool}: {how}" for tool, how in lints_scratch.items())
+        + f"\nExclude `{SCRATCH}` in that tool's own configuration; scratch otherwise fails the lint gate "
+        f"as an ordinary finding."
     )
