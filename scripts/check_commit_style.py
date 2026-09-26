@@ -145,7 +145,8 @@ def main() -> int:
         dest="commit_range",
         default="",
         help="git range to inspect. Empty means everything not yet on the upstream, "
-        "which is what a push will send; HEAD alone if there is no upstream.",
+        "which is what a push will send; with no upstream, everything no remote has; "
+        "HEAD alone when no remote shares any history with it.",
     )
     parser.add_argument("--json", action="store_true", help="machine-readable payload on stdout")
     args = parser.parse_args()

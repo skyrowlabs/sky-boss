@@ -77,3 +77,19 @@ def test_with_an_upstream_and_with_no_remote(tmp_path, monkeypatch):
     _git(work, "commit", "-q", "--allow-empty", "-m", "fix: unpushed")
     found = _range_in(work, monkeypatch)
     assert _sent(work, found) == ["fix: unpushed"], f"{found!r} with an upstream must name the unpushed commit"
+
+
+def test_an_empty_remote_and_an_all_pushed_branch(tmp_path, monkeypatch):
+    """The two ends proto.pilot and Dream Doll ran: no shared history, and nothing to send."""
+    remote, work = tmp_path / "remote.git", tmp_path / "work"
+    _git(tmp_path, "init", "-q", "--bare", str(remote))
+    _git(tmp_path, "init", "-q", "-b", "develop", str(work))
+    _git(work, "commit", "-q", "--allow-empty", "-m", "chore: years of history")
+    _git(work, "remote", "add", "origin", str(remote))
+    assert (
+        _range_in(work, monkeypatch) == "-1"
+    ), "a remote with no history in common is the no-remote case: the whole history is not what to check"
+    _git(work, "push", "-q", "origin", "develop")
+    _git(work, "checkout", "-q", "-b", "feature")
+    found = _range_in(work, monkeypatch)
+    assert _sent(work, found) == [], f"{found!r}: everything is pushed, so the push sends nothing"

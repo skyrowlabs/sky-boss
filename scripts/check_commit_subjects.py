@@ -135,16 +135,19 @@ def default_range() -> str:
     whose first push this is — **there is still something to diff against**, and
     this said there was not: HEAD alone checked one of two unpushed commits and
     printed ✅. proto.pilot measured it, and it reached every round branch here,
-    since each is a first push. `HEAD --not --remotes` is exactly what a first
-    push sends: everything no remote already has.
+    since each is a first push. What a first push sends is everything no remote
+    already has, which git spells `HEAD --not --remotes` — three arguments, so it
+    is expressed below as one range.
 
-    HEAD alone is left for the one case it is honest about — a repository with
-    no remote at all. There, "everything no remote has" is the whole history,
-    and in a tree scaffolded over an existing app that is years of commits made
-    before this gate existed; failing a push on them would be a gate red for a
-    reason nobody can act on. The chosen range is printed either way, because the
-    defect this function was first fixed for was two ranges that looked identical
-    in the output.
+    HEAD alone is left for the cases it is honest about: no remote, or a remote
+    that shares no history with HEAD — an empty one, or one this branch was never
+    cut from. In both, "everything no remote has" is the whole history, and in a
+    tree scaffolded over an existing app that is years of commits made before this
+    gate existed; failing a push on them would be a gate red for a reason nobody
+    can act on. proto.pilot named the empty-remote case, which v0.34.0 answered
+    with a bare `HEAD` — all of history, printed as though it were one commit.
+    The chosen range is printed either way, because the defect this function was
+    first fixed for was two ranges that looked identical in the output.
 
     **One git argument, always — that is the released contract.** v0.33.0 returned
     `"HEAD --not --remotes"`, three arguments in a string that only this module's
@@ -168,10 +171,13 @@ def default_range() -> str:
         return "-1"
     listed = git("rev-list", "--boundary", "HEAD", "--not", "--remotes").stdout.split()
     boundaries = [line[1:] for line in listed if line.startswith("-")]
+    if not listed:
+        # Everything on HEAD is already on a remote: the push sends nothing.
+        return "HEAD..HEAD"
     if not boundaries:
-        # Nothing on HEAD is on any remote: the branch shares no history with one,
-        # and "what the push sends" is all of it.
-        return "HEAD" if listed else "HEAD..HEAD"
+        # Nothing on HEAD is on any remote — the remote is empty, or unrelated —
+        # so "what the push sends" is all of history: the no-remote case above.
+        return "-1"
     # The boundary every other one is an ancestor of, when there is one — then the
     # range is exact. Otherwise the most recent, in the order rev-list gave them.
     for candidate in boundaries:
@@ -191,10 +197,12 @@ def described(commit_range: str, chosen: bool) -> str:
     """
     if not chosen:
         return commit_range
+    if commit_range == "HEAD..HEAD":
+        return "HEAD..HEAD (everything on HEAD is already on a remote)"
     if commit_range.endswith("..HEAD") and not commit_range.startswith("@{u}"):
         return f"{commit_range} (no upstream yet: everything no remote has)"
     return {
-        "-1": "HEAD alone (no remote to compare against)",
+        "-1": "HEAD alone (no remote history to compare against)",
         "@{u}..HEAD": "@{u}..HEAD (everything this push would send)",
     }.get(commit_range, commit_range)
 

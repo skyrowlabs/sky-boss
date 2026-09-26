@@ -11,8 +11,9 @@ move in the same commit.
 
 v0.34.0 made one git argument the released contract, and
 `tests/test_commit_range_is_one_argument.py` (theirs) pins it by what `git log`
-lists. So the shapes below are v0.34.0's, and the split this file used to hold
-in place is gone with the shape that needed it. What stays here is the half
+lists. So the shapes below are the current contract's, and the split this file
+used to hold in place is gone with the shape that needed it. Bare `HEAD` left
+the list at v0.35.0, when a remote sharing no history became `-1` like no remote. What stays here is the half
 their test cannot see: that *this* consumer, which calls `rev-list` rather than
 `log`, resolves each of them.
 """
@@ -31,7 +32,7 @@ pytestmark = pytest.mark.unit
 # checkout's remotes, CI's differ from a developer's, and a skip here would spend
 # the suite's skip budget of zero. The live call below reaches whichever one this
 # checkout produces.
-@pytest.mark.parametrize("commit_range", ["-1", "HEAD", "HEAD..HEAD"])
+@pytest.mark.parametrize("commit_range", ["-1", "HEAD..HEAD"])
 def test_every_default_range_shape_resolves(commit_range):
     assert commits(commit_range) is not None, f"`{commit_range}` did not resolve"
 
