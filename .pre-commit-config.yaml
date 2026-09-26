@@ -86,7 +86,7 @@ repos:
         # same select and same `--show-source`, and the clause after the colon
         # named which step it meant. stash.flow measured the gap (`flake8
         # Passed` here, four E501/E201/E202 findings there, one tree, one
-        # second); dream.doll scoped it back to `exactly` after the first
+        # second); Dream Doll scoped it back to `exactly` after the first
         # write-up of this comment inherited the larger claim.
         args: ['--select=E9,F63,F7,F82,F401', '--show-source']
         types: [python]

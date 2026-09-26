@@ -78,8 +78,16 @@ def commits(commit_range: str) -> list | None:
     given `HEAD` explicitly. Spelled out because the two commands differing on
     it is not obvious, and the caller passing `-1` is a workflow nobody runs by
     hand.
+
+    **A range may be several arguments.** `default_range()` returns
+    `HEAD --not --remotes` for a branch with no upstream yet, which is one
+    string and three argv entries — passed whole, `rev-list` reads it as one
+    unknown revision and this reported *"could not resolve"* on every first
+    push. Split it the way `check_commit_subjects.py` does.
     """
-    selector = [commit_range, "HEAD"] if commit_range.startswith("-") else [commit_range]
+    selector = commit_range.split()
+    if commit_range.startswith("-"):
+        selector.append("HEAD")
     result = subprocess.run(
         ["git", "rev-list", "--no-merges", "--format=%h\x1f%s", *selector],
         cwd=str(PROJECT_ROOT),

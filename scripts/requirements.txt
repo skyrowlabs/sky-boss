@@ -1,8 +1,9 @@
 # Host-side toolchain: the CLI, the docs pipeline, and the lint gates.
 #
 # Lint tool versions MUST match .pre-commit-config.yaml. Neither file is
-# canonical: Dependabot bumps this one and cannot touch the other, so a
-# mismatch means make them agree, at whichever version you mean.
+# canonical: a pip updater can only ever write this one — the governed tier
+# ships Dependabot pointed here — so a mismatch means make them agree, at
+# whichever version you mean.
 # tests/test_lint_tool_parity.py fails if they diverge — two versions of a
 # formatter disagree about real formatting, and a local pass with a CI failure
 # on the same file is otherwise unexplainable.

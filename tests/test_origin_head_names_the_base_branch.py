@@ -5,7 +5,7 @@ never refreshed. When a repository changes its default branch afterwards — a
 second branch cut when it went public, say — every existing clone keeps pointing
 at the old one, and anything that resolves it locally gets the wrong answer.
 
-dream.doll's pointed at `main` while their base branch, their CI trigger and the
+Dream Doll's pointed at `main` while their base branch, their CI trigger and the
 account all said `develop`. Tooling reads that pointer: their own agent session
 opened with *"Main branch (you will usually use this for PRs): main"*,
 contradicting their contributing rules. Nothing in this tree read it, so nothing

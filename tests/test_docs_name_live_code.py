@@ -45,7 +45,7 @@ paying the first time you delete something.
 ## Source comments too, for one shape of name
 
 A comment is where an adopter writes *why* — and the seam files invite exactly
-that — so it is where a renamed name goes to rot. dream.doll's seam comment cited
+that — so it is where a renamed name goes to rot. Dream Doll's seam comment cited
 the test that answers append placement; the template renamed that test in three
 consecutive releases, the upgrade replaced the test file wholesale, nothing
 conflicted, every gate stayed green, and the comment pointed at a function that
@@ -128,7 +128,7 @@ def was_ever_ours(symbol: str, root: Path = PROJECT_ROOT) -> bool:
 
     **The other edge is deliberate.** A name this repository never held always
     passes, even when it names a template symbol from a release this tree never
-    took — only history the tree has can be asked. dream.doll read that off the
+    took — only history the tree has can be asked. Dream Doll read that off the
     predicate and judged it the right trade: the alternative is asking about
     somebody else's history, which is the false-positive problem again.
     """
@@ -239,7 +239,7 @@ def test_the_check_would_actually_catch_one(tmp_path):
         "gone_away"
     ], f"expected exactly the removed symbol and not the stdlib one, got {found}"
 
-    # The comment half, which dream.doll's rename reached and the docs half could
+    # The comment half, which Dream Doll's rename reached and the docs half could
     # not: both removed names, and not the one that was never ours.
     commented = dead_comment_references(root=tmp_path)
     assert sorted(symbol for _, symbol in commented) == [

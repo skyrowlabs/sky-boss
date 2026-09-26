@@ -98,7 +98,7 @@ def subjects(commit_range: str):
     this file is here to prevent, committed by the file itself.
     """
     result = subprocess.run(
-        ["git", "log", "--no-merges", "--format=%h\x1f%s", commit_range],
+        ["git", "log", "--no-merges", "--format=%h\x1f%s", *commit_range.split()],
         cwd=str(PROJECT_ROOT),
         capture_output=True,
         text=True,
@@ -132,18 +132,29 @@ def default_range() -> str:
     stop somebody looking.
 
     `@{u}..HEAD` is the set the push will send. With no upstream — a branch
-    whose first push this is — there is nothing to diff against and HEAD alone
-    is the honest answer, which is the same fallback `ci.yml` makes for an
-    all-zeros `before`. The chosen range is printed either way, because the
-    defect being fixed here was two ranges that looked identical in the output.
+    whose first push this is — **there is still something to diff against**, and
+    this said there was not: HEAD alone checked one of two unpushed commits and
+    printed ✅. proto.pilot measured it, and it reached every round branch here,
+    since each is a first push. `HEAD --not --remotes` is exactly what a first
+    push sends: everything no remote already has.
+
+    HEAD alone is left for the one case it is honest about — a repository with
+    no remote at all. There, "everything no remote has" is the whole history,
+    and in a tree scaffolded over an existing app that is years of commits made
+    before this gate existed; failing a push on them would be a gate red for a
+    reason nobody can act on. The chosen range is printed either way, because the
+    defect this function was first fixed for was two ranges that looked identical
+    in the output.
     """
-    resolved = subprocess.run(
-        ["git", "rev-parse", "--abbrev-ref", "@{u}"],
-        cwd=str(PROJECT_ROOT),
-        capture_output=True,
-        text=True,
-    )
-    return "@{u}..HEAD" if resolved.returncode == 0 else "-1"
+
+    def git(*args: str) -> subprocess.CompletedProcess:
+        return subprocess.run(["git", *args], cwd=str(PROJECT_ROOT), capture_output=True, text=True)
+
+    if git("rev-parse", "--abbrev-ref", "@{u}").returncode == 0:
+        return "@{u}..HEAD"
+    if git("remote").stdout.strip():
+        return "HEAD --not --remotes"
+    return "-1"
 
 
 def described(commit_range: str, chosen: bool) -> str:
@@ -158,7 +169,8 @@ def described(commit_range: str, chosen: bool) -> str:
     if not chosen:
         return commit_range
     return {
-        "-1": "HEAD alone (no upstream to compare against)",
+        "-1": "HEAD alone (no remote to compare against)",
+        "HEAD --not --remotes": "HEAD --not --remotes (no upstream yet: everything no remote has)",
         "@{u}..HEAD": "@{u}..HEAD (everything this push would send)",
     }.get(commit_range, commit_range)
 
@@ -170,7 +182,8 @@ def main() -> int:
         dest="commit_range",
         default="",
         help="git range to inspect. Empty means everything not yet on the upstream, "
-        "which is what a push will send; HEAD alone if there is no upstream.",
+        "which is what a push will send; with no upstream, everything no remote has; "
+        "HEAD alone only when there is no remote.",
     )
     parser.add_argument("--json", action="store_true", help="machine-readable payload on stdout")
     args = parser.parse_args()

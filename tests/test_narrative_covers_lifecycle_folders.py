@@ -25,7 +25,7 @@ them.** `PRESENT_TENSE` shipped here for one release and was a second home for a
 ruling `NARRATIVE`'s own comment already carries — so an adopter who accepted
 that comment's invitation and appended a folder found this file red, telling
 them to delete an entry inside a shipped test. That edit is precisely the
-divergence the append seam next to `NARRATIVE` exists to prevent. dream.doll and
+divergence the append seam next to `NARRATIVE` exists to prevent. Dream Doll and
 stash.flow hit the two assertions independently, from real runs, on the same
 day. Classify a folder once, in the file that argues the case.
 """
@@ -87,7 +87,7 @@ SPACE = f"between `{TERMINATOR}` and `{CLOSER}`"
 #: **This file used to name `scripts/paths.py` and nothing else**, while the
 #: generator discovered its seams — so the adopter was handed a list of one, and
 #: `SCAN_ROOTS += ["src"]` immediately above `check_doc_links.py`'s marker passed
-#: the whole suite. dream.doll measured that and filed it: a check whose
+#: the whole suite. Dream Doll measured that and filed it: a check whose
 #: population is written down covers the seam it was written for and goes quiet
 #: on the next one, which is Rule 2 at the one artifact meant to enforce Rule 2.
 _INVITATION = INVITATION
@@ -103,7 +103,7 @@ def invited_files() -> list:
     to be one predicate — invitation `and` terminator — so a seam file that
     shipped the invitation without the rule left the population instead of
     failing, and the only thing between that and silence was `least=2`, a copy of
-    today's seam count. dream.doll priced it: stripping the terminator fails today
+    today's seam count. Dream Doll priced it: stripping the terminator fails today
     through the floor (2 → 1), and with a third seam a fourth arriving without its
     rule leaves 3 ≥ 2 and goes quiet — so keeping the floor honest would mean
     bumping an integer on every new seam, **which is the hardcoded list the
@@ -319,7 +319,7 @@ def test_your_appends_are_inside_your_own_space() -> None:
     while every signal says it is covered.
 
     `scripts/paths.py` claimed the append always landed below. It does not, and
-    the claim was generalised from one synthetic case. dream.doll measured the
+    the claim was generalised from one synthetic case. Dream Doll measured the
     counterexample and asked for this check instead of a corrected sentence,
     which is the right trade: placement is a fact about this file, so this file's
     own suite can settle it and nobody has to believe a release note.
@@ -506,7 +506,7 @@ def test_the_seam_examples_actually_do_something() -> None:
     template's own documented `PRESENT_TENSE.pop(...)` example in advance and make
     it a no-op — so a misplaced append turns this test red *as well as* the
     placement check, and the finding here is a symptom of the one there. Fix the
-    placement first. dream.doll recorded the coupling after meeting it.
+    placement first. Dream Doll recorded the coupling after meeting it.
 
     ## What is skipped, and why that cannot go quiet
 

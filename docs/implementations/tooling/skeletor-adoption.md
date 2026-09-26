@@ -2634,3 +2634,43 @@ changed neither declined file.
 All seven pre-push gates are green. The collected set gained one ID and lost
 none. 45 frontend tests pass. No pin moved. `--ref v0.32.0` was passed on both
 runs, and `git ls-remote origin v0.32.0` resolves.
+
+### Round 31 — 2026-09-26: v0.33.0, and a helper's return value changed shape
+
+v0.33.0 is `skeletor@a7a3d8b`. Nine untouched files updated and three edited
+files merged clean: `.pre-commit-config.yaml`, `cli/check.py` and
+`scripts/requirements.txt`. There were no conflicts, so one applying run recorded
+`v0.33.0`.
+
+#### One gate red on arrival, and the fix is ours
+
+`commit style` failed with *"git could not resolve `HEAD --not --remotes`"*.
+`scripts/check_commit_style.py` is ours and is not in the manifest. It borrows
+`default_range()` from `scripts/check_commit_subjects.py`, which is skeletor's.
+That function now returns `HEAD --not --remotes` for a branch with no upstream.
+That is one string holding three argv entries. skeletor's own caller splits it
+(`*commit_range.split()`). Ours passed it to `git rev-list` whole, so git read it
+as one unknown revision, and every first push would have been refused. CI is not
+affected, because `ci.yml` always passes `--range` explicitly.
+
+`commits()` now splits the range. `tests/test_commit_style_range.py` holds both
+shapes `default_range()` can return without an upstream. It fails without the
+split and passes with it. This is the round-24 lesson again, in a new form: a
+shared helper's contract can change in a way the template cannot see, because
+the template's callers are updated in the same commit and an adopter's are not.
+Last time a *name* changed. This time it was a return *shape*.
+
+#### Checked by running
+
+- The scratch-lint probes ran against all five walkers (black, eslint, flake8,
+  isort, pyright). Each one was *asked*, and none of them reported *"could not be
+  asked"*. For pyright, a positive control: the same planted error in
+  `skyboss/` is reported by `pyright --project pyrightconfig.json`, so a `False`
+  for `tmp/` is a real answer.
+- The declined `tests/test_pyright_deps.py` was restored from the tag and passed
+  4/4. It stays declined for the round-24 reason. The template changed neither
+  declined file.
+
+All seven pre-push gates are green. The collected set gained four IDs and lost
+none, all from the new test. 45 frontend tests pass. No pin moved. `--ref v0.33.0`
+was passed on both runs, and `git ls-remote origin v0.33.0` resolves.

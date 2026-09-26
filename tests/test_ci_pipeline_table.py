@@ -23,7 +23,7 @@ nothing could see the disagreement:
 * **Two missing rows.** A pull request into the release branch classifies
   differently from one into the base branch, and neither row was here.
 
-Found by dream.doll reading the table against the code, in a rendered tree.
+Found by Dream Doll reading the table against the code, in a rendered tree.
 Here the table is placeholders and the workflow is placeholders, and the two
 agree by looking similar.
 

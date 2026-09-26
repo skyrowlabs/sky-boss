@@ -289,9 +289,10 @@ def _say_if_interpreter_differs() -> None:
     "CI runs 3.12, rebuild with python3.12" pointed away from it — sky.boss filed
     it, proto.pilot saw it independently. So this fires only outside the matrix,
     and when it does it says which jobs run what rather than naming one version as
-    the answer. It names no command either: the right interpreter may not be
-    installed on this host (dream.doll's is not), which is a system package, not
-    something a hint here can fix.
+    the answer. It names no command either: whether the right interpreter is
+    installed is a fact about the host, and a hint here cannot know it. (This
+    shipped for a release citing one adopter's host as lacking it; that was a
+    relayed claim nobody had run, and it was false.)
 
     The README's setup block stays `python -m venv` on purpose. Pinning it there
     makes line one of the quick start fail on every host that lacks that exact

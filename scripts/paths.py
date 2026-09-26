@@ -148,7 +148,7 @@ NARRATIVE = (TODO_DIR, IMPL_DIR, DOCS_DIR / "reports", DOCS_DIR / "research")
 #: paragraphs up — append your stage, do not edit the tuple — turned that test
 #: red with `delete the entry`, and the only way to close it was editing a
 #: template-owned literal inside a shipped test: the divergence the append seam
-#: exists to avoid, one file over. dream.doll and stash.flow each hit a
+#: exists to avoid, one file over. Dream Doll and stash.flow each hit a
 #: different one of the two assertions, independently, from real runs.
 #:
 #: Both halves live here now, so a folder is classified once, in the file that
@@ -259,7 +259,7 @@ PRESENT_TENSE = {
 # The function that answers placement has been renamed in three consecutive
 # releases — `..._inside_the_region`, `..._below_the_frozen_rule`,
 # `..._inside_your_own_space` — and a comment naming it survives the rename
-# silently, because nothing resolves an identifier in a comment. dream.doll's
+# silently, because nothing resolves an identifier in a comment. Dream Doll's
 # seam comment pointed at a function that no longer existed, with every gate
 # green.
 #
@@ -275,7 +275,7 @@ PRESENT_TENSE = {
 # block said in as many words, one release before this arrived.
 #
 # And it was a FIRST-merge guarantee. Two adopters found the second half
-# independently: dream.doll, that a round with a conflict anywhere forces a
+# independently: Dream Doll, that a round with a conflict anywhere forces a
 # re-run, and re-running re-merges a file the previous run had merged cleanly;
 # proto.pilot, that the trigger is any re-run before the base advances, not
 # `--ported` and not a hand-port. Both land on the same shape — the blank line
@@ -307,7 +307,7 @@ PRESENT_TENSE = {
 # ended up below the marker and needed no moving. That was generalised from one
 # synthetic case and is false: git orders the two additions at a shared anchor
 # rather than colliding on them, and which side yours lands on depends on where
-# exactly it sits. dream.doll merged cleanly and landed above; mind.head found
+# exactly it sits. Dream Doll merged cleanly and landed above; mind.head found
 # the same from a tree that conflicted.
 #
 # **Where your existing append ends up is not predicted here. Run the check.**
@@ -322,7 +322,7 @@ PRESENT_TENSE = {
 # sentence was false for half its audience, and it reached them amplified into a
 # workspace dispatch that told every tree to expect a hand move.
 #
-# dream.doll filed the recurrence with the sign flipped and named the shape: the
+# Dream Doll filed the recurrence with the sign flipped and named the shape: the
 # defect is not either claim, it is that the file keeps stating in prose what it
 # also ships a check to answer per tree. node-zero filed the same sentence
 # independently, noting that the lines directly below it defer to the check
@@ -484,7 +484,7 @@ TESTS_DIR = PROJECT_ROOT / "tests"
 GITHUB_DIR = PROJECT_ROOT / ".github"
 
 #: The host toolchain this tree installs — the CLI, the docs pipeline, the lint
-#: gates. Every python job in `ci.yml` installs from it, and
+#: gates. Every `ci.yml` job that runs the toolchain installs from it, and
 #: `tests/test_lint_tool_parity.py` holds it and `.pre-commit-config.yaml` to
 #: each other and to what is installed.
 #:
