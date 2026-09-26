@@ -277,9 +277,15 @@ def test_the_menu_decides_every_role_the_highlighter_can_emit():
 # ---------------------------------------------------------------- open a link
 
 
-def _opening():
+def _opening(texts=None):
+    """Both openers injected, always: the real text opener launches an editor
+    on whatever desktop runs the suite."""
     opened = []
-    canvas = Canvas(token="test-token", opener=lambda url: opened.append(url) or True)
+    canvas = Canvas(
+        token="test-token",
+        opener=lambda url: opened.append(url) or True,
+        text_opener=lambda path: (texts if texts is not None else []).append(path) or True,
+    )
     return TestClient(build(canvas)), opened
 
 
@@ -390,20 +396,73 @@ def test_a_span_that_is_not_a_file_is_refused_by_name(tmp_path):
     assert opened == []
 
 
-def test_nothing_that_could_run_is_opened(tmp_path):
-    """The opener picks an application by type, and for these the application
-    is execution — which would make ctrl-click an unconfirmed `sb run`."""
+def test_a_script_opens_in_a_text_editor_and_never_reaches_the_desktop_opener(tmp_path):
+    """The desktop opener picks an application by type, and for a script or a
+    launcher that application may be execution — which would make ctrl-click an
+    unconfirmed `sb run`. Round 17: they go to a named text editor instead, so
+    the file is only ever an argument. See [[canvas]] round 17."""
     script = tmp_path / "deploy.sh"
     script.write_text("#!/bin/sh\n")
     script.chmod(0o755)
     launcher = tmp_path / "app.desktop"
     launcher.write_text("[Desktop Entry]\n")
-    client, opened = _opening()
+    texts = []
+    client, opened = _opening(texts)
     for path in (script, launcher):
         response = client.post("/api/open", headers=auth(), json={"path": str(path)})
-        assert response.status_code == 400, path
-        assert "run" in response.json()["error"]
+        assert response.status_code == 200, path
+        assert response.json()["as"] == "text"
+    assert texts == [str(script), str(launcher)]
     assert opened == []
+
+
+def test_a_binary_executable_is_still_refused(tmp_path):
+    """Nothing to read, and the only thing an opener could do with it is run it."""
+    binary = tmp_path / "tool"
+    binary.write_bytes(b"\x7fELF\x02\x01\x01\x00" + b"\0" * 32)
+    binary.chmod(0o755)
+    texts = []
+    client, opened = _opening(texts)
+    response = client.post("/api/open", headers=auth(), json={"path": str(binary)})
+    assert response.status_code == 400
+    assert "binary executable" in response.json()["error"]
+    assert opened == [] and texts == []
+
+
+def test_a_script_with_no_text_editor_says_so(tmp_path):
+    script = tmp_path / "deploy.sh"
+    script.write_text("#!/bin/sh\n")
+    script.chmod(0o755)
+    canvas = Canvas(token="test-token", opener=lambda url: True, text_opener=lambda path: False)
+    response = TestClient(build(canvas)).post("/api/open", headers=auth(), json={"path": str(script)})
+    assert response.status_code == 502
+    assert "text editor" in response.json()["error"]
+
+
+def test_the_text_editor_is_launched_detached_with_the_operators_environment(monkeypatch):
+    """Detached because an in-process Gio launch was measured dying with its
+    launcher — every editor would have closed with `sb ui`. `child_env` because
+    it is the rule for every child. See [[canvas]] round 17, [[subprocess-env]]."""
+    from skyboss.canvas import server
+
+    seen = {}
+    monkeypatch.setattr(server, "_text_editor_entry", lambda: "/usr/share/applications/editor.desktop")
+    monkeypatch.setattr(server.shutil, "which", lambda name: "/usr/bin/gio" if name == "gio" else None)
+    monkeypatch.setattr(server.subprocess, "Popen", lambda argv, **kw: seen.update(argv=argv, **kw))
+    monkeypatch.setenv("PYTHONSAFEPATH", "1")
+
+    assert server.open_as_text("/src/deploy.sh") is True
+    assert seen["argv"] == ["/usr/bin/gio", "launch", "/usr/share/applications/editor.desktop", "/src/deploy.sh"]
+    assert seen["start_new_session"] is True
+    assert "PYTHONSAFEPATH" not in seen["env"]
+
+
+def test_no_text_editor_is_a_refusal_not_a_fallback_to_xdg_open(monkeypatch):
+    from skyboss.canvas import server
+
+    monkeypatch.setattr(server, "_text_editor_entry", lambda: None)
+    monkeypatch.setattr(server.subprocess, "Popen", lambda *a, **kw: pytest.fail("spawned something"))
+    assert server.open_as_text("/src/deploy.sh") is False
 
 
 @pytest.mark.parametrize(

@@ -4,7 +4,7 @@ slug: canvas
 priority: medium
 category: surfaces
 agent_value: 3
-completed: 2026-09-26
+shelf_status: in-progress
 updated: 2026-09-26
 tags: [surface, canvas, http]
 summary: Replaces the removed terminal surface with a browser one — a command palette over draggable windows, where a pinned window re-runs itself on a Python-side cadence, and a right-click menu that takes what is on screen out of it.
@@ -14,7 +14,8 @@ key_files: [skyboss/canvas/static/menu.js, skyboss/canvas/shell.py, skyboss/high
 
 # The canvas — a command palette over a window canvas
 
-> **Status**: ✅ Complete — round 16 shipped 2026-09-26
+> **Status**: ✅ Complete — round 17 shipped 2026-09-26
+> **Shelf-Status**: in-progress
 > **Priority**: Medium — the surface draws a location and a link and gives you no way to take either
 > **Updated**: 2026-09-26
 
@@ -97,9 +98,10 @@ auto-refreshing a write is a scheduler nobody asked for.
 - **No credential handling.** Wrapped CLIs keep their own authentication; sky.boss is never in the
   credential path. Unchanged from `CLAUDE.md`.
 - **No arbitrary hand-off to the desktop.** The surface may open an `http`/`https` URL the
-  operator clicked (round 15), or a file that **exists and cannot run** (round 16), and nothing
-  else — no `mailto:`, no `file:` URI, no `.desktop` launcher, nothing with an execute bit, no
-  `xdg-open` of a string the page chose. A route that would is a second `sb run` reached without
+  operator clicked (round 15), or a file that **exists** (round 16), and nothing else — no
+  `mailto:`, no `file:` URI, no `xdg-open` of a string the page chose. **Nothing that could run
+  reaches the desktop opener**: a script or launcher opens in the named `text/plain` editor
+  (round 17), and a binary executable is refused. A route that would is a second `sb run` reached without
   the act/observe split. *Round 15 said "no `file:`" outright; round 16 narrowed it on the
   operator's word — see Notes.*
 - **No ANSI-to-HTML fallback.** Rendering an ANSI table gives a picture of a table — no sorting, no
@@ -134,6 +136,36 @@ auto-refreshing a write is a scheduler nobody asked for.
   that reads as information. Round 5 ships the bar only for the one quantity actually known.
 
 ## Phases
+
+### Round 17 — a script opens as text (2026-09-26)
+
+Reported by the operator after round 16: *"it worked for json but not for scripts."* Round 16
+refused anything with an execute bit, which was stated and offered back as a one-line change —
+and a script is the file a log most often names and the one you most want to read.
+
+**The hazard round 16 refused on is real, so it is routed around rather than waived.** `xdg-open`
+chooses an application by the file's *own* type, and for a script or a `.desktop` launcher that
+application may be execution. So neither ever reaches `xdg-open`. The server asks the desktop for
+its **`text/plain` default** — the freedesktop lookup, through Gio, so `mimeapps.list` and
+`xdg-mime` rules apply — and launches *that* application with the file as its argument. The
+editor is the only thing that runs.
+
+**A binary executable is still refused**: it has nothing to read, and anything an opener could do
+with it is running it. Text is decided the way `git` and `grep` decide it — no NUL in the first
+8 KiB, no ELF header.
+
+- [x] Executable text files and launchers open through `open_as_text`; binaries are refused.
+- [x] No `text/plain` default, or no PyGObject, is a 502 that says which, not a silent nothing.
+- [x] The editor is launched with `gio launch` in a new session, with `child_env`'s
+      environment — tested with the lookup and the spawn replaced, since CI has no PyGObject and
+      the skip budget is zero.
+- [x] Verified live: a ctrl-clickable executable script opened in the desktop's text editor,
+      the editor outlived the process that launched it, and the script did not run.
+- [x] Every `/api/open` test injects both openers, so the suite cannot launch an editor.
+
+**Does not do:** no per-file choice of editor, and no `$EDITOR` — a terminal editor launched from
+a GUI surface has no terminal to draw in. The desktop's own text default is the answer the
+operator has already given.
 
 ### Round 16 — a file link opens too (2026-09-26)
 
@@ -735,6 +767,29 @@ tasks / windows / watchers / attention counters. This round is the remainder.
 
 ## Notes
 
+### Round 17 — scripts, and the gate that caught its own note (2026-09-26)
+
+**Why Gio and not `xdg-mime query` plus a hand-rolled launch.** The query returns a desktop-file
+id; launching it means finding the file across `XDG_DATA_DIRS` and expanding `Exec=` field codes
+(`%f`, `%U`, `%i`, …), which is a spec to reimplement badly. `Gio.AppInfo.launch` is that spec's
+reference implementation, and PyGObject is already what the native shell stands on. Where it is
+missing — CI, a machine without GTK — the route says so rather than falling back to `xdg-open`,
+because the fallback is precisely the thing this round exists to avoid.
+
+**The first launch worked and then vanished, and only looking found it.** `AppInfo.launch`
+returned `True` and no editor was running a second later. Keeping the launcher alive showed why:
+`kate` was there for as long as the launching process lived and gone the moment it exited. In the
+server that is not a probe artifact — it would have been every ctrl-clicked script closing when
+`sb ui` did, reported as success. So Gio now only *finds* the `text/plain` entry, and
+`gio launch <entry> <file>` runs in a new session, the way `open_link` already spawns `xdg-open`;
+measured again, the editor outlived its launcher and the marker the probe script would have
+written on execution never appeared. A side effect worth having: the spawn takes `child_env`
+directly, so the environment-diff helper the first version needed is gone.
+
+**Round 16's own Notes failed the publication gate** by quoting the placeholder home directory it
+was describing. It committed that way because the suite ran before the note was written. Reworded
+here; the lesson is only the old one — run the gates after the last edit, not before it.
+
 ### Round 16 — the reversal, and what it kept (2026-09-26)
 
 **Round 15 said `/api/open` would never take a file, and the operator overruled it within the
@@ -766,8 +821,10 @@ with no errors. The resolution, the suffix strip, the `$HOME` fallback and every
 tests with the opener injected. **Not verified here: a real editor opening** — every open of an
 existing file was intercepted so nothing launched on the operator's desktop.
 
-**`/home/op` in a test fixture failed the publication gate**, which is the gate working: a
-placeholder home directory is still the *shape* it checks for. The fixture says `/work/op`.
+**A placeholder home directory in a test fixture failed the publication gate**, which is the gate
+working: a made-up user under the home root is still the *shape* it checks for. The fixture says
+`/work/op`. *(This entry quoted the placeholder verbatim when first written and failed the same
+gate a round later — round 17 reworded it.)*
 
 ### Round 15 — built, and what the headless pass could and could not reach (2026-09-26)
 

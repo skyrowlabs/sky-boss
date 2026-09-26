@@ -121,10 +121,13 @@ def resolve_file(path: object, cwd: object) -> tuple[Path | None, str | None]:
     constant — is refused by looking for it, with the resolved path in the
     reason, rather than by a guess about which spans are files.
 
-    **Nothing that could run is opened.** The desktop opener chooses an
+    **Nothing that could run is handed to the desktop opener.** It chooses an
     application by type, and for a launcher or an executable that application
     is execution: a ctrl-click would be an unconfirmed `sb run` of anything that
-    printed its own path.
+    printed its own path. Round 17 stopped *refusing* the text half of those —
+    a script is the file you most want to read — and routes it to a named text
+    editor instead (`needs_text_editor`, `open_as_text`); a binary executable
+    has nothing to read and is still refused.
     """
     if not isinstance(path, str) or not path.strip():
         return None, "a path is a non-empty string"
@@ -145,11 +148,75 @@ def resolve_file(path: object, cwd: object) -> tuple[Path | None, str | None]:
         return target, None
     if not target.is_file():
         return None, f"not a regular file: {target}"
-    if target.suffix == ".desktop":
-        return None, f"{target.name} is a launcher; opening it would run it"
-    if target.stat().st_mode & 0o111:
-        return None, f"{target.name} is executable; opening it could run it — use `sb run`"
+    if needs_text_editor(target) and not _is_text(target):
+        return None, f"{target.name} is a binary executable; there is nothing to open — use `sb run`"
     return target, None
+
+
+def needs_text_editor(target: Path) -> bool:
+    """Would the desktop opener risk *running* this rather than showing it?
+
+    A launcher, or a regular file with any execute bit. Those never go to
+    `xdg-open`; the text ones go to `open_as_text`. See [[canvas]] round 17.
+    """
+    return target.is_file() and (target.suffix == ".desktop" or bool(target.stat().st_mode & 0o111))
+
+
+def _is_text(target: Path) -> bool:
+    """No NUL in the first 8 KiB and no ELF header — the same cheap test
+    `git` and `grep` use to call a file binary."""
+    with target.open("rb") as handle:
+        head = handle.read(8192)
+    return not head.startswith(b"\x7fELF") and b"\0" not in head
+
+
+def open_as_text(path: str) -> bool:
+    """Open a file in the desktop's default *text* editor, by name.
+
+    For a script or a launcher, where `xdg-open` would choose by the file's own
+    type and that type may mean *execute*. Asking for the `text/plain` default
+    and launching that application with the file as its argument means the
+    file is only ever an argument — the editor is what runs.
+
+    **Launched through `gio launch` in a new session, not `AppInfo.launch`.**
+    The in-process launch leaves the editor tied to this process, and it was
+    measured dying the moment the launcher exited — which in the server means
+    every editor a ctrl-click opened would close with `sb ui`. A separate
+    session is what `open_link` already does, for the same reason, and it lets
+    the editor take `child_env` like every other child here.
+
+    False when PyGObject, a text default or the `gio` tool is missing, so the
+    route can say so rather than falling back to `xdg-open` — the one thing
+    this exists to avoid.
+    """
+    entry = _text_editor_entry()
+    gio = shutil.which("gio")
+    if entry is None or gio is None:
+        return False
+    subprocess.Popen(
+        [gio, "launch", entry, path],
+        env=child_env(),
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
+    )
+    return True
+
+
+def _text_editor_entry() -> str | None:
+    """The desktop file of the `text/plain` default, through Gio — so
+    `mimeapps.list` and `xdg-mime` rules apply without reimplementing them."""
+    try:
+        import gi
+
+        gi.require_version("Gio", "2.0")
+        from gi.repository import Gio  # type: ignore[attr-defined]
+    except (ImportError, ValueError):
+        return None
+    app = Gio.AppInfo.get_default_for_type("text/plain", False)
+    filename = getattr(app, "get_filename", lambda: None)() if app is not None else None
+    return filename or None
 
 
 def open_link(url: str) -> bool:
@@ -183,6 +250,7 @@ class Canvas:
         token: str | None = None,
         scale: float = 1.0,
         opener: Callable[[str], bool] = open_link,
+        text_opener: Callable[[str], bool] = open_as_text,
     ) -> None:
         self.token = token or secrets.token_urlsafe(32)
         self.sessions: dict[str, Session] = {}
@@ -195,6 +263,9 @@ class Canvas:
         # How `/api/open` reaches the desktop. A parameter so a test can see
         # what would have been opened without a browser appearing.
         self.opener = opener
+        # A script or a launcher goes here instead, so it is shown and never
+        # run. See `needs_text_editor` and [[canvas]] round 17.
+        self.text_opener = text_opener
 
     # ------------------------------------------------------------------ auth
 
@@ -448,6 +519,16 @@ def build(canvas: Canvas | None = None) -> Starlette:
         if problem:
             return JSONResponse({"error": problem}, status_code=400)
         assert isinstance(target, str)
+        if "path" in body and needs_text_editor(Path(target)):
+            if not await asyncio.to_thread(canvas.text_opener, target):
+                return JSONResponse(
+                    {
+                        "error": "found no text editor to open it in — it is executable, so it "
+                        "is never handed to xdg-open, and a text/plain default is needed instead"
+                    },
+                    status_code=502,
+                )
+            return JSONResponse({"opened": target, "as": "text"})
         if not await asyncio.to_thread(canvas.opener, target):
             return JSONResponse(
                 {"error": "no desktop opener found — neither xdg-open nor open is on PATH"},
