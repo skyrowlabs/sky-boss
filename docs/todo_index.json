@@ -1,14 +1,37 @@
 {
   "_generated_by": "scripts/docs/gen_todo_index.py",
   "_note": "Generated — never hand-edit. Edit the plan's frontmatter or header lines and rerun.",
-  "count": 1,
+  "count": 2,
   "by_status": {
     "in-review": [
       "highlight"
+    ],
+    "ready": [
+      "canvas"
     ]
   },
-  "ready_queue": [],
+  "ready_queue": [
+    "canvas"
+  ],
   "plans": [
+    {
+      "slug": "canvas",
+      "title": "The canvas — a command palette over a window canvas",
+      "path": "docs/TODO/canvas.md",
+      "shelf_status": "ready",
+      "priority": "medium",
+      "queue_order": 10,
+      "blocked_on": null,
+      "updated": "2026-09-12",
+      "tags": [
+        "surface",
+        "canvas",
+        "http"
+      ],
+      "summary": "Replaces the removed terminal surface with a browser one — a command palette over draggable windows, where a pinned window re-runs itself on a Python-side cadence, and a right-click menu that takes what is on screen out of it.",
+      "open_tasks": 24,
+      "auto_generated": false
+    },
     {
       "slug": "highlight",
       "title": "Highlight — lexical tint for followed lines",

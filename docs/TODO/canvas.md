@@ -3,15 +3,22 @@ title: The canvas — a command palette over a window canvas
 slug: canvas
 category: surfaces
 agent_value: 3
-completed: 2026-09-01
-updated: 2026-09-01
+shelf_status: ready
+priority: medium
+updated: 2026-09-12
 tags: [surface, canvas, http]
-summary: Replaces the removed terminal surface with a browser one — a command palette over draggable windows, where a pinned window re-runs itself on a Python-side cadence.
+summary: Replaces the removed terminal surface with a browser one — a command palette over draggable windows, where a pinned window re-runs itself on a Python-side cadence, and a right-click menu that takes what is on screen out of it.
 created: 2026-08-20
 key_files: [skyboss/canvas/server.py, skyboss/canvas/watch.py, skyboss/canvas/runner.py, skyboss/canvas/catalog.py, skyboss/canvas/__init__.py, skyboss/canvas/static/app.js, skyboss/canvas/static/render.js, skyboss/canvas/static/api.js, skyboss/canvas/static/sb.css, skyboss/data.py, skyboss/theme.py, tests/test_theme.py]
 ---
 
 # The canvas — a command palette over a window canvas
+
+> **Status**: 🟡 Reopened — shipped 2026-09-01, round 15 open
+> **Shelf-Status**: ready
+> **Queue-Order**: 10
+> **Priority**: Medium — the surface draws a location and a link and gives you no way to take either
+> **Updated**: 2026-09-12
 
 ## Why
 
@@ -91,6 +98,10 @@ auto-refreshing a write is a scheduler nobody asked for.
 - **No remote, no multi-user.** Loopback only, one operator, one machine.
 - **No credential handling.** Wrapped CLIs keep their own authentication; sky.boss is never in the
   credential path. Unchanged from `CLAUDE.md`.
+- **No arbitrary hand-off to the desktop.** The surface may open an `http`/`https` URL the
+  operator clicked (round 15) and nothing else — no `file:`, no `mailto:`, no `xdg-open` of a
+  string the page chose. A route that would is a second `sb run` reached without the act/observe
+  split.
 - **No ANSI-to-HTML fallback.** Rendering an ANSI table gives a picture of a table — no sorting, no
   chips, no resizing — and shipping it early would let it become the path everything takes. That
   half stands: ANSI is *stripped*, never interpreted.
@@ -123,6 +134,163 @@ auto-refreshing a write is a scheduler nobody asked for.
   that reads as information. Round 5 ships the bar only for the one quantity actually known.
 
 ## Phases
+
+### Round 15 — a window you can take something out of (2026-09-12)
+
+Reported by the operator: make the canvas selectable, give it a right-click menu that copies,
+copy a whole location in one item, and make ctrl-click on a link open it.
+
+**The ask is three complaints and only one of them is about `user-select`.** Nothing outside
+`.bar`, `.title`, `.tools-head` and `.foot-bar` sets `user-select: none`, so a window body is
+nominally selectable already — and *nominally* is the whole problem, because nobody has measured
+it in the three shells this surface actually runs in. A native `pywebview`/WebKitGTK window, a
+Chromium `--app` window and a plain tab are three different answers to *what happens when you
+press the right mouse button*, and from the operator's chair "selection is off" and "the shell
+drew its own menu over mine" are the same symptom with different fixes. **Phase 1 is a
+measurement and it comes before any CSS**, per the rule this repo keeps relearning: execution
+beats reading, and a fix written against an assumed cause is a fix for a bug nobody has.
+
+**The second complaint is the one the surface is already equipped for and throws away.** A
+double-click does not select a location: `report.py:75` word-selects as three tokens and
+`/var/log/sky/agent.log` splits on every slash. But `skyboss/highlight.py` *already knows* where
+that location begins and ends — `_PATH` carries the `:line` suffix deliberately, with the comment
+saying why (*"`report.py:75` is one location, not a file and a 75"*) — and `markedLine` already
+emits it as a real `<span class="mk-path">`. So *Copy location* is not detection work. It is
+`event.target.closest(".mk-path").textContent`, and every hard part of it was paid for by
+[[highlight]] and [[wrap]] two rounds ago.
+
+**The third is a promise the surface makes and does not keep.** [[highlight]] tints a URL because
+*"links are destinations; they should look like it"*. It looks like a destination and behaves like
+prose.
+
+#### What constrains the build
+
+- **The page detects nothing.** `closest(".mk-url")` is the whole test for *is this a link*. A
+  regex in the frontend deciding whether to offer *Open link* would be the second opinion
+  [[highlight]]'s one-rule-set design exists to prevent, and it would drift the week it was
+  written. Same reasoning that keeps `markedLine` a dumb slicer.
+- **No slicing is needed at all**, which is the payoff of [[highlight]] round 5 converting offsets
+  to UTF-16 at the wire: the span is already the right characters, so its `textContent` is the
+  answer and the astral-plane trap cannot be re-entered here.
+- **Opening a link is an act and the page cannot do it.** The native webview has no route to a
+  system browser and a `--kiosk` window has nowhere to put a tab, so it goes through Python as
+  `POST /api/open`, guarded exactly like every other route. **It is not a general opener**: it
+  refuses every scheme but `http` and `https`. The guard argument from [[tools]] round 4 says a
+  page past the header check already has `/api/run` and an arbitrary argv, so this adds no
+  exposure — that explains why the route is *allowed*, not why it should be *wide*, and a route
+  that would hand the desktop an arbitrary URI is a second `sb run` reached without the
+  act/observe split.
+- **Ctrl-click gets no confirm, and that is a deliberate exception to [[canvas]] round 11.** The
+  confirm funnel exists because an act runs a command the operator may not have read. Here the
+  operator ctrl-clicked a destination that was drawn, in their own colour, under their own
+  pointer — a dialog restating the URL they just clicked adds a keystroke and no information, and
+  a guard people learn to dismiss is the *answers-to-Enter* failure arriving by habit instead of
+  by focus. The menu's *Open link* goes down the same route for the same reason.
+- **A plain click stays a plain click.** A click inside text places a caret, which is how you
+  start a selection — the feature the same round is adding. Only ctrl-click opens.
+- **A clipboard write can fail, and a failure that closes the menu is a lie.** `127.0.0.1` is a
+  secure context by spec, but WebKitGTK's implementation is the unknown, and a rejected promise
+  inside a click handler is exactly the invisible failure [[schedule]] round 7 is about: it
+  arrives as `unhandledrejection`, not `error`, and the menu would simply close as though it had
+  worked. *Worked fine, told nobody* with the polarity flipped again — **failed, told nobody**.
+  Await the write and say so in the menu's own voice when it rejects.
+- **The menu clamps unconditionally.** [[schedule]] round 6: preferring a side is a layout choice,
+  staying inside the window is a contract. Opened near a corner it flips *and* clamps, at the end,
+  on every path — not only on the paths that happened to need it.
+- **The chrome stays unselectable.** `.bar` and `.title` are drag handles; a title bar that
+  selects instead of moving the window is a regression wearing a fix's clothes.
+
+#### Phase 1 — measure, before writing a line of CSS
+
+- [ ] In each of the three shells — native (`shell.py`), `--browser`, and a plain tab under
+      `--no-browser` — record whether a drag across a window body selects text, whether
+      `contextmenu` fires on a `.ln`, and what menu the shell draws by default.
+- [ ] Write the finding into Notes **before** Phase 2. If selection already works in all three,
+      say so plainly: "make it selectable" may be a no-op and the menu is the entire ask.
+
+#### Phase 2 — selection
+
+- [ ] Fix only what Phase 1 found. An explicit `user-select: text` on the body / `pre.raw` / `.ln`
+      if the measurement calls for it; nothing speculative.
+- [ ] `.bar`, `.title`, `.tools-head` and `.foot-bar` keep `user-select: none`.
+- [ ] A float-layout window still drags from its title, and a drag in the body selects rather than
+      moving the window.
+
+#### Phase 3 — the menu
+
+- [ ] `skyboss/canvas/static/menu.js` — a component taking a point and a list of items, drawn over
+      the canvas. Escape closes it; an outside `mousedown` closes it.
+- [ ] `onContextMenu` on the window body: `preventDefault`, build the items from
+      `event.target.closest(…)` and `window.getSelection()`, open at the pointer.
+- [ ] Clamp to the viewport unconditionally, at the end, on every path.
+- [ ] Items, each present only when it applies: **Copy selection** (a non-empty selection),
+      **Copy line** (the `.ln` block's own text), **Copy location** (`.mk-path`), **Copy link**
+      and **Open link** (`.mk-url`), **Copy reference** (`.mk-ref`).
+- [ ] A `copy()` helper that awaits `writeText` and reports a rejection in the menu rather than
+      closing as if it had worked.
+- [ ] Roles the menu offers come from the mark classes `markedLine` actually emits, enumerated
+      the way `tests/test_canvas_server.py` enumerates them — not a hand-written list that goes
+      quiet when [[highlight]] adds a shape.
+
+#### Phase 4 — open a link
+
+- [ ] `POST /api/open` in `skyboss/canvas/server.py`: guarded like every other route, `http` and
+      `https` only, everything else a 400 carrying its reason.
+- [ ] Ctrl-click on a `.mk-url` inside a window body calls it. A plain click does not.
+- [ ] The menu's **Open link** goes down the same route — one way of asking, per round 13.
+
+#### Phase 5 — tests
+
+- [ ] `tests/test_canvas_server.py`: `/api/open` refuses an unauthenticated request; refuses
+      `file:`, `javascript:` and a scheme-relative `//elsewhere`; accepts an `https:` URL.
+- [ ] `tests/test_canvas_server.py`: `menu.js` added to the declared `static/` inventory.
+- [ ] `tests/js/menu.test.js`: the item list is a **pure function** of the mark class and whether
+      a selection exists, so `node --test` reaches the deciding half. Keep the DOM half thin —
+      round 12's rule about `main.js` owning the mount applies to the new module too.
+- [ ] A headless render pass that fires a **real** right-click, reads the menu back, and then
+      clicks a control to prove the app is still updating. Listen for `unhandledrejection` as
+      well as `error` before the click, per round 12 and [[schedule]] round 7.
+
+#### Acceptance
+
+- [ ] `./dev test unit` and `./dev test ui` green.
+- [ ] Right-clicking a window body draws sky.boss's menu and not the shell's, in the native window
+      and under `--browser`.
+- [ ] Right-clicking `report.py:75` offers **Copy location**, and the clipboard then holds
+      `report.py:75` — colon and line number included, which is the item's whole reason to exist.
+- [ ] Ctrl-clicking a URL opens it in the desktop's browser; a plain click on the same URL does
+      not, and leaves a caret.
+- [ ] `/api/open` answers 403 unauthenticated and 400 for `file:///etc/passwd`.
+- [ ] A menu opened at the bottom-right corner of the viewport is fully on screen, measured at
+      `--scale` 0.9 and 2.4 rather than at whatever the developer's window happened to be.
+
+**Does not do:**
+
+- **Does not run a location.** *Open this path in a follow window* is the obvious next item and is
+  a different feature: it turns a copy menu into a launcher, and a launcher is on the acting side
+  of § Scope — it needs the act/observe split and the confirm funnel round 11 built. Copying a
+  string and spawning a process are not neighbours because they sit next to each other in a menu.
+  Ask for it as its own round, with the argument for why the confirm applies there and not to
+  ctrl-click.
+- **Does not detect anything in the page.** No regex, no URL parser, no path heuristic in
+  JavaScript. The menu offers what the marks say and nothing else, so a shape [[highlight]] does
+  not recognise gets no menu item — a missed match costs a menu entry, exactly as it already costs
+  a colour, and that asymmetry is what keeps the frontend dumb.
+- **`/api/open` is not a general opener.** No `file:`, no `mailto:`, no `xdg-open` of an arbitrary
+  URI. Widening it later is a decision about the surface's authority, not a convenience, and the
+  thing that makes it safe today is that the set is two schemes long.
+- **No confirm on ctrl-click.** Argued above rather than assumed, because it reads like a
+  reversal of round 11 and is not one: round 11 guards a command the operator may not have read,
+  and this guards nothing they were not already looking at.
+- **No keyboard shortcut of sky.boss's own.** Ctrl-C on a selection belongs to the platform and
+  works the moment selection does; a second binding for the same gesture is a rival opinion about
+  something nobody complained about.
+- **No menu on the rail, the bar, the workbench or the schedule screen.** The scope is a window
+  body. `menu.js` is written so a second caller is possible and gets none in this round — a
+  component given three callers speculatively is a component with three contracts and no author.
+- **Nothing remembered between launches.** No "don't show this again", no menu preferences. The
+  surface has no stable origin, so `localStorage` is empty on arrival by construction; if this
+  ever needs to remember something it goes through `/api/prefs` into `$SB_STATE`.
 
 ### Round 14 — a text role nobody could read (2026-09-01)
 
