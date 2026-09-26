@@ -27,7 +27,7 @@
         "http"
       ],
       "summary": "Replaces the removed terminal surface with a browser one — a command palette over draggable windows, where a pinned window re-runs itself on a Python-side cadence, and a right-click menu that takes what is on screen out of it.",
-      "open_tasks": 22,
+      "open_tasks": 19,
       "auto_generated": false
     },
     {

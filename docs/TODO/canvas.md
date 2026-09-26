@@ -210,10 +210,11 @@ prose.
 
 #### Phase 2 — selection
 
-- [ ] Fix only what Phase 1 found. An explicit `user-select: text` on the body / `pre.raw` / `.ln`
-      if the measurement calls for it; nothing speculative.
-- [ ] `.bar`, `.title`, `.tools-head` and `.foot-bar` keep `user-select: none`.
-- [ ] A float-layout window still drags from its title, and a drag in the body selects rather than
+- [x] Fix only what Phase 1 found. An explicit `user-select: text` on the body / `pre.raw` / `.ln`
+      if the measurement calls for it; nothing speculative. *(It called for `text_select=True` in
+      `shell.py` and no CSS on the body at all — see Notes.)*
+- [x] `.bar`, `.title`, `.tools-head` and `.foot-bar` keep `user-select: none`.
+- [x] A float-layout window still drags from its title, and a drag in the body selects rather than
       moving the window.
 
 #### Phase 3 — the menu

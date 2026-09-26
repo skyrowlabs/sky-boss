@@ -234,6 +234,9 @@ body.rail-dragging { user-select: none; cursor: col-resize; }
      the rail entirely. Wrapping puts it on its own row instead of squeezing
      it to nothing. */
   display: flex; align-items: center; gap: 2rem; flex-wrap: wrap;
+  /* Chrome, like `.bar` and `.title`. It was unselectable only because the
+     native shell disabled selection page-wide; see [[canvas]] round 15. */
+  user-select: none;
 }
 /* The rail's filter — [[tools]] round 8. `min-width: 0` so it shrinks with a
    narrow rail instead of pushing the caption out: the rail is a width the
