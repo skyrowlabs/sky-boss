@@ -64,7 +64,12 @@ async function handshake(url, deadlineMs = 10_000) {
       if (found) return found[1];
       throw new Error("served a page with no token in it");
     } catch (error) {
-      if (Date.now() > until) throw new Error(`sb never came up: ${error.message}`);
+      if (Date.now() > until) {
+        // `cause` rather than the message alone: this loop catches a connection
+        // refusal and the no-token throw alike, so after ten seconds the text
+        // by itself cannot say which one it gave up on.
+        throw new Error(`sb never came up: ${error.message}`, { cause: error });
+      }
       await new Promise((r) => setTimeout(r, 50));
     }
   }
