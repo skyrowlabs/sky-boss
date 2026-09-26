@@ -64,13 +64,22 @@ def test_a_bracket_mid_prose_is_prose():
     assert role_of("saw an [interesting] thing", "[interesting]") is None
 
 
-def test_a_url_wears_the_path_role_without_its_trailing_punctuation():
+def test_a_url_wears_its_own_role_without_its_trailing_punctuation():
     got = marks("see https://example.com/x. next")
-    assert got == [(4, len("see https://example.com/x"), "sb.path")]
+    assert got == [(4, len("see https://example.com/x"), "sb.url")]
 
 
 def test_the_url_inside_line_prose_is_found():
-    assert role_of(LINE, "https://api.github.com/repos") == "sb.path"
+    assert role_of(LINE, "https://api.github.com/repos") == "sb.url"
+
+
+def test_a_url_is_drawn_exactly_as_a_path():
+    """`sb.url` exists so the canvas can offer *open* on a link without a
+    regex of its own ([[canvas]] round 15), not to give links a colour. A
+    fifth look would be a brand decision this tool does not get to make."""
+    from skyboss.theme import STYLES
+
+    assert STYLES["sb.url"] == STYLES["sb.path"]
 
 
 def test_a_line_matching_nothing_yields_no_marks():

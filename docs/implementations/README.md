@@ -16,7 +16,7 @@ that were dropped, and the constraints that shaped what landed.
 
 **Machine-readable index**: [`../implementation_index.json`](../implementation_index.json).
 
-**23 archived plans** across 5 categories.
+**24 archived plans** across 5 categories.
 
 ---
 
@@ -61,6 +61,7 @@ that were dropped, and the constraints that shaped what landed.
 | ----- | ---- | --------- | ------- |
 | ⭐⭐⭐ | [The MCP surface — the tools, offered to an agent](surfaces/mcp.md) | 2026-08-23 | Speaks MCP on stdio so an agent gets the same observes the operator does, and nothing that acts. |
 | ⭐⭐⭐ | [Workbench — where a command gets made](surfaces/workbench.md) | 2026-08-30 | A second screen where a command is authored rather than invoked: the contract is asserted, the argv drafted, and a trial run draws the real envelope. |
+| ⭐⭐⭐ | [The canvas — a command palette over a window canvas](surfaces/canvas.md) | 2026-09-26 | Replaces the removed terminal surface with a browser one — a command palette over draggable windows, where a pinned window re-runs itself on a Python-side cadence, and a right-click menu that takes what is on screen out of it. |
 
 ## Tooling
 

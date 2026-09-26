@@ -194,6 +194,12 @@ def open_window(url: str, *, title: str, width: int, height: int, on_closed) -> 
         easy_drag=False,
         background_color=BG,
         min_size=(640, 400),
+        # pywebview defaults this to False, and on False it injects
+        # `body { user-select: none }` into every page it loads — so in this
+        # shell, and only this one, nothing on the surface could be selected.
+        # The chrome that must not select says so in `sb.css`. See [[canvas]]
+        # round 15.
+        text_select=True,
         js_api=Api(),
     )
     # `create_window` is typed as returning `Window | None`, and a None here

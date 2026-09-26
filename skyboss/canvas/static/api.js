@@ -204,6 +204,23 @@ export function quit() {
   return post("/api/quit", {});
 }
 
+/* Open a link, or a file, with the desktop's opener — [[canvas]] rounds 15
+ * and 16. The page cannot: the native webview has no route to one. `target` is
+ * `{url}` or `{path, cwd}`, and the server decides whether either may open.
+ * Not through `post`, because a 502 here (no opener on the machine) carries
+ * the one sentence worth showing, and `post` reduces anything but a 400 or a
+ * 409 to a status code. */
+export async function openTarget(target) {
+  const response = await fetch("/api/open", {
+    method: "POST",
+    headers: HEADERS(),
+    body: JSON.stringify(target),
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(body.error || `/api/open → ${response.status}`);
+  return body;
+}
+
 /* The session, as newline-delimited JSON over a streaming fetch.
  *
  * Not EventSource, which cannot set a request header and so cannot carry the

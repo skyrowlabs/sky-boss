@@ -1,24 +1,22 @@
 ---
 title: The canvas — a command palette over a window canvas
 slug: canvas
+priority: medium
 category: surfaces
 agent_value: 3
-shelf_status: ready
-priority: medium
-updated: 2026-09-12
+completed: 2026-09-26
+updated: 2026-09-26
 tags: [surface, canvas, http]
 summary: Replaces the removed terminal surface with a browser one — a command palette over draggable windows, where a pinned window re-runs itself on a Python-side cadence, and a right-click menu that takes what is on screen out of it.
 created: 2026-08-20
-key_files: [skyboss/canvas/server.py, skyboss/canvas/watch.py, skyboss/canvas/runner.py, skyboss/canvas/catalog.py, skyboss/canvas/__init__.py, skyboss/canvas/static/app.js, skyboss/canvas/static/render.js, skyboss/canvas/static/api.js, skyboss/canvas/static/sb.css, skyboss/data.py, skyboss/theme.py, tests/test_theme.py]
+key_files: [skyboss/canvas/static/menu.js, skyboss/canvas/shell.py, skyboss/highlight.py, tests/js/menu.test.js, tests/test_canvas_shell.py, skyboss/canvas/server.py, skyboss/canvas/watch.py, skyboss/canvas/runner.py, skyboss/canvas/catalog.py, skyboss/canvas/__init__.py, skyboss/canvas/static/app.js, skyboss/canvas/static/render.js, skyboss/canvas/static/api.js, skyboss/canvas/static/sb.css, skyboss/data.py, skyboss/theme.py, tests/test_theme.py]
 ---
 
 # The canvas — a command palette over a window canvas
 
-> **Status**: 🟡 Reopened — shipped 2026-09-01, round 15 open
-> **Shelf-Status**: ready
-> **Queue-Order**: 10
+> **Status**: ✅ Complete — round 17 shipped 2026-09-26
 > **Priority**: Medium — the surface draws a location and a link and gives you no way to take either
-> **Updated**: 2026-09-12
+> **Updated**: 2026-09-26
 
 ## Why
 
@@ -99,9 +97,12 @@ auto-refreshing a write is a scheduler nobody asked for.
 - **No credential handling.** Wrapped CLIs keep their own authentication; sky.boss is never in the
   credential path. Unchanged from `CLAUDE.md`.
 - **No arbitrary hand-off to the desktop.** The surface may open an `http`/`https` URL the
-  operator clicked (round 15) and nothing else — no `file:`, no `mailto:`, no `xdg-open` of a
-  string the page chose. A route that would is a second `sb run` reached without the act/observe
-  split.
+  operator clicked (round 15), or a file that **exists** (round 16), and nothing else — no
+  `mailto:`, no `file:` URI, no `xdg-open` of a string the page chose. **Nothing that could run
+  reaches the desktop opener**: a script or launcher opens in the named `text/plain` editor
+  (round 17), and a binary executable is refused. A route that would is a second `sb run` reached without
+  the act/observe split. *Round 15 said "no `file:`" outright; round 16 narrowed it on the
+  operator's word — see Notes.*
 - **No ANSI-to-HTML fallback.** Rendering an ANSI table gives a picture of a table — no sorting, no
   chips, no resizing — and shipping it early would let it become the path everything takes. That
   half stands: ANSI is *stripped*, never interpreted.
@@ -134,6 +135,84 @@ auto-refreshing a write is a scheduler nobody asked for.
   that reads as information. Round 5 ships the bar only for the one quantity actually known.
 
 ## Phases
+
+### Round 17 — a script opens as text (2026-09-26)
+
+Reported by the operator after round 16: *"it worked for json but not for scripts."* Round 16
+refused anything with an execute bit, which was stated and offered back as a one-line change —
+and a script is the file a log most often names and the one you most want to read.
+
+**The hazard round 16 refused on is real, so it is routed around rather than waived.** `xdg-open`
+chooses an application by the file's *own* type, and for a script or a `.desktop` launcher that
+application may be execution. So neither ever reaches `xdg-open`. The server asks the desktop for
+its **`text/plain` default** — the freedesktop lookup, through Gio, so `mimeapps.list` and
+`xdg-mime` rules apply — and launches *that* application with the file as its argument. The
+editor is the only thing that runs.
+
+**A binary executable is still refused**: it has nothing to read, and anything an opener could do
+with it is running it. Text is decided the way `git` and `grep` decide it — no NUL in the first
+8 KiB, no ELF header.
+
+- [x] Executable text files and launchers open through `open_as_text`; binaries are refused.
+- [x] No `text/plain` default, or no PyGObject, is a 502 that says which, not a silent nothing.
+- [x] The editor is launched with `gio launch` in a new session, with `child_env`'s
+      environment — tested with the lookup and the spawn replaced, since CI has no PyGObject and
+      the skip budget is zero.
+- [x] Verified live: a ctrl-clickable executable script opened in the desktop's text editor,
+      the editor outlived the process that launched it, and the script did not run.
+- [x] Every `/api/open` test injects both openers, so the suite cannot launch an editor.
+
+**Does not do:** no per-file choice of editor, and no `$EDITOR` — a terminal editor launched from
+a GUI surface has no terminal to draw in. The desktop's own text default is the answer the
+operator has already given.
+
+### Round 16 — a file link opens too (2026-09-26)
+
+Reported by the operator the same day round 15 shipped: *"im not able to click on any file
+links, it should work for that too."* Round 15 drew every path underlined — a link's look —
+and then refused it the link's behaviour, which is the complaint round 15 itself opened with
+(*"it looks like a destination and behaves like prose"*), arriving one role over.
+
+**One route, two shapes of body.** `/api/open` takes `{"url"}` as before or `{"path", "cwd"}`.
+A second route would be a second way of asking for the same act, which round 13 retired.
+
+**What the server does with a path**, and every step is Python's, not the page's:
+
+1. Strip a trailing `:line` or `:line:col`. `highlight.py` keeps the suffix on the span on
+   purpose — *"`report.py:75` is one location"* — and the desktop opener has no word for a line.
+2. Expand `~`; resolve a relative path against the window's `cwd` when it is an absolute
+   directory, else against `$HOME` — the same neutral default a raw command runs in.
+3. **Refuse what does not exist, with the resolved path in the reason.** `mk-path` is also a code
+   span and a SCREAMING constant, so a ctrl-click on `MAX_ROWS` will reach here; a refusal that
+   names `/home/…/MAX_ROWS` is an honest answer to that, and a guess at which spans are files
+   would be the page-side detection round 15 forbids.
+4. **Refuse what could run**: a `.desktop` file, or a regular file with any execute bit. The
+   opener picks an application by type, and for those types the application is *execution* —
+   which would make ctrl-click an unconfirmed `sb run` for anything that printed its own path.
+   A directory opens (a file manager is not execution).
+5. Hand the resolved path, not a `file:` URI, to the same `xdg-open` through `child_env`.
+
+**The window's `cwd` comes from what the window already asserts**: `win.cwd` for a raw command,
+else the `--cwd` in its argv, else nothing and the server's `$HOME`. A followed log's own
+directory is *not* guessed at — a log's relative paths are relative to whatever wrote it.
+
+- [x] `link_problem` gains a path twin that resolves, checks and refuses as above; `/api/open`
+      dispatches on which key the body carries, and a body with both or neither is a 400.
+- [x] Ctrl-click on a `.mk-path` opens it; the menu gains **Open** beside **Copy** on a path.
+- [x] A refusal reaches the operator in the menu's own voice, including on ctrl-click.
+- [x] Tests: a relative path resolves against `cwd` and `:75` is stripped; a missing file, a
+      `.desktop`, an executable and a relative path with no usable `cwd` behave as stated;
+      the path is handed to the opener as a path.
+- [x] Headless: ctrl-click on a path posts `{path, cwd}`; the menu offers **Open** on a path.
+
+**Does not do:**
+
+- **No line number.** `xdg-open` has no argument for one, and a per-editor table
+  (`code -g`, `kate -l`, `$EDITOR +75`) is a guess about which program the operator's desktop
+  will choose. Copy keeps `report.py:75` whole for the editor that wants it.
+- **Does not open anything that could run.** Not with a confirm, not with a flag. Wanting to run
+  a script is `sb run`, which is where the act/observe split and the confirm funnel live.
+- **No page-side check for whether a span is a file.** The server answers that, by looking.
 
 ### Round 15 — a window you can take something out of (2026-09-12)
 
@@ -202,66 +281,69 @@ prose.
 
 #### Phase 1 — measure, before writing a line of CSS
 
-- [ ] In each of the three shells — native (`shell.py`), `--browser`, and a plain tab under
+- [x] In each of the three shells — native (`shell.py`), `--browser`, and a plain tab under
       `--no-browser` — record whether a drag across a window body selects text, whether
       `contextmenu` fires on a `.ln`, and what menu the shell draws by default.
-- [ ] Write the finding into Notes **before** Phase 2. If selection already works in all three,
+- [x] Write the finding into Notes **before** Phase 2. If selection already works in all three,
       say so plainly: "make it selectable" may be a no-op and the menu is the entire ask.
 
 #### Phase 2 — selection
 
-- [ ] Fix only what Phase 1 found. An explicit `user-select: text` on the body / `pre.raw` / `.ln`
-      if the measurement calls for it; nothing speculative.
-- [ ] `.bar`, `.title`, `.tools-head` and `.foot-bar` keep `user-select: none`.
-- [ ] A float-layout window still drags from its title, and a drag in the body selects rather than
+- [x] Fix only what Phase 1 found. An explicit `user-select: text` on the body / `pre.raw` / `.ln`
+      if the measurement calls for it; nothing speculative. *(It called for `text_select=True` in
+      `shell.py` and no CSS on the body at all — see Notes.)*
+- [x] `.bar`, `.title`, `.tools-head` and `.foot-bar` keep `user-select: none`.
+- [x] A float-layout window still drags from its title, and a drag in the body selects rather than
       moving the window.
 
 #### Phase 3 — the menu
 
-- [ ] `skyboss/canvas/static/menu.js` — a component taking a point and a list of items, drawn over
+- [x] `skyboss/canvas/static/menu.js` — a component taking a point and a list of items, drawn over
       the canvas. Escape closes it; an outside `mousedown` closes it.
-- [ ] `onContextMenu` on the window body: `preventDefault`, build the items from
+- [x] `onContextMenu` on the window body: `preventDefault`, build the items from
       `event.target.closest(…)` and `window.getSelection()`, open at the pointer.
-- [ ] Clamp to the viewport unconditionally, at the end, on every path.
-- [ ] Items, each present only when it applies: **Copy selection** (a non-empty selection),
+- [x] Clamp to the viewport unconditionally, at the end, on every path.
+- [x] Items, each present only when it applies: **Copy selection** (a non-empty selection),
       **Copy line** (the `.ln` block's own text), **Copy location** (`.mk-path`), **Copy link**
-      and **Open link** (`.mk-url`), **Copy reference** (`.mk-ref`).
-- [ ] A `copy()` helper that awaits `writeText` and reports a rejection in the menu rather than
+      and **Open link** (`.mk-url`), **Copy reference** (`.mk-ref`). *(Shipped as **Copy** with
+      the text beside it for `.mk-path` and `.mk-ref`, and `.mk-url` needed a role that did not
+      exist — both in Notes.)*
+- [x] A `copy()` helper that awaits `writeText` and reports a rejection in the menu rather than
       closing as if it had worked.
-- [ ] Roles the menu offers come from the mark classes `markedLine` actually emits, enumerated
+- [x] Roles the menu offers come from the mark classes `markedLine` actually emits, enumerated
       the way `tests/test_canvas_server.py` enumerates them — not a hand-written list that goes
       quiet when [[highlight]] adds a shape.
 
 #### Phase 4 — open a link
 
-- [ ] `POST /api/open` in `skyboss/canvas/server.py`: guarded like every other route, `http` and
+- [x] `POST /api/open` in `skyboss/canvas/server.py`: guarded like every other route, `http` and
       `https` only, everything else a 400 carrying its reason.
-- [ ] Ctrl-click on a `.mk-url` inside a window body calls it. A plain click does not.
-- [ ] The menu's **Open link** goes down the same route — one way of asking, per round 13.
+- [x] Ctrl-click on a `.mk-url` inside a window body calls it. A plain click does not.
+- [x] The menu's **Open link** goes down the same route — one way of asking, per round 13.
 
 #### Phase 5 — tests
 
-- [ ] `tests/test_canvas_server.py`: `/api/open` refuses an unauthenticated request; refuses
+- [x] `tests/test_canvas_server.py`: `/api/open` refuses an unauthenticated request; refuses
       `file:`, `javascript:` and a scheme-relative `//elsewhere`; accepts an `https:` URL.
-- [ ] `tests/test_canvas_server.py`: `menu.js` added to the declared `static/` inventory.
-- [ ] `tests/js/menu.test.js`: the item list is a **pure function** of the mark class and whether
+- [x] `tests/test_canvas_server.py`: `menu.js` added to the declared `static/` inventory.
+- [x] `tests/js/menu.test.js`: the item list is a **pure function** of the mark class and whether
       a selection exists, so `node --test` reaches the deciding half. Keep the DOM half thin —
       round 12's rule about `main.js` owning the mount applies to the new module too.
-- [ ] A headless render pass that fires a **real** right-click, reads the menu back, and then
+- [x] A headless render pass that fires a **real** right-click, reads the menu back, and then
       clicks a control to prove the app is still updating. Listen for `unhandledrejection` as
       well as `error` before the click, per round 12 and [[schedule]] round 7.
 
 #### Acceptance
 
-- [ ] `./dev test unit` and `./dev test ui` green.
-- [ ] Right-clicking a window body draws sky.boss's menu and not the shell's, in the native window
+- [x] `./dev test unit` and `./dev test ui` green.
+- [x] Right-clicking a window body draws sky.boss's menu and not the shell's, in the native window
       and under `--browser`.
-- [ ] Right-clicking `report.py:75` offers **Copy location**, and the clipboard then holds
+- [x] Right-clicking `report.py:75` offers **Copy location**, and the clipboard then holds
       `report.py:75` — colon and line number included, which is the item's whole reason to exist.
-- [ ] Ctrl-clicking a URL opens it in the desktop's browser; a plain click on the same URL does
+- [ ] (~operator) Ctrl-clicking a URL opens it in the desktop's browser; a plain click on the same URL does
       not, and leaves a caret.
-- [ ] `/api/open` answers 403 unauthenticated and 400 for `file:///etc/passwd`.
-- [ ] A menu opened at the bottom-right corner of the viewport is fully on screen, measured at
+- [x] `/api/open` answers 403 unauthenticated and 400 for `file:///etc/passwd`.
+- [x] A menu opened at the bottom-right corner of the viewport is fully on screen, measured at
       `--scale` 0.9 and 2.4 rather than at whatever the developer's window happened to be.
 
 **Does not do:**
@@ -683,6 +765,149 @@ tasks / windows / watchers / attention counters. This round is the remainder.
       tags, and the status bar counts.
 
 ## Notes
+
+### Round 17 — scripts, and the gate that caught its own note (2026-09-26)
+
+**Why Gio and not `xdg-mime query` plus a hand-rolled launch.** The query returns a desktop-file
+id; launching it means finding the file across `XDG_DATA_DIRS` and expanding `Exec=` field codes
+(`%f`, `%U`, `%i`, …), which is a spec to reimplement badly. `Gio.AppInfo.launch` is that spec's
+reference implementation, and PyGObject is already what the native shell stands on. Where it is
+missing — CI, a machine without GTK — the route says so rather than falling back to `xdg-open`,
+because the fallback is precisely the thing this round exists to avoid.
+
+**The first launch worked and then vanished, and only looking found it.** `AppInfo.launch`
+returned `True` and no editor was running a second later. Keeping the launcher alive showed why:
+`kate` was there for as long as the launching process lived and gone the moment it exited. In the
+server that is not a probe artifact — it would have been every ctrl-clicked script closing when
+`sb ui` did, reported as success. So Gio now only *finds* the `text/plain` entry, and
+`gio launch <entry> <file>` runs in a new session, the way `open_link` already spawns `xdg-open`;
+measured again, the editor outlived its launcher and the marker the probe script would have
+written on execution never appeared. A side effect worth having: the spawn takes `child_env`
+directly, so the environment-diff helper the first version needed is gone.
+
+**Round 16's own Notes failed the publication gate** by quoting the placeholder home directory it
+was describing. It committed that way because the suite ran before the note was written. Reworded
+here; the lesson is only the old one — run the gates after the last edit, not before it.
+
+### Round 16 — the reversal, and what it kept (2026-09-26)
+
+**Round 15 said `/api/open` would never take a file, and the operator overruled it within the
+day.** The original argument is left intact in round 15's own text: *"no `file:`, no `mailto:`,
+no `xdg-open` of an arbitrary URI — widening it later is a decision about the surface's
+authority, not a convenience, and the thing that makes it safe today is that the set is two
+schemes long."* What survived the reversal is the second half. The set is not *two schemes*
+any more, but it is still a short, closed list decided in Python: an http(s) URL, or a file that
+**exists** and **cannot run**. `mailto:`, `file:` URIs, launchers and executables are all still
+refused, and the reason round 15 gave — a route that could hand the desktop anything is a second
+`sb run` without the act/observe split — is exactly why the execute-bit refusal exists.
+
+**The refusal on a missing file is the design, not a gap.** `mk-path` covers code spans and
+SCREAMING constants as well as paths, so a ctrl-click on `MAX_ROWS` reaches the server and
+comes back *"no such file: /…/MAX_ROWS"*. The alternative was deciding in the page which spans
+are files, and round 15 already ruled that out. Measured headless against the live server: a
+ctrl-click on `report.py:75` in a follow window with no `cwd` came back
+`could not open: no such file: <home>/report.py`, drawn in the menu at the pointer — true,
+and it says where it looked, which is the half a reader needs to understand why.
+
+**A followed log has no `cwd`, and that is deliberate.** `cwdOf` reads what the window asserts —
+a raw command's directory or a `--cwd` before `--` — and nothing else. Guessing the log's own
+directory would be right for some logs and silently wrong for the rest; `$HOME` is at least the
+same wrong answer every time, and the refusal names it.
+
+**Verified:** headless, a ctrl-click on an absolute path posted `{"path", "cwd": null}`, the menu
+on a path offered *Copy / Open / Copy line*, and *Open* posted the same body and closed the menu,
+with no errors. The resolution, the suffix strip, the `$HOME` fallback and every refusal are unit
+tests with the opener injected. **Not verified here: a real editor opening** — every open of an
+existing file was intercepted so nothing launched on the operator's desktop.
+
+**A placeholder home directory in a test fixture failed the publication gate**, which is the gate
+working: a made-up user under the home root is still the *shape* it checks for. The fixture says
+`/work/op`. *(This entry quoted the placeholder verbatim when first written and failed the same
+gate a round later — round 17 reworded it.)*
+
+### Round 15 — built, and what the headless pass could and could not reach (2026-09-26)
+
+**Four places the round's text and the build part ways, each recorded rather than smoothed over.**
+*Copy location* shipped as **Copy** with the text beside it, for the `mk-path` reason in the Phase 1
+entry below — an item that says *location* over a SCREAMING constant is a correct-looking lie.
+`sb.url` is a new role the round did not plan, and it is the price of the round's own rule. The
+roles `OFFERS` decides about are checked by a Python test that reads `menu.js`, not by a list in a
+test, so a role [[highlight]] adds fails until somebody chooses — `null` is a choice, absence is
+not. And `/api/open` spawns `xdg-open` (or `open`) through `child_env` rather than calling
+`webbrowser.open`, which would hand the desktop's browser sky.boss's `PYTHONPATH`.
+
+**The headless pass, with real CDP input against `sb ui --no-browser`:** a right-click on
+`report.py:75` offered *Copy* and the clipboard then read back `report.py:75`; a right-click on a
+URL offered *Copy link* and *Open link*, and *Open link* posted `{"url": …}` to `/api/open`
+(intercepted, so no browser appeared); a plain click on the same URL posted nothing and left a
+`Caret`; a ctrl-click posted it; Escape and an outside mousedown both closed the menu; and a click
+on WRAP afterwards still re-rendered, with `error` and `unhandledrejection` listeners installed
+and empty throughout. **The corner at 2.4 exercised the path that matters**: a 1056px menu
+opened at x=891 in a 1400px viewport flipped to −165 and was clamped to 4. At 0.9 it flipped
+without needing the clamp; the unit tests cover the vertical case the viewport never forced. The
+scale was set by overriding `--sb-scale` on the page rather than restarting with `--scale`, which
+is the same number reaching the same stylesheet.
+
+**The native window was checked in-page, not by pointer**, since nothing drives WebKitGTK the way
+CDP drives Chromium: a `contextmenu` dispatched on a marked line was prevented by the surface's
+handler, drew *Copy link / Open link / Copy line*, and *Copy link* put the URL on the system
+clipboard — read back from Klipper over D-Bus, not from the page. The computed `user-select` on a
+line was `text`, where Phase 1 had measured `none`.
+
+**One thing the native probe found that this round did not touch.** A follow window opened
+inside a bare pywebview probe window sat at `starting…` with no lines for ten seconds, while the
+same server streamed to Chromium immediately. The probe is not `shell.py` — no `js_api`, no
+window class — so this may be the probe and not the shell; it is written here rather than fixed
+because a guess at a streaming fault would be a fix for a bug nobody has confirmed.
+
+**Not verified by anything here: the desktop actually opening a link.** The route is tested with
+the opener injected and the spawn is tested with `Popen` replaced; nothing in this session let a
+real `xdg-open` put a tab in front of the operator, so that acceptance line is `(~operator)`.
+
+**The pass is not a committed `ui` test.** The `ui` suite is still empty, and making this its
+first member would oblige CI to stand up a browser — a change to the pipeline's shape, which is a
+round of its own and not a side effect of this one.
+
+### Round 15 — Phase 1, measured before any CSS (2026-09-26)
+
+**Selection was off in exactly one shell, and not because of anything in `sb.css`.** Headless
+Chromium against `sb ui --no-browser`, with real CDP pointer input: a drag across a window body
+selected `build ok at report`, the computed `user-select` of `.body`, `pre.raw` and `.ln` was
+`auto`, and a right-click on a `.ln` fired `contextmenu` with `defaultPrevented: false` — so under
+`--browser` and in a plain tab the shell draws **Chromium's own** menu. The native window was
+probed by loading the same URL in a pywebview window and reading the page back: `body` computed
+`user-select: none`. Nothing in this repo sets that. **pywebview's `create_window` defaults
+`text_select=False`, and on `False` its `customize.js` injects
+`body { user-select: none; cursor: default }`** into every page it loads. So in the shell the
+operator actually uses, nothing on the surface was selectable at all, while every other shell
+selected fine — which is how a complaint about selection can be true and a stylesheet can be
+clean at the same time. The fix is `text_select=True` in `shell.py`, not a rule in `sb.css`.
+
+**The native menu is suppressed, not replaced.** Unless `debug` is on, pywebview's GTK backend
+connects WebKit's `context-menu` signal to a handler returning `True`, which draws nothing. The
+DOM `contextmenu` event still fires, so a page menu works there unchanged — right-click in the
+native window was simply *nothing*, where in Chromium it was *somebody else's menu*. Same symptom
+from the operator's chair, two different causes.
+
+**The plan's premise about links was wrong, and the fix stays on the plan's side of the line.**
+The round says *"`closest(".mk-url")` is the whole test for is this a link"* — but there is no
+`mk-url`. `highlight.py` marks a URL `sb.path`, the same role as a path, a code span and a
+SCREAMING constant, because a role is a *colour* and all four wear the same one. The page therefore
+could not tell a link from a path without a regex, which is the second opinion the round forbids.
+So a URL gets its own role, `sb.url`, painted identically to `sb.path` on both surfaces: the
+decision moves into Python where the rule set lives, and the page still detects nothing. The same
+fact bounds *Copy location*: an `mk-path` is also a code span or a constant, so the item names
+**the text it will copy** rather than claiming every one of them is a location.
+
+**The clipboard is reachable in WebKitGTK, but unproven.** `isSecureContext` is `true` on
+`127.0.0.1` and `navigator.clipboard.writeText` exists (pywebview sets
+`javascript_can_access_clipboard`). Whether the write resolves could not be read back through
+`evaluate_js`, which returns a promise as `{}` — so the await-and-report path is not insurance
+against a hypothetical, it is the only thing that would say.
+
+**`.tools-head` did not set `user-select: none`**, though Phase 2 says it *keeps* it. Harmless while
+pywebview disabled selection page-wide; the moment that goes, the rail caption becomes selectable
+chrome. It gets the rule it was assumed to have.
 
 ### Round 14 — the fix that was already written down (2026-09-01)
 

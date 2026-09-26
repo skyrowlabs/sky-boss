@@ -52,6 +52,7 @@ GUARDED = [
     ("/api/prefs", "get"),
     ("/api/prefs", "post"),
     ("/api/quit", "post"),
+    ("/api/open", "post"),
     ("/api/stream", "get"),
 ]
 
@@ -195,6 +196,7 @@ def test_the_static_directory_ships_only_what_the_page_needs():
         "api.js",
         "bench.js",
         "render.js",
+        "menu.js",
         "schedule.js",
         "vendor/preact.mjs",
         "vendor/hooks.mjs",
@@ -242,6 +244,250 @@ def test_the_close_button_sets_the_latch_the_launcher_waits_on():
 
     assert client.post("/api/quit", headers=auth(), json={}).json() == {"quitting": True}
     assert canvas.quitting.is_set()
+
+
+def test_the_menu_decides_every_role_the_highlighter_can_emit():
+    """Enumerated off the rules, the way the stylesheet's roles are.
+
+    `menu.js` offers items by a span's `mk-<role>` class, keyed in `OFFERS` —
+    and a role missing from that table gets no item, silently. That is the
+    right outcome for a role that was *decided* against and the wrong one for a
+    role nobody considered, so the table has to name every one, with `null` for
+    no. A shape [[highlight]] adds next fails here until somebody chooses.
+    See [[canvas]] round 15.
+    """
+    import re
+
+    from skyboss import highlight as highlight_
+    from skyboss.canvas.server import STATIC
+
+    roles = {role for _, role, _, _ in highlight_._RULES}
+    roles |= set(highlight_._COLOUR_WORDS.values())
+    roles |= {"sb.muted", "sb.accent"}
+    source = (STATIC / "menu.js").read_text()
+    block = present(re.search(r"export const OFFERS = \{(.*?)\n\};", source, re.S)).group(1)
+    keys = set(re.findall(r"^  (\w+):", block, re.M))
+    missing = sorted(r.removeprefix("sb.") for r in roles if r.removeprefix("sb.") not in keys)
+    assert not missing, f"roles menu.js never decided about: {missing}"
+    # `bold` is a weight on any role and must be decided too, or a composite
+    # span would be read as a role with nothing to offer.
+    assert "bold" in keys
+
+
+# ---------------------------------------------------------------- open a link
+
+
+def _opening(texts=None):
+    """Both openers injected, always: the real text opener launches an editor
+    on whatever desktop runs the suite."""
+    opened = []
+    canvas = Canvas(
+        token="test-token",
+        opener=lambda url: opened.append(url) or True,
+        text_opener=lambda path: (texts if texts is not None else []).append(path) or True,
+    )
+    return TestClient(build(canvas)), opened
+
+
+def test_opening_a_link_is_guarded_like_every_other_route():
+    """An act. A page you did not open must not be able to hand your desktop
+    a URL any more than it may run a command. See [[canvas]] round 15."""
+    client, opened = _opening()
+    assert client.post("/api/open", json={"url": "https://example.com/"}).status_code == 403
+    assert (
+        client.post(
+            "/api/open",
+            json={"url": "https://example.com/"},
+            headers={TOKEN_HEADER: "test-token", "Origin": "https://evil.example"},
+        ).status_code
+        == 403
+    )
+    assert opened == []
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "file:///etc/passwd",
+        "javascript:alert(1)",
+        "//elsewhere.example/x",
+        "mailto:someone@example.com",
+        "https://example.com/a b",
+        "https://example.com/\nx",
+        "https://",
+        "",
+        None,
+        42,
+    ],
+)
+def test_opening_refuses_everything_but_an_http_link(url):
+    """Two schemes, and that is the whole of what makes the route safe. A
+    refusal carries its reason, because a 400 that says nothing is a menu item
+    that silently did nothing."""
+    client, opened = _opening()
+    response = client.post("/api/open", headers=auth(), json={"url": url})
+    assert response.status_code == 400
+    assert response.json()["error"]
+    assert opened == []
+
+
+@pytest.mark.parametrize("url", ["https://example.com/pull/1050", "http://127.0.0.1:8000/docs?q=1"])
+def test_an_http_link_is_handed_to_the_opener(url):
+    client, opened = _opening()
+    response = client.post("/api/open", headers=auth(), json={"url": url})
+    assert response.status_code == 200
+    assert response.json() == {"opened": url}
+    assert opened == [url]
+
+
+def test_a_machine_with_no_opener_says_so():
+    """*Worked fine, told nobody* inverted: reporting a link opened when
+    nothing could open it is the menu closing on a failure."""
+    client = TestClient(build(Canvas(token="test-token", opener=lambda url: False)))
+    response = client.post("/api/open", headers=auth(), json={"url": "https://example.com/"})
+    assert response.status_code == 502
+    assert "opener" in response.json()["error"]
+
+
+# ------------------------------------------------------------- open a file
+
+
+def test_a_relative_path_resolves_against_the_windows_cwd_without_its_line(tmp_path):
+    """`report.py:75` is one location on screen and one file on disk. See
+    [[canvas]] round 16."""
+    (tmp_path / "report.py").write_text("x = 1\n")
+    client, opened = _opening()
+    response = client.post("/api/open", headers=auth(), json={"path": "report.py:75", "cwd": str(tmp_path)})
+    assert response.status_code == 200
+    assert opened == [str(tmp_path / "report.py")]
+
+
+def test_a_line_and_column_are_both_stripped(tmp_path):
+    (tmp_path / "a.log").write_text("")
+    client, opened = _opening()
+    client.post("/api/open", headers=auth(), json={"path": str(tmp_path / "a.log") + ":3:9"})
+    assert opened == [str(tmp_path / "a.log")]
+
+
+def test_a_relative_path_with_no_usable_cwd_resolves_against_home(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    (tmp_path / "notes.md").write_text("")
+    client, opened = _opening()
+    for cwd in (None, "", "relative/dir", str(tmp_path / "missing")):
+        opened.clear()
+        response = client.post("/api/open", headers=auth(), json={"path": "notes.md", "cwd": cwd})
+        assert response.status_code == 200, cwd
+        assert opened == [str(tmp_path / "notes.md")]
+
+
+def test_a_directory_opens(tmp_path):
+    client, opened = _opening()
+    assert client.post("/api/open", headers=auth(), json={"path": str(tmp_path)}).status_code == 200
+    assert opened == [str(tmp_path)]
+
+
+def test_a_span_that_is_not_a_file_is_refused_by_name(tmp_path):
+    """`mk-path` is also a code span and a constant, so this is the common
+    refusal, and it has to say where it looked."""
+    client, opened = _opening()
+    response = client.post("/api/open", headers=auth(), json={"path": "MAX_ROWS", "cwd": str(tmp_path)})
+    assert response.status_code == 400
+    assert str(tmp_path / "MAX_ROWS") in response.json()["error"]
+    assert opened == []
+
+
+def test_a_script_opens_in_a_text_editor_and_never_reaches_the_desktop_opener(tmp_path):
+    """The desktop opener picks an application by type, and for a script or a
+    launcher that application may be execution — which would make ctrl-click an
+    unconfirmed `sb run`. Round 17: they go to a named text editor instead, so
+    the file is only ever an argument. See [[canvas]] round 17."""
+    script = tmp_path / "deploy.sh"
+    script.write_text("#!/bin/sh\n")
+    script.chmod(0o755)
+    launcher = tmp_path / "app.desktop"
+    launcher.write_text("[Desktop Entry]\n")
+    texts = []
+    client, opened = _opening(texts)
+    for path in (script, launcher):
+        response = client.post("/api/open", headers=auth(), json={"path": str(path)})
+        assert response.status_code == 200, path
+        assert response.json()["as"] == "text"
+    assert texts == [str(script), str(launcher)]
+    assert opened == []
+
+
+def test_a_binary_executable_is_still_refused(tmp_path):
+    """Nothing to read, and the only thing an opener could do with it is run it."""
+    binary = tmp_path / "tool"
+    binary.write_bytes(b"\x7fELF\x02\x01\x01\x00" + b"\0" * 32)
+    binary.chmod(0o755)
+    texts = []
+    client, opened = _opening(texts)
+    response = client.post("/api/open", headers=auth(), json={"path": str(binary)})
+    assert response.status_code == 400
+    assert "binary executable" in response.json()["error"]
+    assert opened == [] and texts == []
+
+
+def test_a_script_with_no_text_editor_says_so(tmp_path):
+    script = tmp_path / "deploy.sh"
+    script.write_text("#!/bin/sh\n")
+    script.chmod(0o755)
+    canvas = Canvas(token="test-token", opener=lambda url: True, text_opener=lambda path: False)
+    response = TestClient(build(canvas)).post("/api/open", headers=auth(), json={"path": str(script)})
+    assert response.status_code == 502
+    assert "text editor" in response.json()["error"]
+
+
+def test_the_text_editor_is_launched_detached_with_the_operators_environment(monkeypatch):
+    """Detached because an in-process Gio launch was measured dying with its
+    launcher — every editor would have closed with `sb ui`. `child_env` because
+    it is the rule for every child. See [[canvas]] round 17, [[subprocess-env]]."""
+    from skyboss.canvas import server
+
+    seen = {}
+    monkeypatch.setattr(server, "_text_editor_entry", lambda: "/usr/share/applications/editor.desktop")
+    monkeypatch.setattr(server.shutil, "which", lambda name: "/usr/bin/gio" if name == "gio" else None)
+    monkeypatch.setattr(server.subprocess, "Popen", lambda argv, **kw: seen.update(argv=argv, **kw))
+    monkeypatch.setenv("PYTHONSAFEPATH", "1")
+
+    assert server.open_as_text("/src/deploy.sh") is True
+    assert seen["argv"] == ["/usr/bin/gio", "launch", "/usr/share/applications/editor.desktop", "/src/deploy.sh"]
+    assert seen["start_new_session"] is True
+    assert "PYTHONSAFEPATH" not in seen["env"]
+
+
+def test_no_text_editor_is_a_refusal_not_a_fallback_to_xdg_open(monkeypatch):
+    from skyboss.canvas import server
+
+    monkeypatch.setattr(server, "_text_editor_entry", lambda: None)
+    monkeypatch.setattr(server.subprocess, "Popen", lambda *a, **kw: pytest.fail("spawned something"))
+    assert server.open_as_text("/src/deploy.sh") is False
+
+
+@pytest.mark.parametrize(
+    "body",
+    [{}, {"url": "https://example.com/", "path": "/tmp"}, {"path": ""}, {"path": 7}, {"path": "a\nb"}],
+)
+def test_an_open_names_exactly_one_well_formed_target(body):
+    client, opened = _opening()
+    assert client.post("/api/open", headers=auth(), json=body).status_code == 400
+    assert opened == []
+
+
+def test_the_opener_gets_the_operators_environment(monkeypatch):
+    """Every child sky.boss spawns goes through `child_env`, and the desktop's
+    browser is a child like any other. See [[subprocess-env]]."""
+    from skyboss.canvas import server
+
+    seen = {}
+    monkeypatch.setattr(server.shutil, "which", lambda name: "/usr/bin/xdg-open" if name == "xdg-open" else None)
+    monkeypatch.setattr(server.subprocess, "Popen", lambda argv, **kw: seen.update(argv=argv, **kw))
+    monkeypatch.setenv("PYTHONSAFEPATH", "1")
+
+    assert server.open_link("https://example.com/") is True
+    assert seen["argv"] == ["/usr/bin/xdg-open", "https://example.com/"]
+    assert "PYTHONSAFEPATH" not in seen["env"]
 
 
 def test_the_favicon_is_drawn_from_the_palette():
