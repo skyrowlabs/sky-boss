@@ -14,7 +14,7 @@ import click
 
 from scripts.paths import TMP_DIR
 
-from .helpers import PROJECT_ROOT, fail, module, ok, run, script, summarize
+from .helpers import PROJECT_ROOT, detail, fail, module, ok, run, script, summarize, warn
 
 
 @click.group()
@@ -206,6 +206,7 @@ def pre_push(quick: bool) -> None:
     is what keeps this paragraph true — it recomputes the two sets from
     `ci.yml` and from this function, and fails when a gate is in neither.
     """
+    _say_if_interpreter_differs()
     results = [
         ("lint", _lint()),
         ("output discipline", script("scripts/check_output_discipline.py")),
@@ -241,6 +242,34 @@ def pre_push(quick: bool) -> None:
             ("skip budget", script("scripts/check_skip_budget.py", "--suite", "unit", "--junit", str(junit)))
         )
     sys.exit(summarize(results))
+
+
+#: The python this project was rendered for — what `ci.yml` installs, and what
+#: `pyproject.toml` and `pyrightconfig.json` target.
+TARGET_PYTHON = "3.12"
+
+
+def _say_if_interpreter_differs() -> None:
+    """Name the interpreter every gate below runs on, when it is not the one CI runs.
+
+    Every gate here runs on `sys.executable` — the `.venv` the wrapper found —
+    and nothing pins what that venv was built from: the setup block, the
+    wrapper's own hint and the worktree command all say `python -m venv`.
+    stash.flow's gates ran on 3.14 against a recorded 3.12 and nothing said so.
+    Whether any verdict changes is unmeasured — their words, *"nothing would
+    notice if it did"* is the claim — so this says it rather than failing: red
+    on every machine without that exact minor would be a gate that is red for a
+    reason that is not a defect.
+
+    The README's setup block stays `python -m venv` on purpose. Pinning it there
+    makes line one of the quick start fail on every host that lacks that exact
+    minor — most of them — which is the red-on-arrival this template refuses.
+    The hint that prints only when the two differ is the one that can be exact.
+    """
+    running = f"{sys.version_info.major}.{sys.version_info.minor}"
+    if running != TARGET_PYTHON:
+        warn(f"these gates run on python {running}; CI runs {TARGET_PYTHON}")
+        detail(f"  A result here can differ from CI's. Rebuild with: python{TARGET_PYTHON} -m venv .venv")
 
 
 @check.command()

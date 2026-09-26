@@ -42,6 +42,22 @@ Nothing on a fresh tree: a scaffold has one commit, so a symbol that was ever
 defined is still defined and this finds zero. It is a ratchet at 0, and it starts
 paying the first time you delete something.
 
+## Source comments too, for one shape of name
+
+A comment is where an adopter writes *why* — and the seam files invite exactly
+that — so it is where a renamed name goes to rot. dream.doll's seam comment cited
+the test that answers append placement; the template renamed that test in three
+consecutive releases, the upgrade replaced the test file wholesale, nothing
+conflicted, every gate stayed green, and the comment pointed at a function that
+no longer existed. `scripts/check_source_doc_refs.py` exists because 85% of ~450
+code-to-doc references were found dead, and it resolves `docs/**` paths — no
+identifiers. So the same predicate runs over full-line `#` comments in python,
+for a backticked call and for a backticked `test_…` name, which is the one bare
+identifier a comment names precisely *because* it is the check to run. A name
+resolves if it is defined now or is a module's filename (`test_cmds` is a
+module). Docstrings are not read: their prose names history on purpose far more
+often than a comment does, and that is where the false positives would be.
+
 ## Its neighbour is not a copy of it
 
 ``test_docs_name_real_commands.py`` sits beside this and the two names differ by
@@ -120,6 +136,26 @@ def dead_references(root: Path = PROJECT_ROOT, docs: list[Path] | None = None) -
     return sorted(set(found))
 
 
+#: What a comment cites: a backticked call, as above, or a backticked `test_…` name.
+COMMENTED = re.compile(r"`(test_\w+)`|`([A-Za-z_][\w.]*)\(\)`")
+
+
+def dead_comment_references(root: Path = PROJECT_ROOT) -> list[tuple[str, str]]:
+    """Full-line comments in python naming something this repo defined and no longer does."""
+    sources = present("*.py", root=root)
+    live = defined_now(root=root) | {path.stem for path in sources}
+    found: list[tuple[str, str]] = []
+    for path in sources:
+        for lineno, line in enumerate(path.read_text(encoding="utf-8", errors="replace").splitlines(), 1):
+            if not line.lstrip().startswith("#"):
+                continue
+            for match in COMMENTED.finditer(line):
+                symbol = (match.group(1) or match.group(2)).rsplit(".", 1)[-1]
+                if symbol not in live and was_ever_ours(symbol, root=root):
+                    found.append((f"{path.relative_to(root)}:{lineno}", symbol))
+    return sorted(set(found))
+
+
 def test_history_is_available():
     """Worthless against a shallow clone, and silently so.
 
@@ -142,6 +178,16 @@ def test_no_reference_doc_names_a_callable_we_removed():
     )
 
 
+def test_no_source_comment_names_a_callable_we_removed():
+    dead = dead_comment_references()
+    assert not dead, (
+        "comments naming something this repo used to define:\n"
+        + "\n".join(f"  {where}: {symbol}" for where, symbol in dead)
+        + "\n\nRepoint them at what replaced it, or name the FILE rather than the function — a "
+        "test module outlives the names inside it. Deleting the comment loses the reason it recorded."
+    )
+
+
 def test_the_check_would_actually_catch_one(tmp_path):
     """A gate nobody has seen fail is a gate nobody knows works.
 
@@ -153,7 +199,12 @@ def test_the_check_would_actually_catch_one(tmp_path):
     identity = ["-c", "user.name=t", "-c", "user.email=t@t.invalid"]
     _git("init", "-q", "-b", "main", root=tmp_path)
 
-    (tmp_path / "mod.py").write_text("def gone_away():\n    return 1\n", encoding="utf-8")
+    (tmp_path / "mod.py").write_text(
+        "def gone_away():\n    return 1\n\n\ndef test_old_name():\n    pass\n", encoding="utf-8"
+    )
+    (tmp_path / "notes.py").write_text(
+        "# run `test_old_name` and see `gone_away()`; `test_never_ours` was never here\n", encoding="utf-8"
+    )
     (tmp_path / "REFERENCE.md").write_text(
         "Call `gone_away()` for that, and `os.getenv()` for config.\n", encoding="utf-8"
     )
@@ -168,3 +219,11 @@ def test_the_check_would_actually_catch_one(tmp_path):
     assert [symbol for _, symbol in found] == [
         "gone_away"
     ], f"expected exactly the removed symbol and not the stdlib one, got {found}"
+
+    # The comment half, which dream.doll's rename reached and the docs half could
+    # not: both removed names, and not the one that was never ours.
+    commented = dead_comment_references(root=tmp_path)
+    assert sorted(symbol for _, symbol in commented) == [
+        "gone_away",
+        "test_old_name",
+    ], f"expected the two removed names from the comment and nothing else, got {commented}"

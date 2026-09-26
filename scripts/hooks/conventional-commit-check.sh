@@ -114,6 +114,12 @@ MSG
     exit 1
 fi
 
+# 72 is for people, and a bot does not read it. Dependabot's subjects run to 73
+# and past (`build(deps): bump <package> from <old> to <new>` grows with the
+# package name), so wiring this hook to machine commits in CI turns every such
+# pull request red on a length nobody chose. This hook exempts nobody, because
+# which identities it should bind is a decision about your CI, not about a
+# subject line — sky.boss met it on theirs. Skip bot authors where you apply it.
 if [ "${#SUBJECT}" -gt 72 ]; then
     echo "❌ subject is ${#SUBJECT} chars (max 72): $SUBJECT" >&2
     exit 1

@@ -47,6 +47,7 @@ pytestmark = [pytest.mark.unit]
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts.paths import DOCS_DIR, NARRATIVE, PRESENT_TENSE, PROJECT_ROOT  # noqa: E402
+from scripts.seams import CLOSER, INVITATION, RECORD, TERMINATOR, bounds, load, unrecognised  # noqa: E402
 from tests.repo_files import present  # noqa: E402
 from tests.scanning import scanned  # noqa: E402
 
@@ -63,15 +64,21 @@ RULES = DOCS_DIR / "rules" / "docs.md"
 #: found it by planting below the seam and watching four tests pass. So *below the
 #: opening rule* certified the state section eighty lines on.
 #:
-#: **Assembled from parts, never spelled**, and so is the invitation below. A
-#: detector that contains its own needle is its own first finding: spelled
-#: contiguously, this file matched `seam_files()` and the suite failed reporting
-#: itself. The alternative is an allowlist entry for the detector's source, which
-#: is the second entry that means the predicate is wrong —
-#: `bin/skeletor-verify`'s `checkout_path_literal_gate` states the same rule
-#: about the same hazard, and assembles its needle for the same reason.
-TERMINATOR = "# ── " + " ".join(("Nothing below", "this line is", "skeletor's"))
-CLOSER = "# ── " + " ".join(("Skeletor's again", "below this line"))
+#: They live in `scripts/seams.py` now, assembled from parts there for the reason
+#: written there, because the scaffolder's record of the template's prose has to
+#: find the space exactly the way this file does — two definitions of *where the
+#: space is* would be two answers to one question.
+#:
+#: **Every message below names both, and one release they did not.** The
+#: enforcing assertions interpolated both constants while the instructing ones —
+#: the messages that tell an adopter where to put a line — interpolated the
+#: opening rule alone. stash.flow followed one literally, put the append *below
+#: the opening rule*, and was failed by the placement check for obeying it; the
+#: two never fire together, so the instruction was off screen by then.
+#: proto.pilot found the same thing from the prose side. Interpolating a constant
+#: makes a value un-stale and says nothing about completeness: when a mechanism
+#: gains a boundary, the sweep is over every consumer of the old one.
+SPACE = f"between `{TERMINATOR}` and `{CLOSER}`"
 
 #: What makes a file a seam: it invites an append, in those words. The same
 #: predicate `bin/skeletor-verify`'s `append_seam_gate` enumerates seams by, so
@@ -83,7 +90,7 @@ CLOSER = "# ── " + " ".join(("Skeletor's again", "below this line"))
 #: the whole suite. dream.doll measured that and filed it: a check whose
 #: population is written down covers the seam it was written for and goes quiet
 #: on the next one, which is Rule 2 at the one artifact meant to enforce Rule 2.
-_INVITATION = (" ".join(("**Add", "your own")), " ".join(("as an", "append")))
+_INVITATION = INVITATION
 
 
 def invited_files() -> list:
@@ -110,20 +117,62 @@ def invited_files() -> list:
     return sorted(found)
 
 
+def _pending(path: Path) -> list:
+    """The sidecars an upgrade left for this file, if it left any.
+
+    A seam file an upgrade could not merge is left exactly as it was, with the
+    template's change beside it in `tmp/upgrade/`. In that state the template's
+    own previous release is what sits in the file, so every check here reads
+    old template text as the tree's — and the remedy is never the one the
+    assertion would otherwise name. proto.pilot hit it: told to add both rule
+    blocks by hand, an adopter ports on top of their own copy.
+    """
+    rel = path.relative_to(PROJECT_ROOT).as_posix()
+    sidecars = PROJECT_ROOT / "tmp" / "upgrade"
+    return [
+        sidecar.relative_to(PROJECT_ROOT).as_posix()
+        for sidecar in (sidecars / f"{rel}.patch", sidecars / f"{rel}.new")
+        if sidecar.exists()
+    ]
+
+
+def _port_first(paths: list) -> str:
+    """The remedy line for a finding that a pending upgrade may be causing, or ''."""
+    waiting = [sidecar for path in paths for sidecar in _pending(path)]
+    if not waiting:
+        return ""
+    return (
+        "\n\nAn upgrade left changes to port first — the template's version is waiting in:\n  "
+        + "\n  ".join(waiting)
+        + "\nPort that before acting on anything above: until you do, this file holds the previous "
+        "release's text, and the finding may be describing it rather than you."
+    )
+
+
 def seam_files() -> list:
     """The invited files, each of which must carry both rules — asserted, not filtered."""
     invited = scanned(invited_files(), "files inviting an append in this tree", least=2)
-    missing = []
+    missing, unbounded = [], []
     for path in invited:
         text = path.read_text(encoding="utf-8")
         absent = [name for name, rule in (("opening", TERMINATOR), ("closing", CLOSER)) if rule not in text]
         if absent:
             missing.append(f"{path.name}: no {' or '.join(absent)} rule")
+            unbounded.append(path)
+    # **The remedy depends on a state this check can see, so it asks.** With an
+    # upgrade's patch pending, the file holds the previous release and the right
+    # move is to port that patch — adding the blocks by hand first means porting
+    # on top of your own copy of them. proto.pilot hit it one release after
+    # node-zero got the duplicate-rule message fixed for the same shape.
     assert not missing, (
         "these files invite an append and do not bound a space to put it in:\n  "
         + "\n  ".join(missing)
-        + f"\n\nAn invitation without both rules is an invitation to append into template prose. "
-        f"Add the `{TERMINATOR}` and `{CLOSER}` blocks, or stop inviting."
+        + (
+            _port_first(unbounded)
+            or f"\n\nAn invitation without both rules is an invitation to append into template prose. "
+            f"If skeletor wrote this file, its current version carries both rules and an upgrade is the "
+            f"remedy; if you wrote it, give it the `{TERMINATOR}` and `{CLOSER}` blocks, or stop inviting."
+        )
     )
     return invited
 
@@ -160,8 +209,8 @@ def test_every_lifecycle_folder_is_classified() -> None:
     assert not unclassified, (
         f"{RULES.name} tells an adopter to file in {unclassified}, and "
         f"scripts/paths.py says nothing about whether those describe the present. "
-        f"Append them to NARRATIVE or PRESENT_TENSE below that file's "
-        f"`{TERMINATOR}` rule, with the reason."
+        f"Append them to NARRATIVE or PRESENT_TENSE in that file's own space, {SPACE}, "
+        f"with the reason."
     )
 
 
@@ -172,13 +221,13 @@ def test_no_present_tense_entry_has_gone_stale() -> None:
     assert not gone, (
         f"PRESENT_TENSE (scripts/paths.py) names {gone}, which {RULES.name} no longer lists — "
         f"an exemption is a decision only while the thing it exempts exists. Remove it as an "
-        f"append below that file's `{TERMINATOR}` rule, rather than as an edit to "
+        f"append in that file's own space, {SPACE}, rather than as an edit to "
         f"the literal:\n" + "".join(f"    PRESENT_TENSE.pop({f!r}, None)\n" for f in gone)
     )
     both = [f for f in PRESENT_TENSE if _is_narrative(f)]
     assert not both, (
         f"PRESENT_TENSE (scripts/paths.py) names {both}, which NARRATIVE now covers. One folder, "
-        f"one role. Remove it as an append below that file's `{TERMINATOR}` rule — the template "
+        f"one role. Remove it as an append in that file's own space, {SPACE} — the template "
         f"owns the lines inside that literal and edits them, so a removal spelled "
         f"there conflicts on every upgrade:\n" + "".join(f"    PRESENT_TENSE.pop({f!r}, None)\n" for f in both)
     )
@@ -312,7 +361,60 @@ def test_your_appends_are_inside_your_own_space() -> None:
         "advances, because they share an insertion point with the template's own text. Move them "
         "between the two rules — it is a cut and paste, and nothing else has to change. If one "
         "arrived there by an upgrade rather than by you, that is expected: git placed it, and moving "
-        "it is the whole remedy."
+        "it is the whole remedy." + _port_first(seams)
+    )
+
+
+def test_your_prose_is_inside_your_own_space() -> None:
+    """The other half of the invitation: *"appends, and any prose you write about them."*
+
+    The check above parses the file, and a comment is not in the parse — so for a
+    release only half of that sentence was held. proto.pilot planted a paragraph
+    of their own directly above the opening rule and the whole 732-test suite
+    passed; stash.flow moved their entire comment block out of the space into the
+    template's prose and 227 passed, the third time they filed it. A paragraph
+    hard against the template's last line is what cost proto.pilot a conflict per
+    release for three releases, while their appends were fine throughout. Prose is
+    not decoration here; it is half of what collides.
+
+    A tree cannot tell its comment from the template's by reading them, so the
+    scaffolder recorded which comment lines outside the space are skeletor's, in
+    `scripts/seam_prose.json`, and this names every one it does not recognise.
+    Deleting a template comment is not reported: it puts nothing of yours at the
+    template's insertion point, which is the hazard.
+    """
+    seams = seam_files()
+    recorded = load()
+    assert recorded is not None, (
+        f"{RECORD.relative_to(PROJECT_ROOT)} is missing, so nothing says which comments around a seam are "
+        f"skeletor's. It is written at scaffold time and delivered by an upgrade; if this tree predates it, "
+        f"the upgrade that ships this test ships it too."
+    )
+    unknown, strangers = [], []
+    for path in seams:
+        rel = path.relative_to(PROJECT_ROOT).as_posix()
+        if rel not in recorded:
+            strangers.append(rel)
+            continue
+        lines = path.read_text(encoding="utf-8").splitlines()
+        found = bounds(lines)
+        if len(found["opening"]) != 1 or len(found["closing"]) != 1:
+            continue  # the placement check owns this, and says why
+        unknown += [
+            f"{rel}:{number}: {lines[number - 1].strip()[:80]}" for number in unrecognised(recorded[rel], lines)
+        ]
+    assert not strangers, (
+        f"these files invite an append and skeletor did not write them, so there is no record of which "
+        f"comments in them are the template's: {strangers}. The invitation is the words "
+        f"`{' … '.join(INVITATION)}` — reword yours if it is not meant as a seam."
+    )
+    assert not unknown, (
+        f"these comments sit OUTSIDE the space {SPACE}, and skeletor did not write them:\n  "
+        + "\n  ".join(unknown)
+        + "\n\nIf they are yours, move them between the two rules with the appends they describe — a comment "
+        "above the opening rule sits against the template's last line of prose, and the next release that "
+        "rewrites that line conflicts on it. If you edited a template comment in place, that is the same "
+        "collision one line earlier; put it back and write your note inside the space instead." + _port_first(seams)
     )
 
 

@@ -119,12 +119,13 @@ its `-r` chain reaches every requirements file the job installs.
 
 ## Pin the Lint Tools in One Place
 
-Every tool version is pinned in `.pre-commit-config.yaml` (**the source of truth**) and
-mirrored into `scripts/requirements.txt` and the CI workflow.
-`tests/test_lint_tool_parity.py` fails if they diverge — but **it cannot pin your venv**.
-Two isort majors disagree about real formatting, so a stale local venv produces a diff CI
-rejects. If `isort --version-number` disagrees with the pin, reinstall from
-`scripts/requirements.txt`.
+Every tool version is pinned in `.pre-commit-config.yaml` and in
+`scripts/requirements.txt`, which CI installs from. Neither is canonical — a pip updater
+can only write the second — so a mismatch means *make these agree*, at whichever version
+you mean. `tests/test_lint_tool_parity.py` fails if they diverge, **and if the interpreter
+running it has something else installed**: two isort majors disagree about real
+formatting, so a stale local venv produces a diff CI rejects. Reinstall from
+`scripts/requirements.txt` when it says so.
 
 ## Configuration — Never `os.getenv()` for App Config
 

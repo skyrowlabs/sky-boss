@@ -102,9 +102,10 @@ RELEASES_DIR = DOCS_DIR / "reports" / "releases"
 #: unclassified the way this one was.
 NARRATIVE = (TODO_DIR, IMPL_DIR, DOCS_DIR / "reports", DOCS_DIR / "research")
 
-#: **Add your own stages as an append, below the
-#: `Nothing below this line is skeletor's` rule at the end of this section. Do
-#: not edit the tuple above.**
+#: **Add your own stages as an append, in the space between the two frozen
+#: rules at the end of this section — below `Nothing below this line is
+#: skeletor's` and above `Skeletor's again below this line`. Do not edit the
+#: tuple above.**
 #:
 #: This used to read "extending this tuple is a one-line change to a file you
 #: own", which was true about permission and wrong about merging. stash.flow
@@ -123,8 +124,8 @@ NARRATIVE = (TODO_DIR, IMPL_DIR, DOCS_DIR / "reports", DOCS_DIR / "research")
 #:     EXPLORE_DIR = PROJECT_ROOT / "explore"
 #:     NARRATIVE += (EXPLORE_DIR,)
 #:
-#: **Put it below the `Nothing below this line is skeletor's` rule at the end of
-#: this section, not here.** The reason is written there. Briefly: a blank line
+#: **Put it between the two rules at the end of this section, not here.** The
+#: reason is written there. Briefly: a blank line
 #: between your block and the template's does work — measured — and it is a
 #: first-merge guarantee that nothing can enforce, so a frozen rule with nothing
 #: below it replaces the separation somebody has to remember with the separation
@@ -168,8 +169,8 @@ PRESENT_TENSE = {
     ),
 }
 
-#: **Add your own present-tense folders as an append, below the
-#: `Nothing below this line is skeletor's` rule at the end of this section.** An
+#: **Add your own present-tense folders as an append, in the space between the
+#: two frozen rules at the end of this section.** An
 #: append is a different line from the template's and stays clean when upstream
 #: edits its own; the frozen rule is what keeps the two from arriving at one
 #: insertion point on a re-merge. The reason is written once, there.
@@ -232,16 +233,35 @@ PRESENT_TENSE = {
 
 # ── Extending NARRATIVE and PRESENT_TENSE ────────────────────────────────────
 #
-# **Put every append to NARRATIVE and PRESENT_TENSE below the frozen rule at the
-# bottom of this block**, not directly under this heading. Both constants are
-# defined above, so both spellings reach from there.
+# **Put every append to NARRATIVE and PRESENT_TENSE, and every comment you
+# write about them, in the space between the two frozen rules at the bottom of
+# this block** — below `Nothing below this line is skeletor's`, above
+# `Skeletor's again below this line` — not directly under this heading. Both
+# constants are defined above, so both spellings reach from there.
 #
-# skeletor renders nothing below that rule, ever. That is the whole mechanism: a
+# skeletor renders nothing in that space, ever. That is the whole mechanism: a
 # three-way merge collides when two changes land at one insertion point, and an
-# upgrade has no change down there to collide with — so your line is never
-# adjacent to a template line, whatever the template does to its own text above.
-# The rule is at the bottom of this block rather than the top for the reason the
-# next section measures.
+# upgrade has no change in there to collide with — so your line is never
+# adjacent to a template line, whatever the template does to its own text on
+# either side. The space sits at the bottom of this block rather than the top for
+# the reason the next section measures.
+#
+# This paragraph used to say skeletor renders nothing *below the rule*, and a
+# closing rule further down retracted exactly that a release later while this
+# sentence stayed put above its own retraction. proto.pilot found the pair, and
+# stash.flow found the same one-rule wording in the test messages by following
+# one literally and being failed for it. Your tree's seam test checks both
+# halves of what goes in the space: the appends by parsing, and the prose
+# against `scripts/seam_prose.json`, which records the comment lines skeletor
+# wrote.
+#
+# **If you cite the check in your own prose, name the file, never the test.**
+# The function that answers placement has been renamed in three consecutive
+# releases — `..._inside_the_region`, `..._below_the_frozen_rule`,
+# `..._inside_your_own_space` — and a comment naming it survives the rename
+# silently, because nothing resolves an identifier in a comment. dream.doll's
+# seam comment pointed at a function that no longer existed, with every gate
+# green.
 #
 # ## What this replaces, because the old rule worked and could not be enforced
 #
@@ -321,6 +341,28 @@ PRESENT_TENSE = {
 # are three. It is a function of which prose this release happened to rewrite
 # next to them, which is the whole argument for moving the rule: afterwards there
 # is no template prose below your appends for a later release to edit.
+#
+# ## The second merge, which the first-merge price above leaves out
+#
+# The release that installed the closing rule conflicts a tree that already
+# appends here **twice**: once on the upgrade, and again on the `--ported`
+# re-run its own instructions send you to. proto.pilot measured it with a variant
+# carrying only the two appends, no prose of theirs, placed exactly where the
+# render puts an adopter's content — both merges conflicted. The cause is
+# structural, not a bad resolution: that release puts a new boundary *into the
+# gap the adopter occupies*, so there is no position that converges with the
+# template's insertion point and stays out of its way. It is self-limiting —
+# once the base advances past that release, the space is simply there — and it
+# is a one-time cost of moving a boundary, which any future move of either rule
+# would charge again.
+#
+# The lower edge was not latent everywhere, either. The closing rule's own block
+# calls the defect it fixed latent, because mind.head measured it so; for
+# proto.pilot it was live — an upstream paragraph inserted directly before the
+# next template heading conflicted on the FIRST merge in the one-rule layout, and
+# is clean on both merges in the two-rule one. That note lives here rather than
+# beside the claim because the rule blocks are frozen, and correcting one would
+# be a template edit at the edge of every adopter's space.
 #
 # ## What the rule buys, narrowly, because the wider claim measured false
 #

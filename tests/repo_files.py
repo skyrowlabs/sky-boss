@@ -48,8 +48,39 @@ from scripts.paths import NARRATIVE, PROJECT_ROOT  # noqa: E402
 pytestmark = [pytest.mark.unit]
 
 
+class GitRefused(subprocess.CalledProcessError):
+    """`CalledProcessError`, still — a caller catching that keeps working — whose
+    message is git's reason rather than an exit status."""
+
+    def __init__(self, returncode: int, cmd, output: str, stderr: str, root: Path) -> None:
+        super().__init__(returncode, cmd, output, stderr)
+        self.root = root
+
+    def __str__(self) -> str:
+        reason = (self.stderr or "").strip() or f"exit {self.returncode}"
+        return (
+            f"`{' '.join(self.cmd)}` failed in {self.root}: {reason}\n"
+            f"These checks ask git which files are this repository's, so they need a checkout — "
+            f"a tree copied without its `.git` cannot answer."
+        )
+
+
 def git(*args: str, root: Path = PROJECT_ROOT) -> str:
-    return subprocess.run(["git", *args], cwd=str(root), capture_output=True, text=True, check=True).stdout
+    """git's stdout — and when git refuses, git's own reason rather than a bare exit status.
+
+    `check=True` alone raised `CalledProcessError` with the explanation captured
+    and unread in its `stderr`. In a tree with no `.git` — a Docker `COPY`, an
+    sdist, an exported tree — every gate enrolling through `present()` died that
+    way, and mind.head read it as the seam gate having broken: *"the wrong file,
+    the wrong repo and the wrong question."* proto.pilot hit the same traceback
+    building a probe. The answer was `fatal: not a git repository`, one attribute
+    away. It is still a `CalledProcessError`, because this is a shared helper and
+    somebody's own test may catch that.
+    """
+    done = subprocess.run(["git", *args], cwd=str(root), capture_output=True, text=True)
+    if done.returncode != 0:
+        raise GitRefused(done.returncode, done.args, done.stdout, done.stderr, root)
+    return done.stdout
 
 
 def present(pattern: str, root: Path = PROJECT_ROOT) -> list:

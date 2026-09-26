@@ -4,7 +4,7 @@ slug: skeletor-adoption
 category: tooling
 agent_value: 3
 completed: 2026-09-06
-updated: 2026-09-12
+updated: 2026-09-26
 tags: [skeletor, scaffold, ci]
 summary: Converts sky.boss from a skeletor component consumer into a scaffolded tree, and records what a fork can and cannot learn about itself.
 created: 2026-09-06
@@ -2535,3 +2535,66 @@ clean and exactly on the tag, and `git ls-remote --tags origin v0.30.0` resolves
 The two-applying-runs mechanic held again — the first run left `skeletor_ref` at
 v0.29.0 with its reasoning printed above the summary, and `--ported` recorded the
 tag.
+
+### Round 29 — 2026-09-26: v0.31.0, and a `--ported` run that merged twice
+
+v0.31.0 is one commit, `skeletor@f78b302`. Four new files, seven untouched files
+updated, three edited files merged clean, and `ci.yml` conflicted on a two-line
+comment about which lint-pin file is canonical.
+
+#### The conflict had nothing to port
+
+The hunk rewrites a comment above the template's `Install lint toolchain` step,
+and round 7's fork has no such step: our `test` job installs all three
+requirements files in one `Install` step and carries no pin comment. So the port
+was empty. Held, and advanced with `--ported`.
+
+#### The `--ported` run re-merged files the first run had already merged
+
+`--ported` re-runs the three-way merge from the old base for every file, not only
+for the conflicted one. If a file already equals the new render, merging it again
+changes nothing. If a file is ours and diverged, the second merge can apply the
+template's insertion a second time. `tests/repo_files.py` came out with
+`class GitRefused` defined twice. Pyright caught it (`reportRedeclaration`), and
+the suite did not. Running `git merge-file` twice on the same inputs by hand
+reproduces it: one class after the first merge, two after the second. The file
+was reset to the single-merge result. The other two diverged files, `cli/check.py`
+and `docs/rules/python.md`, came out byte-identical to a single merge.
+
+**How to apply:** after `--ported`, diff each file listed as *merged cleanly*
+against a single `git merge-file` of the pre-upgrade file, or at least grep for
+duplicated definitions. Clean is not the same as merged once.
+
+#### Two new checks, one red on arrival, and the fix was ours
+
+`test_scratch_is_not_linted.py` went red on `eslint.config.js`. Our config
+predates the template's and never ignored `tmp/`. Added `'tmp/**'`. It was
+already on the edited list, so this adds no new divergence. `origin/HEAD`
+resolves to `origin/develop`, and the origin-head check passes along with its
+positive control.
+
+#### Held without a divergence: the interpreter notice
+
+`dev check pre-push` now opens with *"these gates run on python 3.14; CI runs
+3.12"*. It renders `--python` and ignores `--python-ceiling`, but our matrix
+runs the pytest suite on 3.14 too. Only the 3.12-pinned flake8 and pyright steps
+make the sentence true. It only warns, so it was left as the template wrote it
+and reported upstream.
+
+#### Findings from last round, confirmed by running them
+
+- Every declined file is named now. `CONTRIBUTING.md` and `test_pyright_deps.py`
+  are both listed, and the release changed neither.
+- The `--ported` run reports the port once, as recorded, not as a fresh ❌.
+- A planted `black` mismatch gets *"make these agree"*, with no direction.
+- `_shown` pulls `9.0.1` out of the real isort banner. This was called directly,
+  not through `--normalise`.
+
+The canonical-pin prose is still half-fixed. `.pre-commit-config.yaml:6` and
+`scripts/requirements.txt:3` still say *source of truth*, in the template at the
+tag as well as here. Left alone rather than forked.
+
+All seven pre-push gates are green. The collected set only grew: 9 IDs added and
+none removed. 45 frontend tests pass, and `sb` runs from outside the repo. No pin
+moved in this release. `--ref v0.31.0` was passed on all three runs, and
+`git ls-remote --tags origin v0.31.0` resolves.

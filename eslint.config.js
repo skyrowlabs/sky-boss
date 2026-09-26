@@ -24,8 +24,10 @@ export default [
   js.configs.recommended,
   {
     // Vendored code is exempt, the same rule tests/test_theme.py's hex scan
-    // uses: it is not ours to keep a house style out of.
-    ignores: ['skyboss/canvas/static/vendor/**', '**/node_modules/**', '.venv/**'],
+    // uses: it is not ours to keep a house style out of. `tmp/` is scratch —
+    // gate reports and upgrade sidecars — and eslint does not read .gitignore;
+    // tests/test_scratch_is_not_linted.py holds it here.
+    ignores: ['skyboss/canvas/static/vendor/**', '**/node_modules/**', '.venv/**', 'tmp/**'],
   },
   {
     // The canvas: ES modules the browser loads directly. No build step, no

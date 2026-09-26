@@ -97,7 +97,7 @@ if [ -x "$VENV_PYTHON" ]; then
 fi
 
 if ! command -v python3 &> /dev/null; then
-    echo "❌ python3 not found. Install Python 3, then: python -m venv .venv && .venv/bin/pip install -r scripts/requirements.txt" >&2
+    echo "❌ python3 not found. Install Python 3 (3.12 is what CI runs), then: python3.12 -m venv .venv && .venv/bin/pip install -r scripts/requirements.txt" >&2
     exit 1
 fi
 

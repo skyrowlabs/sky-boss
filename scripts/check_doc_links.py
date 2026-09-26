@@ -54,9 +54,8 @@ IGNORE_FILE = GITHUB_DIR / "scripts" / ".validate-ignore"
 
 SCAN_ROOTS = ["docs", ".claude", ".github"]
 
-#: **Add your own roots as an append, below the
-#: `Nothing below this line is skeletor's` rule at the end of this section. Do
-#: not edit the list above.**
+#: **Add your own roots as an append, in the space between the two frozen rules
+#: at the end of this section. Do not edit the list above.**
 #: A root written into the literal conflicts with every upstream change to it;
 #: an append is a different line and merges clean. See the same note beside
 #: `NARRATIVE` in `scripts/paths.py`, where the two spellings were measured.
@@ -73,10 +72,13 @@ SCAN_ROOTS = ["docs", ".claude", ".github"]
 
 # ── Extending SCAN_ROOTS ─────────────────────────────────────────────────────
 #
-# **Put every append to SCAN_ROOTS below the frozen rule at the bottom of this
-# block**, not directly under this heading. This module ships that region empty
-# and never adds a line to it, so an upgrade has no change there to collide with
-# and your line is never at the template's insertion point.
+# **Put every append to SCAN_ROOTS, and any comment you write about it, in the
+# space between the two frozen rules at the bottom of this block**, not directly
+# under this heading. This module ships that space empty and never adds a line
+# to it, so an upgrade has no change there to collide with and your line is never
+# at the template's insertion point. Below the closing rule is the template's
+# again; `scripts/paths.py` records why there are two rules and why one of them
+# once said otherwise.
 #
 # This seam existed for three releases with only the blank-line rule, and the
 # region reached `scripts/paths.py` one release before it reached here — because
