@@ -4,6 +4,15 @@
 # Grouped into one PR per ecosystem on purpose. Ungrouped, a quiet week is five
 # pull requests against a repo whose whole suite runs in ten seconds — the
 # review cost is per-PR, not per-bump, so the grouping is where the saving is.
+#
+# Every entry sets `commit-message.prefix` and deliberately omits
+# `include: scope`. Left to itself, Dependabot copies this repo's style and
+# writes `chore(deps-dev): bump the tooling group across 1 directory with 3
+# updates` — 73 characters against the commit hook's 72, and it only grows with
+# the update count. The hook's scope is optional, so dropping `(deps)` and
+# `(deps-dev)` buys eleven characters without loosening any gate. Renaming a
+# group buys two or three. scripts/check_commit_style.py runs the hook over
+# every commit in a pull request, a bot's included, and that is on purpose.
 version: 2
 updates:
   - package-ecosystem: pip
@@ -13,6 +22,8 @@ updates:
     groups:
       python:
         patterns: ['*']
+    commit-message:
+      prefix: chore
 
   - package-ecosystem: npm
     directory: /
@@ -21,6 +32,8 @@ updates:
     groups:
       tooling:
         patterns: ['*']
+    commit-message:
+      prefix: chore
 
   # The native window. Separate because it is a separate lockfile, not because
   # it wants a different cadence.
@@ -31,6 +44,8 @@ updates:
     groups:
       shell:
         patterns: ['*']
+    commit-message:
+      prefix: chore
 
   # The one nobody remembers. A pinned action goes stale silently and a
   # deprecated runner image is how a green suite stops running at all.
@@ -41,3 +56,5 @@ updates:
     groups:
       actions:
         patterns: ['*']
+    commit-message:
+      prefix: chore
