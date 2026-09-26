@@ -109,6 +109,23 @@ def _python_tool(module: str, args: List[str], source: str) -> Callable[[], Tupl
     return probe
 
 
+def _names_scratch(pattern: str) -> bool:
+    """Whether a glob excludes the scratch directory itself: `tmp`, `./tmp`, `tmp/**`, `**/tmp`, `**/tmp/**`.
+
+    **The directory has to be named.** The first version read any `**/…` entry
+    as covering scratch, so `"**/node_modules"` passed a config that lints `tmp/`
+    — stash.flow forced this fallback with a stub and fed it three configs. That
+    is "could not ask" reported as "skips it", in the branch that exists for when
+    asking is impossible.
+    """
+    parts = [part for part in pattern.strip().split("/") if part not in ("", ".")]
+    while parts and parts[0] == "**":
+        parts = parts[1:]
+    while parts and parts[-1] == "**":
+        parts = parts[:-1]
+    return parts == SCRATCH.split("/")
+
+
 def _pyright() -> Tuple[Optional[bool], str]:
     """Ask pyright which files it analysed; read `pyrightconfig.json` if it cannot answer, and say so."""
     (PROBE_DIR / "probe.py").write_text("x: int = 'not an int'\n", encoding="utf-8")
@@ -126,7 +143,7 @@ def _pyright() -> Tuple[Optional[bool], str]:
     config = json.loads("\n".join(line for line in text.splitlines() if not line.lstrip().startswith("//")))
     include = [entry.strip("./") for entry in config.get("include", ["."])]
     walks = any(entry in ("", SCRATCH) or SCRATCH.startswith(entry + "/") for entry in include)
-    excluded = any(entry.strip("./").split("/")[0] in (SCRATCH, "**") for entry in config.get("exclude", []))
+    excluded = any(_names_scratch(entry) for entry in config.get("exclude", []))
     return walks and not excluded, "READ pyrightconfig.json — pyright could not be run here, so it was not asked"
 
 

@@ -79,13 +79,14 @@ def commits(commit_range: str) -> list | None:
     it is not obvious, and the caller passing `-1` is a workflow nobody runs by
     hand.
 
-    **A range may be several arguments.** `default_range()` returns
-    `HEAD --not --remotes` for a branch with no upstream yet, which is one
-    string and three argv entries — passed whole, `rev-list` reads it as one
-    unknown revision and this reported *"could not resolve"* on every first
-    push. Split it the way `check_commit_subjects.py` does.
+    **A range is one argument.** skeletor v0.33.0 briefly returned
+    `HEAD --not --remotes` — three argv entries in one string — and this passed
+    it whole, reporting *"could not resolve"* on every first push until it split
+    the string. v0.34.0 made one argument the released contract and pins it in
+    `tests/test_commit_range_is_one_argument.py`, so the split went with the
+    shape it was written for: a gate upstream now holds what it defended.
     """
-    selector = commit_range.split()
+    selector = [commit_range]
     if commit_range.startswith("-"):
         selector.append("HEAD")
     result = subprocess.run(

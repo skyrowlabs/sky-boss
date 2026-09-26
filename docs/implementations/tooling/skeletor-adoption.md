@@ -2674,3 +2674,45 @@ Last time a *name* changed. This time it was a return *shape*.
 All seven pre-push gates are green. The collected set gained four IDs and lost
 none, all from the new test. 45 frontend tests pass. No pin moved. `--ref v0.33.0`
 was passed on both runs, and `git ls-remote origin v0.33.0` resolves.
+
+### Round 32 — 2026-09-26: v0.34.0, and the round-31 stopgap folds back
+
+v0.34.0 is `skeletor@336bda2`. It answers round 31. One new file
+(`tests/test_commit_range_is_one_argument.py`) and two untouched files updated
+(`scripts/check_commit_subjects.py`, `tests/test_scratch_is_not_linted.py`).
+There were no conflicts, so one applying run recorded `v0.34.0`, and it now
+says so with a `📌` line.
+
+#### The split goes, because a gate upstream now holds the contract
+
+`default_range()` returns one git argument again: `@{u}..HEAD`,
+`<boundary>..HEAD` for a first push, `-1` with no remote, and `HEAD` or
+`HEAD..HEAD` at the edges. The new template test pins that in this tree by what
+`git log` lists. So the whitespace split that round 31 put in `commits()` was a
+stopgap whose subject is now fixed at the root, and it was removed rather than
+kept as a defence. Its docstring described the three-word return as current,
+which had become false.
+
+`tests/test_commit_style_range.py` now parametrises over v0.34.0's
+remote-independent shapes (`-1`, `HEAD`, `HEAD..HEAD`), and it adds a live
+`default_range()` call through our consumer. That is the real producer against
+the real consumer. A list of shapes can go stale in the same way the docstring
+did.
+
+#### Checked by running
+
+- `commit style` after the upgrade commit, with no upstream set: `1 commit
+  subject(s) in 721e81d…..HEAD`. That is the first-push path round 31 broke,
+  and it now names exactly the unpushed commit. Before the commit it reported
+  `0 … in HEAD..HEAD`. That was correct, and it was green over nothing.
+- The rendered files match `v0.34.0:template/core/` except for placeholder
+  substitutions.
+- The declined `tests/test_pyright_deps.py` was restored and passed 4/4. It
+  stays declined for the round-24 reason. The template changed neither declined
+  file.
+
+All seven pre-push gates are green, with 1660 unit tests. 62 frontend tests
+pass. No pin moved. The collected set gained the new test's two IDs plus its
+naming-sweep entry, and `test_commit_style_range.py`'s IDs changed as described.
+`--ref v0.34.0` was passed on both runs, and `git ls-remote origin v0.34.0`
+resolves.

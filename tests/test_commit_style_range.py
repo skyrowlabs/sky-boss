@@ -8,6 +8,13 @@ Ours passed it whole, so `rev-list` saw one unknown revision and the gate
 reported *"could not resolve"* on every first push. Nothing upstream could see
 it: a helper's contract changing is invisible to the template, whose callers
 move in the same commit.
+
+v0.34.0 made one git argument the released contract, and
+`tests/test_commit_range_is_one_argument.py` (theirs) pins it by what `git log`
+lists. So the shapes below are v0.34.0's, and the split this file used to hold
+in place is gone with the shape that needed it. What stays here is the half
+their test cannot see: that *this* consumer, which calls `rev-list` rather than
+`log`, resolves each of them.
 """
 
 from __future__ import annotations
@@ -15,14 +22,24 @@ from __future__ import annotations
 import pytest
 
 from scripts.check_commit_style import commits
+from scripts.check_commit_subjects import default_range
 
 pytestmark = pytest.mark.unit
 
 
-# `@{u}..HEAD` is absent on purpose: an upstream is a property of the checkout,
-# CI's has none, and a skip here would spend the suite's skip budget of zero.
-@pytest.mark.parametrize("commit_range", ["HEAD --not --remotes", "-1"])
-def test_every_default_range_shape_is_split_before_git_sees_it(commit_range):
+# `@{u}..HEAD` and `<boundary>..HEAD` are absent on purpose: both depend on the
+# checkout's remotes, CI's differ from a developer's, and a skip here would spend
+# the suite's skip budget of zero. The live call below reaches whichever one this
+# checkout produces.
+@pytest.mark.parametrize("commit_range", ["-1", "HEAD", "HEAD..HEAD"])
+def test_every_default_range_shape_resolves(commit_range):
+    assert commits(commit_range) is not None, f"`{commit_range}` did not resolve"
+
+
+def test_the_range_this_checkout_produces_resolves():
+    # The real producer against the real consumer, rather than a list of what it
+    # returned when this was written.
+    commit_range = default_range()
     assert commits(commit_range) is not None, f"`{commit_range}` did not resolve"
 
 

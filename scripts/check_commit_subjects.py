@@ -145,6 +145,18 @@ def default_range() -> str:
     reason nobody can act on. The chosen range is printed either way, because the
     defect this function was first fixed for was two ranges that looked identical
     in the output.
+
+    **One git argument, always — that is the released contract.** v0.33.0 returned
+    `"HEAD --not --remotes"`, three arguments in a string that only this module's
+    caller split, and sky.boss's own `check_commit_style.py` imports this function
+    and broke at run time: a shared helper's return shape is released API exactly
+    as its name is (`tests/repo_files.py` records the `tracked` → `present` rename
+    that taught that). So the first-push set is expressed as one range: the
+    boundary git reports between what no remote has and what one does, as
+    `<boundary>..HEAD`. When the boundaries do not reduce to one commit that the
+    others descend from — a merge of two remote lines — the newest one is used,
+    which can include a commit a remote already has, and the range says so by
+    being printed.
     """
 
     def git(*args: str) -> subprocess.CompletedProcess:
@@ -152,9 +164,20 @@ def default_range() -> str:
 
     if git("rev-parse", "--abbrev-ref", "@{u}").returncode == 0:
         return "@{u}..HEAD"
-    if git("remote").stdout.strip():
-        return "HEAD --not --remotes"
-    return "-1"
+    if not git("remote").stdout.strip():
+        return "-1"
+    listed = git("rev-list", "--boundary", "HEAD", "--not", "--remotes").stdout.split()
+    boundaries = [line[1:] for line in listed if line.startswith("-")]
+    if not boundaries:
+        # Nothing on HEAD is on any remote: the branch shares no history with one,
+        # and "what the push sends" is all of it.
+        return "HEAD" if listed else "HEAD..HEAD"
+    # The boundary every other one is an ancestor of, when there is one — then the
+    # range is exact. Otherwise the most recent, in the order rev-list gave them.
+    for candidate in boundaries:
+        if all(git("merge-base", "--is-ancestor", other, candidate).returncode == 0 for other in boundaries):
+            return f"{candidate}..HEAD"
+    return f"{boundaries[0]}..HEAD"
 
 
 def described(commit_range: str, chosen: bool) -> str:
@@ -168,9 +191,10 @@ def described(commit_range: str, chosen: bool) -> str:
     """
     if not chosen:
         return commit_range
+    if commit_range.endswith("..HEAD") and not commit_range.startswith("@{u}"):
+        return f"{commit_range} (no upstream yet: everything no remote has)"
     return {
         "-1": "HEAD alone (no remote to compare against)",
-        "HEAD --not --remotes": "HEAD --not --remotes (no upstream yet: everything no remote has)",
         "@{u}..HEAD": "@{u}..HEAD (everything this push would send)",
     }.get(commit_range, commit_range)
 
