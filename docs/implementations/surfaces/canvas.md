@@ -4,7 +4,7 @@ slug: canvas
 priority: medium
 category: surfaces
 agent_value: 3
-shelf_status: in-progress
+completed: 2026-09-26
 updated: 2026-09-26
 tags: [surface, canvas, http]
 summary: Replaces the removed terminal surface with a browser one — a command palette over draggable windows, where a pinned window re-runs itself on a Python-side cadence, and a right-click menu that takes what is on screen out of it.
@@ -15,7 +15,6 @@ key_files: [skyboss/canvas/static/menu.js, skyboss/canvas/shell.py, skyboss/high
 # The canvas — a command palette over a window canvas
 
 > **Status**: ✅ Complete — round 16 shipped 2026-09-26
-> **Shelf-Status**: in-progress
 > **Priority**: Medium — the surface draws a location and a link and gives you no way to take either
 > **Updated**: 2026-09-26
 
