@@ -13,7 +13,7 @@
  * touch the DOM and do nothing at import.
  */
 import { html, useEffect, useLayoutEffect, useRef, useState } from "./vendor/htm-preact.js";
-import { openLink } from "./api.js";
+import { openTarget } from "./api.js";
 
 /* Every role `markedLine` can put on a span, and what the menu makes of it.
  *
@@ -26,10 +26,16 @@ import { openLink } from "./api.js";
  * *location*: `mk-path` is also a code span and a SCREAMING constant, because
  * a role is a colour and all three wear the same one. */
 export const OFFERS = {
-  path: (text) => [{ label: "Copy", detail: text, act: "copy", value: text }],
+  /* Round 16: a path opens too. Whether it is a file at all — `mk-path` is
+   * also a code span and a constant — is the server's to find out by looking,
+   * so the item is offered and a refusal is reported, never pre-guessed. */
+  path: (text, cwd) => [
+    { label: "Copy", detail: text, act: "copy", value: text },
+    { label: "Open", detail: "ctrl-click", act: "open", target: { path: text, cwd } },
+  ],
   url: (text) => [
     { label: "Copy link", detail: text, act: "copy", value: text },
-    { label: "Open link", detail: "ctrl-click", act: "open", value: text },
+    { label: "Open link", detail: "ctrl-click", act: "open", target: { url: text } },
   ],
   ref: (text) => [{ label: "Copy", detail: text, act: "copy", value: text }],
   muted: null,
@@ -53,14 +59,14 @@ const shorten = (text) => {
  * and the first one that offers anything wins. Selection first, because a
  * selection is the operator saying exactly what they meant; the whole line
  * last, because it is the widest guess. */
-export function itemsFor({ selection = "", line = null, roles = [], text = null } = {}) {
+export function itemsFor({ selection = "", line = null, roles = [], text = null, cwd = null } = {}) {
   const items = [];
   if (selection) {
     items.push({ label: "Copy selection", detail: shorten(selection), act: "copy", value: selection });
   }
   if (text) {
     const role = roles.find((r) => OFFERS[r]);
-    if (role) items.push(...OFFERS[role](text));
+    if (role) items.push(...OFFERS[role](text, cwd));
   }
   if (line) items.push({ label: "Copy line", detail: shorten(line), act: "copy", value: line });
   return items;
@@ -97,11 +103,11 @@ export async function copy(text, clipboard = globalThis.navigator && globalThis.
 }
 
 /* Carry out one item. Returns a sentence on failure, null on success. */
-export async function perform(item, { write = copy, open = openLink } = {}) {
+export async function perform(item, { write = copy, open = openTarget } = {}) {
   if (item.act === "copy") return write(item.value);
   if (item.act === "open") {
     try {
-      await open(item.value);
+      await open(item.target);
       return null;
     } catch (error) {
       return `could not open: ${(error && error.message) || error}`;
@@ -126,12 +132,32 @@ export function contextOf(target, selection = "") {
   };
 }
 
-/* The link a ctrl-click landed on, or null. Same rule as the menu: the class
- * says it is a link, or it is not one. */
-export function linkAt(target) {
+/* What a ctrl-click landed on, as a body for `/api/open`, or null. Same rule
+ * as the menu: the class says it is a link or a path, or it is neither. A
+ * path carries the window's `cwd`, because `report.py` means nothing without
+ * one — see [[canvas]] round 16. */
+export function openableAt(target, cwd = null) {
   const element = target && target.nodeType === 1 ? target : target && target.parentElement;
-  const link = element && element.closest(".mk-url");
-  return link ? link.textContent : null;
+  const mark = element && element.closest(".mk-url, .mk-path");
+  if (!mark) return null;
+  return mark.classList.contains("mk-url")
+    ? { url: mark.textContent }
+    : { path: mark.textContent, cwd };
+}
+
+/* The directory a window's relative paths mean something in: what the window
+ * already asserts, and nothing guessed. A raw command's editable `cwd`, else
+ * the `--cwd` in its argv, else null and the server uses `$HOME`. A followed
+ * log's own directory is deliberately not used — a log's relative paths are
+ * relative to whatever wrote it. */
+export function cwdOf(win) {
+  if (!win) return null;
+  if (win.cwd) return win.cwd;
+  const argv = win.expansion || win.argv || [];
+  const end = argv.indexOf("--");
+  const flags = end === -1 ? argv : argv.slice(0, end);
+  const at = flags.indexOf("--cwd");
+  return at !== -1 && flags[at + 1] ? flags[at + 1] : null;
 }
 
 export function Menu({ at, items, error: given = null, onClose }) {

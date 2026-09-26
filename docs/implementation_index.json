@@ -1,7 +1,7 @@
 {
   "_generated_by": "scripts/docs/gen_impl_index.py",
   "_note": "Generated — never hand-edit. Edit the doc's frontmatter and rerun.",
-  "count": 24,
+  "count": 23,
   "by_category": {
     "commands": [
       "capture",
@@ -30,7 +30,6 @@
       "wrap"
     ],
     "surfaces": [
-      "canvas",
       "mcp",
       "workbench"
     ],
@@ -55,24 +54,6 @@
       "auto_generated": false,
       "category": "projects",
       "completed": "2026-09-01",
-      "agent_value": 3
-    },
-    {
-      "slug": "canvas",
-      "title": "The canvas — a command palette over a window canvas",
-      "path": "docs/implementations/surfaces/canvas.md",
-      "priority": "medium",
-      "updated": "2026-09-26",
-      "tags": [
-        "surface",
-        "canvas",
-        "http"
-      ],
-      "summary": "Replaces the removed terminal surface with a browser one — a command palette over draggable windows, where a pinned window re-runs itself on a Python-side cadence, and a right-click menu that takes what is on screen out of it.",
-      "open_tasks": 0,
-      "auto_generated": false,
-      "category": "surfaces",
-      "completed": "2026-09-26",
       "agent_value": 3
     },
     {

@@ -23,7 +23,7 @@ import * as api from "./api.js";
 import { Body, markedLine, summarise } from "./render.js";
 import { BENCH_WINDOW, Bench, RESIDENT, compose, tagPool } from "./bench.js";
 import { Plan } from "./schedule.js";
-import { Menu, contextOf, itemsFor, linkAt } from "./menu.js";
+import { Menu, contextOf, cwdOf, itemsFor, openableAt } from "./menu.js";
 
 const TILE = "tile";
 const FLOAT = "float";
@@ -911,8 +911,8 @@ function StreamBody({ win, actions }) {
     <div
       class="body"
       ref=${bodyRef}
-      onContextMenu=${actions.context}
-      onClick=${actions.linkClick}
+      onContextMenu=${(e) => actions.context(e, win)}
+      onClick=${(e) => actions.linkClick(e, win)}
     >
       <pre class=${`raw stream ${win.wrap ? "wrap" : ""}`}>
 ${win.streamLines.map((l) => markedLine(l))}</pre
@@ -1154,7 +1154,7 @@ function Window({ win, now, layout, focused, actions, intervals, down }) {
 
       ${win.stream
         ? html`<${StreamBody} win=${win} actions=${actions} />`
-        : html`<div class="body" onContextMenu=${actions.context}>
+        : html`<div class="body" onContextMenu=${(e) => actions.context(e, win)}>
             <${Body} result=${win.result} warnings=${win.viewWarnings} />
           </div>`}
 
@@ -1780,24 +1780,26 @@ function App() {
     /* A right-click in a window body. Always ours there: the shell's menu
      * offers Reload, which would take every window with it. Nothing opens
      * when nothing under the pointer is worth copying. */
-    context: (event) => {
+    context: (event, win) => {
       event.preventDefault();
       const selection = String(window.getSelection() || "");
-      const items = itemsFor(contextOf(event.target, selection));
+      const items = itemsFor({ ...contextOf(event.target, selection), cwd: cwdOf(win) });
       setMenu(items.length ? { at: { x: event.clientX, y: event.clientY }, items, key: Date.now() } : null);
     },
-    /* Ctrl-click on a link opens it; a plain click stays a caret, which is how
-     * a selection starts. No confirm — this is a destination drawn under the
-     * operator's own pointer, not a command they may not have read. A failure
+    /* Ctrl-click on a link or a path opens it ([[canvas]] round 16 added the
+     * path); a plain click stays a caret, which is how a selection starts. No
+     * confirm — this is a destination drawn under the operator's own pointer,
+     * not a command they may not have read, and the server refuses a file that
+     * could run rather than asking about it. A failure
      * opens the menu at the pointer to say so, since there is nowhere else
      * this gesture could report into. */
-    linkClick: (event) => {
+    linkClick: (event, win) => {
       if (!(event.ctrlKey || event.metaKey)) return;
-      const url = linkAt(event.target);
-      if (!url) return;
+      const target = openableAt(event.target, cwdOf(win));
+      if (!target) return;
       event.preventDefault();
       const at = { x: event.clientX, y: event.clientY };
-      api.openLink(url).catch((error) =>
+      api.openTarget(target).catch((error) =>
         setMenu({ at, items: [], error: `could not open: ${error.message}`, key: Date.now() })
       );
     },

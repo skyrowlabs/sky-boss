@@ -4,7 +4,7 @@ slug: canvas
 priority: medium
 category: surfaces
 agent_value: 3
-completed: 2026-09-26
+shelf_status: in-progress
 updated: 2026-09-26
 tags: [surface, canvas, http]
 summary: Replaces the removed terminal surface with a browser one — a command palette over draggable windows, where a pinned window re-runs itself on a Python-side cadence, and a right-click menu that takes what is on screen out of it.
@@ -14,7 +14,8 @@ key_files: [skyboss/canvas/static/menu.js, skyboss/canvas/shell.py, skyboss/high
 
 # The canvas — a command palette over a window canvas
 
-> **Status**: ✅ Complete — round 15 shipped 2026-09-26
+> **Status**: ✅ Complete — round 16 shipped 2026-09-26
+> **Shelf-Status**: in-progress
 > **Priority**: Medium — the surface draws a location and a link and gives you no way to take either
 > **Updated**: 2026-09-26
 
@@ -97,9 +98,11 @@ auto-refreshing a write is a scheduler nobody asked for.
 - **No credential handling.** Wrapped CLIs keep their own authentication; sky.boss is never in the
   credential path. Unchanged from `CLAUDE.md`.
 - **No arbitrary hand-off to the desktop.** The surface may open an `http`/`https` URL the
-  operator clicked (round 15) and nothing else — no `file:`, no `mailto:`, no `xdg-open` of a
-  string the page chose. A route that would is a second `sb run` reached without the act/observe
-  split.
+  operator clicked (round 15), or a file that **exists and cannot run** (round 16), and nothing
+  else — no `mailto:`, no `file:` URI, no `.desktop` launcher, nothing with an execute bit, no
+  `xdg-open` of a string the page chose. A route that would is a second `sb run` reached without
+  the act/observe split. *Round 15 said "no `file:`" outright; round 16 narrowed it on the
+  operator's word — see Notes.*
 - **No ANSI-to-HTML fallback.** Rendering an ANSI table gives a picture of a table — no sorting, no
   chips, no resizing — and shipping it early would let it become the path everything takes. That
   half stands: ANSI is *stripped*, never interpreted.
@@ -132,6 +135,54 @@ auto-refreshing a write is a scheduler nobody asked for.
   that reads as information. Round 5 ships the bar only for the one quantity actually known.
 
 ## Phases
+
+### Round 16 — a file link opens too (2026-09-26)
+
+Reported by the operator the same day round 15 shipped: *"im not able to click on any file
+links, it should work for that too."* Round 15 drew every path underlined — a link's look —
+and then refused it the link's behaviour, which is the complaint round 15 itself opened with
+(*"it looks like a destination and behaves like prose"*), arriving one role over.
+
+**One route, two shapes of body.** `/api/open` takes `{"url"}` as before or `{"path", "cwd"}`.
+A second route would be a second way of asking for the same act, which round 13 retired.
+
+**What the server does with a path**, and every step is Python's, not the page's:
+
+1. Strip a trailing `:line` or `:line:col`. `highlight.py` keeps the suffix on the span on
+   purpose — *"`report.py:75` is one location"* — and the desktop opener has no word for a line.
+2. Expand `~`; resolve a relative path against the window's `cwd` when it is an absolute
+   directory, else against `$HOME` — the same neutral default a raw command runs in.
+3. **Refuse what does not exist, with the resolved path in the reason.** `mk-path` is also a code
+   span and a SCREAMING constant, so a ctrl-click on `MAX_ROWS` will reach here; a refusal that
+   names `/home/…/MAX_ROWS` is an honest answer to that, and a guess at which spans are files
+   would be the page-side detection round 15 forbids.
+4. **Refuse what could run**: a `.desktop` file, or a regular file with any execute bit. The
+   opener picks an application by type, and for those types the application is *execution* —
+   which would make ctrl-click an unconfirmed `sb run` for anything that printed its own path.
+   A directory opens (a file manager is not execution).
+5. Hand the resolved path, not a `file:` URI, to the same `xdg-open` through `child_env`.
+
+**The window's `cwd` comes from what the window already asserts**: `win.cwd` for a raw command,
+else the `--cwd` in its argv, else nothing and the server's `$HOME`. A followed log's own
+directory is *not* guessed at — a log's relative paths are relative to whatever wrote it.
+
+- [x] `link_problem` gains a path twin that resolves, checks and refuses as above; `/api/open`
+      dispatches on which key the body carries, and a body with both or neither is a 400.
+- [x] Ctrl-click on a `.mk-path` opens it; the menu gains **Open** beside **Copy** on a path.
+- [x] A refusal reaches the operator in the menu's own voice, including on ctrl-click.
+- [x] Tests: a relative path resolves against `cwd` and `:75` is stripped; a missing file, a
+      `.desktop`, an executable and a relative path with no usable `cwd` behave as stated;
+      the path is handed to the opener as a path.
+- [x] Headless: ctrl-click on a path posts `{path, cwd}`; the menu offers **Open** on a path.
+
+**Does not do:**
+
+- **No line number.** `xdg-open` has no argument for one, and a per-editor table
+  (`code -g`, `kate -l`, `$EDITOR +75`) is a guess about which program the operator's desktop
+  will choose. Copy keeps `report.py:75` whole for the editor that wants it.
+- **Does not open anything that could run.** Not with a confirm, not with a flag. Wanting to run
+  a script is `sb run`, which is where the act/observe split and the confirm funnel live.
+- **No page-side check for whether a span is a file.** The server answers that, by looking.
 
 ### Round 15 — a window you can take something out of (2026-09-12)
 
@@ -684,6 +735,40 @@ tasks / windows / watchers / attention counters. This round is the remainder.
       tags, and the status bar counts.
 
 ## Notes
+
+### Round 16 — the reversal, and what it kept (2026-09-26)
+
+**Round 15 said `/api/open` would never take a file, and the operator overruled it within the
+day.** The original argument is left intact in round 15's own text: *"no `file:`, no `mailto:`,
+no `xdg-open` of an arbitrary URI — widening it later is a decision about the surface's
+authority, not a convenience, and the thing that makes it safe today is that the set is two
+schemes long."* What survived the reversal is the second half. The set is not *two schemes*
+any more, but it is still a short, closed list decided in Python: an http(s) URL, or a file that
+**exists** and **cannot run**. `mailto:`, `file:` URIs, launchers and executables are all still
+refused, and the reason round 15 gave — a route that could hand the desktop anything is a second
+`sb run` without the act/observe split — is exactly why the execute-bit refusal exists.
+
+**The refusal on a missing file is the design, not a gap.** `mk-path` covers code spans and
+SCREAMING constants as well as paths, so a ctrl-click on `MAX_ROWS` reaches the server and
+comes back *"no such file: /…/MAX_ROWS"*. The alternative was deciding in the page which spans
+are files, and round 15 already ruled that out. Measured headless against the live server: a
+ctrl-click on `report.py:75` in a follow window with no `cwd` came back
+`could not open: no such file: <home>/report.py`, drawn in the menu at the pointer — true,
+and it says where it looked, which is the half a reader needs to understand why.
+
+**A followed log has no `cwd`, and that is deliberate.** `cwdOf` reads what the window asserts —
+a raw command's directory or a `--cwd` before `--` — and nothing else. Guessing the log's own
+directory would be right for some logs and silently wrong for the rest; `$HOME` is at least the
+same wrong answer every time, and the refusal names it.
+
+**Verified:** headless, a ctrl-click on an absolute path posted `{"path", "cwd": null}`, the menu
+on a path offered *Copy / Open / Copy line*, and *Open* posted the same body and closed the menu,
+with no errors. The resolution, the suffix strip, the `$HOME` fallback and every refusal are unit
+tests with the opener injected. **Not verified here: a real editor opening** — every open of an
+existing file was intercepted so nothing launched on the operator's desktop.
+
+**`/home/op` in a test fixture failed the publication gate**, which is the gate working: a
+placeholder home directory is still the *shape* it checks for. The fixture says `/work/op`.
 
 ### Round 15 — built, and what the headless pass could and could not reach (2026-09-26)
 

@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import secrets
 import shutil
 import subprocess
@@ -106,8 +107,53 @@ def link_problem(url: object) -> str | None:
     return None
 
 
+#: A `:75` or `:75:3` on the end of a path span. `highlight.py` keeps it on the
+#: span on purpose, and the desktop opener has no word for a line.
+_LINE_SUFFIX = re.compile(r"(:\d+){1,2}$")
+
+
+def resolve_file(path: object, cwd: object) -> tuple[Path | None, str | None]:
+    """The file a ctrl-clicked path names, or why the surface will not open it.
+
+    Round 16 of [[canvas]]. The page sends the span's text and the window's
+    working directory and decides nothing; this resolves, looks, and refuses.
+    A span that is not a file at all — `mk-path` is also a code span and a
+    constant — is refused by looking for it, with the resolved path in the
+    reason, rather than by a guess about which spans are files.
+
+    **Nothing that could run is opened.** The desktop opener chooses an
+    application by type, and for a launcher or an executable that application
+    is execution: a ctrl-click would be an unconfirmed `sb run` of anything that
+    printed its own path.
+    """
+    if not isinstance(path, str) or not path.strip():
+        return None, "a path is a non-empty string"
+    if any(ord(ch) < 32 or ord(ch) == 127 for ch in path):
+        return None, "a path may not contain control characters"
+    base = Path.home()
+    if isinstance(cwd, str) and cwd:
+        given = Path(cwd).expanduser()
+        if given.is_absolute() and given.is_dir():
+            base = given
+    target = Path(_LINE_SUFFIX.sub("", path.strip())).expanduser()
+    if not target.is_absolute():
+        target = base / target
+    target = target.resolve()
+    if not target.exists():
+        return None, f"no such file: {target}"
+    if target.is_dir():
+        return target, None
+    if not target.is_file():
+        return None, f"not a regular file: {target}"
+    if target.suffix == ".desktop":
+        return None, f"{target.name} is a launcher; opening it would run it"
+    if target.stat().st_mode & 0o111:
+        return None, f"{target.name} is executable; opening it could run it — use `sb run`"
+    return target, None
+
+
 def open_link(url: str) -> bool:
-    """Hand an already-checked link to the desktop's browser.
+    """Hand an already-checked link or file to the desktop's opener.
 
     Not `webbrowser.open`: that inherits sky.boss's environment, and every
     child this repo spawns gets the operator's instead, via `child_env`. False
@@ -379,7 +425,8 @@ def build(canvas: Canvas | None = None) -> Starlette:
         tab. Guarded like every other route. The guard argument from [[tools]]
         round 4 — a page past the header check already has `/api/run` — is why
         this route may *exist*; it is not a reason for it to be wide, so it
-        opens `http` and `https` and refuses everything else with its reason.
+        opens `http` and `https` and refuses everything else with its reason —
+        and, as of round 16, a `path` that exists and cannot run.
 
         No confirmation, deliberately. [[canvas]] round 11 asks before running
         a command the operator may not have read; this opens a destination
@@ -388,17 +435,25 @@ def build(canvas: Canvas | None = None) -> Starlette:
         if not canvas.authorised(request):
             return _denied()
         body = await request.json()
-        url = body.get("url") if isinstance(body, dict) else None
-        problem = link_problem(url)
+        if not isinstance(body, dict) or ("url" in body) == ("path" in body):
+            return JSONResponse({"error": "name exactly one of `url` or `path`"}, status_code=400)
+        if "url" in body:
+            target = body["url"]
+            problem = link_problem(target)
+        else:
+            # Round 16: a file opens too, once it is known to exist and to be
+            # unable to run. See `resolve_file`.
+            found, problem = resolve_file(body["path"], body.get("cwd"))
+            target = str(found) if found else None
         if problem:
             return JSONResponse({"error": problem}, status_code=400)
-        assert isinstance(url, str)
-        if not await asyncio.to_thread(canvas.opener, url):
+        assert isinstance(target, str)
+        if not await asyncio.to_thread(canvas.opener, target):
             return JSONResponse(
                 {"error": "no desktop opener found — neither xdg-open nor open is on PATH"},
                 status_code=502,
             )
-        return JSONResponse({"opened": url})
+        return JSONResponse({"opened": target})
 
     async def get_vocabulary(request: Request) -> Response:
         """What the operator declared about output, and what sky.boss does

@@ -9,32 +9,46 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { OFFERS, copy, itemsFor, perform, place } from "../../skyboss/canvas/static/menu.js";
+import { OFFERS, copy, cwdOf, itemsFor, perform, place } from "../../skyboss/canvas/static/menu.js";
 
 const labels = (items) => items.map((i) => i.label);
 
 test("a location copies whole, colon and line number included", () => {
   const items = itemsFor({ roles: ["path"], text: "report.py:75", line: "at report.py:75" });
-  assert.deepEqual(labels(items), ["Copy", "Copy line"]);
+  assert.deepEqual(labels(items), ["Copy", "Open", "Copy line"]);
   assert.equal(items[0].value, "report.py:75");
   assert.equal(items[0].act, "copy");
+});
+
+test("a path opens with the window's cwd, and the server decides the rest", () => {
+  const [, open] = itemsFor({ roles: ["path"], text: "report.py:75", cwd: "/src/app" });
+  assert.equal(open.act, "open");
+  // The suffix travels as drawn — stripping it is Python's job, not a second
+  // opinion here about what a line number looks like.
+  assert.deepEqual(open.target, { path: "report.py:75", cwd: "/src/app" });
+});
+
+test("cwdOf reads what the window asserts and guesses nothing", () => {
+  assert.equal(cwdOf({ cwd: "/work/op", argv: ["read", "--cwd", "/elsewhere", "--", "ls"] }), "/work/op");
+  assert.equal(cwdOf({ argv: ["data", "--cwd", "/src/jam", "--", "jam", "pr", "list"] }), "/src/jam");
+  assert.equal(cwdOf({ expansion: ["read", "--cwd", "/x", "--", "y"], argv: ["tools", "y"] }), "/x");
+  // A `--cwd` after `--` belongs to the wrapped tool, not to sky.boss.
+  assert.equal(cwdOf({ argv: ["read", "--", "tool", "--cwd", "/nope"] }), null);
+  // A followed log's directory is not guessed at.
+  assert.equal(cwdOf({ argv: ["follow", "/var/log/sky/agent.log"] }), null);
+  assert.equal(cwdOf(null), null);
 });
 
 test("a link offers copy and open, and open goes to the server", () => {
   const items = itemsFor({ roles: ["url"], text: "https://example.com/x" });
   assert.deepEqual(labels(items), ["Copy link", "Open link"]);
-  assert.deepEqual(
-    items.map((i) => [i.act, i.value]),
-    [
-      ["copy", "https://example.com/x"],
-      ["open", "https://example.com/x"],
-    ]
-  );
+  assert.equal(items[0].value, "https://example.com/x");
+  assert.deepEqual(items[1].target, { url: "https://example.com/x" });
 });
 
 test("a composite role is read past its weight", () => {
   const items = itemsFor({ roles: ["bold", "path"], text: "src/app.js" });
-  assert.deepEqual(labels(items), ["Copy"]);
+  assert.deepEqual(labels(items), ["Copy", "Open"]);
 });
 
 test("a role that offers nothing adds nothing", () => {
@@ -105,9 +119,9 @@ test("a shell with no clipboard says so", async () => {
 
 test("perform routes an open to the opener and reports its refusal", async () => {
   const opened = [];
-  const item = { act: "open", value: "https://example.com/" };
+  const item = { act: "open", target: { url: "https://example.com/" } };
   assert.equal(await perform(item, { open: async (u) => opened.push(u) }), null);
-  assert.deepEqual(opened, ["https://example.com/"]);
+  assert.deepEqual(opened, [{ url: "https://example.com/" }]);
   const said = await perform(item, {
     open: async () => {
       throw new Error("no desktop opener found");

@@ -343,6 +343,79 @@ def test_a_machine_with_no_opener_says_so():
     assert "opener" in response.json()["error"]
 
 
+# ------------------------------------------------------------- open a file
+
+
+def test_a_relative_path_resolves_against_the_windows_cwd_without_its_line(tmp_path):
+    """`report.py:75` is one location on screen and one file on disk. See
+    [[canvas]] round 16."""
+    (tmp_path / "report.py").write_text("x = 1\n")
+    client, opened = _opening()
+    response = client.post("/api/open", headers=auth(), json={"path": "report.py:75", "cwd": str(tmp_path)})
+    assert response.status_code == 200
+    assert opened == [str(tmp_path / "report.py")]
+
+
+def test_a_line_and_column_are_both_stripped(tmp_path):
+    (tmp_path / "a.log").write_text("")
+    client, opened = _opening()
+    client.post("/api/open", headers=auth(), json={"path": str(tmp_path / "a.log") + ":3:9"})
+    assert opened == [str(tmp_path / "a.log")]
+
+
+def test_a_relative_path_with_no_usable_cwd_resolves_against_home(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    (tmp_path / "notes.md").write_text("")
+    client, opened = _opening()
+    for cwd in (None, "", "relative/dir", str(tmp_path / "missing")):
+        opened.clear()
+        response = client.post("/api/open", headers=auth(), json={"path": "notes.md", "cwd": cwd})
+        assert response.status_code == 200, cwd
+        assert opened == [str(tmp_path / "notes.md")]
+
+
+def test_a_directory_opens(tmp_path):
+    client, opened = _opening()
+    assert client.post("/api/open", headers=auth(), json={"path": str(tmp_path)}).status_code == 200
+    assert opened == [str(tmp_path)]
+
+
+def test_a_span_that_is_not_a_file_is_refused_by_name(tmp_path):
+    """`mk-path` is also a code span and a constant, so this is the common
+    refusal, and it has to say where it looked."""
+    client, opened = _opening()
+    response = client.post("/api/open", headers=auth(), json={"path": "MAX_ROWS", "cwd": str(tmp_path)})
+    assert response.status_code == 400
+    assert str(tmp_path / "MAX_ROWS") in response.json()["error"]
+    assert opened == []
+
+
+def test_nothing_that_could_run_is_opened(tmp_path):
+    """The opener picks an application by type, and for these the application
+    is execution — which would make ctrl-click an unconfirmed `sb run`."""
+    script = tmp_path / "deploy.sh"
+    script.write_text("#!/bin/sh\n")
+    script.chmod(0o755)
+    launcher = tmp_path / "app.desktop"
+    launcher.write_text("[Desktop Entry]\n")
+    client, opened = _opening()
+    for path in (script, launcher):
+        response = client.post("/api/open", headers=auth(), json={"path": str(path)})
+        assert response.status_code == 400, path
+        assert "run" in response.json()["error"]
+    assert opened == []
+
+
+@pytest.mark.parametrize(
+    "body",
+    [{}, {"url": "https://example.com/", "path": "/tmp"}, {"path": ""}, {"path": 7}, {"path": "a\nb"}],
+)
+def test_an_open_names_exactly_one_well_formed_target(body):
+    client, opened = _opening()
+    assert client.post("/api/open", headers=auth(), json=body).status_code == 400
+    assert opened == []
+
+
 def test_the_opener_gets_the_operators_environment(monkeypatch):
     """Every child sky.boss spawns goes through `child_env`, and the desktop's
     browser is a child like any other. See [[subprocess-env]]."""
