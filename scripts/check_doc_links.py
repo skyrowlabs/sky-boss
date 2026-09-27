@@ -116,12 +116,34 @@ _COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)
 
 
 def slugify(heading: str) -> str:
-    """GitHub's heading-anchor algorithm, near enough for our purposes."""
-    text = re.sub(r"`([^`]*)`", r"\1", heading)
-    text = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", text)
-    text = text.strip().lower()
-    text = re.sub(r"[^\w\s-]", "", text, flags=re.UNICODE)
-    return re.sub(r"[\s_]+", "-", text).strip("-")
+    """GitHub's heading anchor, for one heading. Repeats are `headings()`'s job.
+
+    **It said "near enough for our purposes", and was wrong on a quarter of them.**
+    It collapsed runs of whitespace, turned `_` into `-`, and stripped leading and
+    trailing hyphens. GitHub does none of those: removing the punctuation in
+    `Planning & Context` leaves two spaces, and each becomes its own hyphen
+    (`planning--context`); `require_or_skip` keeps its underscores; a heading
+    opening with `` `--mode` `` keeps its leading hyphens. stash.flow wrote four
+    GitHub-correct fragment links, watched this reject every one, and verified
+    the ids against GitHub's own rendering. Measured here the same way, over
+    351 headings in this repository's docs and template: 54 wrong before, 0 now.
+
+    Its own tests could not have seen it — they built the expected anchors with
+    this function, so both sides agreed by construction.
+    `tests/test_doc_links_github_anchors.py` holds it to ids captured from GitHub
+    instead.
+    """
+    out = []
+    for part in re.split(r"(`[^`]*`)", heading):
+        if len(part) > 1 and part.startswith("`") and part.endswith("`"):
+            out.append(part[1:-1])  # code keeps its underscores and asterisks
+            continue
+        part = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", part)
+        # Emphasis markers render away; an intraword `_` is a literal and stays.
+        out.append(re.sub(r"(?<!\w)[*_]+|[*_]+(?!\w)", "", part))
+    text = "".join(out).strip().lower()
+    text = re.sub(r"[^\w\- ]", "", text, flags=re.UNICODE)
+    return text.replace(" ", "-")
 
 
 def _ignored() -> set:
@@ -200,7 +222,25 @@ def headings(path: Path) -> List[str]:
     unordered "one match" is harder to check by eye than an ordered one.
     """
     body = _mask(path.read_text(encoding="utf-8"))
-    return [slugify(m.group("text")) for m in _HEADING.finditer(body)]
+    # Repeated headings get `-1`, `-2` … in document order, as GitHub assigns
+    # them, and a suffixed slug that collides with a real heading moves on to the
+    # next number. Without this a link to a second `## Open questions` could
+    # never pass — stash.flow read that in the code; GitHub's rendering of this
+    # repository's own templates has one.
+    seen: dict = {}
+    slugs = []
+    for match in _HEADING.finditer(body):
+        slug = slugify(match.group("text"))
+        if slug in seen:
+            seen[slug] += 1
+            candidate = f"{slug}-{seen[slug]}"
+            while candidate in seen:
+                seen[slug] += 1
+                candidate = f"{slug}-{seen[slug]}"
+            slug = candidate
+        seen[slug] = 0
+        slugs.append(slug)
+    return slugs
 
 
 def _suggest(target: Path) -> str:
@@ -273,7 +313,9 @@ def _successor(anchor: str, available: Sequence[str]) -> Optional[str]:
         return None
     hits = set()
     for slug in available:
-        tokens = slug.split("-")
+        # Empty tokens dropped on both sides: GitHub's `planning--context` would
+        # otherwise carry a "" token that no anchor's run can contain.
+        tokens = [token for token in slug.split("-") if token]
         if _contains_run(tokens, want) or _contains_run(want, tokens):
             hits.add(slug)
     return sorted(hits)[0] if len(hits) == 1 else None

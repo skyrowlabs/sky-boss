@@ -215,7 +215,8 @@ def main() -> int:
         default="",
         help="git range to inspect. Empty means everything not yet on the upstream, "
         "which is what a push will send; with no upstream, everything no remote has; "
-        "HEAD alone only when there is no remote.",
+        "HEAD alone when no remote shares any history with HEAD — none configured, "
+        "an empty one, or an unrelated one.",
     )
     parser.add_argument("--json", action="store_true", help="machine-readable payload on stdout")
     args = parser.parse_args()
