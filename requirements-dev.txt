@@ -1,7 +1,7 @@
 pytest>=9.1.1
 
 # Starlette's TestClient refuses to import without it.
-httpx2>=2.13.0
+httpx2>=2.13.1
 
 # The canvas's session loop is async; pytest.ini sets asyncio_mode = auto.
 pytest-asyncio>=1.4
