@@ -40,8 +40,8 @@ README's Setup block when this repository was scaffolded, and what keeps them in
 step now is `tests/test_setup_blocks_agree.py` rather than the generator, which
 left. The three lines after them belong to this file alone and are not compared
 with anything. An
-earlier version of this file opened with `./dev setup`
-and `./dev service up`, which the CLI has never implemented — and `setup`
+earlier version of this file opened with a `setup` and a
+`service up` subcommand, which the CLI has never implemented — and `setup`
 could not be implemented, because the CLI cannot run until the install it would
 be performing has already put `click` in the venv. A quick start that fails on
 line one reads as user error at the exact moment a reader has no way to tell.

@@ -48,6 +48,8 @@ FROM_GITHUB = {
     "`--mode=repository-report`": "--moderepository-report",
     "Env-Gate Skips: `require_or_skip`, Not `pytest.skip`": "env-gate-skips-require_or_skip-not-pytestskip",
     "Configuration — Never `os.getenv()` for App Config": "configuration--never-osgetenv-for-app-config",
+    # HTML in a heading renders away (stash.flow, measured against GitHub).
+    "Phase 1 — <name>": "phase-1--",
 }
 
 
@@ -71,3 +73,24 @@ def test_a_repeated_heading_takes_the_next_suffix(tmp_path):
         "phase-d--stop-the-human-merges",
         "phase-d--stop-the-human-merges-1",  # the id GitHub gave the second one
     ]
+
+
+def test_a_heading_that_renders_empty_has_no_anchor(tmp_path):
+    """`# <Human Title>` is all markup, so GitHub gives it no id; neither may this."""
+    doc = tmp_path / "doc.md"
+    doc.write_text("# <Human Title>\n\n## Real\n", encoding="utf-8")
+    assert links.headings(doc) == ["real"]
+
+
+def test_fix_prefers_the_exact_heading_over_one_it_contains():
+    """mind.head's case: the anchor lost a doubled hyphen, and a shorter heading shares its prefix.
+
+    Tokens equal to the anchor's are not ambiguous; containment in either direction
+    is what a human has to choose between, and only when there is no exact one.
+    """
+    available = ["resolved-2026-06-14", "resolved-2026-06-14-round-2--design-deep-dive"]
+    assert (
+        links._successor("resolved-2026-06-14-round-2-design-deep-dive", available)
+        == "resolved-2026-06-14-round-2--design-deep-dive"
+    )
+    assert links._successor("resolved-2026", available) is None, "containment in two headings stays a human's call"

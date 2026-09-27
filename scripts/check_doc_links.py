@@ -134,14 +134,21 @@ def slugify(heading: str) -> str:
     instead.
     """
     out = []
-    for part in re.split(r"(`[^`]*`)", heading):
+    # Trimmed once, as source, and never again: markup removed below can leave a
+    # space that GitHub keeps — `Phase 1 — <name>` renders as `Phase 1 — ` and
+    # slugs to `phase-1--`, the tag's space becoming the second hyphen.
+    for part in re.split(r"(`[^`]*`)", heading.strip()):
         if len(part) > 1 and part.startswith("`") and part.endswith("`"):
             out.append(part[1:-1])  # code keeps its underscores and asterisks
             continue
         part = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", part)
+        # Markup, not text: GitHub drops `<name>` from a heading as HTML. stash.flow
+        # measured `Phase 1 — <name>` → `phase-1--`, in this template's own
+        # `docs/TODO/_TEMPLATE.md`, which the 351-heading sweep had skipped.
+        part = re.sub(r"<[^>]*>", "", part)
         # Emphasis markers render away; an intraword `_` is a literal and stays.
         out.append(re.sub(r"(?<!\w)[*_]+|[*_]+(?!\w)", "", part))
-    text = "".join(out).strip().lower()
+    text = "".join(out).lower()
     text = re.sub(r"[^\w\- ]", "", text, flags=re.UNICODE)
     return text.replace(" ", "-")
 
@@ -231,6 +238,8 @@ def headings(path: Path) -> List[str]:
     slugs = []
     for match in _HEADING.finditer(body):
         slug = slugify(match.group("text"))
+        if not slug:
+            continue  # nothing renders, so GitHub gives it no anchor at all (`# <Human Title>`)
         if slug in seen:
             seen[slug] += 1
             candidate = f"{slug}-{seen[slug]}"
@@ -311,6 +320,14 @@ def _successor(anchor: str, available: Sequence[str]) -> Optional[str]:
     want = [token for token in anchor.split("-") if token]
     if not want:
         return None
+    # **An exact match is not ambiguous, so it wins.** A heading whose tokens are
+    # the anchor's tokens — the anchor only lost a doubled hyphen, which is what the
+    # v0.37.0 slug change strands — used to tie with any shorter heading contained
+    # in it, and the tie refused the repair. mind.head's `#resolved-2026-06-14-round-
+    # 2-design-deep-dive` lost to a `resolved-2026-06-14` heading in the same doc.
+    exact = [slug for slug in available if [token for token in slug.split("-") if token] == want]
+    if len(exact) == 1:
+        return exact[0]
     hits = set()
     for slug in available:
         # Empty tokens dropped on both sides: GitHub's `planning--context` would
@@ -531,6 +548,14 @@ def main() -> int:
                 item(entry)
             if len(found) > 40:
                 detail(f"… and {len(found) - 40} more")
+            # **The repair tool is named where the failure is.** mind.head's 23 dead
+            # anchors were fixed by hand; `--fix` in a scratch clone then produced 22
+            # of the 23 byte for byte. A release that tightens this checker strands
+            # anchors on purpose, and the line reporting them said nothing about the
+            # flag that repoints them.
+            if label == "dead anchors" and not args.fix:
+                detail("`python scripts/check_doc_links.py --fix` repoints every one with exactly one")
+                detail("matching heading, and names the rest — those need a human to choose.")
             status = 1
         elif len(found) < ceiling:
             ok(f"{len(found)} {label} — below the {ceiling} ceiling. Lower it in this commit:")

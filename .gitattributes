@@ -4,7 +4,7 @@
 # regeneration is owed; run `dev docs index` after the merge. The driver
 # DEFINITION lives in .git/config, which is not version controlled — install it with
 # `python scripts/git/install_merge_drivers.py`, and `dev check merge-drivers`
-# asserts it is there. This named a `dev setup` that docs/DEVELOPMENT.md explains
+# asserts it is there. This named a `setup` subcommand that docs/DEVELOPMENT.md explains
 # in bold cannot exist: the CLI needs the virtualenv that setup would create. Without it git
 # falls back to a three-way text merge of these files, which is never a correct
 # resolution: conflict markers inside a generated JSON, hand-resolved, are how a
