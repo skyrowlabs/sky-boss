@@ -556,7 +556,7 @@ drop a long way without reaching zero, and the switch is what makes the differen
 
 **The consequence is a hard rule: `sb` never assumes cwd is the project root.** Every path derives
 from `PROJECT_ROOT` in `skyboss/helpers.py`, and the wrapper resolves its own symlink with `realpath`
-before setting `PYTHONPATH` — otherwise `python -m cli` resolves the package relative to
+before setting `PYTHONPATH` — otherwise `python -m skyboss` resolves the package relative to
 `~/.local/bin`. This is a whole class of bug: relative `PATH` entries re-resolving against each
 child's cwd, 112 tests failing from a tmp dir. Read the wrapper's comments before touching it.
 
@@ -609,7 +609,7 @@ argv sky.boss will *run*, so a suite reading the real home would register the op
 into the tree under test.
 
 **The suite never touches the real state directory** — `tests/conftest.py` redirects `SB_STATE`
-before anything imports `cli`. **Nothing operator-specific in tracked files.**
+before anything imports `skyboss`. **Nothing operator-specific in tracked files.**
 
 ### Testing
 
@@ -720,8 +720,8 @@ wrong.
 **`sb data` is deliberately not an exception even so** — it carries parsed data only, and a tool
 that printed something else has failed its contract. See [[text-reads]].
 
-**Gotcha:** never `from cli.<mod> import <same_name>` in `skyboss/__init__.py` — it rebinds the package
-attribute from the module to the Command and shadows the module. Import under an alias.
+**Gotcha:** never `from skyboss.<mod> import <same_name>` in `skyboss/__init__.py` — it rebinds
+the package attribute from the module to the Command and shadows the module. Import under an alias.
 
 ## Branches
 
@@ -841,18 +841,18 @@ Shared with sibling CLIs so the family feels like one tool.
 - **Python 3 + Click.** Available here: Python 3.14.7, click 8.3.3. Fail fast with a readable
   install message on a missing dependency.
 - **Layout:** `sb` bash wrapper → `skyboss/__main__.py` thin entry → `skyboss/` package. The wrapper does
-  path work only (resolve symlinks, prefer `.venv`, set `PYTHONPATH`, `exec python -m cli "$@"`).
+  path work only (resolve symlinks, prefer `.venv`, set `PYTHONPATH`, `exec python -m skyboss "$@"`).
 - **Shared plumbing in `skyboss/helpers.py`** — `PROJECT_ROOT`, `STATE_DIR`, `run_command`. Command
   modules call these rather than building paths directly.
 - **Ops commands act on real machines** via SSH, systemd, or the filesystem — never through an API
   client. Keep any HTTP behind a dedicated adapter module.
 - **A command sky.boss spawns gets the operator's environment, not sky.boss's.** Everything that
   shells out goes through `child_env()` in `skyboss/helpers.py`, which drops `PYTHONPATH` and
-  `PYTHONSAFEPATH` — the two the wrapper exports so `python -m cli` resolves. Without it a wrapped
-  Python tool imports *this* `cli` package from anywhere on the machine. `PATH` is deliberately
-  kept: stripping the venv the wrapper prepends would be sky.boss choosing which `python3` a foreign
-  tool finds. Not a clean room — scrub what sky.boss added to boot and nothing else. See
-  [[subprocess-env]].
+  `PYTHONSAFEPATH` — the two the wrapper exports so `python -m skyboss` resolves. Without it a
+  wrapped Python tool imports *this* repo's packages — `skyboss`, or skeletor's `cli` — from
+  anywhere on the machine. `PATH` is deliberately kept: stripping the venv the wrapper prepends
+  would be sky.boss choosing which `python3` a foreign tool finds. Not a clean room — scrub what
+  sky.boss added to boot and nothing else. See [[subprocess-env]].
 - **A tool that gates its output on `isatty()` is the operator's to declare.** Every child gets a
   pipe, so a tool that decides *what to print* by asking whether it has a terminal prints less
   under sky.boss than in your shell — not late, not narrow, **absent**, and absent output looks

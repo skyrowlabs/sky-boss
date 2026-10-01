@@ -4,9 +4,9 @@
 holds the surface's input history and its stall dumps; a test that read or wrote
 the real one would depend on — and damage — whatever the machine happens to have.
 
-It is resolved once at import in `cli/helpers.py`, so this has to be set before
-anything imports `cli`. Module level in conftest is early enough: pytest imports
-it before collecting.
+It is resolved once at import in `skyboss/helpers.py`, so this has to be set
+before anything imports `skyboss`. Module level in conftest is early enough:
+pytest imports it before collecting.
 """
 
 import os
