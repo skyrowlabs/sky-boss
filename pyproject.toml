@@ -45,7 +45,9 @@ skip = [".venv", ".venv-ci", "venv", ".git", "build", "dist", "node_modules", ".
 # applies when only a service directory plus tests/ is mounted; this one applies
 # when pytest is invoked without a tests/ path argument.
 [tool.pytest.ini_options]
-addopts = "--strict-markers"
+# sky.boss: `-p no:platformdirs` — see tests/pytest.ini; the venv sees system
+# site-packages for `gi`, and a system plugin can outrun the venv's copy.
+addopts = "--strict-markers -p no:platformdirs"
 filterwarnings = ["error::pytest.PytestReturnNotNoneWarning"]
 timeout = 120
 # Merged in from pytest.ini, which was deleted: two config sources is one too

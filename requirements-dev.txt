@@ -5,3 +5,9 @@ httpx2>=2.13.0
 
 # The canvas's session loop is async; pytest.ini sets asyncio_mode = auto.
 pytest-asyncio>=1.4
+
+# Not imported here. .venv sees system site-packages (for `gi`), and Arch's
+# platformdirs 4.12.1 registers a pytest plugin that an older venv copy lacks —
+# pytest then dies at startup. The floor keeps the venv's copy current; the
+# `-p no:platformdirs` addopts in pytest.ini/pyproject.toml is the other guard.
+platformdirs>=4.12.1
