@@ -564,8 +564,12 @@ child's cwd, 112 tests failing from a tmp dir. Read the wrapper's comments befor
 `.venv` against the *cwd* rather than the resolved symlink fails outside its own repo. So
 **anything sky.boss runs from another repo needs an explicit working directory**, not just PATH.
 
-- **Dependencies:** `.venv` + `requirements.txt`. No `pyproject.toml`, pyright, or pre-commit
-  until something needs them. Python here is 3.14.7 — new enough that a dependency may lack wheels.
+- **Dependencies:** `.venv` + `requirements.txt`; tooling from `requirements-dev.txt` and
+  `scripts/requirements.txt`. `pyproject.toml` is tool config only (black, isort, pytest) — nothing
+  installs this repo. `pyrightconfig.json` checks `skyboss`, `cli`, `scripts` and `tests`.
+  pre-commit is installed by `.venv/bin/pre-commit install --install-hooks` (see `CONTRIBUTING.md`)
+  and runs the formatters, flake8, pyright, the docs gates and the commit-msg check. Python here is
+  3.14.7 — new enough that a dependency may lack wheels.
 - **`--json` is a root-group flag** stored in the Click context, so the output decorator handles
   every command with no per-command boilerplate.
 - **Shell completion:** for fish, `_SB_COMPLETE=fish_source sb > ~/.config/fish/completions/sb.fish`.
