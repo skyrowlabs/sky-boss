@@ -11,7 +11,7 @@ mechanism instead of a flag. The reversal from tail-F-as-sugar is recorded
 in the constitution.
 
 **The cursor owns files; the process stream ([[follow]]) owns commands.**
-One verb fronts both; `cli/follow.py` owns the dispatch.
+One verb fronts both; `skyboss/follow.py` owns the dispatch.
 
 **Verbatim lines only.** No parsing, no filtering, no judgment — the
 cron.log evidence is the argument: timestamped lines, untimestamped
@@ -91,7 +91,7 @@ class FileCursor:
         self.fs = fs or RealFs()
         self.clock = clock
         self.ring = Ring(limit)
-        self.state = "absent"  # the chrome attention word: see cli/chrome.py
+        self.state = "absent"  # the chrome attention word: see skyboss/chrome.py
         self.size: int | None = None
         self.last_write_at: float | None = None
         self._inode: int | None = None

@@ -926,7 +926,7 @@ def schedule_rows() -> tuple[list[dict], list[str], int]:
     return rows, problems, withheld
 
 
-# **The act/observe bit, asserted rather than inferred.** `cli/canvas/catalog.py`
+# **The act/observe bit, asserted rather than inferred.** `skyboss/canvas/catalog.py`
 # derives `acts` from a *top-level* `run`, so a nested acting command defaults to
 # observe — and an observe may be given a refresh cadence, which for these three
 # would be the "scheduler nobody asked for" that rule exists to prevent. Caught

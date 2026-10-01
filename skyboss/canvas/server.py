@@ -313,7 +313,7 @@ def build(canvas: Canvas | None = None) -> Starlette:
         a surface that has gone to the trouble of having no browser chrome
         still announces itself as a browser. It is generated rather than
         stored because a static `.svg` would have to name a colour, and nothing
-        outside `cli/theme.py` may.
+        outside `skyboss/theme.py` may.
         """
         tokens = css_variables()
         svg = (
@@ -384,7 +384,7 @@ def build(canvas: Canvas | None = None) -> Starlette:
         preflight nothing answers, the per-launch token, the `Origin` check.
 
         Guarded like every other route, and the refusal is a 400 carrying its
-        reason — `cli.tools.write_problem` asked, never reimplemented, so the
+        reason — `skyboss.tools.write_problem` asked, never reimplemented, so the
         writer, the loader and this route hold one opinion.
 
         **Reloads the tree after writing**, because the alternative is a
@@ -633,7 +633,7 @@ def build(canvas: Canvas | None = None) -> Starlette:
                 "commands": catalog(),
                 # Every group that exists — declared, named by a command, or
                 # both — already ordered and counted. Computed in
-                # `cli.tools.sections` rather than in the rail: round 5 had
+                # `skyboss.tools.sections` rather than in the rail: round 5 had
                 # `app.js` holding the ordering rule, and that became one copy
                 # too many the moment a group could also be *declared*, because
                 # the rail would then need to know about a file it never reads.
@@ -717,7 +717,7 @@ def build(canvas: Canvas | None = None) -> Starlette:
         exists to let you make.
 
         So the page posts back the payload its trial run returned and gets a
-        fresh view. This is introspection, not execution — `cli/view.shape` is
+        fresh view. This is introspection, not execution — `skyboss/view.shape` is
         a pure function of the rows — and it belongs on the same side of *reads
         in, execution out* as `/api/catalog`.
 
@@ -783,7 +783,7 @@ def build(canvas: Canvas | None = None) -> Starlette:
         It also answers the name, because that question has the same shape and
         the same deadline: **`--save` writes before it runs**, so a refusal
         found afterwards is found too late, under a name that then cannot be
-        reused. `cli.tools.name_problem` is asked rather than reimplemented.
+        reused. `skyboss.tools.name_problem` is asked rather than reimplemented.
 
         Runs nothing, like `/api/catalog` and `/api/shape`.
         """
@@ -1727,7 +1727,7 @@ async def stream_frames(
         # this finally runs inside GeneratorExit, where a graceful wait has
         # nowhere to happen, and a child that ignores SIGTERM is reaped when
         # the server exits. The terminal form waits properly; see
-        # cli/follow.py.
+        # skyboss/follow.py.
         for follower in session.followers.values():
             proc = getattr(follower.child, "proc", None)  # a cursor has none
             try:

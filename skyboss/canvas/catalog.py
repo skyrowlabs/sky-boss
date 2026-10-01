@@ -11,7 +11,7 @@ in the palette with its real one-liner and its real options, and this module
 does not change.
 
 Introspection only — walking the tree never runs a command. Execution goes out
-of process entirely; see `cli/canvas/runner.py` for why.
+of process entirely; see `skyboss/canvas/runner.py` for why.
 """
 
 from __future__ import annotations

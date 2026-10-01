@@ -230,7 +230,7 @@ def hold(
     A caller with nothing sensible to print line-at-a-time — a countdown, whose
     every frame replaces the last — passes nothing and keeps the old behaviour.
 
-    The check was already here, one module over: `cli/follow.py` asks
+    The check was already here, one module over: `skyboss/follow.py` asks
     `console.is_terminal` to pick a display width and throws the rest of the
     answer away. This is not a new question, it is the one that was being asked
     and half-heard.
@@ -468,7 +468,7 @@ def reside(
     `q`, `Esc` and Ctrl-C all leave. See [[refresh]] round 2 for why the first
     two exist and why they degrade to nothing without a terminal.
 
-    The body is sky.boss's own rendering, captured — `cli/output.py` owns every
+    The body is sky.boss's own rendering, captured — `skyboss/output.py` owns every
     byte that reaches a terminal, and a surface that renders elsewhere takes
     that claim up rather than routing around it. The bands come from the
     [[chrome]] contract; this module decides nothing about what they say.

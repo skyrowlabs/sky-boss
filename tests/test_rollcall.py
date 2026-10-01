@@ -1,7 +1,7 @@
 """The roll-call — many projects, one answer.
 
 Every test here runs against a redirected `SB_HOME` (conftest sets it before
-anything imports `cli`). That matters more than usual: a project is a source sky.boss
+anything imports `skyboss`). That matters more than usual: a project is a source sky.boss
 will *run*, so a suite reading the real home would be shelling out to whatever
 the operator happens to have declared.
 """

@@ -447,7 +447,7 @@ def _scrolling(keys_pressed, ticks=None):
     """Drive a follow through a scripted keyboard and record what it drew.
 
     Keys are the *names* `wait` returns, not the bytes a terminal sends —
-    decoding is `cli/keys.py`'s job and is tested there against a fake stream.
+    decoding is `skyboss/keys.py`'s job and is tested there against a fake stream.
     """
     from rich.console import Console
 

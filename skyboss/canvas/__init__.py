@@ -10,7 +10,7 @@ central metaphor here, and a terminal cannot do them.
 rather than adding one of its own, which is why `sb run` stays the only door
 that acts even with the canvas in front of it.
 
-The window is a native webview (`cli/canvas/shell.py`), which is what makes it
+The window is a native webview (`skyboss/canvas/shell.py`), which is what makes it
 frameless, resizable, and draggable by its own bar. `--browser` opens it in
 Chromium instead, and `--no-browser` serves only — the mode to develop in,
 since it is the one where a page reload is the whole loop.
@@ -281,6 +281,6 @@ def ui(
     return result
 
 
-# A surface, not an entry in its own palette. Read by `cli/canvas/catalog.py`,
+# A surface, not an entry in its own palette. Read by `skyboss/canvas/catalog.py`,
 # which asks the command rather than keeping a list of names to skip.
 mark(ui, sb_surface=True)

@@ -26,7 +26,7 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-# (start, end, role) — offsets into the line, role names from cli/theme.py.
+# (start, end, role) — offsets into the line, role names from skyboss/theme.py.
 Mark = tuple[int, int, str]
 
 # A leading ISO-8601 stamp, seconds required, fraction and zone optional. The
@@ -52,7 +52,7 @@ _TRAILING = ".,;:!?'\")]}"
 # ---------------------------------------------------------------- round 2
 #
 # The rest of the shapes an agent's log actually contains, each taking the
-# role its *kind* already has in a table cell (`cli/output.py`'s `_cell`:
+# role its *kind* already has in a table cell (`skyboss/output.py`'s `_cell`:
 # numbers `sb.num`, path-like strings `sb.path`). One value vocabulary across
 # both surfaces — a number that looked like a number in `sb data` and like
 # prose in `sb follow` would be two palettes wearing one name. See [[highlight]].
@@ -88,7 +88,7 @@ _TIME = re.compile(r"\b\d{1,2}:\d{2}(?::\d{2})?\b")
 # give.** It read as a number, which it is, and looked like every other number
 # on the line, which the operator asked it not to. The design system has four
 # hues and all four are spent, so the ask could not be answered in colour at
-# all — see `cli/theme.py` § Ground, not hue. `sb.ref` is the brand on a wash
+# all — see `skyboss/theme.py` § Ground, not hue. `sb.ref` is the brand on a wash
 # of itself: the same colour, a different *object*. It is still the number's
 # hue, which keeps round 2's rule intact — a value looks like its kind on both
 # surfaces — and adds the one axis the system had left.
@@ -117,7 +117,7 @@ _NUMBER = re.compile(r"(?<![\w-])\d[\d,_]*(?:\.\d+)?(?:%|[a-zA-Z]{1,3})?(?![\w-]
 # A check mark is not sky.boss deciding a line went well; it is sky.boss reading a symbol
 # whose meaning is not in dispute, and `sb data` already renders a true
 # boolean as a green `✓` and a false one as a red `✗` (`_cell` in
-# cli/output.py). One value vocabulary, two surfaces — a check is green in a
+# skyboss/output.py). One value vocabulary, two surfaces — a check is green in a
 # table cell, so it is green in a log line.
 #
 # `red` is the same claim in its strongest form: the word denotes the colour.

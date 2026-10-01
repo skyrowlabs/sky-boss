@@ -16,7 +16,7 @@ root until 2026-08-22). The builtin/operator line is the sharpest line in the
 design, and on the root it was invisible in the one listing that matters most.
 Nesting also retired the shadowing rule into structure: `sb tools run`
 collides with nothing, so "a builtin always wins" stopped being validation.
-`-t` is an argv spelling of `tools`, rewritten at the root — see cli/__init__.
+`-t` is an argv spelling of `tools`, rewritten at the root — see skyboss/__init__.
 
 **The argv is a sky.boss argv, never a shell argv.** A tool cannot name an arbitrary
 executable, because a tool that could would be a second `sb run` — one that
@@ -229,7 +229,7 @@ def sections(tools: list[Tool], groups: list[Group]) -> list[dict]:
     `app.js` hold the ordering rule; that was one copy too many the moment a
     group could also be declared, because the rail would then need to know
     about a file it never reads. Same argument [[table-views]] made for
-    `cli/view.py`: the deciding half goes where pytest reaches it.
+    `skyboss/view.py`: the deciding half goes where pytest reaches it.
 
     Alphabetical, and the ungrouped are not in here at all — they are the
     bucket every surface draws last, and giving them an entry would make them a
@@ -1282,7 +1282,7 @@ def save_invocation(name: str, command: str | None, invocation: list[str] | None
     """Save the line that is running, as `name`. The three observes' one call.
 
     Reads the recorded invocation rather than Click's parsed values — see
-    `saved_argv` for why, and `INVOCATION` in cli/helpers.py for why it is
+    `saved_argv` for why, and `INVOCATION` in skyboss/helpers.py for why it is
     recorded at all. `invocation` is injectable so the suite can hand one in
     without a process.
 

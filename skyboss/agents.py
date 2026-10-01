@@ -362,7 +362,7 @@ def rows_of(sessions: list[Session], now: datetime) -> list[dict]:
 def view_of(rows: list[dict]) -> dict:
     """Authored, not inferred — these five keys are sky.boss's own vocabulary,
     so there is nothing to infer, only an order to state and three columns to
-    keep out of the way. Widths still come from `cli/view.py`, or flex grows a
+    keep out of the way. Widths still come from `skyboss/view.py`, or flex grows a
     second opinion. See [[table-views]] and [[schedule]] round 3."""
     return {
         "columns": [describe(key, rows) for key in INLINE],

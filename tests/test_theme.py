@@ -35,7 +35,7 @@ def test_no_file_outside_the_palette_names_a_colour():
     `.js` file, both of which can name a colour, and the mockup this is built
     from is full of `rgba()` literals that would be perfectly easy to paste in.
     So the scan follows the surface rather than the language. Tokens reach the
-    page through `cli/theme.py`'s `css_root`, injected by the server.
+    page through `skyboss/theme.py`'s `css_root`, injected by the server.
 
     Vendored third-party code is exempt. It is not ours to keep a palette out
     of, and rewriting someone's minified bundle to satisfy a house rule is a
@@ -320,7 +320,7 @@ def test_the_tokens_still_match_the_design_system():
 def test_every_mark_role_the_highlighter_can_emit_has_a_rule_in_the_stylesheet():
     """**Enumerated off the rules, because spot-checking is what missed it.**
 
-    `cli/highlight.py` emits role names and `render.js` turns each into an
+    `skyboss/highlight.py` emits role names and `render.js` turns each into an
     `mk-<role>` class, applied dumbly. Nothing connected that to the stylesheet
     — so round 4's verdict roles (`ok`, `fail`, `warn`) shipped their classes
     with no rule to paint them, and every ✓, ✗, ⚠ and colour word on the canvas

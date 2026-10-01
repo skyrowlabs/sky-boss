@@ -265,7 +265,7 @@ def test_no_band_animates_to_look_busy():
 
 def test_an_envelope_is_byte_identical_to_one_from_before_chrome_existed():
     """Chrome consumes the envelope; it never feeds it. The exact keys, in
-    the exact order, that the envelope carried before cli/chrome.py existed."""
+    the exact order, that the envelope carried before skyboss/chrome.py existed."""
     result = CliRunner().invoke(cli, ["--json", "data", "--", "printf", '[{"a": 1}]'])
     envelope = json.loads(result.stdout)
     assert list(envelope) == ["command", "ok", "partial", "data", "warnings", "view"]

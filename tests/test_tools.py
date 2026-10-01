@@ -296,7 +296,7 @@ def test_a_tool_is_an_ordinary_command_behind_the_tools_group(saved):
 
 
 def test_the_palette_finds_a_tool_without_the_catalog_knowing_about_tools(saved):
-    """The point of registering rather than listing. `cli/canvas/catalog.py`
+    """The point of registering rather than listing. `skyboss/canvas/catalog.py`
     walks the live tree, so a tool appears in the palette with its real summary
     and its real options and nothing there had to learn what a tool is. The
     leaf's full name is the dotted address, spaced."""
@@ -417,7 +417,7 @@ def test_the_catalog_ships_every_group_ordered_and_counted(saved, tmp_path, monk
     )
     # The catalog reloads from the ambient home on every request — the doctrine
     # that keeps it from drifting — so the ambient home has to be the one the
-    # fixture wrote. `cli.tools` imported `SB_HOME` by value, so that binding is
+    # fixture wrote. `skyboss.tools` imported `SB_HOME` by value, so that binding is
     # the one that matters; without this line the assertion fails.
     monkeypatch.setattr("skyboss.tools.SB_HOME", tmp_path, raising=False)
     client = TestClient(build(Canvas(token="t")))
@@ -473,7 +473,7 @@ def test_the_tools_table_is_unchanged_by_groups_existing(saved):
 
 
 def test_a_malformed_group_is_reported_alongside_a_malformed_tool(saved):
-    """`register` returns both kinds in one list, which is what `cli/__init__`
+    """`register` returns both kinds in one list, which is what `skyboss/__init__`
     extends `PROBLEMS` with at startup and what `sb tools` then reports. The
     fixture takes the return value directly, because it registers into a tree
     that is already built."""

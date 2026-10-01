@@ -321,7 +321,7 @@ function useNow() {
  * *declared* as well as named, because an empty group appears in no command's
  * `group` field and the rail would have had to know about a file it never
  * reads. `/api/catalog` now ships `groups` already ordered and counted, from
- * `cli.tools.sections`, and this only buckets. Within a group nothing sorts
+ * `skyboss.tools.sections`, and this only buckets. Within a group nothing sorts
  * here either: the catalog walks `sorted(command.commands)`.
  *
  * The ungrouped are appended last and are deliberately *not* a server-side
@@ -2076,7 +2076,7 @@ function App() {
     setEnv: (env) => setDraft((d) => ({ ...d, env })),
     setArgv: (argv) => setDraft((d) => ({ ...d, argv })),
 
-    /* The name. Judged by `cli.tools.name_problem` rather than here — a page
+    /* The name. Judged by `skyboss.tools.name_problem` rather than here — a page
      * holding a copy of the rule would disagree the day the rule changed. */
     setSave: (save) => setDraft((d) => ({ ...d, save, saved: null })),
     /* What the tool is *for*. `--save` could never ask — it saves by example

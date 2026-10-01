@@ -67,7 +67,7 @@ HISTORY_KEYS = frozenset({"path", "from", "when", "name", "outcome"})
 HISTORY_REQUIRED = ("path", "when", "name")
 TOP_LEVEL_TABLES = frozenset({"project"})
 
-# Top-level keys that are not tables. `state_root` is read by cli/agentstate.py
+# Top-level keys that are not tables. `state_root` is read by skyboss/agentstate.py
 # rather than here — this set exists so the unknown-table check below does not
 # report the operator's own declaration as a mistake. See [[state-root]].
 TOP_LEVEL_KEYS = frozenset({"state_root"})

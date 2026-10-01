@@ -41,7 +41,7 @@ EMPTY = "-"
 # and the rule did not.
 MAX_TABLE_ROWS = 2000
 
-# The palette lives in cli/theme.py, so that this module, rich-click's --help
+# The palette lives in skyboss/theme.py, so that this module, rich-click's --help
 # styling and the canvas's CSS cannot drift apart. Style *names* are the
 # contract here; no hex is written below this line.
 #
@@ -49,7 +49,7 @@ MAX_TABLE_ROWS = 2000
 # rendered captured Rich output on a background it painted itself. The canvas
 # does not: it renders from the envelope's data rather than from sky.boss's bytes, so
 # the full-strength rendering of the palette reaches it as CSS custom
-# properties instead. See cli/theme.css_variables.
+# properties instead. See skyboss/theme.css_variables.
 THEME = Theme(STYLES)
 
 # Two consoles, and the split matters. Rich auto-detects a TTY and drops colour
@@ -264,7 +264,7 @@ class Result:
     # How to *present* `data`, when the command has something to say about it.
     # A hint, never a filter: `data` is complete whatever this holds, so a
     # machine consumer keeps every field the table happens to hide. Only
-    # commands carrying foreign data set it — see cli/view.py.
+    # commands carrying foreign data set it — see skyboss/view.py.
     view: Any = None
 
     # Where `--save` wrote this invocation, when it did. Never set by anything
@@ -643,7 +643,7 @@ def _render_columns(rows: list[dict], title: str | None, indent: int = 0, view: 
     first-seen order, at equal width. That is right for data whose fields a
     person chose, and it is what sky.boss's own commands still get.
 
-    With one, the columns and their relative widths were decided in cli/view.py
+    With one, the columns and their relative widths were decided in skyboss/view.py
     and this only draws them — `no_wrap` with ellipsis overflow is what stops a
     78-character title folding a one-row table into twelve lines.
 
@@ -683,7 +683,7 @@ _COLUMN_PADDING = 2
 def fit_columns(columns: list[dict], available: int) -> tuple[list[dict], list[str]]:
     """As many leading columns as fit at their floors, and the keys of the rest.
 
-    **This is the terminal's half of [[table-views]] round 3.** `cli/view.py`
+    **This is the terminal's half of [[table-views]] round 3.** `skyboss/view.py`
     says which columns are worth showing; how many fit is arithmetic against a
     width, and only a renderer knows its width. The canvas answers the same
     question differently *because its substrate differs* — a browser can scroll
@@ -713,7 +713,7 @@ def _resolve_widths(columns: list[dict], available: int) -> list[int]:
     the weights. If the floors alone do not fit, they are used anyway and the
     table overflows: a table too wide for the terminal is a legible thing you
     can widen, whereas a table of two-character stubs is not. The column budget
-    in cli/view.py is what keeps that case rare.
+    in skyboss/view.py is what keeps that case rare.
     """
     floors = [max(1, column.get("min", 1)) for column in columns]
     naturals = [max(floor, column.get("max", floor)) for floor, column in zip(floors, columns)]
@@ -936,7 +936,7 @@ def role_style(role):
 
 def band_text(spans) -> Text:
     """Chrome band spans assembled into styled Text. The roles were decided
-    in cli/chrome.py; this only applies them — neither renderer grows an
+    in skyboss/chrome.py; this only applies them — neither renderer grows an
     opinion. See [[chrome]]."""
     text = Text()
     for chunk, role in spans:

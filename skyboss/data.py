@@ -45,7 +45,7 @@ failure, not an empty table. See [[capture]].
 as many fields as its author needed, not as many as a table wants, so this
 attaches a `view` describing which of them to show. sky.boss's own commands do not:
 their fields were chosen deliberately and auto-dropping one would be a bug
-wearing a feature's clothes. The view never edits `data`. See cli/view.py.
+wearing a feature's clothes. The view never edits `data`. See skyboss/view.py.
 """
 
 from __future__ import annotations
@@ -69,7 +69,7 @@ from skyboss.view import find_rows, shape, warnings_for
 def is_file_form(argv: tuple[str, ...]) -> bool:
     """One argument, and it is a path rather than a command.
 
-    **Nearly `cli/follow.py`'s rule, and the one difference is load-bearing.**
+    **Nearly `skyboss/follow.py`'s rule, and the one difference is load-bearing.**
     Follow treats a bare word that no executable answers to as a file, because
     `sb follow new.log` has to be legal before the log's first write — a file
     that does not exist yet is the normal case for something you are waiting
@@ -537,7 +537,7 @@ def parse_text(
     result.view = shape(parsed, cols=requested, drop=dropped, enabled=not no_shape, rows_path=rows_path)
 
     # What this shaping is owed a word about. Three warnings, all decided in
-    # cli/view.py rather than here — the bench asks the same question of the
+    # skyboss/view.py rather than here — the bench asks the same question of the
     # same payload without re-running the tool ([[workbench]] round 2), and two
     # copies of "which columns went quiet" would drift the week after they were
     # written. An *inferred* miss is not an error, so the reason is passed only

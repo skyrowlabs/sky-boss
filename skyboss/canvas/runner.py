@@ -18,7 +18,7 @@ which against a network round-trip is noise.
 envelope `emit` built, which is the whole reason the output contract exists.
 Nothing here parses human output.
 
-Introspection stayed in-process (`cli/canvas/catalog.py`) because reading the
+Introspection stayed in-process (`skyboss/canvas/catalog.py`) because reading the
 tree runs nothing. Reads in, execution out.
 """
 
@@ -32,7 +32,7 @@ from pathlib import Path
 
 from skyboss.helpers import PROJECT_ROOT, child_env
 
-# The wrapper, not `python -m cli`. It resolves its own symlink, prefers the
+# The wrapper, not `python -m skyboss`. It resolves its own symlink, prefers the
 # venv and sets PYTHONSAFEPATH — all things this would otherwise have to
 # reproduce, and one of which has already caused a silent bug once.
 # See CLAUDE.md § CLI setup.

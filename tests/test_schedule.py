@@ -218,7 +218,7 @@ def test_view_is_authored_and_hides_the_absolutes():
     v = schedule.view_of(rows)
     assert [c["key"] for c in v["columns"]] == list(schedule.INLINE)
     assert v["hidden"] == list(schedule.HIDDEN)
-    # Widths come from cli/view.py, not from a second opinion here.
+    # Widths come from skyboss/view.py, not from a second opinion here.
     assert all("flex" in c and "min" in c for c in v["columns"])
 
 

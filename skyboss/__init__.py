@@ -30,7 +30,7 @@ from skyboss.theme import (  # noqa: E402
     CLI_OK,
 )
 
-# --help styled from the same palette as everything else (cli/theme.py). These
+# --help styled from the same palette as everything else (skyboss/theme.py). These
 # values used to be hexes written out by hand, which agreed with the output
 # theme only because both were typed the same afternoon. They take the CLI
 # derivations rather than the raw tokens: --help prints into a terminal whose
@@ -106,7 +106,7 @@ class Root(click.RichGroup):
         expanded = expand_t(list(args))
         # Recorded before Click sees it, so `--save` can write down the line
         # the operator typed rather than one rebuilt from parsed options.
-        # See `INVOCATION` in cli/helpers.py and [[tools]] round 3.
+        # See `INVOCATION` in skyboss/helpers.py and [[tools]] round 3.
         INVOCATION[:] = expanded
         return super().main(expanded, *pargs, **kwargs)
 
@@ -170,7 +170,7 @@ from skyboss.read import read_ as read_cmd  # noqa: E402
 from skyboss.run import run as run_cmd  # noqa: E402
 
 # `run` acts; `data` reads. That split is what the canvas reads to decide
-# whether a window may be given a refresh cadence. See cli/data.py.
+# whether a window may be given a refresh cadence. See skyboss/data.py.
 cli.add_command(run_cmd)
 cli.add_command(data_cmd)
 

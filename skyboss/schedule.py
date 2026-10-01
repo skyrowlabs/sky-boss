@@ -126,7 +126,7 @@ def view_of(rows: list[dict]) -> dict:
     a foreign tool's and nobody here chose them. These six keys are sky.boss's
     own vocabulary — round 1 named them — so there is nothing to infer, only an
     order to state and three columns to keep out of the way. The widths still come
-    from `cli/view.py`, because a second opinion about flex would drift.
+    from `skyboss/view.py`, because a second opinion about flex would drift.
     """
     return {
         "columns": [describe(key, rows) for key in INLINE],

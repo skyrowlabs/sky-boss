@@ -1,7 +1,7 @@
 """Chrome — what a window knows about its output. See [[chrome]].
 
 **The chrome is a fact set, computed once here, drawn twice.** The view
-(cli/view.py) is in-band — how the data itself is drawn. The chrome is
+(skyboss/view.py) is in-band — how the data itself is drawn. The chrome is
 out-of-band: everything the surface knows *about* the output that the output
 does not say — the source, the temporal shape, when it ran, the countdown to
 the next refresh, the liveness clock, the exit that made a stream go dead.
@@ -44,7 +44,7 @@ ATTENTION = (
 
 # One mapping from attention to a theme role, shared by whoever draws the
 # chrome into a terminal. The canvas maps the same words onto CSS roles; the
-# words are the contract, the colours stay in cli/theme.py.
+# words are the contract, the colours stay in skyboss/theme.py.
 ROLE = {
     "running": "sb.accent",
     "ok": "sb.ok",

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Thin entry point for ``python -m cli``.
+"""Thin entry point for ``python -m skyboss``.
 
 Implementation lives in the sibling modules of this package. The ``sb`` wrapper
-is the only caller; it puts the repo root on PYTHONPATH so ``-m cli`` resolves
+is the only caller; it puts the repo root on PYTHONPATH so ``-m skyboss`` resolves
 no matter which directory sky.boss was invoked from.
 """
 

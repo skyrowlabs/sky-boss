@@ -89,7 +89,7 @@ def said():
 
 @pytest.fixture
 def at_a_terminal(monkeypatch):
-    """Make `cli.output._out()` report a terminal for this test.
+    """Make `skyboss.output._out()` report a terminal for this test.
 
     `--refresh` refuses without one ([[refresh]] round 3), and a `CliRunner`
     never has one. A test that drives the resident *plumbing* — that `--screen`

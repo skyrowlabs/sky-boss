@@ -70,7 +70,7 @@ TILDE_PATH = re.compile(r"~/([A-Za-z0-9][\w.-]*)")
 HOME_JOIN = re.compile(r'Path\.home\(\)\s*/\s*"([A-Za-z0-9][\w.-]*)"')
 
 # Loopback and the unspecified address are how a local server is spelled, and
-# `127.0.0.1` appears in `cli/canvas/` by design. The rest are the ranges the
+# `127.0.0.1` appears in `skyboss/canvas/` by design. The rest are the ranges the
 # RFCs reserve so that sample data cannot be mistaken for somebody's network:
 # 192.0.2.0/24, 198.51.100.0/24 and 203.0.113.0/24 (RFC 5737).
 SAFE_IPV4 = ("127.", "0.0.0.0", "255.255.255.255", "192.0.2.", "198.51.100.", "203.0.113.")

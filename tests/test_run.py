@@ -104,9 +104,9 @@ def test_run_requires_something_to_run():
 
 
 def test_a_spawned_command_does_not_inherit_tbs_import_path(tmp_path):
-    """sky.boss's wrapper puts this repo on PYTHONPATH so `python -m cli` resolves.
+    """sky.boss's wrapper puts this repo on PYTHONPATH so `python -m skyboss` resolves.
     A command sky.boss runs is not sky.boss and must not get it — otherwise a wrapped
-    Python tool imports *this* package from anywhere on the machine.
+    Python tool imports *this* repo's packages from anywhere on the machine.
 
     Asserted as the property an operator would check by hand rather than by
     inspecting the environment, so a change to how the wrapper bootstraps
@@ -236,7 +236,7 @@ def _quiet():
 
 def test_envelope_for_is_the_one_place_an_outcome_becomes_a_run_envelope():
     """The canvas accrues too now, and must not re-decide any of this beside
-    `cli/run.py`. See [[follow]] round 4."""
+    `skyboss/run.py`. See [[follow]] round 4."""
     from skyboss.run import envelope_for
     from skyboss.stream import Outcome
 

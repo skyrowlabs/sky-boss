@@ -65,7 +65,7 @@ def _default_home() -> Path:
 SB_HOME = Path(os.environ.get("SB_HOME") or _default_home())
 
 # The argv this process was invoked with, after the root's `-t` rewrite and
-# before Click consumed any of it. Set once by `Root.main` in cli/__init__.py.
+# before Click consumed any of it. Set once by `Root.main` in skyboss/__init__.py.
 #
 # It exists for one caller: `--save` writes down **what you typed** rather than
 # rebuilding a line from parsed options, because a saved tool whose expansion
@@ -77,7 +77,7 @@ SB_HOME = Path(os.environ.get("SB_HOME") or _default_home())
 INVOCATION: list[str] = []
 
 
-# What sky.boss's own wrapper exports so that `python -m cli` resolves against this
+# What sky.boss's own wrapper exports so that `python -m skyboss` resolves against this
 # repo rather than against whatever directory you are standing in. Both are
 # load-bearing for sky.boss — see CLAUDE.md § CLI setup — and neither is any business
 # of a command sky.boss spawns.
@@ -96,8 +96,8 @@ def child_env(
 ) -> dict[str, str]:
     """The environment a spawned command should see: the operator's, not sky.boss's.
 
-    Without this, `sb run -- python3 -c "import cli"` imports *this* package
-    from anywhere on the machine, because `subprocess` inherits the parent
+    Without this, `sb run -- python3 -c "import cli"` imports *this* repo's
+    `cli` (skeletor's shell) from anywhere on the machine, because `subprocess` inherits the parent
     environment and sky.boss's wrapper put the repo on `PYTHONPATH`.
 
     It was found by manually testing something else: `sb data -- jam …`

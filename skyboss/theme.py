@@ -22,8 +22,8 @@ So every CLI role is a *darkened derivation* of the token it stands for, chosen
 as the smallest darkening that clears 3.5:1 on both backgrounds. Same hue, same
 meaning, legible either way. Nothing here is picked by eye.
 
-**Every consumer derives from this file** — the Rich theme in `cli/output.py`,
-the `--help` styling in `cli/__init__.py`, and the canvas's stylesheet, which
+**Every consumer derives from this file** — the Rich theme in `skyboss/output.py`,
+the `--help` styling in `skyboss/__init__.py`, and the canvas's stylesheet, which
 gets these as CSS custom properties from `css_variables` below. A test fails if
 any file outside this one names a hex, in any language.
 """
@@ -73,7 +73,7 @@ BORDER = TEXT_3
 # The mark
 # ============================================================================
 #
-# `docs/design/cli-header.png` drawn in half-blocks — see cli/banner.py. These
+# `docs/design/cli-header.png` drawn in half-blocks — see skyboss/banner.py. These
 # are the design system's own values, undarkened, and that is deliberate: the
 # mark **paints its own background**, so it is in the same position the canvas
 # is in rather than the CLI's. The derivations below exist because sky.boss prints

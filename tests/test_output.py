@@ -748,7 +748,7 @@ def test_a_composite_role_resolves_instead_of_silently_rendering_plain():
 
 def test_every_role_the_highlighter_can_emit_resolves():
     """Enumerated from the rules rather than spot-checked, the same way the API
-    route list is. A role added to `cli/highlight.py` that Rich cannot resolve
+    route list is. A role added to `skyboss/highlight.py` that Rich cannot resolve
     would render plain and say nothing."""
     from rich.errors import MissingStyle
 

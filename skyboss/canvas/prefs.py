@@ -1,7 +1,7 @@
 """What the surface remembers about itself between launches.
 
 **Machine state, not operator content.** It lives under `$SB_STATE` beside the
-browser profile, on the same line `cli/helpers.py` draws: `rm -rf` on that
+browser profile, on the same line `skyboss/helpers.py` draws: `rm -rf` on that
 directory is a reasonable way to reset the surface and must not touch a single
 tool the operator wrote. A folded group is a surface preference; `tools.toml`
 is the operator's file, and a chevron click has no business writing it — or

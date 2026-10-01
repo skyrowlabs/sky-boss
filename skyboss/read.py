@@ -6,7 +6,7 @@ refresh cadence, so that window can never be pinned — the only command that
 carried text was the one command that must never be put on a timer.
 
 **Why `data` is the text itself** and not an object wrapping it: both renderers
-already do the right thing with a plain string. `cli/output.py` echoes it
+already do the right thing with a plain string. `skyboss/output.py` echoes it
 verbatim, and `render.js` falls through to a `<pre>`. Wrapping it in a mapping
 is what makes `sb run`'s output wrap and lose its alignment.
 

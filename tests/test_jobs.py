@@ -778,7 +778,7 @@ def test_every_job_subcommand_chooses_its_act_bit():
     given a refresh cadence — which for `sb job run` would be the *scheduler
     nobody asked for* that rule exists to prevent.
 
-    `cli/canvas/catalog.py` derives `acts` from a **top-level** `run`, so
+    `skyboss/canvas/catalog.py` derives `acts` from a **top-level** `run`, so
     anything under a group can only act by declaring `sb_acts`. All three
     acting subcommands here shipped without it and the catalog called them
     observes; nothing failed, and it was found by reading the catalog.

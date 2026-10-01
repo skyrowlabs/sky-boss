@@ -12,8 +12,8 @@ paths.
 **What they do not survive is never having been written.** The rot moved
 rather than went away: on 2026-08-27 this suite gained the check and
 immediately found two slugs pointing at documents that did not exist — `keys`,
-cited from `cli/resident.py` twice and from `tests/test_keys.py`, and `theme`,
-cited from `cli/banner.py` and from the header doc itself. Both had been dead
+cited from `skyboss/resident.py` twice and from `tests/test_keys.py`, and `theme`,
+cited from `skyboss/banner.py` and from the header doc itself. Both had been dead
 long enough that nobody could say when they broke, which is exactly the
 argument for a test rather than a habit.
 
@@ -120,7 +120,7 @@ def test_no_constant_is_documented_and_then_read_by_nothing():
     relayed through the skeletor session, and swept here the same day. It found
     two: `OUTCOMES`, decoration beside six literals, and `WATCHED` — defined on
     the line after `SB_CLOCK`, under one comment explaining *both* words, while
-    `cli/schedule.py` wrote the string by hand. `SB_CLOCK` had eight readers and
+    `skyboss/schedule.py` wrote the string by hand. `SB_CLOCK` had eight readers and
     `WATCHED` none, so half of one decision was enforced and half was prose.
 
     Recomputed rather than listed, per the rule the same day's exchange settled:

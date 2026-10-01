@@ -144,7 +144,7 @@ def order(rows: list[dict]) -> list[dict]:
 
 def view_of(rows: list[dict]) -> dict:
     """Authored, not inferred — these are sky.boss's own four keys, so there is
-    nothing to infer. Widths come from `cli/view.py` so flex keeps one opinion.
+    nothing to infer. Widths come from `skyboss/view.py` so flex keeps one opinion.
     See [[table-views]] and [[schedule]] round 3."""
     return {
         "columns": [describe(key, rows) for key in INLINE],

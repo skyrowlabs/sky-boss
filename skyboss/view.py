@@ -503,7 +503,7 @@ def warnings_for(
 ) -> list[str]:
     """The four things a shaped view is owed a word about.
 
-    Lifted out of `cli/data.py` when the workbench grew a second caller. It was
+    Lifted out of `skyboss/data.py` when the workbench grew a second caller. It was
     always the kind of decision this module exists to hold — *what is worth
     telling the operator about this shaping* — and it was inline only because
     there had been one caller. Two renderers of the same warning would drift
