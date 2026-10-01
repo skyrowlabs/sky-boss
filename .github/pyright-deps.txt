@@ -18,8 +18,9 @@
 # so no workflow here ran pyright, and this file sat for six releases with no
 # caller at all — configuration justified by a comment rather than by a caller.
 # The operator ruled that CI should type-check, and the shape is a pyright STEP
-# inside the existing `test` job rather than a job of its own, because a required
-# check is named in branch protection and not discovered.
+# inside the existing `unit-tests` job (`test` until round 37 of the adoption
+# doc) rather than a job of its own, because a required check is named in
+# branch protection and not discovered.
 #
 # That shape is what makes the three lines below the right ones. The template's
 # type-check job installs this file onto the RUNNER's interpreter; this tree's

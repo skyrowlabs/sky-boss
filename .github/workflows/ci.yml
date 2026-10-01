@@ -12,7 +12,7 @@
 # mattered.** The paragraph correctly stated the hazard — a required context
 # reporting `skipped` is ACCEPTED by branch protection — and then claimed a
 # mitigation the graph does not implement. A `needs:` edge is exactly how a job
-# comes to report `skipped`: if `gate` fails, `test` and `lint` never run, all
+# comes to report `skipped`: if `gate` fails, `unit-tests` and `lint` never run, all
 # three required contexts report `skipped`, protection accepts them, and a pull
 # request merges having proven nothing. Named in the template's own header at
 # v0.22.0 as *requiring only the leaves is requiring nothing*, and confirmed
@@ -43,7 +43,7 @@
 # **Both jobs need `fetch-depth: 0`, and each names its own caller.** This
 # paragraph has been wrong in both directions within one day, so the rule it
 # ended on is: a depth is justified by the line that reads history, never by a
-# paragraph. `gate` reads a commit range (`check_commit_style.py`); `test` asks
+# paragraph. `gate` reads a commit range (`check_commit_style.py`); `unit-tests` asks
 # `git log --all` whether a symbol a doc names was ever ours, and refuses
 # outright against a shallow clone rather than passing having looked at nothing.
 #
@@ -198,7 +198,7 @@ jobs:
             python scripts/check_commit_style.py --range "$BASE..${{ github.sha }}"
           fi
 
-  test:
+  unit-tests:
     # **The floor of this list is the number the README is allowed to say.**
     # `README.md` promises a range, and for one job that was a belief rather
     # than a check: every file parsed as floor syntax and `tomllib` is 3.11+,
@@ -215,12 +215,14 @@ jobs:
     # gives up, and it is the rare one. What it buys is not runner minutes —
     # the jobs are parallel and free on a public repo, so four cost the same
     # wall-clock as two — but the number of required checks two protected
-    # branches have to carry.
+    # branches have to carry. That reason expires with the `pytest` job below:
+    # once protection names it instead of the legs, the leg count is free.
     #
     # The floor moved 3.11 → 3.12 the same day, which is what makes PEP 701
     # available. Debian 12 ships 3.11 and is what that cost; Ubuntu 24.04 LTS
-    # ships 3.12 and is what it kept. Raising it again is a README edit and a
-    # branch-protection edit, in that order, and never one without the other.
+    # ships 3.12 and is what it kept. Raising it again is a README edit, and a
+    # branch-protection edit only while protection still names `pytest <version>`
+    # rather than `pytest` — ask the API, it is not a fact this file can keep.
     #
     # **And a `.skeletor.json` edit, which is the half this comment was missing
     # and the template added at v0.22.0.** The list below is RENDERED from the
@@ -384,6 +386,42 @@ jobs:
           .venv/bin/pip install -r .github/pyright-deps.txt
           PATH="$PWD/.venv/bin:$PATH" .venv/bin/python scripts/lint_pyright_gate.py --project pyrightconfig.json
 
+  # ── The unit suite's one name ─────────────────────────────────────────
+  # The matrix above reports once per leg, as `pytest <version>` — and only when
+  # it runs. Skipped by the job-level `if` on a docs-only change, GitHub never
+  # expands the matrix, so it reports ONE check named `pytest ${{ matrix.python }}`
+  # with the expression unexpanded, and a branch protection that requires
+  # `pytest 3.12` waits on it forever. stash.flow's docs-only pull requests were
+  # BLOCKED with every check green or skipped; the other gated jobs are not
+  # matrices, so they report skipped under their real names and pass.
+  #
+  # So protection requires THIS: one static name whatever the matrix holds, so
+  # nobody has to read the leg names off a run to set it up, and a change to the
+  # matrix costs no protection edit. `docs/DEVELOPMENT.md` says the same to a
+  # reader deciding what to require, which is where one looks. It passes when
+  # the matrix passed, or was skipped because the gate chose docs-only; it fails
+  # when a leg failed or was cancelled, and when the gate itself did not pass —
+  # a skip caused by a failed classifier is not a docs-only skip.
+  unit-tests-result:
+    name: pytest
+    needs: [gate, unit-tests]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: The matrix passed, or was skipped for a docs-only change
+        env:
+          GATE: ${{ needs.gate.result }}
+          UNIT: ${{ needs.unit-tests.result }}
+        run: |
+          if [ "$GATE" != "success" ]; then
+            echo "::error::the gate did not pass ($GATE), so the unit suite's skip means nothing"
+            exit 1
+          fi
+          case "$UNIT" in
+            success|skipped) echo "unit suite: $UNIT" ;;
+            *) echo "::error::unit suite: $UNIT"; exit 1 ;;
+          esac
+
   lint:
     name: eslint
     needs: gate
@@ -418,26 +456,25 @@ jobs:
   # nothing to hold `dev check pre-push` against. A gate nobody depends on is
   # not a gate.
   #
-  # And it is the one context worth requiring in branch protection if the three
-  # named there are ever replaced: it stays correct as jobs are added, where a
-  # list of names has to be edited on `develop` and `main` in the same sitting.
-  # Nothing is required on it today — adding a required context that has never
-  # reported would block every pull request immediately.
+  # And it stays correct as jobs are added, where a list of required names has
+  # to be edited on `develop` and `main` in the same sitting. Which contexts
+  # protection names is a fact about the account — ask the API.
   #
-  # **skeletor v0.39.0 added a second aggregator, `pytest`, and this fork
-  # declined it** (round 36 of [[skeletor-adoption]]). Its hazard is a matrix
-  # skipped by a job-level `if` on a docs-only change, which then reports one
-  # check under the unexpanded name and blocks protection forever. `test` here
-  # has no job-level `if` — nothing is skipped on the gate's verdict — so the
-  # only way it skips is the gate failing, and that is `CI Gate`'s to report.
-  # A third static name for one fact would be a second list to keep in step.
+  # **`pytest` above sits beside it, and the two are not redundant.** skeletor
+  # v0.39.0 shipped that job; round 36 of [[skeletor-adoption]] declined it and
+  # round 37 reversed the decline. The job has two purposes and the decline
+  # weighed one: the docs-only skip it guards cannot happen here, since
+  # `unit-tests` has no job-level `if`, but a static name for the matrix is
+  # what makes a change to the matrix cost no protection edit — and it is the
+  # name every sibling tree requires. Its `skipped` branch is dead code here
+  # and harmless: `unit-tests` skips only when the gate fails, which it rejects.
   #
-  # What was taken is its one rule this job lacked: **only `success` passes.**
-  # This step used to fail on `failure` alone, so a cancelled leg read
-  # "all green". Here no job may legitimately skip, so `skipped` fails too.
+  # This job is stricter, and stays so: **only `success` passes.** It used to
+  # fail on `failure` alone, so a cancelled leg read "all green". No job here
+  # may legitimately skip, so `skipped` fails too.
   verdict:
     name: All checks
-    needs: [gate, test, lint]
+    needs: [gate, unit-tests, lint]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -450,11 +487,11 @@ jobs:
           # arrives, it is this output it should be gated on.
           FULL_SUITE: ${{ needs.gate.outputs.full_suite }}
           GATE: ${{ needs.gate.result }}
-          TEST: ${{ needs.test.result }}
+          TEST: ${{ needs['unit-tests'].result }}
           LINT: ${{ needs.lint.result }}
         run: |
           echo "full suite: $FULL_SUITE"
-          echo "gate: $GATE  test: $TEST  lint: $LINT"
+          echo "gate: $GATE  unit-tests: $TEST  lint: $LINT"
           for result in "$GATE" "$TEST" "$LINT"; do
             if [ "$result" != "success" ]; then
               echo "::error::a required job did not succeed ($result)"

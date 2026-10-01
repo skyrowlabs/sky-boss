@@ -1,6 +1,6 @@
 """`.github/pyright-deps.txt` has a caller, and it declares the whole environment.
 
-Two files now describe the same environment — the `test` job's install steps and
+Two files now describe the same environment — the `unit-tests` job's install steps and
 `.github/pyright-deps.txt` — so Rule 11 in `AGENTS.md` says a drift check owns
 the pair. This is that check.
 

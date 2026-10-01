@@ -736,10 +736,17 @@ does: an audience that is not the author.
 
 - **Cut from `develop`, open the pull request into `develop`.** A change reaches `main` only by
   `develop` merging into it. A pull request targeting `main` is almost always a mistake.
-- **Both branches are protected, with the same required set** — the pytest matrix at the floor
-  `README.md` promises and the newest release, `eslint`, and **`CI Gate`**. `main` is not given a
-  weaker gate than `develop` on the argument that it only ever receives reviewed work: a release
-  branch that trusts its input is a release branch with no gate.
+- **Both branches are protected, with the same required set**, which the API below reports.
+  `main` is not given a weaker gate than `develop` on the argument that it only ever receives
+  reviewed work: a release branch that trusts its input is a release branch with no gate.
+
+  **The unit suite's context is `pytest` — one job summarising the matrix, not a leg of it.**
+  The legs report as `pytest <version>`, and protection named those first. The swap to `pytest`
+  can only follow the job reporting on both branches, because a required context that has never
+  reported blocks every pull request. It is skeletor's job, taken verbatim in round
+  37 of [[skeletor-adoption]] so that every tree requires the same name, and what it buys here is a
+  matrix that changes without a protection edit. If the API still lists the legs, the swap has not
+  happened yet.
 
   **The set is not spelled here.** This bullet said *"the same three checks"* until 2026-09-07 and
   was wrong within an hour of the fourth being added — the same copied count as `N of N` below and
@@ -762,10 +769,10 @@ does: an audience that is not the author.
   account, in no file here — the same class as the enterprise Actions pull-request switch, and the
   reason the remedy is a command rather than a sentence.
 
-  **A required check is named, not discovered**, so narrowing the matrix means editing branch
-  protection on *both* branches in the same sitting. A context that no job reports is a check that
-  never arrives, and it blocks every pull request forever — the same trap `ci.yml` refuses
-  `paths-ignore` for.
+  **A required check is named, not discovered**, so renaming a required job — `pytest`,
+  `eslint`, `CI Gate`, `All checks` — means editing branch protection on *both* branches in the
+  same sitting. A context that no job reports is a check that never arrives, and it blocks every
+  pull request forever — the same trap `ci.yml` refuses `paths-ignore` for.
 
   **`develop` stopped requiring a pull request on 2026-09-01, and `main` still does.** The checks
   are untouched on both — that sentence above is about the *checks*, and they are what gates. What

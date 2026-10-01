@@ -2743,3 +2743,36 @@ fails as well, because no job in this graph may legitimately skip.
 The conflict was the new job's hunk, landing after a `unit-tests` job this fork
 does not have (`test` is its name here). It was held and advanced with
 `--ported`.
+
+### Round 37 — 2026-10-01: the `pytest` job taken after all
+
+Not an upgrade. The manifest still records v0.39.0. This round reverses round 36's
+decline, on Jeston's ruling: every tree should require the same `pytest` context.
+He chose that over skeletor's alternative of requiring only `All checks` here.
+
+**Round 36 weighed one purpose of a job that has two.** It declined `pytest`
+because the hazard it guards needs a matrix skipped by a job-level `if`, and ours
+has none. That part was true. But the job also gives the matrix one fixed name, so
+changing the matrix costs no protection edit, and v0.39.1's comment says so
+outright. The `unit-tests` job's own comment had priced exactly that cost twice:
+the matrix was cut to floor and ceiling partly to limit *"the number of required
+checks two protected branches have to carry"*. Round 36 also called the job a
+second list to keep in step. It is the reverse: one name replaces two.
+
+What changed:
+
+- `test` → `unit-tests`. That is the job id only. Its `name:` is unchanged, so no
+  status context moved. The never-skip rule stands, with no docs-only `if:`.
+- The v0.39.2 `unit-tests-result` block, byte-for-byte. Its `skipped` branch is
+  dead code here and harmless: `unit-tests` skips only when the gate fails, and
+  the job rejects that case first.
+- `All checks` keeps its strictness, so only `success` passes. It now needs
+  `[gate, unit-tests, lint]`. It stays because it is the only job that needs
+  `lint`, which is how `test_pre_push_covers_ci.py` sees `eslint` as blocking.
+- Prose that would have gone false: the README-floor sentence in the
+  `unit-tests` comment, `CLAUDE.md` § Branches, and two mentions of the old job
+  id outside `ci.yml`.
+
+**Branch protection is not changed here.** It still names the legs until the
+workspace swaps it to `pytest`, which has to wait until the job has reported on
+both branches. `main` gets it only through a `develop` merge.
