@@ -101,6 +101,13 @@ _STATUS_HINTS = [
 ]
 
 
+#: A name rather than a parenthesised tuple in the `except`: at a 3.14 target black
+#: rewrites `except (A, B):` into PEP 758's `except A, B:` and at every other target
+#: keeps it, so the literal is not black-clean at every `--python` this renders. A
+#: name formats the same everywhere. stash.flow, from a tree with a 3.14 floor.
+_NOT_A_NUMBER = (TypeError, ValueError)
+
+
 @dataclass
 class Plan:
     """One plan document, as both files and generators see it."""
@@ -151,7 +158,7 @@ class Plan:
         raw = self.headers.get("queue-order") or self.frontmatter.get("queue_order")
         try:
             return int(str(raw).strip())
-        except (TypeError, ValueError):
+        except _NOT_A_NUMBER:
             return None
 
     @property

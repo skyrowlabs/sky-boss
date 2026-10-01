@@ -82,6 +82,13 @@ def _successor(name: str) -> str:
     return f"  → now at {matches[0].relative_to(PROJECT_ROOT)}" if len(matches) == 1 else ""
 
 
+#: A name rather than a parenthesised tuple in the `except`: at a 3.14 target black
+#: rewrites `except (A, B):` into PEP 758's `except A, B:` and at every other target
+#: keeps it, so the literal is not black-clean at every `--python` this renders. A
+#: name formats the same everywhere. stash.flow, from a tree with a 3.14 floor.
+_UNREADABLE = (UnicodeDecodeError, OSError)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--json", action="store_true")
@@ -94,7 +101,7 @@ def main() -> int:
     for source in _sources():
         try:
             text = source.read_text(encoding="utf-8")
-        except (UnicodeDecodeError, OSError):
+        except _UNREADABLE:
             continue
         for lineno, line in enumerate(text.splitlines(), 1):
             for match in _REF.finditer(line):

@@ -423,6 +423,18 @@ jobs:
   # list of names has to be edited on `develop` and `main` in the same sitting.
   # Nothing is required on it today — adding a required context that has never
   # reported would block every pull request immediately.
+  #
+  # **skeletor v0.39.0 added a second aggregator, `pytest`, and this fork
+  # declined it** (round 36 of [[skeletor-adoption]]). Its hazard is a matrix
+  # skipped by a job-level `if` on a docs-only change, which then reports one
+  # check under the unexpanded name and blocks protection forever. `test` here
+  # has no job-level `if` — nothing is skipped on the gate's verdict — so the
+  # only way it skips is the gate failing, and that is `CI Gate`'s to report.
+  # A third static name for one fact would be a second list to keep in step.
+  #
+  # What was taken is its one rule this job lacked: **only `success` passes.**
+  # This step used to fail on `failure` alone, so a cancelled leg read
+  # "all green". Here no job may legitimately skip, so `skipped` fails too.
   verdict:
     name: All checks
     needs: [gate, test, lint]
@@ -437,10 +449,16 @@ jobs:
           # the reason at the top of the file. When a genuinely expensive job
           # arrives, it is this output it should be gated on.
           FULL_SUITE: ${{ needs.gate.outputs.full_suite }}
+          GATE: ${{ needs.gate.result }}
+          TEST: ${{ needs.test.result }}
+          LINT: ${{ needs.lint.result }}
         run: |
           echo "full suite: $FULL_SUITE"
-          if [ "${{ contains(needs.*.result, 'failure') }}" = "true" ]; then
-            echo "a required job failed"
-            exit 1
-          fi
+          echo "gate: $GATE  test: $TEST  lint: $LINT"
+          for result in "$GATE" "$TEST" "$LINT"; do
+            if [ "$result" != "success" ]; then
+              echo "::error::a required job did not succeed ($result)"
+              exit 1
+            fi
+          done
           echo "all green"

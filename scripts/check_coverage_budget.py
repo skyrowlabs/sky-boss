@@ -75,6 +75,13 @@ BUDGET = TESTS_DIR / "coverage_budget.json"
 DEFAULT_XML = TMP_DIR / "coverage.xml"
 
 
+#: A name rather than a parenthesised tuple in the `except`: at a 3.14 target black
+#: rewrites `except (A, B):` into PEP 758's `except A, B:` and at every other target
+#: keeps it, so the literal is not black-clean at every `--python` this renders. A
+#: name formats the same everywhere. stash.flow, from a tree with a 3.14 floor.
+_UNREADABLE_BUDGET = (OSError, ValueError)
+
+
 def own_statements(root: ET.Element) -> Optional[int]:
     """How many of the measured statements are this project's own.
 
@@ -99,7 +106,7 @@ def own_statements(root: ET.Element) -> Optional[int]:
         return None
     try:
         scaffolded = set(json.loads(SCAFFOLD_MANIFEST.read_text(encoding="utf-8")).get("files", {}))
-    except (OSError, ValueError):
+    except _UNREADABLE_BUDGET:
         return None
     return sum(
         len(cls.findall("lines/line"))

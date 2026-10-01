@@ -2716,3 +2716,30 @@ pass. No pin moved. The collected set gained the new test's two IDs plus its
 naming-sweep entry, and `test_commit_style_range.py`'s IDs changed as described.
 `--ref v0.34.0` was passed on both runs, and `git ls-remote origin v0.34.0`
 resolves.
+
+### Round 36 — 2026-09-30: v0.39.0, an aggregator declined and its one rule taken
+
+Rounds 33–35 (v0.35.0, v0.37.0, v0.38.0) took no decision worth a section here,
+and their commit bodies hold what they found.
+
+v0.39.0 added a job named `pytest` to `ci.yml`: `needs: [gate, unit-tests]`,
+`if: always()`, passing when the unit matrix passed or was skipped for a
+docs-only change. It exists because a matrix skipped by a job-level `if` never
+expands, so it reports one check under the literal name
+`pytest ${{ matrix.python }}`, and protection waits for `pytest 3.12` forever.
+
+**Declined, because the hazard needs a job-level `if` that this fork has not
+got.** Round 7's decline is why: nothing here is skipped on the gate's verdict.
+`test` skips only when `gate` itself fails, and that is `CI Gate`'s to report.
+That context is already required. `All checks` is already the static aggregator.
+A third name for the same fact would be a third list to keep in step across two
+branches' protection.
+
+**Its one rule was taken: only `success` passes.** Our `verdict` step failed on
+`contains(needs.*.result, 'failure')` and nothing else, so a cancelled leg
+reported "all green". The template's `case` rejects `cancelled`. Here `skipped`
+fails as well, because no job in this graph may legitimately skip.
+
+The conflict was the new job's hunk, landing after a `unit-tests` job this fork
+does not have (`test` is its name here). It was held and advanced with
+`--ported`.

@@ -86,10 +86,17 @@ def _host_exempt():
     return [script for script in _checkers() if _declared_reason(script)]
 
 
+#: A name rather than a parenthesised tuple in the `except`: at a 3.14 target black
+#: rewrites `except (A, B):` into PEP 758's `except A, B:` and at every other target
+#: keeps it, so the literal is not black-clean at every `--python` this renders. A
+#: name formats the same everywhere. stash.flow, from a tree with a 3.14 floor.
+_NOT_JSON = (json.JSONDecodeError, ValueError)
+
+
 def _parses(result: subprocess.CompletedProcess) -> bool:
     try:
         return isinstance(json.loads(result.stdout), dict)
-    except (json.JSONDecodeError, ValueError):
+    except _NOT_JSON:
         return False
 
 

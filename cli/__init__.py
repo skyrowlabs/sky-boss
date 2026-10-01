@@ -24,6 +24,13 @@ except ImportError:  # pragma: no cover - dependency guard
     sys.exit(1)
 
 
+#: A name rather than a parenthesised tuple in the `except`: at a 3.14 target black
+#: rewrites `except (A, B):` into PEP 758's `except A, B:` and at every other target
+#: keeps it, so the literal is not black-clean at every `--python` this renders. A
+#: name formats the same everywhere. stash.flow, from a tree with a 3.14 floor.
+_GIT_UNAVAILABLE = (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired)
+
+
 def get_version() -> str:
     """``git describe`` against a RELEASE tag, else the VERSION file.
 
@@ -61,7 +68,7 @@ def get_version() -> str:
         ).stdout.strip()
         if described:
             return described
-    except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
+    except _GIT_UNAVAILABLE:
         pass
 
     # No file is the ordinary state under `--versioning tag`, which ships none:

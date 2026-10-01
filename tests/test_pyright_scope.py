@@ -154,6 +154,13 @@ _WINDOW = 400
 _MIN_CALLERS = 3
 
 
+#: A name rather than a parenthesised tuple in the `except`: at a 3.14 target black
+#: rewrites `except (A, B):` into PEP 758's `except A, B:` and at every other target
+#: keeps it, so the literal is not black-clean at every `--python` this renders. A
+#: name formats the same everywhere. stash.flow, from a tree with a 3.14 floor.
+_UNREADABLE = (OSError, UnicodeDecodeError)
+
+
 def _pyright_invocations() -> dict:
     """Every file that runs pyright, as `path -> every invocation in it is pinned`.
 
@@ -184,7 +191,7 @@ def _pyright_invocations() -> dict:
             continue
         try:
             text = uncommented(path.read_text(encoding="utf-8"))
-        except (OSError, UnicodeDecodeError):
+        except _UNREADABLE:
             continue
         for match in re.finditer(r"pyright", text):
             window = text[match.start() : match.start() + _WINDOW]

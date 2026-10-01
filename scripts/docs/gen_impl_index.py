@@ -31,6 +31,13 @@ from scripts.paths import IMPL_DIR, PROJECT_ROOT  # noqa: E402
 INDEX_PATH = PROJECT_ROOT / "docs" / "implementation_index.json"
 
 
+#: A name rather than a parenthesised tuple in the `except`: at a 3.14 target black
+#: rewrites `except (A, B):` into PEP 758's `except A, B:` and at every other target
+#: keeps it, so the literal is not black-clean at every `--python` this renders. A
+#: name formats the same everywhere. stash.flow, from a tree with a 3.14 floor.
+_NOT_A_NUMBER = (TypeError, ValueError)
+
+
 def build() -> dict:
     entries = []
     for plan in plans.scan(IMPL_DIR, recursive=True):
@@ -41,7 +48,7 @@ def build() -> dict:
         entry["completed"] = str(plan.frontmatter.get("completed") or plan.updated)
         try:
             entry["agent_value"] = int(plan.frontmatter.get("agent_value") or 1)
-        except (TypeError, ValueError):
+        except _NOT_A_NUMBER:
             entry["agent_value"] = 1
         # Tank-only fields: meaningless once a plan is filed, and a stale
         # `shelf_status: ready` in the archive is actively misleading. The set

@@ -11,6 +11,7 @@ from __future__ import annotations
 import configparser
 import functools
 import re
+import subprocess
 import sys
 import tomllib
 from pathlib import Path
@@ -77,15 +78,51 @@ def test_every_test_file_declares_a_suite_marker():
     )
 
 
+@functools.lru_cache(maxsize=1)
+def known_markers() -> frozenset:
+    """Every marker pytest knows here: this project's, its plugins', and its own.
+
+    **Asked of pytest, because the config is only one of three sources.** This
+    subtracted `declared_markers()` alone, so pytest's built-ins —
+    `filterwarnings`, `skipif`, `xfail`, `usefixtures` — always read as typos.
+    stash.flow wrote `pytest.mark.filterwarnings("error::DeprecationWarning")` in a
+    module's `pytestmark` and was told to register it in `pytest.ini`, which would
+    be a false statement about what the project defines. Built-ins are registered
+    by pytest's plugins while it configures, so neither the ini nor the bare
+    parser holds them; `pytest --markers` is pytest answering after configuring,
+    the same move `args_keys()` makes for ini types.
+    """
+    listed = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            "--markers",
+            "--color=no",
+            "-p",
+            "no:cacheprovider",
+            "-c",
+            str(TESTS_DIR / "pytest.ini"),
+        ],
+        cwd=str(PROJECT_ROOT),
+        capture_output=True,
+        text=True,
+    )
+    return frozenset(re.findall(r"^@pytest\.mark\.(\w+)", listed.stdout, re.MULTILINE))
+
+
 def test_declared_markers_are_registered():
     """A typo'd marker silently matches nothing — --strict-markers only catches
     markers pytest is *asked* about, not ones a file assigns itself."""
+    known = scanned(sorted(known_markers()), "markers pytest reports as known", least=2)
+    missing = sorted(declared_markers() - set(known))
+    assert not missing, f"pytest --markers does not list markers this config declares: {missing}"
     unknown = {}
     for path in _test_files():
         match = _PYTESTMARK.search(path.read_text(encoding="utf-8"))
         if not match:
             continue
-        names = set(_MARKER.findall(match.group("value"))) - declared_markers()
+        names = set(_MARKER.findall(match.group("value"))) - set(known)
         if names:
             unknown[str(path.relative_to(TESTS_DIR))] = sorted(names)
 

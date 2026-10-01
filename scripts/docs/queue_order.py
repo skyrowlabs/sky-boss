@@ -37,6 +37,13 @@ def priority_rank(entry: dict) -> int:
     return PRIORITY_RANK.get(str(entry.get("priority") or "").strip().lower(), PRIORITY_RANK_DEFAULT)
 
 
+#: A name rather than a parenthesised tuple in the `except`: at a 3.14 target black
+#: rewrites `except (A, B):` into PEP 758's `except A, B:` and at every other target
+#: keeps it, so the literal is not black-clean at every `--python` this renders. A
+#: name formats the same everywhere. stash.flow, from a tree with a 3.14 floor.
+_NOT_A_NUMBER = (TypeError, ValueError)
+
+
 def queue_position(entry: dict) -> int:
     """The plan's declared position, or :data:`UNORDERED` if it has none.
 
@@ -46,7 +53,7 @@ def queue_position(entry: dict) -> int:
     raw = entry.get("queue_order")
     try:
         return int(raw) if raw is not None else UNORDERED
-    except (TypeError, ValueError):
+    except _NOT_A_NUMBER:
         return UNORDERED
 
 
