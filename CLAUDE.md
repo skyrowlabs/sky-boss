@@ -618,8 +618,13 @@ before anything imports `cli`. **Nothing operator-specific in tracked files.**
 .venv/bin/python -m pytest -k capture   # by name
 ```
 
-`pytest.ini` sets `pythonpath = .` so `cli` imports without installation, and `asyncio_mode = auto`
-because the canvas's session loop is async. Dev dependencies are in `requirements-dev.txt`.
+**pytest reads one of two configs, by invocation**: a bare `pytest` reads `pyproject.toml`'s
+`[tool.pytest.ini_options]`, and `dev test unit`, which passes `tests/`, reads `tests/pytest.ini`.
+Both set `pythonpath` (`.` and `..`, one directory) so `skyboss` and `scripts` import without
+installation, and `asyncio_mode = auto` because the canvas's session loop is async.
+`tests/test_marker_coverage.py` fails if they disagree on any key. Both carry
+`-p no:platformdirs`, because `.venv` sees system site-packages for `gi` and a system package's
+pytest plugin can outrun the venv's copy. Dev dependencies are in `requirements-dev.txt`.
 
 **To work on the surface**, run `sb ui --no-browser --port 8765` and point a browser at it.
 **Live reload is on and rides the session stream** — the server fingerprints `static/` on its
