@@ -53,7 +53,10 @@
 # opposite move, not a reversal.
 #
 # The one thing never to add is `paths-ignore`, which makes a required check
-# that never reports and blocks a PR forever.
+# that never reports and blocks a PR forever. **A skipped matrix job is that
+# check too**: it reports under its UNEXPANDED name, so its per-leg contexts
+# never arrive. Require `pytest`, never `pytest <version>` — the reason is at
+# `unit-tests-result`.
 
 name: CI
 
@@ -239,6 +242,12 @@ jobs:
     #
     # `fail-fast: false` because the useful answer is *which* versions broke.
     # Cancelling the rest on the first red turns two data points into one.
+    #
+    # The interpreter is in the NAME so a run says which leg failed. **Do not
+    # require these names.** They report only when the matrix runs — skipped,
+    # it reports once under the unexpanded expression, so a protection naming
+    # `pytest <version>` waits for ever. Protection requires `pytest`, the job
+    # below; `docs/DEVELOPMENT.md` says why to the reader setting it.
     name: pytest ${{ matrix.python }}
     # Depends on the gate, gated by nothing — no step here is conditional on
     # its output. But `needs:` is itself how a job comes to report `skipped`,

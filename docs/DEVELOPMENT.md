@@ -134,6 +134,26 @@ Three things are load-bearing, and only the first two are about this tree today:
    — a required check that never reports at all blocks the PR forever. This is
    not hypothetical here: `needs:` is itself a way to report `skipped`, which is
    why `CI Gate` is in the required list rather than the leaves alone.
+
+   **A matrix job is the exception, and `pytest` is why.** The unit suite runs
+   once per interpreter, as `pytest <version>`, and a skipped matrix is never
+   expanded: one check reports, named `pytest ${{ matrix.python }}` with the
+   expression unexpanded, so a protection naming `pytest <version>` waits for
+   ever. Upstream that is a docs-only pull request; here `unit-tests` has no
+   `if:`, so it is only a failed `CI Gate` — which blocks rather than passes,
+   the safe direction, but for the wrong reason. **Require `pytest`, never
+   `pytest <version>`**: it is one job that `needs:` the matrix and always
+   reports, so a change to the matrix also costs no protection edit. Which
+   contexts are required is a setting no file here can see — ask the API (see
+   `CLAUDE.md` § Branches).
+
+   **Change it one branch at a time, and only once that branch carries the
+   job.** A pull request runs the `ci.yml` of its merge commit, so a required
+   context reaches it only if the base or the head has the job that reports it.
+   Require `pytest` on a branch whose `ci.yml` predates it and every pull request
+   into that branch from a branch cut from it — a hotfix into `main`, here —
+   waits forever on a check nothing will run. `main` is the one that lags: it
+   gets the job only when `develop` is next merged into it.
 2. **Requiring a context costs nothing; only running a job does.** Size the
    required list for what must gate. Never trim it to save minutes.
 3. **The Dependabot exemption is a mechanism, not a courtesy** — where one is

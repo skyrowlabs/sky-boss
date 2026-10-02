@@ -164,3 +164,100 @@ def test_no_reason_outlives_its_job():
         "Delete the line rather than re-justifying it — a reason nothing depends on is one the next "
         "reader has to disprove before touching the job."
     )
+
+
+_JOB_IF = re.compile(r"^    if:", re.MULTILINE)
+_JOB_NAME = re.compile(r"^    name:\s*(?P<name>.+)$", re.MULTILINE)
+_JOB_NEEDS = re.compile(r"^    needs:\s*(?P<needs>.+)$", re.MULTILINE)
+_ALWAYS = re.compile(r"^    if:\s*always\(\)\s*$", re.MULTILINE)
+
+
+def _job_name(body: str) -> str:
+    match = _JOB_NAME.search(body)
+    return match.group("name").strip() if match else ""
+
+
+def unsummarised_matrices(blocks: dict) -> list:
+    """Jobs that interpolate the matrix into `name:`, can be skipped by their own
+    `if:`, and have no job that `needs:` them, runs `if: always()` and carries a
+    static name. Taking the blocks as an argument is what lets the predicate be
+    proved on a tree built to exercise it, rather than on whichever tree this is.
+    """
+    # `if: always()` is a job-level `if:` that cannot skip, so it does not enrol.
+    matrices = [
+        job
+        for job, body in blocks.items()
+        if "${{ matrix." in _job_name(body) and _JOB_IF.search(body) and not _ALWAYS.search(body)
+    ]
+
+    def summarises(body: str, matrix: str) -> bool:
+        needs = _JOB_NEEDS.search(body)
+        return (
+            bool(needs)
+            and bool(re.search(rf"(?<![A-Za-z0-9_-]){re.escape(matrix)}(?![A-Za-z0-9_-])", needs.group("needs")))
+            and bool(_ALWAYS.search(body))
+            and "${{" not in _job_name(body)
+            and bool(_job_name(body))
+        )
+
+    return [matrix for matrix in matrices if not any(summarises(body, matrix) for body in blocks.values())]
+
+
+def test_a_skippable_matrix_has_one_name_to_require():
+    """A matrix job its own `if:` can skip needs a static-named job summarising it.
+
+    Skipped, a matrix is never expanded, so it reports ONE check named after the
+    unexpanded `${{ matrix.* }}` expression and none of its per-leg names. A
+    protection requiring a leg's name then waits forever on a docs-only pull
+    request with every check green — stash.flow's were blocked exactly so. The
+    remedy is a job that `needs:` the matrix, runs `if: always()`, and carries a
+    name with no expression in it; that name is what protection requires.
+
+    Discovered rather than listed: any job whose `name:` interpolates the
+    matrix and which carries a job-level `if:` is enrolled, so a second matrix
+    added later is held without an edit here.
+
+    **No skippable matrix at all is a pass, not a broken scan.** A tree that
+    takes the `if:` off its matrix has nothing to summarise — sky.boss did, and
+    declined the summary job for exactly that reason. v0.39.1 guarded this set
+    with `scanned()` and was red on arrival there: the floor asserted that the
+    hazard exists, in the one tree that had removed it. What keeps the empty
+    case from being a tautology is the next test, which proves the predicate on
+    a tree built to have every shape, and `test_the_scan_finds_the_jobs`, which
+    proves this file read a workflow at all.
+
+    **It checks the graph, not what the summary does with a skip.** Any job
+    that `needs:` the matrix, runs `always()` and has a static name qualifies —
+    including an all-checks verdict that fails on anything but `success`.
+    Measured in sky.boss's tree with a docs-only `if:` restored on its matrix:
+    this passed, and every docs-only pull request would have gone red. That
+    failure is loud on the first such pull request, which is why it is written
+    down here rather than guarded by a reading of shell. The summary must pass
+    `skipped` for the matrix, as `unit-tests-result` does.
+    """
+    unsummarised = unsummarised_matrices(job_blocks())
+    assert not unsummarised, (
+        f"{unsummarised} can be skipped by its own `if:` and has no job that `needs:` it, runs "
+        "`if: always()` and has a static `name:`. Skipped, a matrix reports only its unexpanded "
+        "name, so a branch protection requiring any leg blocks every docs-only pull request. "
+        "Add that job and require its name — `unit-tests-result` is the worked example. Or, if "
+        "nothing should ever skip it, remove the job-level `if:`."
+    )
+
+
+def test_the_matrix_predicate_sees_every_shape():
+    """The predicate, against a workflow that has each case — so a regex that
+    stopped matching cannot make the test above pass by finding nothing."""
+    blocks = {
+        "gate": "  gate:\n    name: CI Gate\n",
+        "bare": "  bare:\n    name: py ${{ matrix.python }}\n    if: needs.gate.outputs.docs_only != 'true'\n",
+        "held": "  held:\n    name: ty ${{ matrix.python }}\n    if: needs.gate.outputs.docs_only != 'true'\n",
+        "held-sum": "  held-sum:\n    name: ty\n    needs: [gate, held]\n    if: always()\n",
+        "unskippable": "  unskippable:\n    name: lint ${{ matrix.python }}\n    needs: gate\n",
+        "wrong-sum": "  wrong-sum:\n    name: py ${{ matrix.python }} all\n    needs: bare\n    if: always()\n",
+    }
+    assert unsummarised_matrices(blocks) == ["bare"], (
+        "the matrix predicate no longer tells a skippable, unsummarised matrix from a summarised one, "
+        "an unskippable one, and a summary whose own name is an expression — the test above is then "
+        "passing on whatever it fails to see"
+    )

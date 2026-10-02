@@ -84,8 +84,11 @@ def test_expensive_jobs_are_gated_on_the_gate_output():
 
 def test_skipping_is_at_job_level_not_paths_ignore():
     """A required context that never REPORTS blocks a PR forever; one that
-    reports `skipped` satisfies branch protection. So gating must be `if:` on
-    the job, never `paths-ignore` on the trigger."""
+    reports `skipped` under its real name satisfies branch protection. So gating
+    must be `if:` on the job, never `paths-ignore` on the trigger.
+
+    A skipped *matrix* job does not report under its real names, which is
+    `test_ci_job_conditions.py`'s to hold."""
     # The KEY, not the word: this file's own comments explain why paths-ignore
     # is wrong, and a substring check would fail on the explanation.
     text = ci_text()

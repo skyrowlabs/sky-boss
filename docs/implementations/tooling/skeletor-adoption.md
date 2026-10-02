@@ -2776,3 +2776,23 @@ What changed:
 **Branch protection is not changed here.** It still names the legs until the
 workspace swaps it to `pytest`, which has to wait until the job has reported on
 both branches. `main` gets it only through a `develop` merge.
+
+### Round 38 — 2026-10-02: v0.40.0, two conflicts ported and the coverage split read
+
+Two conflicts, `ci.yml` and `docs/DEVELOPMENT.md`, both v0.39.1–v0.39.3 prose on
+*require `pytest`, never `pytest <version>`*. The `unit-tests-result` hunk was
+already ours byte-for-byte from round 37. The other two were ported in this
+fork's words. Here the matrix skips only when `CI Gate` fails, so an unexpanded
+leg name *blocks*. That is the safe direction, reached for the wrong reason. The
+one-branch-at-a-time rule is live: `main` lacks the job until `develop` is next
+merged into it. Advanced with `--ported`.
+
+Round 37's last paragraph went stale between rounds: protection on both branches
+now names `pytest`, per the workspace relay. Ask the API rather than either note.
+
+**The coverage baseline stays at the `0.0` floor.** v0.40.0 splits own code from
+the scaffold. Measured here: 5420 of 16266 statements are own — `skyboss/` plus
+our `scripts/check_commit_style.py`, recomputed from `coverage.xml` against the
+manifest — at 89.37%, against 91.57% whole. `--update` would record
+`own_baseline_pct: 89.37` and was tried and reverted. Nothing runs the ratchet
+except `./dev test coverage` by hand, so locking a number is Jeston's call.
