@@ -4,7 +4,7 @@ slug: skeletor-adoption
 category: tooling
 agent_value: 3
 completed: 2026-09-06
-updated: 2026-09-26
+updated: 2026-10-02
 tags: [skeletor, scaffold, ci]
 summary: Converts sky.boss from a skeletor component consumer into a scaffolded tree, and records what a fork can and cannot learn about itself.
 created: 2026-09-06
@@ -2796,3 +2796,8 @@ our `scripts/check_commit_style.py`, recomputed from `coverage.xml` against the
 manifest — at 89.37%, against 91.57% whole. `--update` would record
 `own_baseline_pct: 89.37` and was tried and reverted. Nothing runs the ratchet
 except `./dev test coverage` by hand, so locking a number is Jeston's call.
+
+**He ruled the same day (2026-10-02): record it**, as mind.head, proto.pilot and
+stash.flow had. A fresh run measured the same 89.37% over the same 5420 own
+statements (16281 whole, at 91.58%), and `own_baseline_pct: 89.37` is now in
+`tests/coverage_budget.json`. The ratchet still runs only by hand.
