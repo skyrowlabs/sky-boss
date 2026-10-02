@@ -30,6 +30,7 @@ pytestmark = [pytest.mark.unit]
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts import check_coverage_budget as budget  # noqa: E402
+from tests.scanning import scanned  # noqa: E402
 from tests.shell import SHELL_PACKAGE  # noqa: E402
 
 #: Two scaffold files and one of the project's own. Two rather than one on
@@ -217,3 +218,27 @@ def test_an_own_baseline_with_nothing_of_yours_measured_fails(tree):
     assert code == 1
     code, _ = tree(SCAFFOLDED, entry={"own_baseline_pct": 0.0})
     assert code == 0
+
+
+def test_every_json_key_names_one_population(tree, capsys):
+    """`baseline_pct` is the whole set and `own_baseline_pct` is your code, on
+    every path, as in the budget file — never one key for both."""
+
+    def payload(*args, **kwargs) -> dict:
+        tree(*args, **kwargs)
+        return json.loads(capsys.readouterr().out)
+
+    everything = {**SCAFFOLDED, **OURS}
+    paths = {
+        "own, within": payload(everything, entry={"own_baseline_pct": 100.0}),
+        "own, below": payload({**SCAFFOLDED, "app/engine.py": (5, 1)}, entry={"own_baseline_pct": 100.0}),
+        "own, none measured": payload(SCAFFOLDED, entry={"own_baseline_pct": 80.0}),
+        "own, recorded": payload(everything, "--update", entry={"baseline_pct": 0.0}),
+    }
+    scanned(paths, "own-basis payloads", least=4)
+    for name, body in paths.items():
+        assert "own_baseline_pct" in body, f"{name}: {body}"
+        assert "baseline_pct" not in body and "observed_pct" not in body, f"{name} reused a whole-set key: {body}"
+
+    whole = payload(everything, entry={"baseline_pct": 10.0})
+    assert whole["basis"] == "whole" and "baseline_pct" in whole and "own_baseline_pct" not in whole, whole

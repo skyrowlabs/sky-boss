@@ -99,6 +99,15 @@ purpose: every tree that has baselined edited that line, and renaming it there
 would conflict in each one for no change in behaviour. `--update` writes the
 new key and removes the old.
 
+**What the old figure was made of cannot be recovered by this script.** The
+report it was computed from lived in gitignored `tmp/`, and the budget kept one
+number. mind.head needed it to decide whether to migrate, and this checker
+cannot run at a commit older than `scripts.paths.SCAFFOLD_MANIFEST`. What worked
+was by hand: check out the recording commit, re-run coverage, and split that
+report against that commit's `.skeletor.json` — files it names are the shell,
+`tests/` is out, the rest is yours. Theirs reproduced the old 91.16% exactly and
+showed their own code at 90.65%, so the drop had been the shell's.
+
 **An own baseline with none of your code measured is a failure**, not the
 fresh-tree pass it resembles. The rate is undefined, but the baseline says there
 was code of yours under test, and a run that no longer imports it is the
@@ -248,7 +257,7 @@ def record(suite: str, budget: dict, entry: dict, reading: Reading) -> Tuple[dic
     ok(f"{suite} baseline set to {recorded:.2f}%")
     if reading.own is not None:
         detail(reading.composition)
-    return {"state": "updated", "baseline_pct": round(recorded, 2), **reading.measured}, 0
+    return {"state": "updated", key: round(recorded, 2), **reading.measured}, 0
 
 
 def compare(suite: str, entry: dict, tolerance: float, reading: Reading) -> Tuple[dict, int]:
@@ -261,7 +270,7 @@ def compare(suite: str, entry: dict, tolerance: float, reading: Reading) -> Tupl
     own, mine, measured = reading.own, reading.mine, reading.measured
     if "own_baseline_pct" in entry and mine is None and own is not None:
         baseline = float(entry["own_baseline_pct"])
-        measured = {"basis": "own", "baseline_pct": baseline, **measured}
+        measured = {"basis": "own", "own_baseline_pct": baseline, **measured}
         if baseline > 0:
             fail(f"{suite}: none of your own code was measured, against an own baseline of {baseline:.2f}%")
             detail("The suite no longer reaches source of your own — a renamed package, or tests that stopped")
@@ -274,7 +283,17 @@ def compare(suite: str, entry: dict, tolerance: float, reading: Reading) -> Tupl
         basis, observed, baseline = "own", mine, float(entry["own_baseline_pct"])
     else:
         basis, observed, baseline = "whole", reading.whole, float(entry.get("baseline_pct", 0.0))
-    measured = {"basis": basis, "observed_pct": round(observed, 2), "baseline_pct": baseline, **measured}
+    # Every `--json` key names one population on every path, and they are the
+    # budget file's own names. v0.40.0 reported an own-code baseline as
+    # `baseline_pct`, the key that had meant the whole set the day before, so a
+    # dashboard comparing across trees or across history made the silent
+    # cross-population comparison this file exists to refuse (proto.pilot).
+    # `observed_pct` had the same defect and is gone from the own basis, where
+    # `own_pct` already says it.
+    if basis == "own":
+        measured = {"basis": basis, "own_baseline_pct": baseline, **measured}
+    else:
+        measured = {"basis": basis, "observed_pct": round(observed, 2), "baseline_pct": baseline, **measured}
     # Which population the figure is about, on the line a reader actually reads.
     over = " of your own code" if basis == "own" else ""
     # The old key, still recorded over the whole set, which an upgrade moves.
