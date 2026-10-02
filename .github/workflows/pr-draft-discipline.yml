@@ -80,9 +80,15 @@ on:
 # one. `tests/test_workflow_permissions.py` holds the rule for every workflow.
 #
 # The checkout below takes the default ref, which under `pull_request_target`
-# is the BASE branch: this job runs our code with a write token, never the pull
-# request's. Do not point it at the head — that is the pattern this trigger is
-# notorious for, and it needs only `docs-only.cjs`, which the base has.
+# is the repository's DEFAULT branch — not the pull request's base, which this
+# comment wrongly said for one release. GitHub runs this trigger in the default
+# branch's context, workflow file included, so a fix here reaches pull requests
+# into every branch once the default branch has it (measured across six trees,
+# before any release branch carried the fix). What matters for safety is the
+# other half: this job runs our code with a write token, never the pull
+# request's. Do not point the checkout at the head — that is the pattern this
+# trigger is notorious for, and it needs only `docs-only.cjs`, which the default
+# branch has.
 permissions:
   contents: read
   pull-requests: write

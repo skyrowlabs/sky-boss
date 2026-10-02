@@ -84,8 +84,15 @@ def reads_contents(permissions: Permissions) -> bool:
 def unreadable_checkouts(workflow: str) -> list:
     """Job ids in `workflow` that run `actions/checkout` with no `contents` scope."""
     text = uncommented(workflow)
-    starts = [(m.group("id"), m.start()) for m in _JOB.finditer(text)]
     top = permissions_at(text, 0)
+    # Job headers only under `jobs:`. Matched over the whole file, `on:`'s keys
+    # read as jobs too — stash.flow measured `['pull_request', 'push',
+    # 'workflow_dispatch', 'gate', ...]` — and the last trigger's slice ran up to
+    # the first real job. Harmless while no trigger contains a checkout, which
+    # is a property of today's files rather than of the predicate.
+    section = re.search(r"^jobs:\s*$", text, re.MULTILINE)
+    offset = section.end() if section else len(text)
+    starts = [(m.group("id"), m.start()) for m in _JOB.finditer(text, offset)]
     found = []
     for index, (job, start) in enumerate(starts):
         body = text[start : starts[index + 1][1] if index + 1 < len(starts) else len(text)]
@@ -122,8 +129,22 @@ def test_every_checkout_can_read_the_repository():
             ["a"],
         ),
         ("permissions:\n  pull-requests: write\njobs:\n  a:\n    steps:\n      - run: echo hi\n", []),
+        (
+            "on:\n  push:\n  workflow_dispatch:\npermissions:\n  pull-requests: write\n"
+            "jobs:\n  a:\n    steps:\n      - uses: actions/checkout@v7\n",
+            ["a"],
+        ),
     ],
-    ids=["names-another-scope", "names-contents", "no-block", "empty", "read-all", "job-replaces-top", "no-checkout"],
+    ids=[
+        "names-another-scope",
+        "names-contents",
+        "no-block",
+        "empty",
+        "read-all",
+        "job-replaces-top",
+        "no-checkout",
+        "triggers-are-not-jobs",
+    ],
 )
 def test_the_predicate(workflow: str, expected: Optional[list]):
     """Each shape on a workflow built to have it, so the real-tree test above

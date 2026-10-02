@@ -2801,3 +2801,22 @@ except `./dev test coverage` by hand, so locking a number is Jeston's call.
 stash.flow had. A fresh run measured the same 89.37% over the same 5420 own
 statements (16281 whole, at 91.58%), and `own_baseline_pct: 89.37` is now in
 `tests/coverage_budget.json`. The ratchet still runs only by hand.
+
+### Round 39 — 2026-10-02: v0.42.0, a release-job hunk with no job to land in
+
+One conflict: `ci.yml`. The whole hunk is in the template's `release` job,
+which gains a GitHub App token door and pins `target-branch` to the release
+branch. This fork has no `release` job — round 7 declined the graph, and the
+tree versions by tag, so there is no `.github/release-please-config.json`
+either. The port is empty, as in round 29. Advanced with `--ported`.
+
+The job is not wanted back. In a `--versioning tag` tree, the template's job
+only prints a notice that Release Please is not configured. The App token it
+would mint has nothing to open a pull request for. If this tree ever moves to
+Release Please, take the job verbatim then, with `target-branch` pinned. An
+unpinned job here would open its release PR against `develop`.
+
+`pr-draft-discipline.yml` merged cleanly. The fix is to its comment, not its
+behaviour: `pull_request_target` runs the **default** branch's copy, not the
+base branch's. Our header made no claim about which branch that is, so nothing
+of ours went false.
