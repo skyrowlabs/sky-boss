@@ -9,12 +9,33 @@ import json
 
 from click.testing import CliRunner
 
-from cli import cli
+from skyboss import cli
 
 
 def invoke(args):
+    """The result and its envelope — and the envelope is not Optional.
+
+    `sb --json` promises an envelope on stdout, so an empty stdout is that
+    promise broken. This used to return `None` for it, which made every caller
+    below subscript a maybe-None: the failure arrived as `TypeError: 'NoneType'
+    object is not subscriptable`, naming neither the command nor its exit code
+    nor what was actually printed. Asserting here is the same rule the tool
+    itself is held to — a refusal is a sentence where a silence is not.
+
+    A Click usage error is the one case where no envelope is correct, because
+    the refusal happens before any command runs. Those tests call `refuse()`.
+    """
     result = CliRunner().invoke(cli, ["--json", "data", *args])
-    return result, json.loads(result.stdout) if result.stdout.strip() else None
+    assert result.stdout.strip(), (
+        f"`sb --json data {' '.join(args)}` printed no envelope on stdout "
+        f"(exit {result.exit_code}).\n{result.output}"
+    )
+    return result, json.loads(result.stdout)
+
+
+def refuse(args=()):
+    """A Click usage error: exit 2 and no envelope, so the result alone."""
+    return CliRunner().invoke(cli, ["--json", "data", *args])
 
 
 def test_a_json_list_becomes_the_data_outright():
@@ -68,7 +89,7 @@ def test_data_is_a_read_so_the_canvas_may_pin_it():
     """The whole reason it is a separate command from `run`. If this flips, the
     canvas stops offering a cadence on the only kind of window that should have
     one."""
-    from cli.canvas.catalog import catalog
+    from skyboss.canvas.catalog import catalog
 
     entries = {entry["name"]: entry for entry in catalog()}
     assert entries["data"]["acts"] is False
@@ -159,12 +180,12 @@ def test_from_json_is_the_default_made_explicit():
 def test_an_unknown_format_is_a_usage_error_not_a_guess():
     """Exit 2 — Click's refusal — rather than a parser silently guessing. A
     speculative csv parser is how 'silently wrong' gets back in."""
-    result, _ = invoke(["--from", "csv", "--", "printf", "a,b"])
+    result = refuse(["--from", "csv", "--", "printf", "a,b"])
     assert result.exit_code == 2
 
 
 def test_the_refusal_lists_what_would_have_worked():
-    result, _ = invoke(["--from", "csv", "--", "printf", "a,b"])
+    result = refuse(["--from", "csv", "--", "printf", "a,b"])
     assert "json" in result.output
 
 
@@ -177,7 +198,10 @@ import unittest.mock  # noqa: E402
 
 import pytest  # noqa: E402
 
-import cli.capture as capture_mod  # noqa: E402
+import skyboss.capture as capture_mod  # noqa: E402
+
+#: Every test here is host-side and needs no services up.
+pytestmark = [pytest.mark.unit]
 
 
 def declared(tmp_path, toml_text, args):
@@ -186,10 +210,15 @@ def declared(tmp_path, toml_text, args):
         return invoke(args)
 
 
-LINES = (
-    '[format.jam-status]\nkind = "lines"\n'
-    "pattern = '(?P<pr>#\\d+)\\s+(?P<state>\\w+)\\s+(?P<title>.+)'\n"
-)
+def declared_refusal(tmp_path, toml_text, args):
+    """`declared`'s usage-error half — see `refuse`. A format that does not
+    parse is rejected before the command runs, so there is no envelope."""
+    (tmp_path / "formats.toml").write_text(toml_text)
+    with unittest.mock.patch.object(capture_mod, "SB_HOME", tmp_path):
+        return refuse(args)
+
+
+LINES = '[format.jam-status]\nkind = "lines"\n' "pattern = '(?P<pr>#\\d+)\\s+(?P<state>\\w+)\\s+(?P<title>.+)'\n"
 
 
 def test_a_lines_format_turns_prose_into_rows(tmp_path):
@@ -207,9 +236,7 @@ def test_a_lines_format_turns_prose_into_rows(tmp_path):
 
 def test_rows_flow_into_the_standard_view_shaping(tmp_path):
     """No capture-specific carve-outs: one shaping contract, not two."""
-    _, envelope = declared(
-        tmp_path, LINES, ["--from", "jam-status", "--", "printf", "#1 open x\\n"]
-    )
+    _, envelope = declared(tmp_path, LINES, ["--from", "jam-status", "--", "printf", "#1 open x\\n"])
     assert "view" in envelope
 
 
@@ -242,7 +269,7 @@ def test_nothing_matching_is_a_failed_contract_naming_both_recourses(tmp_path):
 
 
 def test_a_broken_format_used_by_name_fails_the_run_with_its_own_reason(tmp_path):
-    result, envelope = declared(
+    result = declared_refusal(
         tmp_path,
         '[format.mine]\nkind = "csv"\n',
         ["--from", "mine", "--", "printf", "x"],
@@ -271,9 +298,7 @@ def test_a_jq_transform_runs_on_captured_rows_exactly_as_on_json(tmp_path):
     care which kind produced it."""
     _, envelope = declared(
         tmp_path,
-        LINES.replace(
-            "\\s+(?P<title>.+)'\n", "\\s+(?P<title>.+)'\njq = '[.[] | .state]'\n"
-        ),
+        LINES.replace("\\s+(?P<title>.+)'\n", "\\s+(?P<title>.+)'\njq = '[.[] | .state]'\n"),
         ["--from", "jam-status", "--", "printf", "#1 open x\\n#2 draft y\\n"],
     )
     assert envelope["ok"] is True
@@ -321,6 +346,7 @@ def test_a_wide_table_does_not_warn_merely_for_being_wide():
 
 def test_data_never_tells_a_tool_how_wide_the_terminal_is(monkeypatch):
     import subprocess
+
     """`data` parses what the tool prints. A width is an instruction to lay
     out for a display, and a tool that wrapped its JSON to 80 columns would
     hand back a corrupted document rather than a narrower one. The display
@@ -449,7 +475,7 @@ def test_the_file_form_needs_a_path_not_a_bare_word():
     bare unknown word a file because a log legitimately does not exist yet;
     here there is nothing to wait for, so it stays a command and the error says
     `no such command` rather than `no such file`."""
-    from cli.data import is_file_form
+    from skyboss.data import is_file_form
 
     assert is_file_form(("ledger/runs.jsonl",))
     assert is_file_form(("/var/log/syslog",))
@@ -562,3 +588,29 @@ def test_cols_and_the_view_work_unchanged_against_a_file(tmp_path):
     path.write_text('{"job": "a", "rc": 0, "note": "x"}\n{"job": "b", "rc": 1, "note": "y"}\n')
     _, envelope = invoke(["--from", "jsonl", "--cols", "job,rc", str(path)])
     assert [c["key"] for c in envelope["view"]["columns"]] == ["job", "rc"]
+
+
+def test_a_torn_tail_is_reported_on_every_read_not_once_per_file(tmp_path):
+    """Per-read reporting, pinned deliberately rather than inherited from
+    process lifetime.
+
+    jam.sense's reader dedupes its equivalent warning on a module-level set
+    keyed by path, so one process warns once per file and goes quiet about
+    every later tear. That is right for a short-lived job and wrong for a
+    resident consumer: `sb data --refresh` re-enters `_once` every tick, and a
+    warning that fired only on tick 1 would tell a watcher the ledger had gone
+    clean. sky.boss is on the right side of this today because nothing in the
+    read path holds state — which is exactly the property that quietly changes
+    when someone makes a reader long-lived for performance.
+
+    Both invocations run in one process, so a `_WARNED` set of our own would
+    survive between them and fail this. See [[jsonl-reads]] round 4."""
+    path = tmp_path / "runs.jsonl"
+    path.write_text('{"job": "a"}\n{"job": "b", "sta')  # cut mid-record
+
+    for read in (1, 2, 3):
+        _, envelope = invoke(["--from", "jsonl", str(path)])
+        assert envelope["data"] == [{"job": "a"}], f"read {read}"
+        assert any(
+            "1 of 2 lines not a JSON object" in w for w in envelope["warnings"]
+        ), f"read {read} went quiet about the torn tail"

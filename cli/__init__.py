@@ -1,213 +1,152 @@
-"""sky.boss CLI — the homebase operator tool for a primary workstation.
+"""sky.boss CLI — one entry point for everything you do in this repo.
 
-This package implements the CLI as a collection of command group modules.
-
-Usage: sky.boss [command] [options]
+Implemented as a package of command-group modules, one per domain. The rule that
+keeps it useful is in ``AGENTS.md``: **adding or changing a script means updating
+this package in the same commit.** A script nobody can discover is a script
+nobody runs, and the second person to need it writes it again.
 """
+
+from __future__ import annotations
 
 import subprocess
 import sys
 
-# Check for required dependencies before importing them.
+# Before the click guard, so the guard can speak in the same voice as everything
+# else. `.helpers` reaches `scripts/output.py`, which is stdlib-only —
+# a dependency-missing message that itself needs a dependency is no message.
+from .helpers import PROJECT_ROOT, detail, fail
+
 try:
-    # rich_click re-exports the whole click API, so decorators are unchanged; it
-    # only swaps the Command/Group classes so --help renders through rich.
-    import rich_click as click
-    from rich_click import RichHelpConfiguration, rich_config
-except ImportError:
-    print("Error: missing required Python dependencies", file=sys.stderr)
-    print("", file=sys.stderr)
-    print("Install with:", file=sys.stderr)
-    print("  python3 -m venv .venv && .venv/bin/pip install -r requirements.txt", file=sys.stderr)
+    import click
+except ImportError:  # pragma: no cover - dependency guard
+    fail("The sky.boss CLI requires 'click'.")
+    detail("Install with: pip install -r scripts/requirements.txt")
     sys.exit(1)
 
-from cli.helpers import INVOCATION, PROJECT_ROOT, run_command  # noqa: E402
-from cli.theme import (  # noqa: E402
-    CLI_BRAND,
-    CLI_DANGER,
-    CLI_FAINT,
-    CLI_LABEL,
-    CLI_OK,
-)
 
-# --help styled from the same palette as everything else (cli/theme.py). These
-# values used to be hexes written out by hand, which agreed with the output
-# theme only because both were typed the same afternoon. They take the CLI
-# derivations rather than the raw tokens: --help prints into a terminal whose
-# background nobody here knows. rich-click 1.9 replaced
-# the old module-global STYLE_* knobs with this dataclass; it is attached to the
-# root group and inherited by every subcommand through context.
-HELP_CONFIG = RichHelpConfiguration(
-    style_option=f"bold {CLI_BRAND}",
-    style_argument=f"bold {CLI_BRAND}",
-    style_command=f"bold {CLI_BRAND}",
-    style_switch=f"bold {CLI_OK}",
-    style_usage=f"bold {CLI_LABEL}",
-    style_usage_command="bold",
-    style_helptext="",
-    style_option_help=CLI_LABEL,
-    style_command_help=CLI_LABEL,
-    style_header_text="bold",
-    style_option_default=CLI_FAINT,
-    style_options_panel_border="dim",
-    style_commands_panel_border="dim",
-    style_errors_panel_border=CLI_DANGER,
-    # "BLANK" is rich-click's own borderless box — help then matches the
-    # borderless status-list output instead of sitting in rounded panels.
-    style_options_table_box="BLANK",
-    style_commands_table_box="BLANK",
-    style_options_panel_box="BLANK",
-    style_commands_panel_box="BLANK",
-    max_width=88,
-)
-
-
-def expand_t(args: list[str]) -> list[str]:
-    """`-t` as an argv spelling of `tools`, rewritten before parsing.
-
-    Not a Click alias and not a flag with behavior: the rewrite happens in
-    argv, once, here — so `sb -t jam-pr-list --refresh 30` *is*
-    `sb tools jam-pr-list --refresh 30` and every downstream consumer sees
-    the long form. Options follow the tool name, as on every sky.boss command; the
-    prefix form (`sb -t --refresh 30 x`) was rejected — it would teach the
-    group a forwarded option that belongs to the leaf, and it falls out as an
-    ordinary usage error.
-
-    Only the token standing where a command word could: root flags are
-    skipped, and the scan stops at the first command word or `--`, so a `-t`
-    belonging to someone else's argv is never touched.
-    """
-    out = list(args)
-    for i, token in enumerate(out):
-        if token == "--":
-            break
-        if token == "-t":
-            out[i] = "tools"
-            break
-        if token.startswith("-"):
-            continue
-        break
-    return out
-
-
-class Root(click.RichGroup):
-    """The root group: the `-t` spelling rewritten ahead of Click, and the mark.
-
-    The mark is drawn here rather than written into the help text because it
-    is *painted* — per-cell colour, a background of its own — and a help string
-    is one styled block. Only the root has it: `sb read --help` is a reference
-    page you may be reading for the third time today, and a banner over every
-    one of them is a banner nobody sees. See [[header]].
-    """
-
-    def main(self, args=None, *pargs, **kwargs):
-        if args is None:
-            args = sys.argv[1:]
-        expanded = expand_t(list(args))
-        # Recorded before Click sees it, so `--save` can write down the line
-        # the operator typed rather than one rebuilt from parsed options.
-        # See `INVOCATION` in cli/helpers.py and [[tools]] round 3.
-        INVOCATION[:] = expanded
-        return super().main(expanded, *pargs, **kwargs)
-
-    def format_help(self, ctx, formatter):
-        from rich.console import Console
-
-        from cli import banner
-
-        # `--json` says a machine is reading, and a machine reading help is
-        # already in trouble — but painting a logo into its pipe is sky.boss making
-        # it worse. The same reflex as everywhere else: nothing decorative
-        # goes out when the envelope was asked for.
-        if not (ctx.find_root().obj or {}).get("as_json"):
-            console = Console()
-            version = get_version()
-            if not banner.show(console, version):
-                console.print(banner.plain(version))
-        super().format_help(ctx, formatter)
+#: A name rather than a parenthesised tuple in the `except`: at a 3.14 target black
+#: rewrites `except (A, B):` into PEP 758's `except A, B:` and at every other target
+#: keeps it, so the literal is not black-clean at every `--python` this renders. A
+#: name formats the same everywhere. stash.flow, from a tree with a 3.14 floor.
+_GIT_UNAVAILABLE = (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired)
 
 
 def get_version() -> str:
-    """Version from git describe, falling back to 'dev'."""
+    """``git describe`` against a RELEASE tag, else the VERSION file.
+
+    ``git describe`` is preferred because it says how far past the tag you are —
+    ``v1.4.0-5-gabc1234-dirty`` is the difference between "the released code" and
+    "something that looks like it".
+
+    Two arguments here are load-bearing and both were wrong.
+
+    ``--match v[0-9]*`` restricts this to release tags. Bare ``--tags`` takes the
+    nearest tag of *any* shape, so a repository that tags anything else — an
+    ``archive/v1`` marker, a ``last-known-good``, an environment pin — reports it
+    as a version. stash.flow hit exactly that: ``version archive/v1-3-ga363012``,
+    which is worse than an obviously wrong answer because nothing about it reads
+    as broken. The pattern is not a house preference: ``release-please`` with
+    ``release-type: simple`` creates ``v${version}``, so this matches the tags
+    this repository's own release machinery makes and skips the ones it does not.
+
+    **``--always`` is gone**, and its absence is what makes the sentence above
+    true. With it, ``git describe`` never fails inside a checkout — it falls back
+    to an abbreviated sha — so the ``VERSION`` fallback was unreachable from any
+    checkout, and a freshly scaffolded tree reported ``version 4f2a91c`` while
+    shipping a ``VERSION`` file that said ``0.1.0``. The function described a
+    fallback its own arguments prevented it from taking, on every tree, from the
+    first commit.
+    """
     try:
-        result = run_command(
-            ["git", "describe", "--tags", "--always", "--dirty"],
-            cwd=PROJECT_ROOT,
-            timeout=1,
-        )
-        if result.returncode == 0 and result.stdout.strip():
-            return result.stdout.strip()
-    except (OSError, subprocess.TimeoutExpired):
+        described = subprocess.run(
+            ["git", "describe", "--tags", "--match", "v[0-9]*", "--dirty"],
+            cwd=str(PROJECT_ROOT),
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=2,
+        ).stdout.strip()
+        if described:
+            return described
+    except _GIT_UNAVAILABLE:
         pass
-    return "dev"
+
+    # No file is the ordinary state under `--versioning tag`, which ships none:
+    # a repository whose version IS its tag has nothing to fall back to before
+    # the first tag exists, and `unknown` is the true answer there. Inventing a
+    # `0.0.0` would be a version nobody chose, reported as though somebody had.
+    version_file = PROJECT_ROOT / "VERSION"
+    return version_file.read_text().strip() if version_file.exists() else "unknown"
 
 
-@click.group(cls=Root)
-@rich_config(help_config=HELP_CONFIG)
-@click.version_option(version=get_version(), prog_name="sky.boss")
-@click.option("--json", "as_json", is_flag=True, help="Emit machine-readable JSON on stdout.")
-@click.pass_context
-def cli(ctx: click.Context, as_json: bool) -> None:
-    # The title and subtitle that used to sit here are the mark now — drawn by
-    # `Root.format_help` above, see [[header]]. What is left is the one line
-    # that still earns its place under a logo: what this thing does.
-    """Deterministic scripts and agentic automations, one command each."""
-    ctx.ensure_object(dict)
-    ctx.obj["as_json"] = as_json
-
-
-# ============================================================================
-# Register command groups and top-level commands
-# ============================================================================
-
-from cli.canvas import ui as ui_cmd  # noqa: E402
-
-# Aliased on import — `from cli.data import data` would rebind this package's
-# `data` attribute from the module to the Command and shadow the module, the
-# same gotcha `read` and `tools` dodge below.
-from cli.data import data as data_cmd  # noqa: E402
-from cli.read import read_ as read_cmd  # noqa: E402
-from cli.run import run as run_cmd  # noqa: E402
-
-# `run` acts; `data` reads. That split is what the canvas reads to decide
-# whether a window may be given a refresh cadence. See cli/data.py.
-cli.add_command(run_cmd)
-cli.add_command(data_cmd)
-
-# `read` shows what a tool printed and is a *read*, so a window may pin it.
-# `run` remains the only command that acts; carrying output is not what makes
-# a command a write. See [[text-reads]].
-cli.add_command(read_cmd)
-
-# One verb, two mechanisms: a path is the file cursor, anything else is the
-# process stream. Resident by nature, so it takes no cadence. See [[follow]].
-from cli.follow import follow as follow_cmd  # noqa: E402
-from cli.mcp import mcp as mcp_cmd  # noqa: E402
-from cli.rollcall import roll_call as roll_call_cmd  # noqa: E402
-from cli.schedule import schedule as schedule_cmd  # noqa: E402
-
-cli.add_command(follow_cmd)
-cli.add_command(roll_call_cmd)
-cli.add_command(schedule_cmd)
-cli.add_command(mcp_cmd)
-
-# A surface, not a verb. It renders the same envelope every command returns
-# rather than adding one of its own, which is why `sb run` stays the only door
-# that acts even with the canvas in front of it.
-cli.add_command(ui_cmd)
-
-# Aliased on import — `from cli.tools import tools` would rebind this package's
-# `tools` attribute from the module to the Command and shadow the module.
-from cli.tools import PROBLEMS, register, tools as tools_cmd  # noqa: E402
-
-cli.add_command(tools_cmd)
-
-# The operator's own commands, registered onto the tree *after* every builtin,
-# so a builtin always wins a name collision. This is the whole of what makes
-# the tools work: the palette, `--help` and shell completion all walk the
-# real tree, so none of them needed a line of code for tools to appear in them.
+@click.group()
+# `prog_name` is the COMMAND, not the wordmark, and this is the only place in
+# this file where that is true. The module docstring, the `requires 'click'`
+# message and the group docstring below are all prose *about the product*, where
+# the dotted form is correct — a file-wide substitution would fix this line and
+# break those three, in the direction the naming canon actually warns about.
 #
-# Problems are collected rather than printed. Nothing has a Click context yet,
-# and stdout must stay clean for `--json`; `sb tools` reports them.
-PROBLEMS.extend(register(cli))
+# What a program prints when announcing itself is the thing you type. It shipped
+# as `sky.boss`, so `./mh --version` said `mind.head, version unknown`
+# two lines from a `Usage: mh` that was right — and in an adopted tree that is
+# two commands both claiming to report the version of one product and
+# disagreeing, because they are answering different questions: this reports the
+# REPOSITORY's version and the product's CLI reports the product's.
+#
+# It survived because the file contains no correct instance to copy from. click
+# derives the usage line from `sys.argv[0]` itself, so the neighbouring
+# correctness is the framework's, and a reader who checks `--help` sees the
+# right answer and stops. mind.head's, from a tree where both commands exist.
+@click.version_option(version=get_version(), prog_name="dev")
+def cli() -> None:
+    """sky.boss — One CLI for watching what other tools do, here and across these repos"""
 
+
+#: Command groups are DISCOVERED, not listed.
+#:
+#: A hand-written import list here would be a registry — and the second half of
+#: this project's tooling exists because forgetting to update a registry is
+#: silent. A module that exports a click Group or Command whose name matches the
+#: module (or the documented alias below) is registered by existing, which is the
+#: same rule the test suite uses for markers.
+#:
+#: The alias map is for the few modules whose Python name cannot be the command
+#: name (`test` shadows nothing useful; `test_cmds` avoids pytest collection).
+_ALIASES = {"test_cmds": "test", "pr_train": "train"}
+
+
+def _discover() -> None:
+    """Register every command group in this package, by finding it.
+
+    **This package never names itself.** `__name__` and `__path__` are what the
+    interpreter already knows about the module it is executing, so the three
+    places that used to spell `cli` as a literal now read the truth instead of
+    repeating it. That is not tidiness — `cli` is the most collided-with package
+    name in a Python monorepo, which is why `./dev` sets `PYTHONSAFEPATH=1`
+    at all, and a shell that hardcodes the name is a shell that cannot be moved
+    out of the way of the product it is shipped alongside.
+
+    Reported by sky.boss, who had to move their own product out of `cli/` to
+    adopt this template and then found the shell sitting in the name they
+    vacated. The rename cost them 119 failing tests mid-flight and a `sed` whose
+    worst artefact was `from cli import cli` becoming `from x import x` — the
+    package and the click group share a name and only one of them was moving.
+    Relative imports leave the group alone by construction.
+    """
+    import importlib
+    import pkgutil
+
+    package = sys.modules[__name__]
+
+    for info in sorted(pkgutil.iter_modules(package.__path__), key=lambda m: m.name):
+        name = info.name
+        if name.startswith("_") or name == "helpers":
+            continue
+        module = importlib.import_module(f"{__name__}.{name}")
+        command_name = _ALIASES.get(name, name)
+        candidate = getattr(module, command_name, None) or getattr(module, name, None)
+        if isinstance(candidate, click.Command):
+            cli.add_command(candidate, name=command_name)
+
+
+_discover()

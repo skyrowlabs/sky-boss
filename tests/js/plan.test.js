@@ -7,7 +7,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { byProject, nextUp, readAge, silentProjects } from "../../cli/canvas/static/schedule.js";
+import { byProject, nextUp, readAge, silentProjects } from "../../skyboss/canvas/static/schedule.js";
 
 test("byProject keeps the command's order inside each group", () => {
   const rows = [
@@ -17,7 +17,7 @@ test("byProject keeps the command's order inside each group", () => {
   ];
   const groups = byProject(rows);
   assert.deepEqual(groups.map((g) => g.project), ["a", "b"]);
-  /* Not re-sorted: cli/schedule.py ordered by the parsed instant, and this
+  /* Not re-sorted: skyboss/schedule.py ordered by the parsed instant, and this
    * file has neither the parse nor the offsets to do it again. */
   assert.deepEqual(groups[0].rows.map((r) => r.name), ["one", "three"]);
 });
@@ -63,7 +63,7 @@ test("readAge is chrome.ago's vocabulary, and never negative", () => {
 });
 
 /* --- round 5: the charts ------------------------------------------------ */
-import { byHour, plottable, ticks, timeline } from "../../cli/canvas/static/schedule.js";
+import { byHour, plottable, ticks } from "../../skyboss/canvas/static/schedule.js";
 
 const HOUR = 3600;
 const NOW_MS = 1756_000_000_000;
@@ -72,7 +72,7 @@ const NOW_S = NOW_MS / 1000;
 test("plottable defers to Python about which rows are datable", () => {
   const rows = [
     { name: "ok", at: NOW_S + HOUR },
-    /* Empty is what cli/schedule.py writes when it could not parse an offset.
+    /* Empty is what skyboss/schedule.py writes when it could not parse an offset.
      * Testing that rather than re-inspecting `next` is the whole point. */
     { name: "naive", at: "" },
     { name: "missing" },
@@ -80,30 +80,84 @@ test("plottable defers to Python about which rows are datable", () => {
   assert.deepEqual(plottable(rows).map((r) => r.name), ["ok"]);
 });
 
-test("timeline places a mark at its fraction of the span", () => {
-  const rows = [{ name: "half", at: NOW_S + 12 * HOUR, fires: "in 12h" }];
-  const { marks } = timeline(rows, NOW_MS, 24 * HOUR);
-  assert.equal(marks.length, 1);
-  assert.equal(Math.round(marks[0].percent), 50);
+/* --- round 9: the span decides which rows exist -------------------------
+ *
+ * These were `timeline()` tests until round 9, when the span stopped filtering
+ * one panel and started filtering the screen. The properties are the same ones
+ * round 5 paid for — beyond is counted rather than pinned, late is clamped to
+ * the left rather than dropped — asserted one level up, where they now decide
+ * whether a row is drawn at all. */
+import { derivedSpan, percentOf, spanFilter } from "../../skyboss/canvas/static/schedule.js";
+
+test("percentOf places a mark at its fraction of the span", () => {
+  const row = { name: "half", at: NOW_S + 12 * HOUR, fires: "in 12h" };
+  assert.equal(Math.round(percentOf(row, NOW_MS, 24 * HOUR)), 50);
 });
 
-test("timeline counts what is beyond the window instead of pinning it", () => {
+test("spanFilter counts what is beyond the window instead of pinning it", () => {
   const rows = [
     { name: "inside", at: NOW_S + HOUR, fires: "in 1h" },
     { name: "outside", at: NOW_S + 80 * HOUR, fires: "in 3d" },
   ];
-  const { marks, beyond } = timeline(rows, NOW_MS, 24 * HOUR);
+  const out = spanFilter(rows, NOW_MS, 24 * HOUR);
   /* A mark pinned to the right edge would read as "fires at the end of the
-   * window" — a different and false claim. */
-  assert.deepEqual(marks.map((m) => m.row.name), ["inside"]);
-  assert.equal(beyond, 1);
+   * window" — a different and false claim. Now that the span filters the table
+   * too, the count is the only thing saying those rows exist at all. */
+  assert.deepEqual(out.rows.map((r) => r.name), ["inside"]);
+  assert.equal(out.beyond, 1);
 });
 
-test("timeline clamps a late row to the left rather than off the axis", () => {
+test("a late row is never filtered out, whatever the span", () => {
+  /* It has already fired, so it is not *beyond* anything. Hiding an overdue job
+   * because the operator picked 6h is the worst thing this screen could do. */
   const rows = [{ name: "late", at: NOW_S - 5 * HOUR, fires: "late 5h" }];
-  const { marks, beyond } = timeline(rows, NOW_MS, 24 * HOUR);
-  assert.equal(marks[0].percent, 0);
-  assert.equal(beyond, 0);
+  const out = spanFilter(rows, NOW_MS, 6 * HOUR);
+  assert.deepEqual(out.rows.map((r) => r.name), ["late"]);
+  assert.equal(out.beyond, 0);
+  /* And it is clamped to the left edge rather than off the axis. */
+  assert.equal(percentOf(rows[0], NOW_MS, 6 * HOUR), 0);
+});
+
+test("an undated row is kept, counted apart, and has no position", () => {
+  /* `at` is empty exactly where Python refused to order the row. A time filter
+   * cannot exclude a row that has no time to compare, and `null` is not `0`:
+   * a row that could not be placed is not a row that fires now. */
+  const rows = [
+    { name: "naive", at: "" },
+    { name: "nonext" },
+    { name: "dated", at: NOW_S + HOUR },
+  ];
+  const out = spanFilter(rows, NOW_MS, 6 * HOUR);
+  assert.deepEqual(out.rows.map((r) => r.name), ["naive", "nonext", "dated"]);
+  assert.equal(out.undated, 2);
+  assert.equal(out.beyond, 0);
+  assert.equal(percentOf(rows[0], NOW_MS, 6 * HOUR), null);
+  assert.equal(percentOf(rows[1], NOW_MS, 6 * HOUR), null);
+});
+
+test("spanFilter of nothing is empty rather than a crash", () => {
+  assert.deepEqual(spanFilter(null, NOW_MS, HOUR), { rows: [], beyond: 0, undated: 0 });
+  assert.deepEqual(spanFilter([], NOW_MS, HOUR), { rows: [], beyond: 0, undated: 0 });
+});
+
+test("derivedSpan runs to the furthest row, so `all` has nothing beyond it", () => {
+  const rows = [
+    { name: "soon", at: NOW_S + HOUR },
+    { name: "far", at: NOW_S + 90 * HOUR },
+  ];
+  const span = derivedSpan(rows, NOW_MS, 24 * HOUR);
+  assert.equal(span, 90 * HOUR);
+  assert.equal(spanFilter(rows, NOW_MS, span).beyond, 0);
+});
+
+test("derivedSpan falls back rather than returning a zero axis", () => {
+  /* Every row late, or undated, has no forward extent — and a zero span is a
+   * division by zero wearing an axis. */
+  assert.equal(derivedSpan([{ at: NOW_S - HOUR }], NOW_MS, 24 * HOUR), 24 * HOUR);
+  assert.equal(derivedSpan([{ at: "" }], NOW_MS, 24 * HOUR), 24 * HOUR);
+  assert.equal(derivedSpan([], NOW_MS, 24 * HOUR), 24 * HOUR);
+  /* And a span that fell back is still a usable one. */
+  assert.equal(percentOf({ at: NOW_S - HOUR }, NOW_MS, derivedSpan([], NOW_MS, 24 * HOUR)), 0);
 });
 
 test("ticks pick a round step that fits the wanted count", () => {
@@ -124,7 +178,7 @@ test("byHour always has 24 buckets, including the empty ones", () => {
 });
 
 /* --- round 6: the card and the stack ------------------------------------ */
-import { cardState, clampCard, stackOf } from "../../cli/canvas/static/schedule.js";
+import { cardState, clampCard, stackOf } from "../../skyboss/canvas/static/schedule.js";
 
 const VIEW = { width: 1000, height: 800 };
 const CARD = { width: 300, height: 200 };

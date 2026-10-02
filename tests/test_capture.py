@@ -8,8 +8,9 @@ subprocess and no file I/O anywhere in this half.
 """
 
 import pytest
+from narrowing import present
 
-from cli.capture import Captured, Format, capture, unmatched_warning
+from skyboss.capture import Captured, Format, capture, unmatched_warning
 
 STATUS = Format(
     name="jam-status",
@@ -76,8 +77,8 @@ def test_unmatched_lines_are_counted_and_the_first_is_sampled():
     assert got.unmatched == 2
     assert got.sample == "total: 2 items"
     warning = unmatched_warning(got, "jam-status")
-    assert "2 of 3 lines did not match jam-status" in warning
-    assert "total: 2 items" in warning
+    assert "2 of 3 lines did not match jam-status" in present(warning, "a warning")
+    assert "total: 2 items" in present(warning, "a warning")
 
 
 def test_a_clean_capture_warns_about_nothing():
@@ -111,14 +112,16 @@ def test_a_pathological_line_returns_in_bounded_time():
 
 def test_captured_is_a_value_the_caller_cannot_quietly_mutate():
     with pytest.raises(Exception):
-        Captured([], 0, 0, None).total = 5
+        # A NamedTuple field, so this raises at runtime — which is the whole
+        # assertion. The type checker says the same thing statically.
+        Captured([], 0, 0, None).total = 5  # type: ignore[misc]
 
 
 # ============================================================================
 # The formats file
 # ============================================================================
 
-from cli.capture import load_formats, parse_formats, resolve  # noqa: E402
+from skyboss.capture import load_formats, parse_formats, resolve  # noqa: E402
 
 GOOD = {
     "format": {
@@ -150,9 +153,7 @@ def test_an_unknown_kind_fails_loudly_by_name_and_does_not_load():
 
 
 def test_a_pattern_that_does_not_compile_is_refused():
-    _, problems = parse_formats(
-        {"format": {"x": {"kind": "lines", "pattern": "(?P<a"}}}
-    )
+    _, problems = parse_formats({"format": {"x": {"kind": "lines", "pattern": "(?P<a"}}})
     assert "does not compile" in problems[0]
 
 
@@ -168,16 +169,12 @@ def test_a_builtin_kind_always_wins_the_name(name):
     """A format named `json` would silently change what every `--from json`
     on the machine means — the same rule that kept a tool from shadowing
     `run` while tools lived on the root."""
-    _, problems = parse_formats(
-        {"format": {name: {"kind": "lines", "pattern": "(?P<a>.)"}}}
-    )
+    _, problems = parse_formats({"format": {name: {"kind": "lines", "pattern": "(?P<a>.)"}}})
     assert "builtin kind" in problems[0]
 
 
 def test_a_pattern_on_a_json_format_is_refused_not_ignored():
-    _, problems = parse_formats(
-        {"format": {"x": {"kind": "json", "pattern": "(?P<a>.)", "jq": "."}}}
-    )
+    _, problems = parse_formats({"format": {"x": {"kind": "json", "pattern": "(?P<a>.)", "jq": "."}}})
     assert "means nothing" in problems[0]
 
 
@@ -214,30 +211,31 @@ def test_a_file_that_cannot_be_parsed_is_reported_rather_than_raised(tmp_path):
 
 def test_json_resolves_with_no_file_anywhere(tmp_path):
     fmt, problem = resolve("json", home=tmp_path / "nope")
-    assert problem is None and fmt.kind == "json" and not fmt.jq
+    assert problem is None
+    fmt = present(fmt, "a format")
+    assert fmt.kind == "json" and not fmt.jq
 
 
 def test_bare_lines_is_refused_toward_a_declaration(tmp_path):
     fmt, problem = resolve("lines", home=tmp_path / "nope")
-    assert fmt is None and "declare a format" in problem
+    assert fmt is None and "declare a format" in present(problem, "a problem")
 
 
 def test_an_unknown_name_lists_what_would_have_worked(tmp_path):
-    (tmp_path / "formats.toml").write_text(
-        '[format.jam-status]\nkind = "lines"\npattern = "(?P<a>.)"\n'
-    )
+    (tmp_path / "formats.toml").write_text('[format.jam-status]\nkind = "lines"\npattern = "(?P<a>.)"\n')
     fmt, problem = resolve("nope", home=tmp_path)
     assert fmt is None
-    assert "json" in problem and "jam-status" in problem
+    named = present(problem, "a problem")
+    assert "json" in named and "jam-status" in named
 
 
 def test_a_declared_and_refused_format_resolves_to_its_own_problem(tmp_path):
-    """"No such format" about a format the operator wrote is the least
+    """ "No such format" about a format the operator wrote is the least
     helpful true sentence available — the resolution says why it was
     refused instead."""
     (tmp_path / "formats.toml").write_text('[format.mine]\nkind = "csv"\n')
     fmt, problem = resolve("mine", home=tmp_path)
-    assert fmt is None and "unknown kind" in problem
+    assert fmt is None and "unknown kind" in present(problem, "a problem")
 
 
 # ============================================================================
@@ -246,7 +244,10 @@ def test_a_declared_and_refused_format_resolves_to_its_own_problem(tmp_path):
 
 import shutil  # noqa: E402
 
-from cli.capture import transform  # noqa: E402
+from skyboss.capture import transform  # noqa: E402
+
+#: Every test here is host-side and needs no services up.
+pytestmark = [pytest.mark.unit]
 
 needs_jq = pytest.mark.skipif(shutil.which("jq") is None, reason="no jq on PATH")
 
@@ -277,21 +278,22 @@ def test_no_output_at_all_is_null_honestly():
 def test_a_failing_program_is_a_failed_contract_carrying_jqs_own_stderr():
     data, error = transform({"a": 1}, ".b | keys", "broken")
     assert data is None
-    assert error.startswith("format 'broken':")
+    assert present(error, "an error").startswith("format 'broken':")
     # jq's own words, not a paraphrase — the operator debugs the program with
     # the message jq gave.
-    assert "null" in error
+    assert "null" in present(error, "an error")
 
 
 def test_an_absent_jq_degrades_loudly_at_use_naming_the_format(monkeypatch, tmp_path):
     """The environment is injected the same way the operator's is — through
     child_env — so the test proves the degrade without uninstalling anything."""
-    import cli.capture as capture_mod
+    import skyboss.capture as capture_mod
 
     monkeypatch.setattr(capture_mod, "child_env", lambda: {"PATH": str(tmp_path)})
     data, error = transform({}, ".", "pr-summary")
     assert data is None
-    assert "jq is not on PATH" in error and "pr-summary" in error
+    named = present(error, "an error")
+    assert "jq is not on PATH" in named and "pr-summary" in named
 
 
 # ============================================================================
@@ -311,13 +313,14 @@ def test_a_saved_tool_carrying_a_format_rides_every_rail(tmp_path, monkeypatch):
 
     from click.testing import CliRunner
 
-    import cli.capture as capture_mod
-    from cli import cli
-    from cli.canvas.catalog import walk
-    from cli.tools import register, tools as tools_group
+    import skyboss.capture as capture_mod
+    from skyboss import cli
+    from skyboss.canvas.catalog import walk
+    from skyboss.tools import register
+    from skyboss.tools import tools as tools_group
 
     (tmp_path / "formats.toml").write_text(
-        '[format.jam-status]\nkind = "lines"\npattern = \'(?P<pr>#\\d+) (?P<state>\\w+)\'\n'
+        "[format.jam-status]\nkind = \"lines\"\npattern = '(?P<pr>#\\d+) (?P<state>\\w+)'\n"
     )
     (tmp_path / "tools.toml").write_text(
         "[tool.statuses]\n"
@@ -338,7 +341,5 @@ def test_a_saved_tool_carrying_a_format_rides_every_rail(tmp_path, monkeypatch):
                 {"pr": "#2", "state": "draft"},
             ]
     finally:
-        for name in [
-            n for n, c in list(tools_group.commands.items()) if getattr(c, "sb_saved", False)
-        ]:
+        for name in [n for n, c in list(tools_group.commands.items()) if getattr(c, "sb_saved", False)]:
             del tools_group.commands[name]

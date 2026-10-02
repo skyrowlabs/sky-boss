@@ -2,7 +2,7 @@
  *
  * This is api.js's shape, deliberately: `catalog`, `run`, `watch`, `unwatch`,
  * `follow`, `unfollow`, `quit`, and a stream you subscribe to. A renderer
- * ported from cli/canvas/static/ swaps `import * as api from "./api.js"` for
+ * ported from skyboss/canvas/static/ swaps `import * as api from "./api.js"` for
  * `const api = window.sb` and should otherwise not notice.
  *
  * Two arguments are gone from every signature, and their absence is the point.

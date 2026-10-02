@@ -1,6 +1,6 @@
 // Correctness only. Prettier is deliberately absent — see docs/open.md.
 //
-// The hazard that keeps a formatter out of `cli/canvas/static/`: `htm` has no
+// The hazard that keeps a formatter out of `skyboss/canvas/static/`: `htm` has no
 // notion of a comment, and whitespace in tag position silently mangles an
 // element's children. One comment inside a `<div>` opening tag once removed an
 // `<input>` from the DOM entirely, and only rendering the page found it. A tool
@@ -24,13 +24,15 @@ export default [
   js.configs.recommended,
   {
     // Vendored code is exempt, the same rule tests/test_theme.py's hex scan
-    // uses: it is not ours to keep a house style out of.
-    ignores: ['cli/canvas/static/vendor/**', '**/node_modules/**', '.venv/**'],
+    // uses: it is not ours to keep a house style out of. `tmp/` is scratch —
+    // gate reports and upgrade sidecars — and eslint does not read .gitignore;
+    // tests/test_scratch_is_not_linted.py holds it here.
+    ignores: ['skyboss/canvas/static/vendor/**', '**/node_modules/**', '.venv/**', 'tmp/**'],
   },
   {
     // The canvas: ES modules the browser loads directly. No build step, no
     // bundler, no Node — a `require` here would be a real error.
-    files: ['cli/canvas/static/**/*.js'],
+    files: ['skyboss/canvas/static/**/*.js'],
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'module',
@@ -66,6 +68,22 @@ export default [
       ecmaVersion: 'latest',
       sourceType: 'module',
       globals: globals.node,
+    },
+    rules: correctness,
+  },
+  {
+    // The design-sync scripts. They build the upload bundle for
+    // claude.ai/design and verify it by rendering: Node drives Playwright, but
+    // the callbacks handed to `page.evaluate` are serialised and run *in the
+    // page*, so `document` and `getComputedStyle` are as real here as
+    // `process` is. That is why this block declares both worlds where
+    // `docs/design/**` next door declares only Node — those scripts speak CDP
+    // and never close over a browser global.
+    files: ['.design-sync/scripts/**/*.mjs'],
+    languageOptions: {
+      ecmaVersion: 'latest',
+      sourceType: 'module',
+      globals: { ...globals.node, ...globals.browser },
     },
     rules: correctness,
   },

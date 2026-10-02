@@ -1,7 +1,7 @@
 /* One window, doing the least that proves the pipe.
  *
  * This is a stub and is meant to be thrown away. The renderer that belongs
- * here is cli/canvas/static/render.js — 418 lines that already know how to
+ * here is skyboss/canvas/static/render.js — 418 lines that already know how to
  * draw the `view` envelope, and which carry the one rule worth keeping across
  * every substrate this surface has had: **no single result may render
  * unbounded.** The terminal froze for that, then a browser tab died of it, and

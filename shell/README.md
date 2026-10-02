@@ -1,7 +1,7 @@
 # shell — the Electron window
 
 Two shells, one bridge. Both spawn `sb ui --no-browser --port <free>` and
-change nothing under `cli/`.
+change nothing under `skyboss/`.
 
 ```bash
 cd shell && npm install     # ~300 MB of prebuilt Chromium, once
@@ -25,7 +25,7 @@ its configuration from the environment.
 it opens a single window on `ctx.url` and gets **whatever page sky.boss is serving
 today**, unchanged, token and all. Panes stay divs, the layout stays the
 canvas's, and a pane reading another pane stays a lookup in one JS heap. It is
-a like-for-like replacement for `cli/canvas/shell.py`, which makes it the only
+a like-for-like replacement for `skyboss/canvas/shell.py`, which makes it the only
 honest way to compare the two: same product, same frontend, different host.
 
 Deliberately not a list of files. It used to name `index.html`, `app.js`,
@@ -58,12 +58,12 @@ is read by four hosts and a line about Electron does not belong in it.
 
 ## The promise
 
-`cli/canvas/shell.py` opens by saying its migration was "the launcher only —
+`skyboss/canvas/shell.py` opens by saying its migration was "the launcher only —
 the server, the frontend and every test are untouched." This shell makes the
-same promise about `cli/`, and the smoke test above is what keeps it honest:
+same promise about `skyboss/`, and the smoke test above is what keeps it honest:
 nothing here is imported by Python, and nothing in Python knows this exists.
 
-The seam was already cut. `cli/canvas/static/api.js` says so in its own first
+The seam was already cut. `skyboss/canvas/static/api.js` says so in its own first
 paragraph — "swapping the browser for a native webview later replaces this file
 and nothing else." `bridge.js` and `preload.js` together *are* that file,
 split across the process boundary.
@@ -85,7 +85,7 @@ them.
 `window.js`, `window.html`, `window.css`. They exist so the pipe can be seen
 working and are meant to be deleted.
 
-The renderer that belongs here is `cli/canvas/static/render.js` — it already
+The renderer that belongs here is `skyboss/canvas/static/render.js` — it already
 knows how to draw the `view` envelope, and it carries the rule worth keeping
 across every substrate this surface has had: **no single result may render
 unbounded.** The terminal froze for that; then a browser tab died of it. A
@@ -93,7 +93,7 @@ window is not exempt. Port `render.js` before showing this to anything real.
 
 ## The one thing that got harder
 
-`Session` in `cli/canvas/watch.py` is proud, correctly, that "the stream is the
+`Session` in `skyboss/canvas/watch.py` is proud, correctly, that "the stream is the
 lifetime — there is no unregister-on-close to forget." That holds because one
 page means one stream, and it does not survive N windows. The session moves up
 into `main.js`, outlives any individual window, and windows register and
@@ -140,7 +140,7 @@ narrate at them" is already the rule.
 ## Not done
 
 - Frames rendered as anything but JSON (port `render.js`)
-- The palette as a palette — filtering, keys, `cli/keys.py`'s bindings
+- The palette as a palette — filtering, keys, `skyboss/keys.py`'s bindings
 - Cadence UI, which must read `acts` and refuse a write a refresh
 - `follow` windows, which want a real terminal rather than a `<pre>`
 - Window geometry across restarts, and stdio instead of the port

@@ -7,12 +7,14 @@ comes back, a run returns an envelope — is worth one test each; the refusals
 are worth the rest of the file.
 """
 
-import json
-
 import pytest
+from narrowing import present
 from starlette.testclient import TestClient
 
-from cli.canvas.server import TOKEN_HEADER, Canvas, build
+from skyboss.canvas.server import TOKEN_HEADER, Canvas, build
+
+#: Every test here is host-side and needs no services up.
+pytestmark = [pytest.mark.unit]
 
 
 @pytest.fixture
@@ -50,6 +52,7 @@ GUARDED = [
     ("/api/prefs", "get"),
     ("/api/prefs", "post"),
     ("/api/quit", "post"),
+    ("/api/open", "post"),
     ("/api/stream", "get"),
 ]
 
@@ -67,11 +70,10 @@ def test_the_guarded_list_names_every_api_route_there_is():
     """The list above only catches an unguarded route if someone remembers to
     add it, which is the same hazard `static/`'s inventory has — so it is
     checked the same way, against the real thing, rather than trusted."""
-    live = {
-        route.path
-        for route in build(Canvas(token="t")).routes
-        if getattr(route, "path", "").startswith("/api/")
-    }
+    routes = build(Canvas(token="t")).routes
+    # `getattr` for the value too, not only the test: `Starlette.routes` is
+    # `list[BaseRoute]` and only some route kinds carry a path.
+    live = {p for route in routes if (p := getattr(route, "path", "")).startswith("/api/")}
     assert live == {path for path, _ in GUARDED}
 
 
@@ -84,9 +86,7 @@ def test_a_foreign_origin_is_refused_even_with_the_right_token(client):
     """The token cannot leak to a page cross-origin, so this is belt and braces
     — but it is the brace that holds if the page is ever served somewhere it
     can be read."""
-    response = client.get(
-        "/api/catalog", headers=auth({"Origin": "https://evil.example"})
-    )
+    response = client.get("/api/catalog", headers=auth({"Origin": "https://evil.example"}))
     assert response.status_code == 403
 
 
@@ -99,9 +99,7 @@ def test_the_refusal_does_not_say_which_check_failed(client):
     """A message distinguishing "bad token" from "bad origin" is an oracle for
     whoever is guessing."""
     bad_token = client.get("/api/catalog", headers={TOKEN_HEADER: "wrong"})
-    bad_origin = client.get(
-        "/api/catalog", headers=auth({"Origin": "https://evil.example"})
-    )
+    bad_origin = client.get("/api/catalog", headers=auth({"Origin": "https://evil.example"}))
     assert bad_token.json() == bad_origin.json()
 
 
@@ -126,7 +124,7 @@ def test_the_page_carries_the_palette(canvas, client):
     hands it values. If this substitution silently stops happening the canvas
     still renders — every role resolves to nothing and the whole surface is
     default black on default white. It failed exactly that way once."""
-    from cli.theme import BRAND
+    from skyboss.theme import BRAND
 
     body = client.get("/").text
     assert "__SB_TOKENS__" not in body
@@ -149,9 +147,7 @@ def test_the_catalog_comes_from_the_tree(client):
 
 
 def test_running_a_command_returns_its_envelope(client):
-    body = client.post(
-        "/api/run", headers=auth(), json={"argv": ["run", "--", "echo", "canvas"]}
-    ).json()
+    body = client.post("/api/run", headers=auth(), json={"argv": ["run", "--", "echo", "canvas"]}).json()
     assert body["ok"] is True
     assert body["envelope"]["data"]["stdout"].strip() == "canvas"
 
@@ -159,9 +155,7 @@ def test_running_a_command_returns_its_envelope(client):
 def test_a_failing_command_still_returns_an_envelope(client):
     """A non-zero exit is data, not an error. The window has to be able to show
     what went wrong rather than going blank."""
-    body = client.post(
-        "/api/run", headers=auth(), json={"argv": ["run", "--", "false"]}
-    ).json()
+    body = client.post("/api/run", headers=auth(), json={"argv": ["run", "--", "false"]}).json()
     assert body["ok"] is False
     assert body["envelope"]["data"]["exit_code"] == 1
 
@@ -192,7 +186,7 @@ def test_the_static_directory_ships_only_what_the_page_needs():
     forgotten `rm` away from doing so. A directory that is wholly public should
     have a declared inventory.
     """
-    from cli.canvas.server import STATIC
+    from skyboss.canvas.server import STATIC
 
     expected = {
         "index.html",
@@ -202,6 +196,7 @@ def test_the_static_directory_ships_only_what_the_page_needs():
         "api.js",
         "bench.js",
         "render.js",
+        "menu.js",
         "schedule.js",
         "vendor/preact.mjs",
         "vendor/hooks.mjs",
@@ -234,9 +229,10 @@ def test_the_close_button_is_guarded_like_every_other_route():
     client = TestClient(build(canvas))
 
     assert client.post("/api/quit", json={}).status_code == 403
-    assert client.post(
-        "/api/quit", headers={TOKEN_HEADER: "test-token", "Origin": "https://evil.example"}
-    ).status_code == 403
+    assert (
+        client.post("/api/quit", headers={TOKEN_HEADER: "test-token", "Origin": "https://evil.example"}).status_code
+        == 403
+    )
     assert not canvas.quitting.is_set()
 
 
@@ -250,11 +246,255 @@ def test_the_close_button_sets_the_latch_the_launcher_waits_on():
     assert canvas.quitting.is_set()
 
 
+def test_the_menu_decides_every_role_the_highlighter_can_emit():
+    """Enumerated off the rules, the way the stylesheet's roles are.
+
+    `menu.js` offers items by a span's `mk-<role>` class, keyed in `OFFERS` —
+    and a role missing from that table gets no item, silently. That is the
+    right outcome for a role that was *decided* against and the wrong one for a
+    role nobody considered, so the table has to name every one, with `null` for
+    no. A shape [[highlight]] adds next fails here until somebody chooses.
+    See [[canvas]] round 15.
+    """
+    import re
+
+    from skyboss import highlight as highlight_
+    from skyboss.canvas.server import STATIC
+
+    roles = {role for _, role, _, _ in highlight_._RULES}
+    roles |= set(highlight_._COLOUR_WORDS.values())
+    roles |= {"sb.muted", "sb.accent"}
+    source = (STATIC / "menu.js").read_text()
+    block = present(re.search(r"export const OFFERS = \{(.*?)\n\};", source, re.S)).group(1)
+    keys = set(re.findall(r"^  (\w+):", block, re.M))
+    missing = sorted(r.removeprefix("sb.") for r in roles if r.removeprefix("sb.") not in keys)
+    assert not missing, f"roles menu.js never decided about: {missing}"
+    # `bold` is a weight on any role and must be decided too, or a composite
+    # span would be read as a role with nothing to offer.
+    assert "bold" in keys
+
+
+# ---------------------------------------------------------------- open a link
+
+
+def _opening(texts=None):
+    """Both openers injected, always: the real text opener launches an editor
+    on whatever desktop runs the suite."""
+    opened = []
+    canvas = Canvas(
+        token="test-token",
+        opener=lambda url: opened.append(url) or True,
+        text_opener=lambda path: (texts if texts is not None else []).append(path) or True,
+    )
+    return TestClient(build(canvas)), opened
+
+
+def test_opening_a_link_is_guarded_like_every_other_route():
+    """An act. A page you did not open must not be able to hand your desktop
+    a URL any more than it may run a command. See [[canvas]] round 15."""
+    client, opened = _opening()
+    assert client.post("/api/open", json={"url": "https://example.com/"}).status_code == 403
+    assert (
+        client.post(
+            "/api/open",
+            json={"url": "https://example.com/"},
+            headers={TOKEN_HEADER: "test-token", "Origin": "https://evil.example"},
+        ).status_code
+        == 403
+    )
+    assert opened == []
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "file:///etc/passwd",
+        "javascript:alert(1)",
+        "//elsewhere.example/x",
+        "mailto:someone@example.com",
+        "https://example.com/a b",
+        "https://example.com/\nx",
+        "https://",
+        "",
+        None,
+        42,
+    ],
+)
+def test_opening_refuses_everything_but_an_http_link(url):
+    """Two schemes, and that is the whole of what makes the route safe. A
+    refusal carries its reason, because a 400 that says nothing is a menu item
+    that silently did nothing."""
+    client, opened = _opening()
+    response = client.post("/api/open", headers=auth(), json={"url": url})
+    assert response.status_code == 400
+    assert response.json()["error"]
+    assert opened == []
+
+
+@pytest.mark.parametrize("url", ["https://example.com/pull/1050", "http://127.0.0.1:8000/docs?q=1"])
+def test_an_http_link_is_handed_to_the_opener(url):
+    client, opened = _opening()
+    response = client.post("/api/open", headers=auth(), json={"url": url})
+    assert response.status_code == 200
+    assert response.json() == {"opened": url}
+    assert opened == [url]
+
+
+def test_a_machine_with_no_opener_says_so():
+    """*Worked fine, told nobody* inverted: reporting a link opened when
+    nothing could open it is the menu closing on a failure."""
+    client = TestClient(build(Canvas(token="test-token", opener=lambda url: False)))
+    response = client.post("/api/open", headers=auth(), json={"url": "https://example.com/"})
+    assert response.status_code == 502
+    assert "opener" in response.json()["error"]
+
+
+# ------------------------------------------------------------- open a file
+
+
+def test_a_relative_path_resolves_against_the_windows_cwd_without_its_line(tmp_path):
+    """`report.py:75` is one location on screen and one file on disk. See
+    [[canvas]] round 16."""
+    (tmp_path / "report.py").write_text("x = 1\n")
+    client, opened = _opening()
+    response = client.post("/api/open", headers=auth(), json={"path": "report.py:75", "cwd": str(tmp_path)})
+    assert response.status_code == 200
+    assert opened == [str(tmp_path / "report.py")]
+
+
+def test_a_line_and_column_are_both_stripped(tmp_path):
+    (tmp_path / "a.log").write_text("")
+    client, opened = _opening()
+    client.post("/api/open", headers=auth(), json={"path": str(tmp_path / "a.log") + ":3:9"})
+    assert opened == [str(tmp_path / "a.log")]
+
+
+def test_a_relative_path_with_no_usable_cwd_resolves_against_home(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    (tmp_path / "notes.md").write_text("")
+    client, opened = _opening()
+    for cwd in (None, "", "relative/dir", str(tmp_path / "missing")):
+        opened.clear()
+        response = client.post("/api/open", headers=auth(), json={"path": "notes.md", "cwd": cwd})
+        assert response.status_code == 200, cwd
+        assert opened == [str(tmp_path / "notes.md")]
+
+
+def test_a_directory_opens(tmp_path):
+    client, opened = _opening()
+    assert client.post("/api/open", headers=auth(), json={"path": str(tmp_path)}).status_code == 200
+    assert opened == [str(tmp_path)]
+
+
+def test_a_span_that_is_not_a_file_is_refused_by_name(tmp_path):
+    """`mk-path` is also a code span and a constant, so this is the common
+    refusal, and it has to say where it looked."""
+    client, opened = _opening()
+    response = client.post("/api/open", headers=auth(), json={"path": "MAX_ROWS", "cwd": str(tmp_path)})
+    assert response.status_code == 400
+    assert str(tmp_path / "MAX_ROWS") in response.json()["error"]
+    assert opened == []
+
+
+def test_a_script_opens_in_a_text_editor_and_never_reaches_the_desktop_opener(tmp_path):
+    """The desktop opener picks an application by type, and for a script or a
+    launcher that application may be execution — which would make ctrl-click an
+    unconfirmed `sb run`. Round 17: they go to a named text editor instead, so
+    the file is only ever an argument. See [[canvas]] round 17."""
+    script = tmp_path / "deploy.sh"
+    script.write_text("#!/bin/sh\n")
+    script.chmod(0o755)
+    launcher = tmp_path / "app.desktop"
+    launcher.write_text("[Desktop Entry]\n")
+    texts = []
+    client, opened = _opening(texts)
+    for path in (script, launcher):
+        response = client.post("/api/open", headers=auth(), json={"path": str(path)})
+        assert response.status_code == 200, path
+        assert response.json()["as"] == "text"
+    assert texts == [str(script), str(launcher)]
+    assert opened == []
+
+
+def test_a_binary_executable_is_still_refused(tmp_path):
+    """Nothing to read, and the only thing an opener could do with it is run it."""
+    binary = tmp_path / "tool"
+    binary.write_bytes(b"\x7fELF\x02\x01\x01\x00" + b"\0" * 32)
+    binary.chmod(0o755)
+    texts = []
+    client, opened = _opening(texts)
+    response = client.post("/api/open", headers=auth(), json={"path": str(binary)})
+    assert response.status_code == 400
+    assert "binary executable" in response.json()["error"]
+    assert opened == [] and texts == []
+
+
+def test_a_script_with_no_text_editor_says_so(tmp_path):
+    script = tmp_path / "deploy.sh"
+    script.write_text("#!/bin/sh\n")
+    script.chmod(0o755)
+    canvas = Canvas(token="test-token", opener=lambda url: True, text_opener=lambda path: False)
+    response = TestClient(build(canvas)).post("/api/open", headers=auth(), json={"path": str(script)})
+    assert response.status_code == 502
+    assert "text editor" in response.json()["error"]
+
+
+def test_the_text_editor_is_launched_detached_with_the_operators_environment(monkeypatch):
+    """Detached because an in-process Gio launch was measured dying with its
+    launcher — every editor would have closed with `sb ui`. `child_env` because
+    it is the rule for every child. See [[canvas]] round 17, [[subprocess-env]]."""
+    from skyboss.canvas import server
+
+    seen = {}
+    monkeypatch.setattr(server, "_text_editor_entry", lambda: "/usr/share/applications/editor.desktop")
+    monkeypatch.setattr(server.shutil, "which", lambda name: "/usr/bin/gio" if name == "gio" else None)
+    monkeypatch.setattr(server.subprocess, "Popen", lambda argv, **kw: seen.update(argv=argv, **kw))
+    monkeypatch.setenv("PYTHONSAFEPATH", "1")
+
+    assert server.open_as_text("/src/deploy.sh") is True
+    assert seen["argv"] == ["/usr/bin/gio", "launch", "/usr/share/applications/editor.desktop", "/src/deploy.sh"]
+    assert seen["start_new_session"] is True
+    assert "PYTHONSAFEPATH" not in seen["env"]
+
+
+def test_no_text_editor_is_a_refusal_not_a_fallback_to_xdg_open(monkeypatch):
+    from skyboss.canvas import server
+
+    monkeypatch.setattr(server, "_text_editor_entry", lambda: None)
+    monkeypatch.setattr(server.subprocess, "Popen", lambda *a, **kw: pytest.fail("spawned something"))
+    assert server.open_as_text("/src/deploy.sh") is False
+
+
+@pytest.mark.parametrize(
+    "body",
+    [{}, {"url": "https://example.com/", "path": "/tmp"}, {"path": ""}, {"path": 7}, {"path": "a\nb"}],
+)
+def test_an_open_names_exactly_one_well_formed_target(body):
+    client, opened = _opening()
+    assert client.post("/api/open", headers=auth(), json=body).status_code == 400
+    assert opened == []
+
+
+def test_the_opener_gets_the_operators_environment(monkeypatch):
+    """Every child sky.boss spawns goes through `child_env`, and the desktop's
+    browser is a child like any other. See [[subprocess-env]]."""
+    from skyboss.canvas import server
+
+    seen = {}
+    monkeypatch.setattr(server.shutil, "which", lambda name: "/usr/bin/xdg-open" if name == "xdg-open" else None)
+    monkeypatch.setattr(server.subprocess, "Popen", lambda argv, **kw: seen.update(argv=argv, **kw))
+    monkeypatch.setenv("PYTHONSAFEPATH", "1")
+
+    assert server.open_link("https://example.com/") is True
+    assert seen["argv"] == ["/usr/bin/xdg-open", "https://example.com/"]
+    assert "PYTHONSAFEPATH" not in seen["env"]
+
+
 def test_the_favicon_is_drawn_from_the_palette():
     """Without it the taskbar shows Chromium's default globe, so a surface with
     no browser chrome still announces itself as a browser. Generated rather
     than stored, because a static .svg would have to name a colour."""
-    from cli.theme import BRAND
+    from skyboss.theme import BRAND
 
     canvas = Canvas(token="test-token")
     response = TestClient(build(canvas)).get("/favicon.svg")
@@ -275,6 +515,7 @@ def test_the_page_carries_the_scale():
 
 # ---------------------------------------------------------------- the bench
 
+
 def test_a_trial_run_of_an_act_is_refused_by_the_server(client):
     """Not merely a button the bench declines to draw.
 
@@ -283,9 +524,7 @@ def test_a_trial_run_of_an_act_is_refused_by_the_server(client):
     without the surface. This is the act/observe split standing up to a POST.
     See [[workbench]] round 1.
     """
-    response = client.post(
-        "/api/trial", headers=auth(), json={"argv": ["run", "--", "true"]}
-    )
+    response = client.post("/api/trial", headers=auth(), json={"argv": ["run", "--", "true"]})
     assert response.status_code == 400
     assert "act" in response.json()["error"]
 
@@ -294,18 +533,14 @@ def test_a_trial_run_of_a_stream_is_refused_and_says_where_to_go(client):
     """`runner.run` would sit on a follow until the timeout and then report a
     hang as a result. A stream is held open by /api/follow like every other one
     on this surface."""
-    response = client.post(
-        "/api/trial", headers=auth(), json={"argv": ["follow", "--", "tail", "-f", "x"]}
-    )
+    response = client.post("/api/trial", headers=auth(), json={"argv": ["follow", "--", "tail", "-f", "x"]})
     assert response.status_code == 400
     assert "held open" in response.json()["error"]
 
 
 def test_a_trial_run_of_an_observe_returns_the_envelope(client):
     """The pleasant path, once. Everything else about the bench is a refusal."""
-    response = client.post(
-        "/api/trial", headers=auth(), json={"argv": ["read", "--", "echo", "hello"]}
-    )
+    response = client.post("/api/trial", headers=auth(), json={"argv": ["read", "--", "echo", "hello"]})
     assert response.status_code == 200
     body = response.json()
     assert body["ok"] is True
@@ -324,14 +559,14 @@ def test_a_saved_command_is_judged_by_what_it_expands_to():
     one wrapping `run`, which is the exact mistake the read/write split exists
     to prevent.
     """
-    from cli.canvas.catalog import entry_for
+    from skyboss.canvas.catalog import entry_for
 
     entries = [
         {"name": "tools", "argv": ["tools"], "acts": False, "resident": False},
         {"name": "tools deploy", "argv": ["tools", "deploy"], "acts": True, "resident": False},
     ]
-    assert entry_for(["tools", "deploy"], entries)["acts"] is True
-    assert entry_for(["tools"], entries)["acts"] is False
+    assert present(entry_for(["tools", "deploy"], entries), "an entry")["acts"] is True
+    assert present(entry_for(["tools"], entries), "an entry")["acts"] is False
     assert entry_for(["nothing", "here"], entries) is None
 
 
@@ -343,9 +578,7 @@ def test_shaping_runs_nothing_and_returns_the_whole_checklist(client):
     unticked. See [[workbench]] round 2.
     """
     data = [{"a": 1, "b": 2, "c": None}, {"a": 3, "b": 4, "c": None}]
-    response = client.post(
-        "/api/shape", headers=auth(), json={"data": data, "cols": ["a"]}
-    )
+    response = client.post("/api/shape", headers=auth(), json={"data": data, "cols": ["a"]})
     assert response.status_code == 200
     body = response.json()
     assert [c["key"] for c in body["view"]["columns"]] == ["a"]
@@ -365,7 +598,7 @@ def test_projects_reports_where_a_schedule_comes_from(monkeypatch, client):
     """Provenance: which argv produced these rows, and which field became which
     column. The question the screen could not answer was why one project has 31
     rows and another none. See [[schedule]] round 5."""
-    from cli import rollcall
+    from skyboss import rollcall
 
     declared = rollcall.Project(
         name="jam-sense",
@@ -396,17 +629,24 @@ def test_shaping_leaves_an_authored_view_alone(client):
     how a five-column schedule window drew seven and said so. See [[schedule]]
     round 3.
     """
-    data = [{"project": "p", "name": "j", "fires": "in 1h", "schedule": "0 * * * *",
-             "ran": "2h ago", "next": "2026-08-30T13:00:00+00:00", "last": ""}]
+    data = [
+        {
+            "project": "p",
+            "name": "j",
+            "fires": "in 1h",
+            "schedule": "0 * * * *",
+            "ran": "2h ago",
+            "next": "2026-08-30T13:00:00+00:00",
+            "last": "",
+        }
+    ]
     authored = {
         "columns": [{"key": k} for k in ("project", "name", "fires", "schedule", "ran")],
         "details": [],
         "hidden": ["next", "last"],
         "authored": True,
     }
-    body = client.post(
-        "/api/shape", headers=auth(), json={"data": data, "view": authored}
-    ).json()
+    body = client.post("/api/shape", headers=auth(), json={"data": data, "view": authored}).json()
     assert body["view"] == authored
     # Every key stays tickable, so the two it kept can be asked back on.
     assert body["offered"] == ["project", "name", "fires", "schedule", "ran", "next", "last"]
@@ -419,11 +659,8 @@ def test_asking_for_columns_overrides_an_authored_view(client):
     """Authored is a default, not a lock. The operator asking is the one thing
     that outranks the command's own choice."""
     data = [{"a": 1, "b": 2, "c": 3}]
-    authored = {"columns": [{"key": "a"}], "details": [], "hidden": ["b", "c"],
-                "authored": True}
-    body = client.post(
-        "/api/shape", headers=auth(), json={"data": data, "view": authored, "cols": ["b"]}
-    ).json()
+    authored = {"columns": [{"key": "a"}], "details": [], "hidden": ["b", "c"], "authored": True}
+    body = client.post("/api/shape", headers=auth(), json={"data": data, "view": authored, "cols": ["b"]}).json()
     assert [c["key"] for c in body["view"]["columns"]] == ["b"]
 
 
@@ -444,7 +681,7 @@ def test_shaping_a_payload_with_no_rows_says_why(client):
 
 
 def test_an_act_gets_checks_instead_of_a_trial(client):
-    """"We cannot run it" is not the same as "we can tell you nothing".
+    """ "We cannot run it" is not the same as "we can tell you nothing".
 
     Three questions have answers that cost nothing, and the third is asked of
     sky.boss's own parser rather than of a copy of its rules.
@@ -474,9 +711,7 @@ def test_a_bad_cwd_fails_the_directory_check_and_the_parse(client):
 
 
 def test_an_unknown_flag_is_caught_without_running(client):
-    body = client.post(
-        "/api/preflight", headers=auth(), json={"argv": ["run", "--bogus", "--", "ls"]}
-    ).json()
+    body = client.post("/api/preflight", headers=auth(), json={"argv": ["run", "--bogus", "--", "ls"]}).json()
     parse = body["checks"][-1]
     assert parse["ok"] is False
     assert "--bogus" in parse["detail"]
@@ -497,9 +732,7 @@ def test_preflight_runs_nothing(client, tmp_path):
 def test_the_name_is_judged_before_the_write(client):
     """`--save` writes before it runs, so a refusal found afterwards is found
     too late — under a name that then cannot be reused."""
-    body = client.post(
-        "/api/preflight", headers=auth(), json={"argv": ["data", "--", "x"], "name": "Bad Name"}
-    ).json()
+    body = client.post("/api/preflight", headers=auth(), json={"argv": ["data", "--", "x"], "name": "Bad Name"}).json()
     assert body["name"]["ok"] is False
     assert "lowercase letters" in body["name"]["reason"]
 
@@ -507,12 +740,10 @@ def test_the_name_is_judged_before_the_write(client):
 def test_the_block_is_the_bytes_save_would_have_written(client):
     """`run` cannot save by example, so it gets the block to paste — rendered
     by the same function `--save` appends with, not by a second one."""
-    from cli import tools as tools_
+    from skyboss import tools as tools_
 
     argv = ["run", "--cwd", "/tmp", "--", "gh", "workflow", "run", "ci.yml"]
-    body = client.post(
-        "/api/preflight", headers=auth(), json={"argv": argv, "name": "ci-check"}
-    ).json()
+    body = client.post("/api/preflight", headers=auth(), json={"argv": argv, "name": "ci-check"}).json()
     assert body["block"] == tools_.block("ci-check", argv)
 
 
@@ -528,8 +759,8 @@ def test_no_route_writes_the_tools_file(client, tmp_path, monkeypatch):
     is the one writer sky.boss has — and nothing in this process does.
     """
     home = tmp_path / "home"
-    monkeypatch.setattr("cli.helpers.SB_HOME", home)
-    monkeypatch.setattr("cli.tools.SB_HOME", home, raising=False)
+    monkeypatch.setattr("skyboss.helpers.SB_HOME", home)
+    monkeypatch.setattr("skyboss.tools.SB_HOME", home, raising=False)
 
     argv = ["data", "--save", "prs", "--", "echo", "[]"]
     for path, payload in (
@@ -551,8 +782,8 @@ def test_the_tools_route_writes_and_reloads(client, tmp_path, monkeypatch):
     does not list is a surface disagreeing with itself — the name is refused as
     taken while nothing shows it exists."""
     monkeypatch.setenv("SB_HOME", str(tmp_path))
-    monkeypatch.setattr("cli.helpers.SB_HOME", tmp_path)
-    monkeypatch.setattr("cli.tools.SB_HOME", tmp_path)
+    monkeypatch.setattr("skyboss.helpers.SB_HOME", tmp_path)
+    monkeypatch.setattr("skyboss.tools.SB_HOME", tmp_path)
     body = {"name": "probe", "argv": ["read", "--", "echo", "hi"], "description": "a probe"}
     response = client.post("/api/tools", json=body, headers=auth())
     assert response.status_code == 200, response.text
@@ -576,8 +807,8 @@ def test_the_tools_route_refuses_with_the_loaders_own_reason(client, tmp_path, m
     """A 400 carrying why, not a 500 and not a silent write. `write_problem`
     is asked, so the route cannot hold a second opinion."""
     monkeypatch.setenv("SB_HOME", str(tmp_path))
-    monkeypatch.setattr("cli.helpers.SB_HOME", tmp_path)
-    monkeypatch.setattr("cli.tools.SB_HOME", tmp_path)
+    monkeypatch.setattr("skyboss.helpers.SB_HOME", tmp_path)
+    monkeypatch.setattr("skyboss.tools.SB_HOME", tmp_path)
     response = client.post(
         "/api/tools",
         json={"name": "nope", "argv": ["ls", "-la"]},
@@ -591,8 +822,8 @@ def test_the_tools_route_refuses_with_the_loaders_own_reason(client, tmp_path, m
 def test_the_tools_route_will_not_give_a_cadence_to_a_write(client, tmp_path, monkeypatch):
     """The act/observe split holds through the new door too."""
     monkeypatch.setenv("SB_HOME", str(tmp_path))
-    monkeypatch.setattr("cli.helpers.SB_HOME", tmp_path)
-    monkeypatch.setattr("cli.tools.SB_HOME", tmp_path)
+    monkeypatch.setattr("skyboss.helpers.SB_HOME", tmp_path)
+    monkeypatch.setattr("skyboss.tools.SB_HOME", tmp_path)
     response = client.post(
         "/api/tools",
         json={"name": "deploy", "argv": ["run", "--", "true"], "refresh": 30},
@@ -612,7 +843,7 @@ def test_serving_note_names_the_url_and_the_mode(capsys):
     only did the second half: `emit` renders when a command returns, and every
     foreground-serving mode calls `server.run()`, which returns when the server
     stops."""
-    from cli.output import serving_note
+    from skyboss.output import serving_note
 
     serving_note("http://127.0.0.1:8765/", "headless")
     captured = capsys.readouterr()
@@ -628,7 +859,7 @@ def test_ui_refuses_json_rather_than_promising_an_envelope_it_never_sends():
     kept by silence."""
     from click.testing import CliRunner
 
-    from cli import cli
+    from skyboss import cli
 
     result = CliRunner().invoke(cli, ["--json", "ui", "--no-browser"])
     assert result.exit_code == 2
@@ -646,8 +877,8 @@ def test_a_rename_removes_the_old_block_rather_than_copying_it(client, tmp_path,
     missing identity. One tool in, one tool out.
     """
     monkeypatch.setenv("SB_HOME", str(tmp_path))
-    monkeypatch.setattr("cli.helpers.SB_HOME", tmp_path)
-    monkeypatch.setattr("cli.tools.SB_HOME", tmp_path)
+    monkeypatch.setattr("skyboss.helpers.SB_HOME", tmp_path)
+    monkeypatch.setattr("skyboss.tools.SB_HOME", tmp_path)
 
     body = {"name": "before", "argv": ["read", "--", "echo", "hi"], "description": "d"}
     assert client.post("/api/tools", json=body, headers=auth()).status_code == 200
@@ -666,8 +897,8 @@ def test_a_save_that_does_not_rename_leaves_the_old_name_alone(client, tmp_path,
     """`was` equal to the name is an edit in place, not a rename — and must not
     delete the block that was just written."""
     monkeypatch.setenv("SB_HOME", str(tmp_path))
-    monkeypatch.setattr("cli.helpers.SB_HOME", tmp_path)
-    monkeypatch.setattr("cli.tools.SB_HOME", tmp_path)
+    monkeypatch.setattr("skyboss.helpers.SB_HOME", tmp_path)
+    monkeypatch.setattr("skyboss.tools.SB_HOME", tmp_path)
 
     body = {"name": "same", "argv": ["read", "--", "echo", "hi"], "description": "d"}
     assert client.post("/api/tools", json=body, headers=auth()).status_code == 200
@@ -681,8 +912,8 @@ def test_the_preflight_calls_a_taken_name_a_replace_not_a_problem(client, tmp_pa
     what drew a refusal in the problem style over an edit that would have
     worked — and told the operator to go and edit a file."""
     monkeypatch.setenv("SB_HOME", str(tmp_path))
-    monkeypatch.setattr("cli.helpers.SB_HOME", tmp_path)
-    monkeypatch.setattr("cli.tools.SB_HOME", tmp_path)
+    monkeypatch.setattr("skyboss.helpers.SB_HOME", tmp_path)
+    monkeypatch.setattr("skyboss.tools.SB_HOME", tmp_path)
 
     body = {"name": "taken", "argv": ["read", "--", "echo", "hi"], "description": "d"}
     assert client.post("/api/tools", json=body, headers=auth()).status_code == 200

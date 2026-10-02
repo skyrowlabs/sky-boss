@@ -4,9 +4,9 @@
 holds the surface's input history and its stall dumps; a test that read or wrote
 the real one would depend on — and damage — whatever the machine happens to have.
 
-It is resolved once at import in `cli/helpers.py`, so this has to be set before
-anything imports `cli`. Module level in conftest is early enough: pytest imports
-it before collecting.
+It is resolved once at import in `skyboss/helpers.py`, so this has to be set
+before anything imports `skyboss`. Module level in conftest is early enough:
+pytest imports it before collecting.
 """
 
 import os
@@ -89,7 +89,7 @@ def said():
 
 @pytest.fixture
 def at_a_terminal(monkeypatch):
-    """Make `cli.output._out()` report a terminal for this test.
+    """Make `skyboss.output._out()` report a terminal for this test.
 
     `--refresh` refuses without one ([[refresh]] round 3), and a `CliRunner`
     never has one. A test that drives the resident *plumbing* — that `--screen`
@@ -102,8 +102,44 @@ def at_a_terminal(monkeypatch):
     """
     from rich.console import Console
 
-    from cli.output import THEME
+    from skyboss.output import THEME
 
-    monkeypatch.setattr(
-        "cli.output.console", Console(theme=THEME, highlight=False, force_terminal=True)
-    )
+    monkeypatch.setattr("skyboss.output.console", Console(theme=THEME, highlight=False, force_terminal=True))
+
+
+# ── From skeletor's conftest, kept because the scaffolded tests import them ───
+# Merged rather than chosen: the file skeletor wrote had none of the isolation
+# above, and `--force` would have dropped all of it silently. That is the exact
+# loss SETUP_GUIDE warns about and the exact one this repo took last time.
+
+#: Set by CI and by `dev test --ci`. Under it, an env-gate skip becomes a failure.
+CI_FLAG = "SB_CI"
+
+
+def in_ci() -> bool:
+    return os.environ.get(CI_FLAG) == "1"
+
+
+def require_or_skip(condition: bool, reason: str, *, requires: str | None = None) -> None:
+    """Skip locally, **fail** in CI.
+
+    The rule worth reading before writing a test: a skip in CI is a failure. CI
+    guarantees the environment, so "the service was not reachable" there means
+    the harness broke — and a harness that silently skips its whole suite
+    reports green, which is this repo's own "worked fine, told nobody" wearing
+    a test runner's clothes.
+    """
+    if condition:
+        return
+    detail = f"{reason} (requires: {requires})" if requires else reason
+    if in_ci():
+        pytest.fail(f"environment gate failed in CI: {detail}. CI guarantees this — the harness is broken.")
+    pytest.skip(detail)
+
+
+@pytest.fixture(scope="session")
+def repo_root():
+    """The project root, from the module that owns it — never re-derived here."""
+    from scripts.paths import PROJECT_ROOT
+
+    return PROJECT_ROOT

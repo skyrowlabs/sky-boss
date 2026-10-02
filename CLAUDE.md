@@ -31,8 +31,8 @@ package names.
 `toolbox` until 2026-08-26" — is a fact about the past, and scrubbing it would make the sentence
 false; that is why the rename notes in [[tools]] and [[header]] read the way they do. The **mark**
 was the other one and is not any more: it was a drawing of a toolbox lettered `TOOLBOX`, printed
-beside the word by `cli/banner.py`, and it was redrawn the same day as a **control tower**
-([[header]] round 2). `ART` in `cli/banner.py` is the picture; `docs/design/render-mark.py` renders
+beside the word by `skyboss/banner.py`, and it was redrawn the same day as a **control tower**
+([[header]] round 2). `ART` in `skyboss/banner.py` is the picture; `docs/design/render-mark.py` renders
 every PNG from it — the header, the README banner, and the square app icon — so the drawing and the
 word cannot drift apart again, which they had, for exactly as long as it took to notice. **Re-run it
 after adding a command**: the banner is a screenshot of root help, so a new subcommand makes it
@@ -78,7 +78,10 @@ replaced by a browser one the same day. What exists:
 | `sb follow -- <argv>` | Holds a command's stream open. Resident by nature; any exit is a visible death. Arrows and PgUp scroll back through the ring |
 | `sb follow <path>` | Follows a file with a native stat cursor, so quiet and dead are different words. `--due 15m` makes late a word too |
 | `sb roll-call` | Asks every declared project how it is and folds the answers. An observe. See [[roll-call]] |
-| `sb schedule` | What fires next, across projects, ordered by the parsed instant. An observe; it schedules nothing. See [[schedule]] |
+| `sb agents` | Which agent sessions are running right now, across every provider. An observe. See [[agent-sessions]] |
+| `sb history <project>` | A project's own run ledger, newest first. An observe, and the only one that looks backwards. See [[history]] |
+| `sb job` | Jobs sky.boss **issues**. `list` observes; `run`, `install` and `uninstall` act. systemd is the daemon. See [[jobs]] |
+| `sb schedule` | What fires next, across projects **and sky.boss's own jobs**, ordered by the parsed instant. `clock` says which fires it. An observe; it schedules nothing. See [[schedule]] |
 | `sb mcp` | Speaks MCP on stdio, offering the tools to an agent. A surface. See [[mcp]] |
 | `sb tools` | Lists the operator's saved commands, and any that failed to load, grouped |
 | `sb ui` | Opens the surface: **the canvas**, a command palette over tiled and floating windows, and **the workbench**, where a command gets authored. See [[workbench]] |
@@ -112,9 +115,17 @@ document, and correct the document when it has fallen behind.
 ## Scope
 
 There is no taxonomy to defend yet. The one property worth preserving from the version that was
-removed is this: **`sb run` is the single command that acts.** Everything else reads. When a group
-of commands returns, that is the line to keep — a command that wants to both read and write is two
-commands.
+removed is this: **`sb run` is the single *top-level* command that acts.** Everything else at that
+level reads. When a group of commands returns, that is the line to keep — a command that wants to
+both read and write is two commands.
+
+**`sb job` is the group that returned, on 2026-09-01, and it splits exactly that way**: `list`
+observes, while `run`, `install` and `uninstall` act and say so. What matters is that the split
+stayed per-command rather than per-group. And the enforcement did **not** come free — `acts` is
+derived in `skyboss/canvas/catalog.py` from a *top-level* `run`, so all three acting subcommands
+reached the surface labelled as observes, which would have let a window give `sb job run` a refresh
+cadence. A nested command asserts the bit with `sb_acts` or it silently inherits the wrong one; the
+group's own test now fails on a subcommand that never chose. See [[jobs]].
 
 That line is now load-bearing rather than aesthetic. The canvas reads it — `acts` in the catalog —
 to decide whether a window may be given a refresh cadence, because **re-running a read is a
@@ -145,7 +156,7 @@ commands. If groups come back, group them that way and be slower to add one.
   for `aws`/`gh`/`stripe`). **External CLIs keep their own authentication.** `sb` is never in the
   credential path. This is what keeps a future MCP surface safe to expose.
 - **Judging a followed line.** Tint is *shape* — a timestamp, a number, a path — and it is
-  computed in `cli/highlight.py` for both surfaces. A severity vocabulary (ERROR/WARN/INFO) is a
+  computed in `skyboss/highlight.py` for both surfaces. A severity vocabulary (ERROR/WARN/INFO) is a
   judgment wearing a regex's clothes and sky.boss does not ship one; the operator declares their own
   words under `[highlight.<name>]` in `formats.toml` and names it with `--highlight`. Those rules
   run **after** sky.boss's and claim only unclaimed text, so a declaration can never repaint a
@@ -183,7 +194,7 @@ commands. If groups come back, group them that way and be slower to add one.
 window and a pinned window re-runs itself on a cadence, with the operator's saved commands down
 the left. It is a consumer of the output contract,
 not a second CLI. It replaced `sb tui` on 2026-08-20 — the terminal could not do overlapping
-draggable windows, which is the central metaphor. `docs/features/done/canvas.md` records the whole
+draggable windows, which is the central metaphor. [[canvas]] records the whole
 design, and `docs/design/sky-boss-demo.html` is the mockup it was built from.
 
 **It has a second screen as of 2026-08-27: the workbench**, where a command gets *authored* rather
@@ -237,12 +248,35 @@ that flips above its anchor when below would overflow is still off-screen when t
 and any scrolling container makes that reachable by hovering and then scrolling. Clamp
 unconditionally at the end, rather than only on the paths that happened to need it.
 
+**A filter that reaches every panel owes its exclusion at every altitude a reader stops at.** The
+schedule's span selector narrowed one chart until [[schedule]] round 9 and now narrows the whole
+screen: at `6h` on live data 28 of 31 jobs are gone, and every sentence left on the page is true. A
+chart footer was the right altitude for a filtered chart and is the wrong one for a filtered screen
+— so the count is stated three times, in a band under the control, in the group heading (`3 of 31
+jobs`), and in the chart's own footer, because a reader who stops at any one of them must not
+conclude the operator has three jobs. **And a count that says rows are missing without saying where
+to find them is half a sentence**: the band carries the way out.
+
+**If a query selector cannot tell two controls apart by what they say, neither can a reader.** The
+schedule grew an `all` in its project selector and an `all` in its span selector, at opposite ends
+of one line; the round 9 verification probe picked a control by its label, clicked the wrong
+segment, and reported that the span did nothing. The bug was in the instrument and the *ambiguity*
+was in the screen. Treat a confused probe as a report about the UI before assuming it is only a bad
+query.
+
+**When two things must line up, prefer a shared container to a shared constant.** The schedule's
+axis had a `margin-left` matched by hand to its lane labels, then — one round later — a shared
+custom property, on the grounds that two numbers which must agree should be one. Round 9 made the
+axis the header row's own grid cell, and the question disappeared rather than being managed: it is
+the same track as every mark below it, so they cannot disagree. A constant keeps two things equal;
+a container makes them one thing.
+
 **A project's colour is a step along the brand, never a new hue and never a borrowed role.** The
 design system holds four hues and sky.boss spends all four, so identity colour cannot come from a
 fifth. It also must not come from the three that are free: `ok` is green, `warn` is what a *late*
 job already is on the same screen, and `danger` is red — a project drawn in one would read as broken
 or be indistinguishable from lateness. `color-mix` against an injected role is the tint mechanism
-the stylesheet already has, so nothing outside `cli/theme.py` names a colour. The step is assigned
+the stylesheet already has, so nothing outside `skyboss/theme.py` names a colour. The step is assigned
 in `rollcall.parse` by declaration order and shipped by `/api/projects`, so the CLI and the surface
 cannot disagree; it is **not** a declarable key, because a file that could set it could argue with
 the assignment.
@@ -289,7 +323,25 @@ The rules that are not negotiable:
   **A raw command is not a drift.** Anything typed whose first word is not a sky.boss command is
   offered as `sb read -- <argv>`, synthesised from the query rather than from any list, with the
   expansion shown before it runs. It defaults to `$HOME` — neutral, because the canvas inherits
-  whatever directory `sb ui` started in, and any repo with a `cli/` package shadows a tool's own.
+  whatever directory `sb ui` started in, and a repo with a `cli/` package shadows a tool's own —
+  **but only for a tool that has not defended itself.** This repo has such a package again as of
+  the skeletor adoption: the product moved to `skyboss/` and skeletor's shell took `cli/`, so
+  `python3 -c "import cli"` from this directory still resolves to *ours*. `python3 -P` does not,
+  and that is the whole of it.
+
+  **This paragraph said "so running the canvas from here still shadows `jam`" until 2026-09-06,
+  and that had stopped being true.** jam.sense put `-P` on both exec lines of its wrapper — the
+  flag rather than `PYTHONSAFEPATH=1`, because the env var is inherited by every process it
+  spawns — and the comment explaining it names this repository and the issue it was filed as.
+  Measured before the correction: `jam --help` exits 0 from here and from `/tmp` alike.
+
+  So the mechanism is real, the named victim is immune, and no live consumer is known. The
+  reason the sentence rotted is worth more than the sentence: **a sibling's fix does not notify
+  the tree it was made for.** jam.sense closed this on sky.boss's behalf, citing sky.boss by
+  name, and nothing here changed — the fix and the note about it live in different repositories
+  and only one of them had a reason to move. The workspace guide records the version of this
+  about a neighbour's *pending* work; this is the same class about their *completed* work, and
+  it is the harder one, because a stale hazard reads as more credible the longer it sits.
 - **Only a read may be given a cadence.** See § Scope.
 - **A rewrite has to know every field; a splice does not.** `block()` serialises a tool, so a
   field it has not heard of is dropped on every rewrite — which is not hypothetical: a declared
@@ -362,7 +414,7 @@ The rules that are not negotiable:
   `sb ui` binds an *ephemeral* port unless told otherwise, so the page is served from
   `http://127.0.0.1:<different>/` every time and `localStorage` — which is keyed by origin — is
   empty on arrival by construction. True in all three shells. Anything the surface must remember
-  between launches goes in `$SB_STATE` through `cli/canvas/prefs.py` and the guarded `/api/prefs`,
+  between launches goes in `$SB_STATE` through `skyboss/canvas/prefs.py` and the guarded `/api/prefs`,
   which is strictly shaped so it cannot become a second config file. **The native webview is a red
   herring here**: `pywebview`'s `private_mode` does default to `True`, and turning it off with a
   `storage_path` really does make WebKitGTK persist `localStorage` — across a restart of the
@@ -390,13 +442,13 @@ The rules that are not negotiable:
   clearing it wraps the text inside a box too wide to see it in.
 - **No single result may render unbounded.** The terminal surface froze for exactly this, and a
   120k-line result kills a browser tab as dead as it killed a `RichLog`. The substrate changed; the
-  rule did not. See `MAX_ROWS` and `MAX_CHARS` in `cli/canvas/static/render.js`.
+  rule did not. See `MAX_ROWS` and `MAX_CHARS` in `skyboss/canvas/static/render.js`.
 - **The server is remote code execution bound to a port, and is treated that way.** Four things,
   none optional: loopback bind, a required custom header (which forces a preflight that is never
   answered — this is the one that actually stops a hostile page), a per-launch token, and an
   `Origin` check. **There is no CORS allow-origin header anywhere and adding one would undo most of
   that.** A test asserts its absence.
-- **Everything in `cli/canvas/static/` is served.** Anything left there is published; a test
+- **Everything in `skyboss/canvas/static/` is served.** Anything left there is published; a test
   declares the inventory. Two scratch pages lived there during the build, one with a live token
   baked in.
 - **One number drives every size, so `--scale` is a geometry and not a preference.** `--sb-scale`
@@ -405,10 +457,15 @@ The rules that are not negotiable:
   — every fixed `rem` width and height grows with the scale while the window does not, so a panel
   that fits at 1.15 can starve its neighbour at 2.4. The workbench lost its last step this way and
   nobody saw it for three rounds. Check a layout change at more than one scale; `[[workbench]]`
-  round 4 sweeps five. CSS `zoom` was rejected
+  round 4 sweeps five. **A wrap threshold is a `rem` basis, never a `px` media query** — a
+  breakpoint puts the point at which two panels stop fitting at the same viewport width whether the
+  surface draws at 0.9 or 2.4, so it keeps them side by side where neither is legible and stacks
+  them where there was room. A `rem` basis means *narrower than a panel is legible at this scale*.
+  The stylesheet has no media query at all and [[schedule]] round 8 declined to add the first.
+  CSS `zoom` was rejected
   because it breaks dragging — `clientX` is unzoomed and `left` is zoomed — and
   `--force-device-scale-factor` because it *overrides* display scaling rather than multiplying it.
-- **The shell is a native webview** (`cli/canvas/shell.py`), because three things the operator asked
+- **The shell is a native webview** (`skyboss/canvas/shell.py`), because three things the operator asked
   for are impossible in a browser: a frameless window that is still resizable, a page that moves its
   own window, and no port exposed to any other tab. `--browser` and `--no-browser` keep the old
   paths, and `--no-browser` is still the mode to develop in.
@@ -417,6 +474,12 @@ The rules that are not negotiable:
   window-manager rule matched on `WM_CLASS`, which is why the shell sets one (`sb`) — and **nothing
   here writes that rule.** A desktop belongs to whoever runs it, the spelling differs per
   environment, and a tool that edited one would be reaching outside itself.
+- **pywebview edits the page, and only in the native shell.** `create_window`'s `text_select`
+  defaults to `False`, and on `False` it injects `body { user-select: none }` — so from the shell's
+  first day, 2026-08-20, nothing on the surface was selectable in the native window while `sb.css`
+  said nothing of the kind and every browser mode selected fine. Unless `debug` is on it also
+  suppresses WebKit's own context menu, so a right-click there was *nothing* where Chromium drew
+  *its* menu. Measure the page in the shell before blaming the stylesheet. See [[canvas]] round 15.
 - **Drag is not `pywebview-drag-region`.** That is a Cocoa and Windows feature; the GTK backend has
   no drag regions at all, only `easy_drag`, which makes the whole page a handle and would mean
   dragging a window inside the canvas also drags the canvas. The bar calls
@@ -462,6 +525,15 @@ The rules that are not negotiable:
   too; a `dispatchEvent` sweep only ever visits the elements a query already found interesting, and
   this bug lived in the ten empty buckets it never touched. See [[schedule]] round 7.
 
+  **A container measuring correctly says nothing about the text inside it wrapping.** A sweep of
+  [[schedule]] round 8's side-by-side panels read back correct panel widths, a correct track width,
+  correct column alignment and zero errors at five scales — while `in 1h` was wrapping to two lines
+  in the narrowed timeline, making that lane two lines tall and pulling every mark below it out of
+  line with the axis. `getBoundingClientRect` returns the height the wrap *caused*, so the
+  measurement agrees with the bug. **Look at the render, not only at numbers read off it**, and
+  prefer `white-space: nowrap` where a value must fit: a clipped cell is visible as wrong, where a
+  wrapped one reads as a broken chart with no clue where the fault is.
+
   **A silent no-op after a click is almost always a handler that threw.** An error inside a DOM
   event handler reaches `window.onerror`, *not* `Runtime.exceptionThrown` as read by a CDP drain,
   and a `try/catch` around `.click()` catches nothing because the handler runs inside the dispatch.
@@ -476,13 +548,15 @@ already first on PATH), because `sb` is a homebase tool you run from anywhere.
 
 **`PYTHONSAFEPATH=1` in the wrapper is load-bearing.** `python -m` prepends the current directory
 to `sys.path` *ahead of* `PYTHONPATH`, so running `sb` from inside any directory containing a
-`cli/` package imports that one. This has already bitten once: generating systemd units from
+`skyboss/` package imports that one. This has already bitten once: generating systemd units from
 inside an older checkout wrote every unit with the old `WorkingDirectory`, successfully and
-silently.
+silently. The package was `cli` until 2026-09-06, which made that collision likely rather than
+exotic — every sibling repo here has one. `skyboss` is a name nothing else claims, so the odds
+drop a long way without reaching zero, and the switch is what makes the difference not matter.
 
 **The consequence is a hard rule: `sb` never assumes cwd is the project root.** Every path derives
-from `PROJECT_ROOT` in `cli/helpers.py`, and the wrapper resolves its own symlink with `realpath`
-before setting `PYTHONPATH` — otherwise `python -m cli` resolves the package relative to
+from `PROJECT_ROOT` in `skyboss/helpers.py`, and the wrapper resolves its own symlink with `realpath`
+before setting `PYTHONPATH` — otherwise `python -m skyboss` resolves the package relative to
 `~/.local/bin`. This is a whole class of bug: relative `PATH` entries re-resolving against each
 child's cwd, 112 tests failing from a tmp dir. Read the wrapper's comments before touching it.
 
@@ -490,8 +564,12 @@ child's cwd, 112 tests failing from a tmp dir. Read the wrapper's comments befor
 `.venv` against the *cwd* rather than the resolved symlink fails outside its own repo. So
 **anything sky.boss runs from another repo needs an explicit working directory**, not just PATH.
 
-- **Dependencies:** `.venv` + `requirements.txt`. No `pyproject.toml`, pyright, or pre-commit
-  until something needs them. Python here is 3.14.7 — new enough that a dependency may lack wheels.
+- **Dependencies:** `.venv` + `requirements.txt`; tooling from `requirements-dev.txt` and
+  `scripts/requirements.txt`. `pyproject.toml` is tool config only (black, isort, pytest) — nothing
+  installs this repo. `pyrightconfig.json` checks `skyboss`, `cli`, `scripts` and `tests`.
+  pre-commit is installed by `.venv/bin/pre-commit install --install-hooks` (see `CONTRIBUTING.md`)
+  and runs the formatters, flake8, pyright, the docs gates and the commit-msg check. Python here is
+  3.14.7 — new enough that a dependency may lack wheels.
 - **`--json` is a root-group flag** stored in the Click context, so the output decorator handles
   every command with no per-command boilerplate.
 - **Shell completion:** for fish, `_SB_COMPLETE=fish_source sb > ~/.config/fish/completions/sb.fish`.
@@ -519,7 +597,7 @@ check there first.
 
 **`$SB_HOME` is the operator content directory, and it is outside the repo with no fallback path
 into it.** *It does have one fallback path* **outside** *the repo*: the 2026-08-27 rename moved the
-default from `~/.toolbox` to `~/.sky-boss`, and `_default_home()` in `cli/helpers.py` still returns
+default from `~/.toolbox` to `~/.sky-boss`, and `_default_home()` in `skyboss/helpers.py` still returns
 the old path while it is the only one that exists. That bridge is there because an absent home
 degrades to *nothing declared* rather than raising — a silent move would have made every saved
 tool, format and project vanish with no error to read. It stops applying the moment `~/.sky-boss`
@@ -535,7 +613,7 @@ argv sky.boss will *run*, so a suite reading the real home would register the op
 into the tree under test.
 
 **The suite never touches the real state directory** — `tests/conftest.py` redirects `SB_STATE`
-before anything imports `cli`. **Nothing operator-specific in tracked files.**
+before anything imports `skyboss`. **Nothing operator-specific in tracked files.**
 
 ### Testing
 
@@ -544,8 +622,13 @@ before anything imports `cli`. **Nothing operator-specific in tracked files.**
 .venv/bin/python -m pytest -k capture   # by name
 ```
 
-`pytest.ini` sets `pythonpath = .` so `cli` imports without installation, and `asyncio_mode = auto`
-because the canvas's session loop is async. Dev dependencies are in `requirements-dev.txt`.
+**pytest reads one of two configs, by invocation**: a bare `pytest` reads `pyproject.toml`'s
+`[tool.pytest.ini_options]`, and `dev test unit`, which passes `tests/`, reads `tests/pytest.ini`.
+Both set `pythonpath` (`.` and `..`, one directory) so `skyboss` and `scripts` import without
+installation, and `asyncio_mode = auto` because the canvas's session loop is async.
+`tests/test_marker_coverage.py` fails if they disagree on any key. Both carry
+`-p no:platformdirs`, because `.venv` sees system site-packages for `gi` and a system package's
+pytest plugin can outrun the venv's copy. Dev dependencies are in `requirements-dev.txt`.
 
 **To work on the surface**, run `sb ui --no-browser --port 8765` and point a browser at it.
 **Live reload is on and rides the session stream** — the server fingerprints `static/` on its
@@ -568,9 +651,9 @@ its own, which is the thing that caused this. `.html` is out, for the reason it 
 stops matching its source.
 
 **`[[slug]]` references are checked** — `tests/test_docs.py`. Slugs exist so a doc can move between
-`docs/features/` and `done/` without breaking a link, which they do; what they cannot survive is
+`docs/TODO/` and `docs/implementations/<category>/` without breaking a link, which they do; what they cannot survive is
 naming a doc nobody wrote. The check found two dead on its first run (`keys` and `theme`, cited
-from `cli/resident.py`, `cli/banner.py` and a test), both dead long enough that nothing recorded
+from `skyboss/resident.py`, `skyboss/banner.py` and a test), both dead long enough that nothing recorded
 when they broke. A slug that resolves to nothing is worse than a broken path, because it *looks*
 like it survived the move that broke it. The allowlist is two entries and each is tested to still
 need to be there.
@@ -641,8 +724,8 @@ wrong.
 **`sb data` is deliberately not an exception even so** — it carries parsed data only, and a tool
 that printed something else has failed its contract. See [[text-reads]].
 
-**Gotcha:** never `from cli.<mod> import <same_name>` in `cli/__init__.py` — it rebinds the package
-attribute from the module to the Command and shadows the module. Import under an alias.
+**Gotcha:** never `from skyboss.<mod> import <same_name>` in `skyboss/__init__.py` — it rebinds
+the package attribute from the module to the Command and shadows the module. Import under an alias.
 
 ## Branches
 
@@ -653,9 +736,84 @@ does: an audience that is not the author.
 
 - **Cut from `develop`, open the pull request into `develop`.** A change reaches `main` only by
   `develop` merging into it. A pull request targeting `main` is almost always a mistake.
-- **Both branches are protected**, with the same five checks — `eslint` and `pytest` on 3.11 to
-  3.14. `main` is not given a weaker gate than `develop` on the argument that it only ever receives
+- **Both branches are protected, with the same required set**, which the API below reports.
+  `main` is not given a weaker gate than `develop` on the argument that it only ever receives
   reviewed work: a release branch that trusts its input is a release branch with no gate.
+
+  **The unit suite's context is `pytest` — one job summarising the matrix, not a leg of it.**
+  The legs report as `pytest <version>`, and protection named those first. The swap to `pytest`
+  can only follow the job reporting on both branches, because a required context that has never
+  reported blocks every pull request. It is skeletor's job, taken verbatim in round
+  37 of [[skeletor-adoption]] so that every tree requires the same name, and what it buys here is a
+  matrix that changes without a protection edit. If the API still lists the legs, the swap has not
+  happened yet.
+
+  **The set is not spelled here.** This bullet said *"the same three checks"* until 2026-09-07 and
+  was wrong within an hour of the fourth being added — the same copied count as `N of N` below and
+  as the workspace's worktree list. Ask:
+
+  ```bash
+  gh api repos/OWNER/REPO/branches/develop/protection/required_status_checks --jq '.contexts[]'
+  ```
+
+  **`CI Gate` is in the set for a reason worth stating, because leaving it out looked harmless.**
+  Every other job carries `needs: gate`, and a `needs:` edge is how a job comes to report
+  `skipped` — which branch protection **accepts**. So with only the leaves required, a gate failure
+  skipped all three, protection took the three skips, and a pull request could merge having proven
+  nothing. Open until 2026-09-07 and closed by adding the one context every other job depends on.
+  skeletor's v0.22.0 header named the class — *requiring only the leaves is requiring nothing* —
+  and `ci.yml` here had written the hazard down two screens above the graph that fell into it,
+  claiming the matrix ran "unconditionally" when it does not.
+
+  **Nothing in this tree could have found it.** Which contexts are required is a list in the
+  account, in no file here — the same class as the enterprise Actions pull-request switch, and the
+  reason the remedy is a command rather than a sentence.
+
+  **A required check is named, not discovered**, so renaming a required job — `pytest`,
+  `eslint`, `CI Gate`, `All checks` — means editing branch protection on *both* branches in the
+  same sitting. A context that no job reports is a check that never arrives, and it blocks every
+  pull request forever — the same trap `ci.yml` refuses `paths-ignore` for.
+
+  **`develop` stopped requiring a pull request on 2026-09-01, and `main` still does.** The checks
+  are untouched on both — that sentence above is about the *checks*, and they are what gates. What
+  went was a requirement that a pull request **exist**, configured with zero required approvals and
+  no code-owner review: for a single maintainer it gated nothing.
+
+  **It did not silence the notice, and predicting that it would was wrong.** A direct push now
+  reports one bypassed rule instead of two — the pull-request line is gone and
+  `N of N required status checks are expected` remains, because required status checks apply to a
+  direct push and a fresh commit has none yet. **That line is not removable while the checks are
+  required**, and the checks are the only thing on `develop` that actually gates anyone. So the
+  message is the price of keeping the gate that works, and the remaining half is worth reading as
+  *the gate fired and you are exempt* rather than as noise.
+
+  **`N` is deliberately not a number here.** This sentence quoted `5 of 5` for a week while the
+  paragraph four lines above named three checks, and the push that found it reported `3 of 3` —
+  so the doc disagreed with itself and with the remote, and neither half was reading the other.
+  The count is whatever branch protection currently requires, which is a fact about the account
+  and not about this tree; ask it rather than trusting a copy:
+
+  ```bash
+  gh api repos/OWNER/REPO/branches/develop/protection/required_status_checks --jq '.contexts[]'
+  ```
+
+  Same lesson as the workspace's worktree list, one repo down: **do not keep a copy of what a
+  command will tell you** — and note that this is the *only* instrument that answers it, which is
+  round 7 of [[skeletor-adoption]] arriving from the other side.
+
+  **The gate for anyone else survives it**, which is the reason this is not a weakening: required
+  status checks apply to a direct push too, and a fresh push has no passing checks yet, so a
+  non-admin still cannot land on `develop` except through a pull request. Nothing about the
+  contributor path in `CONTRIBUTING.md` changes.
+
+  **What this did *not* do is grant anything, and the distinction is worth keeping.** Classic branch
+  protection has **no per-user allowlist** — `enforce_admins` is the only knob and it was already
+  `false` on both branches, which is why every direct push had been succeeding. The message was a
+  notice that the bypass had been used, not a refusal. Removing the rule removed the thing being
+  bypassed. If a second contributor ever arrives, the honest restoration is one API call
+  (`PUT …/protection/required_pull_request_reviews`), and `enforce_admins` on `main` is the
+  separate question this left alone: today it is `false`, so `main` does not gate its own
+  maintainer either.
 - **A merged branch is deleted automatically**, and merges are **merge commits** — squash and
   rebase are both off. Squash is the one that would actually cost something: a branch here is *one
   logical idea per commit*, and this repo's commit bodies carry the reasoning, so squashing throws
@@ -667,8 +825,8 @@ does: an audience that is not the author.
   five jobs, under a minute, free on a public repo. It is § CI's own rule on a new axis: deciding
   would cost more than running.
 
-**A default-branch change moves what the portfolio site reports, silently.** `skyrowlabs.com`'s
-`scripts/badges.py` reads each project's CI conclusion from *the default branch*, so the site's
+**A default-branch change moves what the portfolio site reports, silently.** The `skyrowlabs.com`
+repo's `badges.py` reads each project's CI conclusion from *the default branch*, so the site's
 `ci:` segment now describes `develop` rather than `main` — and a freshly cut branch has no runs, so
 the segment would have vanished entirely until the next push. A missing segment reads as *this
 project has no CI*, not as *this branch has not run yet*, which is **worked fine, told nobody**
@@ -693,19 +851,19 @@ Shared with sibling CLIs so the family feels like one tool.
   `SB_STATE`, the window class) are outside it by construction.
 - **Python 3 + Click.** Available here: Python 3.14.7, click 8.3.3. Fail fast with a readable
   install message on a missing dependency.
-- **Layout:** `sb` bash wrapper → `cli/__main__.py` thin entry → `cli/` package. The wrapper does
-  path work only (resolve symlinks, prefer `.venv`, set `PYTHONPATH`, `exec python -m cli "$@"`).
-- **Shared plumbing in `cli/helpers.py`** — `PROJECT_ROOT`, `STATE_DIR`, `run_command`. Command
+- **Layout:** `sb` bash wrapper → `skyboss/__main__.py` thin entry → `skyboss/` package. The wrapper does
+  path work only (resolve symlinks, prefer `.venv`, set `PYTHONPATH`, `exec python -m skyboss "$@"`).
+- **Shared plumbing in `skyboss/helpers.py`** — `PROJECT_ROOT`, `STATE_DIR`, `run_command`. Command
   modules call these rather than building paths directly.
 - **Ops commands act on real machines** via SSH, systemd, or the filesystem — never through an API
   client. Keep any HTTP behind a dedicated adapter module.
 - **A command sky.boss spawns gets the operator's environment, not sky.boss's.** Everything that
-  shells out goes through `child_env()` in `cli/helpers.py`, which drops `PYTHONPATH` and
-  `PYTHONSAFEPATH` — the two the wrapper exports so `python -m cli` resolves. Without it a wrapped
-  Python tool imports *this* `cli` package from anywhere on the machine. `PATH` is deliberately
-  kept: stripping the venv the wrapper prepends would be sky.boss choosing which `python3` a foreign
-  tool finds. Not a clean room — scrub what sky.boss added to boot and nothing else. See
-  [[subprocess-env]].
+  shells out goes through `child_env()` in `skyboss/helpers.py`, which drops `PYTHONPATH` and
+  `PYTHONSAFEPATH` — the two the wrapper exports so `python -m skyboss` resolves. Without it a
+  wrapped Python tool imports *this* repo's packages — `skyboss`, or skeletor's `cli` — from
+  anywhere on the machine. `PATH` is deliberately kept: stripping the venv the wrapper prepends
+  would be sky.boss choosing which `python3` a foreign tool finds. Not a clean room — scrub what
+  sky.boss added to boot and nothing else. See [[subprocess-env]].
 - **A tool that gates its output on `isatty()` is the operator's to declare.** Every child gets a
   pipe, so a tool that decides *what to print* by asking whether it has a terminal prints less
   under sky.boss than in your shell — not late, not narrow, **absent**, and absent output looks
@@ -718,7 +876,7 @@ Shared with sibling CLIs so the family feels like one tool.
   `env NAME=VALUE …` in the argv is *not* the same thing and is rejected in
   [[subprocess-env]] round 4: it makes the bench report `env resolves /usr/bin/env`, so the
   surface vouches for the wrapper instead of the tool.
-- **One palette, in `cli/theme.py`** — Skyrow Labs' **design system**, copied verbatim from its own
+- **One palette, in `skyboss/theme.py`** — Skyrow Labs' **design system**, copied verbatim from its own
   `colors_and_type.css`, vendored at `docs/design/` so the copy is checkable. The system is
   dark-only by declaration.
 
@@ -729,6 +887,32 @@ Shared with sibling CLIs so the family feels like one tool.
   what the design system calls it — and a test asserts that every hue the CLI darkens ships to the
   canvas undarkened. The contrast floor is measured rather than eyeballed: two grey roles missed it
   by a hair while looking perfectly fine.
+
+  **The canvas has a floor of its own, and it is the CLI's minus an unknown.** The CLI darkens
+  because a terminal's background belongs to whoever runs it, which is what makes 3.5:1 a
+  compromise; the canvas paints its own ground, so its floor is the real one — **4.5:1, WCAG AA,
+  against `--sb-bg`, `--sb-surface` and `--sb-surface-2`**. The surface had never been held to any
+  floor until [[canvas]] round 14, when the operator reported it was hard to see and a measurement
+  found **16 of 31 distinct text styles below AA**, every one of them the same colour.
+
+  **`--text-3` is a border, not a tier of type, and the design system says so** — *"very dim —
+  structure, not reading text."* `sb.css` had spent it on `color:` 66 times and on nothing else.
+  The fix is not to lighten it: `theme.py` copies the system verbatim and **a legibility problem in
+  this tool is not a licence to edit the brand**, which is the same rule that keeps a fifth hue out,
+  arriving from a new direction. Quiet-but-read text is `--sb-text-2`. A test forbids
+  `color: var(--sb-text-3)` in the stylesheet rather than listing the styles that were measured —
+  only one of three screens had been, and a list would have pinned sixteen and stayed silent on the
+  fifty on the other two.
+
+  **The rule had already been written down, applied once, and not swept.** A comment on
+  `.tool-group` from [[tools]] round 5 makes exactly this argument for exactly this reason. That is
+  *nobody looked*, not *the suite cannot see it* — the two want different remedies, and a note in a
+  doc had already been tried here, which is why the round ends in a test.
+
+  **An alias hides whether three things share a value or have one.** `BORDER` and `LOGO_DARK` are
+  aliases of `TEXT_3`, so the first attempt at round 14 — lightening the token — would have
+  lightened every hairline and repainted the mark's dark slate as a silent side effect, the mark
+  being the one thing deliberately outside every floor.
 
   **A role may also paint its own ground, and that is the second escape clause.** `sb.ref` — the
   `#123` chip — fills with the brand at the design system's own ring alpha and draws the brand
@@ -744,7 +928,7 @@ Shared with sibling CLIs so the family feels like one tool.
   tries to read `sb.ok` as a colour, fails, and raises — and the render path *swallows it*, so the
   span comes out unstyled with no error anywhere. An earlier version of this file said Rich reads
   it directly; it never did, and every ✓ ✗ ⚠ in a followed line rendered plain for a week.
-  `role_style` in `cli/output.py` is the resolver. **And the canvas half is the same rule from the
+  `role_style` in `skyboss/output.py` is the resolver. **And the canvas half is the same rule from the
   other side**: a `mk-<role>` class lands whether or not the stylesheet has a rule for it, so
   `.mk-ok`, `.mk-fail` and `.mk-warn` were unpainted for the same week. A test enumerates the roles
   off `_RULES` now. *Both bugs were invisible to a check that asks whether the mark landed — the
@@ -762,7 +946,7 @@ Shared with sibling CLIs so the family feels like one tool.
   natural place for someone to paste one. Vendored code is exempt. A second test rejects `rgba()`
   literals, which is the form the drift would actually take here: the mockup is built out of them.
   Tints are `color-mix` against an injected role. There is no theme switching.
-- **Commands return data; they never print.** All rendering goes through `cli/output.py` and the
+- **Commands return data; they never print.** All rendering goes through `skyboss/output.py` and the
   `Result` envelope (`ok` / `partial` / `data` / `warnings`, plus an optional `view`). Exit codes:
   `0` ok, `1` hard failure, `3` partial — **not 2**, which Click uses for usage errors. The surface
   is a second consumer of that envelope — a command that prints prose has to be written twice.
@@ -770,7 +954,7 @@ Shared with sibling CLIs so the family feels like one tool.
   **A `view` describes how to present `data`; it never filters it.** ~~Only `data` sets one~~ —
   **a command may *author* a view; only `data` may have one *inferred*.** The old wording was
   already false when it was written: [[roll-call]] has set a `blocks` view since it shipped. What is
-  actually reserved is `cli/view.shape`, the inference — it reads fields nobody here chose, and
+  actually reserved is `skyboss/view.shape`, the inference — it reads fields nobody here chose, and
   auto-dropping one of sky.boss's own would be a bug wearing a feature's clothes. A command that
   already knows its columns states them and takes its widths from `describe`, so there is still one
   opinion about flex. The key is *omitted* rather than
@@ -791,10 +975,10 @@ Shared with sibling CLIs so the family feels like one tool.
   has no such flag. A message naming a flag that does not exist is worse than none. Both renderers
   go through one function for it; `render.js` had the string inline at **two** call sites and both
   kept saying `7` after the terminal changed, which only a headless render caught.
-  The rules live in `cli/view.py` and not in `render.js`, because the frontend has no test runner:
+  The rules live in `skyboss/view.py` and not in `render.js`, because the frontend has no test runner:
   that puts the deciding half where pytest reaches it and leaves both renderers drawing what they
   are told. **The warnings a shaping is owed live there too** as of 2026-08-27 — *which columns went
-  quiet* is the same kind of decision, and it stopped being inline in `cli/data.py` the moment the
+  quiet* is the same kind of decision, and it stopped being inline in `skyboss/data.py` the moment the
   bench became a second caller. See [[table-views]].
 - **sky.boss may order; only a provider may judge.** The test that let [[schedule]] fold a row
   across projects without breaking [[roll-call]]'s refusal of a common vocabulary. That refusal is
@@ -845,6 +1029,29 @@ Shared with sibling CLIs so the family feels like one tool.
   but *the observer cannot know*. The remedy is also the same — count the looking, not only the
   finding, and when you cannot, say "no evidence" rather than "clear".
 
+  **When you cannot count the looking, a positive control is what makes a null readable — and the
+  torn-record half of that pair is now closed by one.** Two nights of sampling the live ledger
+  returned `torn: 0`, and the second night's added counter returned `partials: 0` too, which was
+  correctly reported as *no evidence*. It was worse than that: at a measured **0.80 µs** of torn
+  state per append against a 500 Hz sampler, the run expected **0.036** catches and would have had
+  to run about 26 nights to expect one. **A measurement that cannot fail is not a weak measurement,
+  it is not one** — and the way out was never more of it. Fixing the record size made every
+  observation classifiable, and running a second arm whose writer tears *on purpose* proved the
+  reader could see a tear at all; the real arm then tore just as often, so the null became a result
+  instead of a silence. Both halves are portable: **make the thing you are looking for identifiable
+  when you find it, and prove your instrument can see one before you believe it saw none.** The
+  finding itself was that a single 8 KB `write` tears against a concurrent reader exactly as readily
+  as a deliberately split one, that sky.boss already counts and reports the truncated line, and that
+  a settle-and-retry would install this section's own failure on purpose. See [[jsonl-reads]] round 4.
+
+  **Used again, on a UI, by [[schedule]] round 9.** Three absences that must stay distinct — a job
+  beyond the window, an overdue one, and one with no fire time at all — and the operator's live
+  payload contains **none** of the last two, so a green render said nothing whatever about those
+  paths. A synthetic `SB_HOME` with a `path` source supplied the missing shapes and the screen drew
+  all three in different words. The practice generalises past ledgers: **when the live data cannot
+  produce the case, a render that did not show it is not evidence, and the fix is to manufacture
+  the case rather than to look harder.**
+
   **The cross-session half of that has a sharper form, and it is the workspace's to keep:** *a peer
   name addresses a conversation **lineage**, not a context.* One socket and one `from-name` belong
   to the terminal and the project; the transcript behind them does not, and nothing on the wire
@@ -880,37 +1087,64 @@ Shared with sibling CLIs so the family feels like one tool.
 
 `docs/design/fundamentals.md` is **the constitution**: the 2026-08-21 pass that treated the
 built surface as pure concept and decided the eight primitives, with dated decisions and
-visible reversals. Feature specs convert it into buildable rounds; read it before proposing a
-primitive-level change. `docs/features/done/` holds the completed docs — `canvas.md` (the
-surface, five rounds), `follow.md` (the streaming substrate, four rounds), `tools.md` (saved commands, three
-rounds), `highlight.md` (lexical tint, four rounds), `capture.md` (declared structure),
-`refresh.md`, `header.md` (the mark, two rounds), `text-reads.md`, `subprocess-env.md`, `table-views.md` (the
-shaping contract, five rounds), `roll-call.md` (federating over projects), `file-follow.md` (the
-native cursor, two rounds), `chrome.md` (what a window knows about its output, three rounds), `mcp.md` (the tools offered to
-an agent), `delay.md` (once, later), `workbench.md` (the authoring surface, three rounds — opened
-and finished 2026-08-26/27), and the constitution's rounds as they land.
-**`docs/features/` is empty**: everything written so far has been executed. Every earlier spec was deleted with the
-system it described; the docs that predate the 2026-08-21 renames say `wrap`/`every` on purpose —
-dated, never scrubbed.
+visible reversals. Read it before proposing a primitive-level change.
+
+**One doc per feature — and since 2026-09-07 that doc is a plan in the scaffold's lifecycle
+rather than a file in a directory of this repo's own.** `docs/TODO/` is what is open,
+`docs/implementations/<category>/` is what shipped, a plan **moves** between them with
+`dev docs file <slug> --category <category>`, and both indexes are generated from frontmatter.
+`docs/rules/docs.md` is the reference; `.claude/skills/feature/SKILL.md` drives the authoring.
+
+**`docs/features/` is gone, and it was not a directory being tidied away.** It was this same
+lifecycle in a second spelling — open work, with a `done/` beside it — carrying its own template,
+its own frontmatter schema and no index, and it predated the scaffold by two weeks. The cost of
+two vocabularies for one lifecycle was already being paid rather than merely risked: the workflow
+declared *`status:` in frontmatter is the truth*, **nothing anywhere read that field**, and one
+doc consequently sat at `status: done` in a vocabulary whose three words are `draft | active |
+complete` for a week, with no reader to notice. The scaffold's half is the one with the readers,
+so it is the half that survived. The 24 completed docs moved unedited except in their frontmatter;
+`[[slug]]` links needed no change, which is the entire argument for slugs, arriving as a bill
+somebody else paid.
+
+**The list of completed docs that used to sit here is gone too, and its absence is the point.**
+It named eighteen of them and what each was about, hand-maintained — a copy of what
+`docs/implementations/README.md` now generates, minus the `Value` column, the summaries and the
+seven docs it had fallen behind by. Same lesson as the workspace guide's worktree list and the
+`N of N` above: **do not keep a copy of what a command will tell you.**
 
 **`docs/open.md` is the running list of what is decided-to-build but not decided-how**, kept
-apart from `docs/ideas.md` (*should we build it*) and fundamentals' Decisions (*settled, with the
+apart from `docs/research/ideas.md` (*should we build it*) and fundamentals' Decisions (*settled, with the
 reasoning*). An item leaves it by being taken over somewhere else, and the line records where it
-went rather than being deleted.
+went rather than being deleted. It is deliberately **not** the holding tank: the tank holds one
+document per plan, and an item in `open.md` is a paragraph nobody has yet decided is a plan. An
+item graduates from the file into `docs/TODO/` when somebody decides how.
 
-One doc per feature at `docs/features/<slug>.md`, from first sentence to done; completed docs move
-to `docs/features/done/`. `.claude/skills/feature/SKILL.md` drives it. The rules that earned their
-place:
+The rules that earned their place:
 
 - Sections are **Why** · **Shape** (including an explicit *"Does not do"*) · **Phases** · **Notes**.
+  The tank's `_TEMPLATE.md` spells the same four as **Problem** · **Approach** · **Phases** ·
+  **Dropped, and why**, and a plan may use either — what is not optional is the boundary section
+  and the record of what was ruled out.
 - **Expand the existing doc rather than adding a new one.** A change, a new capability or a defect
-  worth designing around is a new *round* in the doc that already owns the feature. The failure
+  worth designing around is a new *round* in the plan that already owns the feature. The failure
   this prevents is a directory where four files describe one thing and none is the one to read.
+  A completed plan reopens by moving **back** to `docs/TODO/`; the archive is for what is finished,
+  not for what was finished once.
 - **Notes accretes, never rewrites** — one dated entry per round. A superseded argument left
   visible beside its reversal is the most useful thing in one of these files; deleting it is how a
   doc loses the ability to stop someone making the same mistake again.
 - Cross-document links are `[[slug]]`, never relative paths. Reference a doc **by slug in code
-  comments too** — a path breaks the moment that feature reopens.
-- **No index machinery yet.** There was a generated one; it went with the docs. `ls` is an
-  adequate index for a directory with one file in it, and the test that kept the old one honest is the model to
-  copy if volume ever demands one again.
+  comments too** — a path breaks the moment that feature reopens. Three source references were
+  path-shaped and broke on this very move; `dev check doc-refs` named all three and the new
+  location of each, which is the gate doing precisely the job the slug convention exists to make
+  unnecessary.
+- **A summary is written when the plan is filed, not when it is missed.** The archive's index is
+  a `Summary` column, and a plan that files without one leaves a blank cell in the document whose
+  whole purpose is telling a reader which of twenty-five docs to open.
+- ~~**No index machinery yet.**~~ **Reversed 2026-09-07 — and the terms it was reversed on are
+  the ones it named.** The old bullet said `ls` was an adequate index for a directory with one
+  file in it, and that if volume ever demanded one it should be built *as a generated block
+  checked by a test, never as a hand-maintained list*. Volume arrived (twenty-five), and the
+  machinery arrived from the scaffold already built to that specification — generated indexes in
+  Markdown and JSON, staleness checked by `dev check docs`. The reversal cost nothing because
+  the condition had been written down in advance.

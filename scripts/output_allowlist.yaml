@@ -1,0 +1,20 @@
+# Files exempt from `scripts/check_output_discipline.py`.
+#
+# Format:  <path relative to the repo root>: <why this file is allowed to differ>
+#
+# A reason is not optional. An intended divergence with a reason is a decision
+# record somebody can re-evaluate; one without is indistinguishable from a file
+# nobody has got round to fixing, and it stays forever.
+#
+# `scripts/output.py` itself is not listed here — it is the module that owns the
+# streams, and exempting the owner in an allowlist would imply it could move.
+#
+# Entries are checked against what they describe on every run. One whose file
+# now passes, or whose file no longer exists, fails the check and is deleted
+# rather than re-justified: a reason makes an exemption a decision, and nothing
+# makes it stay current. An entry naming a path that has left the tree is the
+# one that bites — the path can come back for something else and arrive
+# already exempt.
+
+# (empty — a fresh tree has no exceptions, and adding the first one should feel
+#  like a decision)

@@ -49,8 +49,13 @@ import tokenize
 from pathlib import Path
 
 import pytest
+from narrowing import present
 
-from cli.helpers import PROJECT_ROOT
+import repo_files
+from skyboss.helpers import PROJECT_ROOT
+
+#: Every test here is host-side and needs no services up.
+pytestmark = [pytest.mark.unit]
 
 # The command as a standalone word. The lookarounds are what exempt every
 # identifier that merely starts with the letters: `$SB_HOME`, `sb.fish`.
@@ -68,13 +73,46 @@ ESCAPED_TICK = re.compile(r"\\`")
 CODE_SPAN = re.compile(r"(`+)[\s\S]*?\1")
 HTML_TAG = re.compile(r"<[^>]*>", re.DOTALL)
 
-SKIPPED_DIRS = {".git", ".venv", "vendor", "node_modules", "__pycache__", "dist"}
-# Gitignored; the operator's half, and not published prose.
-SKIPPED_FILES = {"CLAUDE.local.md"}
+#: **There is no skip list any more, and the way the last one failed is the
+#: argument against the next one.** This gate walked the filesystem behind a
+#: set of directory names, and on 2026-09-07 that set gained `tmp` and
+#: `.pytest_cache` — a correct fix for a real defect, which introduced a worse
+#: one within the hour.
+#:
+#: The membership test was `SKIPPED_DIRS & set(p.parts)`, and `p` is
+#: **absolute**. So the names were matched against every component of the path
+#: to the checkout, not against the path inside it. Check this repository out
+#: under any directory called `tmp`, `dist`, `vendor` or `.venv` — which the
+#: upgrade recipe tells you to do, at `tmp/pre-upgrade` — and every file is
+#: skipped, the parametrised set is empty, and the gate passes having read
+#: **nothing**. Measured: 205 files in the tree, `[NOTSET]` in the worktree.
+#:
+#: That is this repository's own *worked fine, told nobody* wearing a green
+#: tick, and no amount of care about the list's contents would have caught it,
+#: because the bug was in the predicate rather than in the entries.
+#:
+#: Asking git has no list to forget and no opinion about where the checkout
+#: lives. The population is what `.gitignore` does **not** disclaim — tracked or
+#: not — so `CLAUDE.local.md` still drops out by that mechanism rather than by
+#: being named, which was always the property the skip list was approximating.
+#:
+#: **It was `ls-files` alone until skeletor v0.26.0, and the index is the wrong
+#: population for the one window this gate most needs to cover.** `git ls-files`
+#: makes the subject set a function of what is *staged*, and an upgrade is
+#: precisely when the index and the tree disagree: every file a template
+#: delivered is untracked until somebody runs `git add`, so the gate reads past
+#: it, passes, and fails later on the commit — where it reads as the committer's
+#: mistake rather than as a check that never covered them. Reported from here
+#: after round 21 declared seven gates green over a subject set missing eleven
+#: of the twelve files the upgrade had just installed; fixed upstream in
+#: `repo_files.present`.
+#:
+#: A genuine scratch file is in scope now, and that is the right trade: a false
+#: positive is reported and fixed by whoever made the file, where a false
+#: negative is this repository's own *worked fine, told nobody* wearing a green
+#: tick — which is the paragraph above.
 
-_JS_STRING = re.compile(
-    r"""(?<!\\)(?:'(?:[^'\\\n]|\\.)*'|"(?:[^"\\\n]|\\.)*"|`(?:[^`\\]|\\.)*`)""", re.DOTALL
-)
+_JS_STRING = re.compile(r"""(?<!\\)(?:'(?:[^'\\\n]|\\.)*'|"(?:[^"\\\n]|\\.)*"|`(?:[^`\\]|\\.)*`)""", re.DOTALL)
 _JS_COMMENT = re.compile(r"//[^\n]*|/\*.*?\*/", re.DOTALL)
 
 
@@ -92,12 +130,17 @@ def _blank(text: str) -> str:
     return "".join("\n" if c == "\n" else " " for c in text)
 
 
-def tracked(suffix: str) -> list[Path]:
-    return sorted(
-        p
-        for p in PROJECT_ROOT.rglob(f"*{suffix}")
-        if p.is_file() and not SKIPPED_DIRS & set(p.parts) and p.name not in SKIPPED_FILES
-    )
+def in_tree(suffix: str) -> list[Path]:
+    """Files with this suffix git does not disclaim, at any depth.
+
+    Named for what it returns. It was `tracked`, wrapping `repo_files.tracked`,
+    and that helper was renamed to `present` in skeletor v0.26.0 for the reason
+    the note above gives — so keeping the old name here would reintroduce the
+    defect one layer down, in the file that reads the result. `present` is
+    already taken in this module by `narrowing.present`, which asserts a value
+    is not None and has nothing to do with files.
+    """
+    return sorted(repo_files.present(f"*{suffix}"))
 
 
 def _markdown_mask(text: str) -> str:
@@ -168,7 +211,10 @@ def _python_mask(text: str) -> str:
         if isinstance(first.value.value, str):
             reveal(
                 starts[first.lineno - 1] + first.col_offset,
-                starts[first.end_lineno - 1] + first.end_col_offset,
+                # `end_lineno`/`end_col_offset` are Optional on `ast.AST` and set
+                # on every node a real parse produces. `present` says so rather
+                # than leaving a `None - 1` to a TypeError mid-mask.
+                starts[present(first.end_lineno) - 1] + present(first.end_col_offset),
             )
     return "".join(mask)
 
@@ -199,15 +245,21 @@ def _report(path: Path, mask: str, hits: list[int]) -> str:
     rel = path.relative_to(PROJECT_ROOT)
     # The newline is bound outside the f-string on purpose. A backslash *inside*
     # an f-string expression is PEP 701, which lands in 3.12, and `README.md`
-    # promises 3.11 — so this file failed to import there and took the whole
-    # suite's collection with it. Found by the CI matrix on its first run.
+    # promised 3.11 — so this file failed to import there and took the whole
+    # suite's collection with it. Found by the CI matrix on its first run, and
+    # the reason that matrix exists: a syntax check is not a run.
+    #
+    # The floor moved to 3.12 on 2026-09-05, so the inline form would compile
+    # now. It stays bound out anyway. Rewriting a passing test to spend syntax
+    # it does not need would delete the one comment in this repo that records
+    # what the version floor actually costs.
     newline = "\n"
     return ", ".join(f"{rel}:{mask.count(newline, 0, at) + 1}" for at in hits)
 
 
 @pytest.mark.parametrize(
     "path",
-    [p for suffix in MASKS for p in tracked(suffix)],
+    [p for suffix in MASKS for p in in_tree(suffix)],
     ids=lambda p: str(p.relative_to(PROJECT_ROOT)),
 )
 def test_prose_says_sky_boss(path: Path):
@@ -223,16 +275,12 @@ def test_prose_says_sky_boss(path: Path):
 def test_the_check_can_still_see_a_violation():
     """A mask this aggressive could pass by blanking everything. Each exempt
     form is exercised beside the prose it must not swallow."""
-    exempt = (
-        "`sb run`, $SB_HOME, sb.fish, <img alt='sb --help'>\n"
-        "\n```\nsb data -- x\n```\n"
-        "\n    sb read -- y\n"
-    )
+    exempt = "`sb run`, $SB_HOME, sb.fish, <img alt='sb --help'>\n" "\n```\nsb data -- x\n```\n" "\n    sb read -- y\n"
     assert not BARE.findall(_markdown_mask(exempt))
     assert len(BARE.findall(_markdown_mask("sb never guesses; sb's rule.\n"))) == 2
     assert BARE.findall(_python_mask("# sb never guesses\nx = 'sb'\n"))
     assert not BARE.findall(_python_mask("# `sb run` never guesses\nrun('sb', 'x')\n"))
-    spans = 'r' + r'"""A human, ``sb``, and `html\`` after it."""' + "\n"
+    spans = "r" + r'"""A human, ``sb``, and `html\`` after it."""' + "\n"
     assert not BARE.findall(_python_mask(spans))
     assert BARE.findall(_python_mask('"""sb never guesses."""\n'))
     example = 'def f():\n    """Examples.\n\n        sb data -- x\n    """\n'
@@ -246,5 +294,5 @@ def test_the_mask_is_the_same_length_as_the_file():
     newlines in the mask, so a strip that shortened it would point at the
     wrong one — and silently, which is the only kind of wrong that matters."""
     for suffix, mask_of in MASKS.items():
-        for path in tracked(suffix)[:8]:
+        for path in in_tree(suffix)[:8]:
             assert len(mask_of(path)) == len(path.read_text()), path

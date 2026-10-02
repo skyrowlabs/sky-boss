@@ -8,9 +8,12 @@ the decisions that were reversed.
 ## Setup
 
 ```bash
-git clone https://github.com/skyrowlabs/sky-boss && cd sky-boss
-python3 -m venv .venv
-.venv/bin/pip install -r requirements.txt -r requirements-dev.txt
+git clone https://github.com/skyrowlabs/sky-boss
+cd sky-boss
+python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+.venv/bin/pip install -r requirements-dev.txt
+.venv/bin/pip install -r scripts/requirements.txt
+.venv/bin/pre-commit install --install-hooks
 npm ci                                   # eslint and the frontend test runner
 ```
 
@@ -25,8 +28,9 @@ npm run lint:check                # eslint, --max-warnings=0
 npm test                          # node --test, the frontend's pure half
 ```
 
-CI runs all three, plus pytest on 3.11 through 3.14. There is no gate job and no `paths-ignore` —
-the suite is cheap enough that deciding whether to run it would cost more.
+CI runs all three, plus pytest on 3.12 and 3.14 — the floor the README promises and the newest
+release. There is no gate job and no `paths-ignore` — the suite is cheap enough that deciding
+whether to run it would cost more.
 
 To work on the surface, `sb ui --no-browser --port 8765` and point a browser at it. Live reload
 rides the session stream, so a CSS edit swaps in place and every window keeps its state. Only a
@@ -40,12 +44,12 @@ These are not style preferences. Each one is load-bearing and most have a test:
   read and write is two commands. The canvas reads this line to decide whether a window may be
   given a refresh cadence — re-running a read is a refresh, re-running a write is a scheduler
   nobody asked for.
-- **Commands return data; they never print.** Everything goes through `cli/output.py` and the
+- **Commands return data; they never print.** Everything goes through `skyboss/output.py` and the
   `Result` envelope. A command that prints prose has to be written twice, because the surface is a
   second consumer of that envelope.
 - **sky.boss never parses human output.** `sb data` takes JSON. `sb read` shows what a command
   printed, verbatim, and says so. There is no flag that guesses.
-- **No hex outside `cli/theme.py`**, in any language — a test scans `.py`, `.css` and `.js`. Tints
+- **No hex outside `skyboss/theme.py`**, in any language — a test scans `.py`, `.css` and `.js`. Tints
   are `color-mix` against an injected role.
 - **The wordmark in prose, the command in code spans.** The project is **sky.boss**; `sb` is what
   you type, and it appears only inside backticks. `tests/test_naming.py` checks this.
@@ -57,9 +61,11 @@ These are not style preferences. Each one is load-bearing and most have a test:
 
 ## Docs are part of the change
 
-A feature gets one document at `docs/features/<slug>.md`, from first sentence to done, and it moves
-to `docs/features/done/` when it lands. Sections are **Why** · **Shape** (including an explicit
-*"Does not do"*) · **Phases** · **Notes**.
+A feature gets one document — a **plan** — at `docs/TODO/<slug>.md`, from first sentence to done,
+and `dev docs file <slug> --category <category>` moves it to `docs/implementations/<category>/`
+when it lands. Never a plain `mv`: the filing does the frontmatter and both generated indexes in
+one step. Sections are **Why** · **Shape** (including an explicit *"Does not do"*) · **Phases** ·
+**Notes**, or the equivalent four in `docs/TODO/_TEMPLATE.md`. Full rules in `docs/rules/docs.md`.
 
 Two rules about those documents:
 
@@ -72,7 +78,7 @@ Two rules about those documents:
 Cross-document links are `[[slug]]`, never relative paths — including in code comments, because a
 path breaks the moment that feature reopens. `tests/test_docs.py` checks that every slug resolves.
 
-`docs/open.md` is what is decided-to-build but not decided-how; `docs/ideas.md` is *should we build
+`docs/open.md` is what is decided-to-build but not decided-how; `docs/research/ideas.md` is *should we build
 it*; `docs/design/fundamentals.md` is the constitution and settles the primitives.
 
 ## Commits and pull requests
@@ -86,9 +92,11 @@ integration branch and the default here; `main` is what has been released. A cha
 only by `develop` merging into it, so a pull request targeting `main` is almost always a mistake —
 say so in the description if you meant it.
 
-Draft it while you iterate and mark it ready once you believe it is green; CI runs either way, on
-pushes to the branch and on the pull request. The branch is deleted automatically when the pull
-request merges. Merges are merge commits — squash and rebase are both off, because a branch here
+Draft it while you iterate and mark it ready once you believe it is green; CI runs on the pull
+request either way. **It does not run on a push to your branch** — `ci.yml` triggers on pushes to
+`main` and `develop` only, so a feature branch registers no run until the pull request exists. Open
+it early, or run the three commands above locally. The branch is deleted automatically when the
+pull request merges. Merges are merge commits — squash and rebase are both off, because a branch here
 is *one logical idea per commit* and squashing throws away the half of that which is the reasoning.
 
 Say what you *ran* and what it *said*, not that it should work. If part of a change is unverified,

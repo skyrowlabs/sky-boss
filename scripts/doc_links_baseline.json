@@ -1,0 +1,11 @@
+{
+  "_comment": [
+    "Ratchet ceiling for scripts/check_doc_links.py. Both numbers may only go DOWN.",
+    "A greenfield project starts at 0 and stays there. A project adopting this",
+    "mid-life records what it inherited, then lowers it as links are repointed —",
+    "in the same commit that repoints them, so the gain is locked in.",
+    "Update with: python scripts/check_doc_links.py --update-baseline"
+  ],
+  "max_broken": 0,
+  "max_dead_anchors": 0
+}

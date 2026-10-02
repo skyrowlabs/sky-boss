@@ -7,11 +7,15 @@ and its colours are the design system's own — undarkened, on purpose, which is
 the one place a tested invariant is deliberately stepped around.
 """
 
+import pytest
 from click.testing import CliRunner
 from rich.console import Console
 
-from cli import banner, cli
-from cli.theme import BRAND, STYLES, SURFACE_2, TEXT, TEXT_3
+from skyboss import banner, cli
+from skyboss.theme import BRAND, STYLES, SURFACE_2, TEXT, TEXT_3
+
+#: Every test here is host-side and needs no services up.
+pytestmark = [pytest.mark.unit]
 
 
 # ============================================================================

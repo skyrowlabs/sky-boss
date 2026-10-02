@@ -1,0 +1,158 @@
+# Pre-commit hooks for sky.boss
+#
+# Install:  pip install pre-commit && pre-commit install --install-hooks
+# Run all:  pre-commit run --all-files
+#
+# Lint tool versions are pinned here AND in scripts/requirements.txt, which CI
+# and the .venv install from. Neither file is canonical — a pip updater can only
+# ever write the other one — so when they disagree, make them agree at whichever
+# version you mean. tests/test_lint_tool_parity.py fails if they diverge, or if
+# what is installed differs: two versions of a formatter disagree about real
+# formatting, so a local pass and a CI failure on the same file is otherwise
+# unexplainable.
+
+default_install_hook_types: [pre-commit, commit-msg]
+
+repos:
+  - repo: local
+    hooks:
+      - id: conventional-commit
+        name: Conventional Commit
+        language: script
+        entry: scripts/hooks/conventional-commit-check.sh
+        stages: [commit-msg]
+        pass_filenames: true
+
+      - id: forbid-env-files
+        name: Block .env* files (secrets) from commits
+        entry: '.env files must never be committed — real secrets live only in the untracked .env'
+        language: fail
+        files: '(^|/)\.env(\.|$)'
+        exclude: '(^|/)\.env\.(example|ci)$'
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      # The demo is a render — a bundled-page export of the mockup the canvas
+      # was built from, with no generator in this tree — and these two would
+      # rewrite its whitespace under --all-files. A render is not hand-edited.
+      - id: trailing-whitespace
+        exclude: '^docs/design/sky-boss-demo\.html$'
+      - id: end-of-file-fixer
+        exclude: '^docs/design/sky-boss-demo\.html$'
+      - id: check-merge-conflict
+      - id: check-yaml
+      - id: check-json
+        # Both of these are JSONC, not JSON, and both are tracked. pyright's own
+        # parser accepts `//` comments, and the reason for each suppression has
+        # to live next to the suppression or it gets deleted by whoever trips
+        # over it; the alternative — a `"//"` key — is valid JSON that makes
+        # pyright print `Config contains unrecognized setting` on every run.
+        # `.vscode/settings.json` is written by `scripts/gen_vscode_queries.py`
+        # and is comments almost to the last line, because its whole audience is
+        # somebody opening the repository for the first time.
+        #
+        # This is a list of two, so it is the kind that goes stale by addition:
+        # a third tracked JSONC file fails this hook on the commit that adds it.
+        # `tests/test_json_hook_covers_tracked_files.py` is what makes that loud,
+        # in this repository, on your own files: every tracked .json not excluded
+        # here must parse, and every exclusion must still be a file that does not.
+        # Both directions, so an entry that outlived its reason fails too.
+        #
+        # skeletor runs the same partition across every tier it generates, which
+        # is the half no single tree can ask — but that is the generator's
+        # problem, and this line said so first for a reader who may not have that
+        # repository at all. node-zero's correction, taken verbatim.
+        exclude: '^(pyrightconfig\.json|\.vscode/settings\.json)$'
+      - id: check-added-large-files
+        args: ['--maxkb=512']
+
+  # ── Python ──────────────────────────────────────────────────────────────
+  # Delete this block for a project with no Python.
+  - repo: https://github.com/PyCQA/flake8
+    rev: 7.3.0
+    hooks:
+      - id: flake8
+        # Matches CI's **blocking** step exactly — syntax errors and undefined
+        # names, the set whose findings are always real.
+        #
+        # It does NOT match everything CI runs, and the difference is invisible
+        # from here. `ci.yml` runs flake8 a second time with `--max-complexity`
+        # and `--max-line-length`, and that step is informational (`|| true`),
+        # so its findings reach no exit code anywhere: not here, because this
+        # `--select` cannot emit them, and not in CI, because the code is
+        # swallowed. `dev check lint` passes the same narrow select, so it
+        # cannot see them either. **`flake8 .` with no arguments is the one
+        # command that does** — bare, it reads `.flake8`, where
+        # `max-line-length` and `max-complexity` live.
+        #
+        # This said *"Match CI exactly"*, which over-reaches only because CI
+        # runs flake8 twice — the hook does match the blocking step exactly,
+        # same select and same `--show-source`, and the clause after the colon
+        # named which step it meant. stash.flow measured the gap (`flake8
+        # Passed` here, four E501/E201/E202 findings there, one tree, one
+        # second); Dream Doll scoped it back to `exactly` after the first
+        # write-up of this comment inherited the larger claim.
+        args: ['--select=E9,F63,F7,F82,F401', '--show-source']
+        types: [python]
+
+  - repo: https://github.com/psf/black
+    rev: 26.5.1
+    hooks:
+      - id: black
+        args: ['--line-length=120']
+        types: [python]
+
+  - repo: https://github.com/PyCQA/isort
+    rev: 9.0.1
+    hooks:
+      - id: isort
+        args: ['--profile=black', '--line-length=120']
+        types: [python]
+
+  - repo: local
+    hooks:
+      # `entry` is a wrapper, not pyright itself, and `language` stays `node` so
+      # pre-commit still installs the pinned pyright below and puts it on the
+      # wrapper's PATH. The wrapper proves the resolved interpreter can import
+      # this project's packages BEFORE running pyright: `reportMissingImports`
+      # is `none`, so a bare interpreter does not fail here — it degrades every
+      # name those packages define to Unknown and reports the fallout as errors
+      # in files the commit never touched (losing `click` alone is 24 of them,
+      # none of which name click). See scripts/lint_pyright_gate.py.
+      - id: pyright
+        name: Type check with Pyright (whole project)
+        language: node
+        entry: scripts/lint_pyright_gate.py --project pyrightconfig.json
+        additional_dependencies: ['pyright@1.1.414']
+        # Whole-project on purpose, and so pass_filenames is false: the check has
+        # no per-file scoping, which means ONE stale error anywhere blocks every
+        # commit repo-wide. That is the intended pressure — fix errors when you
+        # see them rather than working around the hook.
+        pass_filenames: false
+        types: [python]
+        stages: [pre-commit]
+
+  # ── Prose & generated docs ──────────────────────────────────────────────
+  - repo: local
+    hooks:
+      - id: docs-index-current
+        name: Generated docs indexes are current
+        language: system
+        entry: python scripts/docs/regen.py --check
+        pass_filenames: false
+        files: ^docs/(TODO|implementations)/.*\.md$
+
+      - id: doc-tables
+        name: Every docs/*.md is registered in both index tables
+        language: system
+        entry: python scripts/check_doc_tables.py
+        pass_filenames: false
+        files: ^(docs/[^/]+\.md|AGENTS\.md|CLAUDE\.md|\.github/DOCS_INDEX\.md)$
+
+      - id: source-doc-refs
+        name: docs/* paths cited from source still resolve
+        language: system
+        entry: python scripts/check_source_doc_refs.py
+        pass_filenames: false
+        files: ^(docs/|.*\.(py|js|mjs|cjs|ts|tsx|sh|ya?ml)$)

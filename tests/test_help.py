@@ -8,8 +8,13 @@ next year is born covered or fails loudly on its first run of the suite.
 """
 
 import click
+import pytest
+from narrowing import present
 
-from cli import cli
+from skyboss import cli
+
+#: Every test here is host-side and needs no services up.
+pytestmark = [pytest.mark.unit]
 
 # The vocabulary a contract is stated in. One of these words appearing is not
 # proof of a good sentence, but its absence is proof of a missing one — a
@@ -18,7 +23,7 @@ from cli import cli
 CONTRACT_WORDS = ("acts", "observe", "a read", "surface", "saved command")
 
 
-def leaves(command=cli, path=("sb",)):
+def leaves(command: click.Command = cli, path=("sb",)):
     """Every runnable leaf, surfaces included — `sb ui` excludes itself from
     the palette, not from the documentation standard. A group that runs bare
     (`sb tools`) is runnable, so it meets the standard too."""
@@ -43,9 +48,7 @@ def test_every_command_shows_a_runnable_example():
     anywhere else goes stale the day the flag changes."""
     for path, command in leaves():
         lines = [line.strip() for line in (command.help or "").splitlines()]
-        assert any(line.startswith("sb ") for line in lines), (
-            f"{path} --help has no runnable example"
-        )
+        assert any(line.startswith("sb ") for line in lines), f"{path} --help has no runnable example"
 
 
 def test_every_command_states_its_contract():
@@ -53,28 +56,25 @@ def test_every_command_states_its_contract():
     fact a reader cannot infer from a flag list."""
     for path, command in leaves():
         text = (command.help or "").lower()
-        assert any(word in text for word in CONTRACT_WORDS), (
-            f"{path} --help does not state its contract"
-        )
+        assert any(word in text for word in CONTRACT_WORDS), f"{path} --help does not state its contract"
 
 
 def test_a_saved_tool_is_born_covered(tmp_path):
     """The generated help carries the expansion as its example and names
     itself a saved command — tools meet the standard with no code in the
     loader growing an opinion about documentation."""
-    from cli.tools import register
+    from skyboss.tools import register
 
     (tmp_path / "tools.toml").write_text('[tool.prs]\nargv = ["data", "--", "printf", "[]"]\n')
-    from cli.tools import tools as tools_group
+    from skyboss.tools import tools as tools_group
 
     try:
         register(cli, home=tmp_path)
         found = dict(leaves())["sb tools prs"]
-        lines = [line.strip() for line in found.help.splitlines()]
+        help_text = present(found.help, "help text")
+        lines = [line.strip() for line in help_text.splitlines()]
         assert any(line.startswith("sb data") for line in lines)
-        assert "saved command" in found.help.lower()
+        assert "saved command" in help_text.lower()
     finally:
-        for name in [
-            n for n, c in list(tools_group.commands.items()) if getattr(c, "sb_saved", False)
-        ]:
+        for name in [n for n, c in list(tools_group.commands.items()) if getattr(c, "sb_saved", False)]:
             del tools_group.commands[name]

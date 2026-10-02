@@ -6,9 +6,14 @@ catalog does not break, it simply starts offering a command that no longer
 exists, with a description of what it used to do.
 """
 
+import pytest
 import rich_click as click
 
-from cli.canvas.catalog import catalog, walk, vocabulary
+from skyboss.canvas.catalog import catalog, vocabulary, walk
+from skyboss.helpers import mark
+
+#: Every test here is host-side and needs no services up.
+pytestmark = [pytest.mark.unit]
 
 
 def _tree():
@@ -83,7 +88,7 @@ def test_only_run_is_marked_as_acting():
 def test_a_surface_is_not_in_its_own_palette():
     root = click.Group("sb")
     surface = click.Command("ui", short_help="Open the canvas.")
-    surface.sb_surface = True
+    mark(surface, sb_surface=True)
     root.add_command(surface)
     root.add_command(click.Command("run", short_help="Run a command."))
 
@@ -99,7 +104,7 @@ def test_the_real_tree_offers_run_and_not_the_canvas():
 
 
 def test_a_command_added_to_the_tree_appears_with_no_change_here():
-    from cli import cli
+    from skyboss import cli
 
     cli.add_command(click.Command("invented", short_help="not written down anywhere"))
     try:
@@ -128,8 +133,7 @@ def test_a_summary_is_a_paragraph_not_a_line():
 
     entry = walk(wrapped, ("wrapped",))[0]
     assert entry["summary"] == (
-        "Read another CLI's output as data. An observe — a window may pin it and "
-        "refresh it."
+        "Read another CLI's output as data. An observe — a window may pin it and " "refresh it."
     )
 
 
@@ -163,7 +167,7 @@ def test_a_hidden_option_is_not_offered():
 
 
 def test_the_real_run_does_not_offer_its_refusal_flag():
-    from cli import cli as root
+    from skyboss import cli as root
 
     entry = next(e for e in catalog(root) if e["name"] == "run")
     assert "--refresh" not in [o["flag"] for o in entry["options"]]
@@ -185,17 +189,15 @@ def test_a_declared_ruleset_is_listed_with_its_size(tmp_path):
     whose placeholder named a file the surface had never opened."""
     home = _home(
         tmp_path,
-        '[highlight.jam]\n'
+        "[highlight.jam]\n"
         'description = "jam\'s vocabulary"\n'
-        'rules = [\n'
+        "rules = [\n"
         '  { pattern = "\\\\bESCALATE\\\\b", role = "warn" },\n'
         '  { pattern = "\\\\bdone\\\\b", role = "ok" },\n'
-        ']\n',
+        "]\n",
     )
     body = vocabulary(home)
-    assert body["highlights"] == [
-        {"name": "jam", "description": "jam's vocabulary", "rules": 2}
-    ]
+    assert body["highlights"] == [{"name": "jam", "description": "jam's vocabulary", "rules": 2}]
     assert body["problems"] == []
 
 
@@ -225,7 +227,7 @@ def test_the_legend_is_rendered_by_the_real_rules(tmp_path):
     `marks()` the stream uses, so the legend cannot drift from what it
     documents: a rule that stops matching stops being tinted in its own entry.
     """
-    from cli.highlight import marks, utf16
+    from skyboss.highlight import marks, utf16
 
     legend = vocabulary(tmp_path)["legend"]
     assert legend
@@ -245,7 +247,7 @@ def test_every_built_in_rule_has_a_legend_entry(tmp_path):
     """Coverage, checked rather than remembered. A rule added without an
     example is one the operator has no way to discover — which is the whole
     complaint this round answers, arriving again by the back door."""
-    from cli.highlight import _RULES
+    from skyboss.highlight import _RULES
 
     examples = [row["text"] for row in vocabulary(tmp_path)["legend"]]
     for pattern, role, _, _ in _RULES:

@@ -12,7 +12,7 @@
  * render.js and today's token, exactly as the browser and pywebview shells do.
  * `api.js` keeps working because nothing about it changed.
  *
- * So this file is a like-for-like replacement for cli/canvas/shell.py, and the
+ * So this file is a like-for-like replacement for skyboss/canvas/shell.py, and the
  * only honest way to compare the two: same product, same frontend, different
  * host. What you are buying is a pinned Chromium instead of whatever WebKitGTK
  * the distro shipped, DevTools, and `backgroundThrottling`. What you are

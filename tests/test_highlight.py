@@ -7,7 +7,13 @@ no marks, and every rule is shape — no severity vocabulary anywhere.
 
 import time
 
-from cli.highlight import load_rulesets, marks, resolve, spans
+import pytest
+from narrowing import present
+
+from skyboss.highlight import load_rulesets, marks, resolve, sample, shape_key, spans
+
+#: Every test here is host-side and needs no services up.
+pytestmark = [pytest.mark.unit]
 
 LINE = "2026-08-22T14:03:11 [jam-pr-report] fetched https://api.github.com/repos rows=14"
 
@@ -58,13 +64,22 @@ def test_a_bracket_mid_prose_is_prose():
     assert role_of("saw an [interesting] thing", "[interesting]") is None
 
 
-def test_a_url_wears_the_path_role_without_its_trailing_punctuation():
+def test_a_url_wears_its_own_role_without_its_trailing_punctuation():
     got = marks("see https://example.com/x. next")
-    assert got == [(4, len("see https://example.com/x"), "sb.path")]
+    assert got == [(4, len("see https://example.com/x"), "sb.url")]
 
 
 def test_the_url_inside_line_prose_is_found():
-    assert role_of(LINE, "https://api.github.com/repos") == "sb.path"
+    assert role_of(LINE, "https://api.github.com/repos") == "sb.url"
+
+
+def test_a_url_is_drawn_exactly_as_a_path():
+    """`sb.url` exists so the canvas can offer *open* on a link without a
+    regex of its own ([[canvas]] round 15), not to give links a colour. A
+    fifth look would be a brand decision this tool does not get to make."""
+    from skyboss.theme import STYLES
+
+    assert STYLES["sb.url"] == STYLES["sb.path"]
 
 
 def test_a_line_matching_nothing_yields_no_marks():
@@ -120,8 +135,7 @@ def test_no_severity_vocabulary_anywhere():
     a word. Weight carries no verdict — that is the whole argument for
     spending it in round 5 rather than a hue.
     """
-    for line in ("ERROR everything is on fire", "WARN disk almost full",
-                 "FAILED to reach the host", "CRITICAL outage"):
+    for line in ("ERROR everything is on fire", "WARN disk almost full", "FAILED to reach the host", "CRITICAL outage"):
         roles = {role for _, _, role in marks(line)}
         assert roles <= {"bold"}, line
 
@@ -193,9 +207,7 @@ def test_inline_code_takes_the_path_role_rather_than_a_hue_of_its_own():
 
 
 def test_a_number_inside_a_code_span_is_claimed_once_by_the_outer_shape():
-    assert [text for text, _ in _tinted("caps at `MAX_COMMITS = 50` today")] == [
-        "`MAX_COMMITS = 50`"
-    ]
+    assert [text for text, _ in _tinted("caps at `MAX_COMMITS = 50` today")] == ["`MAX_COMMITS = 50`"]
 
 
 def test_paths_keep_their_leading_dot_and_their_line_number():
@@ -233,7 +245,7 @@ def test_a_heading_is_emphasised_whole():
 def test_marks_are_capped_so_one_line_cannot_flood_a_frame():
     """Every mark rides to the canvas inside the frame, and round 2 turned
     three rules into ten. The tail is dropped, never the line."""
-    from cli.highlight import MAX_MARKS
+    from skyboss.highlight import MAX_MARKS
 
     line = " ".join(str(n) for n in range(500))
     found = marks(line)
@@ -251,7 +263,7 @@ def _tinted(line, ruleset=None):
 
 
 def _ruleset(*rules):
-    from cli.highlight import parse_rulesets
+    from skyboss.highlight import parse_rulesets
 
     sets, problems = parse_rulesets({"highlight": {"jam": {"rules": list(rules)}}})
     return (sets[0] if sets else None), problems
@@ -296,7 +308,7 @@ def test_a_pattern_that_does_not_compile_is_skipped_and_named():
         {"pattern": "fine", "role": "ok"},
     )
     assert "does not compile" in problems[0]
-    assert len(rules.rules) == 1  # one bad rule does not cost the others
+    assert len(present(rules, "a ruleset").rules) == 1  # one bad rule does not cost the others
 
 
 def test_an_overlong_pattern_is_not_a_pattern():
@@ -312,21 +324,19 @@ def test_a_zero_width_pattern_marks_nothing():
 
 
 def test_resolve_names_what_is_declared_when_the_name_is_wrong(tmp_path):
-    from cli.highlight import resolve
+    from skyboss.highlight import resolve
 
-    (tmp_path / "formats.toml").write_text(
-        '[highlight.jam]\nrules = [{ pattern = "x", role = "ok" }]\n'
-    )
+    (tmp_path / "formats.toml").write_text('[highlight.jam]\nrules = [{ pattern = "x", role = "ok" }]\n')
     found, problem = resolve("jam", home=tmp_path)
     assert found is not None and problem is None
 
     found, problem = resolve("nope", home=tmp_path)
-    assert found is None and "declared: jam" in problem
+    assert found is None and "declared: jam" in present(problem, "a problem")
 
 
 def test_declared_rules_still_respect_the_cap():
     rules, _ = _ruleset({"pattern": r"a", "role": "warn"})
-    from cli.highlight import MAX_MARKS
+    from skyboss.highlight import MAX_MARKS
 
     assert len(marks("a " * 400, rules)) <= MAX_MARKS
 
@@ -431,8 +441,7 @@ def test_an_acronym_in_prose_is_not_a_shout():
     """Five characters, measured rather than chosen: below it the corpus is
     acronyms in ordinary prose — `PR` 122 times, `CI` 52, plus a bare `I` and
     `A`. Four would buy TODO at the price of HEAD and HTTP."""
-    for line in ("the PR is green and CI agrees, I think",
-                 "SHA and LFS and API and HEAD"):
+    for line in ("the PR is green and CI agrees, I think", "SHA and LFS and API and HEAD"):
         # No *shout* — `green` is still a colour word, which is round 4's and
         # not this rule's. Asserting an empty list here would have tested the
         # wrong thing and passed for the wrong reason.
@@ -478,7 +487,7 @@ def test_marks_for_the_wire_are_in_the_units_a_browser_slices_by():
     page does it — by slicing UTF-16 — because comparing offsets is exactly
     the check that missed it.
     """
-    from cli.highlight import utf16
+    from skyboss.highlight import utf16
 
     text = "🟢 up  🔴 down 👍"
     wire = utf16(text, marks(text))
@@ -490,7 +499,7 @@ def test_marks_for_the_wire_are_in_the_units_a_browser_slices_by():
 def test_a_line_with_no_astral_character_is_returned_unchanged():
     """The conversion is identity for almost every line there is, so it costs
     nothing on the common path and cannot introduce a difference there."""
-    from cli.highlight import utf16
+    from skyboss.highlight import utf16
 
     text = "2026-08-29 04:15:02 [agent-fix] ✓ 8 done"
     found = marks(text)
@@ -546,7 +555,7 @@ def test_an_unbalanced_bracket_is_prose():
 def test_the_hang_is_the_first_character_after_the_stamp():
     """Not the stamp's end — the first *text* after it. A continuation that
     began in the gap would sit under whitespace rather than under the words."""
-    from cli.highlight import hang
+    from skyboss.highlight import hang
 
     assert hang("2026-08-29 04:15:02 [agent-fix] a finding") == 20
     assert hang("2026-08-29T04:15:02.123Z  double spaced") == 26
@@ -555,7 +564,7 @@ def test_the_hang_is_the_first_character_after_the_stamp():
 def test_a_line_with_no_stamp_hangs_flush():
     """Zero, and a flush wrap is what zero means — the same rule with nothing
     to skip rather than a special case."""
-    from cli.highlight import hang
+    from skyboss.highlight import hang
 
     assert hang("no stamp here at all") == 0
     assert hang("") == 0
@@ -566,7 +575,7 @@ def test_an_indent_without_a_stamp_is_not_a_hang():
     its own reasons must not be silently given a hanging indent it never asked
     for — that would be inferring structure from whitespace, which is the one
     thing this surface refuses."""
-    from cli.highlight import hang
+    from skyboss.highlight import hang
 
     assert hang("    indented but no stamp") == 0
 
@@ -575,7 +584,7 @@ def test_the_hang_comes_from_the_matcher_that_dims_the_stamp():
     """The property, not the number. Measuring the stamp a second time — here
     or in the frontend — is the second timestamp matcher the one-rule-set
     design exists to prevent, and it would drift the week it was written."""
-    from cli.highlight import hang
+    from skyboss.highlight import hang
 
     line = "2026-08-29 04:15:02 [agent-fix] starting"
     stamp = next((e for s, e, role in marks(line) if s == 0 and role == "sb.muted"), None)
@@ -594,8 +603,7 @@ def test_a_declared_rule_may_ask_for_weight(tmp_path):
     never a weight, so `escalate` could be tinted and not emphasised and there
     was no spelling an operator could write to ask."""
     (tmp_path / "formats.toml").write_text(
-        '[highlight.j]\n'
-        '[[highlight.j.rules]]\npattern = "escalate"\nrole = "warn"\nweight = "bold"\n'
+        "[highlight.j]\n" '[[highlight.j.rules]]\npattern = "escalate"\nrole = "warn"\nweight = "bold"\n'
     )
     ruleset, problem = resolve("j", tmp_path)
     assert problem is None
@@ -607,8 +615,7 @@ def test_a_declared_weight_is_the_same_object_a_builtin_one_is(tmp_path):
     `_merge` handles overlap and `_emphasise` folds it once. The proof is that
     it composes with markdown emphasis instead of doubling."""
     (tmp_path / "formats.toml").write_text(
-        '[highlight.j]\n'
-        '[[highlight.j.rules]]\npattern = "escalate"\nrole = "warn"\nweight = "bold"\n'
+        "[highlight.j]\n" '[[highlight.j.rules]]\npattern = "escalate"\nrole = "warn"\nweight = "bold"\n'
     )
     ruleset, _ = resolve("j", tmp_path)
     for _start, _end, role in marks("**we escalate now**", ruleset):
@@ -619,8 +626,7 @@ def test_a_weight_that_is_not_bold_is_refused(tmp_path):
     """One value, because bold is the only weight the palette has. A second is
     a design-system decision exactly as a ninth hue is."""
     (tmp_path / "formats.toml").write_text(
-        '[highlight.j]\n'
-        '[[highlight.j.rules]]\npattern = "x"\nrole = "warn"\nweight = "italic"\n'
+        "[highlight.j]\n" '[[highlight.j.rules]]\npattern = "x"\nrole = "warn"\nweight = "italic"\n'
     )
     _ruleset, problems = load_rulesets(tmp_path)
     assert any("weight must be 'bold'" in p for p in problems)
@@ -652,10 +658,106 @@ def test_a_quoted_string_the_operator_claimed_keeps_its_colour(tmp_path):
     operator's rules — so their colour lands on the words and the quotes dim
     around it."""
     (tmp_path / "formats.toml").write_text(
-        "[highlight.j]\n"
-        "[[highlight.j.rules]]\npattern = \"'[a-z-]+'\"\nrole = \"ok\"\n"
+        "[highlight.j]\n" '[[highlight.j.rules]]\npattern = "\'[a-z-]+\'"\nrole = "ok"\n'
     )
     ruleset, _ = resolve("j", tmp_path)
     found = marks("ran 'repo-report' now", ruleset)
     assert (4, 17, "sb.ok") in found, "the operator's rule claimed the whole quoted span"
     assert not any(role == "sb.muted" for _s, _e, role in found), "nothing left to dim"
+
+
+def test_a_count_is_a_number_and_not_a_path():
+    """Round 8. `308/693 fixes` came out `sb.path` — the literal role a
+    filename takes — because `_PATH`'s interior-slash alternative matches two
+    digits either side of a slash and runs first. Round 2's rule is that a
+    value looks like its *kind* on both surfaces, and a count's kind is a
+    number. Found by rendering a real log; a unit test comparing marks to
+    marks would have agreed with the bug."""
+    assert role_of("308/693 fixes (44.4%) shipped", "308/693") == "sb.num"
+    assert role_of("[overnight] 12/15 green", "12/15") == "sb.num"
+    assert role_of("ran 1/3 of the batch", "1/3") == "sb.num"
+
+
+def test_a_path_segment_that_looks_like_a_fraction_stays_a_path():
+    """The lookarounds are the whole rule, and this is what they buy. A slash,
+    a dot or a word character on either side means the digits are a path
+    segment — so a dated directory and a versioned one are untouched, and the
+    fraction rule can never eat a real path."""
+    for text, snippet in (
+        ("1/2/3 is a path", "1/2/3"),
+        ("v1/2 is a path", "v1/2"),
+        ("docs/12/13 is a path", "docs/12/13"),
+        ("2026/08/29/report.md is a path", "2026/08/29/report.md"),
+    ):
+        assert role_of(text, snippet) == "sb.path", snippet
+
+
+# ------------------------------------------------------- the sample (round 8)
+#
+# Authoring support, not rendering. The property that matters most is the one
+# the obvious implementation gets wrong: a key built from the role signature
+# collapses the lines a rule-writer is trying to tell apart.
+
+
+def test_two_lines_with_identical_marks_and_different_unclaimed_text_differ():
+    """The collapse round 8 exists to avoid. Both lines mark the same way — a
+    timestamp, a tag, a number — and differ only in the words sky.boss has not
+    claimed, which is exactly where the operator's next rule goes.
+
+    Note the words are lowercase on purpose: round 5 claims ALL CAPS as a
+    shout, so `ESCALATE` is already spoken for and would not have tested this.
+    """
+    a = "2026-08-22T14:03:11 [jam] run 7 handing off"
+    b = "2026-08-22T14:03:11 [jam] run 7 finished"
+
+    assert [role for _, _, role in marks(a)] == [role for _, _, role in marks(b)]
+    assert shape_key(a) != shape_key(b)
+
+
+def test_lines_differing_only_in_a_claimed_value_share_a_shape():
+    """The other half of the same rule. A number is already spoken for, so two
+    runs differing only in it are one shape and one row."""
+    assert shape_key("[jam] run 7 ok") == shape_key("[jam] run 812 ok")
+
+
+def test_a_run_of_one_placeholder_collapses_because_arity_is_not_a_pattern():
+    """`a_b_c` and `a_b` are the same shape to somebody writing a rule; what
+    differs is how many words, and nobody declares a pattern for that."""
+    assert shape_key("test_one_two_three passed", fold_words=True) == shape_key(
+        "test_four_five passed", fold_words=True
+    )
+
+
+def test_folding_never_finds_more_shapes_than_the_light_setting():
+    """The aggressiveness ordering, asserted rather than assumed — a fold that
+    split a shape would mean the normalisation was not a normalisation."""
+    lines = [
+        "2026-08-22T14:03:11 [jam] run 7 ESCALATE",
+        "2026-08-22T14:03:12 [jam] run 8 finished",
+        "2026-08-22T14:03:13 [bb] sync 9 finished",
+        "plain prose with no shape at all",
+    ]
+    assert len(sample(lines, fold_words=True)) <= len(sample(lines))
+
+
+def test_the_counts_add_up_to_every_line_that_went_in():
+    """What makes forty rows honest about thirty thousand lines. A sample that
+    silently dropped a shape would be a smaller version of the lie this module
+    refuses."""
+    lines = ["[jam] run 1 ok", "[jam] run 2 ok", "[bb] sync 3 failed", "  ", ""]
+    found = sample(lines)
+    assert sum(s.count for s in found) == 3
+
+
+def test_an_example_is_a_real_line_and_not_the_key():
+    """The key is lossy on purpose; the example is what lets a reader check it."""
+    lines = ["[jam] run 812 ok"]
+    (only,) = sample(lines)
+    assert only.example == "[jam] run 812 ok"
+    assert only.example != only.key
+
+
+def test_a_blank_line_is_not_a_shape():
+    """It carries nothing to write a rule against and would otherwise be the
+    commonest row in most logs."""
+    assert sample(["", "   ", "\t"]) == []

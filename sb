@@ -3,7 +3,7 @@
 #
 # Usage: sb [command] [options]
 #
-# Thin wrapper: it does path work only. All behavior lives in cli/.
+# Thin wrapper: it does path work only. All behavior lives in skyboss/.
 
 set -e
 
@@ -11,19 +11,26 @@ set -e
 #
 # Unlike `jam` and `bbrain`, `sb` is invoked through a symlink on PATH
 # (~/.local/bin/sb), so BASH_SOURCE points at the symlink, not the repo. And
-# `python -m cli` resolves the package from sys.path rather than from the
+# `python -m skyboss` resolves the package from sys.path rather than from the
 # script's location — so without realpath + PYTHONPATH below, running `sb` from
-# any directory but the repo root fails to find the cli package at all.
+# any directory but the repo root fails to find the skyboss package at all.
 SCRIPT_DIR="$( cd "$( dirname "$(realpath "${BASH_SOURCE[0]}")" )" && pwd )"
 export PYTHONPATH="$SCRIPT_DIR${PYTHONPATH:+:$PYTHONPATH}"
 
 # ...and stop the *cwd* winning anyway. `python -m` prepends the current
 # directory to sys.path ahead of PYTHONPATH, so running `sb` from inside any
-# directory that happens to contain a `cli/` package imports that one instead
-# of this repo's. That is not hypothetical: installing this repo's systemd
-# units from inside an older checkout generated every unit with the old
+# directory that happens to contain a `skyboss/` package imports that one
+# instead of this repo's. That is not hypothetical: installing this repo's
+# systemd units from inside an older checkout generated every unit with the old
 # WorkingDirectory, silently and successfully. PYTHONSAFEPATH is the documented
 # switch for it (Python 3.11+, equivalent to -P).
+#
+# The package was `cli` until 2026-09-06, which made that collision likely
+# rather than exotic — every sibling repo here has one. `skyboss` is a name
+# nothing else claims, so the odds drop a long way. They do not reach zero, and
+# this line is what makes the difference not matter: the switch is correct
+# whatever the package is called, and removing it would trade a documented
+# guard for a probability argument.
 export PYTHONSAFEPATH=1
 
 VENV_PYTHON="$SCRIPT_DIR/.venv/bin/python"
@@ -36,7 +43,7 @@ if [ -x "$VENV_PYTHON" ]; then
         *":$VENV_BIN:"*) ;;
         *) export PATH="$VENV_BIN:$PATH" ;;
     esac
-    exec "$VENV_PYTHON" -m cli "$@"
+    exec "$VENV_PYTHON" -m skyboss "$@"
 fi
 
 if ! command -v python3 &> /dev/null; then
@@ -46,4 +53,4 @@ if ! command -v python3 &> /dev/null; then
     exit 1
 fi
 
-exec python3 -m cli "$@"
+exec python3 -m skyboss "$@"

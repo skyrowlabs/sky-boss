@@ -277,7 +277,8 @@ and never feeds it: `--json` output is untouched by chrome existing.
 
 **Every command carries its complete documentation in its own `--help`:** what it does, the
 contract it asserts (acts or observes; snapshot or resident), and at least one runnable example.
-The help *is* the operator's documentation. Feature docs under `docs/features/` are the
+The help *is* the operator's documentation. Feature docs — under `docs/features/` when this was
+written, and in `docs/TODO/` and `docs/implementations/` since 2026-09-07 — are the
 designer's record of why — a thing the operator never needs to read to use the tool. This is the
 resolution of a tension that produced pushback whenever operator docs were proposed as markdown:
 the answer was never "no docs", it was that the doc belongs inside the surface it documents.
@@ -294,7 +295,7 @@ CLI's measured 3.5:1 floor — and asked whether to *widen the canvas exemption*
 tier of labels or lift the tier. **Both halves of the question were wrong, and the measurement
 was too.** It is 1.81:1, not the "roughly 2.5:1" the item recorded.
 
-**It is not a contrast dispute. It is a token used outside its role.** `cli/theme.py` defines
+**It is not a contrast dispute. It is a token used outside its role.** `skyboss/theme.py` defines
 `TEXT_3` as *"very dim — structure, not reading text"*, and `BORDER = TEXT_3`. The mockup used
 the **border** token as a **text** token. Nothing about the floor, the exemption, or the palette
 needs to change to fix that.
@@ -313,6 +314,91 @@ by reasonable-looking steps. This is one of those steps, declined.
 
 The canvas takes its tokens as CSS custom properties from `css_variables`, so this is a question of
 *which* property a rule names — not a new colour, and not a second palette.
+
+### 2026-09-01 — the tower is an observatory, and neither line moves
+
+`docs/open.md` item 10 asked for a dated decision about the scheduler/daemon line, on the grounds
+that the flight plan and the tower cross it. **They do not**, and the item was reasoning from a
+mockup rather than from what the mockup draws.
+
+**Measured before ruling.** Fourteen of the fifteen job names in `docs/design/ControlTower.dc.html`
+are jam.sense's own jobs — `agent-fix`, `sentinel`, `integration`, `docs-guard`, `night-review`,
+`implement-ready`, `model-health` and the rest — checked against the 31 rows that project's status
+command returns. The fifteenth is `notify_slack`. So every band is drawn over **someone else's**
+grid: `IN FLIGHT` is a session that provider started, `ON DECK` is that provider's cron, `COMPLETED`
+is that provider's ledger, `OUTPUT` is that provider's logs. The tower is an observatory. It was
+never a picture of jobs sky.boss runs.
+
+**Ruled: neither line moves.** *Execution* — nothing survives the last window — is unchanged, and
+the tower gives no reason to change it, since a foreign job runs whether or not sky.boss is open
+and that is the whole point of watching it. *Federation* — sky.boss keeps no copy of another
+project's state — is unchanged, because the tower reads rather than stores.
+
+**Two rules were being conflated under one name, and separating them is the durable half of this.**
+§ Cadence above is about **execution**: nothing keeps running. `skyboss/rollcall.py` is about
+**copies**: *no ledger here, no history, no cache*, because a copy of a schedule that agents
+rewrite goes stale without announcing it. A record is not a process, and a copy of one's own work
+is not a copy of someone else's. "It crosses the daemon line" was doing the work of both sentences
+at once, which is why the item could sit unanswered for a fortnight: there was no way to argue with
+it. A future proposal has to say **which** of the two it crosses.
+
+**What this does to item 6.** *Job identity that outlives a window* was named as the primitive the
+plan and the tower are blocked on. For the tower it is not: three of the four bands have a shipped
+or specced source today — `sb agents` ([[agent-sessions]], 2026-09-01), `sb schedule`
+([[schedule]], 2026-08-30), and a project's own ledger ([[history]], drafted). Item 6 is neither
+closed nor rejected; it is **no longer load-bearing for this screen**, which is a better place for
+it to sit than *blocking*. Whatever genuinely needs sky.boss to remember what *it* ran should make
+that case on its own.
+
+**Not decided here, deliberately:** whether sky.boss may keep a record of its own runs. That
+crosses the **federation** rule and not the execution one; the staleness argument that justifies
+federation does not obviously reach it, since sky.boss is the authority for what sky.boss ran; and
+`prefs.json` and `tools.toml` mean *stateless* is already a narrower claim than the word. Left
+undecided until something wants it, rather than pre-answered here.
+
+*Answered the same day by the decision below — something wanted it within hours. Nothing above is
+withdrawn: this decision was about **what the tower requires**, and the tower still requires
+neither line moved. What follows is a separate decision to build something the tower never needed.*
+
+### 2026-09-01 — sky.boss may issue a schedule, and systemd is still the daemon
+
+Asked for by the operator, hours after the decision above: a schedule sky.boss **owns**, layered
+beside the ones it reads. Ruled yes, and the crossing is deliberate rather than incidental — which
+is the condition § Cadence attaches to it.
+
+**Execution is crossed. An installed job fires with no window open.** That is the sentence in
+§ Cadence and there is no reading of this feature that avoids it. Recorded here so it is a decision
+with a date rather than a drift.
+
+**sky.boss does not become a daemon, and that distinction is the whole design.** systemd is the
+daemon. sky.boss generates units and reads them back; it holds no clock, stays resident for
+nothing, and supervises nobody — the relationship breeze.brain has to Docker. *Nothing of
+sky.boss's own survives the last window* remains literally true. What survives is a `.timer` file,
+owned by an init system that was already running.
+
+**§ Cadence keeps its force and gains its missing half.** The rule that only a read may be given a
+cadence was never *a repeating write is forbidden* — it is **a window is the wrong owner for one**.
+A window is attention-keyed, pauses when you close it, and would make a scheduler out of something
+you opened to look at. A job is the right owner: declared in a file, installed one at a time,
+deliberately. The canvas's refusal is unchanged and now has a reason it can point at instead of a
+prohibition.
+
+**Federation is crossed narrowly, and the argument for it was already written.** `skyboss/rollcall.py`
+keeps no ledger because a copy of *another project's* state goes stale without announcing it. A
+record of what sky.boss itself ran is not a copy of anyone's state — sky.boss is its authority.
+That is exactly the reasoning left standing above, applied on the day something wanted it.
+
+**Two refusals do not move, and they are what keep this honest.** sky.boss **never writes anyone's
+crontab** — the operator deactivates their own entries, and cron is read as opaque busy windows.
+And sky.boss **never parses a calendar syntax** in either direction: `OnCalendar` is validated by
+`systemd-analyze calendar`, and a fire time is read back from `systemctl --user list-timers` rather
+than computed. [[schedule]]'s refusal to parse cron was never about reading; it was about not owning
+semantics that belong to something else, and that is unchanged on the writing side.
+
+**The riskiest part is not the scheduler.** It is the window in which a job exists on both sides,
+which this design *opens on purpose* by leaving the handover to the operator. So drift read back
+from systemd, and an `install` that refuses a collision and names it, are load-bearing rather than
+polish. See [[jobs]].
 
 ## Open questions
 

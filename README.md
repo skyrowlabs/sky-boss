@@ -5,7 +5,7 @@
 <p align="center">
   <a href="https://github.com/skyrowlabs/sky-boss/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/skyrowlabs/sky-boss/actions/workflows/ci.yml/badge.svg?branch=develop"></a>
   <a href="https://github.com/skyrowlabs/sky-boss/tags"><img alt="Latest tag" src="https://img.shields.io/github/v/tag/skyrowlabs/sky-boss?label=version"></a>
-  <a href="https://github.com/skyrowlabs/sky-boss/actions/workflows/ci.yml"><img alt="Python 3.11 to 3.14" src="https://img.shields.io/badge/python-3.11%E2%80%933.14-blue"></a>
+  <a href="https://github.com/skyrowlabs/sky-boss/actions/workflows/ci.yml"><img alt="Python 3.12 to 3.14" src="https://img.shields.io/badge/python-3.12%E2%80%933.14-blue"></a>
   <a href="LICENSE"><img alt="MIT licence" src="https://img.shields.io/github/license/skyrowlabs/sky-boss"></a>
 </p>
 
@@ -45,12 +45,13 @@ the right. Down the left are the commands you saved.
 ## Install
 
 ```bash
-git clone https://github.com/skyrowlabs/sky-boss && cd sky-boss
+git clone https://github.com/skyrowlabs/sky-boss
+cd sky-boss
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 ln -s "$PWD/sb" ~/.local/bin/sb          # or run ./sb from the repo
 ```
 
-Needs Python 3.11+. Shell completion for fish:
+Needs Python 3.12+. Shell completion for fish:
 `_SB_COMPLETE=fish_source sb > ~/.config/fish/completions/sb.fish`
 
 ## The commands
@@ -63,6 +64,10 @@ Needs Python 3.11+. Shell completion for fish:
 | `sb follow -- <argv>` | Holds a command's stream open. Any exit is a visible death |
 | `sb follow <path>` | Follows a file with a native stat cursor |
 | `sb roll-call` | Asks every declared project how it is, and folds the answers |
+| `sb schedule` | What fires next, across every project that declares a schedule |
+| `sb agents` | Which agent sessions are running right now, across every provider |
+| `sb history <project>` | A project's own run ledger, newest first |
+| `sb job` | Jobs sky.boss issues — declared, installed as systemd timers, logged |
 | `sb tools` | The commands you saved |
 | `sb ui` | Opens the surface — a canvas of windows, and a workbench for authoring a command |
 | `sb mcp` | Speaks MCP on stdio, offering your saved commands to an agent |
@@ -457,8 +462,9 @@ nothing declared rather than raising.
 Every `$ sb …` example above is executed by `tests/test_readme.py`, so a README that shows a
 command which no longer works fails the build.
 
-`docs/design/fundamentals.md` is the constitution; `docs/features/done/` holds one doc per feature,
-each with its rounds and a Notes section that accretes rather than rewrites.
+`docs/design/fundamentals.md` is the constitution; `docs/implementations/` holds one doc per
+feature that shipped, each with its rounds and a Notes section that accretes rather than rewrites,
+indexed at `docs/implementations/README.md`. `docs/TODO/` is the same thing, still open.
 
 CI runs that same suite on every push and pull request — `.github/workflows/ci.yml`. It builds a
 `.venv` because the README examples above go through the real `sb` wrapper, which looks for one.

@@ -6,11 +6,15 @@ visible death and never a restart, the child dies with the loop, and a saved
 keyword inherits residency the way it inherits acts.
 """
 
+import pytest
 from click.testing import CliRunner
 
-from cli import cli
-from cli.follow import follow_process, is_file_form
-from cli.stream import Line, Ring
+from skyboss import cli
+from skyboss.follow import follow_process, is_file_form
+from skyboss.stream import Line, Ring
+
+#: Every test here is host-side and needs no services up.
+pytestmark = [pytest.mark.unit]
 
 
 # ============================================================================
@@ -59,7 +63,7 @@ def test_follow_takes_no_refresh_flag():
 
 
 def test_follow_is_an_observe_and_resident_in_the_catalog():
-    from cli.canvas.catalog import catalog
+    from skyboss.canvas.catalog import catalog
 
     entry = {e["name"]: e for e in catalog()}["follow"]
     assert entry["acts"] is False
@@ -75,7 +79,7 @@ def test_the_file_form_dispatches_to_the_cursor(monkeypatch):
     def fake_follow_file(path, *, limit, screen, ruleset=None, due=0):
         calls.update(path=path, limit=limit, screen=screen, due=due)
 
-    monkeypatch.setattr("cli.filefollow.follow_file", fake_follow_file)
+    monkeypatch.setattr("skyboss.filefollow.follow_file", fake_follow_file)
     result = CliRunner().invoke(cli, ["follow", "--lines", "50", "x/y.log"])
     assert result.exit_code == 0
     assert calls == {"path": "x/y.log", "limit": 50, "screen": False, "due": 0}
@@ -98,6 +102,23 @@ class FakeChild:
 
     def lines(self):
         return self._ring.lines()
+
+    @property
+    def ring(self):
+        """Part of `stream.Held`, and this fake did not expose it.
+
+        Neither did `fresh` below — which `follow_process` calls, on the path
+        these tests do not take. Both were found by writing the seam down as a
+        protocol: a double is free to be incomplete for exactly as long as the
+        interface it stands in for lives only in a comment.
+        """
+        return self._ring
+
+    def fresh(self, since_total):
+        kept = self._ring.lines()
+        missed = self._ring.total - since_total
+        out = kept[-missed:] if 0 < missed <= len(kept) else (kept if missed > 0 else [])
+        return out, self._ring.total
 
     @property
     def dropped(self):
@@ -138,7 +159,7 @@ def test_the_body_tints_stdout_lines_and_never_retags_stderr(monkeypatch):
     """The [[highlight]] seam: stdout lines go through `spans`, stderr lines
     keep their warn tint untouched — and the text reaches the screen verbatim
     either way, because marks ride beside it, never instead of it."""
-    from cli import highlight
+    from skyboss import highlight
 
     seen = []
     real = highlight.spans
@@ -172,10 +193,9 @@ def test_the_child_dies_with_the_loop():
 def test_a_keyword_wrapping_a_file_follow_loads_and_inherits_observe(tmp_path):
     """`[tool.cron]` over `follow <path>`: loads, observes, resident — and
     the tilde expands, because these are the operator's own paths."""
-    from cli.canvas.catalog import walk
-    from cli.tools import register
-
-    from cli.tools import tools as tools_group
+    from skyboss.canvas.catalog import walk
+    from skyboss.tools import register
+    from skyboss.tools import tools as tools_group
 
     (tmp_path / "tools.toml").write_text('[tool.cron]\nargv = ["follow", "~/logs/cron.log"]\n')
     try:
@@ -183,41 +203,34 @@ def test_a_keyword_wrapping_a_file_follow_loads_and_inherits_observe(tmp_path):
         assert problems == []
         entry = {e["name"]: e for e in walk(cli)}["tools cron"]
         assert entry["acts"] is False and entry["resident"] is True
-        assert tools_group.commands["cron"].sb_argv[1].startswith("/")
+        assert getattr(tools_group.commands["cron"], "sb_argv")[1].startswith("/")
     finally:
-        for name in [
-            n for n, c in list(tools_group.commands.items()) if getattr(c, "sb_saved", False)
-        ]:
+        for name in [n for n, c in list(tools_group.commands.items()) if getattr(c, "sb_saved", False)]:
             del tools_group.commands[name]
 
 
 def test_a_keyword_wrapping_follow_inherits_residency_and_refuses_a_cadence(tmp_path):
     """Inherited like acts: declaring refresh on a follow would load and mean
     nothing — the loader refuses it loudly instead."""
-    from cli.tools import register, tools as tools_group
+    from skyboss.tools import register
+    from skyboss.tools import tools as tools_group
 
-    (tmp_path / "tools.toml").write_text(
-        '[tool.logs]\nargv = ["follow", "--", "journalctl", "-f"]\nrefresh = 30\n'
-    )
+    (tmp_path / "tools.toml").write_text('[tool.logs]\nargv = ["follow", "--", "journalctl", "-f"]\nrefresh = 30\n')
     try:
         problems = register(cli, home=tmp_path)
         assert any("resident by nature" in p for p in problems)
         assert "logs" not in tools_group.commands
 
-        (tmp_path / "tools.toml").write_text(
-            '[tool.logs]\nargv = ["follow", "--", "journalctl", "-f"]\n'
-        )
+        (tmp_path / "tools.toml").write_text('[tool.logs]\nargv = ["follow", "--", "journalctl", "-f"]\n')
         problems = register(cli, home=tmp_path)
         assert problems == []
-        from cli.canvas.catalog import walk
+        from skyboss.canvas.catalog import walk
 
         entry = {e["name"]: e for e in walk(cli)}["tools logs"]
         assert entry["resident"] is True
         assert entry["acts"] is False
     finally:
-        for name in [
-            n for n, c in list(tools_group.commands.items()) if getattr(c, "sb_saved", False)
-        ]:
+        for name in [n for n, c in list(tools_group.commands.items()) if getattr(c, "sb_saved", False)]:
             del tools_group.commands[name]
 
 
@@ -274,7 +287,7 @@ def test_the_alternate_screen_is_no_longer_the_default_for_a_stream():
     leave the tail of the log you were watching on the screen."""
     import inspect
 
-    from cli.filefollow import follow_file
+    from skyboss.filefollow import follow_file
 
     assert inspect.signature(follow_process).parameters["screen"].default is False
     assert inspect.signature(follow_file).parameters["screen"].default is False
@@ -314,7 +327,7 @@ def test_an_inline_frame_shows_the_newest_lines_not_the_oldest():
 
 def test_the_screen_flag_reaches_both_forms(monkeypatch):
     seen = {}
-    monkeypatch.setattr("cli.follow.follow_process", lambda argv, **kw: seen.update(kw))
+    monkeypatch.setattr("skyboss.follow.follow_process", lambda argv, **kw: seen.update(kw))
     CliRunner().invoke(cli, ["follow", "--screen", "--", "journalctl", "-f"])
     assert seen["screen"] is True
     seen.clear()
@@ -388,7 +401,7 @@ def test_due_reaches_the_file_form(monkeypatch):
     def fake_follow_file(path, *, limit, screen, ruleset=None, due=0):
         calls.update(due=due)
 
-    monkeypatch.setattr("cli.filefollow.follow_file", fake_follow_file)
+    monkeypatch.setattr("skyboss.filefollow.follow_file", fake_follow_file)
     result = CliRunner().invoke(cli, ["follow", "--due", "15m", "x/y.log"])
     assert result.exit_code == 0
     assert calls["due"] == 900
@@ -402,7 +415,7 @@ def test_due_reaches_the_process_form(monkeypatch):
     def fake_follow_process(argv, **kwargs):
         calls.update(due=kwargs.get("due"))
 
-    monkeypatch.setattr("cli.follow.follow_process", fake_follow_process)
+    monkeypatch.setattr("skyboss.follow.follow_process", fake_follow_process)
     result = CliRunner().invoke(cli, ["follow", "--due", "2h", "--", "journalctl", "-f"])
     assert result.exit_code == 0
     assert calls["due"] == 7200
@@ -411,7 +424,7 @@ def test_due_reaches_the_process_form(monkeypatch):
 def test_a_malformed_due_is_refused_at_the_door(monkeypatch):
     """Not at the first tick. A watcher an hour in is the worst possible moment
     to discover its interval never meant anything."""
-    monkeypatch.setattr("cli.filefollow.follow_file", lambda *a, **k: None)
+    monkeypatch.setattr("skyboss.filefollow.follow_file", lambda *a, **k: None)
     result = CliRunner().invoke(cli, ["follow", "--due", "fortnightly", "x/y.log"])
     assert result.exit_code == 2
     assert "not a duration" in result.output
@@ -420,7 +433,7 @@ def test_a_malformed_due_is_refused_at_the_door(monkeypatch):
 def test_no_due_is_no_expectation(monkeypatch):
     calls = {}
     monkeypatch.setattr(
-        "cli.filefollow.follow_file",
+        "skyboss.filefollow.follow_file",
         lambda path, **kwargs: calls.update(due=kwargs.get("due")),
     )
     CliRunner().invoke(cli, ["follow", "x/y.log"])
@@ -434,7 +447,7 @@ def _scrolling(keys_pressed, ticks=None):
     """Drive a follow through a scripted keyboard and record what it drew.
 
     Keys are the *names* `wait` returns, not the bytes a terminal sends —
-    decoding is `cli/keys.py`'s job and is tested there against a fake stream.
+    decoding is `skyboss/keys.py`'s job and is tested there against a fake stream.
     """
     from rich.console import Console
 

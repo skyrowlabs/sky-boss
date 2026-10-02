@@ -8,7 +8,7 @@ in a chat log is how the same argument gets had twice.
 
 | File | The question it holds |
 |---|---|
-| `docs/ideas.md` | *Should we build this at all?* Deleted when spec'd or shelved. |
+| `docs/research/ideas.md` | *Should we build this at all?* Struck through with a pointer when spec'd or shelved, never deleted — see `docs/research/README.md`. |
 | `docs/design/fundamentals.md` | *What is this, at the level of primitives?* Decisions accrete, dated, reversals left visible. |
 | **this file** | *We are building it — how?* Items move out by being answered somewhere else. |
 
@@ -64,7 +64,7 @@ command has run more than once, *how did this go the last seven nights* is the o
 and the ring buffer plus the file of record already exist. Nobody owns it. ~~*Blocked on evidence —
 needs jobs that have run twice.*~~
 
-*Specced 2026-08-29 → [[history]], round 1 drafted and not built — the provider half only, with the sky.boss half named as round 3 so nothing mistakes one for the other.*
+*Specced 2026-08-29 → [[history]]; **round 1 built 2026-09-01** as `sb history <project>`. The provider half only, with the sky.boss half named as round 3 so nothing mistakes one for the other. Building it closed the fourth of the tower's five bands: `COMPLETED` now has a command behind it, after [[fundamentals]] § the tower is an observatory ruled that every band reads a provider. What is left with no source at all is `LOADED PLANS`.*
 
 **Unblocked 2026-08-29, and by something outside this repo.** The evidence arrived when jam.sense
 scaffolded its state into the agent-state root: `<root>/jam-sense/ledger/runs.jsonl` is **1,055
@@ -77,6 +77,12 @@ What that does **not** supply is history of sky.boss's *own* runs, which is what
 affordance was drawn against and which still needs item 6. So the item splits: reading a provider's
 ledger is unblocked and cheap; remembering what sky.boss itself did is still downstream of job
 identity. Worth deciding which one the affordance is for before either is built.
+
+*Exited 2026-09-16 → [[history]] round 3, which already owns the sky.boss half and already names
+its blocker.* The residual was never a second feature — it is the question round 3 exists to
+answer, and leaving it here as well made one decision look like two. This is the workflow rule
+arriving as bookkeeping: **expand the doc that owns the feature**, and a completed plan reopens by
+moving back to `docs/TODO/` rather than by growing a second file beside it.
 
 **19. The tools rail does not scale past a handful.** Raised by the operator 2026-08-29,
 watching the live agent-fix run. The rail is a fixed-width column down the left of the canvas and a
@@ -114,6 +120,14 @@ Not urgent: four tools fit. It becomes real at roughly a dozen, or the first tim
 enough that two tools clip to the same string — which is the actual failure, since the rail is how
 you tell them apart.
 
+*Exited 2026-09-16 → [[tools]], which owns the rail and already took the two halves that are
+answered — the draggable width in round 7, the text filter and tags in round 8. The expandable
+candidate reopens there as its next round, not as a plan of its own* — and the cheapest move is
+still the one this item already prescribed: the catalog reports
+`groups: 0`, so **try the grouped rail before designing anything**, because a grouped rail may be
+most of the answer already built. Note what the exit does not claim: the residual is unbuilt, and a
+filter may have removed the need for it entirely.
+
 **20. Five tweaks to the followed line's tint.** *Closed 2026-08-29 → [[highlight]] rounds 5 and 6.* Round 5 answered everything **weight** could
 answer — glyphs widened and emphasised, ALL CAPS split into an identifier and a shout, and the
 bench given a picker and a legend instead of a text box. Round 6 then answered the rest with
@@ -150,7 +164,7 @@ precisely the collision, and it is where four of the five land.
 
 **Four of the five want a colour that does not exist.** `STYLES` has eight roles and every one
 already means something: `accent`, `label`, `muted`, `ok`, `fail`, `warn`, `num`, `path`. A ninth is
-a palette change, and `cli/highlight.py` records the last attempt in its own comments — a violet for
+a palette change, and `skyboss/highlight.py` records the last attempt in its own comments — a violet for
 code spans was prototyped, looked good, and was rejected as *"exactly how a second palette starts"*.
 So the question this item actually holds is **not which shapes to tint, but where a new colour comes
 from**, and there are only three honest answers: reuse a role and accept the collision; reach for
@@ -189,7 +203,7 @@ the wrapped rows.
 
 *Not yet designed. What is already known and would shape it:*
 
-- **The indent is derivable and must not be guessed.** `cli/highlight.py`'s `_TIMESTAMP` already
+- **The indent is derivable and must not be guessed.** `skyboss/highlight.py`'s `_TIMESTAMP` already
   matches a leading stamp and returns its end offset — the same number a hanging indent needs. So
   this is `text-indent`/`padding-inline-start` computed from a mark sky.boss already produces, not
   a new parse. A line with no stamp wraps flush, by the same rule and with no special case.
@@ -208,7 +222,43 @@ the wrapped rows.
   count, and a character is a different width at 1.15 and at 2.4. `ch` units are the obvious answer
   and the obvious answer is what has to be measured.
 
+**23. A dock for a canvas window.** *Arrived 2026-09-16 from [[ideas]], where it had been parked
+behind a blocker that was discharged the day it was written.* A toggle in the window's header bar
+collapses it to a small rectangle near the top of the canvas — the last full message, a little
+activity stat, and a visual alert when something changes; untoggle puts it back. Raised 2026-08-30
+by the operator, from watching a follow window that only mattered when it moved.
+
+**It graduates because its hard half stopped being unanswerable, not because anyone sized it.** The
+alert is the hard half and it deferred to the band: *whatever answers that for the band answers it
+here first*. [[canvas]] round 10 answered the band on 2026-08-30 — item 22 above — and the ruling
+is the one a dock needs: **a window has to carry its own doubt**, so `quiet` over a dead stream is
+an affirmative false claim rather than information that has merely gone stale. A calm dock over a
+dead stream is that same failure with the window shrunk, and it is now a rule to apply rather than
+a question to answer.
+
+**What is still open is where the state lives**, and it is a real fork rather than a detail. The
+canvas has no window state between open and closed — a header carries `＋tag`, `WRAP`, `⟳`, `✕` and
+nothing else — so a dock is the first one, and the question is whether that state belongs to the
+**window** or to a **new strip** that owns docked things. The second is much the larger change and
+is the same shape as item 2's homeless queue strip; whoever takes either should look at both. (The
+*"keeps running while minimized"* comment in `app.js` is about the page being hidden, not a window,
+and is not precedent.)
+
+**The two documents were written the same day and neither pointed at the other**, which is why this
+sat. A pointer between files has no checker — `tests/test_docs.py` proves a `[[slug]]` resolves to
+a document and cannot prove the claim made about it — so a blocker reads as live until somebody
+re-reads both halves. Same class as the jam.sense `-P` note in `CLAUDE.md`: **a fix does not notify
+the document that recorded the hazard.**
+
 ## Primitives the plan and the tower need, none of which exist
+
+*Superseded 2026-09-01 → [[fundamentals]] § the tower is an observatory. The heading is wrong and
+is left standing because the reversal is the useful part: **the tower needs none of these.** All
+four were named on the assumption that the tower draws jobs sky.boss runs. It does not — fourteen
+of the fifteen job names in the mockup are jam.sense's own, so every band reads a provider, and
+three of the four have a shipped or specced source today (`sb agents`, `sb schedule`, a project's
+ledger). Items 8 and 9 were already answered; 6 and 7 are still open and are no longer blocking
+this screen.*
 
 These four are why [[workbench]] is buildable now and the other two screens are not. Each is
 probably its own feature doc, and they are ordered by how much the others depend on them.
@@ -217,10 +267,86 @@ probably its own feature doc, and they are ordered by how much the others depend
 dies with its window. A plan, a claim, a budget and a governor all need to name the same thing
 across restarts.
 
+**Partly supplied 2026-09-01 by [[agent-sessions]], and demoted the same day by [[fundamentals]]
+§ the tower is an observatory.** `sb agents` hands over identity that outlives every window sky.boss
+ever drew — a stable id, a name, a `cwd`, a start time — for sessions sky.boss did **not** start,
+which is the population the tower actually draws. So this stopped being a blocker without being
+closed: sky.boss's own runs are still anonymous, and nothing about reading someone else's registry
+fixes that.
+
+**And the item asks two questions, which is why it sat.** *A record of a finished run surviving its
+window* crosses the **federation** rule (`skyboss/rollcall.py`: no ledger, no history, no cache) and
+not the execution one — and the staleness argument behind federation does not obviously reach it,
+since sky.boss is the authority for what sky.boss ran. *A job running with no window open* crosses
+execution, squarely. Whoever reopens this should say which they want; the answers are different
+sizes.
+
+***Both were taken, hours later, by [[jobs]].*** A declared job's **name** is an identity that
+outlives every window, and `$SB_STATE/jobs/ledger.jsonl` is the record keyed by it — so the
+federation question is answered in the affirmative for sky.boss's own runs, and execution is
+crossed deliberately with a dated decision. **This closes item 6 for anything sky.boss schedules
+and leaves it open for anything sky.boss merely runs**: `sb run -- <argv>` is still anonymous and
+still dies with its window, which is the `--label` the mockup drew and nothing has needed yet.
+
 **7. The claim.** Several agentic jobs contending for one working tree is a real fact with no
 vocabulary in sb. The mockup renders it as a glyph and a contested band; what it *means* — advisory
-label, or something that actually blocks a departure — is undecided, and those are very different
+label, or something that actually blocks a departure — was undecided, and those are very different
 features.
+
+**Ruled 2026-09-01, on the operator's word: advisory, never blocking.** sky.boss draws what it can
+observe about tree contention and never holds a lock, refuses a departure, or arbitrates between
+two jobs. Three things follow and each is worth more than the ruling itself:
+
+- **It needs no new act**, so the observe/act split is untouched and nothing crosses the daemon
+  line item 10 guards. The blocking reading would have needed both — a second command that acts,
+  and a lock that outlives the window that took it, which is item 6 first.
+- **It is the reversible direction.** An advisory label can be made binding later; a lock that
+  jobs have started depending on cannot be made advisory again without breaking whatever learned
+  to trust it. Same asymmetry that put a per-project state-root override behind the derivation
+  rather than in front of it.
+- **A provider that publishes contention is drawn as it wrote it**, and sky.boss never computes a
+  rival — [[schedule]]'s `overdue` rule and [[agent-sessions]]'s thin record, arriving at a third
+  field.
+
+**And then the evidence was checked, which reshaped the item rather than closing it.** Measured
+2026-09-01 against the live payload: `jam report status --json` returns **16 leaf keys and not one
+of them is about a working tree** — no claim, no lock, no branch, no worktree, no conflict. So the
+mockup's `▸ needs the working tree` has **no provider behind it**, and building the ON DECK half
+today would be drawing a field nobody publishes. That is item 1's parking condition, and it applies
+here.
+
+**The evidence does exist — on the other band.** `sb agents` shipped the same day and publishes
+`cwd` per live session, and `git worktree list` in jam.sense reports **four checkouts of one
+repository** — `jam-sense` plus `jam-pool-0/1/2`, all at the same commit — with live sessions
+sitting in two of them while this was written. So contention is observable **today**, on
+**IN FLIGHT** (sessions that are running) rather than on **ON DECK** (jobs that are scheduled),
+which is the opposite band from where the mockup drew it. The claim's first real subject is not the
+grid; it is the agents item 16 went and found.
+
+**Two ways to derive it, and they are not the same feature:**
+
+- **Same directory** — compare the `cwd` strings `sb agents` already returns. No subprocess, no new
+  rule touched, and strictly weaker: it misses the jam-pool case exactly, which is the case that
+  motivates the item.
+- **Same repository** — ask git which object store a `cwd` belongs to (`rev-parse
+  --git-common-dir`). Catches the worktrees, and it is the first time sky.boss would run a command
+  **nobody declared**. `CLAUDE.md` binds that rather than forbidding it: output from a command
+  sky.boss runs on its own initiative must never reach `data`. A derived boolean is not that
+  command's output, so the rule is satisfiable — it has to be satisfied on purpose rather than
+  noticed afterwards.
+
+**Still open:** which of those two, and whether an advisory claim is worth building before there is
+a band to draw it in. Not blocked on a decision any more — blocked on wanting it.
+
+**Half of it arrived with a mechanism on 2026-09-01 → [[jobs]] round 1.** A job declares a `lane`,
+and a lane is an advisory `flock`: a job that cannot take its lane records `refused` and does not
+run. That is contention between **sky.boss's own** jobs, enforced, and it stays inside the advisory
+ruling above — sky.boss declines to start its own work and never stops anyone else's. The
+`Conflicts=` alternative was rejected for a measured reason worth keeping: it *stops* the
+conflicting unit rather than waiting or refusing, which is preemption dressed as mutual exclusion,
+and a scheduled job would have killed a running one. What is still unbuilt is the reading half —
+contention between jobs sky.boss did **not** start, which is where the `cwd`/worktree derivation
+above still applies.
 
 **8. The budget.** ~~A wall-clock ceiling on a run.~~ **Answered 2026-08-29: the supervisor owns
 it and sky.boss displays it.** The mockup put `--budget` on `follow`, which is a contradiction —
@@ -244,15 +370,39 @@ disabled outside sky.boss.
 
 ## Boundaries
 
-**10. The scheduler/daemon line.** [[fundamentals]] § Cadence: *nothing survives the last window —
-that is what makes this a scheduler and not a daemon, and crossing that line is only ever done on
-purpose.* The clock-source selector crosses it deliberately and, as drawn, honestly: per job,
-explicit, with the consequence written under each option. It still needs a dated fundamentals
-decision, not just a radio button in a mockup.
+**10. The scheduler/daemon line.** *Closed 2026-09-01 → [[fundamentals]] § the tower is an
+observatory, on the operator's ruling: **neither line moves.*** The item asked for a dated
+fundamentals decision and got one — but the answer was that the crossing it was built around never
+happens. Its stated subject, the clock-source selector, had already been disposed of by
+[[schedule]] round 1 (*sky.boss picks no clock, it reads the one each provider stamped*), and the
+tower turned out to be an observatory over a provider's grid rather than a picture of sky.boss's
+own jobs.
 
-**11. jam.sense keeps its own scheduler.** `CLAUDE.local.md` says sky.boss never manages, generates
-or edits its cron entries — and the mockup's original cast *was* that scheduler. The cast has since
-been mixed on purpose ([[workbench]] Notes), but the underlying question is untouched: does
+**What the decision is actually worth is the separation, not the ruling.** "The daemon line" was
+one name for two rules — **execution** (§ Cadence: nothing keeps running) and **federation**
+(`skyboss/rollcall.py`: no copy of another project's state) — and a proposal could not be argued with
+while it invoked both at once. A record is not a process; a copy of one's own work is not a copy of
+someone else's. The next proposal has to name which of the two it crosses.
+
+[[fundamentals]] § Cadence: *nothing survives the last window — that is what makes this a scheduler
+and not a daemon, and crossing that line is only ever done on purpose.* The clock-source selector
+crosses it deliberately and, as drawn, honestly: per job, explicit, with the consequence written
+under each option. It still needs a dated fundamentals decision, not just a radio button in a
+mockup.
+
+**11. jam.sense keeps its own scheduler.** *Answered 2026-09-01 → [[jobs]] and [[fundamentals]]
+§ sky.boss may issue a schedule: **both, and the boundary does not move.*** sky.boss observes those
+entries and never writes them — not a line, not a reorder, not a removal — **and** it may issue a
+schedule of its own beside them. An entry crosses from one side to the other only when the
+operator deactivates it in cron and declares it in `jobs.toml`, which is a handover they perform.
+So the rule `CLAUDE.local.md` states is untouched: what changed is that sky.boss now has a second
+side for a job to be moved *to*.
+
+The question this leaves is not a boundary question but a safety one, and it is why [[jobs]] round
+1 carries drift detection: the handover has a window in which a job exists on **both** sides, and
+that window is opened by design.
+
+The original wording, kept because it framed this as an either/or and it was neither: does
 sky.boss **observe** those entries, or does the boundary move? Defensible either way; currently
 unstated, which is the one thing it should not be.
 
@@ -262,7 +412,7 @@ runs subprocesses) and `--save` already composes with a cadence, so the bench co
 the CLI supports rather than teaching it anything. Held by a test — no route writes `tools.toml`.
 Two consequences of `--save` writing *before* it runs became round-3 items there, and building
 them found a third: a usage error raised *below* the write left a tool on disk under a name that
-could not be reused, then reported a failure. Fixed in `cli/output.py`.
+could not be reused, then reported a failure. Fixed in `skyboss/output.py`.
 
 **18. A schedule viewer, over schedules sky.boss did not write.** *Closed 2026-08-30 → [[schedule]] round 1: `sb schedule` folds every declared project's rows into one table ordered by the parsed instant. The ruling that licensed it — **sky.boss may order; only a provider may judge** — is the test to apply to the next case, and it disposes of the clock-selector half of item 9: sky.boss picks no clock, it reads the one each provider stamped.* Raised by the operator
 2026-08-29. **The boundary half needs no decision** — it is item 11 answered in the direction it was
@@ -283,7 +433,7 @@ the recommendation on each; the boundary above is unchanged.
 **~~It is a narrowing of a stated refusal.~~ It is not — the refusal does not apply.** The original
 argument, kept because it is the one a reader will reach for and it is weaker than it looks:
 
-> `cli/rollcall.py`: *"sky.boss folds sources, not semantics. No common status vocabulary, no
+> `skyboss/rollcall.py`: *"sky.boss folds sources, not semantics. No common status vocabulary, no
 > cross-project verdict."* A schedule view needs exactly that. The distinction that would license a
 > narrow one: roll-call refuses to decide what another tool's **word** means, and a cron expression
 > and an ISO timestamp are not words, they are measurements.
@@ -418,9 +568,9 @@ is the "something needs them" the item was waiting for — `app.js` is ~1000 lin
 a screen, and a ratchet retrofitted afterwards baselines the bugs you just wrote. Clean on arrival:
 9 files, 0 errors, 0 warnings, so `--max-warnings=0` starts at zero and may only go down.
 
-Three constraints held. **No Prettier**, and none on `cli/canvas/static/` ever — the `htm` comment
+Three constraints held. **No Prettier**, and none on `skyboss/canvas/static/` ever — the `htm` comment
 hazard is a formatter's bug with authority behind it. **Config lives at the root, never in
-`cli/canvas/static/`**, which is served wholesale and has a declared inventory a stray config would
+`skyboss/canvas/static/`**, which is served wholesale and has a declared inventory a stray config would
 break. **Vendored code is exempt**, the same rule the hex scan uses. The Electron files are not
 split by process: `preload.js` bridges both by design, so a strict split would flag correct code.
 
@@ -449,6 +599,10 @@ to `main` until today. And a **CI matrix over 3.11–3.14**, because `README.md`
 did not test; it found a real break on its first run, and the break was a PEP 701 f-string in
 `tests/test_naming.py` — a file that had been checked against 3.11 with `ast.parse(feature_version=…)`
 and passed, because that argument cannot see a tokenizer change. **A syntax check is not a run.**
+*Narrowed to 3.12 and 3.14 on 2026-09-05 — floor and ceiling. Both failure modes a matrix catches
+live at the ends, the jobs are parallel and free either way, and what four cost was four required
+checks on two protected branches. The floor rose with it, which is Debian 12 given up and Ubuntu
+24.04 LTS kept; see `.github/workflows/ci.yml`.*
 
 `CONTRIBUTING.md` is sky.boss's own rather than skeletor's, and that was forced rather than
 preferred: skeletor's names `check pre-push`, the `docs/TODO/` ↔ `docs/implementations/` move and
@@ -460,8 +614,106 @@ lifecycle machinery — generated indexes, `TODO/` ↔ `implementations/`, front
 `CLAUDE.md`: *"No index machinery yet. There was a generated one; it went with the docs."* The
 split this repo uses instead — [[open]], `ideas.md`, [[fundamentals]], one doc per feature — is a
 different design, not a smaller one. Also still out: `release-please` and a `VERSION` file, because
-the version comes from `git describe` and `cli/banner.py` prints it; a tracked `VERSION` is a
+the version comes from `git describe` and `skyboss/banner.py` prints it; a tracked `VERSION` is a
 second source of truth that can disagree with the tag, and the mark would be where it showed.
+
+**Round 2, 2026-09-04 — two of those rulings rest on premises that are wrong, and the retrofit
+stopped being impossible.** Put to the skeletor session directly rather than inferred from its
+tree; both corrections are its findings about itself. The reasoning above is left standing rather
+than edited, for the reason these files exist: a superseded argument beside its reversal is the
+thing that stops the mistake being made twice.
+
+**The commit-hook row names a mechanism skeletor does not use.** *"A git hook is not cloned with
+the repository"* is true of raw `.git/hooks/` and false of what skeletor actually ships — a
+**tracked** `.pre-commit-config.yaml` entry with `default_install_hook_types: [pre-commit,
+commit-msg]`, installed by a documented setup step. The row declines the right thing for a reason
+that does not apply to the thing it declines.
+
+**The conclusion survives on skeletor's own ground, which is better than ours was:** nothing in its
+`ci.yml` checks commit subjects, so the convention binds only a contributor who ran
+`pre-commit install` — not a web-UI commit, not a merge — while Release Please reads those same
+subjects to build the changelog. *Worked fine, told nobody*, surfacing one release late, and a
+finding against skeletor rather than against this decision. What went back, and what it queued
+rather than built: the gate worth having is not *lint every subject* but **fail if a subject
+Release Please will read cannot be parsed** — a check on the contract between two of its own
+components rather than a style rule, which is the difference between a gate people keep and a gate
+people disable.
+
+**The `VERSION` paragraph is missing its precondition, and so was skeletor's.** *A second source of
+truth that can disagree with the tag* is true only of a project **nobody installs**. The
+discriminator is `does anything install this?` — a published artifact's version has to live in a
+tracked file, because a tarball has no git history, and `VERSION` is then the primary with a single
+writer rather than a copy. Nothing installs sky.boss, so the ruling above holds — it holds **for a
+reason it did not state**, and the unstated half is exactly what would make it wrong for a repo
+that ships a wheel.
+
+The symmetry is the useful part. Skeletor **refuses a `VERSION` for itself on this repo's reasoning
+while its template ships one**, and neither side had written down what separates the two cases;
+each of us had half of one rule and neither half was load-bearing alone. Its half is now in its
+`docs/DESIGN_RATIONALE.md` § Versioning. This is ours. It is the same shape as *a rule that exists
+only as a comment in the producing repo is unreachable from where the mistake gets made* — one
+level up, where the rule existed in **neither** repo and both were acting on a guess that happened
+to be right.
+
+**The mechanical blocker on a retrofit is gone, and it was a defect rather than a design.** The
+question put to skeletor was whether adopting its framework would convert six settled decisions
+into six recurring merge conflicts. It did not — it converted them into something quieter. A
+scaffolded tree with `VERSION` and `release-please-config.json` deleted, the deletion committed,
+then `skeletor-upgrade`:
+
+```
+✅ 2 new file(s) would be added
+   · .github/release-please-config.json
+   · VERSION
+```
+
+A green tick, and on a real run written back without asking: **a silent auto-revert of a decision,
+every run, forever.** `theirs is None` was classified on absence alone, never consulting the
+manifest — which already carried the discriminator, since an entry means skeletor wrote that file
+into this tree, so its absence now is a deletion somebody performed. Fixed in skeletor v0.2.7
+(`a47212b`) as a fourth report category, permanent and reported every run as one standing line
+rather than a roll-call, with only the subset the template has *changed* since the decline
+itemised. **Our question is what found it**, which is the § *a repo's own tests cannot find a seam
+defect* rule paying out in the direction that rule predicts.
+
+**What is on the table is the rules layer, not the framework** — scaffold with `--force` at the
+arguments to be recorded, keep the rules and `docs/rules/`, delete the rest as **its own commit**,
+then `skeletor-upgrade --dry-run` and confirm the declines report as declines rather than as
+additions. That last step is not ceremony: it is what verifies v0.2.7 behaves as described *on this
+tree* before anything depends on it. Skeletor's own recommendation, and it argued against the full
+retrofit — the docs lifecycle and Release Please stay out, and five of the divergences above are
+reasoned rather than accidental.
+
+**One rule came back worth naming here, because this repo already built the middle of it.** On when
+a gate may carry an allowlist: *tighter predicate first, **structural marker** if one exists,
+vocabulary allowlist only when the excluded thing is prose about the notation.* The count is not
+the tell — what the entries are *about* is. Entries about code the predicate mis-shaped mean the
+predicate is wrong; entries about the convention's own vocabulary cannot be predicated away, which
+is why `tests/test_docs.py` legitimately allowlists `[[slug]]` (the sentence defining the notation)
+and `[[toolbox]]` (a dated record of a rename — *resolving it would mean the rename had not
+happened*). `tests/test_naming.py` is the middle rung, arrived at here independently: masking
+fenced blocks, indented blocks, inline spans and HTML tags before looking for a bare command,
+because **a fence is the difference between describing a command and telling you to run one**. The
+`PAINTED` set in `tests/test_theme.py` is the fourth shape and the one skeletor took — an exemption
+that is a **redirect rather than a hole**, removed from one check and held to two others, with
+`assert PAINTED` so it cannot silently become a bypass. That assertion is the whole thing.
+
+**Round 3, 2026-09-06/07 — the docs-lifecycle half of that ruling is reversed in full, and the
+retrofit it declined is done.** The tree was scaffolded on 2026-09-06 (`.skeletor.json`, the
+product moved to `skyboss/` so the shell could own `cli/`), and on 2026-09-07 `docs/features/`
+folded into `docs/TODO/` ↔ `docs/implementations/` with generated indexes, frontmatter and the
+merge drivers. So the sentence quoted two paragraphs up — *"No index machinery yet"* — is no
+longer in `CLAUDE.md` to quote, and *"the split this repo uses instead"* now names one directory
+that no longer exists and one file that has moved to `docs/research/ideas.md`.
+
+The reasoning is left standing rather than edited, because **what was wrong about it was not the
+argument.** The 2026-09-04 ruling was that a different design is not a smaller one, which was true
+of the design and irrelevant to the outcome: two lifecycles were being maintained, one of them had
+no readers, and neither fact is visible from inside the design that has them. What decided it was
+the operator, in one sentence — *"features doesn't have a purpose with implementations and
+TODO"* — and the measurement it invited: every docs gate green while both generated indexes
+reported an empty repository. Recorded as round 16 of [[skeletor-adoption]]. Release Please and a
+tracked `VERSION` are **not** reversed; the version still comes from `git describe`.
 
 ---
 
@@ -474,7 +726,7 @@ window nobody can see the bottom of. That is the tower's subject arriving early,
 
 **16. The tower shows live agent sessions.** An observe, in the tower, listing what is running now.
 
-*Specced 2026-08-29 → [[agent-sessions]], round 1 drafted and not built.* Items 16 and 17 became one doc: the seam and its first adapter are the same decision, and splitting them would have described an interface with nothing behind it.
+*Specced 2026-08-29 → [[agent-sessions]]; **round 1 built 2026-09-01** as `sb agents`.* Items 16 and 17 became one doc: the seam and its first adapter are the same decision, and splitting them would have described an interface with nothing behind it. Building it moved item 6 without closing it — the tower's `IN FLIGHT` band can have real rows now, because someone else is persisting the identity. Two things round 1 found that the spec had not: liveness needs a third answer (*cannot tell*, where there is no `/proc` to ask), and an empty table needs a sentence saying which of three empties it is.
 
 The mechanism exists and was verified on this machine rather than assumed: `~/.claude/sessions/`
 holds one JSON file per live session, `<pid>.json`, written by the session itself and carrying
@@ -514,7 +766,7 @@ the tree: [[roll-call]] asks every declared project how it is and folds the answ
 every provider who is running and folds the answers. Same fold, different population. **Do not name
 it `fleet`** — that word is bbrain's rental fleet and the collision has already cost clarity once.
 
-**17. Providers, modularly — Claude first, and only Claude verified.** *Specced with item 16 → [[agent-sessions]]. The row-shape half is ruled there: **thin common record, no extras bag**, on the argument that a common vocabulary with an escape hatch will not survive its second provider. Where the adapter list lives is round 2 there and still open.* The operator's ask is that
+**17. Providers, modularly — Claude first, and only Claude verified.** *Specced with item 16 → [[agent-sessions]], and **built 2026-09-01**. The row-shape half is ruled there: **thin common record, no extras bag**, on the argument that a common vocabulary with an escape hatch will not survive its second provider — and the debt it named arrived the same day, since the live registry answers four status words and one `null` rather than the two the spec listed. Where the adapter list lives is round 2 there and still open; so is whether `agents` should be offered over [[mcp]], which round 1 declined to take silently.* The operator's ask is that
 this not be Anthropic-shaped in its bones, and the honest position is that only one registry has
 been read. So: one adapter interface, one adapter written against a format that was actually
 inspected, and no speculative adapters for tools whose on-disk state nobody here has opened. A
@@ -530,7 +782,7 @@ four.
 
 Two halves are genuinely open:
 
-- **Where an adapter lives.** Parsing a format is code, so adapters are probably modules in `cli/`.
+- **Where an adapter lives.** Parsing a format is code, so adapters are probably modules in `skyboss/`.
   But *which are enabled* looks like operator content — `projects.toml` is the precedent, and it is
   outside the repo and never written by sky.boss. Splitting it that way means shipping code for a
   provider the operator has turned off, which is fine, and lets a machine with nothing installed
@@ -541,6 +793,18 @@ Two halves are genuinely open:
   drops it is honest and thin; a per-provider extras bag is useful and is how a common vocabulary
   rots. Undecided. Whichever wins, the tower must render a row from a provider it has never heard
   of without special-casing it, or the modularity was decorative.
+
+*Both halves exited 2026-09-16 → [[agent-sessions]]: **where an adapter lives** is round 2 there,
+named and unscheduled; **what a row shows when the provider knows more than the interface does**
+was ruled in round 1 — thin common record, no extras bag.* Whether `agents` should be offered over
+[[mcp]] is round 1's declined question and stays there too.
+
+**The second half was answered by this item's own opening line, and the bullet below kept saying
+`Undecided` anyway.** The note added on 2026-09-01 records the row-shape ruling; the list two
+paragraphs down still presents it as a live fork between a thin record and an extras bag. One item
+arguing with itself is worse than a stale pointer between two files — a reader who gets as far as
+the bullet has already been told the answer and is now being asked to re-decide it. Same shape as
+the surface arguing with itself when a message outlives the behaviour it described.
 
 **Not in scope, and worth writing down before someone proposes it**: managing these sessions,
 starting them, routing work between them, or reading their transcripts. sky.boss watches what other
@@ -565,7 +829,7 @@ closes non-interactive use, the second makes `follow` a second data-producing co
 
 **~~`sb data --refresh` has the same bug, and the fix that closed it for `follow` did not touch it.~~**
 *Closed 2026-08-29 → [[refresh]] round 3, built as recommended below: `refuse_resident_pipe` in
-`cli/output.py` raises a usage error naming the fix.* **Reversed for `data` 2026-08-30 →
+`skyboss/output.py` raises a usage error naming the fix.* **Reversed for `data` 2026-08-30 →
 [[refresh]] round 4, on the operator's ruling out of the morning review: off a terminal — or under
 `--json` — it emits one envelope per tick as NDJSON instead of refusing. The round-3 objection was
 answered rather than dismissed: a resident render has no *single* envelope, and a stream of
@@ -643,8 +907,8 @@ The two arguments as they stood, kept because the second is the one that had to 
   refresh to count, and "the backfill and out" is one pass rather than N of anything, which is
   round 2 there.*
 
-**Worth keeping from the diagnosis:** `cli/follow.py:219` already asked `console.is_terminal` and
-used the answer to pick a display width, throwing the rest away. `cli/banner.py:151` asked the same
+**Worth keeping from the diagnosis:** `skyboss/follow.py:219` already asked `console.is_terminal` and
+used the answer to pick a display width, throwing the rest away. `skyboss/banner.py:151` asked the same
 question and handed the decision up. The fix was not "add a check" but "use the check that was
 already there for the thing it was actually telling you" — which is the shape to look for in
 whatever answers the above.
@@ -739,7 +1003,7 @@ optional field that is usually redundant gets omitted, so it cannot be the prima
 anything else, and the listing is cheap enough that it needs no cache.
 
 **Related and already shipped:** the same class of silence in the *parser* — a typo'd table name
-returning zero projects and zero problems — was closed on 2026-08-29 in `cli/rollcall.py`, which is
+returning zero projects and zero problems — was closed on 2026-08-29 in `skyboss/rollcall.py`, which is
 where the state root would have been swallowed next. That fix stands alone and is not a prerequisite
 for any of the above.
 
@@ -765,7 +1029,7 @@ new data"* — against `jam-agent-fix-log`, which is `follow --highlight jam jam
 The file cursor is not at fault; rotation, truncation and disappearance are all handled and none of
 them is what happened.
 
-`stream()` in `cli/canvas/static/api.js` opens the session stream once and calls `onDown()` when it
+`stream()` in `skyboss/canvas/static/api.js` opens the session stream once and calls `onDown()` when it
 ends. `app.js` turns that into `setDown(true)` and **nothing else** — the effect that opened it has
 an empty dependency list, so it runs once per page load. Once the stream drops, for any reason, it
 is down until a manual reload.
@@ -788,6 +1052,6 @@ merely fail silently, it renders the healthy word over a dead stream — *worked
 with the extra step of an affirmative false claim. The only true signal is one line in the footer,
 at the bottom of the screen, nowhere near what the operator is looking at.
 
-Whatever answers the band here answers the alert half of the docked-window idea in `docs/ideas.md`,
+Whatever answers the band here answers the alert half of the docked-window idea in [[ideas]],
 which has the same shape and is strictly harder: a docked window is by definition the one nobody is
 watching.

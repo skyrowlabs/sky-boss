@@ -16,8 +16,9 @@ import pathlib
 import tomllib
 
 import pytest
+from narrowing import present
 
-from cli.tools import load, parse
+from skyboss.tools import load, parse
 
 # The live tree as the validator sees it: what is runnable and whether it acts.
 COMMANDS = {"run": True, "data": False}
@@ -205,9 +206,7 @@ def test_a_tilde_in_an_argv_is_expanded():
 
 
 def test_a_group_is_carried_through():
-    tools, problems = one(
-        {"tool": {"prs": {"argv": ["data", "--", "x"], "group": "jam"}}}
-    )
+    tools, problems = one({"tool": {"prs": {"argv": ["data", "--", "x"], "group": "jam"}}})
     assert problems == []
     assert tools[0].group == "jam"
 
@@ -229,9 +228,7 @@ def test_an_empty_group_is_ungrouped_rather_than_refused():
 def test_a_group_that_is_not_a_key_is_refused(group):
     # A group is keyed on, not just captioned: `jam ` and `jam` would be two
     # groups that look like one.
-    tools, problems = one(
-        {"tool": {"prs": {"argv": ["data", "--", "x"], "group": group}}}
-    )
+    tools, problems = one({"tool": {"prs": {"argv": ["data", "--", "x"], "group": group}}})
     assert tools == []
     assert "group" in problems[0]
 
@@ -265,9 +262,10 @@ def test_a_tilde_inside_a_value_is_left_alone():
 # Registration — the half that makes the palette work for free
 # ============================================================================
 
-from cli import cli  # noqa: E402
-from cli.canvas.catalog import walk  # noqa: E402
-from cli.tools import register, tools as tools_group  # noqa: E402
+from skyboss import cli  # noqa: E402
+from skyboss.canvas.catalog import walk  # noqa: E402
+from skyboss.tools import register
+from skyboss.tools import tools as tools_group  # noqa: E402
 
 
 @pytest.fixture
@@ -278,15 +276,14 @@ def saved(tmp_path):
     is that a tool becomes an ordinary command, and a stand-in group would let
     that claim be true of the stand-in only.
     """
+
     def declare(toml_text):
         (tmp_path / "tools.toml").write_text(toml_text)
         return register(cli, home=tmp_path)
 
     yield declare
 
-    for name in [
-        n for n, c in list(tools_group.commands.items()) if getattr(c, "sb_saved", False)
-    ]:
+    for name in [n for n, c in list(tools_group.commands.items()) if getattr(c, "sb_saved", False)]:
         del tools_group.commands[name]
 
 
@@ -299,7 +296,7 @@ def test_a_tool_is_an_ordinary_command_behind_the_tools_group(saved):
 
 
 def test_the_palette_finds_a_tool_without_the_catalog_knowing_about_tools(saved):
-    """The point of registering rather than listing. `cli/canvas/catalog.py`
+    """The point of registering rather than listing. `skyboss/canvas/catalog.py`
     walks the live tree, so a tool appears in the palette with its real summary
     and its real options and nothing there had to learn what a tool is. The
     leaf's full name is the dotted address, spaced."""
@@ -354,11 +351,11 @@ def test_the_listing_reports_formats_beside_tools(saved, tmp_path):
     a format's load failure lands in the same degrade list a tool's does."""
     from click.testing import CliRunner
 
-    import cli.capture as capture_mod
+    import skyboss.capture as capture_mod
 
     (tmp_path / "formats.toml").write_text(
         '[format.jam-status]\ndescription = "PR, state, title"\nkind = "lines"\n'
-        'pattern = \'(?P<pr>#\\d+) (?P<state>\\w+)\'\n'
+        "pattern = '(?P<pr>#\\d+) (?P<state>\\w+)'\n"
         '[format.broken]\nkind = "nope"\n'
     )
     saved('[tool.prs]\nargv = ["data", "--", "printf", "[]"]\n')
@@ -367,9 +364,7 @@ def test_the_listing_reports_formats_beside_tools(saved, tmp_path):
     with unittest.mock.patch.object(capture_mod, "SB_HOME", tmp_path):
         result = CliRunner().invoke(cli, ["--json", "tools"])
     envelope = json.loads(result.stdout)
-    assert envelope["data"]["formats"] == [
-        {"name": "jam-status", "kind": "lines", "description": "PR, state, title"}
-    ]
+    assert envelope["data"]["formats"] == [{"name": "jam-status", "kind": "lines", "description": "PR, state, title"}]
     assert envelope["partial"] is True
     assert any("unknown kind" in w for w in envelope["warnings"])
 
@@ -401,10 +396,7 @@ def test_a_file_with_no_groups_lists_exactly_as_it_did_before_groups(saved):
     listing is what it was before this round."""
     from click.testing import CliRunner
 
-    saved(
-        '[tool.prs]\nargv = ["data", "--", "printf", "[]"]\n'
-        '[tool.disk]\nargv = ["data", "--", "printf", "[]"]\n'
-    )
+    saved('[tool.prs]\nargv = ["data", "--", "printf", "[]"]\n' '[tool.disk]\nargv = ["data", "--", "printf", "[]"]\n')
     rows = json.loads(CliRunner().invoke(cli, ["--json", "tools"]).stdout)["data"]["tools"]
     assert [r["name"] for r in rows] == ["disk", "prs"]
     assert all("group" not in r for r in rows)
@@ -416,7 +408,7 @@ def test_the_catalog_ships_every_group_ordered_and_counted(saved, tmp_path, monk
     draw one."""
     from starlette.testclient import TestClient
 
-    from cli.canvas.server import TOKEN_HEADER, Canvas, build
+    from skyboss.canvas.server import TOKEN_HEADER, Canvas, build
 
     saved(
         "[group.archive]\n"
@@ -425,9 +417,9 @@ def test_the_catalog_ships_every_group_ordered_and_counted(saved, tmp_path, monk
     )
     # The catalog reloads from the ambient home on every request — the doctrine
     # that keeps it from drifting — so the ambient home has to be the one the
-    # fixture wrote. `cli.tools` imported `SB_HOME` by value, so that binding is
+    # fixture wrote. `skyboss.tools` imported `SB_HOME` by value, so that binding is
     # the one that matters; without this line the assertion fails.
-    monkeypatch.setattr("cli.tools.SB_HOME", tmp_path, raising=False)
+    monkeypatch.setattr("skyboss.tools.SB_HOME", tmp_path, raising=False)
     client = TestClient(build(Canvas(token="t")))
     body = client.get("/api/catalog", headers={TOKEN_HEADER: "t"}).json()
     assert body["groups"] == [
@@ -458,9 +450,7 @@ def test_a_group_named_by_a_command_lists_without_being_declared(saved):
 
     saved('[tool.prs]\ngroup = "jam"\nargv = ["data", "--", "printf", "[]"]\n')
     groups = json.loads(CliRunner().invoke(cli, ["--json", "tools"]).stdout)["data"]["groups"]
-    assert groups == [
-        {"name": "jam", "description": "", "commands": 1, "declared": False}
-    ]
+    assert groups == [{"name": "jam", "description": "", "commands": 1, "declared": False}]
 
 
 def test_the_tools_table_is_unchanged_by_groups_existing(saved):
@@ -483,7 +473,7 @@ def test_the_tools_table_is_unchanged_by_groups_existing(saved):
 
 
 def test_a_malformed_group_is_reported_alongside_a_malformed_tool(saved):
-    """`register` returns both kinds in one list, which is what `cli/__init__`
+    """`register` returns both kinds in one list, which is what `skyboss/__init__`
     extends `PROBLEMS` with at startup and what `sb tools` then reports. The
     fixture takes the return value directly, because it registers into a tree
     that is already built."""
@@ -532,7 +522,10 @@ def test_a_tool_takes_no_arguments(saved):
 # -t — the short spelling
 # ============================================================================
 
-from cli import expand_t  # noqa: E402
+from skyboss import expand_t  # noqa: E402
+
+#: Every test here is host-side and needs no services up.
+pytestmark = [pytest.mark.unit]
 
 
 def test_dash_t_stands_where_a_command_word_could():
@@ -641,14 +634,14 @@ def test_the_example_demonstrates_both_sides_of_the_read_write_split():
 
 
 def test_the_saved_argv_is_the_line_you_typed_minus_the_flag():
-    from cli.tools import saved_argv
+    from skyboss.tools import saved_argv
 
     invocation = ["--json", "data", "--cols", "a,b", "--save=prs", "--", "jam", "pr", "list"]
     assert saved_argv(invocation, "data") == ["data", "--cols", "a,b", "--", "jam", "pr", "list"]
 
 
 def test_the_space_form_of_the_flag_takes_its_value_with_it():
-    from cli.tools import saved_argv
+    from skyboss.tools import saved_argv
 
     assert saved_argv(["read", "--save", "x", "--", "ls"], "read") == ["read", "--", "ls"]
 
@@ -656,7 +649,7 @@ def test_the_space_form_of_the_flag_takes_its_value_with_it():
 def test_a_save_flag_after_the_separator_belongs_to_the_wrapped_tool():
     """Click never parsed it as ours — everything past `--` is the foreign
     command's, and rewriting it would corrupt the argv being saved."""
-    from cli.tools import saved_argv
+    from skyboss.tools import saved_argv
 
     invocation = ["read", "--save=mine", "--", "sometool", "--save=theirs"]
     assert saved_argv(invocation, "read") == ["read", "--", "sometool", "--save=theirs"]
@@ -665,7 +658,7 @@ def test_a_save_flag_after_the_separator_belongs_to_the_wrapped_tool():
 def test_a_cadence_is_lifted_out_of_the_argv_into_the_field():
     """A `--refresh` baked into a saved argv would make `sb tools <name>` go
     resident on its own, and residency is never ambient — see [[refresh]]."""
-    from cli.tools import cadence_of, saved_argv
+    from skyboss.tools import cadence_of, saved_argv
 
     for invocation in (
         ["data", "--refresh", "30", "--", "jam", "pr", "list"],
@@ -676,7 +669,7 @@ def test_a_cadence_is_lifted_out_of_the_argv_into_the_field():
 
 
 def test_no_cadence_is_zero_not_a_guess():
-    from cli.tools import cadence_of
+    from skyboss.tools import cadence_of
 
     assert cadence_of(["data", "--", "x"], "data") == 0
 
@@ -684,24 +677,21 @@ def test_no_cadence_is_zero_not_a_guess():
 def test_saving_appends_and_never_touches_what_is_already_there(tmp_path):
     """The whole safety argument in one assertion: the operator's comments,
     spacing and hand-written tools survive byte-for-byte."""
-    from cli.tools import save
+    from skyboss.tools import save
 
-    handwritten = (
-        "# my tools, hand-written\n\n"
-        '[tool.disk]\n# why this one acts\nargv = ["run", "--", "df", "-h"]\n'
-    )
+    handwritten = "# my tools, hand-written\n\n" '[tool.disk]\n# why this one acts\nargv = ["run", "--", "df", "-h"]\n'
     (tmp_path / "tools.toml").write_text(handwritten)
 
     save("prs", ["data", "--", "jam", "pr", "list"], home=tmp_path)
 
     after = (tmp_path / "tools.toml").read_text()
     assert after.startswith(handwritten)
-    assert '[tool.prs]' in after
+    assert "[tool.prs]" in after
     assert 'argv = ["data", "--", "jam", "pr", "list"]' in after
 
 
 def test_saving_into_an_absent_home_creates_it(tmp_path):
-    from cli.tools import save
+    from skyboss.tools import save
 
     home = tmp_path / "nothing" / "here"
     path = save("prs", ["read", "--", "ls"], home=home)
@@ -711,10 +701,10 @@ def test_saving_into_an_absent_home_creates_it(tmp_path):
 
 def test_a_name_already_declared_is_refused_and_told_what_it_runs(tmp_path):
     """No overwrite: a name that exists is an edit, and edits are $EDITOR's."""
-    import rich_click as click
     import pytest
+    import rich_click as click
 
-    from cli.tools import save
+    from skyboss.tools import save
 
     save("prs", ["data", "--", "jam", "pr", "list"], home=tmp_path)
     with pytest.raises(click.UsageError) as caught:
@@ -725,10 +715,10 @@ def test_a_name_already_declared_is_refused_and_told_what_it_runs(tmp_path):
 
 def test_a_cadence_the_surface_cannot_cycle_to_is_refused_at_save_time(tmp_path):
     """Saving cleanly and then failing to load is the worst of both."""
-    import rich_click as click
     import pytest
+    import rich_click as click
 
-    from cli.tools import save
+    from skyboss.tools import save
 
     with pytest.raises(click.UsageError) as caught:
         save("prs", ["data", "--", "x"], refresh=7, home=tmp_path)
@@ -737,10 +727,10 @@ def test_a_cadence_the_surface_cannot_cycle_to_is_refused_at_save_time(tmp_path)
 
 
 def test_a_name_that_could_not_be_a_command_is_refused(tmp_path):
-    import rich_click as click
     import pytest
+    import rich_click as click
 
-    from cli.tools import save
+    from skyboss.tools import save
 
     for bad in ("--prs", "my tool", "Prs", "a.b"):
         with pytest.raises(click.UsageError):
@@ -749,10 +739,10 @@ def test_a_name_that_could_not_be_a_command_is_refused(tmp_path):
 
 def test_an_unparseable_file_is_not_appended_to(tmp_path):
     """Appending to a file sky.boss cannot read would bury the real problem."""
-    import rich_click as click
     import pytest
+    import rich_click as click
 
-    from cli.tools import save
+    from skyboss.tools import save
 
     (tmp_path / "tools.toml").write_text("this is not toml [[[\n")
     with pytest.raises(click.UsageError) as caught:
@@ -763,7 +753,7 @@ def test_an_unparseable_file_is_not_appended_to(tmp_path):
 def test_a_saved_block_survives_a_round_trip_through_the_real_loader(tmp_path):
     """Proven by re-reading rather than by trusting the writer: quotes,
     separators and odd characters all come back as the same argv."""
-    from cli.tools import load, save
+    from skyboss.tools import load, save
 
     argv = ["data", "--cols", 'a,"b"', "--cwd", "/tmp/x y", "--", "jam", "pr", "list", "--json"]
     save("prs", argv, refresh=30, home=tmp_path)
@@ -783,7 +773,7 @@ def test_run_never_takes_save():
     act, and one that earns opening the file."""
     from click.testing import CliRunner
 
-    from cli import cli
+    from skyboss import cli
 
     result = CliRunner().invoke(cli, ["run", "--save", "x", "--", "true"])
     assert result.exit_code == 2
@@ -794,7 +784,7 @@ def test_run_never_takes_save():
 def test_the_three_observes_offer_save_with_an_example():
     from click.testing import CliRunner
 
-    from cli import cli
+    from skyboss import cli
 
     for command in ("read", "data", "follow"):
         help_text = " ".join(CliRunner().invoke(cli, [command, "--help"]).output.split())
@@ -809,12 +799,13 @@ def test_a_saved_read_round_trips_through_the_real_loader(tmp_path, monkeypatch)
     would stay invisible until the day it ran."""
     from click.testing import CliRunner
 
-    from cli import cli
-    from cli.tools import register, tools as tools_group
+    from skyboss import cli
+    from skyboss.tools import register
+    from skyboss.tools import tools as tools_group
 
     monkeypatch.setenv("SB_HOME", str(tmp_path))
-    monkeypatch.setattr("cli.helpers.SB_HOME", tmp_path)
-    monkeypatch.setattr("cli.tools.SB_HOME", tmp_path)
+    monkeypatch.setattr("skyboss.helpers.SB_HOME", tmp_path)
+    monkeypatch.setattr("skyboss.tools.SB_HOME", tmp_path)
 
     typed = ["read", "--cwd", str(tmp_path), "--save", "greet", "--", "printf", "hi"]
     result = CliRunner().invoke(cli, typed)
@@ -824,11 +815,9 @@ def test_a_saved_read_round_trips_through_the_real_loader(tmp_path, monkeypatch)
         problems = register(cli, home=tmp_path)
         assert problems == []
         saved = tools_group.commands["greet"]
-        assert list(saved.sb_argv) == [t for t in typed if t not in ("--save", "greet")]
+        assert list(getattr(saved, "sb_argv")) == [t for t in typed if t not in ("--save", "greet")]
     finally:
-        for name in [
-            n for n, c in list(tools_group.commands.items()) if getattr(c, "sb_saved", False)
-        ]:
+        for name in [n for n, c in list(tools_group.commands.items()) if getattr(c, "sb_saved", False)]:
             del tools_group.commands[name]
 
 
@@ -837,9 +826,9 @@ def test_the_envelope_carries_where_it_went_and_what_it_runs(tmp_path, monkeypat
 
     from click.testing import CliRunner
 
-    from cli import cli
+    from skyboss import cli
 
-    monkeypatch.setattr("cli.tools.SB_HOME", tmp_path)
+    monkeypatch.setattr("skyboss.tools.SB_HOME", tmp_path)
     result = CliRunner().invoke(cli, ["--json", "read", "--save", "greet", "--", "printf", "hi"])
     envelope = json.loads(result.stdout)
     assert envelope["saved"]["name"] == "greet"
@@ -854,9 +843,9 @@ def test_an_envelope_that_saved_nothing_is_byte_identical_to_before(tmp_path, mo
 
     from click.testing import CliRunner
 
-    from cli import cli
+    from skyboss import cli
 
-    monkeypatch.setattr("cli.tools.SB_HOME", tmp_path)
+    monkeypatch.setattr("skyboss.tools.SB_HOME", tmp_path)
     envelope = json.loads(CliRunner().invoke(cli, ["--json", "read", "--", "printf", "hi"]).stdout)
     assert "saved" not in envelope
 
@@ -864,9 +853,9 @@ def test_an_envelope_that_saved_nothing_is_byte_identical_to_before(tmp_path, mo
 def test_a_failing_command_still_saves_because_an_argv_is_not_a_result(tmp_path, monkeypatch):
     from click.testing import CliRunner
 
-    from cli import cli
+    from skyboss import cli
 
-    monkeypatch.setattr("cli.tools.SB_HOME", tmp_path)
+    monkeypatch.setattr("skyboss.tools.SB_HOME", tmp_path)
     result = CliRunner().invoke(cli, ["read", "--save", "nope", "--", "false"])
     assert result.exit_code == 1
     assert "[tool.nope]" in (tmp_path / "tools.toml").read_text()
@@ -878,13 +867,11 @@ def test_a_resident_read_saves_before_it_goes_resident(tmp_path, monkeypatch, at
     keeping."""
     from click.testing import CliRunner
 
-    from cli import cli
+    from skyboss import cli
 
-    monkeypatch.setattr("cli.tools.SB_HOME", tmp_path)
-    monkeypatch.setattr("cli.resident.reside", lambda source, interval, run_once, **kw: None)
-    result = CliRunner().invoke(
-        cli, ["read", "--refresh", "30", "--save", "prs", "--", "printf", "hi"]
-    )
+    monkeypatch.setattr("skyboss.tools.SB_HOME", tmp_path)
+    monkeypatch.setattr("skyboss.resident.reside", lambda source, interval, run_once, **kw: None)
+    result = CliRunner().invoke(cli, ["read", "--refresh", "30", "--save", "prs", "--", "printf", "hi"])
     assert result.exit_code == 0
     saved = (tmp_path / "tools.toml").read_text()
     # The cadence is lifted into the field, not left in the argv.
@@ -897,10 +884,10 @@ def test_a_follow_saves_without_opening_a_stream(tmp_path, monkeypatch):
     intercepting the residency, because a real one would block the suite."""
     from click.testing import CliRunner
 
-    from cli import cli
+    from skyboss import cli
 
-    monkeypatch.setattr("cli.tools.SB_HOME", tmp_path)
-    monkeypatch.setattr("cli.filefollow.follow_file", lambda path, **kw: None)
+    monkeypatch.setattr("skyboss.tools.SB_HOME", tmp_path)
+    monkeypatch.setattr("skyboss.filefollow.follow_file", lambda path, **kw: None)
     result = CliRunner().invoke(cli, ["follow", "--save", "cron", "x/y.log"])
     assert result.exit_code == 0
     assert 'argv = ["follow", "x/y.log"]' in (tmp_path / "tools.toml").read_text()
@@ -924,18 +911,25 @@ def test_the_bench_ordering_round_trips_with_the_cadence_lifted(tmp_path, monkey
     takes one for: running this line goes resident, which is the whole reason
     the bench cannot compose it. See [[workbench]] round 3.
     """
-    from cli.tools import cadence_of, read, save_invocation, saved_argv
+    from skyboss.tools import cadence_of, read, save_invocation, saved_argv
 
-    monkeypatch.setattr("cli.tools.SB_HOME", tmp_path)
+    monkeypatch.setattr("skyboss.tools.SB_HOME", tmp_path)
 
     typed = [
-        "data", "--save", "prs", "--refresh", "30",
-        "--cwd", str(tmp_path), "--cols", "a",
-        "--", "printf", '[{"a": 1}]',
+        "data",
+        "--save",
+        "prs",
+        "--refresh",
+        "30",
+        "--cwd",
+        str(tmp_path),
+        "--cols",
+        "a",
+        "--",
+        "printf",
+        '[{"a": 1}]',
     ]
-    assert saved_argv(typed, "data") == [
-        "data", "--cwd", str(tmp_path), "--cols", "a", "--", "printf", '[{"a": 1}]'
-    ]
+    assert saved_argv(typed, "data") == ["data", "--cwd", str(tmp_path), "--cols", "a", "--", "printf", '[{"a": 1}]']
     assert cadence_of(typed, "data") == 30
 
     written = save_invocation("prs", "data", typed)
@@ -951,17 +945,17 @@ def test_a_name_is_judged_the_same_way_whoever_asks(tmp_path, monkeypatch):
     its own copy of the rule would disagree the day the rule changed."""
     import rich_click as click
 
-    from cli.tools import name_problem, save
+    from skyboss.tools import name_problem, save
 
-    monkeypatch.setattr("cli.tools.SB_HOME", tmp_path)
+    monkeypatch.setattr("skyboss.tools.SB_HOME", tmp_path)
 
     assert name_problem("prs", tmp_path) is None
-    assert "lowercase letters" in name_problem("Bad Name", tmp_path)
-    assert "lowercase letters" in name_problem("", tmp_path)
+    assert "lowercase letters" in present(name_problem("Bad Name", tmp_path), "a problem")
+    assert "lowercase letters" in present(name_problem("", tmp_path), "a problem")
 
     save("prs", ["data", "--", "true"], home=tmp_path)
     taken = name_problem("prs", tmp_path)
-    assert "already a tool" in taken
+    assert "already a tool" in present(taken, "a refusal")
     with pytest.raises(click.UsageError) as raised:
         save("prs", ["data", "--", "true"], home=tmp_path)
     assert str(raised.value) == taken
@@ -986,15 +980,13 @@ def test_a_refused_cadence_writes_nothing(tmp_path, monkeypatch):
     """
     from click.testing import CliRunner
 
-    from cli import cli
+    from skyboss import cli
 
     monkeypatch.setenv("SB_HOME", str(tmp_path))
-    monkeypatch.setattr("cli.helpers.SB_HOME", tmp_path)
-    monkeypatch.setattr("cli.tools.SB_HOME", tmp_path)
+    monkeypatch.setattr("skyboss.helpers.SB_HOME", tmp_path)
+    monkeypatch.setattr("skyboss.tools.SB_HOME", tmp_path)
 
-    result = CliRunner().invoke(
-        cli, ["--json", "read", "--save", "prs", "--refresh", "30", "--", "printf", "hi"]
-    )
+    result = CliRunner().invoke(cli, ["--json", "read", "--save", "prs", "--refresh", "30", "--", "printf", "hi"])
     assert result.exit_code == 2
     assert "refuse each other" in result.output
     assert not (tmp_path / "tools.toml").exists()
@@ -1003,15 +995,13 @@ def test_a_refused_cadence_writes_nothing(tmp_path, monkeypatch):
 def test_the_same_ordering_holds_for_read(tmp_path, monkeypatch):
     from click.testing import CliRunner
 
-    from cli import cli
+    from skyboss import cli
 
     monkeypatch.setenv("SB_HOME", str(tmp_path))
-    monkeypatch.setattr("cli.helpers.SB_HOME", tmp_path)
-    monkeypatch.setattr("cli.tools.SB_HOME", tmp_path)
+    monkeypatch.setattr("skyboss.helpers.SB_HOME", tmp_path)
+    monkeypatch.setattr("skyboss.tools.SB_HOME", tmp_path)
 
-    result = CliRunner().invoke(
-        cli, ["--json", "read", "--save", "log", "--refresh", "30", "--", "printf", "hi"]
-    )
+    result = CliRunner().invoke(cli, ["--json", "read", "--save", "log", "--refresh", "30", "--", "printf", "hi"])
     assert result.exit_code == 2
     assert not (tmp_path / "tools.toml").exists()
 
@@ -1020,17 +1010,22 @@ def test_save_carries_env_into_the_saved_argv():
     """`saved_argv` copies the line you typed, so `--env` rides along exactly
     as `--cwd` does — no `env` field in tools.toml, one way to say it.
     See [[subprocess-env]] round 4."""
-    from cli.tools import saved_argv
+    from skyboss.tools import saved_argv
 
     line = ["read", "--env", "JAM_TRANSCRIPT_STDOUT=1", "--save", "x", "--", "jam", "status"]
     assert saved_argv(line, "read") == [
-        "read", "--env", "JAM_TRANSCRIPT_STDOUT=1", "--", "jam", "status",
+        "read",
+        "--env",
+        "JAM_TRANSCRIPT_STDOUT=1",
+        "--",
+        "jam",
+        "status",
     ]
 
 
 # --- [[tools]] round 4: the interface writes --------------------------------
 
-SAMPLE = '''# a section heading, separated by a blank line
+SAMPLE = """# a section heading, separated by a blank line
 
 # describes alpha
 [tool.alpha]
@@ -1040,7 +1035,7 @@ argv = ["read", "--", "echo", "a"]
 # inside beta
 argv = ["read", "--", "echo", "b"]
 refresh = 30
-'''
+"""
 
 
 def _home(tmp_path):
@@ -1051,18 +1046,18 @@ def _home(tmp_path):
 def test_replacing_a_block_leaves_every_other_byte_alone(tmp_path):
     """The whole argument for splicing rather than round-tripping: a write
     touches one line range and nothing else can have been reformatted."""
-    from cli.tools import write_block
+    from skyboss.tools import write_block
 
     home = _home(tmp_path)
     write_block("alpha", ["read", "--", "echo", "CHANGED"], home=home)
     after = (home / "tools.toml").read_text()
-    assert after[after.index("[tool.beta]"):] == SAMPLE[SAMPLE.index("[tool.beta]"):]
+    assert after[after.index("[tool.beta]") :] == SAMPLE[SAMPLE.index("[tool.beta]") :]
 
 
 def test_a_comment_above_a_block_survives_an_edit(tmp_path):
     """It is the operator's prose and may still be true of the tool that
     replaces this one. The range starts at the header for exactly this."""
-    from cli.tools import write_block
+    from skyboss.tools import write_block
 
     home = _home(tmp_path)
     write_block("alpha", ["read", "--", "echo", "x"], home=home)
@@ -1074,7 +1069,7 @@ def test_a_comment_above_a_block_survives_an_edit(tmp_path):
 def test_a_delete_takes_the_comments_touching_it_but_not_a_heading(tmp_path):
     """Contiguous comments describe the block below them. One separated by a
     blank line is a heading for whatever follows and is not ours to remove."""
-    from cli.tools import remove_block
+    from skyboss.tools import remove_block
 
     home = _home(tmp_path)
     remove_block("alpha", home=home)
@@ -1086,7 +1081,7 @@ def test_a_delete_takes_the_comments_touching_it_but_not_a_heading(tmp_path):
 
 
 def test_separation_between_blocks_is_neither_lost_nor_doubled(tmp_path):
-    from cli.tools import write_block
+    from skyboss.tools import write_block
 
     home = _home(tmp_path)
     write_block("alpha", ["read", "--", "echo", "x"], home=home)
@@ -1095,7 +1090,7 @@ def test_separation_between_blocks_is_neither_lost_nor_doubled(tmp_path):
 
 
 def test_a_write_backs_the_file_up_first(tmp_path):
-    from cli.tools import write_block
+    from skyboss.tools import write_block
 
     home = _home(tmp_path)
     out = write_block("alpha", ["read", "--", "echo", "x"], home=home)
@@ -1108,17 +1103,17 @@ def test_a_write_backs_the_file_up_first(tmp_path):
 def test_two_writes_in_one_second_keep_two_backups(tmp_path):
     """A second is not fine-grained enough, and the operator was promised a
     copy per write."""
-    from cli.tools import backup
+    from skyboss.tools import backup
 
     home = _home(tmp_path)
     first = backup(home, stamp="20260828T000000Z")
     second = backup(home, stamp="20260828T000000Z")
     assert first != second
-    assert first.exists() and second.exists()
+    assert present(first, "the first backup").exists() and present(second, "the second").exists()
 
 
 def test_backups_are_capped(tmp_path):
-    from cli.tools import BACKUPS_KEPT, backup
+    from skyboss.tools import BACKUPS_KEPT, backup
 
     home = _home(tmp_path)
     for i in range(BACKUPS_KEPT + 5):
@@ -1130,7 +1125,7 @@ def test_the_writer_refuses_everything_the_loader_would(tmp_path):
     """One rule, asked twice. A tool that writes cleanly and then fails to load
     is on disk, absent from the tree, and evidenced only by a line in
     `sb tools`."""
-    from cli.tools import write_problem
+    from skyboss.tools import write_problem
 
     home = _home(tmp_path)
     assert write_problem("ok-name", ["read", "--", "echo", "x"], home=home) is None
@@ -1144,7 +1139,7 @@ def test_the_writer_refuses_everything_the_loader_would(tmp_path):
 def test_replacing_an_existing_name_is_allowed_where_save_refuses_it(tmp_path):
     """Round 3's `--save` refuses a duplicate because editing was $EDITOR's.
     Round 4 made create and replace one call, because they are one intent."""
-    from cli.tools import name_problem, write_block, write_problem
+    from skyboss.tools import name_problem, write_block, write_problem
 
     home = _home(tmp_path)
     assert "already a tool" in (name_problem("alpha", home) or ""), "--save still refuses"
@@ -1158,7 +1153,7 @@ def test_deleting_something_that_is_not_there_is_an_error(tmp_path):
     import pytest
     import rich_click as click
 
-    from cli.tools import remove_block
+    from skyboss.tools import remove_block
 
     with pytest.raises(click.UsageError):
         remove_block("nosuch", home=_home(tmp_path))
@@ -1168,7 +1163,7 @@ def test_deleting_something_that_is_not_there_is_an_error(tmp_path):
 
 
 def test_a_written_group_lands_in_the_block_and_loads_back(tmp_path):
-    from cli.tools import load, write_block
+    from skyboss.tools import load, write_block
 
     home = _home(tmp_path)
     out = write_block("gamma", ["read", "--", "echo", "x"], home=home, group="jam")
@@ -1182,7 +1177,7 @@ def test_a_written_group_lands_in_the_block_and_loads_back(tmp_path):
 def test_clearing_the_group_removes_the_line_rather_than_writing_an_empty_one(tmp_path):
     """Blank is ungrouped, so the field goes away — a `group = ""` left behind
     would load as ungrouped too, and be one more line nobody wrote on purpose."""
-    from cli.tools import write_block
+    from skyboss.tools import write_block
 
     home = _home(tmp_path)
     write_block("gamma", ["read", "--", "echo", "x"], home=home, group="jam")
@@ -1193,23 +1188,19 @@ def test_clearing_the_group_removes_the_line_rather_than_writing_an_empty_one(tm
 def test_the_writer_refuses_a_group_the_loader_would_refuse(tmp_path):
     """One function, asked twice. A tool that writes cleanly and then fails to
     load is the worst of both, which is round 4's rule and does not change."""
-    from cli.tools import write_problem
+    from skyboss.tools import write_problem
 
     home = _home(tmp_path)
-    assert "group" in (
-        write_problem("gamma", ["read", "--", "echo", "x"], home=home, group="No Good") or ""
-    )
+    assert "group" in (write_problem("gamma", ["read", "--", "echo", "x"], home=home, group="No Good") or "")
     assert write_problem("gamma", ["read", "--", "echo", "x"], home=home, group="jam") is None
 
 
 def test_a_comment_above_a_grouped_block_still_survives_an_edit(tmp_path):
     """Round 4's guarantee, with one more line inside the block."""
-    from cli.tools import write_block
+    from skyboss.tools import write_block
 
     home = tmp_path
-    (home / "tools.toml").write_text(
-        '# why this needs --cwd\n[tool.alpha]\nargv = ["read", "--", "echo", "a"]\n'
-    )
+    (home / "tools.toml").write_text('# why this needs --cwd\n[tool.alpha]\nargv = ["read", "--", "echo", "a"]\n')
     write_block("alpha", ["read", "--", "echo", "b"], home=home, group="jam")
     after = (home / "tools.toml").read_text()
     assert after.startswith("# why this needs --cwd\n")
@@ -1222,7 +1213,7 @@ def test_a_comment_above_a_grouped_block_still_survives_an_edit(tmp_path):
 
 
 def _groups(raw):
-    from cli.tools import parse_groups
+    from skyboss.tools import parse_groups
 
     return parse_groups(raw)
 
@@ -1239,7 +1230,7 @@ def test_a_group_may_be_declared_with_nothing_in_it():
     the thing that had nowhere to exist before this round."""
     groups, problems = _groups({"group": {"archive": {}}})
     assert problems == []
-    from cli.tools import Group
+    from skyboss.tools import Group
 
     assert groups[0] == Group("archive", "")
 
@@ -1269,7 +1260,7 @@ def test_no_group_table_declares_no_groups():
 
 
 def test_a_group_exists_if_it_is_named_or_declared():
-    from cli.tools import Group, sections
+    from skyboss.tools import Group, sections
 
     tools, _ = one(
         {
@@ -1289,18 +1280,16 @@ def test_a_group_exists_if_it_is_named_or_declared():
 
 def test_a_group_named_but_not_declared_still_exists():
     """Round 5's files keep working — that is the whole compatibility rule."""
-    from cli.tools import sections
+    from skyboss.tools import sections
 
     tools, _ = one({"tool": {"prs": {"argv": ["data", "--", "x"], "group": "jam"}}})
-    assert sections(tools, []) == [
-        {"name": "jam", "description": "", "declared": False, "count": 1}
-    ]
+    assert sections(tools, []) == [{"name": "jam", "description": "", "declared": False, "count": 1}]
 
 
 def test_the_ungrouped_are_not_a_section():
     """They are the bucket every surface draws last. An entry here would make
     them a group, and a group can be deleted."""
-    from cli.tools import sections
+    from skyboss.tools import sections
 
     tools, _ = one({"tool": {"disk": {"argv": ["data", "--", "z"]}}})
     assert sections(tools, []) == []
@@ -1312,7 +1301,7 @@ def test_the_ungrouped_are_not_a_section():
 def test_a_regroup_changes_one_line_and_keeps_everything_else(tmp_path):
     """The property the whole design turns on. A rewrite has to know every
     field; a splice does not, which is why a drag uses one."""
-    from cli.tools import regroup
+    from skyboss.tools import regroup
 
     (tmp_path / "tools.toml").write_text(
         "# why this needs --cwd\n"
@@ -1337,11 +1326,9 @@ def test_a_regroup_changes_one_line_and_keeps_everything_else(tmp_path):
 
 
 def test_a_regroup_replaces_an_existing_group_rather_than_adding_one(tmp_path):
-    from cli.tools import regroup
+    from skyboss.tools import regroup
 
-    (tmp_path / "tools.toml").write_text(
-        '[tool.prs]\ngroup = "jam"\nargv = ["data", "--", "x"]\n'
-    )
+    (tmp_path / "tools.toml").write_text('[tool.prs]\ngroup = "jam"\nargv = ["data", "--", "x"]\n')
     regroup("prs", "bbrain", home=tmp_path)
     after = (tmp_path / "tools.toml").read_text()
     assert after.count("group =") == 1
@@ -1351,21 +1338,17 @@ def test_a_regroup_replaces_an_existing_group_rather_than_adding_one(tmp_path):
 def test_regrouping_to_nothing_removes_the_line(tmp_path):
     """Empty is ungrouped, and `block` writes no line for it — one
     representation for 'not set', not two."""
-    from cli.tools import regroup
+    from skyboss.tools import regroup
 
-    (tmp_path / "tools.toml").write_text(
-        '[tool.prs]\ngroup = "jam"\nargv = ["data", "--", "x"]\n'
-    )
+    (tmp_path / "tools.toml").write_text('[tool.prs]\ngroup = "jam"\nargv = ["data", "--", "x"]\n')
     regroup("prs", "", home=tmp_path)
     assert "group" not in (tmp_path / "tools.toml").read_text()
 
 
 def test_a_regroup_survives_a_reload(tmp_path):
-    from cli.tools import load, regroup
+    from skyboss.tools import load, regroup
 
-    (tmp_path / "tools.toml").write_text(
-        '[tool.applog]\nargv = ["follow", "--", "printf", "x"]\nhighlight = "jam"\n'
-    )
+    (tmp_path / "tools.toml").write_text('[tool.applog]\nargv = ["follow", "--", "printf", "x"]\nhighlight = "jam"\n')
     regroup("applog", "logs", home=tmp_path)
     tools, problems = load({"follow": False}, home=tmp_path, resident=frozenset({"follow"}))
     assert problems == []
@@ -1379,7 +1362,7 @@ def test_a_regroup_into_a_name_the_loader_would_refuse_is_refused(tmp_path):
     import pytest
     import rich_click as click
 
-    from cli.tools import regroup
+    from skyboss.tools import regroup
 
     (tmp_path / "tools.toml").write_text('[tool.prs]\nargv = ["data", "--", "x"]\n')
     with pytest.raises(click.UsageError):
@@ -1391,7 +1374,7 @@ def test_regrouping_something_that_is_not_a_tool_is_an_error(tmp_path):
     import pytest
     import rich_click as click
 
-    from cli.tools import regroup
+    from skyboss.tools import regroup
 
     (tmp_path / "tools.toml").write_text("")
     with pytest.raises(click.UsageError):
@@ -1402,7 +1385,7 @@ def test_a_drag_is_backed_up_like_every_other_write(tmp_path):
     """The operator's call: the rule is *before every mutating write*, and an
     exception for writes deemed small is how the next person learns the rule
     has exceptions."""
-    from cli.tools import regroup
+    from skyboss.tools import regroup
 
     (tmp_path / "tools.toml").write_text('[tool.prs]\nargv = ["data", "--", "x"]\n')
     out = regroup("prs", "jam", home=tmp_path)
@@ -1413,12 +1396,10 @@ def test_a_drag_is_backed_up_like_every_other_write(tmp_path):
 def test_the_regroup_route_moves_one_command(tmp_path, monkeypatch):
     from starlette.testclient import TestClient
 
-    from cli.canvas.server import TOKEN_HEADER, Canvas, build
+    from skyboss.canvas.server import TOKEN_HEADER, Canvas, build
 
-    (tmp_path / "tools.toml").write_text(
-        '[tool.prs]\nargv = ["data", "--", "printf", "[]"]\n'
-    )
-    monkeypatch.setattr("cli.tools.SB_HOME", tmp_path, raising=False)
+    (tmp_path / "tools.toml").write_text('[tool.prs]\nargv = ["data", "--", "printf", "[]"]\n')
+    monkeypatch.setattr("skyboss.tools.SB_HOME", tmp_path, raising=False)
     client = TestClient(build(Canvas(token="t")))
     moved = client.post(
         "/api/tools",
@@ -1433,7 +1414,7 @@ def test_the_regroup_route_moves_one_command(tmp_path, monkeypatch):
 
 
 def test_a_group_is_created_and_loads_back(tmp_path):
-    from cli.tools import load_groups, write_group
+    from skyboss.tools import load_groups, write_group
 
     out = write_group("archive", "old things", home=tmp_path)
     assert out["action"] == "created"
@@ -1444,7 +1425,7 @@ def test_a_group_is_created_and_loads_back(tmp_path):
 
 
 def test_writing_a_group_twice_replaces_rather_than_doubles(tmp_path):
-    from cli.tools import load_groups, write_group
+    from skyboss.tools import load_groups, write_group
 
     write_group("archive", "old", home=tmp_path)
     assert write_group("archive", "older", home=tmp_path)["action"] == "replaced"
@@ -1454,7 +1435,7 @@ def test_writing_a_group_twice_replaces_rather_than_doubles(tmp_path):
 
 def test_a_group_write_leaves_every_other_byte_alone(tmp_path):
     """The splice argument, one table over."""
-    from cli.tools import write_group
+    from skyboss.tools import write_group
 
     (tmp_path / "tools.toml").write_text(SAMPLE)
     before = (tmp_path / "tools.toml").read_text()
@@ -1470,7 +1451,7 @@ def test_a_group_that_still_holds_commands_is_not_deleted(tmp_path):
     import pytest
     import rich_click as click
 
-    from cli.tools import remove_group
+    from skyboss.tools import remove_group
 
     (tmp_path / "tools.toml").write_text(
         "[group.jam]\n"
@@ -1485,16 +1466,13 @@ def test_a_group_that_still_holds_commands_is_not_deleted(tmp_path):
 
 
 def test_an_empty_group_is_deleted_and_nothing_else_is(tmp_path):
-    from cli.tools import remove_group
+    from skyboss.tools import remove_group
 
-    (tmp_path / "tools.toml").write_text(
-        "[group.archive]\n"
-        '[tool.prs]\ngroup = "jam"\nargv = ["data", "--", "x"]\n'
-    )
+    (tmp_path / "tools.toml").write_text("[group.archive]\n" '[tool.prs]\ngroup = "jam"\nargv = ["data", "--", "x"]\n')
     remove_group("archive", home=tmp_path)
     after = (tmp_path / "tools.toml").read_text()
     assert "[group.archive]" not in after
-    assert '[tool.prs]' in after and 'group = "jam"' in after
+    assert "[tool.prs]" in after and 'group = "jam"' in after
 
 
 def test_deleting_a_group_that_is_not_declared_is_an_error(tmp_path):
@@ -1503,7 +1481,7 @@ def test_deleting_a_group_that_is_not_declared_is_an_error(tmp_path):
     import pytest
     import rich_click as click
 
-    from cli.tools import remove_group
+    from skyboss.tools import remove_group
 
     (tmp_path / "tools.toml").write_text("")
     with pytest.raises(click.UsageError):
@@ -1514,7 +1492,7 @@ def test_a_bad_group_name_is_refused_before_it_is_written(tmp_path):
     import pytest
     import rich_click as click
 
-    from cli.tools import write_group
+    from skyboss.tools import write_group
 
     with pytest.raises(click.UsageError):
         write_group("No Good", home=tmp_path)
@@ -1524,12 +1502,12 @@ def test_a_bad_group_name_is_refused_before_it_is_written(tmp_path):
 def test_the_group_route_creates_and_refuses(tmp_path, monkeypatch):
     from starlette.testclient import TestClient
 
-    from cli.canvas.server import TOKEN_HEADER, Canvas, build
+    from skyboss.canvas.server import TOKEN_HEADER, Canvas, build
 
     (tmp_path / "tools.toml").write_text(
         '[group.jam]\n[tool.prs]\ngroup = "jam"\nargv = ["data", "--", "printf", "[]"]\n'
     )
-    monkeypatch.setattr("cli.tools.SB_HOME", tmp_path, raising=False)
+    monkeypatch.setattr("skyboss.tools.SB_HOME", tmp_path, raising=False)
     client = TestClient(build(Canvas(token="t")))
     headers = {TOKEN_HEADER: "t"}
 
@@ -1558,7 +1536,7 @@ def test_block_serialises_every_declared_field_of_a_tool():
     excluded because they are *derived* from the argv and never declared."""
     import dataclasses
 
-    from cli.tools import Tool, block
+    from skyboss.tools import Tool, block
 
     derived = {"name", "argv", "acts", "resident"}
     declared = [f.name for f in dataclasses.fields(Tool) if f.name not in derived]
@@ -1583,7 +1561,7 @@ def test_block_serialises_every_declared_field_of_a_tool():
 def test_a_saved_highlight_survives_a_rewrite(tmp_path):
     """The bug itself, from the outside: write a tool that has one, rewrite it,
     read it back."""
-    from cli.tools import load, write_block
+    from skyboss.tools import load, write_block
 
     home = tmp_path
     write_block(
@@ -1608,9 +1586,7 @@ def test_a_saved_highlight_survives_a_rewrite(tmp_path):
 def test_the_catalog_carries_a_highlight_so_a_surface_can_restate_it(saved):
     """The half that makes the fix reach the bench: a surface rewriting a tool
     has to be able to see every field it is restating."""
-    saved(
-        '[tool.applog]\nargv = ["follow", "--", "printf", "x"]\nhighlight = "jam"\n'
-    )
+    saved('[tool.applog]\nargv = ["follow", "--", "printf", "x"]\nhighlight = "jam"\n')
     entry = next(e for e in walk(cli) if e["name"] == "tools applog")
     assert entry["highlight"] == "jam"
 
@@ -1618,7 +1594,7 @@ def test_the_catalog_carries_a_highlight_so_a_surface_can_restate_it(saved):
 def test_a_file_that_does_not_parse_is_never_spliced(tmp_path):
     """Splicing into a document whose structure is unknown is how a tool is
     lost. $EDITOR is still there."""
-    from cli.tools import write_problem
+    from skyboss.tools import write_problem
 
     (tmp_path / "tools.toml").write_text("[tool.broken\nargv = nope")
     assert "fix the file" in (write_problem("x", ["read", "--", "y"], home=tmp_path) or "")
@@ -1632,7 +1608,7 @@ def test_a_taken_name_is_a_replace_to_the_bench_and_a_refusal_to_save(tmp_path):
     same name is information rather than a problem. One function answering both
     is what made the bench announce a refusal it no longer performs.
     """
-    from cli.tools import name_problem, name_state, save
+    from skyboss.tools import name_problem, name_state, save
 
     save("prs", ["data", "--", "jam", "pr", "list"], home=tmp_path)
 
@@ -1649,18 +1625,18 @@ def test_the_duplicate_refusal_points_at_the_bench_not_at_a_file(tmp_path):
     [[tools]] round 4, so sending the operator to `$EDITOR` for it describes a
     world that no longer exists — which is what the round-5 report actually
     hit."""
-    from cli.tools import name_problem, save
+    from skyboss.tools import name_problem, save
 
     save("prs", ["data", "--", "x"], home=tmp_path)
     refusal = name_problem("prs", home=tmp_path)
-    assert "workbench" in refusal
-    assert "Edit the file" not in refusal
+    assert "workbench" in present(refusal, "a refusal")
+    assert "Edit the file" not in present(refusal, "a refusal")
 
 
 def test_a_malformed_name_is_a_problem_and_names_nothing_to_replace(tmp_path):
     """The other half of the split stays a problem, and carries no `replaces`
     — there is nothing to overwrite under a name that cannot exist."""
-    from cli.tools import name_state
+    from skyboss.tools import name_state
 
     problem, replaces = name_state("Not A Name", home=tmp_path)
     assert problem is not None and "cannot be a tool name" in problem
@@ -1672,8 +1648,8 @@ def test_a_tag_takes_a_names_shape_and_a_duplicate_is_refused(tmp_path):
     takes the shape a tool and a group take. A duplicate is refused rather than
     deduplicated: dropping one silently is how a declaration stops meaning what
     it says. See [[tools]] round 8."""
-    from cli import cli as root
-    from cli.tools import write_problem
+    from skyboss import cli as root
+    from skyboss.tools import write_problem
 
     argv = ["read", "--", "echo", "hi"]
     assert write_problem("t", argv, home=tmp_path, root=root, tags=["ops", "release"]) is None
@@ -1690,8 +1666,8 @@ def test_tags_survive_a_write_and_come_back_off_the_tool(tmp_path):
     way for a day in round 6 and `was` was lost on the wire in [[workbench]]
     round 5, both silently — so this asserts the value returns, not merely that
     the write succeeded."""
-    from cli import cli as root
-    from cli.tools import load, write_block
+    from skyboss import cli as root
+    from skyboss.tools import load, write_block
 
     write_block(
         "tagged",
@@ -1701,7 +1677,7 @@ def test_tags_survive_a_write_and_come_back_off_the_tool(tmp_path):
     )
     assert 'tags = ["ops", "release"]' in (tmp_path / "tools.toml").read_text()
 
-    from cli.tools import command_table
+    from skyboss.tools import command_table
 
     commands, resident = command_table(root)
     tools, problems = load(commands, home=tmp_path, resident=resident)
@@ -1712,7 +1688,7 @@ def test_tags_survive_a_write_and_come_back_off_the_tool(tmp_path):
 def test_a_tool_with_no_tags_writes_no_tags_line(tmp_path):
     """Empty writes nothing, the rule `group` already follows — so clearing the
     bench's field removes the line instead of leaving `tags = []` behind."""
-    from cli.tools import write_block
+    from skyboss.tools import write_block
 
     write_block("plain", ["read", "--", "echo", "hi"], home=tmp_path)
     assert "tags" not in (tmp_path / "tools.toml").read_text()

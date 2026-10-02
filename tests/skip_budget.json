@@ -1,0 +1,19 @@
+{
+  "_comment": [
+    "Skip-count ratchet. scripts/check_skip_budget.py fails a suite whose skip",
+    "count EXCEEDS max_skipped. Skips may only go DOWN: when you eliminate one,",
+    "lower the number in the same commit. If you must add a legitimate skip,",
+    "raise it in the same commit and justify it in the commit body.",
+    "",
+    "The number exists because skips are how a suite quietly stops testing. A",
+    "run reporting '340 passed, 176 skipped' looks green and proves much less",
+    "than it appears to.",
+    "",
+    "sky.boss runs one suite. The `integration` entry skeletor ships was dropped rather than left at zero: a budget for a suite nothing runs is a number that can never move, and it reads as coverage this repo does not have."
+  ],
+  "suites": {
+    "unit": {
+      "max_skipped": 0
+    }
+  }
+}

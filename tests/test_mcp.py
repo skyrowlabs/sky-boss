@@ -9,10 +9,13 @@ import io
 import json
 
 import pytest
-from click.testing import CliRunner
+from narrowing import group, present
 
-from cli import cli
-from cli.mcp import METHOD_NOT_FOUND, call, exposed, handle, serve
+from skyboss import cli
+from skyboss.mcp import METHOD_NOT_FOUND, call, exposed, handle, serve
+
+#: Every test here is host-side and needs no services up.
+pytestmark = [pytest.mark.unit]
 
 
 def names(root=None):
@@ -48,7 +51,7 @@ def test_the_surface_excludes_itself():
 def test_a_saved_command_wrapping_run_is_never_offered(tmp_path, monkeypatch):
     """`acts` is inherited from a tool's first word, so the exclusion holds
     through a name that hides what it wraps."""
-    from cli.tools import register
+    from skyboss.tools import register
 
     (tmp_path / "tools.toml").write_text(
         '[tool.deploy]\nargv = ["run", "--", "./deploy.sh"]\n'
@@ -59,8 +62,8 @@ def test_a_saved_command_wrapping_run_is_never_offered(tmp_path, monkeypatch):
         assert "tools-deploy" not in names()
         assert "tools-prs" in names()
     finally:
-        cli.commands["tools"].commands.pop("deploy", None)
-        cli.commands["tools"].commands.pop("prs", None)
+        group(cli, "tools").commands.pop("deploy", None)
+        group(cli, "tools").commands.pop("prs", None)
 
 
 def test_every_tool_has_an_empty_input_schema():
@@ -73,24 +76,34 @@ def test_every_tool_has_an_empty_input_schema():
 def test_the_list_comes_off_the_live_tree(tmp_path):
     """Adding a tool to tools.toml makes it appear with no code change here. A
     surface that kept its own list could offer something that does not exist."""
-    from cli.tools import register
+    from skyboss.tools import register
 
     before = names()
-    (tmp_path / "tools.toml").write_text(
-        '[tool.later]\nargv = ["data", "--", "echo", "[]"]\n'
-    )
+    (tmp_path / "tools.toml").write_text('[tool.later]\nargv = ["data", "--", "echo", "[]"]\n')
     assert register(cli, home=tmp_path) == []
     try:
         assert names() - before == {"tools-later"}
     finally:
-        cli.commands["tools"].commands.pop("later", None)
+        group(cli, "tools").commands.pop("later", None)
+
+
+def answered(request) -> dict:
+    """`handle`, asserted to have replied.
+
+    It returns `dict | None`, and the None is the protocol — a notification
+    gets no reply at all, which `test_a_notification_gets_no_reply_at_all`
+    asserts by calling `handle` directly. Every other test here is about the
+    reply's contents, so the assumption is stated once rather than arriving as
+    a `TypeError` at the first subscript.
+    """
+    return present(handle(request), "a JSON-RPC reply")
 
 
 # ── The protocol ────────────────────────────────────────────────────────────
 
 
 def test_initialize_answers_with_capabilities():
-    reply = handle({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}})
+    reply = answered({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}})
     assert reply["result"]["capabilities"] == {"tools": {}}
     assert reply["result"]["serverInfo"]["name"] == "sky-boss"
 
@@ -98,10 +111,7 @@ def test_initialize_answers_with_capabilities():
 def test_initialize_agrees_on_the_clients_version():
     """This implements the core every version in use shares. A mismatch the
     client could have lived with is a worse outcome than agreeing."""
-    reply = handle(
-        {"jsonrpc": "2.0", "id": 1, "method": "initialize",
-         "params": {"protocolVersion": "2024-11-05"}}
-    )
+    reply = answered({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2024-11-05"}})
     assert reply["result"]["protocolVersion"] == "2024-11-05"
 
 
@@ -111,20 +121,20 @@ def test_a_notification_gets_no_reply_at_all():
 
 
 def test_an_unknown_method_is_a_proper_json_rpc_error():
-    reply = handle({"jsonrpc": "2.0", "id": 7, "method": "resources/list"})
+    reply = answered({"jsonrpc": "2.0", "id": 7, "method": "resources/list"})
     assert reply["error"]["code"] == METHOD_NOT_FOUND
     assert reply["id"] == 7
 
 
 def test_tools_list_carries_no_internal_argv():
     """The argv is how sky.boss runs it, not something the protocol describes."""
-    reply = handle({"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
+    reply = answered({"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
     for tool in reply["result"]["tools"]:
         assert "argv" not in tool
 
 
 def test_tools_call_without_a_name_is_an_invalid_request():
-    reply = handle({"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {}})
+    reply = answered({"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {}})
     assert "error" in reply
 
 
@@ -138,7 +148,7 @@ def test_calling_an_unknown_tool_is_an_answer_not_a_fault():
 
 
 def test_a_call_returns_the_envelope(tmp_path):
-    from cli.tools import register
+    from skyboss.tools import register
 
     (tmp_path / "tools.toml").write_text(
         '[tool.two]\nargv = ["data", "--", "printf", "[{\\"a\\": 1}, {\\"a\\": 2}]"]\n'
@@ -151,17 +161,15 @@ def test_a_call_returns_the_envelope(tmp_path):
         assert envelope["ok"] is True
         assert envelope["data"] == [{"a": 1}, {"a": 2}]
     finally:
-        cli.commands["tools"].commands.pop("two", None)
+        group(cli, "tools").commands.pop("two", None)
 
 
 def test_a_failed_command_is_an_envelope_not_a_transport_fault(tmp_path):
     """An agent asking 'what is the state of X' is owed 'the tool failed and
     here is what it said' as an *answer*."""
-    from cli.tools import register
+    from skyboss.tools import register
 
-    (tmp_path / "tools.toml").write_text(
-        '[tool.broken]\nargv = ["data", "--", "sh", "-c", "echo boom >&2; exit 3"]\n'
-    )
+    (tmp_path / "tools.toml").write_text('[tool.broken]\nargv = ["data", "--", "sh", "-c", "echo boom >&2; exit 3"]\n')
     assert register(cli, home=tmp_path) == []
     try:
         text, is_error = call("tools-broken")
@@ -170,15 +178,14 @@ def test_a_failed_command_is_an_envelope_not_a_transport_fault(tmp_path):
         assert envelope["ok"] is False
         assert "error" in envelope["data"]
     finally:
-        cli.commands["tools"].commands.pop("broken", None)
+        group(cli, "tools").commands.pop("broken", None)
 
 
 def test_a_result_is_bounded(tmp_path, monkeypatch):
     """A 120k-line result kills an agent's context as dead as it killed a
     browser tab. The substrate changed; the rule did not."""
-    import cli.mcp as mcp_
-
-    from cli.tools import register
+    import skyboss.mcp as mcp_
+    from skyboss.tools import register
 
     monkeypatch.setattr(mcp_, "MAX_ROWS", 5)
     # Built through json.dumps rather than an f-string: a JSON payload inside a
@@ -193,7 +200,7 @@ def test_a_result_is_bounded(tmp_path, monkeypatch):
         assert len(envelope["data"]) == 5
         assert any("45 more rows" in w for w in envelope["warnings"])
     finally:
-        cli.commands["tools"].commands.pop("big", None)
+        group(cli, "tools").commands.pop("big", None)
 
 
 # ── The transport ───────────────────────────────────────────────────────────
@@ -224,30 +231,26 @@ def test_malformed_json_does_not_end_the_session():
 def test_stdout_carries_protocol_and_nothing_else(capsys, tmp_path):
     """Over stdio the protocol *is* stdout, so a stray print is a corrupted
     session rather than an ugly one. The tool below writes to both streams."""
-    from cli.tools import register
+    from skyboss.tools import register
 
     (tmp_path / "tools.toml").write_text(
-        '[tool.noisy]\nargv = ["data", "--", "sh", "-c", '
-        '"echo chatter >&2; printf \'[{\\\\\\"a\\\\\\": 1}]\'"]\n'
+        '[tool.noisy]\nargv = ["data", "--", "sh", "-c", ' '"echo chatter >&2; printf \'[{\\\\\\"a\\\\\\": 1}]\'"]\n'
     )
     assert register(cli, home=tmp_path) == []
     try:
         out = io.StringIO()
         serve(
-            stdin=io.StringIO(
-                '{"jsonrpc":"2.0","id":1,"method":"tools/call",'
-                '"params":{"name":"tools-noisy"}}\n'
-            ),
+            stdin=io.StringIO('{"jsonrpc":"2.0","id":1,"method":"tools/call",' '"params":{"name":"tools-noisy"}}\n'),
             stdout=out,
         )
         for line in out.getvalue().splitlines():
             json.loads(line)
         assert "chatter" not in capsys.readouterr().out
     finally:
-        cli.commands["tools"].commands.pop("noisy", None)
+        group(cli, "tools").commands.pop("noisy", None)
 
 
 def test_mcp_is_a_surface():
-    from cli.canvas.catalog import catalog
+    from skyboss.canvas.catalog import catalog
 
     assert "mcp" not in {entry["name"] for entry in catalog()}

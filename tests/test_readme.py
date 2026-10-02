@@ -12,10 +12,12 @@ fence is the marker rather than a list of exceptions in this file.
 
 import re
 import subprocess
-import sys
 from pathlib import Path
 
 import pytest
+
+#: Every test here is host-side and needs no services up.
+pytestmark = [pytest.mark.unit]
 
 README = Path(__file__).resolve().parents[1] / "README.md"
 

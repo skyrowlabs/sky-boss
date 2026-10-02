@@ -12,7 +12,7 @@ enforces on the tree, arriving somewhere a test cannot look: inside a PNG.
 `agent.log`'s lines are chosen to land on the built-in highlight rules — a
 leading timestamp, the job tag after it, a path, a number with its unit, verdict
 glyphs, a status light, a quoted string, a parenthesised host, a URL and an
-issue reference. See `BUILTINS` in `cli/highlight.py`. If a rule is added there,
+issue reference. See `BUILTINS` in `skyboss/highlight.py`. If a rule is added there,
 add a line here that shows it.
 
 Nothing here names a real host or a routable address: `host-2` is the

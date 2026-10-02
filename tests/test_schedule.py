@@ -10,10 +10,11 @@ import json
 from datetime import datetime
 
 from click.testing import CliRunner
+from narrowing import present
 
-from cli import cli, schedule
-from cli.schedule import order, parse_instant, rows_of
-from cli.rollcall import Project
+from skyboss import cli, schedule
+from skyboss.rollcall import Project
+from skyboss.schedule import order, parse_instant, rows_of
 
 
 def _home(tmp_path, projects: str, **files) -> None:
@@ -56,7 +57,7 @@ def test_ordering_is_on_the_instant_not_the_string(tmp_path, monkeypatch):
         ),
     )
     monkeypatch.setenv("SB_HOME", str(tmp_path))
-    monkeypatch.setattr("cli.rollcall.SB_HOME", tmp_path)
+    monkeypatch.setattr("skyboss.rollcall.SB_HOME", tmp_path)
 
     out = json.loads(CliRunner().invoke(cli, ["--json", "schedule"]).stdout)
     assert [r["name"] for r in out["data"]] == ["earlier-instant", "later-instant"]
@@ -70,7 +71,7 @@ def test_a_naive_timestamp_is_a_reported_error_not_a_guess():
     """Guessing a zone is how a view is confidently six hours wrong."""
     when, problem = parse_instant("2026-08-31T05:15:00")
     assert when is None
-    assert "will not guess" in problem
+    assert "will not guess" in present(problem, "a problem")
 
     when, problem = parse_instant("2026-08-31T05:15:00-05:00")
     assert problem is None and when is not None
@@ -78,7 +79,7 @@ def test_a_naive_timestamp_is_a_reported_error_not_a_guess():
 
 def test_an_unparseable_timestamp_is_named_rather_than_dropped():
     when, problem = parse_instant("next tuesday")
-    assert when is None and "not a timestamp" in problem
+    assert when is None and "not a timestamp" in present(problem, "a problem")
 
 
 def test_an_absent_timestamp_is_absence_and_not_an_error():
@@ -109,7 +110,7 @@ def test_a_project_declaring_no_schedule_is_counted_and_never_drawn(tmp_path, mo
         beta=json.dumps({"anything": 1}),
     )
     monkeypatch.setenv("SB_HOME", str(tmp_path))
-    monkeypatch.setattr("cli.rollcall.SB_HOME", tmp_path)
+    monkeypatch.setattr("skyboss.rollcall.SB_HOME", tmp_path)
 
     result = CliRunner().invoke(cli, ["--json", "schedule"])
     out = json.loads(result.stdout)
@@ -124,12 +125,10 @@ def test_the_schedule_string_is_drawn_exactly_as_the_provider_wrote_it(tmp_path,
     _home(
         tmp_path,
         ALPHA,
-        alpha=json.dumps(
-            {"jobs": [{"job": "j", "schedule": "15 5 * * *", "next_run": "2026-08-31T05:15:00+00:00"}]}
-        ),
+        alpha=json.dumps({"jobs": [{"job": "j", "schedule": "15 5 * * *", "next_run": "2026-08-31T05:15:00+00:00"}]}),
     )
     monkeypatch.setenv("SB_HOME", str(tmp_path))
-    monkeypatch.setattr("cli.rollcall.SB_HOME", tmp_path)
+    monkeypatch.setattr("skyboss.rollcall.SB_HOME", tmp_path)
 
     out = json.loads(CliRunner().invoke(cli, ["--json", "schedule"]).stdout)
     assert out["data"][0]["schedule"] == "15 5 * * *"
@@ -144,7 +143,7 @@ def test_next_is_never_computed_from_the_schedule(tmp_path, monkeypatch):
         alpha=json.dumps({"jobs": [{"job": "j", "schedule": "15 5 * * *", "next_run": ""}]}),
     )
     monkeypatch.setenv("SB_HOME", str(tmp_path))
-    monkeypatch.setattr("cli.rollcall.SB_HOME", tmp_path)
+    monkeypatch.setattr("skyboss.rollcall.SB_HOME", tmp_path)
 
     out = json.loads(CliRunner().invoke(cli, ["--json", "schedule"]).stdout)
     assert out["data"][0]["next"] == ""
@@ -163,7 +162,7 @@ def test_rows_names_a_missing_container_rather_than_returning_nothing():
 def test_schedule_is_an_observe_so_a_window_may_pin_it():
     """`acts` decides whether the canvas will offer a cadence. A viewer that
     read as a write could never be refreshed."""
-    from cli.schedule import schedule as cmd
+    from skyboss.schedule import schedule as cmd
 
     assert not getattr(cmd, "sb_acts", False)
 
@@ -205,19 +204,28 @@ def test_elapsed_reads_behind():
 def test_view_is_authored_and_hides_the_absolutes():
     """The five drawn columns are sky.boss's own, and the two it keeps are the
     provider's untouched strings — a view describes, it never filters."""
-    rows = [{"project": "p", "name": "j", "fires": "in 1h", "schedule": "0 * * * *",
-             "ran": "2h ago", "next": "2026-08-30T13:00:00+00:00",
-             "last": "2026-08-30T10:00:00+00:00"}]
+    rows = [
+        {
+            "project": "p",
+            "name": "j",
+            "fires": "in 1h",
+            "schedule": "0 * * * *",
+            "ran": "2h ago",
+            "next": "2026-08-30T13:00:00+00:00",
+            "last": "2026-08-30T10:00:00+00:00",
+        }
+    ]
     v = schedule.view_of(rows)
     assert [c["key"] for c in v["columns"]] == list(schedule.INLINE)
     assert v["hidden"] == list(schedule.HIDDEN)
-    # Widths come from cli/view.py, not from a second opinion here.
+    # Widths come from skyboss/view.py, not from a second opinion here.
     assert all("flex" in c and "min" in c for c in v["columns"])
 
 
 def test_band_says_drawn_of_arrived():
     """Five under the word seven is the confusion; the band answers it."""
-    from cli.output import _dimensions
+    from skyboss.output import _dimensions
+
     rows = [{k: "x" for k in ("a", "b", "c")}]
     view = {"columns": [{"key": "a"}], "details": [], "hidden": ["b", "c"]}
     assert _dimensions(rows, view) == "table · 1 row · 1 of 3 columns"
@@ -226,3 +234,304 @@ def test_band_says_drawn_of_arrived():
     whole = {"columns": [{"key": k} for k in ("a", "b", "c")], "details": [], "hidden": []}
     assert _dimensions(rows, whole) == "table · 1 row · 3 columns"
     assert _dimensions(rows, None) == "table · 1 row · 3 columns"
+
+
+# ============================================================================
+# Round 10 — two populations in one table
+# ============================================================================
+
+from datetime import timedelta
+from datetime import timezone as tz  # noqa: E402
+
+import pytest  # noqa: E402
+
+import skyboss.jobs as jobs_  # noqa: E402
+from skyboss.jobs import Unit  # noqa: E402
+from skyboss.schedule import _systemd_instant, now_utc  # noqa: E402
+
+#: Every test here is host-side and needs no services up.
+pytestmark = [pytest.mark.unit]
+
+
+def test_a_provider_row_says_it_is_watched():
+    """A row sky.boss *fires* and a row it merely *watches* are two different
+    claims arriving in one table, and a reader cannot tell them apart from a
+    time."""
+    rows, _ = rows_of(
+        Project(name="alpha", path="x", schedule={"name": "job", "next": "next_run"}),
+        [{"job": "j", "next_run": "2026-08-31T23:00:00+00:00"}],
+    )
+    assert rows[0]["clock"] == "watched"
+
+
+def test_the_clock_column_is_drawn(tmp_path, monkeypatch):
+    from skyboss.schedule import INLINE
+
+    assert "clock" in INLINE
+
+
+# ------------------------------------------------ systemd's own time format
+
+
+def test_systemd_time_becomes_an_instant():
+    """`systemctl` prints a different string shape from a provider's ISO stamp,
+    and the one thing that must not differ is how the two are ordered."""
+    when = _systemd_instant("Wed 2026-09-02 06:00:00 CDT")
+    assert when is not None and when.tzinfo is not None
+    assert (when.year, when.month, when.day, when.hour) == (2026, 9, 2, 6)
+
+
+def test_the_zone_abbreviation_is_dropped_rather_than_resolved():
+    """`CDT` is ambiguous across the world's timezone databases and guessing is
+    how a view is confidently six hours wrong. The local zone is safe *here*
+    where it would not be for a provider: systemd printed this for this machine,
+    in this machine's zone."""
+    assert _systemd_instant("Wed 2026-09-02 06:00:00 CDT") == _systemd_instant("Wed 2026-09-02 06:00:00 XYZ")
+
+
+@pytest.mark.parametrize("value", ["", "n/a", "-", "not a time", "Wed"])
+def test_an_unorderable_systemd_time_is_none_rather_than_a_guess(value):
+    assert _systemd_instant(value) is None
+
+
+# ------------------------------------------------------ only what fires
+
+
+def _jobs(monkeypatch, tmp_path, toml: str, *, enabled=(), elapses=None, ledger=""):
+    """A scratch `$SB_HOME` for jobs, with systemd's answers injected — enabling
+    a real timer on the machine running the suite is not a test."""
+    (tmp_path / "jobs.toml").write_text(toml)
+    monkeypatch.setattr("skyboss.jobs.SB_HOME", tmp_path)
+    monkeypatch.setattr("skyboss.jobs.STATE_DIR", tmp_path / "state")
+    if ledger:
+        (tmp_path / "state" / "jobs").mkdir(parents=True, exist_ok=True)
+        (tmp_path / "state" / "jobs" / "ledger.jsonl").write_text(ledger)
+    monkeypatch.setattr("skyboss.jobs.timer_elapses", lambda: (dict(elapses or {}), True))
+    monkeypatch.setattr(
+        "skyboss.jobs.unit_state",
+        lambda name, e=None: Unit(
+            file=name in enabled,
+            enabled="enabled" if name in enabled else "disabled",
+            next_run=(elapses or {}).get(f"sb-{name}.timer", ""),
+        ),
+    )
+
+
+TWO_JOBS = """
+[job.armed]
+argv     = ["run", "--", "echo", "a"]
+schedule = "06:00"
+
+[job.idle]
+argv     = ["run", "--", "echo", "b"]
+schedule = "07:00"
+"""
+
+
+def test_only_an_enabled_job_is_drawn(tmp_path, monkeypatch):
+    """**The correctness argument of this round.** A declared job does not fire.
+    An installed-but-not-enabled job does not fire — `install` deliberately
+    stops one step short. Drawing either in a table headed *what fires next*
+    would be a false claim in the least checkable place there is."""
+    _jobs(
+        monkeypatch,
+        tmp_path,
+        TWO_JOBS,
+        enabled=("armed",),
+        elapses={"sb-armed.timer": "Wed 2026-09-02 06:00:00 CDT"},
+    )
+    rows, problems, withheld = jobs_.schedule_rows()
+    assert [r["name"] for r in rows] == ["armed"]
+    assert withheld == 1 and problems == []
+
+
+def test_the_withheld_are_counted_never_silent(tmp_path, monkeypatch):
+    _jobs(monkeypatch, tmp_path, TWO_JOBS)
+    rows, _, withheld = jobs_.schedule_rows()
+    assert rows == [] and withheld == 2
+
+
+def test_a_fire_time_is_systemds_and_never_computed(tmp_path, monkeypatch):
+    """The refusal [[schedule]] makes about cron, applied to sky.boss's own
+    clock: `next` is read back, not derived from `06:00`."""
+    _jobs(monkeypatch, tmp_path, TWO_JOBS, enabled=("armed",), elapses={})
+    rows, _, _ = jobs_.schedule_rows()
+    assert rows[0]["next"] == "", "no read-back means no next, never a computed one"
+    assert rows[0]["schedule"] == "06:00"
+
+
+def test_the_last_run_comes_from_the_ledger(tmp_path, monkeypatch):
+    _jobs(
+        monkeypatch,
+        tmp_path,
+        TWO_JOBS,
+        enabled=("armed",),
+        ledger=(
+            '{"job": "armed", "finished": "2026-09-01T06:00:01+00:00"}\n'
+            '{"job": "armed", "finished": "2026-09-02T06:00:02+00:00"}\n'
+        ),
+    )
+    rows, _, _ = jobs_.schedule_rows()
+    assert rows[0]["last"] == "2026-09-02T06:00:02+00:00", "append-only, so later wins"
+
+
+def test_a_torn_ledger_line_does_not_lose_the_whole_history(tmp_path, monkeypatch):
+    """The file is appended to while it is read. Going through `sb data`'s JSONL
+    parser is what keeps a half-written last line from taking the rest with
+    it."""
+    _jobs(
+        monkeypatch,
+        tmp_path,
+        TWO_JOBS,
+        enabled=("armed",),
+        ledger='{"job": "armed", "finished": "2026-09-01T06:00:01+00:00"}\n{"job": "arm',
+    )
+    rows, _, _ = jobs_.schedule_rows()
+    assert rows[0]["last"] == "2026-09-01T06:00:01+00:00"
+
+
+# ----------------------------------------------------------- the fold
+
+
+ALPHA_ROWS = json.dumps({"jobs": [{"job": "theirs", "next_run": "2026-08-31T23:00:00+00:00"}]})
+
+
+def test_both_populations_land_in_one_table(tmp_path, monkeypatch):
+    _home(tmp_path, ALPHA, alpha=ALPHA_ROWS)
+    _jobs(
+        monkeypatch,
+        tmp_path,
+        TWO_JOBS,
+        enabled=("armed",),
+        elapses={"sb-armed.timer": "Wed 2026-09-02 06:00:00 CDT"},
+    )
+    monkeypatch.setenv("SB_HOME", str(tmp_path))
+    monkeypatch.setattr("skyboss.rollcall.SB_HOME", tmp_path)
+    body = json.loads(CliRunner().invoke(cli, ["--json", "schedule"]).stdout)
+    clocks = {r["name"]: r["clock"] for r in body["data"]}
+    assert clocks == {"theirs": "watched", "armed": "sb"}
+
+
+def test_only_sb_narrows_to_our_own(tmp_path, monkeypatch):
+    _home(tmp_path, ALPHA, alpha=ALPHA_ROWS)
+    _jobs(monkeypatch, tmp_path, TWO_JOBS, enabled=("armed",))
+    monkeypatch.setenv("SB_HOME", str(tmp_path))
+    monkeypatch.setattr("skyboss.rollcall.SB_HOME", tmp_path)
+    body = json.loads(CliRunner().invoke(cli, ["--json", "schedule", "--only", "sb"]).stdout)
+    assert [r["name"] for r in body["data"]] == ["armed"]
+
+
+def test_only_a_project_leaves_our_own_out(tmp_path, monkeypatch):
+    _home(tmp_path, ALPHA, alpha=ALPHA_ROWS)
+    _jobs(monkeypatch, tmp_path, TWO_JOBS, enabled=("armed",))
+    monkeypatch.setenv("SB_HOME", str(tmp_path))
+    monkeypatch.setattr("skyboss.rollcall.SB_HOME", tmp_path)
+    body = json.loads(CliRunner().invoke(cli, ["--json", "schedule", "--only", "alpha"]).stdout)
+    assert [r["name"] for r in body["data"]] == ["theirs"]
+    assert not any(
+        "not drawn" in w for w in body["warnings"]
+    ), "a withheld count for a population nobody asked about is noise"
+
+
+def test_only_sb_is_a_name_even_with_nothing_armed(tmp_path, monkeypatch):
+    """*Nothing of mine fires* and *no such thing as mine* are different facts,
+    and the second is never true."""
+    _home(tmp_path, ALPHA, alpha=ALPHA_ROWS)
+    _jobs(monkeypatch, tmp_path, TWO_JOBS)
+    monkeypatch.setenv("SB_HOME", str(tmp_path))
+    monkeypatch.setattr("skyboss.rollcall.SB_HOME", tmp_path)
+    result = CliRunner().invoke(cli, ["--json", "schedule", "--only", "sb"])
+    body = json.loads(result.stdout)
+    assert result.exit_code == 0 and body["data"] == []
+    assert any("not drawn" in w for w in body["warnings"])
+    assert not any("no projects declared" in w for w in body["warnings"])
+
+
+def test_an_armed_job_shows_up_with_no_projects_declared_at_all(tmp_path, monkeypatch):
+    """A table saying *no projects declared* while a timer was armed would be
+    the one sentence this whole feature exists to prevent."""
+    (tmp_path / "projects.toml").write_text("")
+    _jobs(
+        monkeypatch,
+        tmp_path,
+        TWO_JOBS,
+        enabled=("armed",),
+        elapses={"sb-armed.timer": "Wed 2026-09-02 06:00:00 CDT"},
+    )
+    monkeypatch.setenv("SB_HOME", str(tmp_path))
+    monkeypatch.setattr("skyboss.rollcall.SB_HOME", tmp_path)
+    body = json.loads(CliRunner().invoke(cli, ["--json", "schedule"]).stdout)
+    assert [r["name"] for r in body["data"]] == ["armed"]
+    assert not any("no projects declared" in w for w in body["warnings"])
+
+
+def test_a_project_called_sb_is_reported_rather_than_silently_confusing(tmp_path, monkeypatch):
+    collide = ALPHA.replace("[project.alpha]", "[project.sb]").replace("HOME/alpha.json", "HOME/alpha.json")
+    (tmp_path / "projects.toml").write_text(collide.replace("HOME", str(tmp_path)))
+    (tmp_path / "alpha.json").write_text(ALPHA_ROWS)
+    _jobs(
+        monkeypatch,
+        tmp_path,
+        TWO_JOBS,
+        enabled=("armed",),
+        elapses={"sb-armed.timer": "Wed 2026-09-02 06:00:00 CDT"},
+    )
+    monkeypatch.setenv("SB_HOME", str(tmp_path))
+    monkeypatch.setattr("skyboss.rollcall.SB_HOME", tmp_path)
+    body = json.loads(CliRunner().invoke(cli, ["--json", "schedule"]).stdout)
+    assert any("read the `clock` column" in w for w in body["warnings"])
+
+
+def test_both_populations_sort_on_one_instant(tmp_path, monkeypatch):
+    """Two string shapes, one order. This is the whole reason sky.boss's rows go
+    through a parse rather than being appended after the providers'."""
+    soon = (now_utc() + timedelta(minutes=5)).astimezone(tz.utc).isoformat()
+    later = (datetime.now().astimezone() + timedelta(hours=9)).strftime("%a %Y-%m-%d %H:%M:%S %Z")
+    (tmp_path / "projects.toml").write_text(ALPHA.replace("HOME", str(tmp_path)))
+    (tmp_path / "alpha.json").write_text(json.dumps({"jobs": [{"job": "theirs", "next_run": soon}]}))
+    _jobs(
+        monkeypatch,
+        tmp_path,
+        TWO_JOBS,
+        enabled=("armed",),
+        elapses={"sb-armed.timer": later},
+    )
+    monkeypatch.setenv("SB_HOME", str(tmp_path))
+    monkeypatch.setattr("skyboss.rollcall.SB_HOME", tmp_path)
+    body = json.loads(CliRunner().invoke(cli, ["--json", "schedule"]).stdout)
+    assert [r["name"] for r in body["data"]] == ["theirs", "armed"]
+
+
+def test_the_sheet_takes_its_track_count_from_the_view():
+    """The grid may not write down how many columns the table has.
+
+    `.pl-sheet` is one grid for the whole sheet and every row is
+    `display: contents`, so a row lands in it as `INLINE` minus `project`, plus
+    the trailing lane. When the track list was spelled out in sb.css that count
+    was a second copy of `INLINE`, and round 10's `clock` column made the two
+    disagree: the sheet was one track short, every row wrapped one column
+    further right than the one above it, and the marks ran diagonally through
+    the text instead of standing in the lane.
+
+    So the count travels — schedule.js hands the view's own `columns.length` to
+    the grid as `--pl-cols`. What this defends is that it keeps travelling: a
+    literal track list here is the bug returning, whatever number it holds.
+    """
+    import re as _re
+
+    from skyboss.helpers import PROJECT_ROOT
+
+    stylesheet = (PROJECT_ROOT / "skyboss/canvas/static/sb.css").read_text()
+    sheet = _re.search(r"\.pl-sheet\s*\{([^}]*)\}", stylesheet)
+    assert sheet, "`.pl-sheet` is gone — did the schedule grid move?"
+    tracks = _re.search(r"grid-template-columns:([^;]*);", sheet.group(1))
+    assert tracks, "`.pl-sheet` no longer states its tracks"
+    assert "var(--pl-cols" in tracks.group(1), (
+        "the sheet's track count is written in sb.css again; it is a copy of "
+        "INLINE and it will drift the next time a column is added"
+    )
+
+    script = (PROJECT_ROOT / "skyboss/canvas/static/schedule.js").read_text()
+    assert _re.search(
+        r"--pl-cols:\s*\$\{columns\.length\}", script
+    ), "schedule.js no longer hands the grid the column count it is drawing"

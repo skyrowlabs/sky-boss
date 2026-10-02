@@ -10,9 +10,15 @@ same afternoon.
 import math
 import re
 
-from cli.helpers import PROJECT_ROOT
-from cli.output import THEME
-from cli.theme import BG, BRAND, DANGER, OK, PAINTED, STYLES, TEXT_2, TEXT_3, WARN, css_variables
+import pytest
+from narrowing import present
+
+from skyboss.helpers import PROJECT_ROOT
+from skyboss.output import THEME
+from skyboss.theme import BG, BRAND, DANGER, OK, PAINTED, STYLES, TEXT, TEXT_2, TEXT_3, WARN, css_variables
+
+#: Every test here is host-side and needs no services up.
+pytestmark = [pytest.mark.unit]
 
 HEX = re.compile(r"#[0-9a-fA-F]{6}\b")
 
@@ -29,7 +35,7 @@ def test_no_file_outside_the_palette_names_a_colour():
     `.js` file, both of which can name a colour, and the mockup this is built
     from is full of `rgba()` literals that would be perfectly easy to paste in.
     So the scan follows the surface rather than the language. Tokens reach the
-    page through `cli/theme.py`'s `css_root`, injected by the server.
+    page through `skyboss/theme.py`'s `css_root`, injected by the server.
 
     Vendored third-party code is exempt. It is not ours to keep a palette out
     of, and rewriting someone's minified bundle to satisfy a house rule is a
@@ -37,7 +43,7 @@ def test_no_file_outside_the_palette_names_a_colour():
     """
     offenders = {}
     for pattern in ("*.py", "*.css", "*.js", "*.tcss"):
-        for path in sorted((PROJECT_ROOT / "cli").rglob(pattern)):
+        for path in sorted((PROJECT_ROOT / "skyboss").rglob(pattern)):
             if path.name == "theme.py" or "vendor" in path.parts:
                 continue
             found = HEX.findall(path.read_text())
@@ -56,7 +62,7 @@ def test_no_stylesheet_smuggles_a_colour_past_the_hex_scan():
     """
     literals = re.compile(r"\b(rgba?|hsla?)\s*\(\s*[\d.]+[\s,]", re.IGNORECASE)
     offenders = {}
-    for path in sorted((PROJECT_ROOT / "cli").rglob("*.css")):
+    for path in sorted((PROJECT_ROOT / "skyboss").rglob("*.css")):
         if "vendor" in path.parts:
             continue
         found = literals.findall(path.read_text())
@@ -78,9 +84,9 @@ def test_every_token_the_stylesheet_uses_is_defined():
     """
     import re as _re
 
-    from cli.theme import css_variables
+    from skyboss.theme import css_variables
 
-    stylesheet = (PROJECT_ROOT / "cli/canvas/static/sb.css").read_text()
+    stylesheet = (PROJECT_ROOT / "skyboss/canvas/static/sb.css").read_text()
     bare = set(_re.findall(r"var\(\s*--(sb-[a-z0-9-]+)\s*\)", stylesheet))
     assert bare, "found no --sb-* tokens at all — did the stylesheet move?"
 
@@ -97,7 +103,7 @@ def test_the_scale_token_keeps_its_fallback():
     failed injection would render the whole canvas at zero."""
     import re as _re
 
-    stylesheet = (PROJECT_ROOT / "cli/canvas/static/sb.css").read_text()
+    stylesheet = (PROJECT_ROOT / "skyboss/canvas/static/sb.css").read_text()
     uses = _re.findall(r"var\(\s*--sb-scale\s*(,[^)]*)?\)", stylesheet)
     assert uses, "the stylesheet no longer scales"
     assert all(use.strip() for use in uses), "a bare var(--sb-scale) has no safety net"
@@ -109,18 +115,16 @@ def test_the_stylesheet_defines_no_token_the_palette_already_owns():
     what `--sb-tint` is. Shadowing `--sb-brand` is not."""
     import re as _re
 
-    from cli.theme import css_variables
+    from skyboss.theme import css_variables
 
-    stylesheet = (PROJECT_ROOT / "cli/canvas/static/sb.css").read_text()
-    defined_here = set(
-        _re.findall(r"^\s*--(sb-[a-z0-9-]+)\s*:", stylesheet, _re.MULTILINE)
-    )
+    stylesheet = (PROJECT_ROOT / "skyboss/canvas/static/sb.css").read_text()
+    defined_here = set(_re.findall(r"^\s*--(sb-[a-z0-9-]+)\s*:", stylesheet, _re.MULTILINE))
     clashes = defined_here & set(css_variables())
     assert not clashes, f"the stylesheet redefines palette roles: {sorted(clashes)}"
 
 
 def test_the_injected_root_block_carries_every_token():
-    from cli.theme import css_root, css_variables
+    from skyboss.theme import css_root, css_variables
 
     block = css_root()
     for name, value in css_variables().items():
@@ -224,7 +228,7 @@ def test_every_cli_role_survives_an_unknown_terminal_background():
     for name in STYLES:
         if name in PAINTED:
             continue  # checked by the test below, on the right backgrounds
-        colour = THEME.styles[name].color.get_truecolor().hex
+        colour = present(THEME.styles[name].color, f"a colour on {name}").get_truecolor().hex
         for background in (WHITE, BG):
             ratio = _contrast(colour, background)
             if ratio < FLOOR:
@@ -248,8 +252,8 @@ def test_a_painted_role_is_checked_against_the_ground_it_paints():
     failures = {}
     for name in PAINTED:
         style = THEME.styles[name]
-        ground = style.bgcolor.get_truecolor().hex
-        colour = style.color.get_truecolor().hex
+        ground = present(style.bgcolor, "a background").get_truecolor().hex
+        colour = present(style.color, "a colour").get_truecolor().hex
         # The text is text, so the text floor applies to it — on the ground it
         # actually sits on rather than on a terminal it never touches.
         ratio = _contrast(colour, ground)
@@ -274,7 +278,7 @@ def test_the_canvas_shows_the_brand_at_full_strength():
     concession. Darkening there would dim the brand against a background that
     never required it."""
     assert css_variables()["sb-brand"] == BRAND
-    assert THEME.styles["sb.accent"].color.get_truecolor().hex.lower() != BRAND
+    assert present(THEME.styles["sb.accent"].color, "sb.accent").get_truecolor().hex.lower() != BRAND
 
 
 def test_the_tokens_still_match_the_design_system():
@@ -285,7 +289,7 @@ def test_the_tokens_still_match_the_design_system():
     machinery than the thing it generates — but a copy with nothing checking it
     is how the palette drifted the first time.
     """
-    from cli import theme
+    from skyboss import theme
 
     source = (PROJECT_ROOT / "docs/design/skyrow-colors_and_type.css").read_text()
     declared = dict(re.findall(r"--([a-z0-9-]+):\s*(#[0-9a-fA-F]{6})", source))
@@ -316,7 +320,7 @@ def test_the_tokens_still_match_the_design_system():
 def test_every_mark_role_the_highlighter_can_emit_has_a_rule_in_the_stylesheet():
     """**Enumerated off the rules, because spot-checking is what missed it.**
 
-    `cli/highlight.py` emits role names and `render.js` turns each into an
+    `skyboss/highlight.py` emits role names and `render.js` turns each into an
     `mk-<role>` class, applied dumbly. Nothing connected that to the stylesheet
     — so round 4's verdict roles (`ok`, `fail`, `warn`) shipped their classes
     with no rule to paint them, and every ✓, ✗, ⚠ and colour word on the canvas
@@ -326,16 +330,76 @@ def test_every_mark_role_the_highlighter_can_emit_has_a_rule_in_the_stylesheet()
     It survived because the natural check is *did the mark land*, which reads
     class names and passes. The failure is only visible in a computed style.
     """
-    from cli import highlight as highlight_
+    from skyboss import highlight as highlight_
 
     roles = {role for _, role, _, _ in highlight_._RULES}
     roles |= set(highlight_._COLOUR_WORDS.values())
     # The positional rules, which are not in `_RULES`.
     roles |= {"sb.muted", "sb.accent"}
-    css = (PROJECT_ROOT / "cli/canvas/static/sb.css").read_text()
-    missing = sorted(
-        role for role in roles if f".mk-{role.removeprefix('sb.')}" not in css
-    )
+    css = (PROJECT_ROOT / "skyboss/canvas/static/sb.css").read_text()
+    missing = sorted(role for role in roles if f".mk-{role.removeprefix('sb.')}" not in css)
     assert not missing, f"roles with no rule to paint them: {missing}"
     # `bold` is not a role but a weight, and composes with all of them.
     assert ".mk-bold" in css
+
+
+# ------------------------------------------------- the canvas's own floor
+
+CANVAS_FLOOR = 4.5  # WCAG AA for body text, which is what these roles carry
+
+#: Every ground the canvas paints text on. `--sb-surface-2` is the worst of the
+#: three, so it is the one a role has to survive.
+CANVAS_GROUNDS = ("sb-bg", "sb-surface", "sb-surface-2")
+
+
+def test_every_canvas_reading_role_clears_the_floor_on_every_ground():
+    """The canvas's floor is the CLI's, minus the unknown that made it 3.5.
+
+    Each CLI role is darkened until it clears 3.5:1 against *both* white and the
+    void, because a terminal's background belongs to whoever runs it. The canvas
+    paints its own, so there is no unknown to hedge against and the floor can be
+    the real one: WCAG AA against the three grounds it actually uses.
+
+    `--text-3` is deliberately absent. The design system calls it "structure, not
+    reading text" and this file copies it verbatim, so it is not a role that owes
+    a text floor — it is a role that owes not being used as text, which the test
+    below is about.
+    """
+    tokens = css_variables()
+    grounds = {name: tokens[name] for name in CANVAS_GROUNDS}
+    reading = {"sb-text": TEXT, "sb-text-2": TEXT_2}
+    too_dim = {}
+    for role, colour in sorted(reading.items()):
+        for ground, backdrop in grounds.items():
+            ratio = _contrast(colour, backdrop)
+            if ratio < CANVAS_FLOOR:
+                too_dim[f"{role} on {ground}"] = round(ratio, 2)
+    assert not too_dim, f"below the canvas floor of {CANVAS_FLOOR}:1: {too_dim}"
+
+
+def test_the_structure_colour_is_never_used_as_text():
+    """`--sb-text-3` is a border, not a tier of type.
+
+    The design system says so — "very dim — structure, not reading text" — and
+    `[[tools]]` round 5 acted on it for one element, leaving a comment in
+    `sb.css` explaining that a group name is read and so takes `--text-2`. The
+    other **66** `color:` uses stayed, and measured 1.70:1 on `--sb-surface` and
+    1.81:1 on `--sb-bg` against a 4.5:1 requirement: the window controls, the
+    stat readouts, the tool kind, the footer hints. Reported by the operator as
+    the surface being hard to see. See [[canvas]] round 14.
+
+    This is checked against the stylesheet rather than against a list of the
+    styles that were measured, because only one of the three screens was — a
+    list would have pinned sixteen and stayed silent on the fifty on the other
+    two. The role keeps its value; what is forbidden is spending it on type.
+    """
+    offenders = {}
+    for path in sorted(PROJECT_ROOT.rglob("*.css")):
+        if "vendor" in path.parts or ".venv" in path.parts or "node_modules" in path.parts:
+            continue
+        found = re.findall(r"color:\s*var\(--sb-text-3\)", path.read_text())
+        if found:
+            offenders[str(path.relative_to(PROJECT_ROOT))] = len(found)
+    assert not offenders, (
+        f"rules painting text with the structure colour: {offenders} — " "use --sb-text-2 for text a reader reads"
+    )
