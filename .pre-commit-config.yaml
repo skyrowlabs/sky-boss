@@ -33,8 +33,13 @@ repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
     hooks:
+      # The demo is a render — a bundled-page export of the mockup the canvas
+      # was built from, with no generator in this tree — and these two would
+      # rewrite its whitespace under --all-files. A render is not hand-edited.
       - id: trailing-whitespace
+        exclude: '^docs/design/sky-boss-demo\.html$'
       - id: end-of-file-fixer
+        exclude: '^docs/design/sky-boss-demo\.html$'
       - id: check-merge-conflict
       - id: check-yaml
       - id: check-json
