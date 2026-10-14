@@ -140,6 +140,10 @@ LANES_BY_LABEL = {lane.label: lane for lane in LANES}
 #: Who filed a capture: a person in a session, or a scheduled job by its key.
 SESSION = "session"
 
+#: Where the job runner names the job for every capture its agent files. Unset is
+#: a person; nothing else sets it, so a job cannot file as one by omission.
+SOURCE_ENV = "SB_CAPTURE_SOURCE"
+
 #: How many captures one job may have open, across every lane, at once.
 #:
 #: Standing rather than per run, so an unattended filer is self-limiting: a job

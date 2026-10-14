@@ -2859,3 +2859,17 @@ so here this only changes the scaffold's own `dev`. Probed with `gh` off PATH so
 nothing could be filed. A malformed key is a usage error. A job that cannot
 count its open captures is refused before filing. A `--local` capture is
 written without its source, which went upstream as a finding.
+
+### Round 43 — 2026-10-14: v0.47.0, the capture source moves off the command line
+
+Clean. `tests/test_agent_settings.py` is new. `.claude/settings.json`,
+`cli/_capture.py`, `scripts/lanes.py` and the two capture tests were untouched
+here and are replaced. The render differs from the tag only by placeholder
+substitution, and `SOURCE_ENV` renders as `SB_CAPTURE_SOURCE`. The settings file
+loses `Bash(gh issue create*)` and nothing else.
+
+Round 42's finding was re-measured with `gh` stubbed. The source now comes from
+`SB_CAPTURE_SOURCE` and `--source` is gone. Local captures record the source,
+or `session` when none is set, and two in one second write two files. This tree
+ships no job registry, so a job source is refused before filing. The refusal
+comes after one read-only `gh issue list`, never after an issue is created.

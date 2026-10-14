@@ -25,15 +25,24 @@ picking the subcommand.
 from __future__ import annotations
 
 import json
-import re
+import os
 import subprocess
 import sys
 from datetime import datetime, timezone
-from typing import Callable, List, Optional, Sequence
+from typing import Callable, Dict, List, Optional, Sequence
 
 import click
 
-from scripts.lanes import LANES, SESSION, SOURCE_CAP, Lane, drain_note, source_line
+from scripts.lanes import (
+    LANES,
+    SESSION,
+    SOURCE_CAP,
+    SOURCE_ENV,
+    Lane,
+    drain_note,
+    job_registry,
+    source_line,
+)
 from scripts.paths import TMP_DIR
 
 from .helpers import PROJECT_ROOT, current_branch, detail, git, ok, warn
@@ -65,26 +74,44 @@ def compose(lane: Lane, summary: str, values: dict, source: str = SESSION) -> st
     return "\n".join(parts)
 
 
+def capture_source() -> str:
+    """Who is filing: the job the runner names in the environment, or a person.
+
+    Set by the job runner an agentic tree ships, never typed. A flag the agent had
+    to remember was a cap it could skip by forgetting (stash.flow, node-zero,
+    mind.head), and a key it typed could be mistyped into a fresh cap (proto.pilot).
+    """
+    return os.environ.get(SOURCE_ENV, "").strip() or SESSION
+
+
 def standing(source: str) -> Optional[List[str]]:
-    """Titles of the open captures `source` filed, across every lane; `None` if unknown."""
-    titles: List[str] = []
+    """Titles of `source`'s open captures across every lane; `None` if unknown.
+
+    Keyed by issue number, so an issue carrying two lane labels counts once.
+    """
+    found: Dict[int, str] = {}
     for lane in LANES:
         args = ["gh", "issue", "list", "--label", lane.label, "--state", "open"]
-        args += ["--limit", "200", "--json", "title,body"]
+        args += ["--limit", "200", "--json", "number,title,body"]
         try:
             result = subprocess.run(args, cwd=str(PROJECT_ROOT), capture_output=True, text=True)
         except FileNotFoundError:
             return None
         if result.returncode != 0:
             return None
-        titles += [i["title"] for i in json.loads(result.stdout or "[]") if source_line(source) in i["body"]]
-    return titles
+        for issue in json.loads(result.stdout or "[]"):
+            if source_line(source) in issue["body"]:
+                found[issue["number"]] = issue["title"]
+    return list(found.values())
 
 
 def refusal(source: str, summary: str, open_titles: Optional[List[str]]) -> str:
-    """Why a job's capture must not be filed, or `""`. A person is never capped."""
+    """Why a capture must not be filed, or `""`. A person is never capped."""
     if source == SESSION:
         return ""
+    registry = job_registry()
+    if registry is None or source not in registry.JOBS_BY_KEY:
+        return f"{source!r} is not a registered job"
     if open_titles is None:
         return f"could not list {source}'s open captures, so its cap cannot be checked"
     if summary in open_titles:
@@ -123,8 +150,9 @@ def _file_issue(lane: Lane, summary: str, body: str) -> subprocess.CompletedProc
     )
 
 
-def run_capture(lane: Lane, summary: str, values: dict, local: bool, source: str = SESSION) -> None:
+def run_capture(lane: Lane, summary: str, values: dict, local: bool) -> None:
     """File one capture, or leave it on disk saying so."""
+    source = capture_source()
     body = compose(lane, summary, values, source)
 
     if not local:
@@ -155,19 +183,20 @@ def run_capture(lane: Lane, summary: str, values: dict, local: bool, source: str
 
     lane_queue = QUEUE / lane.key
     lane_queue.mkdir(parents=True, exist_ok=True)
-    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    path = lane_queue / f"{stamp}.json"
-    path.write_text(
-        json.dumps({"summary": summary, "label": lane.label, **values}, indent=2),
-        encoding="utf-8",
-    )
+    fields = {"summary": summary, "label": lane.label, "source": source, **values}
+    record = json.dumps(fields, indent=2)
+    # Exclusive create: five captures in one second wrote one file (node-zero).
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+    path, n = lane_queue / f"{stamp}.json", 0
+    while True:
+        try:
+            with path.open("x", encoding="utf-8") as handle:
+                handle.write(record)
+            break
+        except FileExistsError:
+            n += 1
+            path = lane_queue / f"{stamp}-{n}.json"
     ok(f"captured locally: {path.relative_to(PROJECT_ROOT)}")
-
-
-def _source(ctx: click.Context, param: click.Parameter, value: str) -> str:
-    if not re.fullmatch(r"[a-z0-9][a-z0-9-]*", value):
-        raise click.BadParameter("a job key: lowercase letters, digits and hyphens")
-    return value
 
 
 def capture_command(lane: Lane, help_text: str, epilog: str = "") -> click.Command:
@@ -180,8 +209,8 @@ def capture_command(lane: Lane, help_text: str, epilog: str = "") -> click.Comma
     feature rather than an inconvenience.
     """
 
-    def command(summary: str, local: bool, source: str, **values: str) -> None:
-        run_capture(lane, summary, values, local, source)
+    def command(summary: str, local: bool, **values: str) -> None:
+        run_capture(lane, summary, values, local)
 
     command.__doc__ = help_text
     command.__name__ = lane.key
@@ -189,12 +218,6 @@ def capture_command(lane: Lane, help_text: str, epilog: str = "") -> click.Comma
     fallback = f"{QUEUE.relative_to(PROJECT_ROOT)}/{lane.key}/"
     decorators: Sequence[Callable] = [
         click.option("--local", is_flag=True, help=f"write to {fallback} instead of opening an issue"),
-        click.option(
-            "--source",
-            default=SESSION,
-            callback=_source,
-            help=f"the job key filing this; a job may hold {SOURCE_CAP} open captures at once",
-        ),
         *[click.option(f"--{s.name}", required=True, help=s.help) for s in reversed(lane.sections)],
         click.argument("summary"),
         click.command(name=lane.key, epilog=epilog),
