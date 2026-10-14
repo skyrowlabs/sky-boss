@@ -81,18 +81,26 @@ def reads_contents(permissions: Permissions) -> bool:
     return permissions.get("contents") in ("read", "write")
 
 
+def job_headers(text: str) -> list:
+    """`[(job id, offset)]` for the headers under `jobs:`, and nothing else.
+
+    Matched over the whole file, `on:`'s keys read as jobs too — stash.flow
+    measured `['pull_request', 'push', 'workflow_dispatch', 'gate', ...]` — and
+    the last trigger's slice ran up to the first real job. That was harmless
+    for `unreadable_checkouts`, since no trigger holds a checkout, which is
+    exactly why its rows could not catch a revert (mind.head): both matchers
+    agree on every valid workflow. So the ids are asserted here, directly.
+    """
+    section = re.search(r"^jobs:\s*$", text, re.MULTILINE)
+    offset = section.end() if section else len(text)
+    return [(m.group("id"), m.start()) for m in _JOB.finditer(text, offset)]
+
+
 def unreadable_checkouts(workflow: str) -> list:
     """Job ids in `workflow` that run `actions/checkout` with no `contents` scope."""
     text = uncommented(workflow)
     top = permissions_at(text, 0)
-    # Job headers only under `jobs:`. Matched over the whole file, `on:`'s keys
-    # read as jobs too — stash.flow measured `['pull_request', 'push',
-    # 'workflow_dispatch', 'gate', ...]` — and the last trigger's slice ran up to
-    # the first real job. Harmless while no trigger contains a checkout, which
-    # is a property of today's files rather than of the predicate.
-    section = re.search(r"^jobs:\s*$", text, re.MULTILINE)
-    offset = section.end() if section else len(text)
-    starts = [(m.group("id"), m.start()) for m in _JOB.finditer(text, offset)]
+    starts = job_headers(text)
     found = []
     for index, (job, start) in enumerate(starts):
         body = text[start : starts[index + 1][1] if index + 1 < len(starts) else len(text)]
@@ -151,3 +159,8 @@ def test_the_predicate(workflow: str, expected: Optional[list]):
     cannot pass by reading nothing — the job-level row is the one GitHub's own
     replace-not-merge rule decides, and the easiest to get backwards."""
     assert unreadable_checkouts(workflow) == expected
+
+
+def test_triggers_are_not_job_headers():
+    text = "on:\n  push:\n  workflow_dispatch:\njobs:\n  a:\n    steps: []\n  b:\n    steps: []\n"
+    assert [job for job, _ in job_headers(text)] == ["a", "b"]

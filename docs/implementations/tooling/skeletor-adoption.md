@@ -2820,3 +2820,18 @@ unpinned job here would open its release PR against `develop`.
 behaviour: `pull_request_target` runs the **default** branch's copy, not the
 base branch's. Our header made no claim about which branch that is, so nothing
 of ours went false.
+
+### Round 40 — 2026-10-14: v0.43.0, one untouched test and a replayed probe
+
+One file, untouched here, updated cleanly: `tests/test_workflow_permissions.py`
+gains `job_headers()` and a direct test of it. Checked rather than trusted:
+reverting the `^jobs:` scope fails the new test alone, and the nine predicate
+rows stay green — mind.head's point, that those rows could not catch it. The
+release skill's Phase D change does not reach this tree, which ships no
+release skill.
+
+The tool's new `conflicts_without_anchor` report had nothing to fire on this
+round. Replaying round 39 (v0.41.1 → v0.42.0) in a scratch worktree with the
+v0.43.0 tool showed it: `ci.yml` is listed in `--json` and flagged in prose
+as having none of its seven changes' context in our file. That is the
+release-job hunk round 39 ported as empty by reading.
