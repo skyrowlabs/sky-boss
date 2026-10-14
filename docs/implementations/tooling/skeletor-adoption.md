@@ -2835,3 +2835,14 @@ round. Replaying round 39 (v0.41.1 → v0.42.0) in a scratch worktree with the
 v0.43.0 tool showed it: `ci.yml` is listed in `--json` and flagged in prose
 as having none of its seven changes' context in our file. That is the
 release-job hunk round 39 ported as empty by reading.
+
+### Round 41 — 2026-10-14: v0.45.0, a relabel, and round 40's probe re-run
+
+Nothing rendered here changed between v0.43.0 and v0.45.0. The dry run called
+it a relabel of the record, and the apply moved `.skeletor.json` alone. The
+apply also confirmed the tag is on origin, a check the tool used to leave to us.
+
+The round-39 replay was re-run with the v0.45.0 tool, with results predicted
+first. `ci.yml` is still listed under `conflicts_without_anchor`. Its count now
+reads "2 patch hunk(s)", which matches the two `@@` in the `.patch`; v0.43.0
+said "7 change(s)". The normalise diagnostic is down to one line.
