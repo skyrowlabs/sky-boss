@@ -137,6 +137,21 @@ LANES: List[Lane] = [
 LANES_BY_KEY = {lane.key: lane for lane in LANES}
 LANES_BY_LABEL = {lane.label: lane for lane in LANES}
 
+#: Who filed a capture: a person in a session, or a scheduled job by its key.
+SESSION = "session"
+
+#: How many captures one job may have open, across every lane, at once.
+#:
+#: Standing rather than per run, so an unattended filer is self-limiting: a job
+#: at its cap files nothing until somebody works the queue down, and a finding it
+#: skips stays in its report. jam.sense's number (`jam-sense@a4894a3ac`).
+SOURCE_CAP = 3
+
+
+def source_line(source: str) -> str:
+    """The body line that attributes a capture, and the needle its count reads."""
+    return f"_Source: `{source}`_"
+
 
 def labels() -> List[str]:
     """Every lane label, in registry order. The set the editor views partition."""

@@ -2846,3 +2846,16 @@ The round-39 replay was re-run with the v0.45.0 tool, with results predicted
 first. `ci.yml` is still listed under `conflicts_without_anchor`. Its count now
 reads "2 patch hunk(s)", which matches the two `@@` in the `.patch`; v0.43.0
 said "7 change(s)". The normalise diagnostic is down to one line.
+
+### Round 42 — 2026-10-14: v0.46.0, capture attribution and a per-job cap
+
+Clean. One new file (`tests/test_capture_source.py`) and three untouched files
+updated (`cli/_capture.py`, `scripts/lanes.py`, `tests/test_lanes.py`). The
+render differs from the tag only by placeholder substitution. `--normalise`
+found nothing in doubt and reported binding black and isort.
+
+`dev bug` and `dev task` take `--source <job>`. No sky.boss job files captures,
+so here this only changes the scaffold's own `dev`. Probed with `gh` off PATH so
+nothing could be filed. A malformed key is a usage error. A job that cannot
+count its open captures is refused before filing. A `--local` capture is
+written without its source, which went upstream as a finding.

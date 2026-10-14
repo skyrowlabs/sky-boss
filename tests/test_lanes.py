@@ -86,7 +86,7 @@ def test_intake_options_are_the_lane_sections() -> None:
     """
     for lane in scanned(LANES, "capture lanes"):
         command = intake(lane)
-        flags = {param.name for param in command.params if param.name not in ("summary", "local")}
+        flags = {param.name for param in command.params if param.name not in ("summary", "local", "source")}
         assert flags == {section.name for section in scanned(lane.sections, f"{lane.key} sections")}
         required = {param.name for param in command.params if getattr(param, "required", False)}
         assert {s.name for s in lane.sections} <= required, (

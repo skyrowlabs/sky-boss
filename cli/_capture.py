@@ -25,13 +25,15 @@ picking the subcommand.
 from __future__ import annotations
 
 import json
+import re
 import subprocess
+import sys
 from datetime import datetime, timezone
-from typing import Callable, Sequence
+from typing import Callable, List, Optional, Sequence
 
 import click
 
-from scripts.lanes import Lane, drain_note
+from scripts.lanes import LANES, SESSION, SOURCE_CAP, Lane, drain_note, source_line
 from scripts.paths import TMP_DIR
 
 from .helpers import PROJECT_ROOT, current_branch, detail, git, ok, warn
@@ -43,7 +45,7 @@ from .helpers import PROJECT_ROOT, current_branch, detail, git, ok, warn
 QUEUE = TMP_DIR / "captures"
 
 
-def compose(lane: Lane, summary: str, values: dict) -> str:
+def compose(lane: Lane, summary: str, values: dict, source: str = SESSION) -> str:
     """The issue body: one ``##`` section per registry section, in registry order.
 
     The headings are derived from the section names rather than written out,
@@ -58,8 +60,38 @@ def compose(lane: Lane, summary: str, values: dict) -> str:
     parts += [
         "---",
         f"_Captured on `{current_branch()}` at `{git('rev-parse', '--short', 'HEAD')}`_",
+        source_line(source),
     ]
     return "\n".join(parts)
+
+
+def standing(source: str) -> Optional[List[str]]:
+    """Titles of the open captures `source` filed, across every lane; `None` if unknown."""
+    titles: List[str] = []
+    for lane in LANES:
+        args = ["gh", "issue", "list", "--label", lane.label, "--state", "open"]
+        args += ["--limit", "200", "--json", "title,body"]
+        try:
+            result = subprocess.run(args, cwd=str(PROJECT_ROOT), capture_output=True, text=True)
+        except FileNotFoundError:
+            return None
+        if result.returncode != 0:
+            return None
+        titles += [i["title"] for i in json.loads(result.stdout or "[]") if source_line(source) in i["body"]]
+    return titles
+
+
+def refusal(source: str, summary: str, open_titles: Optional[List[str]]) -> str:
+    """Why a job's capture must not be filed, or `""`. A person is never capped."""
+    if source == SESSION:
+        return ""
+    if open_titles is None:
+        return f"could not list {source}'s open captures, so its cap cannot be checked"
+    if summary in open_titles:
+        return f"{source} already has this open: {summary!r}"
+    if len(open_titles) >= SOURCE_CAP:
+        return f"{source} has {len(open_titles)} open captures, at its cap of {SOURCE_CAP}"
+    return ""
 
 
 def _ensure_label(lane: Lane) -> bool:
@@ -91,11 +123,18 @@ def _file_issue(lane: Lane, summary: str, body: str) -> subprocess.CompletedProc
     )
 
 
-def run_capture(lane: Lane, summary: str, values: dict, local: bool) -> None:
+def run_capture(lane: Lane, summary: str, values: dict, local: bool, source: str = SESSION) -> None:
     """File one capture, or leave it on disk saying so."""
-    body = compose(lane, summary, values)
+    body = compose(lane, summary, values, source)
 
     if not local:
+        # Checked here, not asked of the filer: an unattended job is told to count
+        # its own open captures, and a rule it must remember is one it can forget.
+        refused = refusal(source, summary, None if source == SESSION else standing(source))
+        if refused:
+            warn(f"not filed — {refused}")
+            detail("Leave the finding in your report; it is not lost, only not queued.")
+            sys.exit(1)
         result = _file_issue(lane, summary, body)
         if result.returncode != 0 and lane.label in result.stderr and _ensure_label(lane):
             # The first capture into a lane, in a repository whose labels nobody
@@ -125,6 +164,12 @@ def run_capture(lane: Lane, summary: str, values: dict, local: bool) -> None:
     ok(f"captured locally: {path.relative_to(PROJECT_ROOT)}")
 
 
+def _source(ctx: click.Context, param: click.Parameter, value: str) -> str:
+    if not re.fullmatch(r"[a-z0-9][a-z0-9-]*", value):
+        raise click.BadParameter("a job key: lowercase letters, digits and hyphens")
+    return value
+
+
 def capture_command(lane: Lane, help_text: str, epilog: str = "") -> click.Command:
     """Build ``dev <lane.key>`` from the registry.
 
@@ -135,8 +180,8 @@ def capture_command(lane: Lane, help_text: str, epilog: str = "") -> click.Comma
     feature rather than an inconvenience.
     """
 
-    def command(summary: str, local: bool, **values: str) -> None:
-        run_capture(lane, summary, values, local)
+    def command(summary: str, local: bool, source: str, **values: str) -> None:
+        run_capture(lane, summary, values, local, source)
 
     command.__doc__ = help_text
     command.__name__ = lane.key
@@ -144,6 +189,12 @@ def capture_command(lane: Lane, help_text: str, epilog: str = "") -> click.Comma
     fallback = f"{QUEUE.relative_to(PROJECT_ROOT)}/{lane.key}/"
     decorators: Sequence[Callable] = [
         click.option("--local", is_flag=True, help=f"write to {fallback} instead of opening an issue"),
+        click.option(
+            "--source",
+            default=SESSION,
+            callback=_source,
+            help=f"the job key filing this; a job may hold {SOURCE_CAP} open captures at once",
+        ),
         *[click.option(f"--{s.name}", required=True, help=s.help) for s in reversed(lane.sections)],
         click.argument("summary"),
         click.command(name=lane.key, epilog=epilog),
