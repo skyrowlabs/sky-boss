@@ -2915,3 +2915,30 @@ read-only and both came back green.
 leaves both out when `--cli` is an ordinary word, and `dev` is one. Our
 `tests/test_naming.py` checks `sb`, not `dev`, so nothing is lost. Standing
 divergences: 28 → 29.
+
+### Round 46 — 2026-10-15: v0.50.0, all three declines answered, two fold back
+
+skeletor accepted the three findings from round 45, and both conflicts this round are
+those answers arriving.
+
+`tests/test_publication.py` is now the template's verbatim, and ours is retired. The
+allowlist accepts a bare match and a whole tracked path as keys, so this tree's
+placeholder vocabulary and its two frozen renders are entries in
+`tests/publication_allowlist.yaml`, each stale-checked. Before it was filled, the
+template's scan found 52 findings, every one an existing placeholder or a render. Two
+old placeholders, `user` and `me`, matched nothing and were dropped. Our file never
+checked whether its own vocabulary was still needed. The template's version keeps the
+positive control, the self-scan and the version-pin guard ported into ours last round.
+One thing is lost: ours also failed CI on a tracked `.env`. That is now held only by
+`.gitignore` and a local pre-commit hook, and it went upstream as a finding.
+
+`tests/test_doctor.py` is verbatim too. Its guard on `RELEASE_CONFIG` replaces ours
+and asserts *not applicable* rather than returning. `.github/actionlint.yaml` stays
+deleted. The new `tests/test_actionlint_ignores.py` passes with it absent and fails
+with the template's copy restored, so the decline is now the state the template
+expects.
+
+Probes, with the outcome predicted before each was run: a stale allowlist key fails,
+a real-looking home path in a doc fails, and `dev doctor` reads required checks on
+`develop` and `main` as two facts, with the release fact *not applicable*. All four
+matched. Standing divergences: 29 → 28.

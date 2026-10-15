@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import re
 from datetime import datetime, timezone
-from typing import Dict, List, Optional
 
 import click
 
@@ -39,7 +38,7 @@ def source_of(body: str) -> str:
 _UNPARSEABLE = (AttributeError, ValueError)
 
 
-def age_days(created: str, now: Optional[datetime] = None) -> Optional[int]:
+def age_days(created: str, now: datetime | None = None) -> int | None:
     try:
         then = datetime.fromisoformat(created.replace("Z", "+00:00"))
     except _UNPARSEABLE:
@@ -47,9 +46,9 @@ def age_days(created: str, now: Optional[datetime] = None) -> Optional[int]:
     return ((now or datetime.now(timezone.utc)) - then).days
 
 
-def read_lanes() -> Dict[str, Optional[List[dict]]]:
+def read_lanes() -> dict[str, list[dict] | None]:
     """`{lane key: its open captures}`, with `None` for a lane that could not be listed."""
-    lanes: Dict[str, Optional[List[dict]]] = {}
+    lanes: dict[str, list[dict] | None] = {}
     for lane in LANES:
         issues = open_captures(lane)
         lanes[lane.key] = (
@@ -68,13 +67,13 @@ def read_lanes() -> Dict[str, Optional[List[dict]]]:
     return lanes
 
 
-def capped(lanes: Dict[str, Optional[List[dict]]]) -> Dict[str, int]:
+def capped(lanes: dict[str, list[dict] | None]) -> dict[str, int]:
     """Jobs at their cap, counting an issue once however many lanes it carries."""
-    seen: Dict[int, str] = {}
+    seen: dict[int, str] = {}
     for issues in lanes.values():
         for issue in issues or []:
             seen[issue["number"]] = issue["source"]
-    counts: Dict[str, int] = {}
+    counts: dict[str, int] = {}
     for source in seen.values():
         if source != SESSION:
             counts[source] = counts.get(source, 0) + 1

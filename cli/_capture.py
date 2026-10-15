@@ -106,7 +106,7 @@ def standing(source: str) -> Optional[List[str]]:
 def open_captures(lane: Lane) -> Optional[List[dict]]:
     """A lane's open issues, oldest first; `None` if `gh` could not list them.
 
-    The one place a lane is read back, shared by the cap and by `dev queue`.
+    The one place a lane is read back, shared by the cap and by `dev inbox`.
     """
     args = ["gh", "issue", "list", "--label", lane.label, "--state", "open"]
     args += ["--limit", "200", "--json", "number,title,body,createdAt"]

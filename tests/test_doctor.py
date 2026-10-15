@@ -32,8 +32,8 @@ def stub(monkeypatch, answers: dict) -> None:
     monkeypatch.setattr(doctor, "gh_api", gh_api)
 
 
-def checks_path() -> str:
-    return f"{REPO}/branches/{doctor.BASE_BRANCH}/protection/required_status_checks"
+def checks_path(branch: str = doctor.BASE_BRANCH) -> str:
+    return f"{REPO}/branches/{branch}/protection/required_status_checks"
 
 
 def test_a_default_branch_other_than_the_base_is_a_problem(monkeypatch):
@@ -45,7 +45,7 @@ def test_a_default_branch_other_than_the_base_is_a_problem(monkeypatch):
 
 def test_release_pull_request_needs_the_permission_or_a_token(monkeypatch):
     if not doctor.RELEASE_CONFIG.exists():
-        assert doctor.release_pull_request() is None, "a tree with no release pull request has no such fact"
+        assert doctor.release_pull_request().state == doctor.NOT_APPLICABLE
         return
     denied = {f"{REPO}/actions/permissions/workflow": {"can_approve_pull_request_reviews": False}}
     stub(monkeypatch, {**denied, f"{REPO}/actions/secrets": {"secrets": []}})
@@ -60,10 +60,8 @@ def test_release_pull_request_needs_the_permission_or_a_token(monkeypatch):
 
 
 def test_the_release_secrets_are_the_ones_ci_reads():
-    # Diverged from skeletor: guarded as `release_pull_request` is, since doctor reads no secret
-    # without a release config, and this tree's ci.yml has no release job (skeletor-adoption round 7).
     if not doctor.RELEASE_CONFIG.exists():
-        assert doctor.release_pull_request() is None, "doctor reads release secrets only with a release config"
+        assert doctor.release_pull_request().state == doctor.NOT_APPLICABLE, "no release job, so no secrets to name"
         return
     ci = (GITHUB_DIR / "workflows" / "ci.yml").read_text(encoding="utf-8")
     for name in (doctor.RELEASE_TOKEN, *doctor.APP_PAIR):
@@ -74,13 +72,13 @@ def test_a_required_check_no_job_reports_is_a_problem(monkeypatch):
     real = sorted(doctor.workflow_job_names())
     assert real, "found no job names in the workflows"
     stub(monkeypatch, {checks_path(): {"contexts": [real[0], "a job nobody wrote"]}})
-    assert doctor.required_checks().state == doctor.PROBLEM
+    assert doctor.required_checks(doctor.BASE_BRANCH).state == doctor.PROBLEM
     stub(monkeypatch, {checks_path(): {"checks": [{"context": f"{real[0]} (3.12)"}]}})
-    assert doctor.required_checks().state == doctor.OK
+    assert doctor.required_checks(doctor.BASE_BRANCH).state == doctor.OK
     stub(monkeypatch, {checks_path(): {"contexts": ["codecov/patch"]}})
-    assert doctor.required_checks().state == doctor.UNKNOWN
+    assert doctor.required_checks(doctor.BASE_BRANCH).state == doctor.UNKNOWN
     stub(monkeypatch, {checks_path(): 404})
-    assert doctor.required_checks().state == doctor.OK
+    assert doctor.required_checks(doctor.BASE_BRANCH).state == doctor.OK
 
 
 def test_a_templated_job_name_matches_what_it_renders_to():
@@ -93,4 +91,26 @@ def test_nothing_readable_is_never_summarised_as_fine(monkeypatch):
     result = CliRunner().invoke(doctor.doctor, [])
     assert result.exit_code == 0 and "none is wrong" not in result.output
     facts = json.loads(CliRunner().invoke(doctor.doctor, ["--json"]).output)["facts"]
-    assert facts and {f["state"] for f in facts} == {doctor.UNKNOWN}
+    states = {f["state"] for f in facts}
+    assert doctor.UNKNOWN in states and states <= {doctor.UNKNOWN, doctor.NOT_APPLICABLE}
+
+
+def test_every_long_lived_branch_has_its_required_checks_asked(monkeypatch):
+    asked = []
+
+    def required_checks(branch: str):
+        asked.append(branch)
+        return doctor.Fact(branch, doctor.OK, "")
+
+    monkeypatch.setattr(doctor, "required_checks", required_checks)
+    stub(monkeypatch, {})
+    doctor.gather()
+    assert asked == list(dict.fromkeys((doctor.BASE_BRANCH, doctor.RELEASE_BRANCH)))
+
+
+def test_an_inapplicable_fact_is_listed_and_not_counted(monkeypatch):
+    monkeypatch.setattr(doctor, "RELEASE_CONFIG", doctor.RELEASE_CONFIG.with_name("absent.json"))
+    unprotected = {checks_path(): 404, checks_path(doctor.RELEASE_BRANCH): 404}
+    stub(monkeypatch, {REPO: {"default_branch": doctor.BASE_BRANCH}, **unprotected})
+    result = CliRunner().invoke(doctor.doctor, [])
+    assert "the release job can open its pull request" in result.output and "applicable facts" in result.output
