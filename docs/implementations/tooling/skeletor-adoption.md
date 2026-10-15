@@ -2958,3 +2958,17 @@ This tree's finding, a tracked `.env`, was re-measured in a throwaway clone. Wit
 `.env`, `.env.local`, `.env.example` and `.env.ci` force-added, the scan failed on
 exactly the first two, as predicted. The clone passed before they were added.
 Standing divergences: 28 → 28. Nothing is left open with skeletor.
+
+### Round 48 — 2026-10-15: v0.51.0, a unit test reaches loopback only
+
+Clean. 25 files we never touched were updated, `tests/conftest.py` and
+`tests/scanning.py` merged without conflict, and `tests/guards.py` is new. The guard
+is an autouse fixture keyed on the `unit` marker. Every test here carries it, so it
+covers the whole suite. It went green with no sky.boss test changed. The collected
+IDs only gained tests: six guard tests, plus `test_naming` scanning the new file.
+
+Probes, with the outcome predicted before each was run. A routable `connect` in a unit
+test raises, and `GH_TOKEN` set in the shell is gone inside the test. Both matched. A
+child process the test spawns connects to a routable address unrefused, as predicted:
+the guard patches this interpreter's socket, and this suite spawns real children
+throughout. That went upstream as a finding. Standing divergences: 28 → 28.
