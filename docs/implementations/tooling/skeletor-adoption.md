@@ -2972,3 +2972,25 @@ test raises, and `GH_TOKEN` set in the shell is gone inside the test. Both match
 child process the test spawns connects to a routable address unrefused, as predicted:
 the guard patches this interpreter's socket, and this suite spawns real children
 throughout. That went upstream as a finding. Standing divergences: 28 → 28.
+
+### Round 49 — 2026-10-15: v0.51.1, the guard's claim now holds
+
+Clean. Six files we never touched were updated, and `tests/conftest.py` merged
+cleanly. The collected test IDs are identical before and after.
+
+Round 48's finding was answered with a docstring. `tests/guards.py` now says the
+guard holds only the test's own interpreter, and that a child inherits the hidden
+environment and nothing else. The prediction, stated before re-running the round-48
+probe with `GH_TOKEN` and `APP_PRIVATE_KEY` set in the shell, was:
+
+- the child's routable `connect` is attempted and not refused;
+- the child sees neither variable. `APP_PRIVATE_KEY` is new: the widened secret
+  shape now matches it.
+
+Both matched, so the docstring is now true for this tree.
+
+`conftest.py` now ends in a frozen *your fixtures go below this line* rule. Ours
+(`sb_state`, `sb_home`, `said`, `at_a_terminal`) sit at the top of the file, and the
+template's always arrive at the end. That is why they merged cleanly in both rounds
+that touched this file. They stay where they are. Standing divergences: 28 → 28.
+Nothing is open with skeletor.
