@@ -3060,3 +3060,30 @@ Holding the switch costs two lines, not one. The new
 `test_commit_gate_runs_the_hook.py` asserted the module default, so it went red
 the moment the switch was held. It now sets the switch to `True` itself before
 checking the exemption, and was reported upstream. Standing divergences: 28 → 30.
+
+### Round 53 — 2026-10-15: v0.55.0, conftest's fixtures move below the rule
+
+One conflict, forecast. `test_commit_gate_runs_the_hook.py` takes the
+template's version verbatim, because skeletor shipped round 52's both-ways
+line with a comment naming this tree. Standing divergences: 31 → 30; conftest
+stays edited, below its rule.
+
+The new open-region gate went red on `tests/conftest.py`. Every line of ours
+sat above the rule. Round 50 had kept them there because a fixture under the
+block conflicted when v0.51.2 edited it. The block has not changed since then,
+it now calls itself frozen, and a gate now holds the boundary. So the
+template's half is verbatim above the rule and ours is below it. Our
+docstring became a comment, and our `require_or_skip` docstring edit went back
+to theirs. Isolation still runs at import, because nothing above the rule
+imports `skyboss`.
+
+The rehearsal's red baseline came from this tree, not the tool.
+`test_imports.py` matched `tmp` against the absolute path, so in
+`/tmp/skeletor-rehearse-*` it read no file at all. That is the predicate
+`test_naming.py` fixed on 2026-09-07. It is fixed here and in `test_docs.py`,
+and the fix was checked by checking the tree out under a `tmp/` directory.
+That red hid the conftest red from `--rehearse`.
+
+The workspace's reading of the allowlist red held when measured. With the
+new file untracked, `test_every_entry_still_exempts_something` named all six
+entries. Once staged, it passed.
