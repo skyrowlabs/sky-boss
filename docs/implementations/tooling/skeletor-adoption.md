@@ -2994,3 +2994,17 @@ Both matched, so the docstring is now true for this tree.
 template's always arrive at the end. That is why they merged cleanly in both rounds
 that touched this file. They stay where they are. Standing divergences: 28 → 28.
 Nothing is open with skeletor.
+
+### Round 50 — 2026-10-15: v0.51.2, the frozen block moves once
+
+Clean. The only change is the wording of `conftest.py`'s frozen *your fixtures go
+below* block, which now covers imports too. It merged without conflict here
+because our fixtures sit at the top of the file and nothing of ours touches the
+block.
+
+The workspace read that any edit to the end of the block conflicts in every tree
+that follows its instruction. That was checked in a throwaway clone of `develop`,
+with the prediction stated first. One fixture appended directly under the v0.51.1
+block made `--dry-run --ref v0.51.2` report `tests/conftest.py` as a conflict, as
+predicted. The block is frozen only for as long as it never changes. That went
+upstream as a finding. Standing divergences: 28 → 28.
