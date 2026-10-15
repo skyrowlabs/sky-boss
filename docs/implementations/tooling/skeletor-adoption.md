@@ -3008,3 +3008,31 @@ with the prediction stated first. One fixture appended directly under the v0.51.
 block made `--dry-run --ref v0.51.2` report `tests/conftest.py` as a conflict, as
 predicted. The block is frozen only for as long as it never changes. That went
 upstream as a finding. Standing divergences: 28 → 28.
+
+### Round 51 — 2026-10-15: v0.53.0, the template's commit gate arrives beside ours
+
+Two conflicts, both forecast. `cli/check.py` took the template's `clone-local
+config` pre-push step as written. `ci.yml` kept our `Commit subjects the hook
+would have caught` step and ported nothing of the template's renamed one.
+
+v0.53.0's `check_commit_subjects.py` now runs the hook in a `--versioning tag`
+tree, and its docstring says it was derived from `check_commit_style.py`. So the
+question was whether ours was a stopgap that folds back. It was measured on a
+scratch range rather than read. Theirs passed two commits that ours refuses: a
+second subject line in a body, because theirs hands the hook the subject alone,
+and a bot's 73-character subject ending in a period, because theirs skips the
+whole hook for bot authors. The 2026-09-26 ruling kept bots bound. So ours stays
+and is no longer the only gate that can fail. Pre-push runs both; CI runs ours.
+
+`.validate-ignore` is gone. Its two sky.boss entries, the highlighter's
+path-shaped fixtures, are in `scripts/doc_refs_allowlist.yaml` with reasons.
+Deleting them made `check_source_doc_refs.py` fail, so they are still needed.
+
+The new `.env.example` parity test went red on arrival. Its read side scans
+quoted `SB_*` names, and `SB_` is the product's prefix as well as the dev
+shell's. Three were real (`SB_HOME`, `SB_STATE`, `SB_DEBUG`) and are now
+declared. Four were test fixtures passed to `monkeypatch.setenv`, which sets a
+name rather than reading one. Those were renamed to `FX_*` instead of forking
+the test. `clone-local config` is red in this clone until
+`scripts/git/install_merge_drivers.py` sets `commit.template`. A scratch clone
+confirmed that one run fixes it. Standing divergences: 28 → 28.
