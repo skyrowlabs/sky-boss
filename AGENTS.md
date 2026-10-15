@@ -27,7 +27,7 @@ look optional to anybody not using that tool.
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 .venv/bin/pip install -r requirements-dev.txt
 .venv/bin/pip install -r scripts/requirements.txt
-.venv/bin/pre-commit install --install-hooks
+.venv/bin/pre-commit install --install-hooks && .venv/bin/python scripts/git/install_merge_drivers.py
 npm install
 ./dev check pre-push   # every host-runnable CI gate; green on a fresh tree
 ./dev test unit        # the fast suite

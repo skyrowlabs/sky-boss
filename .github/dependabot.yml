@@ -11,8 +11,9 @@
 # updates` — 73 characters against the commit hook's 72, and it only grows with
 # the update count. The hook's scope is optional, so dropping `(deps)` and
 # `(deps-dev)` buys eleven characters without loosening any gate. Renaming a
-# group buys two or three. scripts/check_commit_style.py runs the hook over
-# every commit in a pull request, a bot's included, and that is on purpose.
+# group buys two or three. scripts/check_commit_subjects.py runs the hook over
+# every commit in a pull request, a bot's included (BOTS_EXEMPT_FROM_LENGTH =
+# False), and that is on purpose.
 version: 2
 updates:
   - package-ecosystem: pip

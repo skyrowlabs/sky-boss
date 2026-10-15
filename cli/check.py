@@ -219,24 +219,12 @@ def pre_push(quick: bool) -> None:
         # here one commit deep and there three: same gate, same name, two sets,
         # and the bigger one runs after the push. The script prints the range
         # it chose, because two ranges that print alike is the whole defect.
-        # With no Release Please config the contract is the hook's own type
-        # list, and since skeletor v0.53.0 it runs the hook on each subject.
+        # With no Release Please config the contract is the commit-msg hook.
         ("commit subjects", script("scripts/check_commit_subjects.py")),
         # A clone fact, so CI cannot hold it and `tests/test_pre_push_covers_ci.py`
         # cannot require it: the merge driver and commit template live in
         # .git/config, which every second clone starts without.
         ("clone-local config", script("scripts/git/install_merge_drivers.py", "--check")),
-        # The stricter of the two, and the one CI runs. The line above hands the
-        # hook the subject alone and skips bot authors entirely; this hands it
-        # the whole message and binds every author, which is what catches a
-        # second subject line in a body and a machine's over-length subject —
-        # the 2026-09-26 ruling kept bots bound. See `check_commit_style.py`.
-        #
-        # Local duplication with the hook is deliberate and cheap: the hook
-        # binds whoever ran `pre-commit install`, and this repository's own
-        # checkout had no hooks installed at all when the check was written,
-        # which is how four over-length subjects reached `develop` unremarked.
-        ("commit style", script("scripts/check_commit_style.py")),
     ]
     if not quick:
         junit = TMP_DIR / "junit-unit.xml"

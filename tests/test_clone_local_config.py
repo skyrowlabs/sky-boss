@@ -16,6 +16,7 @@ from pathlib import Path
 
 import pytest
 
+from scripts.docs import regen
 from scripts.git import install_merge_drivers as imd
 
 pytestmark = pytest.mark.unit
@@ -80,3 +81,23 @@ def test_an_unset_commit_template_is_red(clone, monkeypatch, capsys):
     _git(clone, "config", "--local", "--unset", "commit.template")
     assert _check(monkeypatch) == 1
     assert "commit.template" in _said(capsys)
+
+
+def test_an_owed_regeneration_is_red_until_one_runs(clone, monkeypatch, capsys):
+    _install(monkeypatch)
+    imd.MARKER.parent.mkdir(parents=True)
+    imd.MARKER.touch()
+    assert _check(monkeypatch) == 1
+    assert "docs index" in _said(capsys)
+
+
+def test_a_regeneration_that_succeeds_clears_the_marker(clone, monkeypatch):
+    marker = clone / "tmp" / ".regen-owed"
+    marker.parent.mkdir(parents=True)
+    marker.touch()
+    monkeypatch.setattr(regen, "MARKER", marker)
+    monkeypatch.setattr(regen, "PROJECT_ROOT", clone)
+    monkeypatch.setattr(regen, "PIPELINE", [])
+    monkeypatch.setattr(sys, "argv", ["regen.py", "--check"])
+    assert regen.main() == 0
+    assert not marker.exists()

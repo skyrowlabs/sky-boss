@@ -6,7 +6,7 @@
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 .venv/bin/pip install -r requirements-dev.txt
 .venv/bin/pip install -r scripts/requirements.txt
-.venv/bin/pre-commit install --install-hooks
+.venv/bin/pre-commit install --install-hooks && .venv/bin/python scripts/git/install_merge_drivers.py
 npm install
 cp .env.example .env
 ./dev check pre-push   # green on a fresh tree
@@ -41,11 +41,12 @@ Two things it installs are easy to miss, because they live outside version contr
 
 - **Git hooks** (`pre-commit install --install-hooks`, above) — the commit-msg
   format check and the lint gates.
-- **The `regen-docs` merge driver** — its definition lives in `.git/config`, which
-  is not tracked, so a fresh clone has `.gitattributes` pointing at a driver that
-  does not exist. **Every clone after the first installs it by hand:**
-  `python scripts/git/install_merge_drivers.py`. Verify with
-  `dev check merge-drivers`, which checks and never installs.
+- **The clone-local config** (`scripts/git/install_merge_drivers.py`, on the same
+  line) — the `regen-docs` merge driver and `commit.template`. Both live in
+  `.git/config`, which is not tracked, so a clone that skipped that line has
+  `.gitattributes` naming a driver that does not exist and a `check pre-push` that
+  is red until it runs. Verify with `dev check merge-drivers`, which checks and
+  never installs.
 
 ## Configuration
 

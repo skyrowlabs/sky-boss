@@ -6,12 +6,14 @@ for the template's whole life and nothing read either, in any adopter tree.
 Both directions are held now. A name declared here is read somewhere in the
 tracked source; a `<PREFIX>_*` name the source reads is declared here.
 
-The read side is scoped to the prefix on purpose. A product that keeps its
-configuration elsewhere (mind.head reads none from the environment, by rule)
-has nothing to declare, and a product with its own prefix (stash.flow's
-`STASH_*` beside the shell's `SF_*`) is its own business. A declared name is
-"read" if it appears as a word in any tracked source file: the readers go
-through constants (`STATE_ROOT_ENV`), so a call-site regex would miss them.
+The read side is scoped to the shell's prefix, `<PREFIX>` from
+`STATE_ROOT_ENV`. A product sharing that prefix is in scope, and its settings
+are declared like the shell's: stash.flow's prefix is `STASH`, and its six
+product names were real findings. A product under another prefix is not. Tests
+are left out of the read side, because a fixture's `monkeypatch.setenv` names a
+variable it invented (sky.boss). A declared name is "read" if it appears as a
+word in any tracked source file, tests included: the readers go through
+constants (`STATE_ROOT_ENV`), so a call-site regex would miss them.
 """
 
 from __future__ import annotations
@@ -21,7 +23,7 @@ import subprocess
 
 import pytest
 
-from scripts.paths import PROJECT_ROOT, STATE_ROOT_ENV
+from scripts.paths import PROJECT_ROOT, STATE_ROOT_ENV, TESTS_DIR
 from tests.scanning import scanned
 
 pytestmark = pytest.mark.unit
@@ -38,7 +40,7 @@ def declared() -> set[str]:
     return set(_DECLARED.findall(ENV_EXAMPLE.read_text(encoding="utf-8")))
 
 
-def source_text() -> str:
+def source_text(tests: bool = True) -> str:
     names = subprocess.run(
         ["git", "ls-files", "-z"], cwd=str(PROJECT_ROOT), capture_output=True, text=True, check=True
     ).stdout.split("\0")
@@ -46,6 +48,8 @@ def source_text() -> str:
     for name in names:
         path = PROJECT_ROOT / name
         if not name or path.suffix not in SOURCE_SUFFIXES or not path.is_file():
+            continue
+        if not tests and path.is_relative_to(TESTS_DIR):
             continue
         try:
             out.append(path.read_text(encoding="utf-8"))
@@ -73,7 +77,7 @@ def prefixed_names_read(text: str) -> set[str]:
 
 
 def test_every_prefixed_name_the_source_reads_is_declared():
-    text = source_text()
+    text = source_text(tests=False)
     read = scanned(prefixed_names_read(text), f"{PREFIX}_* names in source", least=1)
     undeclared = sorted(read - declared())
     assert not undeclared, f"the source reads {PREFIX}_* names .env.example does not declare: {undeclared}"

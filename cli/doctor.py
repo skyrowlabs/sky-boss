@@ -290,12 +290,14 @@ def backmerge() -> Fact:
         # every non-fast-forward tree, and not a missed back-merge (sky.boss).
         return Fact(name, OK, f"{RELEASE_BRANCH} is {ahead} commit(s) ahead, every one a merge that changed nothing")
     subjects = [c.get("commit", {}).get("message", "").splitlines()[0] for c in compared.get("commits", [])][:3]
+    # stash.flow found this as VERSION 0.2.0 on main and 0.1.0 on develop. That
+    # is their history, so it stays here and out of what every tree prints.
     return Fact(
         name,
         PROBLEM,
         f"{RELEASE_BRANCH} carries {ahead} commit(s) touching {len(files)} file(s) that {BASE_BRANCH} lacks "
         f"({'; '.join(s for s in subjects if s)}) — merge {RELEASE_BRANCH} back, or the next release "
-        "re-proposes the bump (stash.flow: VERSION 0.2.0 on main, 0.1.0 on develop)",
+        "re-proposes the bump",
     )
 
 

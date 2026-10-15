@@ -82,7 +82,13 @@ def main() -> int:
         template = ", commit.template" if MESSAGE_TEMPLATE.exists() else ""
         ok(f"clone-local config present: merge driver(s) {drivers}{template}")
         if MARKER.exists():
-            warn("a regeneration is owed from a previous merge — run `dev docs index`")
+            # Asked rather than assumed: the merge that left the marker may have
+            # changed nothing a generator reads, and `regen.py` clears it when so.
+            regen = PROJECT_ROOT / "scripts" / "docs" / "regen.py"
+            if regen.exists():
+                subprocess.run([sys.executable, str(regen), "--check"], cwd=str(PROJECT_ROOT), capture_output=True)
+        if MARKER.exists():
+            warn("a regeneration is owed from a previous merge — run `dev docs index`, which clears it")
             return 1
         return 0
 

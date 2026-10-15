@@ -43,7 +43,7 @@
 # **Both jobs need `fetch-depth: 0`, and each names its own caller.** This
 # paragraph has been wrong in both directions within one day, so the rule it
 # ended on is: a depth is justified by the line that reads history, never by a
-# paragraph. `gate` reads a commit range (`check_commit_style.py`); `unit-tests` asks
+# paragraph. `gate` reads a commit range (`check_commit_subjects.py`); `unit-tests` asks
 # `git log --all` whether a symbol a doc names was ever ours, and refuses
 # outright against a shallow clone rather than passing having looked at nothing.
 #
@@ -178,14 +178,11 @@ jobs:
       # binds whoever ran `pre-commit install`; this binds everyone else, which
       # is the whole reason it is here rather than only in `check pre-push`.
       #
-      # NOT `check_commit_subjects.py`, which skeletor's step runs here. Until
-      # v0.53.0 it exited 0 on every commit in a `--versioning tag` tree; it now
-      # runs the hook too — on the subject alone, and skipping bot authors
-      # entirely. This step hands the hook the whole message (a second subject
-      # in the body) and binds bots (the 2026-09-26 ruling: dependabot's prefix
-      # was shortened rather than bots exempted). Measured stricter on both;
-      # running both would be one gate twice. [[skeletor-adoption]] round 51.
-      - name: Commit subjects the hook would have caught
+      # skeletor's step, taken back in [[skeletor-adoption]] round 52: from
+      # v0.54.0 the script hands the hook the whole message and runs it for bot
+      # authors too. `BOTS_EXEMPT_FROM_LENGTH = False` in the script is held
+      # here, because the 2026-09-26 ruling bound bots to the 72-column cap.
+      - name: Commit subjects the contract in force can read
         env:
           BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
           FORCED: ${{ github.event.forced }}
@@ -198,9 +195,9 @@ jobs:
           if [ "$FORCED" = "true" ] || [ -z "$BASE" ] \
              || [ "$BASE" = "0000000000000000000000000000000000000000" ]; then
             echo "no usable base for this event — checking HEAD alone"
-            python scripts/check_commit_style.py --range -1
+            python scripts/check_commit_subjects.py --range -1
           else
-            python scripts/check_commit_style.py --range "$BASE..${{ github.sha }}"
+            python scripts/check_commit_subjects.py --range "$BASE..${{ github.sha }}"
           fi
 
   unit-tests:

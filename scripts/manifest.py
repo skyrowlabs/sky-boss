@@ -19,6 +19,9 @@ from pathlib import Path
 
 from scripts.paths import PROJECT_ROOT, SCAFFOLD_MANIFEST
 
+#: A name, not a parenthesised tuple: at a 3.14 target black rewrites `except (A, B):`.
+_UNREADABLE = (OSError, ValueError)
+
 
 def scaffolded_paths(path: Path = SCAFFOLD_MANIFEST) -> frozenset[str] | None:
     """Every repo-relative path the manifest at `path` names, or `None` without a readable one."""
@@ -26,7 +29,7 @@ def scaffolded_paths(path: Path = SCAFFOLD_MANIFEST) -> frozenset[str] | None:
         return None
     try:
         files = json.loads(path.read_text(encoding="utf-8")).get("files", {})
-    except (OSError, ValueError):
+    except _UNREADABLE:
         return None
     return frozenset(files)
 

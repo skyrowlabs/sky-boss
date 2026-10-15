@@ -101,8 +101,8 @@ def test_the_hook_accepts_every_type_this_tree_enforces(tmp_path):
         enforced = sorted(configured_types())
         why = "configured commit types"
     else:
-        # A `--versioning tag` tree. CI has no contract to enforce, so the
-        # hook's own fallback is the whole vocabulary — and these three are the
+        # A `--versioning tag` tree. CI enforces the hook's own fallback, so
+        # that is the whole vocabulary — and these three are the
         # types any conventional-commit tree must accept whatever it configures.
         enforced = ["feat", "fix", "docs"]
         why = "commit types a tree with no release config must still accept"

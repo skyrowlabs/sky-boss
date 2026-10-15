@@ -36,6 +36,13 @@ Merge commits are excluded **structurally**, by parent count, not by matching
 "Merge pull request" — a subject-shaped exemption is one somebody's branch name
 can defeat, and it would silently exempt real commits.
 
+## Without Release Please
+
+A tree versioned by tag has no config to read, and there the contract is the
+commit-msg hook itself: every non-merge commit in the range is put through it,
+whole message and all, as it would have run at commit time. Machines are held
+to everything but its 72-column cap (`BOTS_EXEMPT_FROM_LENGTH`).
+
 Usage:  python scripts/check_commit_subjects.py [--range A..B] [--json]
 """
 
@@ -128,18 +135,36 @@ def subjects(commit_range: str):
     return [tuple(line.split("\x1f", 1)) for line in result.stdout.splitlines() if "\x1f" in line]
 
 
-def hook_verdict(subject: str) -> str | None:
-    """What the commit-msg hook says about `subject`: `None` when it passes, else its first line.
+#: Whether a machine's commit skips the hook's 72-column cap, and only that. A
+#: bump's subject grows with the package name, so binding bots to it reddens
+#: every such pull request on a length nobody chose. Set it False to hold
+#: machines to the cap as well (sky.boss does, by ruling).
+BOTS_EXEMPT_FROM_LENGTH = False
+
+
+def message(sha: str) -> str:
+    """The whole commit message, which is what the hook reads at commit time."""
+    return subprocess.run(
+        ["git", "log", "-1", "--format=%B", sha], cwd=str(PROJECT_ROOT), capture_output=True, text=True
+    ).stdout
+
+
+def hook_verdict(text: str, exempt_length: bool = False) -> str | None:
+    """What the commit-msg hook says about a message: `None` when it passes, else its first line.
 
     Under tag versioning the hook IS the contract, so the gate runs it rather
-    than re-deriving its rules — the type list, the 72-column cap, the
-    capital, the period. sky.boss's `check_commit_style.py` is this design.
+    than re-deriving its rules — the type list, one subject line, the 72-column
+    cap, the capital, the period. It is handed the full message: given only the
+    subject, its one-subject-line rule could never fire (sky.boss).
     """
     handle = tempfile.NamedTemporaryFile("w", suffix=".msg", delete=False, encoding="utf-8")
+    env = {**os.environ, "COMMIT_CHECK_EXEMPT_LENGTH": "1"} if exempt_length else None
     try:
-        handle.write(subject + "\n")
+        handle.write(text if text.endswith("\n") else text + "\n")
         handle.close()
-        result = subprocess.run(["bash", str(HOOK), handle.name], cwd=str(PROJECT_ROOT), capture_output=True, text=True)
+        result = subprocess.run(
+            ["bash", str(HOOK), handle.name], cwd=str(PROJECT_ROOT), capture_output=True, text=True, env=env
+        )
     finally:
         os.unlink(handle.name)
     if result.returncode == 0:
@@ -149,7 +174,7 @@ def hook_verdict(subject: str) -> str | None:
 
 
 def bot_authored(sha: str) -> bool:
-    """A machine's commit. The hook's own comment says to skip bots where the cap applies."""
+    """A machine's commit, which `BOTS_EXEMPT_FROM_LENGTH` may excuse from the cap."""
     author = subprocess.run(
         ["git", "log", "-1", "--format=%an %ae", sha], cwd=str(PROJECT_ROOT), capture_output=True, text=True
     ).stdout.strip()
@@ -161,7 +186,9 @@ def unreadable(inspected: list, types: set) -> list:
 
     With a Release Please config the contract is its section list: a subject it
     cannot parse is skipped, not rejected. Without one the contract is the hook,
-    run as it would have run at commit time for everything a person authored.
+    run as it would have run at commit time. A bot is exempt from the length
+    cap alone: skipping the whole hook for it let a second subject line and a
+    trailing period through, which the hook's own comment never asked for.
     """
     findings = []
     hook_applies = not RELEASE_CONFIG.exists() and HOOK.exists()
@@ -173,8 +200,8 @@ def unreadable(inspected: list, types: set) -> list:
         if match.group("type") not in types:
             findings.append((sha, subject, f"type `{match.group('type')}` has no section in the config"))
             continue
-        if hook_applies and not bot_authored(sha):
-            why = hook_verdict(subject)
+        if hook_applies:
+            why = hook_verdict(message(sha) or subject, BOTS_EXEMPT_FROM_LENGTH and bot_authored(sha))
             if why:
                 findings.append((sha, subject, why))
     return findings
@@ -314,22 +341,11 @@ def main() -> int:
         )
 
     if not types:
-        # **Two states, and they were reported as one.** An empty `types` means
-        # either that there is no Release Please config — correct and expected
-        # under `--versioning tag`, where the annotated git tag is the version
-        # and nothing parses these subjects — or that there is one and it gives
-        # no type a changelog section, which is a real finding about the config.
-        #
-        # Reported as a warning in both, so a tag tree warned on every run about
-        # a file that must not exist, and said "that is a finding about the
-        # config" 150 lines below the `RELEASE_CONFIG` comment stating the
-        # absence is deliberate. Self-contradictory inside one file, and it
-        # trains a reader to skip this script's warnings, which is the cost.
-        #
-        # This is the `absent` versus `empty` split `frontmatter.py` documents
-        # and `check_skip_budget.py` documents: *"I could not read this" and
-        # "this key is empty" are different answers, and only one of them can be
-        # noticed.* node-zero's finding, from a `--versioning tag` tree.
+        # Two states with two answers. No config and no readable hook list is
+        # a broken tree, since the hook IS the contract there. A config giving
+        # no type a section is a finding about the config, said without failing.
+        # *"I could not read this" and "this key is empty" are different
+        # answers* — the split `frontmatter.py` and `check_skip_budget.py` make.
         if not RELEASE_CONFIG.exists():
             fail(f"no {RELEASE_CONFIG.name}, and the commit hook's FALLBACK_TYPES could not be read")
             detail(f"The contract under tag versioning is {HOOK.relative_to(PROJECT_ROOT)}'s own type list.")
@@ -367,7 +383,10 @@ def main() -> int:
     if not inspected:
         ok(f"no non-merge commits in {described(commit_range, chosen)} — nothing to check")
         return 0
-    ok(f"{len(inspected)} subject(s) in {described(commit_range, chosen)} are readable by Release Please")
+    if RELEASE_CONFIG.exists():
+        ok(f"{len(inspected)} subject(s) in {described(commit_range, chosen)} are readable by Release Please")
+    else:
+        ok(f"{len(inspected)} commit(s) in {described(commit_range, chosen)} pass the commit-msg hook")
     return 0
 
 
