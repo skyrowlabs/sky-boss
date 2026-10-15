@@ -64,7 +64,7 @@ def _references() -> dict[str, set[str]]:
     for path in PROJECT_ROOT.rglob("*"):
         if path.suffix not in SEARCHED or not path.is_file():
             continue
-        if SKIPPED & set(path.parts):
+        if SKIPPED & set(path.relative_to(PROJECT_ROOT).parts):  # inside the checkout only
             continue
         try:
             text = path.read_text()

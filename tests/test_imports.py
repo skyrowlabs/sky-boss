@@ -125,7 +125,11 @@ SUPPRESSED = {
 
 
 def _python_files() -> list[Path]:
-    return sorted(p for p in PROJECT_ROOT.rglob("*.py") if p.is_file() and not SKIPPED_DIRS & set(p.parts))
+    return sorted(
+        p
+        for p in PROJECT_ROOT.rglob("*.py")
+        if p.is_file() and not SKIPPED_DIRS & set(p.relative_to(PROJECT_ROOT).parts)
+    )
 
 
 def _label(path: Path) -> str:
