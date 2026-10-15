@@ -13,6 +13,12 @@
 docs/TODO/x.md: the checker's own docstring example
 docs/a.md: a fixture name tests/test_doc_links_fix.py and tests/test_publication.py create in a temporary tree
 docs/b.md: a fixture name tests/test_doc_links_fix.py and tests/test_publication.py create in a temporary tree
+docs/archive/README.md: a fixture tests/test_doc_routing_predicate.py creates in a temporary tree
+docs/archive/spec/deep/two.md: a fixture tests/test_doc_routing_predicate.py creates in a temporary tree
+docs/archive/spec/one.md: a fixture tests/test_doc_routing_predicate.py creates in a temporary tree
+docs/parked/idea.md: a fixture tests/test_doc_routing_predicate.py creates in a temporary tree
+docs/reports/releases/v1.2/audit.md: a fixture tests/test_doc_routing_predicate.py creates in a temporary tree
+docs/reports/stray.md: a fixture tests/test_doc_routing_predicate.py creates in a temporary tree
 
 # ── Your entries go below this line ──────────────────────────────────────────
 #

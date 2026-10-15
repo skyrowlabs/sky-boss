@@ -238,8 +238,8 @@ def default_range() -> str:
 
     **One git argument, always — that is the released contract.** v0.33.0 returned
     `"HEAD --not --remotes"`, three arguments in a string that only this module's
-    caller split, and sky.boss's own `check_commit_style.py` imports this function
-    and broke at run time: a shared helper's return shape is released API exactly
+    caller split, and sky.boss's own `check_commit_style.py`, which imported this
+    function then, broke at run time: a shared helper's return shape is released API exactly
     as its name is (`tests/repo_files.py` records the `tracked` → `present` rename
     that taught that). So the first-push set is expressed as one range: the
     boundary git reports between what no remote has and what one does, as

@@ -1,8 +1,8 @@
 """`default_range()` returns ONE git argument, naming exactly what a push would send.
 
-`scripts/check_commit_subjects.py::default_range` is imported by adopters' own
-scripts — sky.boss's `check_commit_style.py` does — so its return shape is
-released API, as much as its name is. v0.33.0 returned `"HEAD --not --remotes"`,
+`scripts/check_commit_subjects.py::default_range` can be imported by adopters'
+own scripts — sky.boss's `check_commit_style.py` did, until it retired — so its
+return shape is released API, as much as its name is. v0.33.0 returned `"HEAD --not --remotes"`,
 three arguments in one string that only the template's own caller split, and
 sky.boss's importer broke at run time. Nothing in the template could see it,
 because every caller the template can see was updated in the same commit.

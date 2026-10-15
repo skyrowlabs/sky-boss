@@ -47,7 +47,17 @@ pytestmark = [pytest.mark.unit]
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts.paths import DOCS_DIR, NARRATIVE, PRESENT_TENSE, PROJECT_ROOT  # noqa: E402
-from scripts.seams import CLOSER, INVITATION, RECORD, TERMINATOR, bounds, load, unrecognised  # noqa: E402
+from scripts.seams import (  # noqa: E402
+    CLOSER,
+    INVITATION,
+    RECORD,
+    TERMINATOR,
+    bounds,
+    load,
+    load_open,
+    unrecognised,
+    unrecognised_above,
+)
 from tests.repo_files import present  # noqa: E402
 from tests.scanning import scanned  # noqa: E402
 
@@ -474,6 +484,33 @@ def _shipped_namespace(path: Path) -> dict:
     namespace: dict = {"__file__": str(path)}
     exec("".join(lines[:rule]), namespace)  # noqa: S102 - this tree's own source
     return namespace
+
+
+def test_your_lines_in_an_open_region_are_below_its_rule() -> None:
+    """A region that runs to end of file is yours below its rule; above it, every line is skeletor's.
+
+    It has no closing rule, so the seam checks above never found it, and mind.head
+    moved an allowlist entry above the rule with the suite green. The record says
+    which lines above it the scaffolder wrote; this names any other.
+    """
+    recorded = load_open()
+    assert recorded is not None, (
+        f"{RECORD.relative_to(PROJECT_ROOT)} has no record of the open regions. It is written at scaffold "
+        f"time and delivered by an upgrade; the upgrade that ships this test ships it too."
+    )
+    unknown = []
+    for rel in scanned(sorted(recorded), "open regions in the record", least=1):
+        path = PROJECT_ROOT / rel
+        if not path.exists():
+            continue  # a file you removed puts nothing of yours on the template's side
+        lines = path.read_text(encoding="utf-8").splitlines()
+        unknown += [f"{rel}:{n}: {lines[n - 1].strip()[:80]}" for n in unrecognised_above(recorded[rel], lines)]
+    assert not unknown, (
+        "these lines sit ABOVE an open region's rule, on the template's side, and skeletor did not write them:\n  "
+        + "\n  ".join(unknown)
+        + "\n\nMove yours below the rule: the next release adds its own lines above it, and a line of yours "
+        "there conflicts with them. A template line edited in place is the same collision; put it back."
+    )
 
 
 def test_the_seam_examples_actually_do_something() -> None:

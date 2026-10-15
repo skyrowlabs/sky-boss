@@ -54,7 +54,8 @@ def test_a_second_subject_line_in_the_body_is_refused(repo):
 def test_a_bot_is_exempt_from_the_length_cap_only(repo, monkeypatch):
     long = "build(deps): bump " + "a" * 60
     assert len(long) > 72
-    monkeypatch.setattr(gate, "BOTS_EXEMPT_FROM_LENGTH", True)  # sky.boss holds False
+    # Set both ways here, so a tree holding the switch at False takes this test unchanged (sky.boss).
+    monkeypatch.setattr(gate, "BOTS_EXEMPT_FROM_LENGTH", True)
     assert not found(repo, long, BOT)
     assert found(repo, long + " then.", BOT), "a bot's trailing period passed: the whole hook was skipped"
     assert found(repo, long, PERSON)
