@@ -14,3 +14,5 @@ check pre-push: runs the unit suite, which is what is running this
 check lint: shells out to the whole toolchain; a missing optional linter would fail this for reasons that have nothing to do with the CLI
 check merge-drivers: asserts a property of the checkout (a driver in .git/config), not of the command
 docs index: regenerates four files — a test must not mutate the tree it runs in
+doctor: asks GitHub about the real account — a test must not depend on, or reach, the account it runs under
+inbox: asks GitHub for the real issue queue — a test must not depend on, or reach, the account it runs under

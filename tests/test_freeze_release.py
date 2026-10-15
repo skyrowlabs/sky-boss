@@ -68,3 +68,10 @@ def test_a_window_cannot_be_frozen_twice(tree, monkeypatch):
     monkeypatch.setattr(fr.release_window, "ANCHORED_REPORTS", ())
     assert fr.main() == 0
     assert fr.main() == 1
+
+
+def test_a_dry_run_over_a_frozen_window_refuses_as_the_real_run_does(tree, monkeypatch):
+    monkeypatch.setattr(fr.release_window, "ANCHORED_REPORTS", ())
+    assert fr.main() == 0
+    monkeypatch.setattr(sys, "argv", ["freeze_release.py", "--tag", "v1.0.0", "--dry-run"])
+    assert fr.main() == 1

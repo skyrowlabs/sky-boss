@@ -16,6 +16,8 @@ and the second person to need it writes it again.
 | `dev docs`   | Index regeneration, plan filing, report windows      |
 | `dev bug`    | Capture an out-of-scope defect without widening scope |
 | `dev task`   | Capture small work that is not a defect              |
+| `dev doctor` | Account facts no file can state (release PRs, required checks) |
+| `dev inbox`  | Every open capture per lane, and every job at its cap |
 
 Run `./dev <group> --help` for the current commands — the help is generated
 from the code, so it cannot go stale the way this table can.

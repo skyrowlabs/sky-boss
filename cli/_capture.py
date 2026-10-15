@@ -94,18 +94,29 @@ def standing(source: str) -> Optional[List[str]]:
     """
     found: Dict[int, str] = {}
     for lane in LANES:
-        args = ["gh", "issue", "list", "--label", lane.label, "--state", "open"]
-        args += ["--limit", "200", "--json", "number,title,body"]
-        try:
-            result = subprocess.run(args, cwd=str(PROJECT_ROOT), capture_output=True, text=True)
-        except FileNotFoundError:
+        issues = open_captures(lane)
+        if issues is None:
             return None
-        if result.returncode != 0:
-            return None
-        for issue in json.loads(result.stdout or "[]"):
+        for issue in issues:
             if source_line(source) in issue["body"]:
                 found[issue["number"]] = issue["title"]
     return list(found.values())
+
+
+def open_captures(lane: Lane) -> Optional[List[dict]]:
+    """A lane's open issues, oldest first; `None` if `gh` could not list them.
+
+    The one place a lane is read back, shared by the cap and by `dev queue`.
+    """
+    args = ["gh", "issue", "list", "--label", lane.label, "--state", "open"]
+    args += ["--limit", "200", "--json", "number,title,body,createdAt"]
+    try:
+        result = subprocess.run(args, cwd=str(PROJECT_ROOT), capture_output=True, text=True)
+    except FileNotFoundError:
+        return None
+    if result.returncode != 0:
+        return None
+    return sorted(json.loads(result.stdout or "[]"), key=lambda issue: issue.get("createdAt", ""))
 
 
 def refusal(source: Optional[str], summary: str, count: Callable[[], Optional[List[str]]]) -> str:

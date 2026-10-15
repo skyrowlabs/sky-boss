@@ -117,7 +117,9 @@ def main() -> int:
     closing = release_window.window(args.tag)
     destination = RELEASES_DIR / args.tag
 
-    if destination.exists() and not args.dry_run:
+    # A dry run refuses too: a preview that says "would freeze" over a frozen tag
+    # is a different answer from the run it previews (proto.pilot, v0.2.0).
+    if destination.exists():
         fail(f"{destination.relative_to(PROJECT_ROOT)} already exists — this release is already frozen.")
         detail("Frozen editions are never rewritten. A correction goes in an ## Errata block")
         detail("on the current in-flight edition, naming the release it corrects.")

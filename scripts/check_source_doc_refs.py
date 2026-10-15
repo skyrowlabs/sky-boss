@@ -64,7 +64,7 @@ def _sources() -> List[Path]:
             continue
         # Match against the path RELATIVE to the project root. Matching the
         # absolute path lets an ancestor directory decide: a checkout under
-        # `/tmp`, or in a `build/` or `dist/` directory, hits `tmp`/`build`/`dist` on a
+        # `/tmp`, or a `build/` or `dist/` directory, hits `tmp`/`build`/`dist` on a
         # component nobody chose, skips every file in the repository, and
         # reports "0 references, all resolve" — a green that means unchecked.
         rel = path.relative_to(PROJECT_ROOT)

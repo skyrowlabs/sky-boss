@@ -53,11 +53,12 @@ PLACEHOLDERS = {"you", "user", "me", "x", "src", "some", "somewhere", "logs"}
 #   `logs`       — the arbitrary target in the tests that assert `~` expansion at all.
 
 HOME_DIR = re.compile(r"/(?:home|Users)/([A-Za-z][\w.-]*)")
-IPV4 = re.compile(r"(?<![\w.])(\d{1,3}(?:\.\d{1,3}){3})(?![\w.])")
+# Not after `=`, `@` or `-`, which is how a four-part version pin is spelled (skeletor's, v0.49.0).
+IPV4 = re.compile(r"(?<![\w.=@-])(\d{1,3}(?:\.\d{1,3}){3})(?![\w.])")
 
 # The third shape, and an adoption found it rather than an audit. `HOME_DIR`
 # matches a literal `/home/<someone>`; a path *composed* onto the home directory
-# contains no such literal, so `~/workspace/thing` and `Path.home() / "workspace"`
+# contains no such literal, so `~/<workspace>/thing` and `Path.home() / "<workspace>"`
 # both name the operator's machine layout and both walked straight past it.
 # skeletor's `scripts/paths.py` carried `Path.home() / "<workspace>" / "..."`
 # into this tree on 2026-09-05 and all five tests here stayed green.
@@ -136,14 +137,11 @@ def test_no_home_directory_in_a_tracked_file():
     where two panes disagreed about a path — the evidence was *that they
     disagreed*, and never which path it was.
 
-    This docstring named it, in its first draft, while explaining why not to.
-    The exemption below is what let that through: a file that scans every
-    tracked file has to skip itself, or its own patterns are its own first
-    failure — so **nothing checks this file but a reader.**"""
+    This docstring named it, in its first draft, while explaining why not to,
+    because the file skipped itself. It scans itself now, as skeletor's v0.49.0
+    port of it does: its examples are placeholders or built by concatenation."""
     found = []
     for name, text in _tracked():
-        if name == "tests/test_publication.py":
-            continue  # this file names the shapes on purpose
         for match in HOME_DIR.finditer(text):
             if match.group(1) not in PLACEHOLDERS:
                 line = text[: match.start()].count("\n") + 1
@@ -157,7 +155,7 @@ def test_no_routable_address_in_a_tracked_file():
     which is why this reads every tracked file rather than the docs."""
     found = []
     for name, text in _tracked():
-        if name in IP_EXEMPT or name == "tests/test_publication.py":
+        if name in IP_EXEMPT:
             continue
         for match in IPV4.finditer(text):
             address = match.group(1)
@@ -195,7 +193,7 @@ def test_no_home_anchored_path_in_a_tracked_file():
     """A path under the home directory says how the operator arranges their disk,
     which is the same disclosure as naming their machine — and it is the one
     `test_no_home_directory_in_a_tracked_file` above cannot see, because there is
-    no `/home/<someone>` in `~/workspace` or in `Path.home() / "workspace"`.
+    no `/home/<someone>` in `~/<workspace>` or in `Path.home() / "<workspace>"`.
 
     Found by taking a file from another repo rather than by auditing this one:
     the copied `scripts/paths.py` defaulted a state root to the operator's
@@ -210,8 +208,6 @@ def test_no_home_anchored_path_in_a_tracked_file():
     this shape seeing the next real one."""
     found = []
     for name, text in _tracked():
-        if name == "tests/test_publication.py":
-            continue
         for pattern in (TILDE_PATH, HOME_JOIN):
             for match in pattern.finditer(text):
                 if match.group(1) in PLACEHOLDERS:
@@ -219,3 +215,12 @@ def test_no_home_anchored_path_in_a_tracked_file():
                 line = text[: match.start()].count("\n") + 1
                 found.append(f"{name}:{line}: {match.group(0)}")
     assert not found, "a home-anchored path in a tracked file:\n  " + "\n  ".join(found)
+
+
+def test_the_shapes_catch_what_they_claim():
+    """A positive control, from skeletor's port: every green above is a null until this passes."""
+    assert HOME_DIR.search("/home/" + "someone/x") and TILDE_PATH.search("~/" + "work/x")
+    assert HOME_JOIN.search('Path.home() / "' + 'work"')
+    assert not TILDE_PATH.search("~/" + ".config/x"), "a tool's own dotfile is not a leak"
+    assert IPV4.search("ssh 10.0.0." + "5") and not ("10.0.0." + "5").startswith(SAFE_IPV4)
+    assert not IPV4.search("tool==1.7.12." + "24")

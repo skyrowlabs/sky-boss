@@ -143,3 +143,35 @@ def repo_root():
     from scripts.paths import PROJECT_ROOT
 
     return PROJECT_ROOT
+
+
+@pytest.fixture(autouse=True)
+def _never_the_users_state(tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Point the state root at a fresh directory for every test.
+
+    Unset, it falls back to the user's real state under the home directory, so a
+    test that forgot it would write there. A test that sets its own still wins,
+    because autouse fixtures run first. stash.flow's incident: `stash-flow@c5544b3`.
+    """
+    from scripts.paths import STATE_ROOT_ENV
+
+    monkeypatch.setenv(STATE_ROOT_ENV, str(tmp_path_factory.mktemp("state-root")))
+
+
+@pytest.fixture(autouse=True)
+def _never_the_users_browser(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Fail a test that would open the user's real browser.
+
+    A test that means to open one replaces it with a recorder, which wins
+    because it is patched later. stash.flow's incident: `stash-flow@a2fe3b7`.
+    """
+    import webbrowser
+
+    def refuse(name: str):
+        def refused(*args, **kwargs):
+            raise AssertionError(f"a test reached the real webbrowser.{name}{args!r}; replace it with a recorder")
+
+        return refused
+
+    for name in ("open", "open_new", "open_new_tab"):
+        monkeypatch.setattr(webbrowser, name, refuse(name))

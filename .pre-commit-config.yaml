@@ -67,6 +67,16 @@ repos:
       - id: check-added-large-files
         args: ['--maxkb=512']
 
+  # ── Workflows ───────────────────────────────────────────────────────────
+  # Checks your edits to `.github/workflows/` as GitHub Actions: expressions,
+  # `needs:` naming a job that exists, runner labels, and `run:` blocks where
+  # shellcheck is installed. It does not check that an action reference resolves.
+  # Its exemptions live in `.github/actionlint.yaml`, which it reads itself.
+  - repo: https://github.com/Mateusz-Grzelinski/actionlint-py
+    rev: v1.7.12.24
+    hooks:
+      - id: actionlint
+
   # ── Python ──────────────────────────────────────────────────────────────
   # Delete this block for a project with no Python.
   - repo: https://github.com/PyCQA/flake8

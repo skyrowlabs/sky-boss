@@ -2888,3 +2888,30 @@ capture still records `session`.
 `freeze-release` was run against a throwaway tag in a scratch clone. With zero
 reports it writes `WINDOW.md` and an index entry. A second freeze of the same
 tag is refused, and `dev check docs` stays green.
+
+### Round 45 — 2026-10-14: v0.49.0, `doctor`, `inbox`, and our own publication test returns
+
+One conflict and one collision. `scripts/check_source_doc_refs.py` had a comment
+edited to dodge our home-anchored-path shape (a tilde before `build/`). The template made the same fix, so it
+folded back and is now byte-identical to the template.
+
+The template now ships its own `tests/test_publication.py`, ported from ours. **Ours is
+held.** The template's version exempts by `<path> <match>` in an allowlist, and this
+tree would need 51 entries: 28 invented `10.0.0.x` addresses in two frozen renders,
+13 `~/src` stand-ins, and the rest placeholders. Ours does that with an eight-word
+placeholder vocabulary and a two-file exemption. Two of their changes were ported into
+ours: a positive control, and self-scanning instead of skipping itself. Their
+version-pin guard on IPv4 came across as well. `tests/publication_allowlist.yaml`
+has no reader here, so it is deleted.
+
+`.github/actionlint.yaml` is deleted too. Both of its ignores are for the
+template's release job, which round 7 declined. actionlint passes without it, and a
+broken `needs:` proved the hook reads `ci.yml`. `tests/test_doctor.py` asserted that
+`ci.yml` reads the release secrets. It now uses the same `RELEASE_CONFIG` guard as
+its sibling test and as `doctor` itself. `dev doctor` and `dev inbox` were run
+read-only and both came back green.
+
+`tests/test_naming.py` and `scripts/prose.py` were not offered. `skeletor-new`
+leaves both out when `--cli` is an ordinary word, and `dev` is one. Our
+`tests/test_naming.py` checks `sb`, not `dev`, so nothing is lost. Standing
+divergences: 28 → 29.
