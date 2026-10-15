@@ -74,14 +74,17 @@ def compose(lane: Lane, summary: str, values: dict, source: str = SESSION) -> st
     return "\n".join(parts)
 
 
-def capture_source() -> str:
-    """Who is filing: the job the runner names in the environment, or a person.
+def capture_source() -> Optional[str]:
+    """The job the runner names in the environment, or `None` for a person.
+
+    Any value set is a job key to be checked, `session` included (mind.head), so
+    nothing set in the environment can file uncapped.
 
     Set by the job runner an agentic tree ships, never typed. A flag the agent had
     to remember was a cap it could skip by forgetting (stash.flow, node-zero,
     mind.head), and a key it typed could be mistyped into a fresh cap (proto.pilot).
     """
-    return os.environ.get(SOURCE_ENV, "").strip() or SESSION
+    return os.environ.get(SOURCE_ENV, "").strip() or None
 
 
 def standing(source: str) -> Optional[List[str]]:
@@ -105,13 +108,17 @@ def standing(source: str) -> Optional[List[str]]:
     return list(found.values())
 
 
-def refusal(source: str, summary: str, open_titles: Optional[List[str]]) -> str:
-    """Why a capture must not be filed, or `""`. A person is never capped."""
-    if source == SESSION:
+def refusal(source: Optional[str], summary: str, count: Callable[[], Optional[List[str]]]) -> str:
+    """Why a capture must not be filed, or `""`. A person is never capped.
+
+    `count` is asked last, so a refusal decidable here makes no `gh` call (node-zero).
+    """
+    if source is None:
         return ""
     registry = job_registry()
     if registry is None or source not in registry.JOBS_BY_KEY:
         return f"{source!r} is not a registered job"
+    open_titles = count()
     if open_titles is None:
         return f"could not list {source}'s open captures, so its cap cannot be checked"
     if summary in open_titles:
@@ -153,12 +160,12 @@ def _file_issue(lane: Lane, summary: str, body: str) -> subprocess.CompletedProc
 def run_capture(lane: Lane, summary: str, values: dict, local: bool) -> None:
     """File one capture, or leave it on disk saying so."""
     source = capture_source()
-    body = compose(lane, summary, values, source)
+    body = compose(lane, summary, values, source or SESSION)
 
     if not local:
         # Checked here, not asked of the filer: an unattended job is told to count
         # its own open captures, and a rule it must remember is one it can forget.
-        refused = refusal(source, summary, None if source == SESSION else standing(source))
+        refused = refusal(source, summary, lambda: standing(source or SESSION))
         if refused:
             warn(f"not filed — {refused}")
             detail("Leave the finding in your report; it is not lost, only not queued.")
@@ -183,7 +190,7 @@ def run_capture(lane: Lane, summary: str, values: dict, local: bool) -> None:
 
     lane_queue = QUEUE / lane.key
     lane_queue.mkdir(parents=True, exist_ok=True)
-    fields = {"summary": summary, "label": lane.label, "source": source, **values}
+    fields = {"summary": summary, "label": lane.label, "source": source or SESSION, **values}
     record = json.dumps(fields, indent=2)
     # Exclusive create: five captures in one second wrote one file (node-zero).
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")

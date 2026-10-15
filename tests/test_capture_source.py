@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -34,10 +35,19 @@ def nightly(monkeypatch):
     monkeypatch.setattr(capture, "job_registry", lambda: registry)
 
 
+def never(*args):
+    raise AssertionError("asked gh for a count the refusal did not need")
+
+
 def test_unset_is_a_person_and_a_person_is_never_refused(monkeypatch):
     monkeypatch.delenv(SOURCE_ENV, raising=False)
-    assert capture.capture_source() == SESSION
-    assert capture.refusal(SESSION, "anything", None) == ""
+    assert capture.capture_source() is None
+    assert capture.refusal(None, "anything", never) == ""
+
+
+def test_session_in_the_environment_is_a_job_key_like_any_other(monkeypatch, nightly):
+    monkeypatch.setenv(SOURCE_ENV, SESSION)
+    assert "not a registered job" in capture.refusal(capture.capture_source(), "t", never)
 
 
 def test_the_runner_names_the_job(monkeypatch):
@@ -46,21 +56,21 @@ def test_the_runner_names_the_job(monkeypatch):
 
 
 def test_a_source_that_is_not_a_job_is_refused(nightly):
-    assert "not a registered job" in capture.refusal("nightlly", "t", [])
+    assert "not a registered job" in capture.refusal("nightlly", "t", never)
 
 
 def test_a_job_that_cannot_count_files_nothing(nightly):
-    assert "cannot be checked" in capture.refusal("nightly", "t", None)
+    assert "cannot be checked" in capture.refusal("nightly", "t", lambda: None)
 
 
 def test_a_job_is_refused_a_title_it_already_has_open(nightly):
-    assert "already has this open" in capture.refusal("nightly", "t", ["t"])
+    assert "already has this open" in capture.refusal("nightly", "t", lambda: ["t"])
 
 
 def test_a_job_at_its_cap_is_refused_and_one_below_is_not(nightly):
     below = [f"t{i}" for i in range(SOURCE_CAP - 1)]
-    assert capture.refusal("nightly", "new", below) == ""
-    assert "at its cap" in capture.refusal("nightly", "new", below + ["one more"])
+    assert capture.refusal("nightly", "new", lambda: below) == ""
+    assert "at its cap" in capture.refusal("nightly", "new", lambda: below + ["one more"])
 
 
 def test_the_body_names_its_source():
@@ -99,7 +109,7 @@ def test_a_refused_capture_is_never_filed(monkeypatch, nightly):
 
 
 def test_local_captures_keep_their_source_and_never_collide(monkeypatch, tmp_path):
-    frozen = capture.datetime(2026, 1, 1, tzinfo=capture.timezone.utc)
+    frozen = datetime(2026, 1, 1, tzinfo=timezone.utc)
     monkeypatch.setattr(capture, "datetime", SimpleNamespace(now=lambda tz: frozen))
     monkeypatch.setenv(SOURCE_ENV, "nightly")
     monkeypatch.setattr(capture, "QUEUE", tmp_path)

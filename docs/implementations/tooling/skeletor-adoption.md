@@ -2873,3 +2873,18 @@ Round 42's finding was re-measured with `gh` stubbed. The source now comes from
 or `session` when none is set, and two in one second write two files. This tree
 ships no job registry, so a job source is refused before filing. The refusal
 comes after one read-only `gh issue list`, never after an issue is created.
+
+### Round 44 — 2026-10-14: v0.48.1, a refused capture asks `gh` nothing
+
+Clean. `tests/test_freeze_release.py` is new. `cli/_capture.py`, the two
+`scripts/docs/` release scripts and the two capture tests were untouched here
+and are replaced. Neither declined file changed upstream in this window.
+
+Round 43's last sentence is out of date. It was re-measured with a logging
+`gh` stub first on PATH. A job source and an explicit `session` are now both
+refused as unregistered, with **zero** `gh` calls. With nothing set, a local
+capture still records `session`.
+
+`freeze-release` was run against a throwaway tag in a scratch clone. With zero
+reports it writes `WINDOW.md` and an index entry. A second freeze of the same
+tag is refused, and `dev check docs` stays green.

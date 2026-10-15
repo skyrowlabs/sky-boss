@@ -195,7 +195,8 @@ def check() -> int:
         for failure in failures:
             item(failure)
         return 1
-    ok(f"report anchors: {len(ANCHORED_REPORTS)} in-flight, {len(list(RELEASES_DIR.glob('*/*.md')))} frozen")
+    frozen = [p for p in RELEASES_DIR.glob("*/*.md") if p.name != "WINDOW.md"]
+    ok(f"report anchors: {len(ANCHORED_REPORTS)} in-flight, {len(frozen)} frozen")
     return 0
 
 
