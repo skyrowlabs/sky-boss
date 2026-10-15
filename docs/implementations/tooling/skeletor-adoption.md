@@ -3036,3 +3036,27 @@ name rather than reading one. Those were renamed to `FX_*` instead of forking
 the test. `clone-local config` is red in this clone until
 `scripts/git/install_merge_drivers.py` sets `commit.template`. A scratch clone
 confirmed that one run fixes it. Standing divergences: 28 → 28.
+
+### Round 52 — 2026-10-15: v0.54.0, our commit gate folds back
+
+Five conflicts, all forecast. `AGENTS.md` and `docs/DEVELOPMENT.md` took the
+installer on the `pre-commit install` line and the rewritten clone-local bullet.
+`README.md` had nothing to port, because its block is the product's setup, not
+the toolchain's. `cli/check.py` took the template's one-line comment. The
+allowlist took the adopter-region rule, and our two highlighter entries now
+sit below it.
+
+skeletor accepted round 51's decline in full. The template gate now hands the
+hook `%B` and runs it for bot authors, with the length cap behind
+`BOTS_EXEMPT_FROM_LENGTH`. This was measured on a scratch range, not read from
+the notes. With the switch at `False`, theirs refused the second subject line in
+a body, a bot's trailing period and a bot's 75-character subject, which is every
+case ours refused. With it at `True`, the 75-character bot subject passed, so
+the switch is live. So `check_commit_style.py` and its range test are retired,
+and CI runs the template's step. This was the stopgap kind of divergence: its
+subject was the weakness, and the weakness is gone.
+
+Holding the switch costs two lines, not one. The new
+`test_commit_gate_runs_the_hook.py` asserted the module default, so it went red
+the moment the switch was held. It now sets the switch to `True` itself before
+checking the exemption, and was reported upstream. Standing divergences: 28 → 30.
