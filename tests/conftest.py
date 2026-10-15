@@ -194,7 +194,9 @@ def _never_the_network(request: pytest.FixtureRequest, monkeypatch: pytest.Monke
 
 # ── Your fixtures go below this line ──────────────────────────────────────────
 #
-# skeletor adds its fixtures above this block and renders nothing below it, so a
-# release's new fixture and yours are never adjacent and merge cleanly. The block
-# itself is frozen. Asked for by proto.pilot, whose fixtures at the end of this
-# file conflicted with the template's at v0.49.0 and again at v0.51.0.
+# skeletor adds its fixtures and imports above this block and renders nothing
+# below it, so a release's lines and yours are never adjacent and merge cleanly.
+# Keep the imports your fixtures need below this line too, or inside the fixture
+# that uses them: one placed among the template's imports conflicts there.
+# The block itself is frozen. Asked for by proto.pilot, whose fixtures at the end
+# of this file conflicted with the template's at v0.49.0 and again at v0.51.0.
