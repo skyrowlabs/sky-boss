@@ -43,9 +43,11 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 # Bootstrap only: put the package on sys.path so `scripts.paths` — which
@@ -53,7 +55,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts.output import detail, emit, fail, item, ok, warn  # noqa: E402
-from scripts.paths import GITHUB_DIR, PROJECT_ROOT  # noqa: E402
+from scripts.paths import GITHUB_DIR, PROJECT_ROOT, SCRIPTS_DIR  # noqa: E402
 
 #: SCAFFOLD-OPTIONAL .github/release-please-config.json
 #: Absent under `--versioning tag`, where the git tag is the version and nothing
@@ -67,15 +69,33 @@ RELEASE_CONFIG = GITHUB_DIR / "release-please-config.json"
 SUBJECT = re.compile(r"^(?P<type>[a-z]+)(?:\((?P<scope>[^)]*)\))?(?P<breaking>!)?: (?P<description>.+)$")
 
 
-def configured_types() -> set:
-    """The types this repository's Release Please config gives a section.
+#: The commit-msg hook, and the one line in it that holds the types it falls
+#: back to when no Release Please config exists. Read from the hook rather than
+#: copied, so the two cannot disagree about what a subject may start with.
+HOOK = SCRIPTS_DIR / "hooks" / "conventional-commit-check.sh"
+_FALLBACK = re.compile(r'^FALLBACK_TYPES="([^"]+)"', re.MULTILINE)
 
-    Absent config is not an error and not a pass: without it there is no
-    contract to check, and the caller is told so rather than shown a green tick
-    for a question nobody asked.
+
+def hook_types() -> set:
+    """The types the commit-msg hook accepts without a Release Please config."""
+    if not HOOK.exists():
+        return set()
+    match = _FALLBACK.search(HOOK.read_text(encoding="utf-8"))
+    return set(match.group(1).split("|")) if match else set()
+
+
+def configured_types() -> set:
+    """The types this repository enforces: Release Please's sections, or the hook's.
+
+    **Under `--versioning tag` this returned nothing and the check printed a
+    tick.** The hook binds only contributors who ran `pre-commit install`, so a
+    web-UI commit, a merge button or a bot reached the release branch with any
+    subject at all, and four of six adopter trees are on that arm. sky.boss
+    wrote its own range check to close it. Without the config the contract is
+    the hook's own fallback list, which is still a contract.
     """
     if not RELEASE_CONFIG.exists():
-        return set()
+        return hook_types()
     config = json.loads(RELEASE_CONFIG.read_text(encoding="utf-8"))
     sections = []
     for package in (config.get("packages") or {}).values():
@@ -108,15 +128,55 @@ def subjects(commit_range: str):
     return [tuple(line.split("\x1f", 1)) for line in result.stdout.splitlines() if "\x1f" in line]
 
 
+def hook_verdict(subject: str) -> str | None:
+    """What the commit-msg hook says about `subject`: `None` when it passes, else its first line.
+
+    Under tag versioning the hook IS the contract, so the gate runs it rather
+    than re-deriving its rules — the type list, the 72-column cap, the
+    capital, the period. sky.boss's `check_commit_style.py` is this design.
+    """
+    handle = tempfile.NamedTemporaryFile("w", suffix=".msg", delete=False, encoding="utf-8")
+    try:
+        handle.write(subject + "\n")
+        handle.close()
+        result = subprocess.run(["bash", str(HOOK), handle.name], cwd=str(PROJECT_ROOT), capture_output=True, text=True)
+    finally:
+        os.unlink(handle.name)
+    if result.returncode == 0:
+        return None
+    said = (result.stderr or result.stdout).strip().splitlines()
+    return said[0].lstrip("❌ ").strip() if said else "the commit-msg hook refused it"
+
+
+def bot_authored(sha: str) -> bool:
+    """A machine's commit. The hook's own comment says to skip bots where the cap applies."""
+    author = subprocess.run(
+        ["git", "log", "-1", "--format=%an %ae", sha], cwd=str(PROJECT_ROOT), capture_output=True, text=True
+    ).stdout.strip()
+    return "[bot]" in author or author.endswith("noreply.github.com") and "bot" in author.lower()
+
+
 def unreadable(inspected: list, types: set) -> list:
-    """`(sha, subject, why)` for each subject Release Please will not use."""
+    """`(sha, subject, why)` for each subject the contract in force will not accept.
+
+    With a Release Please config the contract is its section list: a subject it
+    cannot parse is skipped, not rejected. Without one the contract is the hook,
+    run as it would have run at commit time for everything a person authored.
+    """
     findings = []
+    hook_applies = not RELEASE_CONFIG.exists() and HOOK.exists()
     for sha, subject in inspected:
         match = SUBJECT.match(subject)
         if not match:
             findings.append((sha, subject, "does not parse as `type(scope): description`"))
-        elif match.group("type") not in types:
+            continue
+        if match.group("type") not in types:
             findings.append((sha, subject, f"type `{match.group('type')}` has no section in the config"))
+            continue
+        if hook_applies and not bot_authored(sha):
+            why = hook_verdict(subject)
+            if why:
+                findings.append((sha, subject, why))
     return findings
 
 
@@ -271,11 +331,9 @@ def main() -> int:
         # "this key is empty" are different answers, and only one of them can be
         # noticed.* node-zero's finding, from a `--versioning tag` tree.
         if not RELEASE_CONFIG.exists():
-            ok(f"no {RELEASE_CONFIG.name} — this repository versions by annotated git tag")
-            detail("Nothing parses commit subjects for a changelog here, so there is no")
-            detail("contract for this check to enforce. Subject discipline is still enforced")
-            detail("by the commit hook and the CI gate; only the changelog mapping is absent.")
-            return 0
+            fail(f"no {RELEASE_CONFIG.name}, and the commit hook's FALLBACK_TYPES could not be read")
+            detail(f"The contract under tag versioning is {HOOK.relative_to(PROJECT_ROOT)}'s own type list.")
+            return 1
         warn(f"no changelog-sections in {RELEASE_CONFIG.relative_to(PROJECT_ROOT)} — nothing to check against")
         detail("Release Please is configured here and gives no commit type a changelog")
         detail("section, so every subject is silently ignored by the release automation.")
@@ -283,14 +341,22 @@ def main() -> int:
         return 0
 
     if findings:
-        fail(f"{len(findings)} subject(s) Release Please will silently ignore:")
+        if RELEASE_CONFIG.exists():
+            fail(f"{len(findings)} subject(s) Release Please will silently ignore:")
+        else:
+            fail(f"{len(findings)} subject(s) the commit hook would have refused (versioned by tag; hook types apply):")
         for sha, subject, why in findings:
             item(f"{sha}  {subject}")
             detail(f"       {why}")
         detail()
-        detail("An unreadable subject is not rejected by the release automation — it is")
-        detail("skipped. No changelog entry, and no version bump if this was the only")
-        detail(f"releasing change. Configured types: {', '.join(sorted(types))}.")
+        if RELEASE_CONFIG.exists():
+            detail("An unreadable subject is not rejected by the release automation — it is")
+            detail("skipped. No changelog entry, and no version bump if this was the only")
+            detail(f"releasing change. Configured types: {', '.join(sorted(types))}.")
+        else:
+            detail("These reached the branch without the commit-msg hook — a web-UI commit, a")
+            detail("merge button, or `--no-verify`. The hook is the whole contract under tag")
+            detail(f"versioning; its types: {', '.join(sorted(types))}.")
         detail("Reword with `git commit --amend` or an interactive rebase.")
         return 1
 

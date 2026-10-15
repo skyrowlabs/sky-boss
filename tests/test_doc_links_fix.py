@@ -32,7 +32,7 @@ def tree(tmp_path, monkeypatch):
     # tree properly is a design decision rather than a variable.
     monkeypatch.setattr(links, "PROJECT_ROOT", tmp_path)
     monkeypatch.setattr(links, "DOCS_DIR", tmp_path / "docs")
-    monkeypatch.setattr(links, "IGNORE_FILE", tmp_path / ".validate-ignore")
+    monkeypatch.setattr(links, "ALLOWLIST", tmp_path / "doc_refs_allowlist.yaml")
     monkeypatch.setattr(links, "SCAN_ROOTS", ["docs"])
 
     def write(name: str, body: str) -> Path:
@@ -76,7 +76,7 @@ def test_a_broken_link_in_a_root_document_is_reported(tmp_path, monkeypatch):
     """
     monkeypatch.setattr(links, "PROJECT_ROOT", tmp_path)
     monkeypatch.setattr(links, "DOCS_DIR", tmp_path / "docs")
-    monkeypatch.setattr(links, "IGNORE_FILE", tmp_path / ".validate-ignore")
+    monkeypatch.setattr(links, "ALLOWLIST", tmp_path / "doc_refs_allowlist.yaml")
     monkeypatch.setattr(links, "SCAN_ROOTS", [])
     (tmp_path / "NOTES.md").write_text("# N\n\nSee [gone](does-not-exist.md).\n", encoding="utf-8")
 
@@ -150,7 +150,7 @@ def sibling(tmp_path, monkeypatch):
     (tmp_path / "sibling" / "GUIDE.md").write_text("# Guide\n\n## Real Heading\n", encoding="utf-8")
     monkeypatch.setattr(links, "PROJECT_ROOT", root)
     monkeypatch.setattr(links, "DOCS_DIR", root / "docs")
-    monkeypatch.setattr(links, "IGNORE_FILE", root / ".validate-ignore")
+    monkeypatch.setattr(links, "ALLOWLIST", root / "doc_refs_allowlist.yaml")
     monkeypatch.setattr(links, "SCAN_ROOTS", ["docs"])
 
     def write(name: str, body: str) -> Path:

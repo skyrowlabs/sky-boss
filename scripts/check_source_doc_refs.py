@@ -12,7 +12,10 @@ the time anyone measured.
 the only record of why the code is shaped that way.
 
 Paths that name nothing real by design — help text, output destinations, test
-fixtures — go in `.github/scripts/.validate-ignore`.
+fixtures — go in `scripts/doc_refs_allowlist.yaml`, with a reason. It was a
+bare path-per-line file outside the `*_allowlist.yaml` pattern, so nothing
+checked its entries against anything and the grid's allowlist gate could not
+see it; `tests/test_doc_refs_allowlist.py` now fails an entry nothing references.
 
 Usage:  python scripts/check_source_doc_refs.py [--json]
 
@@ -31,10 +34,11 @@ from pathlib import Path
 # owns every path below — can be imported. See scripts/paths.py.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from scripts import allowlist  # noqa: E402
 from scripts.output import detail, emit, fail, item, ok  # noqa: E402
-from scripts.paths import DOCS_DIR, GITHUB_DIR, PROJECT_ROOT  # noqa: E402
+from scripts.paths import DOCS_DIR, PROJECT_ROOT, SCRIPTS_DIR  # noqa: E402
 
-IGNORE_FILE = GITHUB_DIR / "scripts" / ".validate-ignore"
+ALLOWLIST = SCRIPTS_DIR / "doc_refs_allowlist.yaml"
 
 SOURCE_SUFFIXES = {".py", ".js", ".mjs", ".cjs", ".ts", ".tsx", ".sh", ".yml", ".yaml", ".toml"}
 SKIP_DIRS = {".git", "node_modules", ".venv", "venv", "dist", "build", "__pycache__", "tmp"}
@@ -47,13 +51,7 @@ _REF = re.compile(r"(?P<path>docs/[A-Za-z0-9_./-]+\.(?:md|json|ya?ml))")
 
 
 def _ignored() -> set:
-    if not IGNORE_FILE.exists():
-        return set()
-    return {
-        line.strip()
-        for line in IGNORE_FILE.read_text(encoding="utf-8").splitlines()
-        if line.strip() and not line.startswith("#")
-    }
+    return set(allowlist.read(ALLOWLIST))
 
 
 def _sources() -> list[Path]:
@@ -119,7 +117,7 @@ def main() -> int:
         for entry in dead:
             item(entry)
         detail()
-        detail("A reference that names nothing by design goes in .github/scripts/.validate-ignore")
+        detail(f"A reference that names nothing by design goes in {ALLOWLIST.relative_to(PROJECT_ROOT)}, with a reason")
         return 1
     ok(f"{checked} doc reference(s) in source, all resolve")
     return 0

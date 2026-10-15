@@ -178,11 +178,13 @@ jobs:
       # binds whoever ran `pre-commit install`; this binds everyone else, which
       # is the whole reason it is here rather than only in `check pre-push`.
       #
-      # NOT `check_commit_subjects.py`, which is the neighbouring script and the
-      # obvious-looking choice. That one asks whether Release Please can parse a
-      # subject, reading its vocabulary from a config a `--versioning tag` tree
-      # does not have — so here it finds no contract and exits 0 on every commit
-      # forever. Wiring it in would have been a green step that never looked.
+      # NOT `check_commit_subjects.py`, which skeletor's step runs here. Until
+      # v0.53.0 it exited 0 on every commit in a `--versioning tag` tree; it now
+      # runs the hook too — on the subject alone, and skipping bot authors
+      # entirely. This step hands the hook the whole message (a second subject
+      # in the body) and binds bots (the 2026-09-26 ruling: dependabot's prefix
+      # was shortened rather than bots exempted). Measured stricter on both;
+      # running both would be one gate twice. [[skeletor-adoption]] round 51.
       - name: Commit subjects the hook would have caught
         env:
           BASE: ${{ github.event.pull_request.base.sha || github.event.before }}

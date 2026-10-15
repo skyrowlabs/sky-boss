@@ -48,5 +48,5 @@ positional and renumbers the moment a phase gains a step; a Critical Rule number
 
 ## Phase 7 — Release (when a tag is cut)
 
-1. Release Please opens the release PR from the conventional commits. A human merges it.
+1. A human cuts the release with an annotated tag (`git tag -a`); nothing opens a pull request for it.
 2. Cutting a release **closes the report window** — see `docs/rules/docs.md`.

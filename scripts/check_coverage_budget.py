@@ -132,6 +132,7 @@ from typing import NamedTuple
 # owns every path below — can be imported. See scripts/paths.py.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from scripts import manifest  # noqa: E402
 from scripts.output import detail, emit, fail, ok  # noqa: E402
 from scripts.paths import PROJECT_ROOT, SCAFFOLD_MANIFEST, TESTS_DIR, TMP_DIR  # noqa: E402
 
@@ -153,11 +154,8 @@ def _own_lines(root: ET.Element) -> list[ET.Element] | None:
     module docstring says why tests are out. One function so the count and the
     rate cannot disagree about the population.
     """
-    if not SCAFFOLD_MANIFEST.exists():
-        return None
-    try:
-        scaffolded = set(json.loads(SCAFFOLD_MANIFEST.read_text(encoding="utf-8")).get("files", {}))
-    except _UNREADABLE_BUDGET:
+    scaffolded = manifest.scaffolded_paths(SCAFFOLD_MANIFEST)
+    if scaffolded is None:
         return None
     tests = TESTS_DIR.relative_to(PROJECT_ROOT).as_posix() + "/"
     return [

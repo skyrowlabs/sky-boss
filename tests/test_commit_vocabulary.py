@@ -143,3 +143,19 @@ def test_the_hook_rejects_what_ci_would_drop(tmp_path):
         because = "the fallback vocabulary must still reject a non-type, or it is not a filter"
     accepted = [t for t in rejectable if hook_accepts(f"{t}(scope): a summary", tmp_path)]
     assert not accepted, f"the commit-msg hook accepts {accepted}, and {because}"
+
+
+def test_the_ci_gate_reads_the_vocabulary_the_hook_enforces(tmp_path):
+    """`check_commit_subjects.py` and the hook agree on the types, on both arms.
+
+    Under `--versioning tag` the gate used to read an empty set and print a
+    tick, so a web-UI commit or a bot reached the release branch unchecked while
+    the hook bound only contributors who had installed it. The gate now reads
+    the hook's own fallback list; this holds the two to the same vocabulary.
+    """
+    from scripts import check_commit_subjects as gate
+
+    types = scanned(sorted(gate.configured_types()), "types the CI gate enforces", least=3)
+    rejected = [t for t in types if not hook_accepts(f"{t}(scope): a summary", tmp_path)]
+    assert not rejected, f"the CI gate enforces {rejected} but the commit-msg hook refuses them"
+    assert not hook_accepts("bogus(scope): a summary", tmp_path), "the hook accepts a type the gate never will"

@@ -128,7 +128,7 @@ def main() -> int:
     step(f"closing {closing['commit_range']} ({closing['commits']} commits) as {args.tag}")
 
     frozen = []
-    for name in release_window.ANCHORED_REPORTS:
+    for name in release_window.anchored_reports():
         source = REGULAR_DIR / name
         if not source.exists():
             warn(f"{name} is anchored but missing from regular/ — skipping")

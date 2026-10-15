@@ -544,7 +544,7 @@ STATE_SLUG = "sky-boss"
 #: to walk instead of a pattern to guess. Retention differs per class, which is
 #: the reason they are directories at all.
 LOG = "log"  # the transcript: what every run printed
-LEDGER = "ledger"  # append-only structured record, trimmed on write
+LEDGER = "ledger"  # append-only structured record; nothing trims it
 INPUT = "input"  # the payload an agent stage actually read
 MEMORY = "memory"  # what a job saw last time; overwritten every run
 INFLIGHT = "inflight"  # what is running right now; removed in a `finally`

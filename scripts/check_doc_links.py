@@ -46,11 +46,12 @@ from pathlib import Path
 # owns every path below — can be imported. See scripts/paths.py.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from scripts import allowlist  # noqa: E402
 from scripts.output import detail, emit, fail, item, ok, skip  # noqa: E402
-from scripts.paths import DOCS_DIR, GITHUB_DIR, PROJECT_ROOT, SCRIPTS_DIR  # noqa: E402
+from scripts.paths import DOCS_DIR, PROJECT_ROOT, SCRIPTS_DIR  # noqa: E402
 
 BASELINE = SCRIPTS_DIR / "doc_links_baseline.json"
-IGNORE_FILE = GITHUB_DIR / "scripts" / ".validate-ignore"
+ALLOWLIST = SCRIPTS_DIR / "doc_refs_allowlist.yaml"
 
 SCAN_ROOTS = ["docs", ".claude", ".github"]
 
@@ -154,13 +155,7 @@ def slugify(heading: str) -> str:
 
 
 def _ignored() -> set:
-    if not IGNORE_FILE.exists():
-        return set()
-    return {
-        line.strip()
-        for line in IGNORE_FILE.read_text(encoding="utf-8").splitlines()
-        if line.strip() and not line.startswith("#")
-    }
+    return set(allowlist.read(ALLOWLIST))
 
 
 def markdown_files() -> list[Path]:

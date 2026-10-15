@@ -20,6 +20,7 @@ Usage:  python scripts/git/install_merge_drivers.py [--check]
 from __future__ import annotations
 
 import argparse
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -33,6 +34,23 @@ from scripts.paths import PROJECT_ROOT, TMP_DIR  # noqa: E402
 
 DRIVER = "merge.regen-docs"
 MARKER = TMP_DIR / ".regen-owed"
+
+#: Every `merge=<name>` a tracked `.gitattributes` routes a path through. The
+#: set is read from the file, not listed: this checked one constant, so a
+#: second driver named in `.gitattributes` and defined nowhere passed `--check`.
+_MERGE_ATTR = re.compile(r"^(?!#)\S+\s+.*\bmerge=(?P<name>[A-Za-z0-9_-]+)", re.MULTILINE)
+ATTRIBUTES = PROJECT_ROOT / ".gitattributes"
+#: A tracked `.gitmessage` is a claim that `commit.template` points at it. It
+#: shipped for the template's whole life and nothing set the key: unset in five
+#: of six adopter clones, measured.
+MESSAGE_TEMPLATE = PROJECT_ROOT / ".gitmessage"
+
+
+def declared_drivers() -> set:
+    if not ATTRIBUTES.exists():
+        return set()
+    return {m.group("name") for m in _MERGE_ATTR.finditer(ATTRIBUTES.read_text(encoding="utf-8"))}
+
 
 # %B is the "other" (incoming) version, %A the destination git reads back.
 COMMAND = f'sh -c \'mkdir -p "{MARKER.parent}" && cp "%B" "%A" && touch "{MARKER}"\''
@@ -49,14 +67,20 @@ def main() -> int:
     parser.add_argument("--check", action="store_true", help="report state; change nothing")
     args = parser.parse_args()
 
-    installed = bool(_config(f"{DRIVER}.driver"))
-
     if args.check:
-        if not installed:
-            fail("the 'regen-docs' merge driver is NOT installed in this checkout")
+        missing = sorted(name for name in declared_drivers() if not _config(f"merge.{name}.driver"))
+        if missing:
+            fail(f"merge driver(s) named in .gitattributes and NOT defined in this clone: {', '.join(missing)}")
+            detail("python scripts/git/install_merge_drivers.py")
+            detail("That installs regen-docs; any other driver name is yours to define.")
+            return 1
+        if MESSAGE_TEMPLATE.exists() and not _config("commit.template"):
+            fail("`.gitmessage` is tracked but `commit.template` is unset in this clone")
             detail("python scripts/git/install_merge_drivers.py")
             return 1
-        ok("merge driver 'regen-docs' installed")
+        drivers = ", ".join(sorted(declared_drivers())) or "none"
+        template = ", commit.template" if MESSAGE_TEMPLATE.exists() else ""
+        ok(f"clone-local config present: merge driver(s) {drivers}{template}")
         if MARKER.exists():
             warn("a regeneration is owed from a previous merge — run `dev docs index`")
             return 1
@@ -67,6 +91,11 @@ def main() -> int:
     )
     subprocess.run(["git", "config", "--local", f"{DRIVER}.driver", COMMAND], cwd=str(PROJECT_ROOT), check=True)
     ok("installed the 'regen-docs' merge driver")
+    if MESSAGE_TEMPLATE.exists():
+        subprocess.run(
+            ["git", "config", "--local", "commit.template", ".gitmessage"], cwd=str(PROJECT_ROOT), check=True
+        )
+        ok("set commit.template to .gitmessage")
     detail("After any merge that touched docs/TODO/ or docs/implementations/: `dev docs index`")
     return 0
 

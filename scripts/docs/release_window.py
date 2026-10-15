@@ -40,12 +40,19 @@ from scripts.docs import frontmatter  # noqa: E402
 from scripts.output import die, emit, fail, item, ok  # noqa: E402
 from scripts.paths import PROJECT_ROOT, REGULAR_DIR, RELEASES_DIR  # noqa: E402
 
-#: Reports that carry an anchor. A new scheduled report is added here so
-#: ``--apply`` stamps it and the freeze step archives it; a report absent from
-#: this list is refreshed by hand or only at release time, which is the exact
-#: condition the anchoring exists to remove — and an invisible one, since the
-#: file keeps existing while describing an older and older build.
-ANCHORED_REPORTS: list[str] = []
+#: Enrolment is the directory: every report in ``docs/reports/regular/`` other
+#: than its README carries an anchor, so ``--apply`` stamps it, ``--check``
+#: validates it and the freeze step archives it. This was a list, shipped
+#: empty, while the one scheduled job's prompt told the agent to run
+#: ``--apply --only repository-report.md`` — which failed on every run with
+#: "add it there first". A registry nobody updates is the bug this template
+#: exists to prevent, and it shipped one in the file that explains why.
+README = "README.md"
+
+
+def anchored_reports() -> list[str]:
+    return sorted(p.name for p in REGULAR_DIR.glob("*.md") if p.name != README)
+
 
 _WINDOW_LINE = re.compile(r"^> \*\*Window:\*\*.*$", re.MULTILINE)
 
@@ -142,9 +149,9 @@ def apply(only: str | None = None) -> int:
     report.
     """
     win = window()
-    targets = [only] if only else ANCHORED_REPORTS
-    if only and only not in ANCHORED_REPORTS:
-        fail(f"{only} is not in ANCHORED_REPORTS — add it there first")
+    targets = [only] if only else anchored_reports()
+    if only and only not in anchored_reports():
+        fail(f"{only} is not in {REGULAR_DIR.relative_to(PROJECT_ROOT)}/ — seed it before scheduling its job")
         return 1
 
     for name in targets:
@@ -170,12 +177,19 @@ def apply(only: str | None = None) -> int:
 def check() -> int:
     """Every anchored report must exist, parse, and agree with where it lives."""
     failures = []
-    for name in ANCHORED_REPORTS:
+    seeded: list[str] = []
+    for name in anchored_reports():
         path = REGULAR_DIR / name
         if not path.exists():
             failures.append(f"{name}: missing from docs/reports/regular/")
             continue
         data, body = frontmatter.read(path)
+        if not any(data.get(k) for k in ("release", "commit_range", "generated")):
+            # Seeded by the scaffold and never produced. The job's first run
+            # stamps it; stamping at scaffold time would bake a timestamp into
+            # the manifest's hash and make every base render differ.
+            seeded.append(name)
+            continue
         missing = [k for k in ("release", "commit_range", "status", "generated") if not data.get(k)]
         if missing:
             failures.append(f"{name}: frontmatter missing {', '.join(missing)}")
@@ -195,7 +209,9 @@ def check() -> int:
             item(failure)
         return 1
     frozen = [p for p in RELEASES_DIR.glob("*/*.md") if p.name != "WINDOW.md"]
-    ok(f"report anchors: {len(ANCHORED_REPORTS)} in-flight, {len(frozen)} frozen")
+    ok(f"report anchors: {len(anchored_reports())} in-flight, {len(frozen)} frozen")
+    for name in seeded:
+        item(f"{name}: seeded, never produced — its job's first run stamps it")
     return 0
 
 

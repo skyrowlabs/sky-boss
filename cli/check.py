@@ -219,16 +219,18 @@ def pre_push(quick: bool) -> None:
         # here one commit deep and there three: same gate, same name, two sets,
         # and the bigger one runs after the push. The script prints the range
         # it chose, because two ranges that print alike is the whole defect.
-        # Self-guarding: with no release automation in the tree there is no
-        # contract to check and it says so.
+        # With no Release Please config the contract is the hook's own type
+        # list, and since skeletor v0.53.0 it runs the hook on each subject.
         ("commit subjects", script("scripts/check_commit_subjects.py")),
-        # And the one that can actually fail here. The line above checks a
-        # Release Please contract this tree does not have, so it passes on
-        # every commit forever; this checks the conventional-commit rule, by
-        # running the `commit-msg` hook over the same range. Both are kept
-        # because they are two contracts, not two spellings of one — see the
-        # docstring of `check_commit_style.py`, which argues it at length
-        # precisely because the filenames invite deleting one.
+        # A clone fact, so CI cannot hold it and `tests/test_pre_push_covers_ci.py`
+        # cannot require it: the merge driver and commit template live in
+        # .git/config, which every second clone starts without.
+        ("clone-local config", script("scripts/git/install_merge_drivers.py", "--check")),
+        # The stricter of the two, and the one CI runs. The line above hands the
+        # hook the subject alone and skips bot authors entirely; this hands it
+        # the whole message and binds every author, which is what catches a
+        # second subject line in a body and a machine's over-length subject —
+        # the 2026-09-26 ruling kept bots bound. See `check_commit_style.py`.
         #
         # Local duplication with the hook is deliberate and cheap: the hook
         # binds whoever ran `pre-commit install`, and this repository's own

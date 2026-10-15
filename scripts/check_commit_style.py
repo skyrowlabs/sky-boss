@@ -11,20 +11,14 @@ message. It exists because of where the hook cannot reach:
 
 ## Why this is not `check_commit_subjects.py`
 
-They look like the same check and they are two contracts, which is why both
-exist and why neither subsumes the other.
-
-`check_commit_subjects.py` asks whether **Release Please** can parse a subject,
-reading its vocabulary out of `.github/release-please-config.json`. This tree is
-`--versioning tag` and ships no such config, so that script correctly finds no
-contract and checks nothing — it prints *"nothing to check against"* and exits
-0, on every commit, forever. Wiring it into CI here would be a green step that
-has never looked at anything.
-
-This one asks whether the subject is a **conventional commit with one subject
-line**, which is a house rule that holds whether or not anything generates a
-changelog from it. In a tag-versioned tree it is the only one of the two that
-can fail.
+Until skeletor v0.53.0 that script exited 0 on every commit in a
+`--versioning tag` tree like this one. It now runs the hook as well, derived
+from this file — but it hands the hook the **subject alone** and skips
+**bot-authored** commits entirely. This one hands it the whole message, so a
+second subject line in a body is caught, and binds every author, because the
+2026-09-26 ruling shortened dependabot's prefix rather than exempting bots.
+Both were measured on a scratch range in [[skeletor-adoption]] round 51: theirs
+passed two commits this refuses. Pre-push runs both; CI runs this one.
 
 ## The vocabulary is not here, and that is the point
 

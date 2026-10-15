@@ -132,6 +132,16 @@ class Job:
     id: str
     name: str
     matrix: bool
+    #: Jobs this one `needs:`. A required check that needs an unrequired job is
+    #: skipped when that job fails, and protection accepts a skip as a pass.
+    needs: tuple[str, ...] = ()
+    #: `if: always()` — runs whatever its needs did, so the skip above cannot happen.
+    runs_regardless: bool = False
+
+
+#: Present only at governed and above. A bare `@org` on every line is rejected by
+#: GitHub ("Unknown owner") and requests no review; proto.pilot had five errors.
+CODEOWNERS = GITHUB_DIR / "CODEOWNERS"
 
 
 def workflow_jobs(texts: list[str]) -> list[Job]:
@@ -148,8 +158,35 @@ def workflow_jobs(texts: list[str]) -> list[Job]:
             job = body[header.end() : headers[i + 1].start() if i + 1 < len(headers) else len(body)]
             named = re.search(r"^    name:\s*(.+?)\s*$", job, re.MULTILINE)
             name = named.group(1).strip("'\"") if named else header.group(1)
-            jobs.append(Job(header.group(1), name, bool(re.search(r"^\s+matrix:", job, re.MULTILINE))))
+            condition = re.search(r"^    if:\s*(.+?)\s*$", job, re.MULTILINE)
+            jobs.append(
+                Job(
+                    header.group(1),
+                    name,
+                    bool(re.search(r"^\s+matrix:", job, re.MULTILINE)),
+                    tuple(_needs(job)),
+                    bool(condition and "always()" in condition.group(1)),
+                )
+            )
     return jobs
+
+
+def _needs(job: str) -> list[str]:
+    """The job ids a job's `needs:` names, inline (`needs: [a, b]`, `needs: a`) or as a block list."""
+    # `[ \t]*`, not `\s*`: the latter swallows the newline and reads the block list's first item as inline.
+    line = re.search(r"^    needs:[ \t]*(.*?)[ \t]*$", job, re.MULTILINE)
+    if not line:
+        return []
+    inline = line.group(1).strip()
+    if inline:
+        return [n.strip().strip("'\"") for n in inline.strip("[]").split(",") if n.strip()]
+    out = []
+    for following in job[line.end() :].splitlines()[1:]:
+        item = re.match(r"^\s+-\s*(\S+)", following)
+        if not item:
+            break
+        out.append(item.group(1).strip("'\""))
+    return out
 
 
 def branch_workflows(branch: str) -> list[str]:
@@ -207,12 +244,91 @@ def required_checks(branch: str) -> Fact:
         return Fact(name, PROBLEM, "; ".join(said) + f" — pull requests into {branch} can wait for it forever")
     if elsewhere:
         return Fact(name, UNKNOWN, f"reported by something other than {branch}'s workflows: {', '.join(elsewhere)}")
+    # Every required check is a job. A job that `needs:` one nobody requires is
+    # skipped when that one fails, and protection accepts the skip: mind.head
+    # measured six required contexts, five needing an unrequired gate, so a gate
+    # failure let a pull request merge having proven nothing (sky.boss first).
+    required = {job.id for job in jobs if job.name in contexts or job.id in contexts}
+    required |= {job.name for job in jobs if job.id in required}
+    exposed = []
+    for job in jobs:
+        if job.id not in required or job.runs_regardless:
+            continue
+        for need in job.needs:
+            if need not in required:
+                exposed.append(f"{job.name} needs {need}")
+    if exposed:
+        return Fact(
+            name,
+            PROBLEM,
+            "; ".join(exposed) + " — when that job fails its dependents are skipped, protection accepts a "
+            f"skip, and a pull request into {branch} merges having proven nothing: require it too",
+        )
     return Fact(name, OK, f"{len(contexts)} required, each reported by a job in {branch}'s workflows")
+
+
+def backmerge() -> Fact:
+    """Everything released on the release branch is back on the base branch."""
+    name = f"{BASE_BRANCH} contains everything on {RELEASE_BRANCH}"
+    if BASE_BRANCH == RELEASE_BRANCH:
+        return Fact(name, NOT_APPLICABLE, "one branch, so there is nothing to merge back")
+    try:
+        compared = gh_api(
+            "repos/{owner}/{repo}/compare/" + quote(BASE_BRANCH, safe="") + "..." + quote(RELEASE_BRANCH, safe="")
+        )
+    except Unreadable as error:
+        return Fact(name, UNKNOWN, str(error))
+    ahead = int(compared.get("ahead_by") or 0)
+    if not ahead:
+        return Fact(name, OK, f"{RELEASE_BRANCH} has no commit {BASE_BRANCH} lacks")
+    files = compared.get("files")
+    if files is None:
+        return Fact(name, UNKNOWN, f"{RELEASE_BRANCH} is {ahead} commit(s) ahead and the diff could not be read")
+    if not files:
+        # A merge of the base branch into the release branch leaves the release
+        # branch one commit ahead with nothing in the diff: the ordinary state of
+        # every non-fast-forward tree, and not a missed back-merge (sky.boss).
+        return Fact(name, OK, f"{RELEASE_BRANCH} is {ahead} commit(s) ahead, every one a merge that changed nothing")
+    subjects = [c.get("commit", {}).get("message", "").splitlines()[0] for c in compared.get("commits", [])][:3]
+    return Fact(
+        name,
+        PROBLEM,
+        f"{RELEASE_BRANCH} carries {ahead} commit(s) touching {len(files)} file(s) that {BASE_BRANCH} lacks "
+        f"({'; '.join(s for s in subjects if s)}) — merge {RELEASE_BRANCH} back, or the next release "
+        "re-proposes the bump (stash.flow: VERSION 0.2.0 on main, 0.1.0 on develop)",
+    )
+
+
+def codeowners() -> Fact:
+    """Every owner CODEOWNERS names is one GitHub recognises, so a review is actually requested."""
+    name = "CODEOWNERS names owners GitHub recognises"
+    if not CODEOWNERS.exists():
+        return Fact(name, NOT_APPLICABLE, f"no {CODEOWNERS.relative_to(PROJECT_ROOT)} in this tree")
+    try:
+        found = gh_api("repos/{owner}/{repo}/codeowners/errors")
+    except Unreadable as error:
+        return Fact(name, UNKNOWN, str(error))
+    errors = found.get("errors") or []
+    if errors:
+        first = errors[0]
+        return Fact(
+            name,
+            PROBLEM,
+            f"{len(errors)} line(s) GitHub rejects, e.g. line {first.get('line')}: {first.get('message', '')} "
+            "— no review is requested from an owner that does not resolve",
+        )
+    return Fact(name, OK, "every owner resolves")
 
 
 def gather() -> list[Fact]:
     branches = dict.fromkeys((BASE_BRANCH, RELEASE_BRANCH))
-    return [default_branch(), release_pull_request(), *(required_checks(branch) for branch in branches)]
+    return [
+        default_branch(),
+        release_pull_request(),
+        *(required_checks(branch) for branch in branches),
+        backmerge(),
+        codeowners(),
+    ]
 
 
 @click.command()

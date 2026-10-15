@@ -46,7 +46,7 @@ def tree(monkeypatch, tmp_path):
 
 def test_a_release_with_no_reports_is_still_recorded(tree, monkeypatch):
     releases, _ = tree
-    monkeypatch.setattr(fr.release_window, "ANCHORED_REPORTS", ())
+    monkeypatch.setattr(fr.release_window, "anchored_reports", lambda: [])
     assert fr.main() == 0
     window = (releases / "v1.0.0" / fr.WINDOW).read_text(encoding="utf-8")
     assert "v0.9.0..v1.0.0" in window and "no report was anchored" in window
@@ -56,7 +56,7 @@ def test_a_release_with_no_reports_is_still_recorded(tree, monkeypatch):
 
 def test_a_frozen_report_sits_beside_the_window_and_both_are_indexed(tree, monkeypatch):
     releases, regular = tree
-    monkeypatch.setattr(fr.release_window, "ANCHORED_REPORTS", ("status.md",))
+    monkeypatch.setattr(fr.release_window, "anchored_reports", lambda: ["status.md"])
     (regular / "status.md").write_text("---\nstatus: in-flight\n---\n# Status\n", encoding="utf-8")
     assert fr.main() == 0
     assert sorted(p.name for p in (releases / "v1.0.0").iterdir()) == [fr.WINDOW, "status.md"]
@@ -65,13 +65,13 @@ def test_a_frozen_report_sits_beside_the_window_and_both_are_indexed(tree, monke
 
 
 def test_a_window_cannot_be_frozen_twice(tree, monkeypatch):
-    monkeypatch.setattr(fr.release_window, "ANCHORED_REPORTS", ())
+    monkeypatch.setattr(fr.release_window, "anchored_reports", lambda: [])
     assert fr.main() == 0
     assert fr.main() == 1
 
 
 def test_a_dry_run_over_a_frozen_window_refuses_as_the_real_run_does(tree, monkeypatch):
-    monkeypatch.setattr(fr.release_window, "ANCHORED_REPORTS", ())
+    monkeypatch.setattr(fr.release_window, "anchored_reports", lambda: [])
     assert fr.main() == 0
     monkeypatch.setattr(sys, "argv", ["freeze_release.py", "--tag", "v1.0.0", "--dry-run"])
     assert fr.main() == 1

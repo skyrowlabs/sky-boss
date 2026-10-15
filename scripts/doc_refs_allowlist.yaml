@@ -1,0 +1,21 @@
+# References to `docs/...` paths and `#fragments` that name nothing real BY
+# DESIGN, and why. `check_source_doc_refs.py` reads the path entries;
+# `check_doc_links.py` reads the `path#fragment` entries. One reader for the
+# format: `scripts/allowlist.py`, which drops an entry with no reason.
+#
+# Legitimate: help-text examples, output destinations a run creates, test
+# fixtures, template placeholders, in-app routes that look like anchors.
+# NOT legitimate: a reference that broke when a plan was filed. Repoint it.
+#
+# An entry whose reference no longer appears anywhere is stale and fails
+# `tests/test_doc_refs_allowlist.py`; delete it rather than re-justify it.
+
+docs/TODO/x.md: the checker's own docstring example
+docs/a.md: a fixture name tests/test_doc_links_fix.py and tests/test_publication.py create in a temporary tree
+docs/b.md: a fixture name tests/test_doc_links_fix.py and tests/test_publication.py create in a temporary tree
+
+# sky.boss: highlighter fixtures. `skyboss/highlight.py` tints a followed line by
+# SHAPE, so its samples and tests must hold path-shaped text that names nothing.
+# A real path would make a tinting test depend on a document continuing to exist.
+docs/plan.md: a path-shaped highlighter sample in skyboss/highlight.py and docs/design/sample/agent.log
+docs/AGENTIC_AUTOMATION.md: a path-shaped highlighter fixture in tests/test_highlight.py
