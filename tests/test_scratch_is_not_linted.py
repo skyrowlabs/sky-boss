@@ -49,7 +49,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Callable
 
 import pytest
 
@@ -67,7 +67,7 @@ CHECK = PROJECT_ROOT / SHELL_PACKAGE / "check.py"
 PACKAGE = PROJECT_ROOT / "package.json"
 
 
-def _walkers() -> List[str]:
+def _walkers() -> list[str]:
     """Tools this tree runs over the whole tree, as `dev check lint` runs them.
 
     Two spellings of *the whole tree*: a `run([tool, ..., "."])` in the check,
@@ -90,10 +90,10 @@ def _walkers() -> List[str]:
     return sorted(set(found))
 
 
-def _python_tool(module: str, args: List[str], source: str) -> Callable[[], Tuple[Optional[bool], str]]:
+def _python_tool(module: str, args: list[str], source: str) -> Callable[[], tuple[bool | None, str]]:
     """A probe that plants `source` under scratch and runs `python -m <module> <args>`."""
 
-    def probe() -> Tuple[Optional[bool], str]:
+    def probe() -> tuple[bool | None, str]:
         (PROBE_DIR / "probe.py").write_text(source, encoding="utf-8")
         done = subprocess.run(
             [sys.executable, "-m", module, *args], cwd=str(PROJECT_ROOT), capture_output=True, text=True
@@ -126,7 +126,7 @@ def _names_scratch(pattern: str) -> bool:
     return parts == SCRATCH.split("/")
 
 
-def _pyright() -> Tuple[Optional[bool], str]:
+def _pyright() -> tuple[bool | None, str]:
     """Ask pyright which files it analysed; read `pyrightconfig.json` if it cannot answer, and say so."""
     (PROBE_DIR / "probe.py").write_text("x: int = 'not an int'\n", encoding="utf-8")
     done = subprocess.run(
@@ -147,7 +147,7 @@ def _pyright() -> Tuple[Optional[bool], str]:
     return walks and not excluded, "READ pyrightconfig.json — pyright could not be run here, so it was not asked"
 
 
-def _eslint() -> Tuple[Optional[bool], str]:
+def _eslint() -> tuple[bool | None, str]:
     """Ask eslint when it is installed; otherwise read the config, and say so."""
     if shutil.which("node") and (PROJECT_ROOT / "node_modules" / "eslint").is_dir():
         script = (
@@ -166,7 +166,7 @@ def _eslint() -> Tuple[Optional[bool], str]:
 
 
 #: How to find out whether one walker lints scratch. Returns (walks it?, how that was established).
-PROBES: Dict[str, Callable[[], Tuple[Optional[bool], str]]] = {
+PROBES: dict[str, Callable[[], tuple[bool | None, str]]] = {
     "flake8": _python_tool("flake8", ["--select=F401", "."], "import os\n"),
     "isort": _python_tool("isort", ["--check-only", "."], "import sys\nimport os\n"),
     "black": _python_tool("black", ["--check", "."], "x=1\n"),

@@ -28,8 +28,9 @@ import json
 import os
 import subprocess
 import sys
+from collections.abc import Sequence
 from datetime import datetime, timezone
-from typing import Callable, Dict, List, Optional, Sequence
+from typing import Callable
 
 import click
 
@@ -74,7 +75,7 @@ def compose(lane: Lane, summary: str, values: dict, source: str = SESSION) -> st
     return "\n".join(parts)
 
 
-def capture_source() -> Optional[str]:
+def capture_source() -> str | None:
     """The job the runner names in the environment, or `None` for a person.
 
     Any value set is a job key to be checked, `session` included (mind.head), so
@@ -87,12 +88,12 @@ def capture_source() -> Optional[str]:
     return os.environ.get(SOURCE_ENV, "").strip() or None
 
 
-def standing(source: str) -> Optional[List[str]]:
+def standing(source: str) -> list[str] | None:
     """Titles of `source`'s open captures across every lane; `None` if unknown.
 
     Keyed by issue number, so an issue carrying two lane labels counts once.
     """
-    found: Dict[int, str] = {}
+    found: dict[int, str] = {}
     for lane in LANES:
         issues = open_captures(lane)
         if issues is None:
@@ -103,7 +104,7 @@ def standing(source: str) -> Optional[List[str]]:
     return list(found.values())
 
 
-def open_captures(lane: Lane) -> Optional[List[dict]]:
+def open_captures(lane: Lane) -> list[dict] | None:
     """A lane's open issues, oldest first; `None` if `gh` could not list them.
 
     The one place a lane is read back, shared by the cap and by `dev inbox`.
@@ -119,7 +120,7 @@ def open_captures(lane: Lane) -> Optional[List[dict]]:
     return sorted(json.loads(result.stdout or "[]"), key=lambda issue: issue.get("createdAt", ""))
 
 
-def refusal(source: Optional[str], summary: str, count: Callable[[], Optional[List[str]]]) -> str:
+def refusal(source: str | None, summary: str, count: Callable[[], list[str] | None]) -> str:
     """Why a capture must not be filed, or `""`. A person is never capped.
 
     `count` is asked last, so a refusal decidable here makes no `gh` call (node-zero).

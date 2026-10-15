@@ -117,7 +117,7 @@ def job_blocks() -> dict:
     """
     lines = CI.read_text(encoding="utf-8").splitlines()
     # `(line index, job id)`, matched once. Re-matching at the bottom of the
-    # loop to read the id back would be an `Optional[Match]` pyright is right
+    # loop to read the id back would be a `Match | None` pyright is right
     # to refuse — and the refusal is the useful kind, since a second match is a
     # second chance for the two to disagree.
     starts = [(index, match.group("id")) for index, line in enumerate(lines) if (match := _JOB.match(line))]

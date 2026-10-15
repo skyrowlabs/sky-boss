@@ -175,3 +175,18 @@ def _never_the_users_browser(monkeypatch: pytest.MonkeyPatch) -> None:
 
     for name in ("open", "open_new", "open_new_tab"):
         monkeypatch.setattr(webbrowser, name, refuse(name))
+
+
+@pytest.fixture(autouse=True)
+def _never_the_network(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep a unit test on loopback and away from every secret-shaped variable. See `tests/guards.py`.
+
+    Other suites may reach real services by design. A test that patches the socket
+    itself still wins, because it is patched later.
+    """
+    if request.node.get_closest_marker("unit") is None:
+        return
+    from tests.guards import hide_secrets, refuse_remote
+
+    hide_secrets(monkeypatch)
+    refuse_remote(monkeypatch)

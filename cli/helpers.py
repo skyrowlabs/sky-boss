@@ -11,8 +11,8 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Optional, Sequence
 
 # Bootstrap only: put the package on sys.path so `scripts.paths` — which owns
 # every path in the tree — can be imported. The `./dev` wrapper exports
@@ -82,7 +82,7 @@ def absolutize_path_env() -> None:
     os.environ["PATH"] = os.pathsep.join(entries)
 
 
-def run(cmd: Sequence[str], *, cwd: Optional[Path] = None, check: bool = False, capture: bool = False):
+def run(cmd: Sequence[str], *, cwd: Path | None = None, check: bool = False, capture: bool = False):
     """Run a command from the project root, echoing it unless capturing."""
     if not capture:
         shell(" ".join(str(c) for c in cmd))

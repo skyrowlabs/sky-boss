@@ -47,8 +47,8 @@ import difflib
 import hashlib
 import json
 import sys
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Tuple
 
 # Bootstrap only: put the package on sys.path so `scripts.paths` — which
 # owns every path below — can be imported. See scripts/paths.py.
@@ -78,7 +78,7 @@ def invites(text: str) -> bool:
     return all(mark in text for mark in INVITATION)
 
 
-def bounds(lines: List[str]) -> Dict[str, List[int]]:
+def bounds(lines: list[str]) -> dict[str, list[int]]:
     """1-based line numbers of each rule. Callers assert there is exactly one of each."""
     return {
         name: [number for number, line in enumerate(lines, start=1) if line.startswith(rule)]
@@ -90,7 +90,7 @@ def _digest(line: str) -> str:
     return hashlib.sha256(line.rstrip().encode("utf-8")).hexdigest()[:12]
 
 
-def outside_comments(lines: List[str]) -> List[Tuple[int, str]]:
+def outside_comments(lines: list[str]) -> list[tuple[int, str]]:
     """Every full-line comment outside the space, as (1-based line, digest).
 
     Both rule lines are outside by this definition, and the frozen block under
@@ -113,7 +113,7 @@ def outside_comments(lines: List[str]) -> List[Tuple[int, str]]:
     ]
 
 
-def unrecognised(recorded: List[str], lines: List[str]) -> List[int]:
+def unrecognised(recorded: list[str], lines: list[str]) -> list[int]:
     """Line numbers of comments outside the space that the record does not account for.
 
     A sequence match rather than set membership, because the template repeats
@@ -122,7 +122,7 @@ def unrecognised(recorded: List[str], lines: List[str]) -> List[int]:
     """
     present = outside_comments(lines)
     matcher = difflib.SequenceMatcher(a=recorded, b=[digest for _, digest in present], autojunk=False)
-    extra: List[int] = []
+    extra: list[int] = []
     for tag, _, _, low, high in matcher.get_opcodes():
         if tag in ("insert", "replace"):
             extra += [present[index][0] for index in range(low, high)]
@@ -137,9 +137,9 @@ def _walk(root: Path) -> Iterable[Path]:
         yield path
 
 
-def record(root: Path = PROJECT_ROOT) -> Dict[str, List[str]]:
+def record(root: Path = PROJECT_ROOT) -> dict[str, list[str]]:
     """Each seam file's outside comments, digested — what the scaffolder writes."""
-    seams: Dict[str, List[str]] = {}
+    seams: dict[str, list[str]] = {}
     for path in _walk(root):
         text = path.read_text(encoding="utf-8", errors="replace")
         if invites(text):
@@ -147,10 +147,10 @@ def record(root: Path = PROJECT_ROOT) -> Dict[str, List[str]]:
     return seams
 
 
-def load(path: Path = RECORD) -> Optional[Dict[str, List[str]]]:
+def load(path: Path = RECORD) -> dict[str, list[str]] | None:
     if not path.exists():
         return None
-    seams: Dict[str, List[str]] = json.loads(path.read_text(encoding="utf-8"))["seams"]
+    seams: dict[str, list[str]] = json.loads(path.read_text(encoding="utf-8"))["seams"]
     return seams
 
 

@@ -26,7 +26,6 @@ import argparse
 import re
 import sys
 from pathlib import Path
-from typing import List
 
 # Bootstrap only: put the package on sys.path so `scripts.paths` — which
 # owns every path below — can be imported. See scripts/paths.py.
@@ -57,7 +56,7 @@ def _ignored() -> set:
     }
 
 
-def _sources() -> List[Path]:
+def _sources() -> list[Path]:
     out = []
     for path in PROJECT_ROOT.rglob("*"):
         if not path.is_file() or path.suffix not in SOURCE_SUFFIXES:
@@ -95,7 +94,7 @@ def main() -> int:
     args = parser.parse_args()
 
     ignore = _ignored()
-    dead: List[str] = []
+    dead: list[str] = []
     checked = 0
 
     for source in _sources():

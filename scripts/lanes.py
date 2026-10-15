@@ -38,7 +38,7 @@ schedule with no second edit.
 
 from __future__ import annotations
 
-from typing import Any, List, NamedTuple, Optional, Tuple
+from typing import Any, NamedTuple
 
 from scripts.paths import SCRIPTS_DIR
 
@@ -66,7 +66,7 @@ class Section(NamedTuple):
 #: A defect found while doing something else. Every section here answers a
 #: question the fixer would otherwise have to come back for, and `reproduce` is
 #: the one that makes it a bug report rather than a rumour.
-BUG_SECTIONS: Tuple[Section, ...] = (
+BUG_SECTIONS: tuple[Section, ...] = (
     Section("finding", "path:line + what is wrong"),
     Section("reproduce", "exact command; observed vs expected", fenced=True),
     Section("scope", "what is in, and what is explicitly out"),
@@ -77,7 +77,7 @@ BUG_SECTIONS: Tuple[Section, ...] = (
 #: failure to reproduce — which is exactly why a flag on the bug intake was the
 #: wrong shape and this is a second lane. `why` is not decoration: it is what
 #: stops a task queue becoming a wish list.
-TASK_SECTIONS: Tuple[Section, ...] = (
+TASK_SECTIONS: tuple[Section, ...] = (
     Section("what", "the change itself, in terms of the files it touches"),
     Section("why", "what is worse today because this has not been done"),
     Section("acceptance", "the assertions; the command that must pass"),
@@ -94,7 +94,7 @@ class Lane(NamedTuple):
     #: Hex, no leading ``#`` — what ``gh label create --color`` wants.
     color: str
     description: str
-    sections: Tuple[Section, ...]
+    sections: tuple[Section, ...]
     #: Shown in the editor's issue view. Human words, because that is where it
     #: is read; the label is the machine name and is shown in the query itself.
     title: str
@@ -111,7 +111,7 @@ class Lane(NamedTuple):
 #: means adding its intake in the same change; `tests/test_lanes.py` fails
 #: otherwise, and `scripts/gen_vscode_queries.py` would otherwise put a
 #: permanently-blank pane in the editor of everyone who scaffolds.
-LANES: List[Lane] = [
+LANES: list[Lane] = [
     Lane(
         key="bug",
         label="agent-bug",
@@ -157,15 +157,15 @@ def source_line(source: str) -> str:
     return f"_Source: `{source}`_"
 
 
-def labels() -> List[str]:
+def labels() -> list[str]:
     """Every lane label, in registry order. The set the editor views partition."""
     return [lane.label for lane in LANES]
 
 
-def job_registry() -> Optional[Any]:
+def job_registry() -> Any | None:
     """`scripts.reporting.jobs` if this tree ships it, else ``None``.
 
-    Typed `Optional[Any]` rather than `Optional[object]`, and that is a real
+    Typed `Any | None` rather than `object | None`, and that is a real
     choice rather than laziness: the module is resolvable at some tiers and not
     others, so there is no annotation that is true everywhere, and `object`
     makes every attribute access on the result an error at every tier —
@@ -203,7 +203,7 @@ def job_registry() -> Optional[Any]:
     return jobs
 
 
-def drainer_of(lane: Lane) -> Optional[object]:
+def drainer_of(lane: Lane) -> object | None:
     """The registered job that drains this lane, or ``None`` if nothing does.
 
     Two ways to get ``None`` and they are deliberately the same answer, because

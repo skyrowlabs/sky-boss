@@ -31,7 +31,6 @@ import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List, Optional
 
 # Bootstrap only: put the package on sys.path so `scripts.paths` — which
 # owns every path below — can be imported. See scripts/paths.py.
@@ -46,7 +45,7 @@ from scripts.paths import PROJECT_ROOT, REGULAR_DIR, RELEASES_DIR  # noqa: E402
 #: this list is refreshed by hand or only at release time, which is the exact
 #: condition the anchoring exists to remove — and an invisible one, since the
 #: file keeps existing while describing an older and older build.
-ANCHORED_REPORTS: List[str] = []
+ANCHORED_REPORTS: list[str] = []
 
 _WINDOW_LINE = re.compile(r"^> \*\*Window:\*\*.*$", re.MULTILINE)
 
@@ -55,13 +54,13 @@ def _git(*args: str) -> str:
     return subprocess.run(["git", *args], cwd=PROJECT_ROOT, capture_output=True, text=True, check=False).stdout.strip()
 
 
-def tags() -> List[str]:
+def tags() -> list[str]:
     """Release tags, newest first. Empty before the first release."""
     raw = _git("tag", "--list", "v*", "--sort=-creatordate")
     return [t for t in raw.splitlines() if t.strip()]
 
 
-def window(release: Optional[str] = None) -> Dict[str, object]:
+def window(release: str | None = None) -> dict[str, object]:
     """The window a report should describe.
 
     Before the first release there is no previous tag, so the range opens at the
@@ -123,7 +122,7 @@ def window(release: Optional[str] = None) -> Dict[str, object]:
     }
 
 
-def _prose(win: Dict[str, object]) -> str:
+def _prose(win: dict[str, object]) -> str:
     label = (
         win["release"]
         if win["status"] == "released"
@@ -132,7 +131,7 @@ def _prose(win: Dict[str, object]) -> str:
     return f"> **Window:** {label} — `{win['commit_range']}` ({win['commits']} commits, at `{win['head_sha']}`)"
 
 
-def apply(only: Optional[str] = None) -> int:
+def apply(only: str | None = None) -> int:
     """Stamp the anchor onto in-flight reports.
 
     ``--only`` exists because ``generated:`` is part of the stamp: a bare

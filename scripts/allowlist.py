@@ -38,7 +38,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import Callable, Dict, List, Optional
+from typing import Callable
 
 #: `key: reason`, splitting on the first colon **followed by whitespace**.
 #: A key may itself contain colons (`ci.yml:integration`) and a reason may
@@ -46,11 +46,11 @@ from typing import Callable, Dict, List, Optional
 _ENTRY = re.compile(r"^(.*?):\s+(.*)$")
 
 
-def read(path: Path) -> Dict[str, str]:
+def read(path: Path) -> dict[str, str]:
     """Every `key: reason` in `path`. Missing file, comments and blanks: skipped."""
     if not path.exists():
         return {}
-    out: Dict[str, str] = {}
+    out: dict[str, str] = {}
     for raw in path.read_text(encoding="utf-8").splitlines():
         line = raw.strip()
         if not line or line.startswith("#"):
@@ -75,7 +75,7 @@ def read(path: Path) -> Dict[str, str]:
     return out
 
 
-def stale(entries: Dict[str, str], still_needed: Callable[[str], Optional[str]]) -> List[str]:
+def stale(entries: dict[str, str], still_needed: Callable[[str], str | None]) -> list[str]:
     """Entries that no longer need to exist, as ready-to-print findings.
 
     `still_needed(key)` returns `None` when the entry is doing its job, or a

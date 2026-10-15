@@ -55,7 +55,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import Any, Dict, Tuple
+from typing import Any
 
 DELIM = "---"
 
@@ -134,7 +134,7 @@ def _inline_list(raw: str) -> list:
     return [_scalar(p) for p in parts if p.strip()]
 
 
-def parse(text: str, where_from: str = "") -> Tuple[Dict[str, Any], str]:
+def parse(text: str, where_from: str = "") -> tuple[dict[str, Any], str]:
     """Split a document into ``(frontmatter, body)``.
 
     A document with no frontmatter returns ``({}, text)`` — never an error. A
@@ -151,7 +151,7 @@ def parse(text: str, where_from: str = "") -> Tuple[Dict[str, Any], str]:
     body = text[end + len(DELIM) + 2 :].lstrip("\n")
     last_key = ""
 
-    data: Dict[str, Any] = {}
+    data: dict[str, Any] = {}
     for number, line in enumerate(block.splitlines(), start=2):
         stripped = line.strip()
         if not stripped or stripped.startswith("#"):
@@ -224,16 +224,16 @@ FIELD_ORDER = [
 ]
 
 
-def dumps(data: Dict[str, Any]) -> str:
+def dumps(data: dict[str, Any]) -> str:
     """Render a frontmatter block, `FIELD_ORDER` first, then anything else."""
     keys = [k for k in FIELD_ORDER if k in data] + sorted(k for k in data if k not in FIELD_ORDER)
     lines = [DELIM] + [f"{k}: {_emit(data[k])}" for k in keys] + [DELIM]
     return "\n".join(lines) + "\n"
 
 
-def write(path: Path, data: Dict[str, Any], body: str) -> None:
+def write(path: Path, data: dict[str, Any], body: str) -> None:
     path.write_text(dumps(data) + "\n" + body.lstrip("\n"), encoding="utf-8")
 
 
-def read(path: Path) -> Tuple[Dict[str, Any], str]:
+def read(path: Path) -> tuple[dict[str, Any], str]:
     return parse(path.read_text(encoding="utf-8"))

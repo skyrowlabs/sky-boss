@@ -19,7 +19,6 @@ import json
 import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
-from typing import Optional
 
 import pytest
 
@@ -83,7 +82,7 @@ def tree(tmp_path, monkeypatch, manifest):
     budget_file.write_text(json.dumps({"tolerance_pts": 0.5, "suites": {"unit": {"baseline_pct": 0.0}}}))
     monkeypatch.setattr(budget, "BUDGET", budget_file)
 
-    def run(files: dict, *flags: str, entry: Optional[dict] = None) -> tuple[int, dict]:
+    def run(files: dict, *flags: str, entry: dict | None = None) -> tuple[int, dict]:
         if entry is not None:
             budget_file.write_text(json.dumps({"tolerance_pts": 0.5, "suites": {"unit": entry}}))
         xml = coverage_xml(tmp_path / "coverage.xml", files)

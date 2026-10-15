@@ -126,7 +126,7 @@ import json
 import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
-from typing import List, NamedTuple, Optional, Tuple
+from typing import NamedTuple
 
 # Bootstrap only: put the package on sys.path so `scripts.paths` — which
 # owns every path below — can be imported. See scripts/paths.py.
@@ -146,7 +146,7 @@ DEFAULT_XML = TMP_DIR / "coverage.xml"
 _UNREADABLE_BUDGET = (OSError, ValueError)
 
 
-def _own_lines(root: ET.Element) -> Optional[List[ET.Element]]:
+def _own_lines(root: ET.Element) -> list[ET.Element] | None:
     """Every measured `<line>` in a file of this project's own, or `None` without a manifest.
 
     Own means *not named by `.skeletor.json`* and *not under `tests/`* — the
@@ -168,7 +168,7 @@ def _own_lines(root: ET.Element) -> Optional[List[ET.Element]]:
     ]
 
 
-def own_rate(root: ET.Element) -> Optional[float]:
+def own_rate(root: ET.Element) -> float | None:
     """The line rate over `_own_lines`, as a percentage; `None` when there is
     no manifest to ask or nothing of yours was measured."""
     lines = _own_lines(root)
@@ -177,7 +177,7 @@ def own_rate(root: ET.Element) -> Optional[float]:
     return 100.0 * sum(1 for line in lines if int(line.get("hits", "0")) > 0) / len(lines)
 
 
-def own_statements(root: ET.Element) -> Optional[int]:
+def own_statements(root: ET.Element) -> int | None:
     """How many of the measured statements are this project's own.
 
     A percentage is a claim about a population, and this is the one question
@@ -212,8 +212,8 @@ class Reading(NamedTuple):
     """One coverage report, read once, so the two paths below cannot disagree about it."""
 
     whole: float
-    own: Optional[int]
-    mine: Optional[float]
+    own: int | None
+    mine: float | None
     measured: dict
     composition: str
 
@@ -240,7 +240,7 @@ def read(root: ET.Element, tolerance: float) -> Reading:
     return Reading(whole, own, mine, measured, composition)
 
 
-def record(suite: str, budget: dict, entry: dict, reading: Reading) -> Tuple[dict, int]:
+def record(suite: str, budget: dict, entry: dict, reading: Reading) -> tuple[dict, int]:
     """`--update`: write the baseline down, or refuse to."""
     if reading.own == 0:
         fail(f"{suite}: refusing to record a baseline — {NOTHING_OF_YOURS}")
@@ -260,7 +260,7 @@ def record(suite: str, budget: dict, entry: dict, reading: Reading) -> Tuple[dic
     return {"state": "updated", key: round(recorded, 2), **reading.measured}, 0
 
 
-def compare(suite: str, entry: dict, tolerance: float, reading: Reading) -> Tuple[dict, int]:
+def compare(suite: str, entry: dict, tolerance: float, reading: Reading) -> tuple[dict, int]:
     """Measure against the baseline, on the population the baseline was recorded over.
 
     The old key is honoured as written: a figure recorded over one population,

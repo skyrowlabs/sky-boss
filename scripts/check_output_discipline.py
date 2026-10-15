@@ -34,7 +34,6 @@ import ast
 import re
 import sys
 from pathlib import Path
-from typing import Dict, List, Optional
 
 # Bootstrap only: put the package on sys.path so `scripts.paths` — which
 # owns every path below — can be imported. See scripts/paths.py.
@@ -67,7 +66,7 @@ _STREAM = re.compile(r"file\s*=\s*sys\.(?:stdout|stderr)|sys\.(?:stdout|stderr)\
 _GLYPHS = tuple(sorted({symbol.strip() for symbol in STATE_SYMBOLS.values()}))
 
 
-def _allowlist() -> Dict[str, str]:
+def _allowlist() -> dict[str, str]:
     """Exemptions, read through the one reader every allowlist here shares."""
     return allowlist.read(ALLOWLIST)
 
@@ -91,8 +90,8 @@ def _prose_lines(text: str) -> set:
     return lines
 
 
-def _sources() -> List[Path]:
-    found: List[Path] = []
+def _sources() -> list[Path]:
+    found: list[Path] = []
     for directory in SCAN_DIRS:
         root = PROJECT_ROOT / directory
         if root.exists():
@@ -100,7 +99,7 @@ def _sources() -> List[Path]:
     return found
 
 
-def _findings_for(path: Path) -> Dict[str, List[str]]:
+def _findings_for(path: Path) -> dict[str, list[str]]:
     """One file's findings, ignoring the allowlist entirely.
 
     Split out from `scan()` so `_stale()` below can ask the question the
@@ -108,9 +107,9 @@ def _findings_for(path: Path) -> Dict[str, List[str]]:
     thing it exempts is still true.
     """
     rel = path.relative_to(PROJECT_ROOT).as_posix()
-    spelled: List[str] = []
-    streams: List[str] = []
-    unflagged: List[str] = []
+    spelled: list[str] = []
+    streams: list[str] = []
+    unflagged: list[str] = []
 
     text = path.read_text(encoding="utf-8")
     prose = _prose_lines(text)
@@ -130,7 +129,7 @@ def _findings_for(path: Path) -> Dict[str, List[str]]:
     return {"spelled": spelled, "streams": streams, "unflagged": unflagged}
 
 
-def _stale(entries: Dict[str, str]) -> List[str]:
+def _stale(entries: dict[str, str]) -> list[str]:
     """Allowlist entries that no longer need to exist.
 
     A written reason makes an exemption a decision record. It does not make the
@@ -148,7 +147,7 @@ def _stale(entries: Dict[str, str]) -> List[str]:
     exemption looking for a file to attach itself to.
     """
 
-    def why(rel: str) -> Optional[str]:
+    def why(rel: str) -> str | None:
         path = PROJECT_ROOT / rel
         if not path.exists():
             return "there is no such file"
@@ -159,12 +158,12 @@ def _stale(entries: Dict[str, str]) -> List[str]:
     return allowlist.stale(entries, why)
 
 
-def scan() -> Dict[str, List[str]]:
+def scan() -> dict[str, list[str]]:
     """Every place a symbol is spelled, a stream is picked, or `--json` is absent."""
     # `exempt`, not `allowlist` — the module of that name is imported above, and
     # a local shadowing it inside the one function that also calls it is a trap.
     exempt = _allowlist()
-    found: Dict[str, List[str]] = {"spelled": [], "streams": [], "unflagged": []}
+    found: dict[str, list[str]] = {"spelled": [], "streams": [], "unflagged": []}
 
     for path in _sources():
         rel = path.relative_to(PROJECT_ROOT).as_posix()

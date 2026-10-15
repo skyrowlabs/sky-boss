@@ -29,7 +29,7 @@ from __future__ import annotations
 import re
 import sys
 from pathlib import Path
-from typing import Optional, Union
+from typing import Union
 
 import pytest
 
@@ -154,7 +154,7 @@ def test_every_checkout_can_read_the_repository():
         "triggers-are-not-jobs",
     ],
 )
-def test_the_predicate(workflow: str, expected: Optional[list]):
+def test_the_predicate(workflow: str, expected: list | None):
     """Each shape on a workflow built to have it, so the real-tree test above
     cannot pass by reading nothing — the job-level row is the one GitHub's own
     replace-not-merge rule decides, and the easiest to get backwards."""

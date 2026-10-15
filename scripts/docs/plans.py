@@ -27,7 +27,7 @@ import re
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 # Bootstrap only: put the package on sys.path so `scripts.paths` — which
 # owns every path below — can be imported. See scripts/paths.py.
@@ -115,9 +115,9 @@ class Plan:
     path: Path
     slug: str
     title: str
-    frontmatter: Dict[str, Any] = field(default_factory=dict)
+    frontmatter: dict[str, Any] = field(default_factory=dict)
     body: str = ""
-    headers: Dict[str, str] = field(default_factory=dict)
+    headers: dict[str, str] = field(default_factory=dict)
 
     # -- classification ---------------------------------------------------
 
@@ -144,7 +144,7 @@ class Plan:
         return "planned"
 
     @property
-    def blocked_on(self) -> Optional[str]:
+    def blocked_on(self) -> str | None:
         """The gate, read **only** from an explicit line — never inferred."""
         raw = self.headers.get("blocked-on") or self.frontmatter.get("blocked_on")
         if not raw:
@@ -153,7 +153,7 @@ class Plan:
         return value if value in GATES else "unclassified"
 
     @property
-    def queue_order(self) -> Optional[int]:
+    def queue_order(self) -> int | None:
         """The declared position, read **only** from an explicit line."""
         raw = self.headers.get("queue-order") or self.frontmatter.get("queue_order")
         try:
@@ -172,7 +172,7 @@ class Plan:
         return "medium"
 
     @property
-    def review_pr(self) -> Optional[str]:
+    def review_pr(self) -> str | None:
         raw = self.headers.get("review-pr") or self.frontmatter.get("review_pr")
         return str(raw).strip() if raw else None
 
@@ -189,13 +189,13 @@ class Plan:
         return str(self.frontmatter.get("summary") or "")
 
     @property
-    def tags(self) -> List[str]:
+    def tags(self) -> list[str]:
         raw = self.frontmatter.get("tags") or []
         return [str(t) for t in raw] if isinstance(raw, list) else []
 
     # -- tasks ------------------------------------------------------------
 
-    def open_tasks(self, include_exempt: bool = False) -> List[str]:
+    def open_tasks(self, include_exempt: bool = False) -> list[str]:
         """Unchecked tasks, minus the ones marked as never-ticked-here."""
         out = []
         for m in _TASK.finditer(self.body):
@@ -207,9 +207,9 @@ class Plan:
             out.append(text)
         return out
 
-    def to_entry(self) -> Dict[str, Any]:
+    def to_entry(self) -> dict[str, Any]:
         """The machine-readable record written into the index JSON."""
-        entry: Dict[str, Any] = {
+        entry: dict[str, Any] = {
             "slug": self.slug,
             "title": self.title,
             "path": str(self.path.relative_to(PROJECT_ROOT)),
@@ -269,7 +269,7 @@ def load(path: Path) -> Plan:
     return Plan(path=path, slug=path.stem, title=title, frontmatter=fm, body=body, headers=headers)
 
 
-def scan(directory: Path, recursive: bool = False) -> List[Plan]:
+def scan(directory: Path, recursive: bool = False) -> list[Plan]:
     """Every plan under ``directory``, sorted by slug for a stable index."""
     if not directory.exists():
         return []
