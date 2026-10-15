@@ -3,7 +3,7 @@
 A tree is scaffolded on somebody's workstation and may later be made public. The
 scan checks **shapes**, never names: a home directory, a path built on the home
 directory outside a tool's own dotfile, a private or routable IPv4 literal, a
-committed `CLAUDE.local.md`. Real host names cannot go here, because a tracked
+committed `CLAUDE.local.md` or `.env`. Real host names cannot go here, because a tracked
 list of them would itself be the leak; keep those in an untracked grep of your own.
 From sky.boss, whose version found five leaks after four audits called the tree clean.
 """
@@ -35,7 +35,9 @@ TILDE_PATH = re.compile(r"~/[A-Za-z0-9][\w.-]*")
 HOME_JOIN = re.compile(r'Path\.home\(\)\s*/\s*"[A-Za-z0-9][\w.-]*"')
 # Not after `=`, `@` or `v`, which is how a four-part version pin is spelled, nor `§`, a section number.
 IPV4 = re.compile(r"(?<![\w.=@§-])\d{1,3}(?:\.\d{1,3}){3}(?![\w.])")
-LOCAL_NOTES = re.compile(r"(^|/)CLAUDE\.local\.md$")
+# Files that must never be tracked at all. `.env*` is the pre-commit hook's rule, repeated here
+# because a hook never runs on a web-UI or bot commit (sky.boss); its examples stay allowed.
+NEVER_TRACKED = re.compile(r"(^|/)(CLAUDE\.local\.md|\.env(?!\.(?:example|ci)$)(\.[^/]+)?)$")
 
 
 #: A name rather than a parenthesised tuple in the `except`: at a 3.14 target black
@@ -66,7 +68,7 @@ def _tracked() -> list[str]:
 
 def findings() -> list[tuple[str, str]]:
     """Every shape in every tracked text file, as `(path, match)`."""
-    found = [(name, name) for name in _tracked() if LOCAL_NOTES.search(name)]
+    found = [(name, name) for name in _tracked() if NEVER_TRACKED.search(name)]
     for name in scanned(_tracked(), "tracked files", least=20):
         # The allowlist quotes the findings it exempts, and each of those is held to a real one below.
         if PROJECT_ROOT / name == ALLOWLIST:
@@ -108,6 +110,8 @@ def test_the_shapes_catch_what_they_claim():
     assert not TILDE_PATH.search("~/" + ".config/x"), "a tool's own dotfile is not a leak"
     assert IPV4.search("ssh 10.0.0." + "5") and not _harmless("10.0.0." + "5")
     assert not IPV4.search("tool==1.7.12." + "24") and _harmless("127.0.0." + "1")
+    assert all(NEVER_TRACKED.search(n) for n in (".env", "app/.env.production", "CLAUDE.local.md"))
+    assert not any(NEVER_TRACKED.search(n) for n in (".env.example", ".env.ci", "notes/env.md"))
     assert not IPV4.search("§2.3.1." + "4") and not HOME_DIR.search("https://example.org/home/" + "Download")
 
 

@@ -50,5 +50,5 @@ def test_every_ignore_concerns_a_step_that_is_still_there():
         for pattern in patterns:
             action = _ACTION.search(pattern)
             if action and f"uses: {action.group(1)}@" not in text:
-                stale.append(f"{path}: ignores a message about {action.group(1)}, which it no longer uses")
+                stale.append(f"{path}: {pattern!r} is about {action.group(1)}, which it no longer uses")
     assert not stale, "stale actionlint ignores — delete them:\n" + "\n".join(stale)

@@ -2942,3 +2942,19 @@ Probes, with the outcome predicted before each was run: a stale allowlist key fa
 a real-looking home path in a doc fails, and `dev doctor` reads required checks on
 `develop` and `main` as two facts, with the release fact *not applicable*. All four
 matched. Standing divergences: 29 → 28.
+
+### Round 47 — 2026-10-15: v0.50.1, the negotiation closes
+
+Clean. Four files we never touched were updated: `cli/doctor.py` and three tests.
+`.github/actionlint.yaml` stays deleted, and the template's test agrees. The other
+two answers from round 45 are verbatim.
+
+`dev doctor` now reads each branch's workflows at that branch's ref and refuses a
+required check that only a matrix job reports. All four contexts here are reported
+by non-matrix jobs on both branches, so the prediction was ✅ for `develop` and
+`main`. That is what it reported.
+
+This tree's finding, a tracked `.env`, was re-measured in a throwaway clone. With
+`.env`, `.env.local`, `.env.example` and `.env.ci` force-added, the scan failed on
+exactly the first two, as predicted. The clone passed before they were added.
+Standing divergences: 28 → 28. Nothing is left open with skeletor.

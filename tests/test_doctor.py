@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import json
 import sys
 from pathlib import Path
@@ -68,22 +69,61 @@ def test_the_release_secrets_are_the_ones_ci_reads():
         assert f"secrets.{name}" in ci, f"doctor checks {name}, which ci.yml no longer reads"
 
 
-def test_a_required_check_no_job_reports_is_a_problem(monkeypatch):
-    real = sorted(doctor.workflow_job_names())
-    assert real, "found no job names in the workflows"
-    stub(monkeypatch, {checks_path(): {"contexts": [real[0], "a job nobody wrote"]}})
-    assert doctor.required_checks(doctor.BASE_BRANCH).state == doctor.PROBLEM
-    stub(monkeypatch, {checks_path(): {"checks": [{"context": f"{real[0]} (3.12)"}]}})
-    assert doctor.required_checks(doctor.BASE_BRANCH).state == doctor.OK
-    stub(monkeypatch, {checks_path(): {"contexts": ["codecov/patch"]}})
-    assert doctor.required_checks(doctor.BASE_BRANCH).state == doctor.UNKNOWN
-    stub(monkeypatch, {checks_path(): 404})
-    assert doctor.required_checks(doctor.BASE_BRANCH).state == doctor.OK
+WORKFLOW = """
+jobs:
+  gate:
+    name: CI Gate
+  unit:
+    name: pytest ${{ matrix.python }}
+    strategy:
+      matrix:
+        python: ['3.12', '3.14']
+  unit-result:
+    name: pytest
+"""
 
 
-def test_a_templated_job_name_matches_what_it_renders_to():
-    assert doctor.resolves("unit (3.12, ubuntu)", {"unit (${{ matrix.python }}, ${{ matrix.os }})"})
-    assert not doctor.resolves("lint", {"unit (${{ matrix.python }})"})
+def on_branch(branch: str, required, workflow: str = WORKFLOW) -> dict:
+    """Stub answers: `branch` requires `required` and holds one workflow file."""
+    ref = f"?ref={branch}"
+    listing = [{"name": "ci.yml", "path": ".github/workflows/ci.yml"}]
+    content = {"content": base64.b64encode(workflow.encode()).decode()}
+    return {
+        checks_path(branch): {"contexts": required} if isinstance(required, list) else required,
+        f"{REPO}/contents/.github/workflows{ref}": listing,
+        f"{REPO}/contents/.github/workflows/ci.yml{ref}": content,
+    }
+
+
+@pytest.mark.parametrize(
+    "required, state",
+    [
+        (["CI Gate", "pytest"], "ok"),
+        (["pytest 3.14"], "problem"),
+        (["pytest 9.9"], "problem"),
+        (["unit (3.12)"], "problem"),
+        (["a job nobody wrote"], "problem"),
+        (["codecov/patch"], "unknown"),
+        (404, "ok"),
+    ],
+)
+def test_a_required_check_must_be_a_job_that_reports_and_never_a_matrix_leg(monkeypatch, required, state):
+    stub(monkeypatch, on_branch("main", required))
+    assert doctor.required_checks("main").state == state
+
+
+def test_a_branch_is_judged_by_its_own_workflows_not_this_checkout(monkeypatch):
+    without = WORKFLOW.replace("  unit-result:\n    name: pytest\n", "")
+    stub(monkeypatch, on_branch("main", ["pytest"], without))
+    assert doctor.required_checks("main").state == doctor.PROBLEM, "mind.head, 2026-10-02"
+    stub(monkeypatch, {checks_path("main"): {"contexts": ["pytest"]}})
+    assert doctor.required_checks("main").state == doctor.UNKNOWN, "unreadable workflows are never this checkout's"
+
+
+def test_the_checks_ci_yml_tells_you_to_require_are_jobs_and_its_legs_are_not():
+    jobs = doctor.workflow_jobs([(GITHUB_DIR / "workflows" / "ci.yml").read_text(encoding="utf-8")])
+    assert doctor.classify("CI Gate", jobs) == doctor.classify("pytest", jobs) == "job"
+    assert doctor.classify("pytest 3.12", jobs) == "leg"
 
 
 def test_nothing_readable_is_never_summarised_as_fine(monkeypatch):

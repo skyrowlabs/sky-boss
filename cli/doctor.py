@@ -13,16 +13,18 @@ unknown, and the summary says all is well only when every fact was answered:
 
 from __future__ import annotations
 
+import base64
 import json
 import re
 import subprocess
 from dataclasses import asdict, dataclass
 from typing import Any
+from urllib.parse import quote
 
 import click
 
 from scripts.paths import GITHUB_DIR
-from scripts.yaml_text import read_uncommented
+from scripts.yaml_text import uncommented
 
 from .helpers import PROJECT_ROOT, detail, emit, fail, ok, skip, warn
 
@@ -125,33 +127,63 @@ def release_pull_request() -> Fact:
     )
 
 
-def workflow_job_names() -> set[str]:
-    """Every job id and job-level `name:` across the workflows, as a check context would spell it."""
-    names: set[str] = set()
-    for path in sorted(GITHUB_DIR.glob("workflows/*.y*ml")):
-        text = read_uncommented(path)
-        jobs = re.search(r"^jobs:\s*$", text, re.MULTILINE)
-        if not jobs:
+@dataclass
+class Job:
+    id: str
+    name: str
+    matrix: bool
+
+
+def workflow_jobs(texts: list[str]) -> list[Job]:
+    """Every job in these workflow texts: its id, the name its check reports under, and whether it fans out."""
+    jobs: list[Job] = []
+    for text in texts:
+        text = uncommented(text)
+        start = re.search(r"^jobs:\s*$", text, re.MULTILINE)
+        if not start:
             continue
-        body = text[jobs.end() :]
-        names |= set(re.findall(r"^  ([A-Za-z_][\w-]*):\s*$", body, re.MULTILINE))
-        names |= {n.strip().strip("'\"") for n in re.findall(r"^    name:\s*(.+?)\s*$", body, re.MULTILINE)}
-    return names
+        body = text[start.end() :]
+        headers = list(re.finditer(r"^  ([A-Za-z_][\w-]*):\s*$", body, re.MULTILINE))
+        for i, header in enumerate(headers):
+            job = body[header.end() : headers[i + 1].start() if i + 1 < len(headers) else len(body)]
+            named = re.search(r"^    name:\s*(.+?)\s*$", job, re.MULTILINE)
+            name = named.group(1).strip("'\"") if named else header.group(1)
+            jobs.append(Job(header.group(1), name, bool(re.search(r"^\s+matrix:", job, re.MULTILINE))))
+    return jobs
 
 
-def resolves(context: str, names: set[str]) -> bool:
-    """A context is a job name, a matrix leg of one, or a name with `${{ }}` filled in."""
-    for name in names:
-        if context == name or context.startswith(f"{name} ("):
-            return True
-        pattern = ".+".join(re.escape(part) for part in re.split(r"\$\{\{.*?\}\}", name))
-        if "${{" in name and re.fullmatch(pattern, context):
-            return True
-    return False
+def branch_workflows(branch: str) -> list[str]:
+    """The workflow files as they are on `branch`, which is what its pull requests run, not this checkout's."""
+    ref = "?ref=" + quote(branch, safe="")
+    texts = []
+    for entry in gh_api("repos/{owner}/{repo}/contents/.github/workflows" + ref):
+        if entry.get("name", "").endswith((".yml", ".yaml")):
+            content = gh_api("repos/{owner}/{repo}/contents/" + entry["path"] + ref)["content"]
+            texts.append(base64.b64decode(content).decode("utf-8"))
+    return texts
+
+
+def classify(context: str, jobs: list[Job]) -> str:
+    """`job` for a check a job reports under; `leg` for one only a matrix reports; `""` for neither.
+
+    A matrix's checks are never safe to require: skipped, it reports once under its
+    unexpanded name, so a required leg waits forever (stash.flow). Require the
+    job that summarises the matrix instead, as `ci.yml` does.
+    """
+    leg = False
+    for job in jobs:
+        fanned = job.name if "${{" in job.name else ""
+        pattern = ".+".join(re.escape(part) for part in re.split(r"\$\{\{.*?\}\}", fanned))
+        named = context in (job.name, job.id) or bool(fanned and re.fullmatch(pattern, context))
+        if job.matrix and (named or context.startswith((f"{job.name} (", f"{job.id} ("))):
+            leg = True
+        elif named:
+            return "job"
+    return "leg" if leg else ""
 
 
 def required_checks(branch: str) -> Fact:
-    """Every check `branch` requires names a job here; a release pull request into it waits on them too."""
+    """Every check `branch` requires is reported by a job in `branch`'s own workflows, and never by a matrix leg."""
     name = f"every required check on {branch} is a job that runs"
     try:
         # Concatenated, not an f-string: doubled braces would read as a scaffold placeholder.
@@ -161,19 +193,21 @@ def required_checks(branch: str) -> Fact:
             return Fact(name, OK, f"{branch} requires no checks, so none can wait forever")
         return Fact(name, UNKNOWN, str(error))
     contexts = list(found.get("contexts") or []) or [check["context"] for check in found.get("checks", [])]
-    names = workflow_job_names()
-    unresolved = [c for c in contexts if not resolves(c, names)]
-    dangling = [c for c in unresolved if "/" not in c]
-    if dangling:
-        return Fact(
-            name,
-            PROBLEM,
-            f"required but no workflow job reports it: {', '.join(dangling)} — every pull request into "
-            f"{branch} waits for it forever",
-        )
-    if unresolved:
-        return Fact(name, UNKNOWN, f"reported by something other than these workflows: {', '.join(unresolved)}")
-    return Fact(name, OK, f"{len(contexts)} required, all reported by a job here")
+    try:
+        jobs = workflow_jobs(branch_workflows(branch))
+    except Unreadable as error:
+        return Fact(name, UNKNOWN, f"could not read the workflows on {branch}: {error}")
+    kinds = {context: classify(context, jobs) for context in contexts}
+    legs = [c for c, kind in kinds.items() if kind == "leg"]
+    dangling = [c for c, kind in kinds.items() if not kind and "/" not in c]
+    elsewhere = [c for c, kind in kinds.items() if not kind and "/" in c]
+    if dangling or legs:
+        said = [f"no job on {branch} reports {', '.join(dangling)}"] if dangling else []
+        said += [f"{', '.join(legs)} is a matrix leg, which reports under another name when skipped"] if legs else []
+        return Fact(name, PROBLEM, "; ".join(said) + f" — pull requests into {branch} can wait for it forever")
+    if elsewhere:
+        return Fact(name, UNKNOWN, f"reported by something other than {branch}'s workflows: {', '.join(elsewhere)}")
+    return Fact(name, OK, f"{len(contexts)} required, each reported by a job in {branch}'s workflows")
 
 
 def gather() -> list[Fact]:
