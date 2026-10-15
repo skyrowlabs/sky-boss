@@ -57,13 +57,18 @@ def test_a_secret_the_shell_set_is_hidden_from_a_unit_test():
     assert ran.returncode == 0, "the fixture left SOME_API_KEY readable:\n" + ran.stdout
 
 
+#: Real names, written out: a test that derives them from `SECRET_NAME` cannot see what it misses (proto.pilot).
+CREDENTIALS = ("APP_PRIVATE_KEY", "RELEASE_TOKEN", "GH_TOKEN", "ANTHROPIC_API_KEY", "AWS_SECRET_ACCESS_KEY")
+CREDENTIALS += ("AWS_SESSION_TOKEN", "CLIENT_SECRET", "DB_PASSWORD", "GOOGLE_APPLICATION_CREDENTIALS")
+NOT_CREDENTIALS = ("PATH", "HOME", "TOKENIZER_PATH", "KEYRING_BACKEND", "APP_ID", "PYTHONHASHSEED")
+
+
 def test_the_shape_names_secrets_only(monkeypatch):
-    monkeypatch.setenv("SOME_API_KEY", "k")
-    monkeypatch.setenv("GH_TOKEN", "t")
-    monkeypatch.setenv("TOKENIZER_PATH", "kept")
+    for name in CREDENTIALS + NOT_CREDENTIALS:
+        monkeypatch.setenv(name, "x")
     hide_secrets(monkeypatch)
-    assert "SOME_API_KEY" not in os.environ and "GH_TOKEN" not in os.environ
-    assert os.environ["TOKENIZER_PATH"] == "kept"
+    assert not [name for name in CREDENTIALS if name in os.environ], "a credential stayed readable"
+    assert all(name in os.environ for name in NOT_CREDENTIALS), "a non-secret was hidden"
 
 
 def test_local_means_loopback_or_a_unix_path():

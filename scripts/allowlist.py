@@ -37,8 +37,8 @@ exemption nobody chose.
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
 
 #: `key: reason`, splitting on the first colon **followed by whitespace**.
 #: A key may itself contain colons (`ci.yml:integration`) and a reason may

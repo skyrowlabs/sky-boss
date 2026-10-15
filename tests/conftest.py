@@ -190,3 +190,11 @@ def _never_the_network(request: pytest.FixtureRequest, monkeypatch: pytest.Monke
 
     hide_secrets(monkeypatch)
     refuse_remote(monkeypatch)
+
+
+# ── Your fixtures go below this line ──────────────────────────────────────────
+#
+# skeletor adds its fixtures above this block and renders nothing below it, so a
+# release's new fixture and yours are never adjacent and merge cleanly. The block
+# itself is frozen. Asked for by proto.pilot, whose fixtures at the end of this
+# file conflicted with the template's at v0.49.0 and again at v0.51.0.

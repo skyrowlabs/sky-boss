@@ -29,7 +29,6 @@ from __future__ import annotations
 import re
 import sys
 from pathlib import Path
-from typing import Union
 
 import pytest
 
@@ -47,10 +46,8 @@ WORKFLOWS = GITHUB_DIR / "workflows"
 #: A job header: two spaces, an identifier, a colon, nothing else on the line.
 _JOB = re.compile(r"^  (?P<id>[A-Za-z_][A-Za-z0-9_-]*):\s*$", re.MULTILINE)
 
-Permissions = Union[None, str, dict]
 
-
-def permissions_at(text: str, indent: int) -> Permissions:
+def permissions_at(text: str, indent: int) -> str | dict | None:
     """The `permissions:` declared at exactly `indent` spaces in `text`.
 
     `None` when there is no such key; the inline value (`read-all`, `{}`) as a
@@ -73,7 +70,7 @@ def permissions_at(text: str, indent: int) -> Permissions:
     return scopes
 
 
-def reads_contents(permissions: Permissions) -> bool:
+def reads_contents(permissions: str | dict | None) -> bool:
     if permissions is None:
         return True  # the default token, which this rule does not police
     if isinstance(permissions, str):

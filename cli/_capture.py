@@ -28,9 +28,8 @@ import json
 import os
 import subprocess
 import sys
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from datetime import datetime, timezone
-from typing import Callable
 
 import click
 
