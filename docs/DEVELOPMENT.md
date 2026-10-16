@@ -91,6 +91,7 @@ pytestmark = [pytest.mark.unit]
 ./dev test all              # everything except `manual`
 ./dev test unit --ci        # reproduce CI's skip semantics locally
 ./dev test coverage -w 20   # the worst-covered modules — where a test buys most
+./dev test coverage --suite unit --suite ui   # measure suites together, budgeted as unit+ui
 ```
 
 `--ci` sets `SB_CI=1`, under which an env-gate skip becomes a **failure**.

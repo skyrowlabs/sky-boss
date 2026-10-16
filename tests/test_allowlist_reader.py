@@ -102,3 +102,9 @@ def test_a_blank_entry_does_not_take_a_real_one_with_it(tmp_path):
     path = tmp_path / "some_allowlist.yaml"
     path.write_text('blank: ""\nreal: because the upstream tool is broken\n', encoding="utf-8")
     assert allowlist.read(path) == {"real": "because the upstream tool is broken"}
+
+
+def test_a_key_written_twice_is_refused(tmp_path):
+    """A template entry and the adopter's copy of it merge clean; the last reason won in silence."""
+    with pytest.raises(ValueError, match="written twice"):
+        _read(tmp_path, f"{REAL}\n{REAL_KEY}: the adopter's own reason")

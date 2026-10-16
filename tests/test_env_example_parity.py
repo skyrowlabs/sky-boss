@@ -19,11 +19,11 @@ constants (`STATE_ROOT_ENV`), so a call-site regex would miss them.
 from __future__ import annotations
 
 import re
-import subprocess
 
 import pytest
 
 from scripts.paths import PROJECT_ROOT, STATE_ROOT_ENV, TESTS_DIR
+from tests.repo_files import present
 from tests.scanning import scanned
 
 pytestmark = pytest.mark.unit
@@ -41,13 +41,10 @@ def declared() -> set[str]:
 
 
 def source_text(tests: bool = True) -> str:
-    names = subprocess.run(
-        ["git", "ls-files", "-z"], cwd=str(PROJECT_ROOT), capture_output=True, text=True, check=True
-    ).stdout.split("\0")
     out = []
-    for name in names:
-        path = PROJECT_ROOT / name
-        if not name or path.suffix not in SOURCE_SUFFIXES or not path.is_file():
+    # The working tree, not the index: an upgrade writes and never stages.
+    for path in present("*"):
+        if path.suffix not in SOURCE_SUFFIXES or not path.is_file():
             continue
         if not tests and path.is_relative_to(TESTS_DIR):
             continue

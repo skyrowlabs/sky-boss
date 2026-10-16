@@ -360,8 +360,13 @@ def main() -> int:
 
     budget = json.loads(BUDGET.read_text(encoding="utf-8"))
     entry = budget["suites"].get(args.suite)
+    if entry is None and args.update:
+        # A new suite, or a combination such as `unit+ui`, gets its entry from
+        # the act that baselines it; the refusals in `record()` still apply.
+        entry = budget["suites"][args.suite] = {"baseline_pct": 0.0}
     if entry is None:
-        fail(f"suite '{args.suite}' has no entry in tests/coverage_budget.json — add one")
+        fail(f"suite '{args.suite}' has no entry in tests/coverage_budget.json")
+        detail(f"Record one with: python scripts/check_coverage_budget.py --suite {args.suite} --update")
         return done({"state": "unbudgeted"}, 1)
 
     tolerance = float(budget.get("tolerance_pts", 0.5))

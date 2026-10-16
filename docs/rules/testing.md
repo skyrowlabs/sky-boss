@@ -131,7 +131,10 @@ by hand.
 Two counts are pinned so they can only move deliberately:
 
 - **Skips**: `scripts/check_skip_budget.py` against `tests/skip_budget.json`.
-- **Coverage**: `scripts/check_coverage_budget.py` against `tests/coverage_budget.json`.
+- **Coverage**: `scripts/check_coverage_budget.py` against `tests/coverage_budget.json`, one
+  entry per measured suite. When a module is exercised only by `ui` (or another
+  host-side suite), measure them together with `test coverage --suite unit --suite ui`,
+  so the `unit+ui` entry does not count tested code as uncovered.
 
 Adding a legitimate skip → raise the budget **in the same commit** and justify it in the
 body. Removing skips, or raising coverage meaningfully → lower/raise the baseline in the same

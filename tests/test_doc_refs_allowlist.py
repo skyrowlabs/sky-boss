@@ -9,12 +9,11 @@ Measured on a fresh tree: a meaningless entry appended, every gate green.
 
 from __future__ import annotations
 
-import subprocess
-
 import pytest
 
 from scripts import allowlist
-from scripts.paths import PROJECT_ROOT, SCRIPTS_DIR
+from scripts.paths import SCRIPTS_DIR
+from tests.repo_files import present
 from tests.scanning import scanned
 
 pytestmark = pytest.mark.unit
@@ -28,13 +27,14 @@ _UNREADABLE = (UnicodeDecodeError, OSError)
 
 
 def _tracked_text() -> str:
-    names = subprocess.run(
-        ["git", "ls-files", "-z"], cwd=str(PROJECT_ROOT), capture_output=True, text=True, check=True
-    ).stdout.split("\0")
+    """The tree as it stands: tracked or not yet staged, never a file already deleted.
+
+    `ls-files` alone read the index, so a file an upgrade had just written kept
+    its entries "stale" until staged, and a deleted one kept them alive (stash.flow).
+    """
     out = []
-    for name in names:
-        path = PROJECT_ROOT / name
-        if not name or path == ALLOWLIST or not path.is_file():
+    for path in present("*"):
+        if path == ALLOWLIST or not path.is_file():
             continue
         try:
             out.append(path.read_text(encoding="utf-8"))

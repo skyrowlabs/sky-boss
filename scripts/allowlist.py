@@ -47,10 +47,16 @@ _ENTRY = re.compile(r"^(.*?):\s+(.*)$")
 
 
 def read(path: Path) -> dict[str, str]:
-    """Every `key: reason` in `path`. Missing file, comments and blanks: skipped."""
+    """Every `key: reason` in `path`. Missing file, comments and blanks: skipped.
+
+    A key written twice raises: a dict keeps the last, so a template entry and an
+    adopter's copy of it merged clean and one reason silently replaced the other
+    (proto.pilot, six keys).
+    """
     if not path.exists():
         return {}
     out: dict[str, str] = {}
+    twice: list[str] = []
     for raw in path.read_text(encoding="utf-8").splitlines():
         line = raw.strip()
         if not line or line.startswith("#"):
@@ -71,7 +77,12 @@ def read(path: Path) -> dict[str, str]:
         reason = match.group(2).strip().strip("\"'").strip()
         if not reason:
             continue
-        out[match.group(1).strip()] = reason
+        key = match.group(1).strip()
+        if key in out:
+            twice.append(key)
+        out[key] = reason
+    if twice:
+        raise ValueError(f"{path.name}: key(s) written twice, so one reason silently replaces another: {twice}")
     return out
 
 

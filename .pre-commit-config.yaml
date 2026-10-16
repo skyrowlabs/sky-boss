@@ -73,7 +73,7 @@ repos:
   # shellcheck is installed. It does not check that an action reference resolves.
   # Its exemptions live in `.github/actionlint.yaml`, which it reads itself.
   - repo: https://github.com/Mateusz-Grzelinski/actionlint-py
-    rev: v1.7.12.24
+    rev: v1.7.12.25
     hooks:
       - id: actionlint
 
@@ -107,7 +107,7 @@ repos:
         types: [python]
 
   - repo: https://github.com/psf/black
-    rev: 26.10.0
+    rev: 26.10.1
     hooks:
       - id: black
         args: ['--line-length=120']

@@ -192,7 +192,16 @@ def all(ci: bool) -> None:
 
 @test.command()
 @click.option("-w", "--worst", default=20, show_default=True, help="how many modules to list")
-def coverage(worst: int) -> None:
+@click.option(
+    "--suite",
+    "suites",
+    multiple=True,
+    type=click.Choice(sorted(SUITES)),
+    default=("unit",),
+    show_default=True,
+    help="the suite to measure; repeat it to measure several together, budgeted as e.g. `unit+ui`",
+)
+def coverage(worst: int, suites: tuple) -> None:
     """Measure coverage and list the worst-covered modules.
 
     The list is the point: it tells you where a new test buys the most, which is
@@ -211,7 +220,15 @@ def coverage(worst: int) -> None:
     it looked. Both are one fix, and the second is why the first survived: with
     nothing to measure the ratchet never disagreed, so nothing ever tested
     whether disagreement was reported.
+
+    **The suite is a choice, and several can be measured as one.** It measured
+    `unit` alone, so a module only the `ui` suite exercises read as uncovered
+    own code and the ratchet went red on code that was tested (stash.flow, #3).
+    `--suite unit --suite ui` runs `-m "unit or ui"` against the budget key
+    `unit+ui`.
     """
+    marker = " or ".join(suites)
+    key = "+".join(suites)
     report = TMP_DIR / "coverage.xml"
     report.parent.mkdir(parents=True, exist_ok=True)
     code = run(
@@ -221,7 +238,7 @@ def coverage(worst: int) -> None:
             "pytest",
             "tests/",
             "-m",
-            "unit",
+            marker,
             "-q",
             "--cov",
             "--cov-report=term-missing",
@@ -229,5 +246,7 @@ def coverage(worst: int) -> None:
         ]
     ).returncode
     if code == 0:
-        code = run([sys.executable, "scripts/check_coverage_budget.py", "--xml", str(report)]).returncode
+        code = run(
+            [sys.executable, "scripts/check_coverage_budget.py", "--suite", key, "--xml", str(report)]
+        ).returncode
     sys.exit(code)
