@@ -3087,3 +3087,20 @@ That red hid the conftest red from `--rehearse`.
 The workspace's reading of the allowlist red held when measured. With the
 new file untracked, `test_every_entry_still_exempts_something` named all six
 entries. Once staged, it passed.
+
+### Round 54 — 2026-10-15: v0.56.1, the project installer arrives with nothing to install
+
+Six conflicts, all forecast. Two were pins. `scripts/requirements.txt` and
+`.pre-commit-config.yaml` already carried dependabot's flake8, isort and
+pyright, so only black (26.10.1) and actionlint (v1.7.12.25) moved, in both
+files at once. black 26.10.1 reformatted nothing. `ci.yml` was an empty port,
+because the fork has no project-install step and its pyright comes from the
+`.venv`. `README.md` had nothing to port, because its block is the product's.
+
+The setup-line call to `scripts/install_project.py` is declined in `AGENTS.md`
+and `docs/DEVELOPMENT.md`. `pyproject.toml` here is tool config with no
+`[project]`, and nothing installs this repo, so the line would only print that
+nothing was installed. The script and its test are taken: they cost nothing
+and are correct the day a `[project]` block appears. `docs/DEVELOPMENT.md` took
+the `--suite` cheat-sheet line. It exits 1 here until a `unit+ui` entry is
+recorded, and it says so. This tree has no `ui` tests, so none is.
