@@ -3104,3 +3104,17 @@ nothing was installed. The script and its test are taken: they cost nothing
 and are correct the day a `[project]` block appears. `docs/DEVELOPMENT.md` took
 the `--suite` cheat-sheet line. It exits 1 here until a `unit+ui` entry is
 recorded, and it says so. This tree has no `ui` tests, so none is.
+
+### Round 55 — 2026-10-15: v0.57.0, the setup ratchet counts commands
+
+One conflict, as forecast: `tests/setup_block_budget.json`. The template's
+wording was taken, our dated note on the 3 → 5 raise was kept, and the floor
+was re-measured at 7. Two blocks are still enrolled and neither changed. Line
+one joins three commands with `&&`, so the five lines that agreed are seven
+commands. That is a change of unit, not a tightening.
+
+The new project-install gate skips any tree whose `pyproject.toml` has no
+`[project]`, and its docstring names this tree. `install_project.target()`
+returns `None` here, so round 54's decline does not hit the gate. `./dev test
+coverage --suite unit --suite ui` exits 0 now, at the 0.00% floor, so round 54's
+"exits 1" no longer holds.
