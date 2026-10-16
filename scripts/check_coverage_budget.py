@@ -364,16 +364,22 @@ def main() -> int:
         # A new suite, or a combination such as `unit+ui`, gets its entry from
         # the act that baselines it; the refusals in `record()` still apply.
         entry = budget["suites"][args.suite] = {"baseline_pct": 0.0}
-    if entry is None:
-        fail(f"suite '{args.suite}' has no entry in tests/coverage_budget.json")
-        detail(f"Record one with: python scripts/check_coverage_budget.py --suite {args.suite} --update")
-        return done({"state": "unbudgeted"}, 1)
+    unrecorded = entry is None
+    if unrecorded:
+        # **No entry is the floor a new suite starts at, 0.00%**, the same value the
+        # shipped `unit` entry holds. Failing here made `test coverage --suite unit
+        # --suite ui` red in every fresh tree, where `--update` rightly refuses to
+        # record anything (dream-doll, sky.boss). Nothing is written by a check.
+        entry = {"baseline_pct": 0.0}
 
     tolerance = float(budget.get("tolerance_pts", 0.5))
     reading = read(ET.parse(args.xml).getroot(), tolerance)
     if args.update:
         return done(*record(args.suite, budget, entry, reading))
-    return done(*compare(args.suite, entry, tolerance, reading))
+    payload, status = compare(args.suite, entry, tolerance, reading)
+    if unrecorded:
+        detail(f"'{args.suite}' has no entry in tests/coverage_budget.json, so it is held at 0.00%.")
+    return done({**payload, "unrecorded": unrecorded}, status)
 
 
 if __name__ == "__main__":

@@ -121,6 +121,14 @@ def test_the_baseline_is_recorded_once_some_of_it_is_ours(tree):
     assert stored["suites"]["unit"] == {"own_baseline_pct": 100.0}, "recorded over the whole set, or kept the old key"
 
 
+def test_a_suite_with_no_entry_is_held_at_the_floor_and_not_written(tree, capsys):
+    """`test coverage --suite unit --suite ui` in a fresh tree, where `--update` refuses."""
+    code, stored = tree(SCAFFOLDED, "--suite", "unit+ui")
+    assert code == 0
+    assert json.loads(capsys.readouterr().out)["unrecorded"] is True
+    assert "unit+ui" not in stored["suites"], "a check wrote the budget"
+
+
 def test_no_manifest_is_not_the_same_answer_as_none_of_it_is_ours(tree, manifest, tmp_path):
     """A tree can be adopted by hand, or delete the file; both are supported.
 

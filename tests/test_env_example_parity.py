@@ -4,7 +4,7 @@ The file's own header says every value the application reads must appear in
 it, and ran in one direction only: it shipped `<PREFIX>_ENV` and `LOG_LEVEL`
 for the template's whole life and nothing read either, in any adopter tree.
 Both directions are held now. A name declared here is read somewhere in the
-tracked source; a `<PREFIX>_*` name the source reads is declared here.
+source in the tree; a `<PREFIX>_*` name the source reads is declared here.
 
 The read side is scoped to the shell's prefix, `<PREFIX>` from
 `STATE_ROOT_ENV`. A product sharing that prefix is in scope, and its settings
@@ -12,7 +12,7 @@ are declared like the shell's: stash.flow's prefix is `STASH`, and its six
 product names were real findings. A product under another prefix is not. Tests
 are left out of the read side, because a fixture's `monkeypatch.setenv` names a
 variable it invented (sky.boss). A declared name is "read" if it appears as a
-word in any tracked source file, tests included: the readers go through
+word in any source file present in the tree, tests included: the readers go through
 constants (`STATE_ROOT_ENV`), so a call-site regex would miss them.
 """
 

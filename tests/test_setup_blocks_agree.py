@@ -74,6 +74,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from repo_files import reference_docs  # noqa: E402
 from scanning import scanned  # noqa: E402
+from scripts import install_project  # noqa: E402
 from scripts.paths import GITHUB_DIR, PROJECT_ROOT, REQUIREMENTS, TESTS_DIR  # noqa: E402
 from scripts.yaml_text import read_uncommented  # noqa: E402
 
@@ -94,6 +95,9 @@ _PIP_INSTALL = re.compile(r"pip install\b(?P<args>[^\n;&|]*)")
 #: pass on exactly the line most likely to be wrong. sky.boss found it with a
 #: CI step installing a toolchain no document was ever checked against.
 _DASH_R = re.compile(r"-r\s+(?P<target>[\w./-]+)")
+
+#: The step every CI toolchain job runs to install the project itself.
+INSTALL_PROJECT = "scripts/install_project.py"
 
 #: Installing dependencies, in either toolchain this tree can carry.
 _INSTALLS = re.compile(r"pip install\s+-r\s+[\w./-]+|npm install")
@@ -160,12 +164,21 @@ def ci_requirements() -> set:
     return found
 
 
+def commands(lines: list) -> list:
+    """The block's commands, one per `&&` link, so joining two lines is not drift."""
+    return [part.strip() for line in lines for part in line.split("&&") if part.strip()]
+
+
 def shared_prefix(blocks: dict) -> int:
-    """How many leading lines every enrolled block currently agrees on."""
+    """How many leading commands every enrolled block currently agrees on.
+
+    Commands, not lines: mind.head took a release that folded its own install
+    line into line one, and a line count read the docs moving closer as drift.
+    """
     if len(blocks) < 2:
         return 0
     depth = 0
-    for column in zip(*blocks.values()):
+    for column in zip(*(commands(lines) for lines in blocks.values())):
         if len(set(column)) != 1:
             break
         depth += 1
@@ -200,6 +213,12 @@ def test_the_scan_sees_every_requirements_file_on_a_line():
     assert requirements_in("pip install -r a.txt && pip install -r b.txt") == ["a.txt", "b.txt"]
     # A `pip install` with no `-r` contributes nothing rather than a false one.
     assert requirements_in("pip install pre-commit") == []
+
+
+def test_the_prefix_counts_commands_however_they_are_joined():
+    """The same three commands on one line or on two agree to the end."""
+    assert shared_prefix({"a": ["x && y && z"], "b": ["x && y", "z"]}) == 3
+    assert shared_prefix({"a": ["x && y"], "b": ["x", "w"]}) == 1
 
 
 def test_no_setup_block_invents_a_requirements_file():
@@ -240,6 +259,28 @@ def test_every_setup_block_installs_the_host_toolchain():
         )
 
 
+def missing_the_project(blocks: dict, project) -> list:
+    """Blocks that never run `scripts/install_project.py`, when there is a project to install.
+
+    CI's jobs run it, so a block without it installs less than CI (proto.pilot).
+    A tree whose `pyproject.toml` has no `[project]` may leave it out (sky.boss).
+    """
+    if project is None:
+        return []
+    return sorted(doc for doc, lines in blocks.items() if not any(INSTALL_PROJECT in line for line in lines))
+
+
+def test_every_setup_block_installs_the_project_when_there_is_one():
+    """The planted case is a fixture: a fresh tree has no `[project]` to install."""
+    assert missing_the_project({"README.md": ["x"]}, ".[dev]") == ["README.md"]
+    assert missing_the_project({"README.md": ["x"]}, None) == []
+    missing = missing_the_project(setup_blocks(), install_project.target())
+    assert not missing, (
+        f"{missing} never run `{INSTALL_PROJECT}`, so a fresh clone that follows them installs "
+        f"less than CI does: the project ({install_project.target()}) is left out."
+    )
+
+
 def test_the_shared_prefix_has_not_shrunk():
     """The half with no authority, so a ratchet rather than an assertion.
 
@@ -272,14 +313,14 @@ def test_the_shared_prefix_has_not_shrunk():
     floor = json.loads(BUDGET.read_text(encoding="utf-8"))["min_shared_prefix"]
     depth = shared_prefix(blocks)
     assert depth >= floor, (
-        f"the setup blocks agreed on {floor} leading lines and now agree on {depth}. "
+        f"the setup blocks agreed on {floor} leading commands and now agree on {depth}. "
         f"Blocks: {sorted(blocks)}. Either a shared setup step drifted in one document and "
         "not the others — fix it — or the divergence is intended, in which case lower "
         f"`min_shared_prefix` in {BUDGET.name} in the same commit, with the reason in the "
         "commit message."
     )
     assert depth == floor, (
-        f"the setup blocks now agree on {depth} leading lines, above the pinned {floor}. "
+        f"the setup blocks now agree on {depth} leading commands, above the pinned {floor}. "
         f"Blocks: {sorted(blocks)}. Either they got tighter, or a document left the "
         "comparison — its block stopped installing anything, so it is no longer being "
         "checked against the others. Read that list before raising the floor.\n  "

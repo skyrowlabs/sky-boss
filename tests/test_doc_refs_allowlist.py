@@ -26,7 +26,7 @@ ALLOWLIST = SCRIPTS_DIR / "doc_refs_allowlist.yaml"
 _UNREADABLE = (UnicodeDecodeError, OSError)
 
 
-def _tracked_text() -> str:
+def _tree_text() -> str:
     """The tree as it stands: tracked or not yet staged, never a file already deleted.
 
     `ls-files` alone read the index, so a file an upgrade had just written kept
@@ -46,6 +46,6 @@ def _tracked_text() -> str:
 def test_every_entry_still_exempts_something():
     entries = allowlist.read(ALLOWLIST)
     scanned(entries, "doc-reference exemptions", least=1)
-    text = _tracked_text()
+    text = _tree_text()
     stale = allowlist.stale(entries, lambda key: None if key in text else "nothing in the tree references it")
     assert not stale, "\n".join(stale)
