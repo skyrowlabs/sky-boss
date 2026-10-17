@@ -44,14 +44,14 @@
       "title": "Agent sessions — who is running right now",
       "path": "docs/implementations/projects/agent-sessions.md",
       "priority": "medium",
-      "updated": "2026-09-01",
+      "updated": "2026-10-17",
       "tags": [
         "observe",
         "agents",
         "adapters"
       ],
       "summary": "Lists the agent sessions running right now across every provider, behind an adapter seam so a new provider is a new file rather than a new branch.",
-      "open_tasks": 0,
+      "open_tasks": 3,
       "auto_generated": false,
       "category": "projects",
       "completed": "2026-09-01",
@@ -401,7 +401,7 @@
       "title": "The tools — commands the operator saves",
       "path": "docs/implementations/commands/tools.md",
       "priority": "medium",
-      "updated": "2026-08-30",
+      "updated": "2026-10-17",
       "tags": [
         "tools",
         "operator-content",

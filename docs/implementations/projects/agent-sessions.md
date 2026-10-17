@@ -4,7 +4,7 @@ slug: agent-sessions
 category: projects
 agent_value: 3
 completed: 2026-09-01
-updated: 2026-09-01
+updated: 2026-10-17
 tags: [observe, agents, adapters]
 summary: Lists the agent sessions running right now across every provider, behind an adapter seam so a new provider is a new file rather than a new branch.
 created: 2026-08-29
@@ -152,9 +152,21 @@ repo, never written by sky.boss. Splitting it that way means shipping code for a
 operator has turned off, which is fine, and lets a machine with nothing installed stay silent with
 no config file existing at all. Round 1 ships one adapter and does not need the answer.
 
-### Round 3 — the band (not scheduled)
+### Round 3 — the `agents` screen (ruled 2026-10-17, not scheduled)
 
-The tower does not exist. When it does, this is a consumer of the envelope round 1 returns.
+~~The tower does not exist. When it does, this is a consumer of the envelope round 1 returns.~~
+The tower arrives a screen at a time, and this is the second after `schedule`. Ruled by the
+operator 2026-10-17; see Notes.
+
+- [ ] A nav entry reading **`agents`**, drawing what `sb agents` returns — its own screen, not a
+      band on `schedule`. Named for what it shows, not `in flight`, by the rule that kept `plan` off
+      the nav.
+- [ ] **A claim mark, derived by repository, not directory** — [[open]] item 7. Two live sessions
+      whose `cwd`s share a `git rev-parse --git-common-dir` are marked; that catches the jam-sense
+      worktrees, which a `cwd` comparison misses. The first command sky.boss runs that nobody
+      declared, so **only the derived boolean reaches the envelope** — never git's output. A `cwd`
+      that is not in a repository has no claim, and that is not an error.
+- [ ] Advisory only, per item 7's 2026-09-01 ruling: a mark, never a lock or a refusal.
 
 ## Notes
 
@@ -234,3 +246,12 @@ back to eight, which is the exact failure [[schedule]] round 3 found.
 
 **The banner is a screenshot of root help**, so adding a command made `readme-banner.png` stale in
 the way no test can see. Re-rendered. See [[header]] round 3.
+
+### 2026-10-17 — round 3 ruled: a screen of its own, and claims by repository
+
+Two rulings from the operator, taken from [[open]] items 7 and 16 with a recommendation each.
+**A screen, not a band on `schedule`**: the two answer different tenses from different sources,
+and the schedule screen's filter rules would have to reach a population they were not written for.
+**Claims by repository**: the same-directory derivation costs nothing and misses the jam-pool
+worktrees, which are the case that motivated the item. Both are recorded as round 3's shape rather
+than built.
