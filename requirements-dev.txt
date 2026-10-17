@@ -10,4 +10,4 @@ pytest-asyncio>=1.4
 # platformdirs 4.12.1 registers a pytest plugin that an older venv copy lacks —
 # pytest then dies at startup. The floor keeps the venv's copy current; the
 # `-p no:platformdirs` addopts in pytest.ini/pyproject.toml is the other guard.
-platformdirs>=4.12.4
+platformdirs>=4.13.0
