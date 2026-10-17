@@ -13,6 +13,11 @@ key_files: [skyboss/agents.py, tests/test_agents.py, skyboss/__init__.py]
 
 # Agent sessions — who is running right now
 
+> **Status**: 🟡 In progress — round 3, the `agents` screen
+> **Shelf-Status**: in-progress
+> **Priority**: Medium — the second tower screen
+> **Updated**: 2026-10-17
+
 ## Why
 
 Several Claude Code sessions run side by side across the sibling repos, each holding a working
@@ -152,7 +157,7 @@ repo, never written by sky.boss. Splitting it that way means shipping code for a
 operator has turned off, which is fine, and lets a machine with nothing installed stay silent with
 no config file existing at all. Round 1 ships one adapter and does not need the answer.
 
-### Round 3 — the `agents` screen (ruled 2026-10-17, not scheduled)
+### Round 3 — the `agents` screen (2026-10-17)
 
 ~~The tower does not exist. When it does, this is a consumer of the envelope round 1 returns.~~
 The tower arrives a screen at a time, and this is the second after `schedule`. Ruled by the
@@ -161,12 +166,12 @@ operator 2026-10-17; see Notes.
 - [ ] A nav entry reading **`agents`**, drawing what `sb agents` returns — its own screen, not a
       band on `schedule`. Named for what it shows, not `in flight`, by the rule that kept `plan` off
       the nav.
-- [ ] **A claim mark, derived by repository, not directory** — [[open]] item 7. Two live sessions
+- [x] **A claim mark, derived by repository, not directory** — [[open]] item 7. Two live sessions
       whose `cwd`s share a `git rev-parse --git-common-dir` are marked; that catches the jam-sense
       worktrees, which a `cwd` comparison misses. The first command sky.boss runs that nobody
       declared, so **only the derived boolean reaches the envelope** — never git's output. A `cwd`
       that is not in a repository has no claim, and that is not an error.
-- [ ] Advisory only, per item 7's 2026-09-01 ruling: a mark, never a lock or a refusal.
+- [x] Advisory only, per item 7's 2026-09-01 ruling: a mark, never a lock or a refusal.
 
 ## Notes
 

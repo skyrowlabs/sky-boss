@@ -1,7 +1,7 @@
 {
   "_generated_by": "scripts/docs/gen_impl_index.py",
   "_note": "Generated — never hand-edit. Edit the doc's frontmatter and rerun.",
-  "count": 24,
+  "count": 23,
   "by_category": {
     "commands": [
       "capture",
@@ -16,7 +16,6 @@
       "unwatched"
     ],
     "projects": [
-      "agent-sessions",
       "history",
       "jobs",
       "roll-call",
@@ -39,24 +38,6 @@
     ]
   },
   "implementations": [
-    {
-      "slug": "agent-sessions",
-      "title": "Agent sessions — who is running right now",
-      "path": "docs/implementations/projects/agent-sessions.md",
-      "priority": "medium",
-      "updated": "2026-10-17",
-      "tags": [
-        "observe",
-        "agents",
-        "adapters"
-      ],
-      "summary": "Lists the agent sessions running right now across every provider, behind an adapter seam so a new provider is a new file rather than a new branch.",
-      "open_tasks": 3,
-      "auto_generated": false,
-      "category": "projects",
-      "completed": "2026-09-01",
-      "agent_value": 3
-    },
     {
       "slug": "canvas",
       "title": "The canvas — a command palette over a window canvas",

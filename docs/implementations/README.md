@@ -16,7 +16,7 @@ that were dropped, and the constraints that shaped what landed.
 
 **Machine-readable index**: [`../implementation_index.json`](../implementation_index.json).
 
-**24 archived plans** across 5 categories.
+**23 archived plans** across 5 categories.
 
 ---
 
@@ -41,7 +41,6 @@ that were dropped, and the constraints that shaped what landed.
 | ----- | ---- | --------- | ------- |
 | ⭐⭐⭐ | [Roll-call — many projects, one answer](projects/roll-call.md) | 2026-08-23 | Asks every declared project how it is and folds the answers without inventing a status vocabulary of its own. |
 | ⭐⭐⭐ | [The agent-state root](projects/state-root.md) | 2026-08-29 | Teaches sky.boss where agent state lives and adds `<project>:<path>` as an address rather than a command. |
-| ⭐⭐⭐ | [Agent sessions — who is running right now](projects/agent-sessions.md) | 2026-09-01 | Lists the agent sessions running right now across every provider, behind an adapter seam so a new provider is a new file rather than a new branch. |
 | ⭐⭐⭐ | [Jobs — sky.boss issues a schedule of its own](projects/jobs.md) | 2026-09-01 | Gives sky.boss a schedule of its own with systemd as the daemon, and enforces the act/observe split per subcommand rather than per group. |
 | ⭐⭐⭐ | [The schedule view](projects/schedule.md) | 2026-09-01 | Draws what fires next across projects and sky.boss's own jobs, ordered by an instant Python parsed and the page never re-reads. |
 | ⭐⭐ | [History — how did this go the last seven nights](projects/history.md) | 2026-09-01 | Reads a declared project's own run ledger newest-first — the only observe that looks backwards. |

@@ -35,6 +35,8 @@ transcript is the operator's conversation.
 from __future__ import annotations
 
 import json
+import subprocess
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -43,6 +45,7 @@ from typing import Protocol
 import rich_click as click
 
 from skyboss.chrome import ago
+from skyboss.helpers import child_env
 from skyboss.output import Result, emit
 from skyboss.view import describe
 
@@ -333,22 +336,117 @@ def order(sessions: list[Session]) -> list[Session]:
     return [s for _, s in dated] + undated
 
 
+# ============================================================================
+# Claims — two live sessions in one repository
+# ============================================================================
+
+# Variables that point git somewhere other than the directory it is run in. An
+# operator's shell may export one, and inherited here it would put every
+# session in the same repository.
+_GIT_REDIRECTS = ("GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR")
+
+
+class CannotTell(Exception):
+    """The probe could not ask — no git, or git did not answer in time."""
+
+
+def git_common_dir(cwd: str) -> str | None:
+    """The object store `cwd` belongs to, or `None` when it is in no repository.
+
+    **Run on sky.boss's own initiative, so its output never reaches `data`** —
+    it is a grouping key and nothing else. `--git-common-dir` is what makes a
+    worktree and its main checkout one repository, which comparing `cwd`s
+    cannot. Raises `CannotTell` rather than returning `None` for a missing git,
+    because *not a repository* and *could not ask* want different sentences.
+    """
+    if not cwd or not Path(cwd).is_dir():
+        return None
+    env = {k: v for k, v in child_env().items() if k not in _GIT_REDIRECTS}
+    try:
+        done = subprocess.run(
+            ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"],
+            capture_output=True,
+            text=True,
+            cwd=cwd,
+            timeout=5,
+            env=env,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise CannotTell(str(exc)) from exc
+    if done.returncode != 0:
+        return None
+    return done.stdout.strip() or None
+
+
+def claims(
+    sessions: list[Session],
+    probe: Callable[[str], str | None] = git_common_dir,
+) -> tuple[dict[str, str], int]:
+    """Which sessions share a repository, as a letter per session id, and how
+    many sessions could not be asked about.
+
+    **Advisory, and derived.** A letter marks that two or more live sessions sit
+    in one repository; it never locks, refuses or ranks. Letters run in the
+    order sessions arrive — oldest first — so `A` is the claim held longest.
+    A session alone in its repository, or in none, has no letter. See
+    [[agent-sessions]] round 3 and `docs/open.md` item 7.
+    """
+    keyed: dict[str, str] = {}
+    asked: dict[str, str | None] = {}
+    unknown = 0
+    for s in sessions:
+        if s.cwd not in asked:
+            try:
+                asked[s.cwd] = probe(s.cwd)
+            except CannotTell:
+                asked[s.cwd] = None
+                unknown += 1
+                continue
+        elif asked[s.cwd] is None:
+            continue
+        key = asked[s.cwd]
+        if key:
+            keyed[s.id] = key
+
+    members: dict[str, list[str]] = {}
+    for ident, key in keyed.items():
+        members.setdefault(key, []).append(ident)
+    letters: dict[str, str] = {}
+    shared = [ids for ids in members.values() if len(ids) > 1]
+    for n, ids in enumerate(shared):
+        for ident in ids:
+            letters[ident] = _letter(n)
+    return letters, unknown
+
+
+def _letter(n: int) -> str:
+    """`A`…`Z`, then `AA`, `AB`… — a label, so it never runs out."""
+    out = ""
+    n += 1
+    while n:
+        n, rem = divmod(n - 1, 26)
+        out = chr(65 + rem) + out
+    return out
+
+
 # What the table draws, in order, and what it keeps but does not draw. Hidden
 # rather than dropped: a machine reading the envelope still gets the identity
 # and the pid. A view describes; it never filters.
-INLINE = ("provider", "name", "status", "up", "cwd")
+INLINE = ("provider", "name", "status", "claim", "up", "cwd")
 HIDDEN = ("id", "pid", "started")
 
 
-def rows_of(sessions: list[Session], now: datetime) -> list[dict]:
+def rows_of(sessions: list[Session], now: datetime, letters: dict[str, str] | None = None) -> list[dict]:
     """The envelope's rows. `up` is arithmetic on two instants, which is the
     thing [[schedule]] round 1 licensed — sky.boss may order and may subtract;
     only a provider may judge."""
+    letters = letters or {}
     return [
         {
             "provider": s.provider,
             "name": s.name,
             "status": s.status,
+            "claim": letters.get(s.id, ""),
             "up": ago((now - s.started).total_seconds()) if s.started else "",
             "cwd": s.cwd,
             "id": s.id,
@@ -360,14 +458,19 @@ def rows_of(sessions: list[Session], now: datetime) -> list[dict]:
 
 
 def view_of(rows: list[dict]) -> dict:
-    """Authored, not inferred — these five keys are sky.boss's own vocabulary,
-    so there is nothing to infer, only an order to state and three columns to
-    keep out of the way. Widths still come from `skyboss/view.py`, or flex grows a
-    second opinion. See [[table-views]] and [[schedule]] round 3."""
+    """Authored, not inferred — these keys are sky.boss's own vocabulary, so
+    there is nothing to infer, only an order to state and three columns to keep
+    out of the way. Widths still come from `skyboss/view.py`, or flex grows a
+    second opinion. See [[table-views]] and [[schedule]] round 3.
+
+    `claim` is drawn only when some row has one: an empty column on every
+    agent table would spend width on the common case of no contention."""
+    inline = [k for k in INLINE if k != "claim" or any(r.get("claim") for r in rows)]
+    hidden = list(HIDDEN) + ([] if "claim" in inline else ["claim"])
     return {
-        "columns": [describe(key, rows) for key in INLINE],
+        "columns": [describe(key, rows) for key in inline],
         "details": [],
-        "hidden": list(HIDDEN),
+        "hidden": hidden,
         "authored": True,
     }
 
@@ -424,8 +527,14 @@ def agents(only: str | None) -> Result:
             "no /proc to confirm the process is still the one that wrote the record"
         )
 
+    letters, unknown = claims(sessions)
+    if unknown:
+        # Counted for the reason `unverified` is: a row with no letter looks
+        # the same whether it is alone in its repository or was never asked.
+        result.warn(f"claims not derived for {unknown} directory(ies) — git could not be asked")
+
     now = datetime.now(timezone.utc)
-    result.data = rows_of(sessions, now)
+    result.data = rows_of(sessions, now, letters)
     if not result.data:
         result.warn(empty_reason(tally, len(adapters)))
         return result
