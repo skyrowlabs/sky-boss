@@ -198,6 +198,7 @@ def test_the_static_directory_ships_only_what_the_page_needs():
         "render.js",
         "menu.js",
         "schedule.js",
+        "agents.js",
         "vendor/preact.mjs",
         "vendor/hooks.mjs",
         "vendor/htm.mjs",

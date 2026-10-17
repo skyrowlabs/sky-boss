@@ -231,10 +231,12 @@ clothes: it has already told you the thing exists.
 **The tower is still not offered.** The plan is, in half, as of [[schedule]] round 4 — a third entry
 reading **`schedule`**, drawing what `sb schedule` returns. That discharges the rule rather than
 overriding it: the objection was to *offering something absent*, and building the screen answers it.
-What would have broken the rule is naming the entry `plan`, since the rest of the drawn flight plan
-— CLAIMS, CLOCK SOURCE, IN FLIGHT, LIMITS — still needs `docs/open.md` items 6, 7 and 9. **A nav
-entry that names the whole of a thing while showing a tenth of it is the same over-promise in a
-smaller font.** Both remaining screens are drawn in `docs/design/`. See `docs/open.md`.
+What would have broken the rule is naming the entry `plan`. **A nav entry that names the whole of a
+thing while showing a tenth of it is the same over-promise in a smaller font.** A fourth entry,
+**`agents`**, arrived with [[agent-sessions]] round 3 (2026-10-17): IN FLIGHT and its CLAIMS, the
+claim being an advisory mark derived by repository. CLOCK SOURCE and LIMITS have nothing to draw —
+no provider publishes either — so the tower is offered as the screens that exist, not by its name.
+See `docs/open.md` items 8 and 9.
 
 **`display: contents` has no box, so it has no rect and no background.** The schedule screen's rows
 are one — that is what lets a whole group share a single grid and align structurally rather than by
