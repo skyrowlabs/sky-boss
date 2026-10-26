@@ -1,0 +1,39 @@
+name: Dependabot auto-merge
+
+# Turns on GitHub auto-merge for Dependabot's minor and patch bumps, so a green
+# weekly group lands without anyone pressing the button. It merges nothing by
+# itself: auto-merge waits for every required check on `develop`, so a bump
+# that breaks the suite stays open exactly as it would have.
+#
+# **A major bump is left for a person**, because that is the one update type
+# whose changelog is a migration rather than a list of fixes. For a grouped PR,
+# `fetch-metadata` reports the highest update type in the group, so one major
+# dependency holds the whole group back.
+#
+# **A merge made with `GITHUB_TOKEN` starts no workflow**, so the push to
+# `develop` that lands a bump runs no CI of its own. The pull request's checks
+# are the gate; `workflow_dispatch` on `ci.yml` re-runs `develop` if wanted.
+
+on:
+  pull_request:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  enable:
+    name: Enable auto-merge
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - id: meta
+        uses: dependabot/fetch-metadata@v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Auto-merge a minor or patch bump
+        if: steps.meta.outputs.update-type != 'version-update:semver-major'
+        run: gh pr merge --auto --merge "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
