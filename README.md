@@ -1,16 +1,27 @@
 <p align="center">
-  <img src="docs/design/readme-banner.png" alt="sky.boss — by SKYROW.LABS · sb --help" width="799">
+  <img src="docs/design/hero.svg" alt="sky.boss — a pixel control tower beside the wordmark, by SKYROW.LABS. One CLI for watching what other tools are doing, on this machine and across the projects you keep here." width="100%">
 </p>
 
 <p align="center">
   <a href="https://github.com/skyrowlabs/sky-boss/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/skyrowlabs/sky-boss/actions/workflows/ci.yml/badge.svg?branch=develop"></a>
-  <a href="https://github.com/skyrowlabs/sky-boss/tags"><img alt="Latest tag" src="https://img.shields.io/github/v/tag/skyrowlabs/sky-boss?label=version"></a>
-  <a href="https://github.com/skyrowlabs/sky-boss/actions/workflows/ci.yml"><img alt="Python 3.12 to 3.14" src="https://img.shields.io/badge/python-3.12%E2%80%933.14-blue"></a>
-  <a href="LICENSE"><img alt="MIT licence" src="https://img.shields.io/github/license/skyrowlabs/sky-boss"></a>
+  <a href="https://github.com/skyrowlabs/sky-boss/tags"><img alt="Latest tag" src="https://img.shields.io/github/v/tag/skyrowlabs/sky-boss?label=version&labelColor=1c2633&color=38bdf8"></a>
+  <a href="https://github.com/skyrowlabs/sky-boss/actions/workflows/ci.yml"><img alt="Python 3.12 to 3.14" src="https://img.shields.io/badge/python-3.12%E2%80%933.14-4ade80?labelColor=1c2633"></a>
+  <a href="#the-commands"><img alt="Acts: only sb run" src="https://img.shields.io/badge/acts-only%20sb%20run-e6dc0e?labelColor=1c2633"></a>
+  <a href="LICENSE"><img alt="MIT licence" src="https://img.shields.io/github/license/skyrowlabs/sky-boss?labelColor=1c2633&color=7a8fa8"></a>
 </p>
 
-`sb` is one CLI for watching what other tools are doing — on this machine and across the projects
-you keep here.
+<p align="center">
+  <a href="#what-it-looks-like"><b>What it looks like</b></a> ·
+  <a href="#install"><b>Install</b></a> ·
+  <a href="#the-commands"><b>Commands</b></a> ·
+  <a href="#many-projects-at-once"><b>Many projects</b></a> ·
+  <a href="#the-surface"><b>The surface</b></a> ·
+  <a href="#offering-it-to-an-agent"><b>Agents</b></a>
+</p>
+
+<p align="center">
+  <img src="docs/design/ideas.svg" alt="Four ideas. One command acts: sb run is the only one, and everything else reads. Data, never print: one envelope, drawn by whoever consumes it. Never guesses: sb data takes JSON and sb read shows output verbatim. Not in the credential path: external CLIs keep their own authentication." width="100%">
+</p>
 
 Four ideas, and everything else follows from them:
 
@@ -25,22 +36,25 @@ Four ideas, and everything else follows from them:
 
 ## What it looks like
 
-Two real commands and what came back — the band under a `run`, and a file of records shaped into a
-table. Both pictures on this page are *rendered from a live run*, never drawn by hand:
-`docs/design/render-mark.py` captures the terminal through a pty, and `docs/design/render-canvas.mjs`
-drives a real `sb ui` over the DevTools protocol. Re-run them after changing anything they show.
+`sb ui` opens the canvas: a followed log holding open on the left, tinted by *shape* rather than by
+anyone's severity vocabulary, the same records shaped into a table on the right, and the commands
+you saved down the side.
+
+<p align="center">
+  <img src="docs/design/readme-canvas.png" alt="The sky.boss canvas: a tools rail, a tinted follow window, and a shaped table" width="900">
+</p>
+
+And the same envelope in a terminal — the band under a `run`, and a file of records shaped into a
+table:
 
 <p align="center">
   <img src="docs/design/readme-session.png" alt="A terminal session: sb run -- echo hello, then sb data --from jsonl over a file of records" width="800">
 </p>
 
-`sb ui` opens the same envelope on a canvas — here a followed log holding open on the left, tinted
-by *shape* rather than by anyone's severity vocabulary, and the same records shaped into a table on
-the right. Down the left are the commands you saved.
-
-<p align="center">
-  <img src="docs/design/readme-canvas.png" alt="The sky.boss canvas: a tools rail, a tinted follow window, and a shaped table" width="900">
-</p>
+Every picture on this page is *rendered*, never drawn by hand: `docs/design/render-mark.py` writes
+the mark from `ART` in `skyboss/banner.py` and captures the terminal through a pty, and
+`docs/design/render-canvas.mjs` drives a real `sb ui` over the DevTools protocol. Re-run them after
+changing anything they show.
 
 ## Install
 
@@ -56,21 +70,21 @@ Needs Python 3.12+. Shell completion for fish:
 
 ## The commands
 
-| Command | Does |
-|---|---|
-| `sb run -- <argv>` | Runs a command and reports what it printed. **The only command that acts** |
-| `sb read -- <argv>` | Shows what a command printed, verbatim |
-| `sb data -- <argv>` | Reads another CLI's JSON as data, and shapes it into a table |
-| `sb follow -- <argv>` | Holds a command's stream open. Any exit is a visible death |
-| `sb follow <path>` | Follows a file with a native stat cursor |
-| `sb roll-call` | Asks every declared project how it is, and folds the answers |
-| `sb schedule` | What fires next, across every project that declares a schedule |
-| `sb agents` | Which agent sessions are running right now, across every provider |
-| `sb history <project>` | A project's own run ledger, newest first |
-| `sb job` | Jobs sky.boss issues — declared, installed as systemd timers, logged |
-| `sb tools` | The commands you saved |
-| `sb ui` | Opens the surface — a canvas of windows, and a workbench for authoring a command |
-| `sb mcp` | Speaks MCP on stdio, offering your saved commands to an agent |
+| Command | | Does |
+|---|---|---|
+| `sb run -- <argv>` | **acts** | Runs a command and reports what it printed |
+| `sb read -- <argv>` | reads | Shows what a command printed, verbatim |
+| `sb data -- <argv>` | reads | Reads another CLI's JSON as data, and shapes it into a table |
+| `sb follow -- <argv>` | reads | Holds a command's stream open. Any exit is a visible death |
+| `sb follow <path>` | reads | Follows a file with a native stat cursor |
+| `sb roll-call` | reads | Asks every declared project how it is, and folds the answers |
+| `sb schedule` | reads | What fires next, across every project that declares a schedule |
+| `sb agents` | reads | Which agent sessions are running right now, across every provider |
+| `sb history <project>` | reads | A project's own run ledger, newest first |
+| `sb job` | both | Jobs sky.boss issues — `list` reads; `run`, `install` and `uninstall` act |
+| `sb tools` | reads | The commands you saved |
+| `sb ui` | — | Opens the surface — a canvas of windows, and a workbench for authoring a command |
+| `sb mcp` | — | Speaks MCP on stdio, offering your saved commands to an agent |
 
 `--` separates sky.boss's flags from the command's own.
 
@@ -91,7 +105,8 @@ beta
 └ ok · 0.1s · ran 20:03:29 ────────────────────────────────────────────┘
 ```
 
-### When a tool says less than it does in your terminal
+<details>
+<summary><strong>When a tool says less than it does in your terminal</strong></summary>
 
 Every command sky.boss runs gets a pipe, not a terminal. Most tools only *lay out* differently for
 one — sky.boss passes the real width so they do not — but some decide **what to print at all** by
@@ -114,6 +129,21 @@ every child. It rides into a saved command in the argv, exactly as `--cwd` does.
 **Not for secrets.** The value is written verbatim into `tools.toml` and drawn in a window title.
 Anything private is already inherited from your own environment — sky.boss is never in the
 credential path.
+
+</details>
+
+<details>
+<summary><strong>Running something later</strong></summary>
+
+```bash
+sb run --delay 5m -- ./deploy.sh
+```
+
+A countdown you can watch and cancel. `q`, `Esc` or Ctrl-C cancels and nothing ran; so does closing
+the terminal. There is no queue, no state file and no unit written — **a command that must outlive
+the window wants systemd.** Cancelling exits non-zero, so a script can tell the difference.
+
+</details>
 
 ## Reading another tool as data
 
@@ -143,6 +173,9 @@ web-1  up
 web-2  down
 ```
 
+<details>
+<summary><strong>Rows inside a mapping</strong></summary>
+
 Real tools wrap their rows in a mapping, because a bare array has nowhere to put a timestamp.
 `--rows` says where they are; without it sky.boss infers only when exactly one value is a list of
 rows, and reports rather than guesses when two are.
@@ -159,7 +192,10 @@ hosts  table · 2 rows · 2 columns
   web-2  down
 ```
 
-### Nothing is silently wrong
+</details>
+
+<details>
+<summary><strong>Nothing is silently wrong</strong></summary>
 
 A column you named that no row carries is drawn — "nothing matched" is often the answer — **and
 reported**:
@@ -188,7 +224,10 @@ $ sb data -- sh -c 'echo "boom: no credentials" >&2; exit 3'
   error        boom: no credentials
 ```
 
-### The envelope
+</details>
+
+<details>
+<summary><strong>The envelope, and <code>--refresh</code> as a stream</strong></summary>
 
 `--json` is a root flag, so it works on every command:
 
@@ -240,6 +279,8 @@ read would have spoken. The stream ends when you leave, or when whatever is read
 `| head -3` gives three lines and exits clean. `sb read --refresh` still needs a terminal: verbatim
 text has no envelope worth streaming.
 
+</details>
+
 Exit codes: `0` ok, `1` hard failure, `3` partial — not 2, which Click uses for usage errors.
 
 ## Following something
@@ -253,6 +294,9 @@ sb follow /var/log/nginx/access.log           # a file, by stat cursor
 sb follow --due 15m /var/log/cron.log         # past 15m of silence, the band says late
 ```
 
+<details>
+<summary><strong>The band, and what <code>--due</code> watches</strong></summary>
+
 The band is the scrollbar:
 
 ```
@@ -263,15 +307,7 @@ The band is the scrollbar:
 `--due` is the cron watcher, and it never learned what cron is: a schedule is a declaration, a run
 is evidence, and the evidence is the log. You assert an interval; sky.boss subtracts.
 
-## Running something later
-
-```bash
-sb run --delay 5m -- ./deploy.sh
-```
-
-A countdown you can watch and cancel. `q`, `Esc` or Ctrl-C cancels and nothing ran; so does closing
-the terminal. There is no queue, no state file and no unit written — **a command that must outlive
-the window wants systemd.** Cancelling exits non-zero, so a script can tell the difference.
+</details>
 
 ## Saving a command
 
@@ -283,13 +319,6 @@ the window wants systemd.** Cancelling exits non-zero, so a script can tell the 
 sb data --cols number,title --refresh 30 --save prs -- gh pr list --json number,title
 sb tools prs        # or the short spelling: sb -t prs
 ```
-
-**The workbench writes too**, and it is the way to create an act, to edit one, or to delete one.
-Its save button writes the block directly rather than re-running your command, so it works for
-every contract; a name that already exists is replaced rather than refused, and the tools rail
-carries ✎ and ✕ per row. Every write copies `tools.toml` into `~/.sky-boss/backups/` first, and
-only ever rewrites the one block it is changing — the rest of the file, your comments included, is
-untouched byte for byte.
 
 `sb tools` lists what you saved, and what failed to load. A fresh clone has saved nothing and says
 so rather than raising:
@@ -303,6 +332,16 @@ $ sb tools
   highlights   -
 ```
 
+<details>
+<summary><strong>The workbench writes, groups, and the rail</strong></summary>
+
+**The workbench writes too**, and it is the way to create an act, to edit one, or to delete one.
+Its save button writes the block directly rather than re-running your command, so it works for
+every contract; a name that already exists is replaced rather than refused, and the tools rail
+carries ✎ and ✕ per row. Every write copies `tools.toml` into `~/.sky-boss/backups/` first, and
+only ever rewrites the one block it is changing — the rest of the file, your comments included, is
+untouched byte for byte.
+
 A saved command inherits `acts` from the first word of its argv, so one wrapping `run` is refused a
 cadence exactly as `sb run` is — the read/write line survives being given a name.
 
@@ -311,7 +350,7 @@ alphabetical list:
 
 ```toml
 [tool.prs]
-group = "jam"
+group = "code"
 argv  = ["data", "--", "gh", "pr", "list", "--json", "number,title"]
 ```
 
@@ -335,46 +374,17 @@ refusal names them; it never deletes a command. A drag changes the one `group` l
 command's block, so nothing else in it — including a comment you wrote inside it — is touched, and
 the file is backed up first like every other write.
 
+</details>
+
 ## Many projects at once
 
-Declare what each project publishes in `~/.sky-boss/projects.toml` — a command to ask, or a file
-to read:
-
-```toml
-[project.jam-sense]
-argv = ["jam", "report", "status", "--json"]
-cwd  = "~/src/jam.sense"
-rows = "jobs"
-cols = "job,result,last_age"
-
-[project.house-fly]
-path = "~/src/house.fly/tmp/status.json"
-```
+**sky.boss federates; it never owns.** Declare what each project publishes in
+`~/.sky-boss/projects.toml` — a command to ask, or a file to read — and each project stays the
+authority on itself. One project down is `partial`, never blank.
 
 ```bash
 sb roll-call
-sb roll-call --only jam-sense
-```
-
-**sky.boss federates; it never owns.** No ledger, no history, no cache — each project stays the
-authority on itself, which is what lets sky.boss stay stateless. A copy of a schedule that agents
-rewrite goes stale without announcing it; unreachability is visible, staleness is not.
-
-One project down is `partial`, never blank:
-
-```
-jam-sense
-  jobs  table · 29 rows · 15 columns
-    JOB           RESULT   LAST_AGE
-    ───────────────────────────────
-    sentinel      red      11h ago
-    integration   ok       11h ago
-
-house-fly
-    error    No such file or directory
-    source   ~/src/house.fly/tmp/status.json
-
-⚠️  house-fly: No such file or directory
+sb roll-call --only api
 ```
 
 With nothing declared it says so rather than pretending:
@@ -386,6 +396,40 @@ $ SB_HOME=/tmp/empty-sb sb roll-call
 ⚠️  no projects declared — see /tmp/empty-sb/projects.toml
 ```
 
+<details>
+<summary><strong><code>projects.toml</code>, and what <code>partial</code> looks like</strong></summary>
+
+```toml
+[project.api]
+argv = ["api-ctl", "status", "--json"]
+cwd  = "~/src/api"
+rows = "jobs"
+cols = "job,result,last_age"
+
+[project.sensors]
+path = "~/src/sensors/tmp/status.json"
+```
+
+No ledger, no history, no cache — which is what lets sky.boss stay stateless. A copy of a schedule
+that agents rewrite goes stale without announcing it; unreachability is visible, staleness is not.
+
+```
+api
+  jobs  table · 29 rows · 15 columns
+    JOB           RESULT   LAST_AGE
+    ───────────────────────────────
+    sentinel      red      11h ago
+    integration   ok       11h ago
+
+sensors
+    error    No such file or directory
+    source   ~/src/sensors/tmp/status.json
+
+⚠️  sensors: No such file or directory
+```
+
+</details>
+
 ## The surface
 
 ```bash
@@ -394,27 +438,30 @@ sb ui
 
 Two screens, and the canvas is [pictured above](#what-it-looks-like). **The canvas** is a command
 palette over tiled and floating windows: every command opens a window, and a pinned window re-runs
-itself on a cadence. **Nothing keeps a command table**
-— the palette walks the real Click tree, so it cannot offer a command that does not exist.
+itself on a cadence. **Nothing keeps a command table** — the palette walks the real Click tree, so
+it cannot offer a command that does not exist.
+
+**The workbench** is where a command gets made rather than invoked. Assert the contract — `run`
+acts, `data`, `read` and `follow` observe — type the argv, and *trial run* it: the result is drawn
+through the same renderer a window uses. An **act has no trial run**, and the server refuses one
+rather than the page merely not offering it.
+
+<details>
+<summary><strong>Why the refresh clock lives in Python, and how to develop against it</strong></summary>
 
 The refresh clock lives in Python, keyed to the connection: a browser timer in a hidden tab is
 clamped to roughly one fire a minute, so a 5s watcher would silently become a 60s one at the exact
 moment you stopped being able to see that it had.
 
-**The workbench** is where a command gets made rather than invoked. Assert the contract — `run`
-acts, `data`, `read` and `follow` observe — type the argv, and *trial run* it: the result is drawn
-through the same renderer a window uses, so what you are looking at is the thing rather than a
-picture of it. `--cols` is the flag this exists for. It is one you get wrong by typing and right
-by looking, and until now there was nowhere to look.
-
 Nothing is selected when the bench opens, because the contract is the one bit no parser can infer
-and choosing it for you would be that inference with a friendlier face. An **act has no trial run**
-— sky.boss will not execute a write to show you what it would print — and the server refuses one
-rather than the page merely not offering it.
+and choosing it for you would be that inference with a friendlier face. `--cols` is the flag the
+bench exists for: one you get wrong by typing and right by looking.
 
 ```bash
 sb ui --no-browser --port 8765     # develop against it in a browser
 ```
+
+</details>
 
 ## Offering it to an agent
 
@@ -432,9 +479,10 @@ Speaks MCP on stdin/stdout — no port, no token, no daemon. Register it with an
 $ printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' | sb mcp
 ```
 
-**An agent reaches the commands you saved, and nothing else.** Every exposed tool has an *empty
-input schema* — there is no string an agent can put anywhere. Excluded by rule, not by list:
-anything that acts, anything resident, and anything taking a free-form argv.
+> [!IMPORTANT]
+> **An agent reaches the commands you saved, and nothing else.** Every exposed tool has an *empty
+> input schema* — there is no string an agent can put anywhere. Excluded by rule, not by list:
+> anything that acts, anything resident, and anything taking a free-form argv.
 
 That last one is the whole safety argument. Choosing `data` over `run` is *your* assertion that
 something is a read; an assertion an agent makes about its own argv is not a safety property, it is
@@ -459,15 +507,13 @@ nothing declared rather than raising.
 .venv/bin/python -m pytest -k readme    # the examples in this file
 ```
 
-Every `$ sb …` example above is executed by `tests/test_readme.py`, so a README that shows a
-command which no longer works fails the build.
+Every `$ sb …` example above — including the ones folded away — is executed by
+`tests/test_readme.py`, so a README that shows a command which no longer works fails the build. CI
+runs that same suite on every push and pull request.
 
 `docs/design/fundamentals.md` is the constitution; `docs/implementations/` holds one doc per
-feature that shipped, each with its rounds and a Notes section that accretes rather than rewrites,
-indexed at `docs/implementations/README.md`. `docs/TODO/` is the same thing, still open.
-
-CI runs that same suite on every push and pull request — `.github/workflows/ci.yml`. It builds a
-`.venv` because the README examples above go through the real `sb` wrapper, which looks for one.
+feature that shipped, indexed at `docs/implementations/README.md`, and `docs/TODO/` is the same
+thing, still open.
 
 ## License
 
