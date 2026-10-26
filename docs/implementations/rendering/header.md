@@ -4,11 +4,11 @@ slug: header
 category: rendering
 agent_value: 3
 completed: 2026-08-30
-updated: 2026-08-30
+updated: 2026-10-26
 tags: [branding, cli, rendering]
-summary: Draws the sky.boss mark from one source so the CLI header, the README banner and the app icon cannot drift apart.
+summary: Draws the sky.boss mark from one source so the CLI header, the README hero and the app icon cannot drift apart.
 created: 2026-08-22
-key_files: [skyboss/banner.py, skyboss/theme.py, skyboss/__init__.py, docs/design/cli-header.png, docs/design/app-icon.png, docs/design/render-mark.py, tests/test_banner.py]
+key_files: [skyboss/banner.py, skyboss/theme.py, skyboss/__init__.py, docs/design/cli-header.png, docs/design/app-icon.png, docs/design/hero.svg, docs/design/render-mark.py, tests/test_banner.py]
 ---
 
 # The mark — a header for `sb`
@@ -111,6 +111,14 @@ out when the envelope was asked for.
 - [x] **`--install`** writes the size set into the XDG icon theme, opt-in because it is the only
       thing here that writes outside the repository.
 
+### Round 4 — a pixel tower, and a hero instead of a help screen (2026-10-26)
+
+- [x] **Redraw the tower** as 15x22 pixel art: a mast with a red warning light, a roof cap, an
+      outward-sloping glass cab with mullions, a balcony, a shaft lit from the left with two slits,
+      and a base with a door. Two new inks, `LOGO_SHADE` and `LOGO_BEACON`, both in `theme.py`.
+- [x] **`hero.svg` from `ART`**, animated, replacing `readme-banner.png` at the top of the README.
+- [x] **`ideas.svg`**, the four ideas as cards, with every sentence in its alt text.
+
 ## Notes
 
 ### Round 1 — executed (2026-08-22)
@@ -210,3 +218,30 @@ job is that no image here can drift from the drawing.
   there. An `Exec=` line is an absolute path and a `.desktop` is machine context — the rule that
   keeps a host name out of a tracked file keeps these out too. What the repo owns is the *image*;
   where a desktop looks for it is the operator's.
+
+### Round 4 — executed (2026-10-26)
+
+**The tower got a full redraw, and the grid it sits on took it without complaint.** It is 15x22
+where round 2's was 14x14, so the terminal header grew from seven lines to eleven. The wordmark
+moved down to sit beside the cab, and the art is still 63 columns, so `WIDTH`, the byline fit and
+the refusal-to-draw rule did not move. The 4-column gutter is what `_tower` walks to, so the icon
+crop needed no change: the point of round 3 arriving as a free test of round 4.
+
+- **Lit from the left needed a shade, and the obvious one was the wrong one.** `CLI_BRAND` is
+  already a darker sky, but it is a contrast derivation for an unknown terminal, and
+  `test_the_mark_is_not_a_style_role` exists to keep the mark's inks out of `STYLES`. `LOGO_SHADE`
+  is BRAND at 0.70 over the mark's own ground — the mixing `CLI_REF_BG` uses — so it is a shadow
+  rather than a hue, and the four-hue budget is untouched. The warning light is `DANGER`, which was
+  already in the palette; an aircraft light is red, and this one is too.
+- **`G` is `W` with a job.** The glass and the lit edges paint the same colour, and the terminal
+  cannot tell them apart. The hero needs to, because it animates the glass and nothing else — so
+  the distinction lives in the picture as a letter rather than in the renderer as a list of
+  coordinates, which would be a second copy of the drawing.
+- **The README banner is gone, and so is its standing chore.** It was a pty capture of
+  `sb --help`, so every new command staled it with nothing to report it (round 3 found it two rows
+  out). The hero is a picture of the mark and the pitch, rendered from `ART` and the tokens, and
+  adding a command no longer touches it. `cli-header.png` stays, and is still the help screen's
+  own picture.
+- **The roll-call in the hero is an illustration, and says so.** Its first draft named two real
+  sibling projects; a public README should not, and the operator ruled it out. The rows are
+  `api-gateway`, `nightly-backup` and `edge-sensors`, and the alt text calls them illustrative.

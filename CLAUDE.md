@@ -33,10 +33,10 @@ false; that is why the rename notes in [[tools]] and [[header]] read the way the
 was the other one and is not any more: it was a drawing of a toolbox lettered `TOOLBOX`, printed
 beside the word by `skyboss/banner.py`, and it was redrawn the same day as a **control tower**
 ([[header]] round 2). `ART` in `skyboss/banner.py` is the picture; `docs/design/render-mark.py` renders
-every PNG from it — the header, the README banner, and the square app icon — so the drawing and the
-word cannot drift apart again, which they had, for exactly as long as it took to notice. **Re-run it
-after adding a command**: the banner is a screenshot of root help, so a new subcommand makes it
-stale in a way no test can see ([[header]] round 3).
+every image of it — the CLI header, the README's animated hero, and the square app icon — so the
+drawing and the word cannot drift apart again, which they had, for exactly as long as it took to
+notice. **Re-run it after changing `ART` or the palette.** The README no longer carries a
+screenshot of root help, so adding a command no longer stales it ([[header]] round 4).
 
 **This is a machine-neutral repo, as of the 2026-08-22 pass.** Nothing tracked here names a host,
 a distro, a desktop environment, or a window-manager rule — the mechanisms are documented, the
