@@ -12,7 +12,7 @@ length of the 2026-08-27 rename ([[header]]).
 **Half-blocks, so the aspect survives.** A terminal cell is about twice as tall
 as it is wide, so one art pixel per *cell* would render the mark stretched to
 double height. `\u2580` splits a cell into two square-ish halves — foreground on
-top, background below — which puts 14 art rows into 7 terminal rows at the
+top, background below — which puts 22 art rows into 11 terminal rows at the
 proportions the designer drew.
 
 **The mark paints its own background**, and that is what lets it use the design
@@ -35,27 +35,46 @@ from rich.console import Console
 from rich.style import Style
 from rich.text import Text
 
-from skyboss.theme import CLI_BRAND, CLI_FAINT, LOGO_BG, LOGO_BRAND, LOGO_DARK, LOGO_LIGHT
+from skyboss.theme import (
+    CLI_BRAND,
+    CLI_FAINT,
+    LOGO_BEACON,
+    LOGO_BG,
+    LOGO_BRAND,
+    LOGO_DARK,
+    LOGO_LIGHT,
+    LOGO_SHADE,
+)
 
-# One character per art pixel, two rows per rendered line. `B` brand, `D` the
-# dark slate of the tower's shaft, `W` the lit glass of the cab and the mast
-# above it, `.` the mark's own background. Edit this and the mark changes — it
-# is the picture, not a cache of one.
+# One character per art pixel, two rows per rendered line. `B` brand, `S` its
+# shaded side, `W` the lit edge, `G` the lit glass of the cab, `D` the dark
+# slate of frames, slits, door and ground, `R` the warning light on the mast,
+# `.` the mark's own background. `G` paints as `W`; it is a separate letter
+# because the README hero animates the glass and nothing else. Edit this and
+# the mark changes — it is the picture, not a cache of one.
 ART: tuple[str, ...] = (
-    "......WW.......................................................",
-    "......WW.......................................................",
-    "...BBBBBBBB....................................................",
-    ".BBBBBBBBBBBB......BBBBB.B...B.B...B....BBBB..BBBBB.BBBBB.BBBBB",
-    ".BWWDWWWWDWWB......B.....B..B..B...B....B...B.B...B.B.....B....",
-    ".BWWDWWWWDWWB......B.....B.B....B.B.....B...B.B...B.B.....B....",
-    "..BBBBBBBBBB.......BBBBB.BB......B......BBBB..B...B.BBBBB.BBBBB",
-    ".....BBBD..............B.B.B.....B......B...B.B...B.....B.....B",
-    ".....BBBD..............B.B..B....B...BB.B...B.B...B.....B.....B",
-    ".....BBBD..........BBBBB.B...B...B...BB.BBBB..BBBBB.BBBBB.BBBBB",
-    ".....BBBD......................................................",
-    ".....BBBD......................................................",
-    "...BBBBBBBB....................................................",
-    ".BBBBBBBBBBBB..................................................",
+    ".......R.......................................................",
+    ".......W.......................................................",
+    ".......D.......................................................",
+    "......BBS......................................................",
+    "..WBBBBBBBBBS..................................................",
+    ".WBBBBBBBBBBBS.................................................",
+    ".DGGDGGDGGDGGD.................................................",
+    "..DGDGGDGGDGD......BBBBB.B...B.B...B....BBBB..BBBBB.BBBBB.BBBBB",
+    "WBBBBBBBBBBBBBS....B.....B..B..B...B....B...B.B...B.B.....B....",
+    "..BBBBBBBBBBS......B.....B.B....B.B.....B...B.B...B.B.....B....",
+    "....BBBBBBS........BBBBB.BB......B......BBBB..B...B.BBBBB.BBBBB",
+    ".....WBBBS.............B.B.B.....B......B...B.B...B.....B.....B",
+    ".....WBDBS.............B.B..B....B...BB.B...B.B...B.....B.....B",
+    ".....WBBBS.........BBBBB.B...B...B...BB.BBBB..BBBBB.BBBBB.BBBBB",
+    ".....WBBBS.....................................................",
+    ".....WBDBS.....................................................",
+    ".....WBBBS.....................................................",
+    "....WBBBBBS....................................................",
+    "..WBBBBBBBBBS..................................................",
+    "..WBBBDDDBBBS..................................................",
+    "..WBBBDDDBBBS..................................................",
+    "DDDDDDDDDDDDDDD................................................",
 )
 
 # Room either side of the art, inside the painted panel.
@@ -63,7 +82,15 @@ PAD = 2
 
 WIDTH = len(ART[0]) + PAD * 2
 
-_INK = {"B": LOGO_BRAND, "D": LOGO_DARK, "W": LOGO_LIGHT, ".": LOGO_BG}
+_INK = {
+    "B": LOGO_BRAND,
+    "S": LOGO_SHADE,
+    "W": LOGO_LIGHT,
+    "G": LOGO_LIGHT,
+    "D": LOGO_DARK,
+    "R": LOGO_BEACON,
+    ".": LOGO_BG,
+}
 
 # Where the byline sits: under the wordmark, not under the tower.
 BYLINE_INDENT = 19

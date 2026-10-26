@@ -92,6 +92,12 @@ LOGO_BG = SURFACE_2
 LOGO_BRAND = BRAND
 LOGO_DARK = TEXT_3
 LOGO_LIGHT = TEXT
+# The tower is lit from the left, so its right edge needs a darker brand. Not
+# `CLI_BRAND`: that is a contrast derivation for an unknown terminal, and the
+# mark must stay out of STYLES. This is BRAND at 0.7 over the mark's own
+# ground, the same mixing `CLI_REF_BG` uses, so it is a shadow and not a hue.
+LOGO_SHADE = "#2c8bb7"  # BRAND at 0.70 over SURFACE_2
+LOGO_BEACON = DANGER  # an aircraft warning light is red, and so is this one
 
 # ============================================================================
 # CLI-safe derivations

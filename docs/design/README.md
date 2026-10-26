@@ -20,14 +20,15 @@ jam.sense's app tokens and every hue was wrong for a week.
 **No PNG here is a source.** Every one is produced by a script, from the thing it is a picture of:
 
 ```bash
-.venv/bin/python docs/design/render-mark.py     # the mark, the banner, the icon, the session
+.venv/bin/python docs/design/render-mark.py     # the mark, the hero, the ideas, the icon, the session
 node docs/design/render-canvas.mjs              # the canvas
 ```
 
 | File | Rendered from | Byte-stable? |
 |---|---|---|
 | `cli-header.png` | `ART` in `skyboss/banner.py` | yes |
-| `readme-banner.png` | real `sb --help` through a pty | yes |
+| `hero.svg` | `ART`, and the palette in `skyboss/theme.py` | yes |
+| `ideas.svg` | the four ideas, and the palette | yes |
 | `app-icon.png` | `ART`, on a square | yes |
 | `readme-session.png` | real commands through a pty | **no** — the band carries a wall clock |
 | `readme-canvas.png` | a real `sb ui`, driven over CDP | **no** — port, session id, relative ages |
@@ -53,25 +54,23 @@ The mark alone — one square per art pixel, at the palette's own values, plus t
 here picks a colour; they all come from `skyboss/theme.py`, which is the rule `tests/test_theme.py`
 enforces inside `skyboss/` and this directory keeps by hand.
 
-### `readme-banner.png`
+### `hero.svg` and `ideas.svg`
 
-Real `sb --help`, captured through a **pty** and painted back. It has to be a pty: the mark refuses
-to draw when it is not talking to a terminal, so a screenshot of it cannot be taken by reading
-stdout. This is the same rasteriser round 1 used to check the icon's proportions, which is still
-the only honest check — the suite proves the mechanism but cannot see whether the tower looks like
-a tower.
+The README's opening pictures, written as **SVG** rather than painted, so they stay crisp at any
+width and can move. The hero is `ART` as rects at 8px a cell, plus a byline, the tagline and a
+roll-call drawn as a canvas window; its motion is SMIL, which GitHub plays inside an `<img>` — the
+warning light blinks, the `G` glass flickers in three panes, and a radar ring leaves the light and
+lights each roll-call row as it passes. **The roll-call rows are an illustration**, named for nobody's
+real project, and the alt text says so. `ideas.svg` is the four ideas as cards; its alt text carries
+every sentence, because an image of a sentence is neither searchable nor read aloud.
 
-Two things are **drawn rather than typed**, both because a font cannot be relied on: the half-block
-`▀` (a font's metrics leave hairlines between rows) and the prompt's `❯` (whatever `fc-match
-monospace` resolves to may not carry U+276F, and the first regeneration put tofu in the corner).
-
-Displayed at `width="799"` against a 960px render, so the block letters stay crisp on a HiDPI
-screen.
+They replaced `readme-banner.png`, a pty capture of `sb --help`. That went stale every time a command
+was added and opened the README on a page of reference text; see [[header]] round 4.
 
 ### Neither render carries a version
 
 `skyboss/banner.py` prints the real `git describe`, because a header stating a version it is not is
-worse than one with none. Both renders drop that segment, for two reasons that happen to agree. A
+worse than one with none. `cli-header.png` drops that segment and the hero never had one, for two reasons that happen to agree. A
 README is read long after any hash means anything, so `36927d9-dirty` in the first thing a reader
 sees is the same lie in a louder place. And a PNG that embeds `git describe` changes on **every
 commit**, which would make a regenerated design file a permanent diff. What is left,

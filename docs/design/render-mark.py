@@ -4,7 +4,7 @@
 Run from the repo root: `.venv/bin/python docs/design/render-mark.py`,
 adding `--install` to also write the icon into the XDG icon theme.
 
-**No PNG here is a source.** `cli/banner.py`'s `ART` is the picture, and every
+**No PNG here is a source.** `skyboss/banner.py`'s `ART` is the picture, and every
 file this writes is a render of it — which is the only arrangement in which
 they cannot disagree. They *did* disagree: the 2026-08-27 rename changed the
 word the CLI prints without changing the drawing beside it, so `sb --help`
@@ -12,15 +12,15 @@ greeted you with a new name next to a picture of the old one for as long as
 that took to notice. See [[header]].
 
 - `cli-header.png` — the mark alone, one square block per art pixel.
-- `readme-banner.png` — real `sb --help` captured through a pty and painted
-  back, because the suite can prove the mechanism but cannot see whether the
-  tower looks like a tower.
+- `hero.svg` and `ideas.svg` — the README's opening pictures, written as SVG
+  from `ART` and the theme. The hero is animated, and SMIL plays inside an
+  `<img>` on GitHub.
 - `app-icon.png` — the tower alone on a square, for a desktop launcher. Third
   because the alternative was cropping it out of `cli-header.png`, and a crop
   is a second copy of the drawing with nothing holding it to the first.
 
-Colours come from `cli/theme.py`. Nothing here names one, which is the same
-rule the hex scan enforces inside `cli/` — that scan does not reach this
+Colours come from `skyboss/theme.py`. Nothing here names one, which is the same
+rule the hex scan enforces inside `skyboss/` — that scan does not reach this
 directory, so this file keeps to it by hand.
 """
 
@@ -40,9 +40,24 @@ sys.path.insert(0, str(ROOT))
 from PIL import Image, ImageDraw, ImageFont  # noqa: E402
 
 from skyboss import banner  # noqa: E402
-from skyboss.theme import BG, BRAND, LOGO_BG, LOGO_BRAND, LOGO_DARK, LOGO_LIGHT, TEXT  # noqa: E402
+from skyboss.theme import (  # noqa: E402
+    BG,
+    BRAND,
+    DANGER,
+    LOGO_BEACON,
+    LOGO_BG,
+    LOGO_BRAND,
+    LOGO_DARK,
+    LOGO_LIGHT,
+    OK,
+    SURFACE,
+    TEXT,
+    TEXT_2,
+    TEXT_3,
+    WARN,
+)
 
-INK = {"B": LOGO_BRAND, "D": LOGO_DARK, "W": LOGO_LIGHT, ".": LOGO_BG}
+INK = banner._INK  # one table of inks, so the PNGs cannot paint a letter differently
 UPPER_HALF = "▀"
 CHEVRON = "❯"  # drawn, not typed — see _draw_cell
 SGR = re.compile(r"\x1b\[([0-9;]*)m")
@@ -294,39 +309,182 @@ def _versionless_byline():
     return line
 
 
-def render_banner(out: Path, cell_w: int = 12, cell_h: int = 21) -> None:
-    text = capture([str(ROOT / "sb"), "--help"])
-    grid = _cells(text)
+# ---------------------------------------------------------------- the README
 
-    # The byline is the row directly under the art. Swap it for the
-    # version-free one before the prompt row shifts every index by one.
-    art_rows = len(banner.ART) // 2
-    grid[art_rows] = [
-        (
-            ch,
-            (
-                (c.red, c.green, c.blue)
-                if (c := seg.style.color.get_truecolor() if seg.style and seg.style.color else None)
-                else _rgb(TEXT)
-            ),
-            (
-                (b.red, b.green, b.blue)
-                if (b := seg.style.bgcolor.get_truecolor() if seg.style and seg.style.bgcolor else None)
-                else None
-            ),
-            False,
-        )
-        for seg in _versionless_byline().render(_console())
-        for ch in seg.text
-    ]
 
-    grid.insert(
-        0,
-        [(CHEVRON, _rgb(BRAND), None, True), (" ", _rgb(TEXT), None, False)]
-        + [(c, _rgb(TEXT), None, False) for c in "sb"],
+MONO = "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace"
+SANS = "Inter, 'Segoe UI', Helvetica, Arial, sans-serif"
+DISPLAY = "'Space Grotesk', 'Segoe UI', Helvetica, Arial, sans-serif"
+
+# The roll-call card in the hero is an illustration, so its rows are invented
+# and say so in the alt text. They are deliberately nobody's real projects.
+HERO_ROWS = (("api-gateway", "ok", OK), ("nightly-backup", "partial", WARN), ("edge-sensors", "unreachable", DANGER))
+
+
+def _runs(rows: list[str], letter: str, cell: int) -> str:
+    """One `<rect>` per horizontal run of `letter`, so a 22-row drawing is a few
+    dozen elements rather than a few hundred."""
+    out = []
+    for y, row in enumerate(rows):
+        x = 0
+        while x < len(row):
+            if row[x] != letter:
+                x += 1
+                continue
+            start = x
+            while x < len(row) and row[x] == letter:
+                x += 1
+            out.append(f'<rect x="{start * cell}" y="{y * cell}" width="{(x - start) * cell}" height="{cell}"/>')
+    return "".join(out)
+
+
+def render_hero(out: Path, cell: int = 8) -> None:
+    """The README's first picture: `ART` as SVG, alive, beside a roll-call.
+
+    It replaces a screenshot of `sb --help`, which went stale every time a
+    command was added and showed the mark above a page of reference text. This
+    is the mark and the pitch, and the motion is SMIL so it plays inside an
+    `<img>` on GitHub: the warning light blinks, the cab's glass flickers in
+    three panes, and a radar ring leaves the light and lights each roll-call
+    row as it passes. Static fallbacks are the first frame, which is complete.
+    """
+    art = list(banner.ART)
+    ox, oy = 40, 22
+    paint = "".join(
+        f'<g fill="{colour}">{_runs(art, letter, cell)}</g>'
+        for letter, colour in banner._INK.items()
+        if letter not in ".GR"
     )
+    glass = []
+    for third, begin in enumerate(("0s", "1s", "2s")):
+        cols = [row[:15] for row in art]
+        masked = ["".join(c if c == "G" and x // 5 == third else "." for x, c in enumerate(r)) for r in cols]
+        glass.append(
+            f'<g fill="{LOGO_LIGHT}"><animate attributeName="opacity" values="1;1;0.4;1" keyTimes="0;0.7;0.8;1" '
+            f'dur="3s" begin="{begin}" repeatCount="indefinite"/>{_runs(masked, "G", cell)}</g>'
+        )
+    bx, by = next((x, y) for y, r in enumerate(art) for x, c in enumerate(r) if c == "R")
+    beacon_x, beacon_y = ox + bx * cell + cell // 2, oy + by * cell + cell // 2
+    blink = '<animate attributeName="opacity" values="{};{}" dur="1.2s" calcMode="discrete" repeatCount="indefinite"/>'
+    word_x = ox + banner.BYLINE_INDENT * cell
+    word_bottom = oy + max(y for y, r in enumerate(art) if "B" in r[banner.BYLINE_INDENT :]) * cell + cell
 
-    _paint(grid, out, cell_w, cell_h)
+    ring = (
+        '<circle cx="{x}" cy="{y}" r="8" fill="none" stroke="{c}" stroke-width="2" opacity="0">'
+        '<animate attributeName="r" values="8;900" dur="4s" begin="{b}" repeatCount="indefinite"/>'
+        '<animate attributeName="opacity" values="0.45;0" dur="4s" begin="{b}" repeatCount="indefinite"/></circle>'
+    )
+    rings = "".join(ring.format(x=beacon_x, y=beacon_y, c=BRAND, b=b) for b in ("0s", "2s"))
+
+    rows = []
+    for i, (name, state, colour) in enumerate(HERO_ROWS):
+        y = 133 + 28 * i
+        lit = f"0;{0.24 + 0.02 * i:.2f};{0.30 + 0.02 * i:.2f};1"
+        rows.append(
+            f'<circle cx="662" cy="{y}" r="4.5" fill="{colour}" opacity="0.3"><animate attributeName="opacity" '
+            f'values="0.3;0.3;1;0.3" keyTimes="{lit}" dur="2s" repeatCount="indefinite"/></circle>'
+            f'<text x="676" y="{y + 5}" font-size="14" fill="{TEXT}">{name}</text>'
+            f'<text x="936" y="{y + 5}" font-size="14" fill="{colour}" text-anchor="end">{state}</text>'
+        )
+
+    svg = f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 300" width="1000" height="300" role="img" aria-label="sky.boss: a pixel control tower beside the wordmark, sending a radar ring to an illustrative roll-call of three projects">
+  <title>sky.boss — one CLI for watching what other tools are doing</title>
+  <defs>
+    <clipPath id="clip"><rect width="1000" height="300" rx="18"/></clipPath>
+    <radialGradient id="glow" cx="0.12" cy="0.2" r="0.7"><stop offset="0" stop-color="{BRAND}" stop-opacity="0.12"/><stop offset="1" stop-color="{BRAND}" stop-opacity="0"/></radialGradient>
+    <pattern id="dots" width="22" height="22" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r="1" fill="{TEXT}" fill-opacity="0.06"/></pattern>
+    <filter id="soft" x="-200%" y="-200%" width="500%" height="500%"><feGaussianBlur stdDeviation="5"/></filter>
+  </defs>
+  <g clip-path="url(#clip)">
+    <rect width="1000" height="300" fill="{BG}"/>
+    <rect width="1000" height="300" fill="url(#glow)"/>
+    <rect width="1000" height="300" fill="url(#dots)"/>
+    {rings}
+    <g transform="translate({ox},{oy})">{paint}{"".join(glass)}
+      <circle cx="{bx * cell + cell // 2}" cy="{by * cell + cell // 2}" r="9" fill="{LOGO_BEACON}" filter="url(#soft)">{blink.format("0.9", "0.15")}</circle>
+      <g fill="{LOGO_BEACON}">{blink.format("1", "0.35")}{_runs(art, "R", cell)}</g>
+    </g>
+    <text x="{word_x}" y="{word_bottom + 28}" font-family="{MONO}" font-size="13" letter-spacing="1" fill="{TEXT_2}">by <tspan fill="{TEXT}">SKYROW.</tspan><tspan fill="{BRAND}">LABS</tspan></text>
+    <text font-family="{SANS}" font-size="18" fill="{TEXT_2}"><tspan x="{ox}" y="232">One CLI for watching what other tools are doing —</tspan><tspan x="{ox}" y="258">on this machine and across the projects you keep here.</tspan></text>
+    <rect x="640.5" y="40.5" width="311" height="219" rx="14" fill="{SURFACE}" stroke="{BRAND}" stroke-opacity="0.55"/>
+    <g font-family="{MONO}">
+      <circle cx="660" cy="62" r="4" fill="{OK}"/>
+      <text x="672" y="67" font-size="13" fill="{TEXT_2}">#1</text>
+      <text x="696" y="67" font-size="13" fill="{TEXT}">roll-call</text>
+      <text x="896" y="67" font-size="12" fill="{TEXT_2}" text-anchor="end">2s ago</text>
+      <rect x="904.5" y="54.5" width="34" height="18" rx="4" fill="none" stroke="{TEXT_3}"/>
+      <text x="921.5" y="67" font-size="10" fill="{TEXT_2}" text-anchor="middle">PIN</text>
+      <path d="M 641,84 H 951 M 641,216 H 951" stroke="{TEXT_3}" stroke-opacity="0.6"/>
+      <text x="656" y="106" font-size="11" letter-spacing="0.8" fill="{TEXT_2}">PROJECT</text>
+      <text x="936" y="106" font-size="11" letter-spacing="0.8" fill="{TEXT_2}" text-anchor="end">STATE</text>
+      <path d="M 656,114 H 936" stroke="{TEXT_3}" stroke-opacity="0.6"/>
+      {"".join(rows)}
+      <text x="656" y="242" font-size="12" fill="{TEXT_2}">partial · 3 projects</text>
+      <text x="936" y="242" font-size="12" fill="{TEXT_2}" text-anchor="end">exit 3 · 0.21s</text>
+    </g>
+  </g>
+  <rect x="0.5" y="0.5" width="999" height="299" rx="18" fill="none" stroke="{TEXT_3}" stroke-opacity="0.6"/>
+</svg>
+"""
+    out.write_text(svg, encoding="utf-8")
+    print(f"wrote {out.relative_to(ROOT)} 1000x300")
+
+
+# The four ideas, as cards. The icons are 24-unit stroke paths, so they read
+# at any size and carry no colour of their own.
+IDEAS = (
+    (
+        "One command acts",
+        BRAND,
+        '<polygon points="6 4 20 12 6 20 6 4"/>',
+        ("sb run is the only one. Everything else reads,", "so a window can re-run a read, never a write."),
+    ),
+    (
+        "Data, never print",
+        OK,
+        '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 9h18M9 9v10"/>',
+        ("One envelope — ok, partial, data, warnings —", "drawn by whoever consumes it. --json hands it over."),
+    ),
+    (
+        "Never guesses",
+        WARN,
+        '<circle cx="11" cy="11" r="7"/><path d="M21 21l-5-5"/>',
+        ("sb data takes JSON; sb read shows output verbatim", "and says so. There is no --pretty that guesses."),
+    ),
+    (
+        "Not in the credential path",
+        TEXT,
+        '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
+        ("External CLIs keep their own authentication.", "sky.boss never holds a key."),
+    ),
+)
+
+
+def render_ideas(out: Path) -> None:
+    """The four ideas the README opens with, as a 2×2 of cards.
+
+    The sentences are repeated in the image's alt text in full, because an
+    image of a sentence is not searchable and a screen reader is owed it.
+    """
+    cards = []
+    for i, (title, colour, icon, lines) in enumerate(IDEAS):
+        x, y = (i % 2) * 507, (i // 2) * 124
+        body = "".join(f'<tspan x="{x + 84}" dy="{0 if k == 0 else 21}">{line}</tspan>' for k, line in enumerate(lines))
+        cards.append(
+            f'<rect x="{x + 0.5}" y="{y + 0.5}" width="492" height="111" rx="14" fill="{BG}" stroke="{TEXT_3}" stroke-opacity="0.6"/>'
+            f'<rect x="{x + 22}" y="{y + 22}" width="44" height="44" rx="10" fill="{colour}" fill-opacity="0.14"/>'
+            f'<g transform="translate({x + 32},{y + 32})" fill="none" stroke="{colour}" stroke-width="2" '
+            f'stroke-linecap="round" stroke-linejoin="round">{icon}</g>'
+            f'<text x="{x + 84}" y="{y + 40}" font-family="{DISPLAY}" font-size="18" font-weight="700" fill="{TEXT}">{title}</text>'
+            f'<text y="{y + 66}" font-family="{SANS}" font-size="14" fill="{TEXT_2}">{body}</text>'
+        )
+    alt = " ".join(f"{t}: {' '.join(lines)}" for t, _, _, lines in IDEAS)
+    svg = (
+        f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 236" width="1000" height="236" role="img" '
+        f'aria-label="{alt}">\n  <title>Four ideas</title>\n  {"".join(cards)}\n</svg>\n'
+    )
+    out.write_text(svg, encoding="utf-8")
+    print(f"wrote {out.relative_to(ROOT)} 1000x236")
 
 
 def _paint(grid, out: Path, cell_w: int, cell_h: int) -> None:
@@ -419,7 +577,8 @@ def render_session(out: Path, cols: int = 88, cell_w: int = 12, cell_h: int = 21
 if __name__ == "__main__":
     here = Path(__file__).resolve().parent
     render_mark(here / "cli-header.png")
-    render_banner(here / "readme-banner.png")
+    render_hero(here / "hero.svg")
+    render_ideas(here / "ideas.svg")
     render_icon(here / "app-icon.png")
     render_session(here / "readme-session.png")
     if "--install" in sys.argv:

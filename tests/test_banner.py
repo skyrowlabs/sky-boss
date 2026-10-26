@@ -12,7 +12,7 @@ from click.testing import CliRunner
 from rich.console import Console
 
 from skyboss import banner, cli
-from skyboss.theme import BRAND, STYLES, SURFACE_2, TEXT, TEXT_3
+from skyboss.theme import BRAND, DANGER, STYLES, SURFACE_2, TEXT, TEXT_3
 
 #: Every test here is host-side and needs no services up.
 pytestmark = [pytest.mark.unit]
@@ -27,7 +27,7 @@ def test_the_art_is_a_rectangle_of_known_inks():
     """It is hand-editable by design, so the shape is what a test holds."""
     assert len(banner.ART) % 2 == 0, "half-blocks pair rows; an odd count loses one"
     assert len({len(row) for row in banner.ART}) == 1, "ragged art would print ragged"
-    assert set("".join(banner.ART)) <= {"B", "D", "W", "."}
+    assert set("".join(banner.ART)) <= set(banner._INK)
 
 
 def test_every_painted_line_is_exactly_the_panel_wide():
@@ -86,7 +86,8 @@ def test_the_mark_takes_the_design_system_undarkened():
     to satisfy the contrast floor, the brand mark dims for no reader."""
     assert banner._INK["B"] == BRAND
     assert banner._INK["D"] == TEXT_3
-    assert banner._INK["W"] == TEXT
+    assert banner._INK["W"] == banner._INK["G"] == TEXT
+    assert banner._INK["R"] == DANGER
     assert banner._INK["."] == SURFACE_2
 
 

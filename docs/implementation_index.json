@@ -168,13 +168,13 @@
       "title": "The mark — a header for `sb`",
       "path": "docs/implementations/rendering/header.md",
       "priority": "medium",
-      "updated": "2026-08-30",
+      "updated": "2026-10-26",
       "tags": [
         "branding",
         "cli",
         "rendering"
       ],
-      "summary": "Draws the sky.boss mark from one source so the CLI header, the README banner and the app icon cannot drift apart.",
+      "summary": "Draws the sky.boss mark from one source so the CLI header, the README hero and the app icon cannot drift apart.",
       "open_tasks": 0,
       "auto_generated": false,
       "category": "rendering",
