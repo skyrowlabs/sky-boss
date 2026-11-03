@@ -18,7 +18,8 @@ import socket
 import pytest
 
 #: A credential's shape. A unit test never needs a real one, and one it can read is one it can send.
-SECRET_NAME = re.compile(r"(?:^|_)(?:KEY|TOKEN|SECRET|PASSWORD|CREDENTIALS)$")
+#: A webhook URL is one: whoever holds it can post (breeze.brain's GRAFANA_DISCORD_WEBHOOK).
+SECRET_NAME = re.compile(r"(?:^|_)(?:KEY|TOKEN|SECRET|PASSWORD|CREDENTIALS|WEBHOOK(?:_URL)?)$")
 
 
 def is_local(address: object) -> bool:
