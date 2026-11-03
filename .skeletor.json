@@ -35,7 +35,7 @@
     "--org",
     "skyrowlabs",
     "--visibility",
-    "private",
+    "public",
     "--timezone",
     "UTC"
   ],
@@ -61,7 +61,7 @@
     ".vscode/settings.json": "756334bf33b61cf3cc2df07ac4a46015ec7af10c7fca1bdba28d378151489dac",
     "AGENTS.md": "7d52dcddd87cd91a2783e330bf16f14577d96d14ebb827feaa14faa6577002cb",
     "CLAUDE.md": "8d3d3e83ca39eb76525e1b672d1b1b3804ba60cdaa82128d5a31c7c784b261d3",
-    "README.md": "e044e715bdfd65fe18b99acf508dfbaa0faca977ce0ee880832e4e0bd9ee85fd",
+    "README.md": "dd4340157311f1b500bd77f4cf2bcb9a568ed50bff119be402a375a5886ce32f",
     "cli/__init__.py": "f4d819047926f9ef665e5c6e444b616b5c69ffa984139aac2b42e684140cfa76",
     "cli/__main__.py": "dfc19fb84b339bd52aab57ebf2ba5df1b2d66630234f0f3c2d6f90a5a393538d",
     "cli/_capture.py": "8afa671a867f16532468fba7804b9c6cda5471f55511d7443170da879933d333",
