@@ -60,7 +60,9 @@ def test_a_secret_the_shell_set_is_hidden_from_a_unit_test():
 #: Real names, written out: a test that derives them from `SECRET_NAME` cannot see what it misses (proto.pilot).
 CREDENTIALS = ("APP_PRIVATE_KEY", "RELEASE_TOKEN", "GH_TOKEN", "ANTHROPIC_API_KEY", "AWS_SECRET_ACCESS_KEY")
 CREDENTIALS += ("AWS_SESSION_TOKEN", "CLIENT_SECRET", "DB_PASSWORD", "GOOGLE_APPLICATION_CREDENTIALS")
+CREDENTIALS += ("GRAFANA_DISCORD_WEBHOOK", "SLACK_WEBHOOK_URL")
 NOT_CREDENTIALS = ("PATH", "HOME", "TOKENIZER_PATH", "KEYRING_BACKEND", "APP_ID", "PYTHONHASHSEED")
+NOT_CREDENTIALS += ("WEBHOOK_TIMEOUT",)
 
 
 def test_the_shape_names_secrets_only(monkeypatch):
