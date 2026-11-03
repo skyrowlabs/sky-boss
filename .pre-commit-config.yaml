@@ -69,6 +69,10 @@ repos:
       # Content, where `forbid-env-files` above is file names only: a private
       # key pasted into any file. Narrow on purpose — it looks for key headers,
       # not tokens — and a wider scanner is a decision with a measurement behind it.
+      # It reads the whole staged file, not the diff, and has no inline allow: a
+      # test fixture holding a key header blocks every commit that touches that
+      # file. Assemble the header from parts at runtime, or add an `exclude:`
+      # naming the file here (mind.head).
       - id: detect-private-key
 
   # Tokens and keys in the staged change, by content. The `rev:` is the one
@@ -94,7 +98,7 @@ repos:
   # ── Python ──────────────────────────────────────────────────────────────
   # Delete this block for a project with no Python.
   - repo: https://github.com/PyCQA/flake8
-    rev: 7.4.1
+    rev: 7.5.0
     hooks:
       - id: flake8
         # Matches CI's **blocking** step exactly — syntax errors and undefined

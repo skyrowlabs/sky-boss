@@ -86,14 +86,14 @@ module.exports = async function decide({ github, context, core }) {
   //     push                        full                    full
   //     draft PR carrying code      node + unit + gate      node + unit + gate
   //     dependency bump             full                    full
-  //     docs-only PR -> base        gate only               gate only
-  //     docs-only PR -> release     gate only               (same PR as above)
+  //     docs-only PR -> base        unit + gate             unit + gate
+  //     docs-only PR -> release     unit + gate             (same PR as above)
   //     code PR -> base             node + unit + gate      (same PR as below)
   //     code PR -> release          full                    full
   //
   // The two-branch column loses exactly one row against the previous release:
   // a genuinely docs-only pull request into the release branch now runs the
-  // gate alone. That is this file's entire premise applied to the one base it
+  // gate and the unit suite, not the full set. That is this file's entire premise applied to the one base it
   // used to exempt itself from, and a release pull request is unaffected —
   // `VERSION` and `.release-please-manifest.json` are not in `DOC_PATTERNS`,
   // so release-please's own PR classifies as code and takes the row below.
@@ -198,8 +198,8 @@ module.exports = async function decide({ github, context, core }) {
   // was false in the direction that matters.
   //
   // Below it, both rules mean *less* and neither can outrank the other in the
-  // wrong direction: a docs-only change is the gate alone whether draft or
-  // ready, and the draft rule applies to code, where escalation on
+  // wrong direction: a docs-only change runs the gate and the unit suite
+  // whether draft or ready, and the draft rule applies to code, where escalation on
   // `ready_for_review` is real.
   //
   // Nothing is un-gated by this. GitHub blocks merging a draft regardless.

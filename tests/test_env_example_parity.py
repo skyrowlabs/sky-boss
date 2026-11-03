@@ -17,6 +17,9 @@ constants (`STATE_ROOT_ENV`), so a call-site regex would miss them.
 
 The file is read through `scripts/env_shape.py`, the one parser of its shape,
 which also says which names are secrets: a `# secret` line directly above.
+A name shaped like a credential (`SECRET_NAME` in `tests/guards.py`) must carry
+that tag or an entry in `secret_name_allowlist.yaml`: a missing tag reads as
+`problems: []` to every consumer, so nothing else would say so.
 """
 
 from __future__ import annotations
@@ -25,8 +28,9 @@ import re
 
 import pytest
 
-from scripts import env_shape
+from scripts import allowlist, env_shape
 from scripts.paths import PROJECT_ROOT, STATE_ROOT_ENV, TESTS_DIR
+from tests.guards import SECRET_NAME
 from tests.repo_files import present
 from tests.scanning import scanned
 
@@ -87,6 +91,35 @@ def test_the_secret_tags_are_well_formed():
     """Zero secrets is fine: a fresh `core` tree has none."""
     problems = env_shape.read(ENV_EXAMPLE).problems
     assert not problems, ".env.example: " + "; ".join(problems)
+
+
+SECRET_ALLOWLIST = TESTS_DIR / "secret_name_allowlist.yaml"
+
+
+def untagged_secrets(shape: env_shape.Shape) -> list[str]:
+    return [name for name in shape.names if SECRET_NAME.search(name) and name not in shape.secrets]
+
+
+def test_every_secret_shaped_name_is_tagged():
+    """A tag is how a credentials registry learns a name is one; untagged, it reads `problems: []` (proto.pilot)."""
+    shape = env_shape.read(ENV_EXAMPLE)
+    excused = allowlist.read(SECRET_ALLOWLIST)
+    missing = [name for name in untagged_secrets(shape) if name not in excused]
+    assert not missing, (
+        f"put `# secret` on its own line above {', '.join(missing)} in .env.example, "
+        f"or list the name in {SECRET_ALLOWLIST.name} with why it is not a credential"
+    )
+
+    def still_needed(name: str) -> str | None:
+        return None if name in untagged_secrets(shape) else "it is tagged, undeclared, or not secret-shaped"
+
+    stale = allowlist.stale(excused, still_needed)
+    assert not stale, "\n".join(stale) + "\n" + allowlist.STALE_ADVICE
+
+
+def test_an_untagged_secret_shaped_name_is_found():
+    shape = env_shape.parse("# secret\nAPI_TOKEN=\nANTHROPIC_API_KEY=\n# DB_PASSWORD=\nKEYBOARD=us\n")
+    assert untagged_secrets(shape) == ["ANTHROPIC_API_KEY", "DB_PASSWORD"]
 
 
 def test_the_shape_parser_sees_every_case():
