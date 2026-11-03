@@ -335,11 +335,14 @@ def compare(suite: str, entry: dict, tolerance: float, reading: Reading) -> tupl
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--suite", default="unit")
+    # Repeatable, joined as `test coverage` joins it: a second `--suite` silently
+    # replaced the first, so `--suite unit --suite ui` checked `ui` (dream-doll).
+    parser.add_argument("--suite", action="append", help="repeat to name a combined key, e.g. unit+ui")
     parser.add_argument("--xml", type=Path, default=DEFAULT_XML)
     parser.add_argument("--update", action="store_true", help="record the observed percentage as the new baseline")
     parser.add_argument("--json", action="store_true", help="the machine-readable result on stdout")
     args = parser.parse_args()
+    args.suite = "+".join(args.suite or ["unit"])
 
     def done(payload: dict, status: int) -> int:
         """One exit, one payload. Emitting per-branch is how a path loses its."""

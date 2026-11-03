@@ -261,3 +261,41 @@ def test_the_matrix_predicate_sees_every_shape():
         "an unskippable one, and a summary whose own name is an expression — the test above is then "
         "passing on whatever it fails to see"
     )
+
+
+_RUNS_UNIT = re.compile(r"pytest\b[^\n]*-m\s+['\"]?unit\b")
+_JOB_IF_LINE = re.compile(r"^    if:(?P<cond>.*)$", re.MULTILINE)
+
+
+def docs_gated_unit_jobs(blocks: dict) -> list:
+    """Jobs that run the unit marker under a job-level `if:` naming `docs_only`."""
+    return sorted(
+        job
+        for job, body in blocks.items()
+        if _RUNS_UNIT.search(body) and any("docs_only" in m.group("cond") for m in _JOB_IF_LINE.finditer(body))
+    )
+
+
+def test_the_unit_suite_runs_on_a_docs_only_change():
+    """Unit tests read `docs/`, so a docs-only change is one they judge (skeletor#4)."""
+    blocks = job_blocks()
+    scanned([job for job, body in blocks.items() if _RUNS_UNIT.search(body)], "jobs running the unit marker")
+    gated = docs_gated_unit_jobs(blocks)
+    assert not gated, (
+        f"{gated} run the unit suite and are skipped on a docs-only change. Tests under that marker "
+        "read `docs/` (plans, tables, references), so a docs-only pull request that breaks them "
+        "merges green. Remove `docs_only` from the job-level `if:`."
+    )
+
+
+def test_the_docs_gate_predicate_sees_every_shape():
+    """Against each case, so a regex that stopped matching cannot pass the test above."""
+    blocks = {
+        "gated": "  gated:\n    if: needs.gate.outputs.docs_only != 'true'\n    steps:\n"
+        "      - run: python -m pytest tests/ -m unit -q\n",
+        "free": "  free:\n    needs: gate\n    steps:\n      - run: python -m pytest tests/ -m unit -q\n",
+        "other": "  other:\n    if: needs.gate.outputs.docs_only != 'true'\n    steps:\n      - run: npm test\n",
+        "step-if": "  step-if:\n    steps:\n      - if: needs.gate.outputs.docs_only != 'true'\n"
+        "        run: python -m pytest -m unit\n",
+    }
+    assert docs_gated_unit_jobs(blocks) == ["gated"]

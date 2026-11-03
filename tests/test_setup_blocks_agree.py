@@ -117,9 +117,20 @@ def requirements_in(text: str) -> list:
     ]
 
 
-#: The ratchet's home. The value is written by the generator, because the number
-#: of shared lines depends on which toolchains the tree was scaffolded with.
+#: The template's floor, written by the generator, because the number of shared
+#: commands depends on which toolchains the tree was scaffolded with.
 BUDGET = TESTS_DIR / "setup_block_budget.json"
+
+#: **Your** floor, once it differs from the template's. No release ships or touches
+#: this file, so a raised floor never conflicts with a release that moves the
+#: rendered one (proto.pilot): a merge cannot tell "deliberately above" from "unported".
+LOCAL_FLOOR = TESTS_DIR / "setup_block_floor.json"
+
+
+def pinned_floor(budget, local) -> tuple:
+    """`(floor, the file it came from)`: yours when it exists, else the template's."""
+    source = local if local.exists() else budget
+    return json.loads(source.read_text(encoding="utf-8"))["min_shared_prefix"], source
 
 
 def _strip_comment(line: str) -> str:
@@ -178,7 +189,8 @@ def shared_prefix(blocks: dict) -> int:
     if len(blocks) < 2:
         return 0
     depth = 0
-    for column in zip(*(commands(lines) for lines in blocks.values())):
+    # Not strict: the agreement ends at the shortest block, which is what this measures.
+    for column in zip(*(commands(lines) for lines in blocks.values()), strict=False):
         if len(set(column)) != 1:
             break
         depth += 1
@@ -310,20 +322,29 @@ def test_the_shared_prefix_has_not_shrunk():
     documents enrolled and no line saying which.
     """
     blocks = setup_blocks()
-    floor = json.loads(BUDGET.read_text(encoding="utf-8"))["min_shared_prefix"]
+    floor, source = pinned_floor(BUDGET, LOCAL_FLOOR)
     depth = shared_prefix(blocks)
+    pin = f'write {{"min_shared_prefix": {depth}}} to {LOCAL_FLOOR.relative_to(PROJECT_ROOT).as_posix()}'
     assert depth >= floor, (
         f"the setup blocks agreed on {floor} leading commands and now agree on {depth}. "
         f"Blocks: {sorted(blocks)}. Either a shared setup step drifted in one document and "
-        "not the others — fix it — or the divergence is intended, in which case lower "
-        f"`min_shared_prefix` in {BUDGET.name} in the same commit, with the reason in the "
-        "commit message."
+        f"not the others — fix it — or the divergence is intended, in which case {pin} in "
+        f"the same commit, with the reason in the commit message (floor read from {source.name})."
     )
     assert depth == floor, (
         f"the setup blocks now agree on {depth} leading commands, above the pinned {floor}. "
         f"Blocks: {sorted(blocks)}. Either they got tighter, or a document left the "
         "comparison — its block stopped installing anything, so it is no longer being "
         "checked against the others. Read that list before raising the floor.\n  "
-        f"Raise `min_shared_prefix` in {BUDGET.name} to {depth} in this commit, or the gain "
-        f"is not locked in and the next drift back to {floor} passes silently."
+        f"Then {pin} in this commit, or the gain is not locked in and the next drift back to "
+        f"{floor} passes silently (floor read from {source.name}; {BUDGET.name} is the template's)."
     )
+
+
+def test_your_floor_outranks_the_template_s(tmp_path):
+    """Either direction: a tree may pin above or below the rendered floor."""
+    budget, local = tmp_path / "budget.json", tmp_path / "local.json"
+    budget.write_text('{"min_shared_prefix": 5}', encoding="utf-8")
+    assert pinned_floor(budget, local) == (5, budget)
+    local.write_text('{"min_shared_prefix": 7}', encoding="utf-8")
+    assert pinned_floor(budget, local) == (7, local)

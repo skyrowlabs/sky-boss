@@ -182,7 +182,9 @@ jobs:
       # v0.54.0 the script hands the hook the whole message and runs it for bot
       # authors too. `BOTS_EXEMPT_FROM_LENGTH = False` in the script is held
       # here, because the 2026-09-26 ruling bound bots to the 72-column cap.
-      - name: Commit subjects the contract in force can read
+      # The range both steps below check, decided once (skeletor v0.59.0).
+      - name: Which commits this change adds
+        id: range
         env:
           BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
           FORCED: ${{ github.event.forced }}
@@ -195,10 +197,29 @@ jobs:
           if [ "$FORCED" = "true" ] || [ -z "$BASE" ] \
              || [ "$BASE" = "0000000000000000000000000000000000000000" ]; then
             echo "no usable base for this event — checking HEAD alone"
-            python scripts/check_commit_subjects.py --range -1
+            echo "range=-1" >> "$GITHUB_OUTPUT"
           else
-            python scripts/check_commit_subjects.py --range "$BASE..${{ github.sha }}"
+            echo "range=$BASE..${{ github.sha }}" >> "$GITHUB_OUTPUT"
           fi
+
+      - name: Commit subjects the contract in force can read
+        run: python scripts/check_commit_subjects.py --range "${{ steps.range.outputs.range }}"
+
+      # Secrets in the same commits, here rather than in `lint` because this job
+      # never skips: a token pasted into a docs-only change is still a leak.
+      # The binary is the hook's own pin, checksum-verified; `gitleaks-action`
+      # needs a licence key for organisation repositories.
+      - name: No secret in the commits this change adds
+        run: |
+          VERSION="$(python scripts/leak_scan.py --pinned)"
+          ASSET="gitleaks_${VERSION}_linux_x64.tar.gz"
+          URL="https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}"
+          cd "$RUNNER_TEMP"
+          curl -fsSLO "$URL/$ASSET" -O "$URL/gitleaks_${VERSION}_checksums.txt"
+          grep " $ASSET\$" "gitleaks_${VERSION}_checksums.txt" | sha256sum -c -
+          tar xzf "$ASSET" gitleaks
+          cd "$GITHUB_WORKSPACE"
+          PATH="$RUNNER_TEMP:$PATH" python scripts/leak_scan.py --range "${{ steps.range.outputs.range }}"
 
   unit-tests:
     # **The floor of this list is the number the README is allowed to say.**
@@ -395,40 +416,33 @@ jobs:
           PATH="$PWD/.venv/bin:$PATH" .venv/bin/python scripts/lint_pyright_gate.py --project pyrightconfig.json
 
   # ── The unit suite's one name ─────────────────────────────────────────
-  # The matrix above reports once per leg, as `pytest <version>` — and only when
-  # it runs. Skipped by the job-level `if` on a docs-only change, GitHub never
-  # expands the matrix, so it reports ONE check named `pytest ${{ matrix.python }}`
-  # with the expression unexpanded, and a branch protection that requires
-  # `pytest 3.12` waits on it forever. stash.flow's docs-only pull requests were
-  # BLOCKED with every check green or skipped; the other gated jobs are not
-  # matrices, so they report skipped under their real names and pass.
-  #
-  # So protection requires THIS: one static name whatever the matrix holds, so
-  # nobody has to read the leg names off a run to set it up, and a change to the
-  # matrix costs no protection edit. `docs/DEVELOPMENT.md` says the same to a
-  # reader deciding what to require, which is where one looks. It passes when
-  # the matrix passed, or was skipped because the gate chose docs-only; it fails
-  # when a leg failed or was cancelled, and when the gate itself did not pass —
-  # a skip caused by a failed classifier is not a docs-only skip.
+  # The matrix above reports once per leg, as `pytest <version>`, and a skipped
+  # matrix reports ONE check with the expression unexpanded — so a protection
+  # naming `pytest 3.12` can wait forever (stash.flow's PRs were blocked so).
+  # Protection requires THIS: one static name whatever the matrix holds.
+  # `docs/DEVELOPMENT.md` says the same to a reader deciding what to require.
+  # It passes only when the matrix passed. The suite has no condition of its
+  # own, so a skip means the gate failed, and a skip is never a pass.
   unit-tests-result:
     name: pytest
     needs: [gate, unit-tests]
     if: always()
     runs-on: ubuntu-latest
     steps:
-      - name: The matrix passed, or was skipped for a docs-only change
+      - name: The matrix passed
         env:
           GATE: ${{ needs.gate.result }}
           UNIT: ${{ needs.unit-tests.result }}
         run: |
           if [ "$GATE" != "success" ]; then
-            echo "::error::the gate did not pass ($GATE), so the unit suite's skip means nothing"
+            echo "::error::the gate did not pass ($GATE), so the unit suite did not run"
             exit 1
           fi
-          case "$UNIT" in
-            success|skipped) echo "unit suite: $UNIT" ;;
-            *) echo "::error::unit suite: $UNIT"; exit 1 ;;
-          esac
+          if [ "$UNIT" != "success" ]; then
+            echo "::error::unit suite: $UNIT"
+            exit 1
+          fi
+          echo "unit suite: $UNIT"
 
   lint:
     name: eslint
@@ -474,8 +488,8 @@ jobs:
   # weighed one: the docs-only skip it guards cannot happen here, since
   # `unit-tests` has no job-level `if`, but a static name for the matrix is
   # what makes a change to the matrix cost no protection edit — and it is the
-  # name every sibling tree requires. Its `skipped` branch is dead code here
-  # and harmless: `unit-tests` skips only when the gate fails, which it rejects.
+  # name every sibling tree requires. Its `skipped` branch, dead code here,
+  # went upstream in v0.59.0 when the template dropped the docs-only skip too.
   #
   # This job is stricter, and stays so: **only `success` passes.** It used to
   # fail on `failure` alone, so a cancelled leg read "all green". No job here

@@ -66,6 +66,20 @@ repos:
         exclude: '^(pyrightconfig\.json|\.vscode/settings\.json)$'
       - id: check-added-large-files
         args: ['--maxkb=512']
+      # Content, where `forbid-env-files` above is file names only: a private
+      # key pasted into any file. Narrow on purpose — it looks for key headers,
+      # not tokens — and a wider scanner is a decision with a measurement behind it.
+      - id: detect-private-key
+
+  # Tokens and keys in the staged change, by content. The `rev:` is the one
+  # home of the version: `scripts/leak_scan.py --pinned` reads it, and CI
+  # installs that binary to scan a pull request's commits. Builds from source
+  # with Go on first install (a toolchain download where Go is absent), then
+  # cached. A false positive takes an inline `gitleaks:allow` comment.
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.1
+    hooks:
+      - id: gitleaks
 
   # ── Workflows ───────────────────────────────────────────────────────────
   # Checks your edits to `.github/workflows/` as GitHub Actions: expressions,

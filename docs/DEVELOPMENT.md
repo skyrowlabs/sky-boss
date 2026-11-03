@@ -141,9 +141,9 @@ Three things are load-bearing, and only the first two are about this tree today:
    once per interpreter, as `pytest <version>`, and a skipped matrix is never
    expanded: one check reports, named `pytest ${{ matrix.python }}` with the
    expression unexpanded, so a protection naming `pytest <version>` waits for
-   ever. Upstream that is a docs-only pull request; here `unit-tests` has no
-   `if:`, so it is only a failed `CI Gate` — which blocks rather than passes,
-   the safe direction, but for the wrong reason. **Require `pytest`, never
+   ever. `unit-tests` has no `if:` — here since round 7, upstream since
+   skeletor v0.59.0, because its tests read `docs/` — so the only skip is a
+   failed `CI Gate`, which `pytest` fails rather than passes. **Require `pytest`, never
    `pytest <version>`**: it is one job that `needs:` the matrix and always
    reports, so a change to the matrix also costs no protection edit. Which
    contexts are required is a setting no file here can see — ask the API (see

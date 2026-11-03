@@ -1,0 +1,10 @@
+{
+  "_comment": [
+    "This tree's floor for tests/test_setup_blocks_agree.py; outranks setup_block_budget.json, which is the template's and is left as rendered.",
+    "Moved here from setup_block_budget.json with skeletor v0.59.0, which added this file so a raised floor stops conflicting with every release.",
+    "",
+    "Raised 3 -> 5 on 2026-09-06, and the enrolled set SHRANK in the same commit, which the failure message warns to check for. README.md and CONTRIBUTING.md left deliberately: both open by cloning and changing directory, which is the documented exclusion, because they address a reader who is not in the tree yet and needs the product's dependencies rather than the toolchain. Telling a user of `sb` to install pyright is wrong, and that is the divergence the exclusion exists for. What remains enrolled -- AGENTS.md and docs/DEVELOPMENT.md -- are the two contributor setups, and they now agree line for line.",
+    "Re-counted 5 -> 7 on 2026-10-15 with skeletor v0.57.0, which changed the unit from lines to commands. Same two blocks, same text: line one joins three commands with &&, so the five lines that agreed are seven commands. Nothing got tighter."
+  ],
+  "min_shared_prefix": 7
+}

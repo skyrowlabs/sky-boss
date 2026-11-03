@@ -129,6 +129,12 @@ def test_a_suite_with_no_entry_is_held_at_the_floor_and_not_written(tree, capsys
     assert "unit+ui" not in stored["suites"], "a check wrote the budget"
 
 
+def test_a_repeated_suite_names_the_combined_key(tree, capsys):
+    """By hand as `test coverage` does it, not the last flag alone."""
+    tree(SCAFFOLDED, "--suite", "unit", "--suite", "ui")
+    assert json.loads(capsys.readouterr().out)["suite"] == "unit+ui"
+
+
 def test_no_manifest_is_not_the_same_answer_as_none_of_it_is_ours(tree, manifest, tmp_path):
     """A tree can be adopted by hand, or delete the file; both are supported.
 
