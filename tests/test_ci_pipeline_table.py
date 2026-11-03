@@ -12,8 +12,8 @@ running. The copy of that sentence in `DEVELOPMENT.md` was never fixed, and
 nothing could see the disagreement:
 
 * **`Draft PR | CI Gate alone`.** A draft carrying code returns
-  `docsOnly: false`, and `node` and `unit-tests` are gated on
-  `docs_only != 'true'`, so both run. The table understated a draft by two
+  `docsOnly: false`, and `node` is gated on `docs_only != 'true'` (the unit
+  suite on nothing), so both run. The table understated a draft by two
   jobs — on the one transition GitHub's model has for escalating.
 * **`Push to <release branch>`.** The classifier's push rule is `if (!pr)`,
   which is *any non-PR event*, and the trigger fires on every long-lived

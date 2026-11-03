@@ -104,8 +104,8 @@ jobs:
         with:
           script: |
             const decide = require('./.github/scripts/docs-only.cjs');
-            // Docs-only PRs are exempt: they run one cheap job either way, so
-            // the advice would be noise. Same shared definition as ci.yml — the
+            // Docs-only PRs are exempt: they run the same jobs draft or ready,
+            // so the advice would be noise. Same shared definition as ci.yml — the
             // pattern is never re-inlined.
             const { docsOnly } = await decide({ github, context, core });
             if (docsOnly) return;

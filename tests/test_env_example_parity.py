@@ -14,6 +14,12 @@ are left out of the read side, because a fixture's `monkeypatch.setenv` names a
 variable it invented (sky.boss). A declared name is "read" if it appears as a
 word in any source file present in the tree, tests included: the readers go through
 constants (`STATE_ROOT_ENV`), so a call-site regex would miss them.
+
+The file is read through `scripts/env_shape.py`, the one parser of its shape,
+which also says which names are secrets: a `# secret` line directly above.
+A name shaped like a credential (`SECRET_NAME` in `tests/guards.py`) must carry
+that tag or an entry in `secret_name_allowlist.yaml`: a missing tag reads as
+`problems: []` to every consumer, so nothing else would say so.
 """
 
 from __future__ import annotations
@@ -22,7 +28,9 @@ import re
 
 import pytest
 
+from scripts import allowlist, env_shape
 from scripts.paths import PROJECT_ROOT, STATE_ROOT_ENV, TESTS_DIR
+from tests.guards import SECRET_NAME
 from tests.repo_files import present
 from tests.scanning import scanned
 
@@ -30,14 +38,13 @@ pytestmark = pytest.mark.unit
 
 ENV_EXAMPLE = PROJECT_ROOT / ".env.example"
 PREFIX = STATE_ROOT_ENV.rsplit("_STATE_ROOT", 1)[0]
-_DECLARED = re.compile(r"^#?\s*([A-Z][A-Z0-9_]*)=", re.MULTILINE)
 SOURCE_SUFFIXES = {".py", ".sh", ".yml", ".yaml", ".toml", ".cjs", ".js", ".mjs", ".ts"}
 #: A name, not a parenthesised tuple: at a 3.14 target black rewrites `except (A, B):`.
 _UNREADABLE = (UnicodeDecodeError, OSError)
 
 
 def declared() -> set[str]:
-    return set(_DECLARED.findall(ENV_EXAMPLE.read_text(encoding="utf-8")))
+    return set(env_shape.read(ENV_EXAMPLE).names)
 
 
 def source_text(tests: bool = True) -> str:
@@ -78,3 +85,54 @@ def test_every_prefixed_name_the_source_reads_is_declared():
     read = scanned(prefixed_names_read(text), f"{PREFIX}_* names in source", least=1)
     undeclared = sorted(read - declared())
     assert not undeclared, f"the source reads {PREFIX}_* names .env.example does not declare: {undeclared}"
+
+
+def test_the_secret_tags_are_well_formed():
+    """Zero secrets is fine: a fresh `core` tree has none."""
+    problems = env_shape.read(ENV_EXAMPLE).problems
+    assert not problems, ".env.example: " + "; ".join(problems)
+
+
+SECRET_ALLOWLIST = TESTS_DIR / "secret_name_allowlist.yaml"
+
+
+def untagged_secrets(shape: env_shape.Shape) -> list[str]:
+    return [name for name in shape.names if SECRET_NAME.search(name) and name not in shape.secrets]
+
+
+def test_every_secret_shaped_name_is_tagged():
+    """A tag is how a credentials registry learns a name is one; untagged, it reads `problems: []` (proto.pilot)."""
+    shape = env_shape.read(ENV_EXAMPLE)
+    excused = allowlist.read(SECRET_ALLOWLIST)
+    missing = [name for name in untagged_secrets(shape) if name not in excused]
+    assert not missing, (
+        f"put `# secret` on its own line above {', '.join(missing)} in .env.example, "
+        f"or list the name in {SECRET_ALLOWLIST.name} with why it is not a credential"
+    )
+
+    def still_needed(name: str) -> str | None:
+        return None if name in untagged_secrets(shape) else "it is tagged, undeclared, or not secret-shaped"
+
+    stale = allowlist.stale(excused, still_needed)
+    assert not stale, "\n".join(stale) + "\n" + allowlist.STALE_ADVICE
+
+
+def test_an_untagged_secret_shaped_name_is_found():
+    shape = env_shape.parse("# secret\nAPI_TOKEN=\nANTHROPIC_API_KEY=\n# DB_PASSWORD=\nKEYBOARD=us\n")
+    assert untagged_secrets(shape) == ["ANTHROPIC_API_KEY", "DB_PASSWORD"]
+
+
+def test_the_shape_parser_sees_every_case():
+    """Against each case, so a regex that stopped matching cannot pass the test above."""
+    shape = env_shape.parse(
+        "# secret\nTOKEN=\n"  # tagged, empty: a secret
+        "# secret\n# HOOK_URL=\n"  # tagged, commented out: still a secret
+        "PLAIN=1\n"  # untagged
+        "# secret\n\nLOOSE=\n"  # blank between: an orphan, LOOSE is not secret
+        "# ── heading\n# secret\n# ── Section ──\nUNDER=\n"  # on a heading: an orphan
+        "# secret\nLEAKED=abc\n"  # tagged with a value
+        "# secret\n"  # trailing orphan
+    )
+    assert shape.names == ["TOKEN", "HOOK_URL", "PLAIN", "LOOSE", "UNDER", "LEAKED"]
+    assert shape.secrets == ["TOKEN", "HOOK_URL", "LEAKED"]
+    assert [p.split(":")[0] for p in shape.problems] == ["line 6", "line 10", "line 14", "line 15"]
