@@ -49,6 +49,20 @@ def test_the_envelope_has_every_field_for_every_job():
     assert all(set(entry) == FIELDS for entry in entries)
 
 
+def test_every_time_in_the_envelope_carries_its_offset(ledger):
+    ledger.write_text(
+        json.dumps(
+            {"job": JOBS[0].key, "outcome": "ok", "started": "2026-11-04T11:00:00Z", "finished": "2026-11-04T11:00:05Z"}
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    entries = scanned(status.jobs(datetime(2026, 11, 4, 12, tzinfo=UTC)), "status entries")
+    stamps = [e[k] for e in entries for k in ("last_run", "next_run") if e[k]]
+    assert scanned(stamps, "timestamps", least=2)
+    assert all(datetime.fromisoformat(stamp.replace("Z", "+00:00")).tzinfo for stamp in stamps), stamps
+
+
 def test_a_job_that_never_ran_is_overdue_unless_it_is_off():
     for entry in status.jobs(datetime(2026, 11, 4, 12, tzinfo=UTC)):
         assert entry["last_age"] == "never" and entry["overdue"] == (not entry["intentionally_off"])

@@ -1,0 +1,79 @@
+name: Dependabot auto-merge
+
+# Merges a Dependabot pull request once CI has passed on it, unless it is a major
+# bump or a security update; those wait for a person. The decision is
+# `.github/scripts/dependabot-hold.cjs`, which reads the diff. The shape is
+# jam.sense's `dependabot-auto-approve.yml`.
+#
+# `workflow_run`, not `pull_request`, for two reasons. A run triggered by a
+# Dependabot `pull_request` gets no Actions secrets, so it could not mint the App
+# token. And this runs after CI, so "CI passed" is a fact it reads rather than
+# one it waits for.
+#
+# The App token, not `GITHUB_TOKEN`: a push made with `GITHUB_TOKEN` starts no
+# workflow, so a merge made with it would land on the base branch with no CI run
+# there. Without the App's secrets this job says so and merges nothing.
+
+on:
+  workflow_run:
+    workflows: ['CI']
+    types: [completed]
+
+permissions:
+  contents: read
+
+jobs:
+  merge:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'pull_request' &&
+      startsWith(github.event.workflow_run.head_branch, 'dependabot/')
+    concurrency:
+      group: dependabot-merge-${{ github.event.workflow_run.head_sha }}
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      HAS_RELEASE_APP: ${{ secrets.APP_ID != '' }}
+    steps:
+      - name: No App secrets, so nothing merges
+        if: env.HAS_RELEASE_APP != 'true'
+        run: echo "::notice::APP_ID / APP_PRIVATE_KEY are not set here; Dependabot pull requests stay open for a person."
+      - uses: actions/create-github-app-token@v3
+        id: app-token
+        if: env.HAS_RELEASE_APP == 'true'
+        with:
+          client-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+      # The default branch: this workflow's own decision script, never the pull
+      # request's code.
+      - uses: actions/checkout@v7
+        if: env.HAS_RELEASE_APP == 'true'
+      - uses: actions/github-script@v9
+        id: decide
+        if: env.HAS_RELEASE_APP == 'true'
+        with:
+          github-token: ${{ steps.app-token.outputs.token }}
+          script: |
+            const decide = require('./.github/scripts/dependabot-hold.cjs');
+            const { owner, repo } = context.repo;
+            const sha = context.payload.workflow_run.head_sha;
+            const pulls = await github.request('GET /repos/{owner}/{repo}/commits/{ref}/pulls', { owner, repo, ref: sha });
+            const pr = pulls.data.find((p) => p.state === 'open' && p.head.sha === sha);
+            if (!pr) {
+              core.info('no open pull request has this commit at its head');
+              return;
+            }
+            const files = await github.paginate(github.rest.pulls.listFiles, { owner, repo, pull_number: pr.number, per_page: 100 });
+            const verdict = decide({ pr, files });
+            core.info(`#${pr.number}: ${verdict.reason}`);
+            core.summary.addRaw(`#${pr.number}: ${verdict.reason}\n`).write();
+            core.setOutput('number', verdict.merge ? String(pr.number) : '');
+      # Auto-merge waits for any other required check; a branch with none
+      # refuses auto-merge as already mergeable, so that case merges directly.
+      - name: Merge
+        if: steps.decide.outputs.number != ''
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          PR: ${{ steps.decide.outputs.number }}
+        run: gh pr merge "$PR" --repo "$GITHUB_REPOSITORY" --merge --auto || gh pr merge "$PR" --repo "$GITHUB_REPOSITORY" --merge

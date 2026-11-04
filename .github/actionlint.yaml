@@ -1,0 +1,12 @@
+# actionlint's bundled action metadata is a snapshot, and here it is behind the
+# action: `create-github-app-token@v3` documents `client-id` and deprecates
+# `app-id`, while actionlint 1.7.12 still requires `app-id`. This tree has no
+# release job, so dependabot-auto-merge.yml is the one file that mints a token,
+# and exactly those two messages are ignored for it. If it stops, delete them:
+# tests/test_actionlint_ignores.py fails while an ignore names an action its file
+# no longer uses.
+paths:
+  .github/workflows/dependabot-auto-merge.yml:
+    ignore:
+      - 'missing input "app-id" which is required by action "actions/create-github-app-token@'
+      - 'input "client-id" is not defined in action "actions/create-github-app-token@'

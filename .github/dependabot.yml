@@ -15,9 +15,11 @@
 # every commit in a pull request, a bot's included (BOTS_EXEMPT_FROM_LENGTH =
 # False), and that is on purpose.
 #
-# `labels:` is `[dependencies]` because two template tests assume the file names
-# only labels from their own stub (until skeletor v0.64.0). Explicit labels drop
-# Dependabot's ecosystem label. Keep them flow-style: repo_settings.py reads `[a, b]`.
+# `labels:` restates Dependabot's defaults, so `dev doctor` can check they exist.
+#
+# `cooldown` holds a release back five days, because dependabot-auto-merge.yml
+# merges a green minor or patch bump unattended, and a hijacked package is
+# usually yanked inside that window.
 version: 2
 updates:
   - package-ecosystem: pip
@@ -27,7 +29,17 @@ updates:
     groups:
       python:
         patterns: ['*']
-    labels: [dependencies]
+    cooldown:
+      default-days: 5
+    # Pinned twice, here and in .pre-commit-config.yaml, and
+    # tests/test_lint_tool_parity.py is red until both agree, so a bump of
+    # one alone could never merge. Bump both by hand.
+    ignore:
+      - dependency-name: black
+      - dependency-name: flake8
+      - dependency-name: isort
+      - dependency-name: pyright
+    labels: [dependencies, python]
     commit-message:
       prefix: chore
 
@@ -38,7 +50,9 @@ updates:
     groups:
       tooling:
         patterns: ['*']
-    labels: [dependencies]
+    cooldown:
+      default-days: 5
+    labels: [dependencies, javascript]
     commit-message:
       prefix: chore
 
@@ -51,7 +65,9 @@ updates:
     groups:
       shell:
         patterns: ['*']
-    labels: [dependencies]
+    cooldown:
+      default-days: 5
+    labels: [dependencies, javascript]
     commit-message:
       prefix: chore
 
@@ -64,6 +80,8 @@ updates:
     groups:
       actions:
         patterns: ['*']
-    labels: [dependencies]
+    cooldown:
+      default-days: 5
+    labels: [dependencies, github_actions]
     commit-message:
       prefix: chore

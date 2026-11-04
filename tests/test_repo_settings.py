@@ -97,7 +97,18 @@ def test_a_fact_names_the_setting_and_says_what_was_found():
     assert any(r.setting.key == "has_wiki" and r.have is True for r in rows)
 
 
-def test_the_labels_dependabot_applies_are_read_from_its_config():
-    config = Path(__file__).resolve().parents[1] / ".github" / "dependabot.yml"
-    labels = scanned(repo_settings.dependabot_labels(config), "labels in dependabot.yml")
-    assert "dependencies" in labels
+def test_the_labels_dependabot_applies_are_read_from_its_config(tmp_path):
+    """A synthetic config: this tree may own its dependabot.yml (sky.boss's labels nothing)."""
+    config = tmp_path / "dependabot.yml"
+    config.write_text(
+        "updates:\n  - package-ecosystem: pip\n    labels: [dependencies]\n    # labels: [commented]\n"
+        "  - package-ecosystem: npm\n    labels: ['dependencies', \"ci\"]\n",
+        encoding="utf-8",
+    )
+    assert scanned(repo_settings.dependabot_labels(config), "labels", least=2) == ["dependencies", "ci"]
+    assert repo_settings.dependabot_labels(tmp_path / "absent.yml") == []
+    config.write_text(
+        "updates:\n  - package-ecosystem: pip\n    labels:\n      - dependencies\n      - 'ci'\n    schedule:\n",
+        encoding="utf-8",
+    )
+    assert repo_settings.dependabot_labels(config) == ["dependencies", "ci"], "block style must be read too"

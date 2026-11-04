@@ -220,12 +220,14 @@ def test_every_long_lived_branch_has_its_required_checks_asked(monkeypatch):
 def test_an_inapplicable_fact_is_listed_and_not_counted(monkeypatch):
     monkeypatch.setattr(doctor, "RELEASE_CONFIG", doctor.RELEASE_CONFIG.with_name("absent.json"))
     monkeypatch.setattr(doctor, "CODEOWNERS", GITHUB_DIR / "absent-CODEOWNERS")
+    # This tree may own its dependabot.yml, so the labels it names are stubbed too.
+    monkeypatch.setattr(doctor, "dependabot_labels", lambda _config: ["dependencies"])
     unprotected = {checks_path(): 404, checks_path(doctor.RELEASE_BRANCH): 404}
     answered = {
         f"{REPO}/compare/{doctor.BASE_BRANCH}...{doctor.RELEASE_BRANCH}": {"ahead_by": 0, "files": []},
         f"{REPO}/codeowners/errors": {"errors": []},
         f"{REPO}/vulnerability-alerts": {},
-        f"{REPO}/labels?per_page=100": [{"name": n} for n in ("dependencies", "ci")],
+        f"{REPO}/labels?per_page=100": [{"name": "dependencies"}],
     }
     profile = {s.key: s.want for s in doctor.REPOSITORY}
     repo = {"default_branch": doctor.BASE_BRANCH, "description": "d", "visibility": "private", **profile}

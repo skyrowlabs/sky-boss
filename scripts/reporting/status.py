@@ -32,6 +32,11 @@ def _local(instant: datetime) -> datetime:
     return instant.astimezone(SCHEDULE_TZ).replace(tzinfo=None)
 
 
+def _offset(local: datetime) -> str:
+    """A schedule-clock time as ISO 8601 with its UTC offset, as the zone had it then."""
+    return local.replace(tzinfo=SCHEDULE_TZ).isoformat()
+
+
 def humanize_age(instant: datetime | None, now: datetime) -> str:
     if instant is None:
         return "never"
@@ -69,7 +74,8 @@ def jobs(now: datetime | None = None) -> list[dict]:
                 "overdue": bool(not intentionally_off and due and (finished is None or _local(finished) < due)),
                 "intentionally_off": intentionally_off,
                 "unscheduled_reason": off.get(job.key),
-                "next_run": None if intentionally_off or upcoming is None else upcoming.isoformat(),
+                # With its offset: a consumer must not guess the zone (sky.boss refuses to).
+                "next_run": None if intentionally_off or upcoming is None else _offset(upcoming),
             }
         )
     return out

@@ -58,10 +58,26 @@ def dependabot_labels(config: Path) -> list[str]:
     if not config.exists():
         return []
     found: list[str] = []
-    for value in re.findall(r"^\s*labels:\s*\[([^\]]*)\]", read_uncommented(config), re.MULTILINE):
-        for label in (part.strip().strip("'\"") for part in value.split(",")):
-            if label and label not in found:
-                found.append(label)
+
+    def add(raw: str) -> None:
+        label = raw.strip().strip("'\"")
+        if label and label not in found:
+            found.append(label)
+
+    lines = read_uncommented(config).splitlines()
+    for at, line in enumerate(lines):
+        key = re.match(r"^(\s*)labels:\s*(.*?)\s*$", line)
+        if not key:
+            continue
+        if key.group(2).startswith("["):  # flow style: labels: [a, b]
+            for part in key.group(2).strip("[]").split(","):
+                add(part)
+            continue
+        for item in lines[at + 1 :]:  # block style: one `- a` per line, indented deeper
+            entry = re.match(r"^(\s*)-\s+(.+?)\s*$", item)
+            if not entry or len(entry.group(1)) < len(key.group(1)):
+                break
+            add(entry.group(2))
     return found
 
 

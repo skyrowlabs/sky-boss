@@ -165,6 +165,21 @@ Three things are load-bearing, and only the first two are about this tree today:
    fires as soon as branch protection is satisfied, so an exemption that is
    missing then lets every eligible bump merge having run nothing.
 
+### Dependency updates
+
+`.github/dependabot.yml` proposes version updates monthly, each held back five
+days (`cooldown`) so a hijacked release can be yanked before it is proposed.
+`.github/workflows/dependabot-auto-merge.yml` merges a Dependabot pull request
+once CI passes on it, using the GitHub App's token (`APP_ID`, `APP_PRIVATE_KEY`)
+so the merge itself runs CI on the base branch. It leaves a major bump, read from
+the diff, and a security update for a person; the decision is
+`.github/scripts/dependabot-hold.cjs`. Without the App's secrets it merges
+nothing and says so in the run.
+
+The lint tools (black, flake8, isort, pyright) are ignored there. Each is pinned
+in two files and `tests/test_lint_tool_parity.py` is red until both agree, so a
+bump to one of them could never merge. Bump those by hand, in both files.
+
 ## Releases
 
 Versioning is the annotated git tag and nothing else. There is no `VERSION`

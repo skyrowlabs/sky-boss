@@ -82,7 +82,7 @@ CRON_CWD = str(PROJECT_ROOT)
 #:
 #: Instants — log stamps, `generated:` fields, staleness — stay UTC and
 #: tz-aware. This constant is only for wall-clock schedule arithmetic.
-SCHEDULE_TZ = ZoneInfo("UTC")
+SCHEDULE_TZ = ZoneInfo("America/Chicago")
 
 
 def now_local() -> datetime:

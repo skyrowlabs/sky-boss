@@ -97,7 +97,10 @@ jobs:
   advise:
     name: Draft discipline
     runs-on: ubuntu-latest
-    if: github.event.pull_request.draft == false && github.event.action == 'opened'
+    # Not for a bot: nobody can act on advice to a Dependabot pull request.
+    if: >-
+      github.event.pull_request.draft == false && github.event.action == 'opened' &&
+      github.event.pull_request.user.type != 'Bot'
     steps:
       - uses: actions/checkout@v7
       - uses: actions/github-script@v9
