@@ -208,8 +208,7 @@ cli.add_command(job_cmd)
 cli.add_command(mcp_cmd)
 
 # A surface, not a verb. It renders the same envelope every command returns
-# rather than adding one of its own, which is why `sb run` stays the only door
-# that acts even with the canvas in front of it.
+# and adds no act of its own; each command it launches still asserts `acts`.
 cli.add_command(ui_cmd)
 
 # Aliased on import — `from skyboss.tools import tools` would rebind this package's

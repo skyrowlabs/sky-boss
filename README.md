@@ -80,6 +80,7 @@ Needs Python 3.12+. Shell completion for fish:
 | `sb roll-call` | reads | Asks every declared project how it is, and folds the answers |
 | `sb schedule` | reads | What fires next, across every project that declares a schedule |
 | `sb agents` | reads | Which agent sessions are running right now, across every provider |
+| `sb deck` | **acts** | A tmux session with one window per agent, each the real `claude` — `open` and `jump` act, `queue` reads |
 | `sb history <project>` | reads | A project's own run ledger, newest first |
 | `sb job` | both | Jobs sky.boss issues — `list` reads; `run`, `install` and `uninstall` act |
 | `sb tools` | reads | The commands you saved |
@@ -495,9 +496,10 @@ a shell with a reassuring name.
 | Saved commands | `~/.sky-boss/tools.toml` |
 | Capture formats and highlight rules | `~/.sky-boss/formats.toml` |
 | Declared projects | `~/.sky-boss/projects.toml` |
+| Deck agents | `~/.sky-boss/deck.toml` |
 | Canvas browser profile | `~/.local/state/sb/` |
 
-`$SB_HOME` and `$SB_STATE` override the first three and the last. An absent file degrades to
+`$SB_HOME` and `$SB_STATE` override the first four and the last. An absent file degrades to
 nothing declared rather than raising.
 
 ## Development

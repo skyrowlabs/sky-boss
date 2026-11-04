@@ -79,6 +79,7 @@ replaced by a browser one the same day. What exists:
 | `sb follow <path>` | Follows a file with a native stat cursor, so quiet and dead are different words. `--due 15m` makes late a word too |
 | `sb roll-call` | Asks every declared project how it is and folds the answers. An observe. See [[roll-call]] |
 | `sb agents` | Which agent sessions are running right now, across every provider. An observe. See [[agent-sessions]] |
+| `sb deck` | A tmux session with one real `claude` window per agent, declared in `$SB_HOME/deck.toml`. **Acts**, as do `open` and `jump`; `queue` observes. See [[command-deck]] |
 | `sb history <project>` | A project's own run ledger, newest first. An observe, and the only one that looks backwards. See [[history]] |
 | `sb job` | Jobs sky.boss **issues**. `list` observes; `run`, `install` and `uninstall` act. systemd is the daemon. See [[jobs]] |
 | `sb schedule` | What fires next, across projects **and sky.boss's own jobs**, ordered by the parsed instant. `clock` says which fires it. An observe; it schedules nothing. See [[schedule]] |
@@ -596,6 +597,7 @@ check there first.
 | Saved commands (`tools.toml`) | `~/.sky-boss/` (`$SB_HOME`) | the operator, `--save`, and the surface | never |
 | Capture formats and highlight rules (`formats.toml`) | `~/.sky-boss/` (`$SB_HOME`) | the operator | never |
 | Declared projects and the agent-state root (`projects.toml`) | `~/.sky-boss/` (`$SB_HOME`) | the operator | never |
+| The deck's agents (`deck.toml`) | `~/.sky-boss/` (`$SB_HOME`) | the operator | never |
 | Backups of `tools.toml` | `~/.sky-boss/backups/` | sky.boss, before every write | never |
 | Browser profile for the canvas | `~/.local/state/sb/` (`$SB_STATE`) | the machine | never |
 | What the surface remembers about itself (`prefs.json`) | `~/.local/state/sb/` (`$SB_STATE`) | the surface | never |

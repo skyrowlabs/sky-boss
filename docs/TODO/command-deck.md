@@ -50,8 +50,8 @@ overrule.
   the operator's, and a deck that could answer one would be a second permission path. Jumping to a
   window is `select-window`; it moves the operator, not the agent.
 - **It never edits the operator's tmux config.** The options the workspace named have different
-  scopes. `window-size latest` and `allow-passthrough on` can be set on the deck's own session and
-  windows, so the deck sets them there. `extended-keys` is a **server** option, so the deck
+  scopes. `window-size latest` and `allow-passthrough on` are both window options in tmux 3.8, so
+  the deck sets them on each of its own windows. `extended-keys` is a **server** option, so the deck
   reports it when it is off and does not set it. That is the KWin rule again: a desktop belongs to
   whoever runs it.
 - **Names and paths come from `projects.toml`**, never from tracked code (the publication rule).
@@ -113,7 +113,8 @@ and an optional `args` list for `claude`. A name not under `[agent.*]` falls bac
 never needs a tmux binary.
 
 - [ ] `sb deck`: create the session if absent (with the pinned agent in window 0), set
-      `window-size latest` on the session and `allow-passthrough on` on its windows, then attach
+      `window-size latest` and `allow-passthrough on` on each deck window (both are window
+      options in tmux 3.8), then attach
       (`switch-client` inside tmux, `exec tmux attach` outside). Acts.
 - [ ] `sb deck open <name>`: a window named `<name>` running `claude` in that agent's `cwd`, or a
       `select-window` if it already exists. Acts.
