@@ -25,9 +25,9 @@
 
 Four ideas, and everything else follows from them:
 
-- **`sb run` is the only command that acts.** Everything else reads. That line is load-bearing: a
-  window may re-run a read on a cadence, because re-running a read is a refresh and re-running a
-  write is a scheduler nobody asked for.
+- **Every command says whether it acts.** `sb run` acts; `read`, `data` and `follow` observe. That
+  line is load-bearing: a window may re-run a read on a cadence, because re-running a read is a
+  refresh and re-running a write is a scheduler nobody asked for.
 - **Commands return data; they never print.** One envelope — `ok` / `partial` / `data` / `warnings`
   — rendered by whoever is consuming it. `--json` on any command gives you the envelope itself.
 - **sky.boss never parses human output.** `sb data` takes JSON. `sb read` shows what a command

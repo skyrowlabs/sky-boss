@@ -58,7 +58,7 @@ def run(
     delay: str | None,
     refresh: str | None,
 ) -> Result:
-    """Run a command and report what it printed. The only command that acts —
+    """Run a command and report what it printed. It acts, so
     it runs once, ever, and never takes a cadence, because re-running a write
     on a timer is a scheduler nobody asked for.
 

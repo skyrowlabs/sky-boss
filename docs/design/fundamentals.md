@@ -400,6 +400,18 @@ which this design *opens on purpose* by leaving the handover to the operator. So
 from systemd, and an `install` that refuses a collision and names it, are load-bearing rather than
 polish. See [[jobs]].
 
+### 2026-11-04 — act versus observe moves to the surface
+
+**Reversed: "`run` is the one command that acts" is no longer a rule.** Jeston dropped it to make
+room for an act surface, the tmux deck ([[command-deck]]), which opens agent sessions and moves the
+operator between them. The canvas stays a monitoring surface and its behaviour does not change.
+
+**What the reversal keeps is the reason the rule existed.** The 2026-08-21 argument was that a
+command *name* is a stronger assertion than an `--acts` flag, and that re-running a write on a
+cadence is a scheduler nobody asked for. Both still hold, per command: each command asserts `acts`,
+and the canvas still refuses an act a cadence. What changed is only the claim that the set of
+acting commands has one member.
+
 ## Open questions
 
 One held deliberately; the concept is otherwise closed and further detail belongs in feature

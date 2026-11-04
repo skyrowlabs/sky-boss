@@ -175,7 +175,7 @@ cli.add_command(run_cmd)
 cli.add_command(data_cmd)
 
 # `read` shows what a tool printed and is a *read*, so a window may pin it.
-# `run` remains the only command that acts; carrying output is not what makes
+# `run` acts and `read` does not; carrying output is not what makes
 # a command a write. See [[text-reads]].
 cli.add_command(read_cmd)
 

@@ -70,7 +70,7 @@ replaced by a browser one the same day. What exists:
 
 | Command | Does |
 |---|---|
-| `sb run -- <argv>` | Runs a command and reports what it printed. **The only command that acts**. `--delay 5m` runs it once, later, behind a countdown you can cancel |
+| `sb run -- <argv>` | Runs a command and reports what it printed. **Acts**, and never takes a cadence. `--delay 5m` runs it once, later, behind a countdown you can cancel |
 | `sb data -- <argv>` | Reads another CLI's JSON as data. An observe; `--refresh N` keeps it resident |
 | `sb data <path>` | Reads a file of records as data — `--from jsonl` is one object per line. See [[jsonl-reads]] |
 | `<project>:<path>` | An address, not a command: a declared project's state directory. See [[state-root]] |
@@ -114,10 +114,13 @@ document, and correct the document when it has fallen behind.
 
 ## Scope
 
-There is no taxonomy to defend yet. The one property worth preserving from the version that was
-removed is this: **`sb run` is the single *top-level* command that acts.** Everything else at that
-level reads. When a group of commands returns, that is the line to keep — a command that wants to
-both read and write is two commands.
+There is no taxonomy to defend yet. **Act versus observe is a property of the surface, and every
+command still says which it is.** On 2026-11-04 Jeston dropped the rule that `sb run` is the only
+top-level command that acts. The canvas (`sb ui`) is a monitoring surface and stays one, unchanged:
+it reads each command's `acts` bit, refuses an act a cadence, and asks before running one. The deck
+([[command-deck]]) is an act surface. What survives is the per-command split: a command asserts
+whether it acts, nested ones included, and a command that wants to both read and write is still two
+commands.
 
 **`sb job` is the group that returned, on 2026-09-01, and it splits exactly that way**: `list`
 observes, while `run`, `install` and `uninstall` act and say so. What matters is that the split

@@ -3,13 +3,11 @@
   "_note": "Generated — never hand-edit. Edit the plan's frontmatter or header lines and rerun.",
   "count": 3,
   "by_status": {
-    "blocked": [
-      "command-deck"
-    ],
     "in-review": [
       "highlight"
     ],
     "planned": [
+      "command-deck",
       "grid-observability"
     ]
   },
@@ -19,10 +17,10 @@
       "slug": "command-deck",
       "title": "The deck: a tmux command center for agent sessions",
       "path": "docs/TODO/command-deck.md",
-      "shelf_status": "blocked",
+      "shelf_status": "planned",
       "priority": "medium",
       "queue_order": null,
-      "blocked_on": "owner-ops",
+      "blocked_on": null,
       "updated": "2026-11-04",
       "tags": [
         "agents",
@@ -31,7 +29,7 @@
         "surfaces"
       ],
       "summary": "Adds `sb deck`, a tmux session holding one window per agent, plus a queue of sessions waiting on the operator, read by both surfaces. It is the first act surface beside the observe-only canvas.",
-      "open_tasks": 7,
+      "open_tasks": 6,
       "auto_generated": false
     },
     {

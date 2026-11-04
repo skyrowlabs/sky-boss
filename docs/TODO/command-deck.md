@@ -1,7 +1,7 @@
 ---
 title: "The deck: a tmux command center for agent sessions"
 slug: command-deck
-shelf_status: blocked
+shelf_status: planned
 priority: medium
 updated: 2026-11-04
 tags: [agents, act, tmux, surfaces]
@@ -10,13 +10,10 @@ summary: "Adds `sb deck`, a tmux session holding one window per agent, plus a qu
 
 # The deck: a tmux command center for agent sessions
 
-> **Status**: 🔴 Blocked
-> **Shelf-Status**: blocked
-> **Priority**: Medium. The proposal is the workspace's, and the scope rule it rests on is not yet in `CLAUDE.md`.
+> **Status**: 🔴 Planned
+> **Shelf-Status**: planned
+> **Priority**: Medium. The proposal is the workspace's; the scope rule it rests on was confirmed 2026-11-04.
 > **Updated**: 2026-11-04
-> **Blocked-On**: owner-ops
-
-The gate: `CLAUDE.md` § Scope changes only on Jeston's word in this repo's own session, not on a relay.
 
 ## Problem
 
@@ -30,10 +27,10 @@ permission prompt costs wall-clock time, and nothing reports that it is waiting.
 The skyrow-workspace session proposed this on 2026-11-04 and relayed an owner ruling with it. Its
 four parts are ruled one at a time below.
 
-**The relayed ruling, recorded as relayed.** *"`sb run` is the single top-level command that acts"*
+**The ruling, relayed and then confirmed.** *"`sb run` is the single top-level command that acts"*
 is dropped. Observe versus act is now a property of the **surface**: `sb ui` stays observe-only, and
-its per-command `acts` bit is unchanged; the deck is an act surface. sky.boss has not received this
-from Jeston directly, so `CLAUDE.md` § Scope is untouched until he confirms it here. Note that the
+its per-command `acts` bit is unchanged; the deck is an act surface. Jeston confirmed it in this repo's session
+on 2026-11-04, and `CLAUDE.md` § Scope now says it. Note that the
 per-command split the rule protected survives the ruling: the canvas still reads `acts` to refuse a
 cadence, and that does not depend on which top-level commands may act.
 
@@ -97,7 +94,7 @@ canvas is observe-only.
       `status` value, or record that there isn't a distinct one.
 - [ ] Read the `Notification` and `Stop` hook payloads on the running Claude Code version. Record
       their fields here.
-- [ ] Jeston confirms the scope ruling directly, and `CLAUDE.md` § Scope is rewritten.
+- [x] Jeston confirmed the scope ruling directly on 2026-11-04, and `CLAUDE.md` § Scope is rewritten.
 
 ## Phase 2: the deck
 
@@ -123,3 +120,8 @@ canvas is observe-only.
 Ruled here: the name, the scope, the hook's ownership, and the deferred task lists. The only
 measurement so far is the registry's `status` (two values, seven sessions) and the absent todo
 directories. The relayed scope ruling is recorded but not applied.
+
+### 2026-11-04: the scope ruling confirmed
+
+Jeston confirmed the ruling directly, so the plan is unblocked. `CLAUDE.md` § Scope, the README and
+fundamentals' Decisions now say that act versus observe is decided by the surface.

@@ -30,15 +30,8 @@ _Not started — intended future work._
 
 | Plan | Priority | Updated | Summary |
 | ---- | -------- | ------- | ------- |
+| [The deck: a tmux command center for agent sessions](command-deck.md) | medium | 2026-11-04 | Adds `sb deck`, a tmux session holding one window per agent, plus a queue of sessions waiting on the operator, read by both surfaces. It is the first act surface beside the observe-only canvas. |
 | [Grid observability](grid-observability.md) | medium | 2026-11-03 | What sky.boss misses about skeletor's agentic grid: off jobs drawn as if they fire, no agent-hours rollup, no stagger view, no category grouping. Each gap has a ruling. |
-
-## ⛔ Blocked
-
-_Startable or code-complete, gated on an external prerequisite._
-
-| Gate | Plan | Priority | Updated | Summary |
-| ---- | ---- | -------- | ------- | ------- |
-| 🖧 Host/ops change | [The deck: a tmux command center for agent sessions](command-deck.md) | medium | 2026-11-04 | Adds `sb deck`, a tmux session holding one window per agent, plus a queue of sessions waiting on the operator, read by both surfaces. It is the first act surface beside the observe-only canvas. |
 
 ---
 
