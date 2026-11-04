@@ -437,3 +437,50 @@ def test_no_git_on_path_is_said_rather_than_drawn_as_no_contention(monkeypatch, 
     monkeypatch.setattr("skyboss.agents.providers", lambda: [Fake("a", sessions)])
     result = CliRunner().invoke(cli, ["agents"])
     assert "claims not derived for 1 directory(ies)" in said(result)
+
+
+# ============================================================================
+# --scope: inside or outside the deck
+# ============================================================================
+
+
+@pytest.fixture
+def two(monkeypatch):
+    a = Session(provider="a", id="in", name="inside", started=at(100))
+    b = Session(provider="a", id="out", name="outside", started=at(200))
+    monkeypatch.setattr("skyboss.agents.providers", lambda: [Fake("a", [a, b])])
+    monkeypatch.setattr("skyboss.agents.claims", lambda sessions: ({}, 0))
+    return a, b
+
+
+def names(result):
+    return [r["name"] for r in json.loads(result.stdout)["data"]]
+
+
+@pytest.mark.parametrize(
+    ("scope", "expected"), [("deck", ["inside"]), ("outside", ["outside"]), ("all", ["inside", "outside"])]
+)
+def test_scope_places_each_session_by_the_deck(two, monkeypatch, scope, expected):
+    monkeypatch.setattr("skyboss.deck.claimed", lambda sessions: ({"in"}, ""))
+    assert names(CliRunner().invoke(cli, ["--json", "agents", "--scope", scope])) == expected
+
+
+def test_without_scope_the_deck_is_never_asked_and_the_output_is_unchanged(two, monkeypatch):
+    monkeypatch.setattr("skyboss.deck.claimed", lambda sessions: pytest.fail("asked the deck"))
+    bare = CliRunner().invoke(cli, ["agents"])
+    monkeypatch.setattr("skyboss.deck.claimed", lambda sessions: ({"in"}, ""))
+    assert bare.exit_code == 0 and bare.output == CliRunner().invoke(cli, ["agents", "--scope", "all"]).output
+
+
+def test_a_deck_that_cannot_be_read_is_partial_not_empty(two, monkeypatch, said):
+    monkeypatch.setattr("skyboss.deck.claimed", lambda sessions: (None, "tmux could not be run"))
+    result = CliRunner().invoke(cli, ["--json", "agents", "--scope", "deck"])
+    envelope = json.loads(result.stdout)
+    assert result.exit_code == 3 and envelope["partial"] and envelope["data"] == []
+    assert "no session can be placed in the deck" in " ".join(envelope["warnings"])
+
+
+def test_an_empty_scope_says_which_side_is_empty(two, monkeypatch):
+    monkeypatch.setattr("skyboss.deck.claimed", lambda sessions: (set(), ""))
+    envelope = json.loads(CliRunner().invoke(cli, ["--json", "agents", "--scope", "deck"]).stdout)
+    assert envelope["data"] == [] and "no sessions in the deck" in envelope["warnings"]

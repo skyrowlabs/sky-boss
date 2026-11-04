@@ -998,3 +998,35 @@ def test_the_theme_lands_on_the_decks_own_sessions_and_windows_only(fake, home):
     assert ("=sb:", "status-style") in styled and ("=sb-agents:", "status-style") in styled
     window_targets = {target for target, option in styled if option == "pane-active-border-style"}
     assert window_targets == set(fake.windows)
+
+
+@pytest.mark.parametrize(
+    ("scope", "where"), [("deck", ["deck"]), ("outside", ["outside"]), ("all", ["deck", "outside"])]
+)
+def test_queue_scope_keeps_one_side(fake, home, tmp_path, scope, where):
+    fake.add("sb", "jam", agent="jam", role="agent", pid=10)
+    result = queue_result([Adapter([a_session(10), a_session(99)])], proc=tmp_path / "absent", scope=scope)
+    assert [r["where"] for r in result.data] == where
+
+
+def test_queue_scope_empty_says_which_side(fake, home, tmp_path):
+    result = queue_result([Adapter([a_session(99)])], proc=tmp_path / "absent", scope="deck")
+    assert result.data == [] and "no sessions in the deck" in result.warnings
+
+
+def test_queue_scope_reaches_the_resident_read(fake, home, monkeypatch):
+    seen = {}
+    monkeypatch.setattr(
+        deck_, "_resident", lambda source, once, *rest: seen.setdefault("scope", once.keywords["scope"])
+    )
+    invoke("deck", "queue", "--scope", "outside")
+    assert seen == {"scope": "outside"}
+
+
+def test_claimed_reads_both_deck_sessions(fake, home, monkeypatch):
+    monkeypatch.setattr(deck_, "parents", lambda proc=None: {})
+    fake.add("sb", "deck", role="tabs", pid=1)
+    fake.add("sb-agents", "jam", agent="jam", role="agent", pid=10)
+    assert deck_.claimed([a_session(10), a_session(11)]) == ({"id-10"}, "")
+    fake.installed = False
+    assert deck_.claimed([])[0] is None

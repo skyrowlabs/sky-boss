@@ -477,6 +477,18 @@ def view_of(rows: list[dict]) -> dict:
     }
 
 
+def _in_scope(sessions: list[Session], scope: str, result: Result) -> list[Session] | None:
+    """Sessions inside or outside the deck, or None when the deck could not be read."""
+    from skyboss import deck
+
+    claimed, why = deck.claimed(sessions)
+    if claimed is None:
+        result.degrade(f"{why} — no session can be placed {PLACES[scope]}")
+        return None
+    inside = scope == "deck"
+    return [s for s in sessions if (s.id in claimed) == inside]
+
+
 def empty_reason(tally: Scan, consulted: int) -> str:
     """Why there are no rows — the sentence that keeps an empty table honest.
 
@@ -493,10 +505,22 @@ def empty_reason(tally: Scan, consulted: int) -> str:
     return f"no sessions — {providers}, registry present and empty"
 
 
+SCOPES = ("all", "deck", "outside")
+#: How a scope reads in a sentence.
+PLACES = {"deck": "in the deck", "outside": "outside the deck", "all": "anywhere"}
+
+
 @click.command(name="agents")
 @click.option("--only", metavar="NAMES", help="Ask only these providers, comma-separated.")
+@click.option(
+    "--scope",
+    type=click.Choice(SCOPES),
+    default="all",
+    show_default=True,
+    help="deck: sessions running in a `sb deck` pane. outside: every other live session.",
+)
 @emit
-def agents(only: str | None) -> Result:
+def agents(only: str | None, scope: str = "all") -> Result:
     """Which agent sessions are running right now, across every provider.
 
         sb agents
@@ -535,10 +559,17 @@ def agents(only: str | None) -> Result:
         # the same whether it is alone in its repository or was never asked.
         result.warn(f"claims not derived for {unknown} directory(ies) — git could not be asked")
 
+    if scope != "all":
+        # Letters were derived from every session, so a filtered row keeps its letter.
+        sessions = _in_scope(sessions, scope, result)
+        if sessions is None:
+            result.data = []
+            return result
+
     now = datetime.now(timezone.utc)
     result.data = rows_of(sessions, now, letters)
     if not result.data:
-        result.warn(empty_reason(tally, len(adapters)))
+        result.warn(f"no sessions {PLACES[scope]}" if scope != "all" else empty_reason(tally, len(adapters)))
         return result
     result.view = view_of(result.data)
     return result

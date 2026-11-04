@@ -21,6 +21,7 @@ middle pane, so the inner status bar is the tab row. Session options (`mouse`,
 
 from __future__ import annotations
 
+import functools
 import os
 import re
 import shlex
@@ -1333,6 +1334,18 @@ def deck_windows(listed: list[Pane], sessions: list, parent_of: dict[int, int]) 
     return entries, claimed
 
 
+def claimed(sessions: list) -> tuple[set[str] | None, str]:
+    """The ids of the sessions running in a deck pane, or None and why the deck could not be read."""
+    config, _ = load()
+    present = has_session(config.session)
+    if present is None:
+        return None, "tmux could not be run, so the deck could not be read"
+    if not present:
+        return set(), ""
+    _, ids = deck_windows(all_panes(config.session), sessions, parents())
+    return ids, ""
+
+
 def queue_rows(listed: list[Pane], sessions: list, parent_of: dict[int, int], now: datetime) -> list[dict]:
     """One row per deck window, waiting first; then every live session outside the deck."""
     entries, claimed = deck_windows(listed, sessions, parent_of)
@@ -1363,7 +1376,7 @@ def view_of(rows: list[dict]) -> dict:
     }
 
 
-def queue_result(adapters: list | None = None, proc: Path = Path("/proc")) -> Result:
+def queue_result(adapters: list | None = None, proc: Path = Path("/proc"), scope: str = "all") -> Result:
     """The queue's envelope. Every way it could not look is a warning, so empty is never ambiguous."""
     result = Result()
     config, problems = load()
@@ -1393,9 +1406,10 @@ def queue_result(adapters: list | None = None, proc: Path = Path("/proc")) -> Re
             if not answer.ok:
                 result.degrade(f"could not list the deck's tabs — {_said(answer)}")
 
-    result.data = queue_rows(listed, sessions, parents(proc), datetime.now(timezone.utc))
+    rows = queue_rows(listed, sessions, parents(proc), datetime.now(timezone.utc))
+    result.data = rows if scope == "all" else [r for r in rows if r["where"] == scope]
     if not result.data:
-        result.warn(agents_.empty_reason(tally, len(chosen)))
+        result.warn(f"no sessions {agents_.PLACES[scope]}" if rows else agents_.empty_reason(tally, len(chosen)))
         return result
     result.view = view_of(result.data)
     return result
@@ -1421,8 +1435,15 @@ def queue_result(adapters: list | None = None, proc: Path = Path("/proc")) -> Re
     is_flag=True,
     help="With --refresh: redraw on the alternate screen, as the deck's own panes do.",
 )
+@click.option(
+    "--scope",
+    type=click.Choice(agents_.SCOPES),
+    default="all",
+    show_default=True,
+    help="deck: rows for deck windows. outside: every other live session.",
+)
 @emit
-def deck_queue(refresh: int | None, ticks: int | None, screen: bool) -> Result:
+def deck_queue(refresh: int | None, ticks: int | None, screen: bool, scope: str) -> Result:
     """Which agent sessions are waiting on you, deck windows first.
 
         sb deck queue
@@ -1432,7 +1453,8 @@ def deck_queue(refresh: int | None, ticks: int | None, screen: bool) -> Result:
     pid and the registry's `status` word, `waiting` first; a window with no
     record reads `unregistered`. Live sessions outside the deck follow.
     """
-    return _resident("deck queue", queue_result, refresh, ticks, screen, keep_first("row(s)"))
+    once = functools.partial(queue_result, scope=scope)
+    return _resident("deck queue", once, refresh, ticks, screen, keep_first("row(s)"))
 
 
 # **The act/observe bit, asserted on every subcommand** — a nested command that
