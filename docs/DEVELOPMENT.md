@@ -236,11 +236,12 @@ other, and the tool names are identical, so the version never occurs to anyone.
 
 ### After an upgrade
 
-An upgrade that writes leaves `tmp/upgrade/REPORT.md` behind: its counts, the
-branch it started from and each pending file are filled in, and every other
-section says in a comment what belongs there. Fill those in, whoever ran it, so
-every upgrade of this tree is reported the same way. The next upgrade replaces
-the file.
+An upgrade that writes leaves `tmp/upgrade/REPORT.md` behind: the conflict
+count, the base it started from and each pending file are filled in, and every
+other section says in a comment what belongs there. Fill those in, whoever ran
+it, so every upgrade of this tree is reported the same way. A second run of the
+same upgrade, such as `--ported`, keeps what you wrote and marks a conflict you
+resolved; an upgrade to a different version starts the file again.
 
 ### A scheduled workflow
 

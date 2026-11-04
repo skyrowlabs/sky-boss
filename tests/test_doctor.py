@@ -14,6 +14,7 @@ pytestmark = [pytest.mark.unit]
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from scripts.check_coverage_budget import runners  # noqa: E402
 from scripts.paths import GITHUB_DIR  # noqa: E402
 from tests.shell import module  # noqa: E402
 
@@ -252,6 +253,7 @@ def test_an_inapplicable_fact_is_listed_and_not_counted(monkeypatch):
         f"{REPO}/vulnerability-alerts": {},
         f"{REPO}/automated-security-fixes": {"enabled": True},
         f"{REPO}/labels?per_page=100": [{"name": "dependencies"}],
+        **{f"{REPO}/actions/workflows/{name}": {"state": "active"} for name in runners()},
     }
     profile = {s.key: s.want for s in doctor.repo_settings.REPOSITORY}
     repo = {"default_branch": doctor.BASE_BRANCH, "description": "d", "visibility": "private", **profile}
@@ -259,3 +261,12 @@ def test_an_inapplicable_fact_is_listed_and_not_counted(monkeypatch):
     stub(monkeypatch, {REPO: repo, **unprotected, **answered})
     result = CliRunner().invoke(doctor.doctor, [])
     assert "the release job can open its pull request" in result.output and "applicable facts" in result.output
+
+
+def test_a_disabled_coverage_workflow_is_a_problem(monkeypatch):
+    monkeypatch.setattr("scripts.check_coverage_budget.runners", lambda: ["nightly.yml"])
+    path = f"{REPO}/actions/workflows/nightly.yml"
+    stub(monkeypatch, {path: {"state": "disabled_manually"}})
+    assert doctor.coverage_runners_enabled().state == doctor.PROBLEM
+    stub(monkeypatch, {path: {"state": "active"}})
+    assert doctor.coverage_runners_enabled().state == doctor.OK

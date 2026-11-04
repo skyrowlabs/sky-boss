@@ -271,17 +271,23 @@ def test_a_report_older_than_the_data_it_came_from_is_refused(tree, tmp_path, ca
 
 
 def test_a_floor_no_workflow_runs_says_so(tree, tmp_path, monkeypatch, capsys):
-    """A core tree ships the floor and no runner; a comment naming the check runs nothing."""
+    """A comment naming the check runs nothing; the script or the CLI command does."""
     workflows = tmp_path / ".github" / "workflows"
     workflows.mkdir(parents=True)
     (workflows / "ci.yml").write_text("# TODO: run scripts/check_coverage_budget.py here\njobs: {}\n")
     monkeypatch.setattr(budget, "GITHUB_DIR", tmp_path / ".github")
-    tree(SCAFFOLDED)
+    tree(SCAFFOLDED, entry={"baseline_pct": 50.0})
     out = capsys.readouterr()
-    assert json.loads(out.out)["enforced_by"] == [] and "no workflow" in out.err, out.err
+    assert json.loads(out.out)["named_by"] == [] and "no workflow" in out.err, out.err
 
-    run = "jobs:\n  c:\n    steps:\n      - run: python scripts/check_coverage_budget.py\n"
-    (workflows / "nightly.yml").write_text(run)
-    tree(SCAFFOLDED)
+    for name, command in (("nightly.yml", "python scripts/check_coverage_budget.py"), ("cov.yml", "./x test coverage")):
+        (workflows / name).write_text(f"jobs:\n  c:\n    steps:\n      - run: {command}\n")
+    tree(SCAFFOLDED, entry={"baseline_pct": 50.0})
     out = capsys.readouterr()
-    assert json.loads(out.out)["enforced_by"] == ["nightly.yml"] and "no workflow" not in out.err, out.err
+    assert json.loads(out.out)["named_by"] == ["cov.yml", "nightly.yml"] and "no workflow" not in out.err, out.err
+
+
+def test_a_floor_of_zero_has_nothing_to_enforce(tree, tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(budget, "GITHUB_DIR", tmp_path / ".github")
+    tree(SCAFFOLDED)
+    assert "no workflow" not in capsys.readouterr().err

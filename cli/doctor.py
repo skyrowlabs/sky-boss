@@ -432,6 +432,27 @@ def security_updates(repo: dict | None = None) -> Fact:
     return Fact(name, OK, f"on — {repo_settings.SECURITY_UPDATES_WHY}")
 
 
+def coverage_runners_enabled() -> Fact:
+    """Every workflow naming the coverage check is enabled; a disabled one is still on disk (stash.flow)."""
+    from scripts.check_coverage_budget import runners
+
+    name = "the workflows that run the coverage floor are enabled"
+    named = runners()
+    if not named:
+        return Fact(name, NOT_APPLICABLE, "no workflow names the coverage check")
+    off = []
+    for workflow in named:
+        try:
+            state = (gh_api("repos/{owner}/{repo}/actions/workflows/" + workflow) or {}).get("state")
+        except Unreadable as error:
+            return Fact(name, UNKNOWN, str(error))
+        if state != "active":
+            off.append(f"{workflow} ({state})")
+    if off:
+        return Fact(name, PROBLEM, f"{', '.join(off)}: named, and GitHub runs none of it, so nothing holds the floor")
+    return Fact(name, OK, ", ".join(named))
+
+
 def labels_exist() -> Fact:
     """Every label dependabot.yml or a workflow applies exists; Dependabot drops one that does not."""
     name = "labels Dependabot and the workflows apply exist"
@@ -463,6 +484,7 @@ def gather() -> list[Fact]:
         *repository_settings(repo),
         dependabot_alerts(repo),
         security_updates(repo),
+        coverage_runners_enabled(),
         labels_exist(),
     ]
 

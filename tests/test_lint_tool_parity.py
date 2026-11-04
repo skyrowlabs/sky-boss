@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import re
 import sys
+from fnmatch import fnmatch
 from importlib import metadata
 from pathlib import Path
 
@@ -43,6 +44,7 @@ pytestmark = [pytest.mark.unit]
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts.paths import GITHUB_DIR, PROJECT_ROOT, REQUIREMENTS  # noqa: E402
+from tests.scanning import scanned  # noqa: E402
 
 PRECOMMIT = PROJECT_ROOT / ".pre-commit-config.yaml"
 
@@ -124,13 +126,27 @@ def test_installed_tools_match_requirements():
     )
 
 
+def covers(entry: dict, directory: str) -> bool:
+    """Whether a Dependabot entry updates `directory`: named there, or at an ancestor.
+
+    An entry at `/` updates `scripts/requirements.txt` too (sky.boss, measured),
+    so matching the directory exactly passed vacuously there.
+    """
+    named = [entry["directory"]] if "directory" in entry else list(entry.get("directories") or [])
+    for spelled in named:
+        root = "/" + str(spelled).strip("/")
+        if root == "/" or directory == root or directory.startswith(root + "/") or fnmatch(directory, root):
+            return True
+    return False
+
+
 def test_dependabot_never_bumps_a_lint_pin_alone():
-    """A pip update for the requirements directory ignores every tool above.
+    """A pip update reaching the requirements file ignores every tool above.
 
     pip writes `requirements.txt` only, so a lint bump arrives red against
     `.pre-commit-config.yaml` and never merges (mind-head's ruff and mypy, added
-    to `TOOLS` and not to the ignore list). No dependabot.yml, or no pip entry for
-    that directory, means nothing bumps these pins, and there is nothing to ask.
+    to `TOOLS` and not to the ignore list). No dependabot.yml, or no pip entry
+    reaching that file, means nothing bumps these pins, and there is nothing to ask.
     """
     import yaml
 
@@ -141,12 +157,23 @@ def test_dependabot_never_bumps_a_lint_pin_alone():
     entries = [
         entry
         for entry in (yaml.safe_load(config.read_text(encoding="utf-8")) or {}).get("updates") or []
-        if entry.get("package-ecosystem") == "pip" and "/" + str(entry.get("directory", "")).strip("/") == directory
+        if entry.get("package-ecosystem") == "pip" and covers(entry, directory)
     ]
     for entry in entries:
         ignored = {rule.get("dependency-name") for rule in entry.get("ignore") or []}
         unignored = sorted(set(TOOLS.values()) - ignored)
         assert not unignored, (
-            f".github/dependabot.yml's pip update for {directory} would bump {unignored} alone; "
-            "add each to its `ignore:` list, since a bump of one pin is red against the other"
+            f".github/dependabot.yml's pip update for {entry.get('directory') or entry.get('directories')} "
+            f"would bump {unignored} alone; add each to its `ignore:` list, since a bump of one pin is red "
+            "against the other"
         )
+
+
+def test_an_entry_reaches_the_requirements_file_from_an_ancestor():
+    scanned(
+        [d for d in ("/", "/scripts", "scripts/", "/scr*") if covers({"directory": d}, "/scripts")],
+        "spellings reaching /scripts",
+        least=4,
+    )
+    assert covers({"directories": ["/app", "/"]}, "/scripts")
+    assert not covers({"directory": "/app"}, "/scripts")

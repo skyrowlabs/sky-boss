@@ -123,6 +123,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -336,19 +337,36 @@ def compare(suite: str, entry: dict, tolerance: float, reading: Reading) -> tupl
     return {"state": "within", **measured}, 0
 
 
+#: What a workflow runs to reach this check: the script, or the CLI command
+#: wrapping it, which is the one the warning below recommends (sky.vault).
+INVOCATION = re.compile(rf"{re.escape(Path(__file__).name)}|\btest\s+coverage\b")
+
+
 def runners() -> list[str]:
-    """The workflows that run this check, comments masked: a TODO naming it runs nothing."""
+    """The workflows that name this check, comments masked: a TODO naming it runs nothing.
+
+    Named is all a file can say. Whether GitHub runs that workflow (a disabled
+    one is still on disk) is `dev doctor`'s question (stash.flow).
+    """
     workflows = sorted((GITHUB_DIR / "workflows").glob("*.y*ml"))
-    return [path.name for path in workflows if Path(__file__).name in read_uncommented(path)]
+    return [path.name for path in workflows if INVOCATION.search(read_uncommented(path))]
 
 
-def unenforced(enforced_by: list[str]) -> None:
-    """Say so when no workflow runs this: a floor read only by hand bites nobody (sky.vault)."""
-    if enforced_by:
+def floor_of(suite: str) -> float:
+    """The floor stored for `suite`, either basis; 0 for none."""
+    entry = json.loads(BUDGET.read_text(encoding="utf-8"))["suites"].get(suite) or {}
+    return max(float(entry.get("baseline_pct") or 0), float(entry.get("own_baseline_pct") or 0))
+
+
+def unnamed(named_by: list[str], floor: float) -> None:
+    """Say so when a floor above 0 is named by no workflow: it bites only by hand.
+
+    Quiet at 0, where there is nothing to enforce yet (node-zero).
+    """
+    if named_by or floor <= 0:
         return
-    warn("no workflow under .github/workflows runs this check, so this floor holds only when somebody runs it")
-    detail("The governed tier ships coverage-nightly.yml for that.")
-    detail("Copy it, or run `dev test coverage` yourself.")
+    warn(f"no workflow under .github/workflows runs this check, so the {floor:.2f}% floor holds only by hand")
+    detail("Add a scheduled workflow step that runs `dev test coverage`.")
 
 
 def main() -> int:
@@ -362,13 +380,14 @@ def main() -> int:
     args = parser.parse_args()
     args.suite = "+".join(args.suite or ["scheduled"])
 
-    enforced_by = runners()
+    named_by = runners()
 
     def done(payload: dict, status: int) -> int:
         """One exit, one payload. Emitting per-branch is how a path loses its."""
-        unenforced(enforced_by)
+        if BUDGET.exists():
+            unnamed(named_by, floor_of(args.suite))
         if args.json:
-            emit({"suite": args.suite, **payload, "enforced_by": enforced_by})
+            emit({"suite": args.suite, **payload, "named_by": named_by})
         return status
 
     if not args.xml.exists():
