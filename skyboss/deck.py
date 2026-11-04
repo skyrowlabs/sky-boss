@@ -28,7 +28,7 @@ import shutil
 import subprocess
 import sys
 import tomllib
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
@@ -890,14 +890,44 @@ def deck_messages(refresh: int | None, ticks: int | None, screen: bool) -> Resul
     receiver, and the first line. The last 50, read from each live session's
     transcript; a transcript that cannot be read is counted in a warning.
     """
-    return _resident("deck messages", messages_result, refresh, ticks, screen)
+    return _resident("deck messages", messages_result, refresh, ticks, screen, keep_last("message(s)"))
 
 
-def _resident(source: str, once: Callable[[], Result], refresh: int | None, ticks: int | None, screen: bool) -> Result:
+def keep_last(noun: str) -> Callable[[Result, int], tuple[Result, str]]:
+    """The newest `keep` rows, with a line counting the earlier ones."""
+
+    def fit(result: Result, keep: int) -> tuple[Result, str]:
+        rows = result.data
+        left = len(rows) - keep
+        return replace(result, data=rows[left:]), f"{left} earlier {noun} not shown — the newest {keep} fit"
+
+    return fit
+
+
+def keep_first(noun: str) -> Callable[[Result, int], tuple[Result, str]]:
+    """The first `keep` rows, with a line counting the rest. The queue sorts `waiting` first."""
+
+    def fit(result: Result, keep: int) -> tuple[Result, str]:
+        rows = result.data
+        return replace(result, data=rows[:keep]), f"{len(rows) - keep} more {noun} not shown — waiting comes first"
+
+    return fit
+
+
+def _resident(
+    source: str,
+    once: Callable[[], Result],
+    refresh: int | None,
+    ticks: int | None,
+    screen: bool,
+    fit: Callable[[Result, int], tuple[Result, str]],
+) -> Result:
     """One read, or the same read on a cadence — `sb data`'s resident path, shared.
 
     The deck's panes take `--screen`: a pane the operator drags to a new size
-    must redraw whole, not leave the old inline frames above the new one.
+    must redraw whole, not leave the old inline frames above the new one. On
+    that screen `fit` trims rows to the height, counting what it left out;
+    `--json` and a pipe always carry every row.
     """
     if ticks is not None and refresh is None:
         raise click.UsageError("--ticks needs --refresh — a single read already stops after one")
@@ -907,7 +937,7 @@ def _resident(source: str, once: Callable[[], Result], refresh: int | None, tick
         if _as_json() or not output.stdout_is_terminal():
             output.resident_ndjson(once, refresh, runs=ticks)
         else:
-            resident.reside(source, refresh, once, screen=screen, runs=ticks)
+            resident.reside(source, refresh, once, screen=screen, runs=ticks, fit=fit)
         raise click.exceptions.Exit(0)
     return once()
 
@@ -1091,7 +1121,7 @@ def deck_queue(refresh: int | None, ticks: int | None, screen: bool) -> Result:
     pid and the registry's `status` word, `waiting` first; a window with no
     record reads `unregistered`. Live sessions outside the deck follow.
     """
-    return _resident("deck queue", queue_result, refresh, ticks, screen)
+    return _resident("deck queue", queue_result, refresh, ticks, screen, keep_first("row(s)"))
 
 
 # **The act/observe bit, asserted on every subcommand** — a nested command that

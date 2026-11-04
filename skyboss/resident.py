@@ -192,6 +192,44 @@ def clip(body: Text, limit: int, *, tail: bool = False) -> Text:
     return out
 
 
+#: Trims a result to its first or last `keep` rows, and says what it left out.
+Fit = Callable[[Result, int], tuple[Result, str]]
+
+
+def height(text: Text, console: Console) -> int:
+    """Lines `text` takes at this console's width."""
+    return len(text.wrap(console, max(1, console.width)))
+
+
+def fitted(result: Result, body: Text, limit: int, fit: Fit, drawn: Callable[[Result], Text]) -> Text:
+    """`body`, or `result` re-drawn with fewer rows and a counting line, so it fits in `limit` lines.
+
+    Rows go, never lines: a header clipped off a table is the chart rule's
+    clamp, where a counted row is a sentence. A `data` that is not a list is
+    drawn as it is.
+    """
+    rows = result.data if isinstance(result.data, list) else None
+    lines = _count(body)
+    if rows is None or lines <= limit:
+        return body
+    keep = len(rows)
+    shown = body
+    while keep > 0 and lines > limit:
+        keep = max(0, keep - max(1, lines - limit))
+        trimmed, marker = fit(result, keep)
+        shown = Text()
+        shown.append(marker, style="sb.warn")
+        shown.append("\n")
+        shown.append_text(drawn(trimmed))
+        lines = _count(shown)
+    return shown
+
+
+def _count(body: Text) -> int:
+    """Lines in a captured body, which `drawn` has already wrapped to the console's width."""
+    return len(body.plain.rstrip("\n").split("\n"))
+
+
 def hold(
     frame: Callable[[], Group],
     *,
@@ -453,6 +491,7 @@ def reside(
     screen: bool = False,
     ticks: int | None = None,
     runs: int | None = None,
+    fit: Fit | None = None,
 ) -> None:
     """The whole resident rendering: bands, body, and a way out.
 
@@ -472,21 +511,34 @@ def reside(
     byte that reaches a terminal, and a surface that renders elsewhere takes
     that claim up rather than routing around it. The bands come from the
     [[chrome]] contract; this module decides nothing about what they say.
+
+    `fit`, with `screen`, trims *rows* rather than lines so a table keeps its
+    header: see `fitted`. Measured at every frame, because a pane is resized.
     """
     out = console or Console(theme=THEME, highlight=False)
     state = Residency(source, interval, clock)
     body = Text("")
+    last: Result | None = None
+
+    def drawn(result: Result) -> Text:
+        with capture(width=out.width) as captured:
+            render(result, as_json=False)
+        return Text.from_ansi(captured.text)
 
     def frame_for(result: Result | None) -> Group:
-        nonlocal body
+        nonlocal body, last
         if result is not None:
-            with capture(width=out.width) as captured:
-                render(result, as_json=False)
-            body = Text.from_ansi(captured.text)
+            last = result
+            body = drawn(result)
         facts = state.chrome()
         top, bottom = chrome_.status_bands(facts, clock(), out.width)
-        shown = body if screen else clip(body, room(out))
-        return Group(band_text(top), shown, band_text(bottom))
+        top_text, bottom_text = band_text(top), band_text(bottom)
+        if screen and fit is not None and last is not None:
+            limit = out.height - height(top_text, out) - height(bottom_text, out) - 1
+            shown = fitted(last, body, limit, fit, drawn)
+        else:
+            shown = body if screen else clip(body, room(out))
+        return Group(top_text, shown, bottom_text)
 
     def run(wait_for: Callable[[float], str | None]) -> None:
         if screen:

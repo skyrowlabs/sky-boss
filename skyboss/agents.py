@@ -28,8 +28,10 @@ and *could not look* are the same empty table.
 
 **It reads. It never touches.** `messagingSocketPath` is a live socket into
 another agent's session, and a stop button would put a write into a command
-built as an observe. Transcripts are out for a stronger reason: an agent's
-transcript is the operator's conversation.
+built as an observe. Transcripts are out of this command for a stronger reason:
+an agent's transcript is the operator's conversation. The one exception is
+`skyboss/messages.py`, by the operator's ruling in [[command-deck]]: it reads
+only the peer messages a session received, for the deck's messages pane.
 """
 
 from __future__ import annotations

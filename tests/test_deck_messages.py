@@ -199,3 +199,98 @@ def test_json_never_resides_even_at_a_terminal(synthetic, reside_calls, at_a_ter
     result = invoke("--json", "deck", "messages", "--refresh", "1", "--ticks", "2")
     assert result.exit_code == 0 and reside_calls == []
     assert [json.loads(line)["tick"] for line in result.stdout.splitlines()] == [1, 2]
+
+
+# ============================================================================
+# Fitting the pane: rows trimmed to the height, never lines
+# ============================================================================
+
+
+def fifty(tmp_path) -> Session:
+    who = session("s1", "ws")
+    write(tmp_path, who, [peer("jam", f"note {i:02d}", f"m{i}", f"2026-11-04T11:{i:02d}:00Z") for i in range(50)])
+    return who
+
+
+class Clock:
+    def __init__(self):
+        self.now = 1_766_000_000.0
+
+    def __call__(self) -> float:
+        return self.now
+
+    def sleep(self, seconds: float) -> None:
+        self.now += seconds
+        return None
+
+
+def test_a_short_screen_keeps_the_header_and_the_newest_rows(tmp_path):
+    from rich.console import Console
+
+    from skyboss.deck import keep_last
+    from skyboss.resident import reside
+
+    who = fifty(tmp_path)
+    once = functools.partial(messages_.messages_result, [Adapter([who])], tmp_path, NOW)
+    clock = Clock()
+    console = Console(record=True, width=100, height=14, force_terminal=True)
+    reside(
+        "deck messages",
+        10,
+        once,
+        clock=clock,
+        wait=clock.sleep,
+        console=console,
+        screen=True,
+        ticks=2,
+        fit=keep_last("message(s)"),
+    )
+    text = console.export_text()
+    assert "WHEN" in text and "note 49" in text
+    assert "note 00" not in text and "note 39" not in text
+    assert "earlier message(s) not shown — the newest" in text
+
+
+def test_the_fit_is_measured_per_frame(tmp_path):
+    from rich.text import Text
+
+    from skyboss.deck import keep_last
+    from skyboss.resident import fitted
+
+    result = messages_.messages_result([Adapter([fifty(tmp_path)])], tmp_path, NOW)
+
+    def drawn(r):
+        return Text("HEADER\n" + "\n".join(row["message"] for row in r.data))
+
+    for limit, keep in ((11, 9), (21, 19)):
+        shown = fitted(result, drawn(result), limit, keep_last("message(s)"), drawn).plain.split("\n")
+        assert len(shown) <= limit and shown[0] == f"{50 - keep} earlier message(s) not shown — the newest {keep} fit"
+        assert shown[1] == "HEADER" and shown[-1] == "note 49" and len(shown) - 2 == keep
+
+
+def test_a_body_that_fits_is_untouched(tmp_path):
+    from rich.text import Text
+
+    from skyboss.deck import keep_last
+    from skyboss.resident import fitted
+
+    result = messages_.messages_result([Adapter([fifty(tmp_path)])], tmp_path, NOW)
+    body = Text("small")
+    assert fitted(result, body, 100, keep_last("message(s)"), lambda r: Text("redrawn")) is body
+
+
+def test_the_queue_keeps_its_first_rows_because_waiting_sorts_first():
+    from skyboss.deck import keep_first
+    from skyboss.output import Result
+
+    trimmed, marker = keep_first("row(s)")(Result(data=[1, 2, 3, 4]), 3)
+    assert trimmed.data == [1, 2, 3] and marker == "1 more row(s) not shown — waiting comes first"
+
+
+def test_json_and_a_pipe_carry_all_fifty(tmp_path, monkeypatch, no_sleep):
+    who = fifty(tmp_path)
+    monkeypatch.setattr(messages_.agents_, "providers", lambda: [Adapter([who])])
+    monkeypatch.setattr(messages_, "projects_dir", lambda: tmp_path)
+    assert len(json.loads(invoke("--json", "deck", "messages").stdout)["data"]) == 50
+    lines = invoke("deck", "messages", "--refresh", "1", "--ticks", "1", "--screen").stdout.splitlines()
+    assert len(json.loads(lines[0])["data"]) == 50
