@@ -1,8 +1,10 @@
 ---
 title: "The deck: a tmux command center for agent sessions"
 slug: command-deck
-shelf_status: in-progress
 priority: medium
+category: surfaces
+agent_value: 3
+completed: 2026-11-04
 updated: 2026-11-04
 tags: [agents, act, tmux, surfaces]
 summary: Adds `sb deck`, a tmux session holding one window per agent, plus a queue of sessions waiting on the operator, read by both surfaces. It is the first act surface beside the observe-only canvas.
@@ -11,7 +13,6 @@ summary: Adds `sb deck`, a tmux session holding one window per agent, plus a que
 # The deck: a tmux command center for agent sessions
 
 > **Status**: 🟡 In progress
-> **Shelf-Status**: in-progress
 > **Priority**: Medium. Round 2 builds the deck out into a workspace layout, on the operator's ruling.
 > **Updated**: 2026-11-04
 
@@ -149,27 +150,27 @@ columns (default)                                  stack
 +--------------+---------------+-----------+       +-----------------------+-----------+
 ```
 
-- [ ] **Window 0 is the controller.** Left: the pinned workspace agent (about 45% wide). Middle:
+- [x] **Window 0 is the controller.** Left: the pinned workspace agent (about 45% wide). Middle:
       one pane attached to an inner tmux session, `<session>-agents`. Its windows are the project
       agents, and its status bar is the tab row. Right column (about 25%): `sb deck queue` (NEEDS
       YOU) over `sb deck messages`. Both refresh on a cadence (constants, not keys).
-- [ ] **Tabs only for agents you activate.** `sb deck open <name>` adds an inner window running
+- [x] **Tabs only for agents you activate.** `sb deck open <name>` adds an inner window running
       `claude` (or selects it), and `sb deck jump <name>` selects it. Clicking a tab works through
       tmux's mouse support.
-- [ ] **`sb deck layout columns|stack`** switches window 0 between the two shapes by moving panes.
+- [x] **`sb deck layout columns|stack`** switches window 0 between the two shapes by moving panes.
       It never restarts a pane, so every `claude` keeps its process (asserted: no `kill-pane`,
       `respawn-pane` or `kill-window` in the switch).
-- [ ] **Resizable by dragging:** `mouse on` set on both deck sessions (a session option, so the
+- [x] **Resizable by dragging:** `mouse on` set on both deck sessions (a session option, so the
       operator's config is untouched).
-- [ ] **`sb deck messages`**, an observe with `--refresh`/`--ticks`. One row per message exchanged
+- [x] **`sb deck messages`**, an observe with `--refresh`/`--ticks`. One row per message exchanged
       between agent sessions: time, sender → receiver, and the body's first line. Newest at the
       bottom, the last 50, de-duplicated by `msg_id`. Source, measured on Claude Code 2.1.318: each
       live session's transcript (`~/.claude/projects/<slug of cwd>/<sessionId>.jsonl`) records every
       message it **received** as a `user` entry whose `origin.kind` is `peer`, carrying `name`,
       `msg_id` and `body`. A transcript that cannot be found or read is counted in a warning, never
       skipped silently. Message bodies are drawn on the operator's terminal and written nowhere.
-- [ ] `sb deck queue` finds deck agents in the inner session's windows.
-- [ ] Tests on `FakeTmux` and on synthetic transcripts: both layouts' commands, the switch moving
+- [x] `sb deck queue` finds deck agents in the inner session's windows.
+- [x] Tests on `FakeTmux` and on synthetic transcripts: both layouts' commands, the switch moving
       panes without restarting any, `mouse on` on both sessions, the messages parse (peer entries
       only, dedupe, first line, unreadable transcript counted), and `--ticks` parity with `sb data`.
 
@@ -255,3 +256,12 @@ two sessions. Decided while building:
   resize, which the mouse now invites.
 - `sb deck messages` keys a peer entry without a `msg_id` (a subagent's handback) by its entry
   `uuid`. The slug rule held for every live session's directory on 2026-11-04.
+
+### 2026-11-04: round 2 built
+
+The controller shipped in sky-boss@d672d9c, and the tool panes were fitted to their height in
+sky-boss@ee1742f. The queue keeps its top rows, because waiting sorts first, while messages keep the
+newest; what does not fit is counted on a band line. Checked on a throwaway tmux socket with a fake
+`claude`: both layouts, the switch keeping every pane's process, the tab row, and the fit
+re-measured after a resize. Not observed, because no keys were sent: a mouse click on a tab, and
+the outer/inner prefix (prefix twice reaches the tabs). Task lists remain deferred.
