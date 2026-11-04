@@ -408,6 +408,30 @@ def dependabot_alerts(repo: dict | None = None) -> Fact:
     return Fact(name, OK, f"on — {repo_settings.ALERTS_WHY}")
 
 
+def security_updates(repo: dict | None = None) -> Fact:
+    """On or off, from `automated-security-fixes`, judged only by a token that can see it.
+
+    Version updates never bump a transitive dependency, so without these a known
+    vulnerability there is reported and never fixed (sky.boss's undici).
+    """
+    name = "Dependabot security updates"
+    try:
+        admin = bool(_repo(repo).get("permissions", {}).get("admin"))
+    except Unreadable:
+        admin = False
+    try:
+        answer = gh_api("repos/{owner}/{repo}/automated-security-fixes")
+    except Unreadable as error:
+        if error.status != 404:
+            return Fact(name, UNKNOWN, str(error))
+        if not admin:
+            return Fact(name, UNKNOWN, "GitHub answers 404 to a token that is not an admin, on or off")
+        answer = {}
+    if not (answer or {}).get("enabled"):
+        return Fact(name, PROBLEM, f"off; should be on — {repo_settings.SECURITY_UPDATES_WHY}. {APPLY} turns them on")
+    return Fact(name, OK, f"on — {repo_settings.SECURITY_UPDATES_WHY}")
+
+
 def labels_exist() -> Fact:
     """Every label dependabot.yml or a workflow applies exists; Dependabot drops one that does not."""
     name = "labels Dependabot and the workflows apply exist"
@@ -438,6 +462,7 @@ def gather() -> list[Fact]:
         codeowners(),
         *repository_settings(repo),
         dependabot_alerts(repo),
+        security_updates(repo),
         labels_exist(),
     ]
 

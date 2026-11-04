@@ -250,6 +250,7 @@ def test_an_inapplicable_fact_is_listed_and_not_counted(monkeypatch):
         f"{REPO}/compare/{doctor.BASE_BRANCH}...{doctor.RELEASE_BRANCH}": {"ahead_by": 0, "files": []},
         **{owners_path(b): {"errors": []} for b in BRANCHES},
         f"{REPO}/vulnerability-alerts": {},
+        f"{REPO}/automated-security-fixes": {"enabled": True},
         f"{REPO}/labels?per_page=100": [{"name": "dependencies"}],
     }
     profile = {s.key: s.want for s in doctor.repo_settings.REPOSITORY}

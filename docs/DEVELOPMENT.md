@@ -234,6 +234,14 @@ Step 3 matters more than it looks. A local venv that has drifted from CI's
 pinned interpreter produces failures that exist in one environment and not the
 other, and the tool names are identical, so the version never occurs to anyone.
 
+### After an upgrade
+
+An upgrade that writes leaves `tmp/upgrade/REPORT.md` behind: its counts, the
+branch it started from and each pending file are filled in, and every other
+section says in a comment what belongs there. Fill those in, whoever ran it, so
+every upgrade of this tree is reported the same way. The next upgrade replaces
+the file.
+
 ### A scheduled workflow
 
 No pull request runs a job triggered by `schedule:`, so its first real run is

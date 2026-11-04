@@ -27,7 +27,7 @@ def analysis(status: str) -> dict:
     return {s.key: {"status": status} for s in repo_settings.PUBLIC_ONLY}
 
 
-def stub(monkeypatch, repo: dict, alerts_on: bool = True) -> list:
+def stub(monkeypatch, repo: dict, alerts_on: bool = True, updates_on: bool = True) -> list:
     """`gh api` reads answered from `repo`; every write is recorded and never sent."""
 
     def gh_api(path: str):
@@ -35,6 +35,8 @@ def stub(monkeypatch, repo: dict, alerts_on: bool = True) -> list:
             return repo
         if path == f"{REPO}/vulnerability-alerts" and alerts_on:
             return None
+        if path == f"{REPO}/automated-security-fixes":
+            return {"enabled": updates_on, "paused": False}
         if path == LABELS:
             return [{"name": "dependencies"}]
         raise doctor.Unreadable(f"stubbed: {path}", 404)
@@ -66,15 +68,16 @@ def test_a_setting_github_did_not_report_is_unknown_and_never_fine(monkeypatch):
 
 def test_settings_previews_and_writes_only_with_apply(monkeypatch):
     drifted = {**WANTED, "allow_squash_merge": True, "visibility": "private", "description": ""}
-    written = stub(monkeypatch, drifted, alerts_on=False)
+    written = stub(monkeypatch, drifted, alerts_on=False, updates_on=False)
     preview = CliRunner().invoke(settings.settings, [])
     assert preview.exit_code == 0 and "allow_squash_merge" in preview.output and written == []
     applied = CliRunner().invoke(settings.settings, ["--apply"])
     assert applied.exit_code == 0, applied.output
     assert "allow_squash_merge: on → off" in preview.output
-    patch, put, *labels = written
+    patch, put, updates, *labels = written
     assert patch[0] == "PATCH" and patch[2]["allow_squash_merge"] is False and "description" in patch[2]
     assert put[:2] == ("PUT", f"{REPO}/vulnerability-alerts")
+    assert updates[:2] == ("PUT", f"{REPO}/automated-security-fixes"), "security updates follow alerts"
     assert all(call[:2] == ("POST", f"{REPO}/labels") for call in labels)
 
 
@@ -83,6 +86,13 @@ def test_alerts_off_is_a_problem_and_on_is_fine(monkeypatch):
     assert doctor.dependabot_alerts().state == doctor.PROBLEM
     stub(monkeypatch, WANTED)
     assert doctor.dependabot_alerts().state == doctor.OK
+
+
+def test_security_updates_off_is_a_problem_and_on_is_fine(monkeypatch):
+    stub(monkeypatch, WANTED, updates_on=False)
+    assert doctor.security_updates().state == doctor.PROBLEM
+    stub(monkeypatch, WANTED)
+    assert doctor.security_updates().state == doctor.OK
 
 
 def test_alerts_are_unknown_to_a_token_that_is_not_an_admin(monkeypatch):

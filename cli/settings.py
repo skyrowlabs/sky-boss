@@ -29,8 +29,8 @@ def gh_write(method: str, path: str, body: dict | None = None) -> None:
         raise Unreadable(said[-1] if said else f"gh api -X {method} {path} exited {result.returncode}")
 
 
-def planned() -> tuple[dict, list[str], bool, list[str]]:
-    """The repository PATCH body, the change lines to show, whether alerts need turning on, and missing labels."""
+def planned() -> tuple[dict, list[str], bool, bool, list[str]]:
+    """The PATCH body, the change lines to show, whether alerts and security updates need turning on, and labels."""
     repo = gh_api("repos/{owner}/{repo}")
     rows = compare(repo)
     body = patch_body(rows)
@@ -53,11 +53,19 @@ def planned() -> tuple[dict, list[str], bool, list[str]]:
         alerts_off = True
     if alerts_off:
         shown.append("Dependabot alerts: off → on")
+    try:
+        updates_off = not (gh_api("repos/{owner}/{repo}/automated-security-fixes") or {}).get("enabled")
+    except Unreadable as error:
+        if error.status != 404:
+            raise
+        updates_off = True
+    if updates_off:
+        shown.append("Dependabot security updates: off → on")
     wanted = labels_wanted(GITHUB_DIR)
     present = {label["name"] for label in gh_api("repos/{owner}/{repo}/labels?per_page=100")} if wanted else set()
     missing = [label for label in wanted if label not in present]
     shown += [f"label {label}: absent → created" for label in missing]
-    return body, shown, alerts_off, missing
+    return body, shown, alerts_off, updates_off, missing
 
 
 @click.command()
@@ -70,7 +78,7 @@ def settings(write: bool) -> None:
     The profile, and the reason for each setting, is scripts/repo_settings.py.
     """
     try:
-        body, changes, alerts_off, missing = planned()
+        body, changes, alerts_off, updates_off, missing = planned()
     except Unreadable as error:
         fail(f"could not read the repository's settings: {error}")
         raise SystemExit(1) from None
@@ -87,6 +95,9 @@ def settings(write: bool) -> None:
             gh_write("PATCH", "repos/{owner}/{repo}", body)
         if alerts_off:
             gh_write("PUT", "repos/{owner}/{repo}/vulnerability-alerts")
+        # After alerts: GitHub refuses security updates while alerts are off.
+        if updates_off:
+            gh_write("PUT", "repos/{owner}/{repo}/automated-security-fixes")
         for label in missing:
             gh_write("POST", "repos/{owner}/{repo}/labels", {"name": label})
     except Unreadable as error:

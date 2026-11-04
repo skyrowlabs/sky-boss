@@ -47,6 +47,8 @@ PUBLIC_ONLY = (
 
 #: Dependabot alerts have their own endpoint and are not a field on the repository.
 ALERTS_WHY = "a known-vulnerable dependency is reported here rather than found by somebody else"
+#: Security updates, likewise: their own endpoint, and they need alerts on first.
+SECURITY_UPDATES_WHY = "a fix for a vulnerable dependency arrives as a pull request, transitive ones included"
 
 
 def dependabot_labels(config: Path) -> list[str]:

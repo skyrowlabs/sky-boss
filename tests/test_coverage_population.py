@@ -268,3 +268,20 @@ def test_a_report_older_than_the_data_it_came_from_is_refused(tree, tmp_path, ca
     os.utime(data, (later, later))
     code, _ = tree(OURS)
     assert code == 1 and '"state": "stale-report"' in capsys.readouterr().out
+
+
+def test_a_floor_no_workflow_runs_says_so(tree, tmp_path, monkeypatch, capsys):
+    """A core tree ships the floor and no runner; a comment naming the check runs nothing."""
+    workflows = tmp_path / ".github" / "workflows"
+    workflows.mkdir(parents=True)
+    (workflows / "ci.yml").write_text("# TODO: run scripts/check_coverage_budget.py here\njobs: {}\n")
+    monkeypatch.setattr(budget, "GITHUB_DIR", tmp_path / ".github")
+    tree(SCAFFOLDED)
+    out = capsys.readouterr()
+    assert json.loads(out.out)["enforced_by"] == [] and "no workflow" in out.err, out.err
+
+    run = "jobs:\n  c:\n    steps:\n      - run: python scripts/check_coverage_budget.py\n"
+    (workflows / "nightly.yml").write_text(run)
+    tree(SCAFFOLDED)
+    out = capsys.readouterr()
+    assert json.loads(out.out)["enforced_by"] == ["nightly.yml"] and "no workflow" not in out.err, out.err

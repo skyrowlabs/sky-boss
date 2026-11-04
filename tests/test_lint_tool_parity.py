@@ -42,7 +42,7 @@ pytestmark = [pytest.mark.unit]
 # owns every path below — can be imported. See scripts/paths.py.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts.paths import PROJECT_ROOT, REQUIREMENTS  # noqa: E402
+from scripts.paths import GITHUB_DIR, PROJECT_ROOT, REQUIREMENTS  # noqa: E402
 
 PRECOMMIT = PROJECT_ROOT / ".pre-commit-config.yaml"
 
@@ -122,3 +122,31 @@ def test_installed_tools_match_requirements():
         "major bump can reformat files, so give the reinstall its own commit if it "
         "does."
     )
+
+
+def test_dependabot_never_bumps_a_lint_pin_alone():
+    """A pip update for the requirements directory ignores every tool above.
+
+    pip writes `requirements.txt` only, so a lint bump arrives red against
+    `.pre-commit-config.yaml` and never merges (mind-head's ruff and mypy, added
+    to `TOOLS` and not to the ignore list). No dependabot.yml, or no pip entry for
+    that directory, means nothing bumps these pins, and there is nothing to ask.
+    """
+    import yaml
+
+    config = GITHUB_DIR / "dependabot.yml"
+    if not config.exists():
+        return
+    directory = "/" + REQUIREMENTS.parent.relative_to(PROJECT_ROOT).as_posix()
+    entries = [
+        entry
+        for entry in (yaml.safe_load(config.read_text(encoding="utf-8")) or {}).get("updates") or []
+        if entry.get("package-ecosystem") == "pip" and "/" + str(entry.get("directory", "")).strip("/") == directory
+    ]
+    for entry in entries:
+        ignored = {rule.get("dependency-name") for rule in entry.get("ignore") or []}
+        unignored = sorted(set(TOOLS.values()) - ignored)
+        assert not unignored, (
+            f".github/dependabot.yml's pip update for {directory} would bump {unignored} alone; "
+            "add each to its `ignore:` list, since a bump of one pin is red against the other"
+        )

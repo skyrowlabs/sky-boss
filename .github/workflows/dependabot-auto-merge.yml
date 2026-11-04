@@ -69,8 +69,9 @@ jobs:
           script: |
             const decide = require('./.github/scripts/dependabot-hold.cjs');
             const { owner, repo } = context.repo;
-            // Each package.json at the PR's base, so a bump is classed by the section it
-            // is declared in rather than by what the hunk happens to show.
+            // Each package.json and npm lockfile at the PR's base, so a bump is classed by
+            // where it is declared rather than by what the hunk happens to show. A file
+            // over 1 MB comes back without content, and the hunk decides.
             async function baseManifests(pr, files) {
               const manifests = {};
               for (const path of decide.manifestPaths(files)) {
@@ -138,8 +139,9 @@ jobs:
           script: |
             const decide = require('./.github/scripts/dependabot-hold.cjs');
             const { owner, repo } = context.repo;
-            // Each package.json at the PR's base, so a bump is classed by the section it
-            // is declared in rather than by what the hunk happens to show.
+            // Each package.json and npm lockfile at the PR's base, so a bump is classed by
+            // where it is declared rather than by what the hunk happens to show. A file
+            // over 1 MB comes back without content, and the hunk decides.
             async function baseManifests(pr, files) {
               const manifests = {};
               for (const path of decide.manifestPaths(files)) {

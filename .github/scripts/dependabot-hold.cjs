@@ -41,8 +41,16 @@ const DEV_MANIFESTS = [/(^|\/)scripts\/requirements\.txt$/, /(^|\/)requirements-
 const DEV_SECTIONS = ['devDependencies'];
 
 //: A lockfile restates its manifest plus every transitive package, so beside a
-//: changed package.json the manifest decides; alone, its majors are runtime.
+//: changed package.json the manifest decides.
 const LOCKFILE = /(^|\/)(package-lock\.json|npm-shrinkwrap\.json|yarn\.lock|pnpm-lock\.yaml)$/;
+
+//: npm's JSON lockfile, read alone entry by entry: only an entry's own `"version"`
+//: is a version. Read line by line, an `engines` `"node": "18 || 20"` was a node
+//: major and two entries of one package shared a key (dream-doll#28).
+const NPM_LOCK = /(^|\/)(package-lock\.json|npm-shrinkwrap\.json)$/;
+const LOCK_ENTRY = /^[-+ ]\s*"((?:[^"]*\/)?node_modules\/(?:@[^/"]+\/)?[^/"]+)"\s*:\s*\{/;
+const LOCK_VERSION = /^([-+])\s*"version"\s*:\s*"v?(\d+)(?:\.(\d+))?/;
+const LOCK_DEV = /^[-+ ]\s*"dev(?:Optional)?"\s*:\s*true/;
 
 //: npm and Actions: one version per line, at the line's start.
 const LINE_VERSIONS = [
@@ -115,6 +123,55 @@ function declaredSection(manifest, pkg) {
   return sections.length === 1 ? sections[0] : null;
 }
 
+//: A finding for a version change worth holding, or null.
+function majorFinding(pkg, prev, next) {
+  if (next.major > prev.major) return `${pkg} ${prev.major}.x -> ${next.major}.x`;
+  if (HOLD_PRE_1_0_MINOR && prev.major === 0 && next.major === 0 && next.minor > prev.minor)
+    return `${pkg} 0.${prev.minor} -> 0.${next.minor} (pre-1.0 minor)`;
+  return null;
+}
+
+//: Majors in an npm lockfile changed alone. An entry is dev when the base
+//: lockfile's `packages` says so or the hunk shows `"dev": true`; neither is unknown.
+function lockBumps(name, patch, base) {
+  const packages = (base && base.packages) || {};
+  const entries = new Map();
+  let entry = null;
+  for (const line of (patch || '').split('\n')) {
+    if (line.startsWith('@@')) {
+      entry = null;
+      continue;
+    }
+    const opened = LOCK_ENTRY.exec(line);
+    if (opened) {
+      entry = opened[1];
+      if (!entries.has(entry)) entries.set(entry, { dev: false });
+      continue;
+    }
+    if (!entry) continue;
+    const seen = entries.get(entry);
+    if (LOCK_DEV.test(line)) seen.dev = true;
+    const m = LOCK_VERSION.exec(line);
+    if (m) seen[m[1]] = { major: parseInt(m[2], 10), minor: parseInt(m[3] || '0', 10) };
+  }
+  const bumps = [];
+  for (const [path, seen] of entries) {
+    if (!seen['-'] || !seen['+']) continue;
+    const pkg = path.slice(path.lastIndexOf('node_modules/') + 'node_modules/'.length);
+    const finding = majorFinding(pkg, seen['-'], seen['+']);
+    if (!finding) continue;
+    const declared = packages[path];
+    const dev = seen.dev || Boolean(declared && (declared.dev || declared.devOptional));
+    const tier = dev ? 'dev' : declared ? 'runtime' : 'unknown';
+    bumps.push({
+      finding: `${finding} in ${name}`,
+      tier,
+      what: 'a lockfile major not known to be dev',
+    });
+  }
+  return bumps;
+}
+
 //: Every major bump in one file, each marked dev, runtime or unknown.
 function majorBumps(file, files, manifests) {
   const name = file.filename || '';
@@ -122,6 +179,7 @@ function majorBumps(file, files, manifests) {
     const dir = name.slice(0, name.lastIndexOf('/') + 1);
     if ((files || []).some((other) => other.filename === `${dir}package.json`)) return [];
   }
+  if (NPM_LOCK.test(name)) return lockBumps(name, file.patch, parsed(manifests && manifests[name]));
   const packageJson = /(^|\/)package\.json$/.test(name);
   const devManifest = DEV_MANIFESTS.some((pattern) => pattern.test(name));
   const before = new Map();
@@ -159,16 +217,7 @@ function majorBumps(file, files, manifests) {
   for (const [pkg, next] of after) {
     const prev = before.get(pkg);
     if (!prev) continue;
-    let finding = null;
-    if (next.major > prev.major) finding = `${pkg} ${prev.major}.x -> ${next.major}.x`;
-    else if (
-      HOLD_PRE_1_0_MINOR &&
-      prev.major === 0 &&
-      next.major === 0 &&
-      next.minor > prev.minor
-    ) {
-      finding = `${pkg} 0.${prev.minor} -> 0.${next.minor} (pre-1.0 minor)`;
-    }
+    const finding = majorFinding(pkg, prev, next);
     if (!finding) continue;
     let tier = devManifest ? 'dev' : 'runtime';
     if (packageJson) {
@@ -242,6 +291,6 @@ function decide({ pr, files, manifests }) {
 decide.manifestPaths = (files) =>
   (files || [])
     .map((file) => file.filename || '')
-    .filter((name) => /(^|\/)package\.json$/.test(name));
+    .filter((name) => /(^|\/)package\.json$/.test(name) || NPM_LOCK.test(name));
 
 module.exports = decide;

@@ -133,8 +133,9 @@ from typing import NamedTuple
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts import manifest  # noqa: E402
-from scripts.output import detail, emit, fail, ok  # noqa: E402
-from scripts.paths import PROJECT_ROOT, SCAFFOLD_MANIFEST, TESTS_DIR, TMP_DIR  # noqa: E402
+from scripts.output import detail, emit, fail, ok, warn  # noqa: E402
+from scripts.paths import GITHUB_DIR, PROJECT_ROOT, SCAFFOLD_MANIFEST, TESTS_DIR, TMP_DIR  # noqa: E402
+from scripts.yaml_text import read_uncommented  # noqa: E402
 
 BUDGET = TESTS_DIR / "coverage_budget.json"
 DEFAULT_XML = TMP_DIR / "coverage.xml"
@@ -335,6 +336,21 @@ def compare(suite: str, entry: dict, tolerance: float, reading: Reading) -> tupl
     return {"state": "within", **measured}, 0
 
 
+def runners() -> list[str]:
+    """The workflows that run this check, comments masked: a TODO naming it runs nothing."""
+    workflows = sorted((GITHUB_DIR / "workflows").glob("*.y*ml"))
+    return [path.name for path in workflows if Path(__file__).name in read_uncommented(path)]
+
+
+def unenforced(enforced_by: list[str]) -> None:
+    """Say so when no workflow runs this: a floor read only by hand bites nobody (sky.vault)."""
+    if enforced_by:
+        return
+    warn("no workflow under .github/workflows runs this check, so this floor holds only when somebody runs it")
+    detail("The governed tier ships coverage-nightly.yml for that.")
+    detail("Copy it, or run `dev test coverage` yourself.")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     # Repeatable, joined as `test coverage` joins it: a second `--suite` silently
@@ -346,10 +362,13 @@ def main() -> int:
     args = parser.parse_args()
     args.suite = "+".join(args.suite or ["scheduled"])
 
+    enforced_by = runners()
+
     def done(payload: dict, status: int) -> int:
         """One exit, one payload. Emitting per-branch is how a path loses its."""
+        unenforced(enforced_by)
         if args.json:
-            emit({"suite": args.suite, **payload})
+            emit({"suite": args.suite, **payload, "enforced_by": enforced_by})
         return status
 
     if not args.xml.exists():
