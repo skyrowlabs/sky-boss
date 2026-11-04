@@ -1,37 +1,17 @@
 {
   "_generated_by": "scripts/docs/gen_todo_index.py",
   "_note": "Generated — never hand-edit. Edit the plan's frontmatter or header lines and rerun.",
-  "count": 3,
+  "count": 2,
   "by_status": {
     "in-review": [
       "highlight"
     ],
     "planned": [
-      "command-deck",
       "grid-observability"
     ]
   },
   "ready_queue": [],
   "plans": [
-    {
-      "slug": "command-deck",
-      "title": "The deck: a tmux command center for agent sessions",
-      "path": "docs/TODO/command-deck.md",
-      "shelf_status": "planned",
-      "priority": "medium",
-      "queue_order": null,
-      "blocked_on": null,
-      "updated": "2026-11-04",
-      "tags": [
-        "agents",
-        "act",
-        "tmux",
-        "surfaces"
-      ],
-      "summary": "Adds `sb deck`, a tmux session holding one window per agent, plus a queue of sessions waiting on the operator, read by both surfaces. It is the first act surface beside the observe-only canvas.",
-      "open_tasks": 8,
-      "auto_generated": false
-    },
     {
       "slug": "grid-observability",
       "title": "Grid observability",

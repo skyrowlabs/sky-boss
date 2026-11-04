@@ -1,17 +1,18 @@
 ---
 title: "The deck: a tmux command center for agent sessions"
 slug: command-deck
-shelf_status: planned
 priority: medium
+category: surfaces
+agent_value: 3
+completed: 2026-11-04
 updated: 2026-11-04
 tags: [agents, act, tmux, surfaces]
-summary: "Adds `sb deck`, a tmux session holding one window per agent, plus a queue of sessions waiting on the operator, read by both surfaces. It is the first act surface beside the observe-only canvas."
+summary: Adds `sb deck`, a tmux session holding one window per agent, plus a queue of sessions waiting on the operator, read by both surfaces. It is the first act surface beside the observe-only canvas.
 ---
 
 # The deck: a tmux command center for agent sessions
 
 > **Status**: 🔴 Planned
-> **Shelf-Status**: planned
 > **Priority**: Medium. The proposal is the workspace's; the scope rule it rests on was confirmed 2026-11-04.
 > **Updated**: 2026-11-04
 
@@ -112,25 +113,25 @@ and an optional `args` list for `claude`. A name not under `[agent.*]` falls bac
 `projects.toml` project's `cwd`. Every tmux call goes through one runner function, so the suite
 never needs a tmux binary.
 
-- [ ] `sb deck`: create the session if absent (with the pinned agent in window 0), set
+- [x] `sb deck`: create the session if absent (with the pinned agent in window 0), set
       `window-size latest` and `allow-passthrough on` on each deck window (both are window
       options in tmux 3.8), then attach
       (`switch-client` inside tmux, `exec tmux attach` outside). Acts.
-- [ ] `sb deck open <name>`: a window named `<name>` running `claude` in that agent's `cwd`, or a
+- [x] `sb deck open <name>`: a window named `<name>` running `claude` in that agent's `cwd`, or a
       `select-window` if it already exists. Acts.
-- [ ] `extended-keys` read from the server and reported on stderr when it is off; never set.
-- [ ] `acts` asserted with `sb_acts` on every subcommand, and a test that each one chose
+- [x] `extended-keys` read from the server and reported on stderr when it is off; never set.
+- [x] `acts` asserted with `sb_acts` on every subcommand, and a test that each one chose
       ([[jobs]] round 1).
-- [ ] No subcommand calls `send-keys`, and a test greps the module for it.
+- [x] No subcommand calls `send-keys`, and a test greps the module for it.
 
 ## Phase 3: the queue
 
-- [ ] `sb deck queue`: an observe. One row per deck window: window name, the `claude` pid running
+- [x] `sb deck queue`: an observe. One row per deck window: window name, the `claude` pid running
       in it, and that pid's registry `status`, or `unregistered` when there is no record. Sessions
       reading `waiting` sort first. The word is the provider's, compared literally, so sky.boss
       orders and does not judge. Live sessions outside the deck are listed after, so none is hidden.
-- [ ] `sb deck jump <name>`: `select-window`. Acts.
-- [ ] `sb deck` puts a queue pane in the pinned window (`sb deck queue` on a refresh).
+- [x] `sb deck jump <name>`: `select-window`. Acts.
+- [x] `sb deck` puts a queue pane in the pinned window (`sb deck queue` on a refresh).
 
 ## Dropped, and why
 
@@ -159,3 +160,20 @@ The probe ran in a detached tmux session against an empty scratch directory, wit
 open, so the queue reads the file sky.boss already parses. The hook writer, the settings fragment
 and the ledger seam are all dropped. The trust dialog is the one waiting state with no record,
 and the deck covers it by showing what it started.
+
+### 2026-11-04: Phases 2 and 3 built
+
+`sb deck`, `open`, `queue` and `jump` shipped in `skyboss/deck.py`. Decided while building:
+- The deck finds its own windows by tmux user options (`@sb-agent` on a window, `@sb-deck` on a
+  pane), not by name, so a renamed window is still found.
+- Bare `sb deck` always refuses `--json`. Inside tmux it could return an envelope, but one that
+  exists only sometimes is worse than none. With no terminal, it creates the session and says how
+  to attach.
+- `unregistered` is shown only for a window the deck started an agent in. A shell the operator
+  opened gets no row, because the word would mislead there.
+- The tester found that warnings were rendered as rich markup, so `[agent.<name>]` in a message
+  vanished and a `[/x]` crashed. That had been true of every command's warnings. It is fixed in
+  `skyboss/output.py`, and `skyboss/follow.py` now shares the one escaped path.
+
+A deck row reading `waiting` was exercised only in unit tests, against a fake `claude`; the probe
+in Phase 1 is the live evidence that the registry writes the word.
