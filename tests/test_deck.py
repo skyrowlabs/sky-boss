@@ -6,7 +6,9 @@
 
 from __future__ import annotations
 
+import json
 import re
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -14,7 +16,21 @@ from click.testing import CliRunner
 
 from skyboss import cli
 from skyboss import deck as deck_
-from skyboss.deck import Agent, Answer, Config, find_window, parse, parse_panes, resolve
+from skyboss.agents import Scan, Session
+from skyboss.deck import (
+    Agent,
+    Answer,
+    Config,
+    Pane,
+    find_window,
+    parents,
+    parse,
+    parse_panes,
+    queue_result,
+    queue_rows,
+    resolve,
+    tree,
+)
 
 #: Host-side; nothing here needs a service or a tmux binary.
 pytestmark = [pytest.mark.unit]
@@ -266,7 +282,8 @@ def test_an_unresolvable_pin_opens_the_deck_without_it(fake, home):
     home('pin = "ghost"\n')
     result = invoke("deck")
     assert "pin 'ghost'" in result.output
-    assert fake.find("new-session") and "--" not in fake.find("new-session")[0]
+    created = fake.find("new-session")[0]
+    assert created[created.index("-n") + 1] == "queue" and "claude" not in created
 
 
 # ============================================================================
@@ -324,3 +341,160 @@ def test_every_deck_subcommand_chooses_its_act_bit():
     group = deck_.deck
     undecided = [name for name, command in group.commands.items() if not hasattr(command, "sb_acts")]
     assert hasattr(group, "sb_acts") and not undecided, undecided
+
+
+# ============================================================================
+# The queue pane, and `sb deck jump`
+# ============================================================================
+
+
+def test_the_pinned_window_carries_the_queue_below_it(fake, home, tmp_path):
+    home(f'pin = "ws"\n[agent.ws]\ncwd = "{tmp_path}"\n')
+    invoke("deck")
+    split = fake.find("split-window")[0]
+    assert split[split.index("-t") + 1] == "@1"
+    assert split[split.index("--") + 1 :][1:] == ["deck", "queue", "--refresh", "5"]
+    assert ["tmux", "set-option", "-p", "-t", "%2", "@sb-deck", "queue"] in fake.calls
+
+
+def test_with_nothing_pinned_window_zero_is_the_queue(fake, home):
+    invoke("deck")
+    created = fake.find("new-session")[0]
+    assert created[created.index("-n") + 1] == "queue"
+    assert created[created.index("--") + 2 :] == ["deck", "queue", "--refresh", "5"]
+
+
+def test_jump_selects_the_window_and_switches_inside_tmux(fake, home, monkeypatch):
+    monkeypatch.setenv("TMUX", "/tmp/socket,1,0")
+    fake.sessions.add("sb")
+    fake.listing = "@4\t1\tjam\tjam\t%5\t300\tagent\n"
+    result = invoke("--json", "deck", "jump", "jam")
+    assert result.exit_code == 0, result.output
+    assert fake.find("select-window") == [["tmux", "select-window", "-t", "@4"]]
+    assert fake.find("switch-client") == [["tmux", "switch-client", "-t", "=sb"]]
+
+
+def test_jump_to_an_absent_window_names_the_ones_there(fake, home, said):
+    fake.sessions.add("sb")
+    fake.listing = "@4\t1\tjam\tjam\t%5\t300\tagent\n"
+    result = invoke("deck", "jump", "ghost")
+    assert result.exit_code == 2 and "windows: jam" in said(result)
+
+
+def test_jump_without_a_deck_says_how_to_start_one(fake, home, said):
+    result = invoke("deck", "jump", "jam")
+    assert result.exit_code == 2 and "no deck session 'sb'" in said(result)
+
+
+# ============================================================================
+# The queue
+# ============================================================================
+
+
+NOW = datetime(2026, 11, 4, 12, 0, tzinfo=timezone.utc)
+EARLIER = datetime(2026, 11, 4, 11, 0, tzinfo=timezone.utc)
+
+
+def a_session(pid, status="idle", name=""):
+    return Session(
+        provider="claude", id=f"id-{pid}", name=name or f"s{pid}", cwd="/src", status=status, pid=pid, started=EARLIER
+    )
+
+
+def pane(wid, index, name, pid, role="agent"):
+    return Pane(wid, index, name, name, f"%{pid}", pid, role)
+
+
+def test_waiting_sorts_first_inside_the_deck_and_outside_follows():
+    listed = [pane("@1", 0, "a", 10), pane("@2", 1, "b", 20), pane("@3", 2, "c", 30)]
+    sessions = [a_session(10), a_session(20, "waiting"), a_session(30, "busy"), a_session(99, "waiting")]
+    rows = queue_rows(listed, sessions, {}, NOW)
+    assert [(r["where"], r["window"], r["status"]) for r in rows] == [
+        ("deck", "b", "waiting"),
+        ("deck", "a", "idle"),
+        ("deck", "c", "busy"),
+        ("outside", "", "waiting"),
+    ]
+
+
+def test_a_deck_window_with_no_record_is_unregistered_not_hidden():
+    rows = queue_rows([pane("@1", 0, "jam", 10)], [], {}, NOW)
+    assert [(r["window"], r["status"], r["pid"]) for r in rows] == [("jam", "unregistered", 10)]
+
+
+def test_claude_under_a_shell_is_found_through_the_process_tree():
+    rows = queue_rows([pane("@1", 0, "jam", 10)], [a_session(12, "waiting")], {11: 10, 12: 11, 13: 1}, NOW)
+    assert [(r["where"], r["status"], r["pid"]) for r in rows] == [("deck", "waiting", 12)]
+
+
+def test_a_queue_pane_alone_is_not_a_row():
+    rows = queue_rows([pane("@1", 0, "queue", 10, role="queue")], [], {}, NOW)
+    assert rows == []
+
+
+def test_the_word_is_compared_literally():
+    """`Waiting` is not `waiting` — sky.boss orders by the provider's word, it does not interpret it."""
+    rows = queue_rows([], [a_session(1, "busy"), a_session(2, "Waiting")], {}, NOW)
+    assert [r["status"] for r in rows] == ["busy", "Waiting"]
+
+
+def test_parents_reads_ppid_past_a_comm_with_parentheses(tmp_path):
+    for pid, ppid in ((10, 1), (11, 10)):
+        (tmp_path / str(pid)).mkdir()
+        (tmp_path / str(pid) / "stat").write_text(f"{pid} (a (b) c) S {ppid} 0 0\n")
+    (tmp_path / "self").mkdir()
+    assert parents(tmp_path) == {10: 1, 11: 10}
+    assert tree(10, parents(tmp_path)) == [10, 11]
+
+
+def test_no_proc_is_an_empty_tree_not_an_error(tmp_path):
+    assert parents(tmp_path / "absent") == {}
+
+
+class Adapter:
+    provider = "claude"
+
+    def __init__(self, sessions, present=True):
+        self.sessions, self.present = sessions, present
+
+    def scan(self):
+        return Scan(provider="claude", sessions=list(self.sessions), present=self.present, read=len(self.sessions))
+
+
+def test_the_envelope_carries_an_authored_view(fake, home, tmp_path):
+    fake.sessions.add("sb")
+    fake.listing = "@1\t0\tjam\tjam\t%1\t10\tagent\n"
+    result = queue_result([Adapter([a_session(10, "waiting")])], proc=tmp_path / "absent")
+    assert result.ok and result.view["authored"] is True
+    assert [c["key"] for c in result.view["columns"]] == ["where", "window", "status", "name", "up", "cwd"]
+    assert result.data[0]["status"] == "waiting"
+
+
+def test_no_tmux_is_partial_and_still_lists_every_session(fake, home, tmp_path):
+    fake.installed = False
+    result = queue_result([Adapter([a_session(10)])], proc=tmp_path / "absent")
+    assert result.partial and [r["where"] for r in result.data] == ["outside"]
+
+
+def test_an_empty_queue_says_what_it_looked_at(fake, home, tmp_path):
+    result = queue_result([Adapter([], present=False)], proc=tmp_path / "absent")
+    assert result.data == []
+    assert any("no deck session" in w for w in result.warnings)
+    assert any("no registry present" in w for w in result.warnings)
+
+
+def test_queue_refuses_ticks_without_refresh(fake, home):
+    assert invoke("deck", "queue", "--ticks", "2").exit_code == 2
+
+
+def test_queue_refresh_off_a_terminal_is_ndjson(fake, home, monkeypatch):
+    monkeypatch.setattr(deck_.agents_, "providers", lambda: [Adapter([a_session(10)])])
+    monkeypatch.setattr("skyboss.output.time.sleep", lambda seconds: None)
+    result = invoke("deck", "queue", "--refresh", "1", "--ticks", "2")
+    lines = [json.loads(line) for line in result.stdout.splitlines() if line.startswith("{")]
+    assert result.exit_code == 0 and [line["tick"] for line in lines] == [1, 2]
+
+
+def test_the_queue_is_an_observe_and_the_rest_act():
+    acts = {name: getattr(command, "sb_acts") for name, command in deck_.deck.commands.items()}
+    assert acts == {"open": True, "jump": True, "queue": False}
