@@ -29,7 +29,7 @@ import argparse
 import re
 import subprocess
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 # Bootstrap only: put the package on sys.path so `scripts.paths` — which
@@ -125,7 +125,7 @@ def window(release: str | None = None) -> dict[str, object]:
         "commit_range": commit_range,
         "commits": int(count),
         "head_sha": _git("rev-parse", "--short", head),
-        "generated": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "generated": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
     }
 
 

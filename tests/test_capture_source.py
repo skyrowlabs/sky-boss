@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -109,7 +109,7 @@ def test_a_refused_capture_is_never_filed(monkeypatch, nightly):
 
 
 def test_local_captures_keep_their_source_and_never_collide(monkeypatch, tmp_path):
-    frozen = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    frozen = datetime(2026, 1, 1, tzinfo=UTC)
     monkeypatch.setattr(capture, "datetime", SimpleNamespace(now=lambda tz: frozen))
     monkeypatch.setenv(SOURCE_ENV, "nightly")
     monkeypatch.setattr(capture, "QUEUE", tmp_path)

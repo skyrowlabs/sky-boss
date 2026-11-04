@@ -225,9 +225,11 @@ def test_an_inapplicable_fact_is_listed_and_not_counted(monkeypatch):
         f"{REPO}/compare/{doctor.BASE_BRANCH}...{doctor.RELEASE_BRANCH}": {"ahead_by": 0, "files": []},
         f"{REPO}/codeowners/errors": {"errors": []},
         f"{REPO}/vulnerability-alerts": {},
+        f"{REPO}/labels?per_page=100": [{"name": n} for n in ("dependencies", "ci")],
     }
     profile = {s.key: s.want for s in doctor.REPOSITORY}
     repo = {"default_branch": doctor.BASE_BRANCH, "description": "d", "visibility": "private", **profile}
+    repo["permissions"] = {"admin": True}
     stub(monkeypatch, {REPO: repo, **unprotected, **answered})
     result = CliRunner().invoke(doctor.doctor, [])
     assert "the release job can open its pull request" in result.output and "applicable facts" in result.output

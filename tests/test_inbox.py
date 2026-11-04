@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -30,7 +30,7 @@ def test_the_filer_is_read_from_the_attribution_line():
 
 
 def test_age_is_whole_days_and_unknown_when_unparseable():
-    now = datetime(2026, 10, 14, tzinfo=timezone.utc)
+    now = datetime(2026, 10, 14, tzinfo=UTC)
     assert inbox.age_days("2026-10-11T09:00:00Z", now) == 2
     assert inbox.age_days("", now) is None
 

@@ -24,7 +24,7 @@ from urllib.parse import quote
 import click
 
 from scripts.paths import GITHUB_DIR
-from scripts.repo_settings import ALERTS_WHY, PUBLIC_ONLY, REPOSITORY, compare
+from scripts.repo_settings import ALERTS_WHY, PUBLIC_ONLY, REPOSITORY, compare, dependabot_labels, onoff
 from scripts.yaml_text import uncommented
 
 from .helpers import PROJECT_ROOT, detail, emit, fail, ok, skip, warn
@@ -37,6 +37,9 @@ RELEASE_BRANCH = "main"
 
 #: Present only where the release job opens a pull request (`--versioning tag` removes it).
 RELEASE_CONFIG = GITHUB_DIR / "release-please-config.json"
+
+#: The command that fixes every settings fact, held once so no wrapped line holds the CLI name.
+APPLY = "`dev settings --apply`"
 
 #: The secrets `ci.yml`'s release job falls back on, in its order: a PAT, or a GitHub App's pair.
 #: `tests/test_doctor.py` requires each name to still appear in that job.
@@ -327,62 +330,99 @@ def codeowners() -> Fact:
     return Fact(name, OK, "every owner resolves")
 
 
-def setting_name(key: str, want: bool) -> str:
-    return f"setting {key} is {'on' if want else 'off'}"
+def setting_name(key: str) -> str:
+    return f"setting {key}"
 
 
-def repository_settings() -> list[Fact]:
-    """One fact per setting `scripts/repo_settings.py` declares, plus the description."""
+def _repo(repo: dict | None) -> dict:
+    """`repo` if the caller already fetched it, else `GET repos/{owner}/{repo}`; raises Unreadable."""
+    return repo if repo is not None else gh_api("repos/{owner}/{repo}")
+
+
+def repository_settings(repo: dict | None = None) -> list[Fact]:
+    """One fact per setting `scripts/repo_settings.py` declares, plus the description.
+
+    A fact's name is the setting and its detail is what GitHub reports beside what
+    the profile wants, so a problem never reads as the state it is asking for.
+    """
     try:
-        repo = gh_api("repos/{owner}/{repo}")
+        repo = _repo(repo)
     except Unreadable as error:
-        names = [setting_name(s.key, s.want) for s in REPOSITORY + PUBLIC_ONLY] + ["repository description is set"]
+        names = [setting_name(s.key) for s in REPOSITORY + PUBLIC_ONLY] + ["repository description"]
         return [Fact(name, UNKNOWN, str(error)) for name in names]
     facts = []
     for row in compare(repo):
-        name, why = setting_name(row.setting.key, row.setting.want), row.setting.why
+        name, why = setting_name(row.setting.key), row.setting.why
+        have, want = onoff(row.have), onoff(row.setting.want)
         if not row.applies:
             facts.append(Fact(name, NOT_APPLICABLE, f"the repository is {repo.get('visibility', 'not public')}"))
         elif row.have is None:
             facts.append(Fact(name, UNKNOWN, "GitHub did not report it; security settings are shown to admins only"))
         elif row.have == row.setting.want:
-            facts.append(Fact(name, OK, why))
+            facts.append(Fact(name, OK, f"{have} — {why}"))
         else:
-            facts.append(Fact(name, PROBLEM, f"{why} — `dev settings --apply` sets it"))
+            facts.append(Fact(name, PROBLEM, f"{have}; should be {want} — {why}. {APPLY} sets it"))
     if (repo.get("description") or "").strip():
-        facts.append(Fact("repository description is set", OK, repo["description"]))
+        facts.append(Fact("repository description", OK, repo["description"]))
     else:
-        empty = "empty — `dev settings --apply` writes the tagline"
-        facts.append(Fact("repository description is set", PROBLEM, empty))
+        empty = f"empty — {APPLY} writes the tagline"
+        facts.append(Fact("repository description", PROBLEM, empty))
     return facts
 
 
-def dependabot_alerts() -> Fact:
-    name = "Dependabot alerts are on"
+def dependabot_alerts(repo: dict | None = None) -> Fact:
+    """On or off, judged only by a token that can see the answer.
+
+    GitHub answers 404 both when alerts are off and when the token is not an admin,
+    so the repository's own `permissions.admin` decides which of the two it was.
+    """
+    name = "Dependabot alerts"
+    try:
+        admin = bool(_repo(repo).get("permissions", {}).get("admin"))
+    except Unreadable:
+        admin = False
     try:
         gh_api("repos/{owner}/{repo}/vulnerability-alerts")
     except Unreadable as error:
-        if error.status == 404:
-            return Fact(
-                name,
-                PROBLEM,
-                f"GitHub answers 404: off, or this token is not an admin. {ALERTS_WHY} — "
-                "`dev settings --apply` turns them on",
-            )
+        if error.status != 404:
+            return Fact(name, UNKNOWN, str(error))
+        if not admin:
+            return Fact(name, UNKNOWN, "GitHub answers 404 to a token that is not an admin, on or off")
+        return Fact(name, PROBLEM, f"off; should be on — {ALERTS_WHY}. {APPLY} turns them on")
+    return Fact(name, OK, f"on — {ALERTS_WHY}")
+
+
+def labels_exist() -> Fact:
+    """Every label `.github/dependabot.yml` names exists, because Dependabot drops one that does not."""
+    name = "labels Dependabot applies exist"
+    wanted = dependabot_labels(GITHUB_DIR / "dependabot.yml")
+    if not wanted:
+        return Fact(name, NOT_APPLICABLE, "no .github/dependabot.yml names a label")
+    try:
+        present = {label["name"] for label in gh_api("repos/{owner}/{repo}/labels?per_page=100")}
+    except Unreadable as error:
         return Fact(name, UNKNOWN, str(error))
-    return Fact(name, OK, ALERTS_WHY)
+    missing = [label for label in wanted if label not in present]
+    if missing:
+        return Fact(name, PROBLEM, f"missing {', '.join(missing)} — {APPLY} creates them")
+    return Fact(name, OK, ", ".join(wanted))
 
 
 def gather() -> list[Fact]:
     branches = dict.fromkeys((BASE_BRANCH, RELEASE_BRANCH))
+    try:
+        repo: dict | None = gh_api("repos/{owner}/{repo}")
+    except Unreadable:
+        repo = None
     return [
         default_branch(),
         release_pull_request(),
         *(required_checks(branch) for branch in branches),
         backmerge(),
         codeowners(),
-        *repository_settings(),
-        dependabot_alerts(),
+        *repository_settings(repo),
+        dependabot_alerts(repo),
+        labels_exist(),
     ]
 
 

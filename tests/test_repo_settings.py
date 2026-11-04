@@ -19,7 +19,8 @@ from tests.shell import module  # noqa: E402
 doctor = module("doctor")
 settings = module("settings")
 REPO = "repos/{owner}/{repo}"
-WANTED = {s.key: s.want for s in repo_settings.REPOSITORY}
+WANTED = {**{s.key: s.want for s in repo_settings.REPOSITORY}, "permissions": {"admin": True}}
+LABELS = f"{REPO}/labels?per_page=100"
 
 
 def analysis(status: str) -> dict:
@@ -34,6 +35,8 @@ def stub(monkeypatch, repo: dict, alerts_on: bool = True) -> list:
             return repo
         if path == f"{REPO}/vulnerability-alerts" and alerts_on:
             return None
+        if path == LABELS:
+            return [{"name": "dependencies"}]
         raise doctor.Unreadable(f"stubbed: {path}", 404)
 
     written: list = []
@@ -68,9 +71,11 @@ def test_settings_previews_and_writes_only_with_apply(monkeypatch):
     assert preview.exit_code == 0 and "allow_squash_merge" in preview.output and written == []
     applied = CliRunner().invoke(settings.settings, ["--apply"])
     assert applied.exit_code == 0, applied.output
-    patch, put = written
+    assert "allow_squash_merge: on → off" in preview.output
+    patch, put, *labels = written
     assert patch[0] == "PATCH" and patch[2]["allow_squash_merge"] is False and "description" in patch[2]
     assert put[:2] == ("PUT", f"{REPO}/vulnerability-alerts")
+    assert all(call[:2] == ("POST", f"{REPO}/labels") for call in labels)
 
 
 def test_alerts_off_is_a_problem_and_on_is_fine(monkeypatch):
@@ -78,3 +83,21 @@ def test_alerts_off_is_a_problem_and_on_is_fine(monkeypatch):
     assert doctor.dependabot_alerts().state == doctor.PROBLEM
     stub(monkeypatch, WANTED)
     assert doctor.dependabot_alerts().state == doctor.OK
+
+
+def test_alerts_are_unknown_to_a_token_that_is_not_an_admin(monkeypatch):
+    stub(monkeypatch, {**WANTED, "permissions": {"admin": False}}, alerts_on=False)
+    assert doctor.dependabot_alerts().state == doctor.UNKNOWN
+
+
+def test_a_fact_names_the_setting_and_says_what_was_found():
+    rows = repo_settings.compare({**WANTED, "has_wiki": True, "visibility": "private"})
+    problem = next(f for f in doctor.repository_settings({**WANTED, "has_wiki": True}) if f.name == "setting has_wiki")
+    assert problem.state == doctor.PROBLEM and problem.detail.startswith("on; should be off"), problem
+    assert any(r.setting.key == "has_wiki" and r.have is True for r in rows)
+
+
+def test_the_labels_dependabot_applies_are_read_from_its_config():
+    config = Path(__file__).resolve().parents[1] / ".github" / "dependabot.yml"
+    labels = scanned(repo_settings.dependabot_labels(config), "labels in dependabot.yml")
+    assert "dependencies" in labels

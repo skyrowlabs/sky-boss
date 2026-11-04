@@ -13,7 +13,8 @@ import subprocess
 
 import click
 
-from scripts.repo_settings import DESCRIPTION, compare, patch_body
+from scripts.paths import GITHUB_DIR
+from scripts.repo_settings import DESCRIPTION, compare, dependabot_labels, onoff, patch_body
 
 from .doctor import Unreadable, gh_api
 from .helpers import PROJECT_ROOT, detail, fail, ok, warn
@@ -28,20 +29,35 @@ def gh_write(method: str, path: str, body: dict | None = None) -> None:
         raise Unreadable(said[-1] if said else f"gh api -X {method} {path} exited {result.returncode}")
 
 
-def planned() -> tuple[dict, bool]:
-    """The repository PATCH body, and whether Dependabot alerts need turning on."""
+def planned() -> tuple[dict, list[str], bool, list[str]]:
+    """The repository PATCH body, the change lines to show, whether alerts need turning on, and missing labels."""
     repo = gh_api("repos/{owner}/{repo}")
-    body = patch_body(compare(repo))
+    rows = compare(repo)
+    body = patch_body(rows)
+    shown = [
+        f"{row.setting.key}: {onoff(row.have)} → {onoff(row.setting.want)}"
+        for row in rows
+        if row.applies and row.have != row.setting.want
+    ]
     if not (repo.get("description") or "").strip() and DESCRIPTION:
         body["description"] = DESCRIPTION
+        shown.append(f"description: empty → {DESCRIPTION!r}")
     try:
         gh_api("repos/{owner}/{repo}/vulnerability-alerts")
         alerts_off = False
     except Unreadable as error:
         if error.status != 404:
             raise
+        if not repo.get("permissions", {}).get("admin"):
+            raise Unreadable("this token is not an admin, so it can neither read nor change these settings") from None
         alerts_off = True
-    return body, alerts_off
+    if alerts_off:
+        shown.append("Dependabot alerts: off → on")
+    wanted = dependabot_labels(GITHUB_DIR / "dependabot.yml")
+    present = {label["name"] for label in gh_api("repos/{owner}/{repo}/labels?per_page=100")} if wanted else set()
+    missing = [label for label in wanted if label not in present]
+    shown += [f"label {label}: absent → created" for label in missing]
+    return body, shown, alerts_off, missing
 
 
 @click.command()
@@ -54,12 +70,10 @@ def settings(write: bool) -> None:
     The profile, and the reason for each setting, is scripts/repo_settings.py.
     """
     try:
-        body, alerts_off = planned()
+        body, changes, alerts_off, missing = planned()
     except Unreadable as error:
         fail(f"could not read the repository's settings: {error}")
         raise SystemExit(1) from None
-    changes = [f"{key} → {json.dumps(value)}" for key, value in body.items()]
-    changes += ["Dependabot alerts → on"] if alerts_off else []
     if not changes:
         ok("every declared setting already matches")
         return
@@ -73,6 +87,8 @@ def settings(write: bool) -> None:
             gh_write("PATCH", "repos/{owner}/{repo}", body)
         if alerts_off:
             gh_write("PUT", "repos/{owner}/{repo}/vulnerability-alerts")
+        for label in missing:
+            gh_write("POST", "repos/{owner}/{repo}/labels", {"name": label})
     except Unreadable as error:
         fail(f"GitHub refused the change: {error}")
         raise SystemExit(1) from None

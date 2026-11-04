@@ -13,7 +13,7 @@ unread, never as empty.
 from __future__ import annotations
 
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import click
 
@@ -43,7 +43,7 @@ def age_days(created: str, now: datetime | None = None) -> int | None:
         then = datetime.fromisoformat(created.replace("Z", "+00:00"))
     except _UNPARSEABLE:
         return None
-    return ((now or datetime.now(timezone.utc)) - then).days
+    return ((now or datetime.now(UTC)) - then).days
 
 
 def read_lanes() -> dict[str, list[dict] | None]:

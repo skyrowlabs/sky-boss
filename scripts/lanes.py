@@ -24,16 +24,13 @@ The design is jam.sense's. Theirs is a ``Capture`` descriptor driving one engine
 with two shapes, and their reason for it is the one that generalises: *a second,
 subtly-different copy of a capture is how the next intake loses a finding.*
 
-**What is deliberately not here: the drain.** A lane names the job key that would
-empty it, and this template ships no such job — ``scripts/reporting/jobs.py``
-(SCAFFOLD-OPTIONAL scripts/reporting/jobs.py — it arrives with the agentic tier,
-and every reader below tests for it rather than assuming it)
-ships exactly one fully-worked entry on purpose, and a registry seeded with keys
-whose modules do not exist is a registry whose own tests are red on arrival. So
-:func:`drainer_of` answers *honestly* rather than optimistically, and every
-consumer renders what it gets: a fresh tree's queues are drained by you, and say
-so. Add a job with the lane's ``drainer_job`` key and every consumer picks up its
-schedule with no second edit.
+**The drain arrives with the agentic tier.** A lane names the job key that
+empties it, and ``scripts/reporting/jobs.py`` (SCAFFOLD-OPTIONAL
+scripts/reporting/jobs.py — it arrives with the agentic tier, and every reader
+below tests for it rather than assuming it) registers ``agent-task`` and
+``agent-fix`` under those keys. Below that tier there is no registry, and
+:func:`drainer_of` says so rather than guessing: a ``core`` tree's queues are
+drained by you, and every consumer says that in those words.
 """
 
 from __future__ import annotations
@@ -119,7 +116,7 @@ LANES: list[Lane] = [
         description="A defect captured mid-session; queued for a fix drainer",
         sections=BUG_SECTIONS,
         title="Agent Bugs",
-        drainer_job="agent-bug",
+        drainer_job="agent-fix",
         emoji="🐛",
     ),
     Lane(

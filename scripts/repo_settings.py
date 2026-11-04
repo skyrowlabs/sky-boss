@@ -9,8 +9,12 @@ GitHub configurations across seven repositories, and nothing could tell.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
+
+from scripts.yaml_text import read_uncommented
 
 #: Written only when GitHub's description is empty: it is the scaffold's tagline,
 #: and a description somebody wrote since is theirs.
@@ -45,12 +49,32 @@ PUBLIC_ONLY = (
 ALERTS_WHY = "a known-vulnerable dependency is reported here rather than found by somebody else"
 
 
+def dependabot_labels(config: Path) -> list[str]:
+    """Every label `.github/dependabot.yml` asks for, read from the file itself.
+
+    Dependabot drops a label that does not exist, so each one is a setting this
+    repository needs; reading them here covers a label added later with no second edit.
+    """
+    if not config.exists():
+        return []
+    found: list[str] = []
+    for value in re.findall(r"^\s*labels:\s*\[([^\]]*)\]", read_uncommented(config), re.MULTILINE):
+        for label in (part.strip().strip("'\"") for part in value.split(",")):
+            if label and label not in found:
+                found.append(label)
+    return found
+
+
 @dataclass(frozen=True)
 class Row:
     setting: Setting
     #: What GitHub reports, or `None` when the answer was not in what it returned.
     have: bool | None
     applies: bool = True
+
+
+def onoff(value: bool | None) -> str:
+    return "unknown" if value is None else "on" if value else "off"
 
 
 def compare(repo: dict[str, Any]) -> list[Row]:

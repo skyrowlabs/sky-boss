@@ -29,7 +29,7 @@ import os
 import subprocess
 import sys
 from collections.abc import Callable, Sequence
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import click
 
@@ -204,7 +204,7 @@ def run_capture(lane: Lane, summary: str, values: dict, local: bool) -> None:
     fields = {"summary": summary, "label": lane.label, "source": source or SESSION, **values}
     record = json.dumps(fields, indent=2)
     # Exclusive create: five captures in one second wrote one file (node-zero).
-    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+    stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S%fZ")
     path, n = lane_queue / f"{stamp}.json", 0
     while True:
         try:
