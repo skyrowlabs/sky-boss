@@ -21,6 +21,7 @@ and makes the relevant part harder to find, not easier.
 | **Reports of any kind**    | reports/README.md            | `docs/reports/README.md`            |
 | **Should we build it at all?** | research/README.md | `docs/research/README.md` |
 | **Open — decided to build, not yet decided how** | open.md | `docs/open.md` |
+| **Agentic Automation** | AGENTIC_AUTOMATION.md | `docs/AGENTIC_AUTOMATION.md` |
 
 <!-- SCAFFOLD: extend as docs are added. `dev check docs` fails on an unregistered doc. -->
 
