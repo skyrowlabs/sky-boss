@@ -17,6 +17,7 @@ and the second person to need it writes it again.
 | `dev bug`    | Capture an out-of-scope defect without widening scope |
 | `dev task`   | Capture small work that is not a defect              |
 | `dev doctor` | Account facts no file can state (release PRs, required checks) |
+| `dev settings` | Set GitHub settings to `scripts/repo_settings.py`; previews unless `--apply` |
 | `dev inbox`  | Every open capture per lane, and every job at its cap |
 
 Run `./dev <group> --help` for the current commands — the help is generated

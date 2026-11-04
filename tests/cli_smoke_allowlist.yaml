@@ -15,4 +15,5 @@ check lint: shells out to the whole toolchain; a missing optional linter would f
 check merge-drivers: asserts a property of the checkout (a driver in .git/config), not of the command
 docs index: regenerates four files — a test must not mutate the tree it runs in
 doctor: asks GitHub about the real account — a test must not depend on, or reach, the account it runs under
+settings: asks GitHub about the real account, and with --apply writes to it — a test must not reach it
 inbox: asks GitHub for the real issue queue — a test must not depend on, or reach, the account it runs under

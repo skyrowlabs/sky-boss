@@ -162,11 +162,13 @@ def test_backmerge_tells_a_merge_only_gap_from_released_content(monkeypatch):
     assert doctor.backmerge().state == doctor.UNKNOWN
 
 
-def test_codeowners_errors_are_a_problem_and_an_absent_file_is_not_applicable(monkeypatch):
+def test_codeowners_errors_are_a_problem_and_an_absent_file_is_not_applicable(monkeypatch, tmp_path):
     """proto.pilot: five lines of `@org`, five 'Unknown owner' errors, no review ever requested."""
-    if not doctor.CODEOWNERS.exists():
-        assert doctor.codeowners().state == doctor.NOT_APPLICABLE
-        return
+    monkeypatch.setattr(doctor, "CODEOWNERS", GITHUB_DIR / "absent-CODEOWNERS")
+    assert doctor.codeowners().state == doctor.NOT_APPLICABLE
+    owned = tmp_path / "CODEOWNERS"
+    owned.write_text("# a note\n*  @someone\n", encoding="utf-8")
+    monkeypatch.setattr(doctor, "CODEOWNERS", owned)
     path = f"{REPO}/codeowners/errors"
     stub(monkeypatch, {path: {"errors": [{"line": 2, "message": "Unknown owner on line 2"}]}})
     fact = doctor.codeowners()
@@ -177,6 +179,14 @@ def test_codeowners_errors_are_a_problem_and_an_absent_file_is_not_applicable(mo
     assert doctor.codeowners().state == doctor.UNKNOWN
 
 
+def test_codeowners_with_no_rule_names_no_owner(monkeypatch, tmp_path):
+    ownerless = tmp_path / "CODEOWNERS"
+    ownerless.write_text("# scaffolded without --owner\n\n", encoding="utf-8")
+    monkeypatch.setattr(doctor, "CODEOWNERS", ownerless)
+    stub(monkeypatch, {f"{REPO}/codeowners/errors": {"errors": []}})
+    assert doctor.codeowners().state == doctor.PROBLEM
+
+
 def test_the_checks_ci_yml_tells_you_to_require_are_jobs_and_its_legs_are_not():
     jobs = doctor.workflow_jobs([(GITHUB_DIR / "workflows" / "ci.yml").read_text(encoding="utf-8")])
     assert doctor.classify("CI Gate", jobs) == doctor.classify("pytest", jobs) == "job"
@@ -184,6 +194,8 @@ def test_the_checks_ci_yml_tells_you_to_require_are_jobs_and_its_legs_are_not():
 
 
 def test_nothing_readable_is_never_summarised_as_fine(monkeypatch):
+    # An ownerless CODEOWNERS is a fact read from disk, not from GitHub.
+    monkeypatch.setattr(doctor, "CODEOWNERS", GITHUB_DIR / "absent-CODEOWNERS")
     stub(monkeypatch, {})
     result = CliRunner().invoke(doctor.doctor, [])
     assert result.exit_code == 0 and "none is wrong" not in result.output
@@ -207,11 +219,15 @@ def test_every_long_lived_branch_has_its_required_checks_asked(monkeypatch):
 
 def test_an_inapplicable_fact_is_listed_and_not_counted(monkeypatch):
     monkeypatch.setattr(doctor, "RELEASE_CONFIG", doctor.RELEASE_CONFIG.with_name("absent.json"))
+    monkeypatch.setattr(doctor, "CODEOWNERS", GITHUB_DIR / "absent-CODEOWNERS")
     unprotected = {checks_path(): 404, checks_path(doctor.RELEASE_BRANCH): 404}
     answered = {
         f"{REPO}/compare/{doctor.BASE_BRANCH}...{doctor.RELEASE_BRANCH}": {"ahead_by": 0, "files": []},
         f"{REPO}/codeowners/errors": {"errors": []},
+        f"{REPO}/vulnerability-alerts": {},
     }
-    stub(monkeypatch, {REPO: {"default_branch": doctor.BASE_BRANCH}, **unprotected, **answered})
+    profile = {s.key: s.want for s in doctor.REPOSITORY}
+    repo = {"default_branch": doctor.BASE_BRANCH, "description": "d", "visibility": "private", **profile}
+    stub(monkeypatch, {REPO: repo, **unprotected, **answered})
     result = CliRunner().invoke(doctor.doctor, [])
     assert "the release job can open its pull request" in result.output and "applicable facts" in result.output

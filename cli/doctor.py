@@ -24,6 +24,7 @@ from urllib.parse import quote
 import click
 
 from scripts.paths import GITHUB_DIR
+from scripts.repo_settings import ALERTS_WHY, PUBLIC_ONLY, REPOSITORY, compare
 from scripts.yaml_text import uncommented
 
 from .helpers import PROJECT_ROOT, detail, emit, fail, ok, skip, warn
@@ -141,6 +142,7 @@ class Job:
 
 #: Present only at governed and above. A bare `@org` on every line is rejected by
 #: GitHub ("Unknown owner") and requests no review; proto.pilot had five errors.
+#: A tree scaffolded without `--owner` ships it with no rules, which is reported.
 CODEOWNERS = GITHUB_DIR / "CODEOWNERS"
 
 
@@ -306,6 +308,9 @@ def codeowners() -> Fact:
     name = "CODEOWNERS names owners GitHub recognises"
     if not CODEOWNERS.exists():
         return Fact(name, NOT_APPLICABLE, f"no {CODEOWNERS.relative_to(PROJECT_ROOT)} in this tree")
+    rules = [line for line in CODEOWNERS.read_text(encoding="utf-8").splitlines() if line.split("#")[0].strip()]
+    if not rules:
+        return Fact(name, PROBLEM, "it names no owner, so no review is ever requested — add `* @user` or `* @org/team`")
     try:
         found = gh_api("repos/{owner}/{repo}/codeowners/errors")
     except Unreadable as error:
@@ -322,6 +327,52 @@ def codeowners() -> Fact:
     return Fact(name, OK, "every owner resolves")
 
 
+def setting_name(key: str, want: bool) -> str:
+    return f"setting {key} is {'on' if want else 'off'}"
+
+
+def repository_settings() -> list[Fact]:
+    """One fact per setting `scripts/repo_settings.py` declares, plus the description."""
+    try:
+        repo = gh_api("repos/{owner}/{repo}")
+    except Unreadable as error:
+        names = [setting_name(s.key, s.want) for s in REPOSITORY + PUBLIC_ONLY] + ["repository description is set"]
+        return [Fact(name, UNKNOWN, str(error)) for name in names]
+    facts = []
+    for row in compare(repo):
+        name, why = setting_name(row.setting.key, row.setting.want), row.setting.why
+        if not row.applies:
+            facts.append(Fact(name, NOT_APPLICABLE, f"the repository is {repo.get('visibility', 'not public')}"))
+        elif row.have is None:
+            facts.append(Fact(name, UNKNOWN, "GitHub did not report it; security settings are shown to admins only"))
+        elif row.have == row.setting.want:
+            facts.append(Fact(name, OK, why))
+        else:
+            facts.append(Fact(name, PROBLEM, f"{why} — `dev settings --apply` sets it"))
+    if (repo.get("description") or "").strip():
+        facts.append(Fact("repository description is set", OK, repo["description"]))
+    else:
+        empty = "empty — `dev settings --apply` writes the tagline"
+        facts.append(Fact("repository description is set", PROBLEM, empty))
+    return facts
+
+
+def dependabot_alerts() -> Fact:
+    name = "Dependabot alerts are on"
+    try:
+        gh_api("repos/{owner}/{repo}/vulnerability-alerts")
+    except Unreadable as error:
+        if error.status == 404:
+            return Fact(
+                name,
+                PROBLEM,
+                f"GitHub answers 404: off, or this token is not an admin. {ALERTS_WHY} — "
+                "`dev settings --apply` turns them on",
+            )
+        return Fact(name, UNKNOWN, str(error))
+    return Fact(name, OK, ALERTS_WHY)
+
+
 def gather() -> list[Fact]:
     branches = dict.fromkeys((BASE_BRANCH, RELEASE_BRANCH))
     return [
@@ -330,6 +381,8 @@ def gather() -> list[Fact]:
         *(required_checks(branch) for branch in branches),
         backmerge(),
         codeowners(),
+        *repository_settings(),
+        dependabot_alerts(),
     ]
 
 
