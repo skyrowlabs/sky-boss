@@ -106,15 +106,7 @@ SUITES = {
     # at any point. A browser or an Electron window may still need a display,
     # and that setup is the adopting repo's — a job failing loudly for want of
     # one is strictly better than tests quietly leaving CI.
-    # Held unscheduled, a stopgap until skeletor v0.69.0: the nightly selects suites
-    # through `test suites --scheduled`, which `selected_markers()` cannot see yet
-    # ([nightly-loop-invisible-to-selected-markers]). True meanwhile: nothing carries
-    # this marker, and the `empty` reason expires on its own when something does.
-    "ui": Suite(
-        "drives a user interface; needs a display, a browser, or a pilot",
-        scheduled=False,
-        unscheduled="empty",
-    ),
+    "ui": Suite("drives a user interface; needs a display, a browser, or a pilot"),
 }
 
 

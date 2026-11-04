@@ -139,3 +139,9 @@ def test_a_composite_action_passes_its_python_version_to_setup_python(tmp_path):
         tmp_path,
     )
     assert [(s.kind, s.python) for s in jobs[0].steps] == [("python", "3.11")]
+
+
+def test_no_python_setting_of_the_callers_reaches_a_step(monkeypatch):
+    monkeypatch.setenv("PYTHONSAFEPATH", "1")
+    job = rs.Job("nightly.yml", "a", [rs.Step("read", "run", script='test -z "${PYTHONSAFEPATH:-}"\n')])
+    assert rs.rehearse(job, keep=False, ref="HEAD") == "passed"

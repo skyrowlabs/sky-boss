@@ -96,7 +96,11 @@ jobs:
           # Every other suite the registry schedules, read from it rather than
           # listed: a tree that unschedules `ui` does not run it here (proto.pilot),
           # and one that schedules it is measured over it (stash.flow: 79% vs 93%).
-          for marker in $(python -m cli test suites --scheduled); do
+          # Read into a variable first: under `bash -e` a failed substitution in an
+          # assignment stops the step, and in a `for` list it reads as no suites.
+          suites=$(python -m cli test suites --scheduled)
+          [ -n "$suites" ]
+          for marker in $suites; do
             case "$marker" in unit | integration) continue ;; esac
             status=0
             python -m pytest tests/ -m "$marker" -q \

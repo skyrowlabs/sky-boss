@@ -273,10 +273,14 @@ def parse_github_env(text: str) -> dict:
 
 
 def _clean_env(venv: Path | None, work: Path) -> dict:
-    """The caller's environment without this checkout's interpreter in it."""
-    env = {k: v for k, v in os.environ.items() if not k.startswith("SB_")}
-    for key in ("VIRTUAL_ENV", "PYTHONPATH", "PYTHONHOME"):
-        env.pop(key, None)
+    """The caller's environment without this checkout's interpreter in it.
+
+    Every `PYTHON*` goes, because a runner has none of them: the wrapper's
+    `PYTHONSAFEPATH=1` drops the cwd from `sys.path`, so `python -m <shell>`
+    failed inside a rehearsal started through the wrapper (stash.flow).
+    """
+    env = {k: v for k, v in os.environ.items() if not k.startswith(("SB_", "PYTHON"))}
+    env.pop("VIRTUAL_ENV", None)
     keep = [p for p in env.get("PATH", "").split(os.pathsep) if p and not Path(p).is_relative_to(PROJECT_ROOT)]
     if venv:
         keep.insert(0, str(venv / "bin"))
