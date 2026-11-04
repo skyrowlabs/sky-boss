@@ -860,3 +860,17 @@ now one call per click, asserted.
 `head` (11) → re-run → still 11, strip still open. The re-run is the round's actual claim: a choice
 made against one payload holds across the next. All four bugs lived in the transitions; none is
 visible in any single state.
+
+### 2026-11-04 — a named empty list is zero rows
+
+**`--rows <key>` naming an empty list now returns zero rows instead of failing.** Round 4's
+`find_rows` accepted only a non-empty list of objects, even at a path the operator named, so
+`{"reminders": []}` reported *did not find a list of rows*. Measured by the skyrow-workspace session
+on a reminders producer with nothing due: roll-call drew an error, and `sb schedule` went partial.
+That is *worked fine, told nobody* inverted: "nothing due" read as a broken producer.
+
+The line is drawn at the assertion. A **named** `[]` is an answer. An **inferred** `[]` is still not
+a candidate, because an empty list has no values to be recognised by, which is round 4's own rule.
+Both renderers draw the named case as `table · 0 rows`, and any other empty list stays `-`, since
+nothing says it is a table. The canvas half was verified in a headless browser against a scratch
+`SB_HOME`.

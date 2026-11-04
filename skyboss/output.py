@@ -513,8 +513,11 @@ def _render_mapping(mapping: dict, indent: int = 2, view: dict | None = None) ->
     if not mapping:
         return
 
-    flat = {k: v for k, v in mapping.items() if not _is_block(v)}
-    nested = {k: v for k, v in mapping.items() if _is_block(v)}
+    # An empty list the view names as the rows is a zero-row table, not a `-`:
+    # "nothing due" has to be told apart from a field that was never set.
+    named = (view or {}).get("rows")
+    flat = {k: v for k, v in mapping.items() if not (_is_block(v) or (v == [] and k == named))}
+    nested = {k: v for k, v in mapping.items() if k not in flat}
 
     if flat:
         table = Table(
@@ -554,7 +557,8 @@ def _render_mapping(mapping: dict, indent: int = 2, view: dict | None = None) ->
             # found the rows in. Handing it to any other would draw a table
             # with another list's columns, which is the failure this whole
             # round is about. See [[table-views]] round 4.
-            _render_columns(list(value), title=None, indent=indent, view=sub)
+            if value:
+                _render_columns(list(value), title=None, indent=indent, view=sub)
         _out().print()
 
 

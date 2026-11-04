@@ -796,3 +796,18 @@ def test_said_recovers_a_sentence_drawn_in_colour(said, monkeypatch):
     # proving nothing about the strip. Count the looking, not only the finding.
     assert "\x1b[" in result.output, "nothing was drawn in colour; the case is not reproduced"
     assert "needs --refresh" in said(result)
+
+
+def test_a_named_empty_list_draws_as_a_zero_row_table(capsys):
+    render(
+        Result("x", data={"reminders": []}, view={"columns": [], "details": [], "hidden": [], "rows": "reminders"}),
+        as_json=False,
+    )
+    out = " ".join(_body(capsys.readouterr().out))
+    assert "reminders" in out and "table · 0 rows" in out
+
+
+def test_an_unnamed_empty_list_stays_a_dash(capsys):
+    render(Result("x", data={"reminders": []}), as_json=False)
+    out = " ".join(_body(capsys.readouterr().out))
+    assert "0 rows" not in out and "-" in out

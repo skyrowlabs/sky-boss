@@ -582,3 +582,16 @@ def test_the_variance_warning_is_silent_once_cols_is_in_force():
     shaped = view_of(rows, cols=["kind"])
     assert shaped["shapes"] == 2
     assert warnings_for(shaped, requested=["kind"]) == []
+
+
+def test_a_named_empty_list_is_zero_rows_not_a_missing_list():
+    found = find_rows({"reminders": []}, "reminders")
+    assert found.rows == [] and found.key == "reminders" and found.reason is None
+
+
+def test_an_inferred_empty_list_is_still_not_a_table():
+    assert find_rows({"reminders": []}).rows is None
+
+
+def test_a_named_list_of_scalars_is_still_refused():
+    assert find_rows({"reminders": [1, 2]}, "reminders").reason

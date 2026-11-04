@@ -284,7 +284,9 @@ function Mapping({ value, view }) {
     <div class="grid">
       ${Object.entries(value).map(([key, item]) => {
         const sub = viewFor(view, key);
-        if (Array.isArray(item) && item.length && item.every((r) => r && typeof r === "object")) {
+        // A named empty list is a zero-row table, as in `_render_mapping`.
+        const named = Array.isArray(item) && item.length === 0 && view && view.rows === key;
+        if (named || (Array.isArray(item) && item.length && item.every((r) => r && typeof r === "object"))) {
           const dims = dimensions(item, sub);
           return html`<div class="rec" key=${key}>
             <div class="row">
