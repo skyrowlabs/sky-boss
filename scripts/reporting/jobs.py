@@ -329,6 +329,37 @@ JOBS: list[Job] = [
     ),
 ]
 
+#: **Add your own jobs as an append, in the space between the two frozen rules
+#: at the end of this section.** An entry edited into the list above is a
+#: change beside every entry a release adds, so it conflicts; an append does not.
+#: skeletor's own tree is the first to need it.
+#:
+#:     JOBS += [Job(key="nightly-check", module="nightly_check", cadence="nightly 01:00", cron="0 1 * * *", writes="—")]
+
+
+# ── Extending JOBS ───────────────────────────────────────────────────────────
+#
+# **Put every append to JOBS, and any comment you write about it, in the space
+# between the two frozen rules at the bottom of this block.** skeletor ships that
+# space empty and never adds a line to it; `scripts/paths.py` records why there
+# are two rules and what the space buys.
+#
+# ── Nothing below this line is skeletor's ────────────────────────────────────
+#
+# Everything of yours goes between this rule and the closing one below: appends,
+# and any prose you write about them. Both rules are frozen — skeletor does not
+# rewrite either block and renders nothing between them, so your insertion point
+# is never adjacent to a template line that a release might edit. The
+# explanation above IS ordinary prose and does get rewritten, which is why the
+# rule sits at the bottom of it rather than at the top.
+
+
+# ── Skeletor's again below this line ─────────────────────────────────────────
+#
+# The space is bounded on both sides for the reason `scripts/paths.py` measures:
+# this file carries template-owned code further down, and one rule alone would
+# have certified all of it as yours.
+
 JOBS_BY_KEY: dict[str, Job] = {job.key: job for job in JOBS}
 
 

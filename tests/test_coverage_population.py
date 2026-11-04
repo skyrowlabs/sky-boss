@@ -16,7 +16,9 @@ yours* license different behaviour, so they are different values.
 from __future__ import annotations
 
 import json
+import os
 import sys
+import time
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
@@ -81,6 +83,7 @@ def tree(tmp_path, monkeypatch, manifest):
     budget_file = tmp_path / "coverage_budget.json"
     budget_file.write_text(json.dumps({"tolerance_pts": 0.5, "suites": {"unit": {"baseline_pct": 0.0}}}))
     monkeypatch.setattr(budget, "BUDGET", budget_file)
+    monkeypatch.setattr(budget, "DATA_FILE", tmp_path / ".coverage")
 
     def run(files: dict, *flags: str, entry: dict | None = None) -> tuple[int, dict]:
         if entry is not None:
@@ -255,3 +258,12 @@ def test_every_json_key_names_one_population(tree, capsys):
 
     whole = payload(everything, entry={"baseline_pct": 10.0})
     assert whole["basis"] == "whole" and "baseline_pct" in whole and "own_baseline_pct" not in whole, whole
+
+
+def test_a_report_older_than_the_data_it_came_from_is_refused(tree, tmp_path, capsys):
+    data = tmp_path / ".coverage"
+    data.write_text("a later run", encoding="utf-8")
+    later = time.time() + 60
+    os.utime(data, (later, later))
+    code, _ = tree(OURS)
+    assert code == 1 and '"state": "stale-report"' in capsys.readouterr().out

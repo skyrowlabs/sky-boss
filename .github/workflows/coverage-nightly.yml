@@ -93,6 +93,12 @@ jobs:
           # ships no integration tests. The report is still written, so the
           # ratchet reads a real zero rather than a missing file.
           [ "$status" -eq 0 ] || [ "$status" -eq 5 ]
+          # Every marker ci.yml runs, or the line rate is of less code than the
+          # baseline was: stash.flow read 79% without `ui` and 93% with it.
+          status=0
+          python -m pytest tests/ -m ui -q \
+            --cov --cov-append --cov-report= || status=$?
+          [ "$status" -eq 0 ] || [ "$status" -eq 5 ]
           python -m coverage xml -o tmp/coverage.xml
 
       - name: Coverage ratchet

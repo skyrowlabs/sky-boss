@@ -106,17 +106,7 @@ SUITES = {
     # at any point. A browser or an Electron window may still need a display,
     # and that setup is the adopting repo's — a job failing loudly for want of
     # one is strictly better than tests quietly leaving CI.
-    # Nothing carries this yet. The canvas is exercised through Starlette's
-    # TestClient, which is host-side and therefore `unit` — CLAUDE.md is explicit
-    # that a runner cannot see an unpainted mark or a control off the edge of the
-    # screen, so the headless render pass it calls an obligation is still a thing
-    # a person does. When that becomes a job, this row flips and the `empty`
-    # reason expires on its own.
-    "ui": Suite(
-        "drives a user interface; needs a display, a browser, or a pilot",
-        scheduled=False,
-        unscheduled="empty",
-    ),
+    "ui": Suite("drives a user interface; needs a display, a browser, or a pilot"),
 }
 
 

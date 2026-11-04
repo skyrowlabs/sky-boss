@@ -199,11 +199,11 @@ def merge_drivers() -> None:
 @click.option("--workflow", "workflows", multiple=True, help="one workflow file name; repeatable")
 @click.option("--keep", is_flag=True, help="leave the worktree and venv behind")
 def scheduled(plan: bool, workflows: tuple, keep: bool) -> None:
-    """Rehearse each scheduled workflow here: a worktree at HEAD, a clean venv.
+    """Rehearse each scheduled workflow here: the working tree, a clean venv.
 
     No pull request runs a scheduled job, so this is the only way to see one
-    pass before its first night. scripts/rehearse_scheduled.py says what it
-    can and cannot stand in for.
+    pass before its first night. Exits 2 when nothing could be rehearsed.
+    scripts/rehearse_scheduled.py says what it can and cannot stand in for.
     """
     args = ["--plan"] * plan + ["--keep"] * keep
     for name in workflows:

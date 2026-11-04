@@ -6,13 +6,13 @@ schedule, a night after the merge. sky.boss met it twice: a nightly deleted in
 an upgrade, and a skip budget its nightly would have failed while pre-push
 stayed green.
 
-Each job runs in a throwaway worktree at HEAD with a clean venv.
+Each job runs in a throwaway worktree of the working tree, as `git add -A` would
+commit it, with a clean venv on the `python-version` the job asks for.
 `actions/checkout` is the worktree, `actions/setup-python` is the venv, a local
-composite action is expanded, and each `run:` step runs under
-`bash -eo pipefail` with the job's env. Anything else stops the job and is
-reported as not rehearsed: another action, a `${{ }}` this cannot resolve, or a
-condition other than `github.event_name`. A job that stopped is never reported
-as passing.
+composite action is expanded, `$GITHUB_PATH` and `$GITHUB_ENV` carry to later
+steps, and each `run:` step runs under `bash -eo pipefail` with the job's env.
+Anything else stops the job and is reported as not rehearsed. A job that stopped
+is never reported as passing, and a run that rehearsed nothing exits 2.
 
 Usage:  python scripts/rehearse_scheduled.py [--plan] [--workflow FILE] [--keep]
 """
@@ -35,7 +35,7 @@ import yaml
 # owns every path below — can be imported. See scripts/paths.py.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts.output import detail, fail, item, ok, step, warn  # noqa: E402
+from scripts.output import detail, fail, item, ok, skip, step, warn  # noqa: E402
 from scripts.paths import PROJECT_ROOT  # noqa: E402
 
 WORKFLOWS = PROJECT_ROOT / ".github" / "workflows"
@@ -49,6 +49,12 @@ SETUP_PYTHON = "actions/setup-python"
 
 #: Lines of a failing step's output to show.
 TAIL = 40
+
+#: The exit when no job could be rehearsed in full: nothing was checked, which is not a pass.
+NOTHING_REHEARSED = 2
+
+#: The files a runner gives each step, as the env name a step writes through.
+RUNNER_FILES = ("GITHUB_PATH", "GITHUB_ENV", "GITHUB_OUTPUT", "GITHUB_STEP_SUMMARY")
 
 _EVENT_TEST = re.compile(r"^github\.event_name\s*(==|!=)\s*'([^']*)'$")
 _INPUT = re.compile(r"\$\{\{\s*inputs\.([A-Za-z0-9_-]+)\s*\}\}")
@@ -64,6 +70,7 @@ class Step:
     env: dict = field(default_factory=dict)
     cwd: str = ""
     reason: str = ""
+    python: str = ""
 
 
 @dataclass
@@ -154,7 +161,10 @@ def expand(raw_steps: list, root: Path, inputs: dict | None = None) -> list:
             kind = {CHECKOUT: "checkout", SETUP_PYTHON: "python"}.get(uses.split("@")[0])
             if not kind:
                 return [*plan, Step(label, "stop", reason=f"`{uses}` is an action this cannot run here")]
-            plan.append(Step(label, kind))
+            version = _substitute(str((raw.get("with") or {}).get("python-version", "")), inputs).strip()
+            if "${{" in version:
+                return [*plan, Step(label, "stop", reason=f"its python-version `{version}` needs the runner")]
+            plan.append(Step(label, kind, python=version))
             continue
         script = _substitute(str(raw.get("run", "")), inputs)
         env = {k: _substitute(str(v), inputs) for k, v in (raw.get("env") or {}).items()}
@@ -191,6 +201,76 @@ def plan(path: Path, root: Path = PROJECT_ROOT) -> list:
     return jobs
 
 
+def interpreter(version: str) -> str | None:
+    """The python to build a venv from for `version`: this one, `python<X.Y>` on PATH, or None."""
+    wanted = re.match(r"^(\d+)\.(\d+)", version)
+    if not version:
+        return sys.executable
+    if not wanted:
+        return None
+    if (int(wanted.group(1)), int(wanted.group(2))) == sys.version_info[:2]:
+        return sys.executable
+    return shutil.which(f"python{wanted.group(1)}.{wanted.group(2)}")
+
+
+def snapshot() -> str:
+    """A commit of the working tree as `git add -A` would stage it; the real index is untouched.
+
+    After an upgrade the files are written and not yet committed, and that is the
+    release worth rehearsing. HEAD there is the one the tree is leaving.
+    """
+    with tempfile.TemporaryDirectory() as scratch:
+        env = {
+            **os.environ,
+            "GIT_INDEX_FILE": str(Path(scratch) / "index"),
+            "GIT_AUTHOR_NAME": "rehearsal",
+            "GIT_AUTHOR_EMAIL": "rehearsal@localhost",
+            "GIT_COMMITTER_NAME": "rehearsal",
+            "GIT_COMMITTER_EMAIL": "rehearsal@localhost",
+        }
+
+        def git(*args: str) -> str:
+            done = subprocess.run(["git", *args], cwd=PROJECT_ROOT, env=env, capture_output=True, text=True, check=True)
+            return done.stdout.strip()
+
+        git("read-tree", "HEAD")
+        git("add", "-A")
+        return git("commit-tree", git("write-tree"), "-p", "HEAD", "-m", "rehearsal snapshot")
+
+
+def _runner_files(scratch: Path) -> dict:
+    files = {name: scratch / name.lower() for name in RUNNER_FILES}
+    for path in files.values():
+        path.write_text("", encoding="utf-8")
+    return {name: str(path) for name, path in files.items()}
+
+
+def _take(path: str) -> str:
+    """A runner file's content, emptied for the next step the way a runner gives each step a fresh one."""
+    text = Path(path).read_text(encoding="utf-8")
+    Path(path).write_text("", encoding="utf-8")
+    return text
+
+
+def parse_github_env(text: str) -> dict:
+    """`$GITHUB_ENV`'s two forms: `NAME=value` and the `NAME<<DELIMITER` block."""
+    found: dict = {}
+    lines = iter(text.splitlines())
+    for line in lines:
+        if "<<" in line and ("=" not in line or line.index("<<") < line.index("=")):
+            name, delimiter = line.split("<<", 1)
+            body = []
+            for inner in lines:
+                if inner == delimiter:
+                    break
+                body.append(inner)
+            found[name] = "\n".join(body)
+        elif "=" in line:
+            name, value = line.split("=", 1)
+            found[name] = value
+    return found
+
+
 def _clean_env(venv: Path | None, work: Path) -> dict:
     """The caller's environment without this checkout's interpreter in it."""
     env = {k: v for k, v in os.environ.items() if not k.startswith("SB_")}
@@ -209,41 +289,54 @@ def _show_tail(output: str) -> None:
         detail(text)
 
 
-def rehearse(job: Job, keep: bool) -> bool:
-    """Run a job's steps; True when every step it reached passed."""
+def rehearse(job: Job, keep: bool, ref: str) -> str:
+    """Run a job's steps at `ref`: `passed`, `failed`, or why it could not be rehearsed."""
     scratch = Path(tempfile.mkdtemp(prefix="rehearse-"))
     work, venv = scratch / "work", None
     work.mkdir()
+    runner = _runner_files(scratch)
+    path_added: list[str] = []
+    env_added: dict = {}
     checked_out = False
     try:
         for number, s in enumerate(job.steps, 1):
             if s.kind == "stop":
-                return True
-            step(s.label)
+                return "passed"
             if s.kind == "checkout":
-                add = ["git", "worktree", "add", "--detach", "-q", str(work), "HEAD"]
+                step(s.label)
+                add = ["git", "worktree", "add", "--detach", "-q", str(work), ref]
                 subprocess.run(add, cwd=PROJECT_ROOT, check=True)
                 checked_out = True
                 continue
             if s.kind == "python":
+                base = interpreter(s.python)
+                if not base:
+                    return f"it wants python {s.python}, and no `python{s.python}` is on PATH here"
                 venv = scratch / "venv"
-                subprocess.run([sys.executable, "-m", "venv", str(venv)], check=True)
+                subprocess.run([base, "-m", "venv", str(venv)], check=True)
+                found = subprocess.run([str(venv / "bin" / "python"), "--version"], capture_output=True, text=True)
+                step(f"{s.label}: {found.stdout.strip() or found.stderr.strip()} from {base}")
                 continue
+            step(s.label)
             body = scratch / f"step-{number}.sh"
             body.write_text(s.script, encoding="utf-8")
+            env = {**_clean_env(venv, work), **runner, **env_added, **s.env}
+            env["PATH"] = os.pathsep.join([*reversed(path_added), env["PATH"]])
             done = subprocess.run(
                 ["bash", "--noprofile", "--norc", "-eo", "pipefail", str(body)],
                 cwd=work / s.cwd,
-                env={**_clean_env(venv, work), **s.env},
+                env=env,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
             )
+            path_added += [line.strip() for line in _take(runner["GITHUB_PATH"]).splitlines() if line.strip()]
+            env_added.update(parse_github_env(_take(runner["GITHUB_ENV"])))
             if done.returncode:
                 fail(f"{job.workflow} › {job.id}: `{s.label}` exited {done.returncode}")
                 _show_tail(done.stdout)
-                return False
-        return True
+                return "failed"
+        return "passed"
     finally:
         if keep:
             detail(f"kept: {scratch}")
@@ -282,27 +375,34 @@ def main(argv: list | None = None) -> int:
             describe(job)
         return 0
 
-    if subprocess.run(["git", "status", "--porcelain"], cwd=PROJECT_ROOT, capture_output=True, text=True).stdout:
-        warn("rehearsing HEAD — uncommitted changes are not in it")
-    passed, failed, partial = [], [], []
+    ref = snapshot()
+    detail(f"rehearsing the working tree as `git add -A` would commit it ({ref[:9]})")
+    passed: list[Job] = []
+    failed: list[Job] = []
+    partial: list[tuple[Job, str]] = []
     for job in (j for j in jobs if not j.skipped):
-        if job.runs and rehearse(job, args.keep):
-            (partial if job.stopped else passed).append(job)
-        elif job.runs:
-            failed.append(job)
-        else:
-            partial.append(job)
-    for job in partial:
         stop = job.stopped
-        reason = f"`{stop.label}`: {stop.reason}" if stop else "it has no run steps"
+        if not job.runs:
+            partial.append((job, f"`{stop.label}`: {stop.reason}" if stop else "it has no run steps"))
+            continue
+        verdict = rehearse(job, args.keep, ref)
+        if verdict == "failed":
+            failed.append(job)
+        elif verdict != "passed":
+            partial.append((job, verdict))
+        elif stop:
+            partial.append((job, f"`{stop.label}`: {stop.reason}"))
+        else:
+            passed.append(job)
+    for job, reason in partial:
         warn(f"{job.workflow} › {job.id}: not rehearsed past {reason}")
     if failed:
         fail(f"{len(failed)} scheduled job(s) failed here, so they will fail on the schedule")
         return 1
-    if passed:
-        ok(f"{len(passed)} scheduled job(s) rehearsed green: " + ", ".join(f"{j.workflow} › {j.id}" for j in passed))
-    else:
-        warn("no scheduled job could be rehearsed in full, so nothing here says they pass")
+    if not passed:
+        skip("no scheduled job here could be rehearsed in full, so this checked nothing")
+        return NOTHING_REHEARSED
+    ok(f"{len(passed)} scheduled job(s) rehearsed green: " + ", ".join(f"{j.workflow} › {j.id}" for j in passed))
     return 0
 
 

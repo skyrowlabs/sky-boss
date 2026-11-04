@@ -96,3 +96,46 @@ def test_every_scheduled_workflow_this_tree_ships_reads_as_a_plan():
     for path in rs.scheduled_workflows(ROOT / ".github" / "workflows"):
         for job in rs.plan(path, ROOT):
             assert job.skipped or job.steps, f"{path.name} › {job.id} planned nothing and said nothing"
+
+
+def test_a_path_and_an_env_a_step_writes_reach_the_next_step(tmp_path):
+    write = (
+        "mkdir -p tools && printf '#!/bin/sh\\necho from-the-path\\n' > tools/probe && chmod +x tools/probe\n"
+        'echo "$PWD/tools" >> "$GITHUB_PATH"\n'
+        'echo "CARRIED=yes" >> "$GITHUB_ENV"\n'
+    )
+    read = 'test "$(probe)" = from-the-path && test "$CARRIED" = yes\n'
+    job = rs.Job("nightly.yml", "a", [rs.Step("write", "run", script=write), rs.Step("read", "run", script=read)])
+    assert rs.rehearse(job, keep=False, ref="HEAD") == "passed"
+
+
+def test_the_runner_env_file_reads_both_forms():
+    text = "A=1\nB<<EOF\nline one\nline two\nEOF\nC=x=y\n"
+    assert rs.parse_github_env(text) == {"A": "1", "B": "line one\nline two", "C": "x=y"}
+
+
+def test_the_interpreter_is_the_one_the_job_asks_for():
+    here = f"{sys.version_info[0]}.{sys.version_info[1]}"
+    assert rs.interpreter("") == sys.executable
+    assert rs.interpreter(here) == sys.executable
+    assert rs.interpreter("not-a-version") is None
+    assert rs.interpreter("2.1") is None
+
+
+def test_a_composite_action_passes_its_python_version_to_setup_python(tmp_path):
+    action = tmp_path / ".github" / "actions" / "setup"
+    action.mkdir(parents=True)
+    (action / "action.yml").write_text(
+        "inputs:\n  python-version:\n    required: true\nruns:\n  using: composite\n  steps:\n"
+        "    - uses: actions/setup-python@v7\n      with:\n        python-version: ${{ inputs.python-version }}\n",
+        encoding="utf-8",
+    )
+    jobs = rs.plan(
+        _workflow(
+            tmp_path,
+            "jobs:\n  a:\n    runs-on: ubuntu-latest\n    steps:\n"
+            "      - uses: ./.github/actions/setup\n        with:\n          python-version: '3.11'\n",
+        ),
+        tmp_path,
+    )
+    assert [(s.kind, s.python) for s in jobs[0].steps] == [("python", "3.11")]

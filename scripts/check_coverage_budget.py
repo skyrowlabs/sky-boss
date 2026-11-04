@@ -138,6 +138,8 @@ from scripts.paths import PROJECT_ROOT, SCAFFOLD_MANIFEST, TESTS_DIR, TMP_DIR  #
 
 BUDGET = TESTS_DIR / "coverage_budget.json"
 DEFAULT_XML = TMP_DIR / "coverage.xml"
+#: coverage's data file. An xml older than it describes an earlier run (stash.flow).
+DATA_FILE = PROJECT_ROOT / ".coverage"
 
 
 #: A name rather than a parenthesised tuple in the `except`: at a 3.14 target black
@@ -360,6 +362,11 @@ def main() -> int:
         fail(f"no coverage report at {args.xml} — run pytest with --cov-report=xml:{args.xml} first")
         detail("Nothing was measured, so nothing is being ratcheted. See docs/rules/testing.md.")
         return done({"state": "no-report", "xml": str(args.xml)}, 1)
+
+    if DATA_FILE.exists() and DATA_FILE.stat().st_mtime > args.xml.stat().st_mtime:
+        fail(f"{args.xml} is older than {DATA_FILE.name}, so it reports an earlier run than the last one measured")
+        detail(f"Regenerate it: python -m coverage xml -o {args.xml}")
+        return done({"state": "stale-report", "xml": str(args.xml)}, 1)
 
     budget = json.loads(BUDGET.read_text(encoding="utf-8"))
     entry = budget["suites"].get(args.suite)

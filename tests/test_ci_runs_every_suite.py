@@ -94,6 +94,16 @@ def selected_markers() -> dict:
     return where
 
 
+def test_a_workflow_measuring_coverage_runs_every_suite_ci_runs():
+    """A coverage run over fewer suites than CI measures less code than its baseline did (stash.flow)."""
+    ci = selections(read_uncommented(WORKFLOWS / "ci.yml")) if (WORKFLOWS / "ci.yml").exists() else set()
+    for path in sorted(WORKFLOWS.glob("*.yml")):
+        text = read_uncommented(path)
+        if "--cov" in text and path.name != "ci.yml":
+            missing = sorted(ci - selections(text))
+            assert not missing, f"{path.name} measures coverage without the suites ci.yml runs: {missing}"
+
+
 def test_the_scan_reads_real_selections():
     """The extractor is validated against a selection that certainly exists.
 
