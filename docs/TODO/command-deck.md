@@ -2,9 +2,7 @@
 title: "The deck: a tmux command center for agent sessions"
 slug: command-deck
 priority: medium
-category: surfaces
-agent_value: 3
-completed: 2026-11-04
+shelf_status: in-progress
 updated: 2026-11-04
 tags: [agents, act, tmux, surfaces]
 summary: Adds `sb deck`, a tmux session holding one window per agent, plus a queue of sessions waiting on the operator, read by both surfaces. It is the first act surface beside the observe-only canvas.
@@ -13,7 +11,8 @@ summary: Adds `sb deck`, a tmux session holding one window per agent, plus a que
 # The deck: a tmux command center for agent sessions
 
 > **Status**: 🟡 In progress
-> **Priority**: Medium. Round 3: profiles, tab states, scoping, fitted tables and the theme, on the operator's ruling.
+> **Shelf-Status**: in-progress
+> **Priority**: Medium. Round 4: exit, scrolling, agent colours and shortcut keys, on the operator's ruling.
 > **Updated**: 2026-11-04
 
 ## Problem
@@ -219,8 +218,46 @@ columns (default)                          stack
       state marks, the scope filter, the no-wrap fit at several widths, and the theme options set on
       the deck's sessions only. A smoke test on a throwaway socket covers the clicks and the marks.
 
+## Phase 6 (round 4): exit, scrolling, agent colours, keys
+
+Ruled by Jeston on 2026-11-04, after the first real run of round 3 (*"it works"*). He asked for a
+double Ctrl-C exit and was shown the conflict: Ctrl-C is claude's own (one press interrupts a turn,
+two exit it), so binding it would put every press through the deck. He chose Ctrl-Q plus a
+clickable ✕ instead, kept agent colours on the brand-step rule, and asked for four shortcuts.
+
+- [ ] **Bindings live in the deck's own key table.** Both deck sessions set `key-table` to a table
+      only they use, so the operator's other tmux sessions see no new binding. Measured before
+      relying on it: the prefix still works there, an unbound key still reaches the pane, and a
+      session outside the deck is unaffected.
+- [ ] **Exit.** Ctrl-Q, or clicking a ✕ at the right of the status bar, opens a tmux confirm that
+      names what ends ("end the deck and its N agent sessions?"). Confirming runs `sb deck exit`,
+      an act that stops the marks loop and kills both deck sessions and nothing else. `kill-session`
+      is allowed in that command only; the layout switch still never kills anything. Ctrl-C is
+      never bound.
+- [ ] **Messages scroll.** The messages pane takes an offset: arrows, PgUp/PgDn and the wheel when it
+      is focused, plus a deck shortcut when it is not. The band says how far back it is
+      (`↑ 12 older shown`, or `newest`) and returns to newest on a key.
+- [ ] **Each agent has its own colour.** The colour is a step along the brand, by tab order with the
+      primary first (CLAUDE.md: never a new hue, never a borrowed role), and is assigned once in
+      `theme.py` so the tab row and the messages pane cannot disagree. A tab's label is drawn in its
+      agent's colour, and in MESSAGES each name in `sender → receiver` is drawn in that agent's
+      colour. A sender outside the deck stays the plain text colour. Each step clears the CLI
+      contrast floor, checked by a test.
+- [ ] **Shortcuts, shown in the status bar.** Hide or show outside agents in NEEDS YOU and MESSAGES
+      (a toggle stored as an option on the deck session, which the panes read each frame); switch
+      layout; next and previous tab; and scroll messages. The keys are chosen to collide with none
+      of Claude Code's own keybindings or tmux's defaults; the choice and its check are recorded
+      in Notes.
+- [ ] Tests on `FakeTmux`: the key table is set on the deck's sessions only and nothing is bound
+      globally; Ctrl-C is never bound; `exit` kills exactly the two deck sessions; the scroll
+      offset and its band; colour assignment by tab order, shared by both renderers, above the
+      floor; the outside toggle read by both panes. A smoke test on a throwaway socket covers the
+      popup, the ✕ click, the keys and the scroll.
+
 ## Dropped, and why
 
+- **Binding Ctrl-C for exit.** It is claude's interrupt, and forwarding it would put every
+  press through the deck; Jeston chose Ctrl-Q and a ✕.
 - **Typing into an agent pane.** See Scope: it would be a second permission path.
 - **Writing `~/.claude/settings.json` or `~/.tmux.conf`.** Operator-owned, like `projects.toml`.
 - **The hook writer and its ledger.** Phase 1 found the registry already says `waiting`.
@@ -356,3 +393,8 @@ on a throwaway socket: a mouse click selecting a tab, all four states drawn, and
 reaching its tab within three seconds. Not yet seen with a real `claude`; fake ones wrote the
 registry records. The skyrow-core profile was added to the operator's own `deck.toml` by hand, not
 by sky.boss.
+
+### 2026-11-04: round 4 reopened
+
+After the first real run, Jeston asked for an exit, scrolling messages, an agent colour shared by the
+tabs and the messages, and visible shortcuts including hiding outside agents. Recorded in Phase 6.
