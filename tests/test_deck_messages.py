@@ -294,3 +294,160 @@ def test_json_and_a_pipe_carry_all_fifty(tmp_path, monkeypatch, no_sleep):
     assert len(json.loads(invoke("--json", "deck", "messages").stdout)["data"]) == 50
     lines = invoke("deck", "messages", "--refresh", "1", "--ticks", "1", "--screen").stdout.splitlines()
     assert len(json.loads(lines[0])["data"]) == 50
+
+
+# ============================================================================
+# Filling the pane: one line per row at every width
+# ============================================================================
+
+
+def drawn_at(result, width):
+    from skyboss.output import capture, filled, render
+
+    with capture(width=width) as captured, filled():
+        render(result, as_json=False)
+    return _plain(captured.text)
+
+
+def _plain(text):
+    from rich.text import Text
+
+    return Text.from_ansi(text).plain
+
+
+def long_rows(tmp_path):
+    who = session("s1", "a-session-with-a-long-registry-name")
+    body = "a first line long enough to need clipping in any pane narrower than a whole monitor " * 2
+    write(tmp_path, who, [peer(f"sender-{i}", body, f"m{i}", f"2026-11-04T11:{i:02d}:00Z") for i in range(6)])
+    return messages_.messages_result([Adapter([who])], tmp_path, NOW)
+
+
+@pytest.mark.parametrize("width", [24, 40, 63, 100, 180])
+def test_every_row_is_one_line_at_every_width(tmp_path, width):
+    lines = drawn_at(long_rows(tmp_path), width).rstrip("\n").split("\n")
+    assert all(len(line) <= width for line in lines), [len(line) for line in lines]
+    notes = [line for line in lines if " did not" in line]
+    assert lines[1].startswith("─") and len(lines) == 2 + 6 + len(notes) and len(notes) <= 1
+
+
+@pytest.mark.parametrize("width", [60, 120, 200])
+def test_the_table_uses_the_whole_width(tmp_path, width):
+    lines = drawn_at(long_rows(tmp_path), width).split("\n")
+    assert len(lines[1]) == width
+
+
+def test_without_fill_the_drawing_is_unchanged(tmp_path):
+    from skyboss.output import capture, render
+
+    result = long_rows(tmp_path)
+    with capture(width=63) as captured:
+        render(result, as_json=False)
+    assert len(_plain(captured.text).split("\n")[1]) < 63
+
+
+def test_the_queue_fills_too(tmp_path):
+    from skyboss.deck import view_of
+    from skyboss.output import Result
+
+    rows = [
+        {
+            "where": "deck",
+            "window": "a-very-long-window-name",
+            "status": "unregistered",
+            "name": "n" * 30,
+            "up": "3m",
+            "cwd": "/fx/" + "deep/" * 20,
+            "pid": 1,
+            "id": "x",
+            "started": "",
+        }
+    ] * 3
+    result = Result(data=rows, view=view_of(rows))
+    for width in (20, 50, 90):
+        lines = drawn_at(result, width).rstrip("\n").split("\n")
+        notes = [line for line in lines if " did not" in line]
+        assert all(len(line) <= width for line in lines) and len(lines) == 2 + 3 + len(notes)
+
+
+def test_a_resized_pane_is_refilled_on_the_next_frame(tmp_path):
+    from rich.console import Console
+
+    from skyboss.deck import keep_last
+    from skyboss.resident import reside
+
+    result = long_rows(tmp_path)
+    clock = Clock()
+    console = Console(record=True, width=100, height=30, force_terminal=True)
+
+    def wait(seconds):
+        console.width = 40
+        return clock.sleep(seconds)
+
+    reside(
+        "deck messages",
+        10,
+        lambda: result,
+        clock=clock,
+        wait=wait,
+        console=console,
+        screen=True,
+        ticks=3,
+        fit=keep_last("message(s)"),
+        fill=True,
+    )
+    rules = {len(line) for line in console.export_text().split("\n") if line and set(line) == {"─"}}
+    assert {100, 40} <= rules
+
+
+def test_a_trailing_blank_line_is_counted_against_the_height(tmp_path):
+    from rich.console import Console
+    from rich.text import Text
+
+    from skyboss.deck import keep_last
+    from skyboss.resident import fitted
+
+    result = messages_.messages_result([Adapter([fifty(tmp_path)])], tmp_path, NOW)
+
+    def drawn(r):
+        return Text("HEADER\n" + "\n".join(row["message"] for row in r.data) + "\n\n")
+
+    console = Console(width=80)
+    shown = fitted(result, drawn(result), 12, keep_last("message(s)"), drawn, console)
+    assert len(console.render_lines(shown, console.options, pad=False)) <= 12
+
+
+def test_the_count_line_never_wraps(tmp_path):
+    from rich.console import Console
+    from rich.text import Text
+
+    from skyboss.deck import keep_last
+    from skyboss.resident import fitted
+
+    result = messages_.messages_result([Adapter([fifty(tmp_path)])], tmp_path, NOW)
+    console = Console(width=20)
+
+    def drawn(r):
+        return Text("\n".join(row["message"] for row in r.data))
+
+    shown = fitted(result, drawn(result), 10, keep_last("message(s)"), drawn, console)
+    first = console.render_lines(shown, console.options, pad=False)[0]
+    assert "".join(segment.text for segment in first).startswith("41 earlier")
+    assert len(console.render_lines(shown, console.options, pad=False)) <= 10
+
+
+def test_an_overshooting_trim_takes_back_the_rows_that_fit(tmp_path):
+    from rich.console import Console
+    from rich.text import Text
+
+    from skyboss.deck import keep_last
+    from skyboss.resident import fitted
+
+    result = messages_.messages_result([Adapter([fifty(tmp_path)])], tmp_path, NOW)
+
+    def drawn(r):
+        frame = "BOX\n" * 5 if len(r.data) == 50 else ""
+        return Text(frame + "HEADER\n" + "\n".join(row["message"] for row in r.data))
+
+    console = Console(width=80)
+    lines = fitted(result, drawn(result), 12, keep_last("message(s)"), drawn, console).plain.split("\n")
+    assert len(lines) == 12 and lines[0].startswith("40 earlier") and lines[-1] == "note 49"

@@ -412,6 +412,33 @@ def _render_warnings(result: Result) -> None:
     warn_now(result.warnings)
 
 
+#: One line per row, filling the width: set by `filled()` for the deck's tool panes.
+_FILL = threading.local()
+
+
+@contextlib.contextmanager
+def filled(on: bool = True):
+    """Draw shaped tables to the full width, every line clipped rather than wrapped.
+
+    For a pane the operator drags: a wrapped row is two lines that the height
+    fit cannot count, and a table narrower than its pane leaves the room unused.
+    """
+    was = getattr(_FILL, "on", False)
+    _FILL.on = on
+    try:
+        yield
+    finally:
+        _FILL.on = was
+
+
+def _filling() -> bool:
+    return getattr(_FILL, "on", False)
+
+
+def _line_kwargs() -> dict:
+    return {"no_wrap": True, "overflow": "ellipsis", "crop": True} if _filling() else {}
+
+
 def warn_now(messages: list[str]) -> None:
     """Warnings on stderr immediately, in the envelope's own wording.
 
@@ -421,7 +448,7 @@ def warn_now(messages: list[str]) -> None:
     and as markup it would vanish — or raise, when shaped like a closing tag.
     """
     for warning in messages:
-        _err().print(f"[yellow]⚠️  {escape(warning)}[/yellow]", highlight=False)
+        _err().print(f"[yellow]⚠️  {escape(warning)}[/yellow]", highlight=False, **_line_kwargs())
 
 
 def _render_human(
@@ -762,9 +789,12 @@ def _render_view(rows: list[dict], view: dict, indent: int = 0) -> None:
     the layout is small and it buys the header rule, the detail lines and the
     record spacing outright.
     """
-    columns, overflowed = fit_columns(view["columns"], _out().width - indent)
+    available = _out().width - indent
+    columns, overflowed = fit_columns(view["columns"], available)
     details = view.get("details") or []
-    widths = _resolve_widths(columns, _out().width - indent)
+    widths = _resolve_widths(columns, available)
+    if _filling():
+        widths = _fill_widths(columns, widths, available)
     pad = " " * _COLUMN_PADDING
     total = sum(widths) + _COLUMN_PADDING * max(0, len(columns) - 1)
 
@@ -774,7 +804,7 @@ def _render_view(rows: list[dict], view: dict, indent: int = 0) -> None:
     body_width = max(20, _out().width - indent - hang)
 
     def emit(text: Text) -> None:
-        _out().print(Padding(text, (0, 0, 0, indent)) if indent else text)
+        _out().print(Padding(text, (0, 0, 0, indent)) if indent else text, **_line_kwargs())
 
     header = Text()
     for i, (column, width) in enumerate(zip(columns, widths)):
@@ -823,6 +853,23 @@ def _render_view(rows: list[dict], view: dict, indent: int = 0) -> None:
                 style="sb.warn",
             )
         )
+
+
+def _fill_widths(columns: list[dict], widths: list[int], available: int) -> list[int]:
+    """Widths that use the whole line: the room left goes to the most flexible column,
+    and a first column wider than the line is cut to it."""
+    if not widths:
+        return widths
+    widths = list(widths)
+    gutters = _COLUMN_PADDING * max(0, len(widths) - 1)
+    spare = available - sum(widths) - gutters
+    if spare > 0:
+        weights = [column.get("flex", 1) for column in columns]
+        widest = max(range(len(widths)), key=lambda i: (weights[i], i))
+        widths[widest] += spare
+    elif len(widths) == 1:
+        widths[0] = max(1, available)
+    return widths
 
 
 def _fit(text: str, width: int, align: str | None, last: bool = False) -> str:

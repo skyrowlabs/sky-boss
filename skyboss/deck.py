@@ -1243,7 +1243,7 @@ def _resident(
         if _as_json() or not output.stdout_is_terminal():
             output.resident_ndjson(once, refresh, runs=ticks)
         else:
-            resident.reside(source, refresh, once, screen=screen, runs=ticks, fit=fit)
+            resident.reside(source, refresh, once, screen=screen, runs=ticks, fit=fit, fill=screen)
         raise click.exceptions.Exit(0)
     return once()
 

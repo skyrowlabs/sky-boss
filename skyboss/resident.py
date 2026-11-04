@@ -38,7 +38,7 @@ from rich.text import Text
 
 from skyboss import chrome as chrome_
 from skyboss import keys
-from skyboss.output import THEME, Result, band_text, capture, render
+from skyboss.output import THEME, Result, band_text, capture, filled, render
 
 # Room the inline rendering leaves around the body: the two chrome bands, the
 # prompt the frame is drawn under, and one line of slack so a redraw never
@@ -201,7 +201,9 @@ def height(text: Text, console: Console) -> int:
     return len(text.wrap(console, max(1, console.width)))
 
 
-def fitted(result: Result, body: Text, limit: int, fit: Fit, drawn: Callable[[Result], Text]) -> Text:
+def fitted(
+    result: Result, body: Text, limit: int, fit: Fit, drawn: Callable[[Result], Text], console: Console | None = None
+) -> Text:
     """`body`, or `result` re-drawn with fewer rows and a counting line, so it fits in `limit` lines.
 
     Rows go, never lines: a header clipped off a table is the chart rule's
@@ -209,25 +211,39 @@ def fitted(result: Result, body: Text, limit: int, fit: Fit, drawn: Callable[[Re
     drawn as it is.
     """
     rows = result.data if isinstance(result.data, list) else None
-    lines = _count(body)
+    lines = _count(body, console)
     if rows is None or lines <= limit:
         return body
+
+    def draw(keep: int) -> Text:
+        trimmed, marker = fit(result, keep)
+        # One line, like every row: the count comes first, so an ellipsis never eats it.
+        out = Text(no_wrap=True, overflow="ellipsis")
+        out.append(marker, style="sb.warn")
+        out.append("\n")
+        out.append_text(drawn(trimmed))
+        return out
+
     keep = len(rows)
     shown = body
     while keep > 0 and lines > limit:
         keep = max(0, keep - max(1, lines - limit))
-        trimmed, marker = fit(result, keep)
-        shown = Text()
-        shown.append(marker, style="sb.warn")
-        shown.append("\n")
-        shown.append_text(drawn(trimmed))
-        lines = _count(shown)
+        shown = draw(keep)
+        lines = _count(shown, console)
+    # A drawing need not shrink one line per row, so the jump may overshoot: take back what fits.
+    while keep + 1 < len(rows):
+        more = draw(keep + 1)
+        if _count(more, console) > limit:
+            break
+        keep, shown = keep + 1, more
     return shown
 
 
-def _count(body: Text) -> int:
-    """Lines in a captured body, which `drawn` has already wrapped to the console's width."""
-    return len(body.plain.rstrip("\n").split("\n"))
+def _count(body: Text, console: Console | None = None) -> int:
+    """Lines `body` takes when drawn, trailing blank lines included — they take rows too."""
+    if console is None:
+        return len(body.plain.rstrip("\n").split("\n"))
+    return len(console.render_lines(body, console.options, pad=False))
 
 
 def hold(
@@ -492,6 +508,7 @@ def reside(
     ticks: int | None = None,
     runs: int | None = None,
     fit: Fit | None = None,
+    fill: bool = False,
 ) -> None:
     """The whole resident rendering: bands, body, and a way out.
 
@@ -513,7 +530,8 @@ def reside(
     [[chrome]] contract; this module decides nothing about what they say.
 
     `fit`, with `screen`, trims *rows* rather than lines so a table keeps its
-    header: see `fitted`. Measured at every frame, because a pane is resized.
+    header: see `fitted`. `fill` draws every row on one line across the whole
+    width. Both are measured at every frame, because a pane is resized.
     """
     out = console or Console(theme=THEME, highlight=False)
     state = Residency(source, interval, clock)
@@ -521,7 +539,7 @@ def reside(
     last: Result | None = None
 
     def drawn(result: Result) -> Text:
-        with capture(width=out.width) as captured:
+        with capture(width=out.width) as captured, filled(fill):
             render(result, as_json=False)
         return Text.from_ansi(captured.text)
 
@@ -533,9 +551,11 @@ def reside(
         facts = state.chrome()
         top, bottom = chrome_.status_bands(facts, clock(), out.width)
         top_text, bottom_text = band_text(top), band_text(bottom)
+        if fill and last is not None:
+            body = drawn(last)
         if screen and fit is not None and last is not None:
             limit = out.height - height(top_text, out) - height(bottom_text, out) - 1
-            shown = fitted(last, body, limit, fit, drawn)
+            shown = fitted(last, body, limit, fit, drawn, out)
         else:
             shown = body if screen else clip(body, room(out))
         return Group(top_text, shown, bottom_text)
