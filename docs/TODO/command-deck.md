@@ -398,3 +398,27 @@ by sky.boss.
 
 After the first real run, Jeston asked for an exit, scrolling messages, an agent colour shared by the
 tabs and the messages, and visible shortcuts including hiding outside agents. Recorded in Phase 6.
+
+### 2026-11-04: round 4 built
+
+Shipped in sky-boss@0e7e5ee, sky-boss@d14a1cf and sky-boss@ebba8f5. Measured and decided:
+- **A session's `key-table` does not fall back to root.** Measured on tmux 3.8, throwaway socket:
+  the prefix still works and an unbound key still reaches the pane, but root's mouse bindings are
+  never consulted, so tab clicks, border drags and the wheel all stopped. The deck therefore copies
+  `list-keys -T root` into its own table, `sb-deck-<session>`, with any Ctrl-C binding dropped, and
+  binds its keys over that. Root is unchanged and a session outside the deck sees none of them.
+- **The keys.** Checked against Claude Code 2.1.318's own key strings and its input's Meta switch
+  (`b`, `d`, `f`, `y`), plus the listed `alt+o/p/t/v/w`, `meta+j/m/o/p/t/w` and `meta+up/down`;
+  tmux's root table has no Meta binding by default. Chosen: `C-q` exit, `M-h` outside, `M-l`
+  layout, `M-,` and `M-.` previous and next tab, `M-u` older messages, `M-e` newest. Not checked:
+  any `keybindings.json` the operator has written, which sky.boss does not read.
+- Exit asks with `confirm-before`, whose prompt names the count from `@sb-agent-count` (kept by
+  the marks loop). `sb deck exit` stops that loop and kills the two sessions; `kill-session`
+  appears only in `end_sessions`, which a test recomputes from the source.
+- The panes write no option. A shortcut sets one; the pane adopts a changed sequence number on its
+  next frame, and its own keys move only its own offset.
+- **A bug the scroll exposed:** `sys.stdin` buffered `ESC [ A`, so Up read as Esc and left every
+  resident view, `sb follow` included. A test had pinned that behaviour; it now pins Up.
+- An agent's colour is a step of the canvas's project ramp, recomputed in OKLab and moved in
+  lightness until it clears 3.5:1 on white, the void, and both tab-row grounds. A test reads
+  `sb.css`, so the two ramps cannot part.
