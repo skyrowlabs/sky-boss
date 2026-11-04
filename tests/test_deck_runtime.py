@@ -342,7 +342,7 @@ def test_rendered_warnings_end_in_exactly_what_warn_now_writes(capsys, as_json):
 
 def test_a_bracketed_table_name_in_a_warning_survives(capsys):
     warn_now(["pin 'ghost': not declared — add [agent.ghost] to deck.toml"])
-    assert "add [agent.ghost] to deck.toml" in capsys.readouterr().err
+    assert "add [agent.ghost] to deck.toml" in " ".join(capsys.readouterr().err.split())
 
 
 def test_a_closing_tag_shaped_warning_does_not_raise(capsys):

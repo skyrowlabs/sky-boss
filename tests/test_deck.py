@@ -228,11 +228,11 @@ def test_a_window_is_found_by_its_agent_before_its_name():
 # ============================================================================
 
 
-def test_bare_deck_creates_the_pinned_window_and_attaches(fake, home, tmp_path):
+def test_bare_deck_creates_the_pinned_window_and_attaches(fake, home, tmp_path, said):
     home(f'pin = "ws"\n[agent.ws]\ncwd = "{tmp_path}"\nargs = ["--model", "opus"]\n')
     result = invoke("deck")
     # CliRunner has no terminal, so outside tmux it refuses to attach and says how.
-    assert result.exit_code == 1 and "tmux attach -t =sb" in result.output
+    assert result.exit_code == 1 and "tmux attach -t =sb" in said(result)
     created = fake.find("new-session")[0]
     assert created[created.index("--") + 1 :] == ["claude", "--model", "opus"]
     assert created[created.index("-c") + 1] == str(tmp_path)
@@ -262,10 +262,10 @@ def test_the_deck_dresses_its_window_and_never_the_server(fake, home):
     assert not any("-g" in o or "-s" in o for o in options)
 
 
-def test_extended_keys_off_is_reported_and_never_set(fake, home):
+def test_extended_keys_off_is_reported_and_never_set(fake, home, said):
     fake.extended = "off"
     result = invoke("deck")
-    assert "extended-keys is off" in result.output
+    assert "extended-keys is off" in said(result)
     assert not any("extended-keys" in call for call in fake.find("set-option"))
 
 
@@ -274,16 +274,16 @@ def test_bare_deck_refuses_json_before_touching_tmux(fake, home):
     assert result.exit_code == 2 and fake.calls == []
 
 
-def test_no_tmux_is_a_sentence(fake, home):
+def test_no_tmux_is_a_sentence(fake, home, said):
     fake.installed = False
     result = invoke("deck")
-    assert result.exit_code == 1 and "tmux could not be run" in result.output
+    assert result.exit_code == 1 and "tmux could not be run" in said(result)
 
 
-def test_an_unresolvable_pin_opens_the_deck_without_it(fake, home):
+def test_an_unresolvable_pin_opens_the_deck_without_it(fake, home, said):
     home('pin = "ghost"\n')
     result = invoke("deck")
-    assert "pin 'ghost'" in result.output
+    assert "pin 'ghost'" in said(result)
     created = fake.find("new-session")[0]
     assert created[created.index("-n") + 1] == "queue" and "claude" not in created
 
@@ -319,11 +319,11 @@ def test_open_refuses_a_name_nobody_declared(fake, home):
     assert result.exit_code == 2 and fake.calls == []
 
 
-def test_open_refuses_a_cwd_that_is_not_there(fake, home, tmp_path):
+def test_open_refuses_a_cwd_that_is_not_there(fake, home, tmp_path, said):
     home(f'[agent.jam]\ncwd = "{tmp_path / "gone"}"\n')
     fake.sessions.add("sb")
     result = invoke("--json", "deck", "open", "jam")
-    assert result.exit_code == 1 and "is not a directory" in result.output
+    assert result.exit_code == 1 and "is not a directory" in said(result)
     assert "new-window" not in fake.verbs()
 
 
