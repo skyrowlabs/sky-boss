@@ -311,3 +311,37 @@ the outer/inner prefix (prefix twice reaches the tabs). Task lists remain deferr
 Jeston, after using the controller, asked for profiles (a skyrow-core set of five repos with the
 workspace first), tabs that show when an agent is working, a deck/outside filter, tables that fill
 their pane without wrapping, and a theme in place of tmux's green. Recorded in Phase 5.
+
+### 2026-11-04: round 3 built
+
+Profiles, live tabs, `--scope`, the fill and the theme shipped. Decided while building:
+- **Tab state is a window option, `@sb-state`, written by one loop.** Measured on tmux 3.8: a
+  window option is drawn about 5 ms after `set-option`, at any `status-interval`. `#()` in a tab
+  format forked once per tab per interval (30 forks in 10 s for 3 tabs). `monitor-activity` flags
+  output only on non-current tabs, cannot tell waiting from working, and clears only on a visit.
+- The writer is `sb deck marks --every 3`, an act. `sb deck` starts it once, as a tmux background
+  job, so it ends with the server; it writes only what changed and exits when the deck is gone.
+  Its pid is a session option, so a second loop yields. The tab row's right end shows when it last
+  wrote, so a dead writer reads as stale rather than as calm.
+- `window-status-format` is a window option in tmux 3.8, so tab formats are set on each tab. Only
+  it is set, never `status-format`, so tmux's `range=window` still makes a click select the tab.
+- A round 2 deck's pinned pane moves into the tabs with `break-pane`, process and all.
+- The profile's tabs are put in its order with `swap-window`, ahead of any tab the operator
+  opened. On a live deck, missing tabs are opened and nothing else is touched.
+- The queue keeps its first rows when trimmed, because `waiting` sorts first; messages keep
+  the newest.
+
+The `deck.toml` schema after this round:
+
+```toml
+session = "sb"          # optional; the tabs session is "<session>-agents"
+pin = "workspace"       # optional; the same as a profile with this primary and no tabs
+
+[agent.workspace]
+cwd = "~/src/workspace"
+args = ["--model", "opus"]   # optional
+
+[profile.core]
+primary = "workspace"   # the first tab
+tabs = ["jam", "mind"]  # in order; a name may also come from a projects.toml cwd
+```
