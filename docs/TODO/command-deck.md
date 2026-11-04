@@ -14,7 +14,9 @@ summary: "Adds `sb deck`, a tmux session holding one window per agent, plus a qu
 > **Shelf-Status**: blocked
 > **Priority**: Medium. The proposal is the workspace's, and the scope rule it rests on is not yet in `CLAUDE.md`.
 > **Updated**: 2026-11-04
-> **Blocked-On**: owner-ops. The Scope section of `CLAUDE.md` changes only on Jeston's word in this repo's own session, not on a relay.
+> **Blocked-On**: owner-ops
+
+The gate: `CLAUDE.md` § Scope changes only on Jeston's word in this repo's own session, not on a relay.
 
 ## Problem
 

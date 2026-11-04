@@ -22,7 +22,7 @@
       "shelf_status": "blocked",
       "priority": "medium",
       "queue_order": null,
-      "blocked_on": "unclassified",
+      "blocked_on": "owner-ops",
       "updated": "2026-11-04",
       "tags": [
         "agents",

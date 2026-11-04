@@ -38,7 +38,7 @@ _Startable or code-complete, gated on an external prerequisite._
 
 | Gate | Plan | Priority | Updated | Summary |
 | ---- | ---- | -------- | ------- | ------- |
-| ❓ Not stated | [The deck: a tmux command center for agent sessions](command-deck.md) | medium | 2026-11-04 | Adds `sb deck`, a tmux session holding one window per agent, plus a queue of sessions waiting on the operator, read by both surfaces. It is the first act surface beside the observe-only canvas. |
+| 🖧 Host/ops change | [The deck: a tmux command center for agent sessions](command-deck.md) | medium | 2026-11-04 | Adds `sb deck`, a tmux session holding one window per agent, plus a queue of sessions waiting on the operator, read by both surfaces. It is the first act surface beside the observe-only canvas. |
 
 ---
 
