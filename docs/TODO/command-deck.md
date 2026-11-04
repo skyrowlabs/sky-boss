@@ -59,12 +59,16 @@ overrule.
 
 ### The waiting queue: the hook writes, and sky.boss owns the writer, not the install
 
-- **Measure the registry first.** `~/.claude/sessions/<pid>.json` already carries `status`. On
-  2026-11-04 it read `busy` or `idle` on all seven live sessions. Whether Claude Code writes a
-  distinct value while waiting on a permission prompt is unmeasured. If it does, the queue is a
-  read of a file sky.boss already parses and needs no hook. Phase 1 settles this before anything is
-  built.
-- **If a hook is needed, the writer is sky.boss code.** It is a hidden command that reads the
+- **Measured 2026-11-04: the registry is the source, and no hook is needed.** A session held at a
+  permission prompt writes `status: "waiting"` to `~/.claude/sessions/<pid>.json`, the file
+  [[agent-sessions]] already parses; it returns to `idle` when its turn ends. So the queue is a
+  read of that file. See Phase 1 for the full measurement.
+- **The one gap the registry leaves is the trust prompt.** A session stopped at Claude Code's
+  "do you trust this folder" dialog has only a `<pid>.*.key` file and no `<pid>.json`, and no hook
+  fires there either, because hooks wait for trust. The deck knows which `claude` it started in
+  each window, so a window whose process has no record is shown as **unregistered**, never left
+  out. That is the same *could not see* as [[agent-sessions]]' third liveness answer.
+- **If a hook is ever needed, the writer is sky.boss code.** It is a hidden command that reads the
   hook's stdin JSON and appends one normalised line. One author for the line format, with tests,
   and the real seam is where it should be: Claude Code's hook payload is the producer, and it
   changes between versions.
@@ -84,33 +88,54 @@ exists and has been read.
 
 ### The canvas gets the queue read-only
 
-The queue is a JSONL ledger, so `sb data --from jsonl <path>` and `sb follow <path>` already open it
-on the canvas with no new code ([[jsonl-reads]]). Jumping to a window stays on the deck, because the
+The queue is `sb deck queue`, an observe returning an envelope, so the canvas can pin it like any
+read. `sb agents` already shows the same `waiting` word there today. Jumping to a window stays on the deck, because the
 canvas is observe-only.
 
 ## Phase 1: measure
 
-- [ ] Hold one session at a permission prompt and read its `~/.claude/sessions/` record. Record the
-      `status` value, or record that there isn't a distinct one.
-- [ ] Read the `Notification` and `Stop` hook payloads on the running Claude Code version. Record
-      their fields here.
+- [x] Held a probe session at a permission prompt (Claude Code 2.1.318), with hooks supplied by a
+      one-off `--settings` file so no user config changed. The registry read `waiting` at the
+      prompt and `idle` after the turn. At the trust dialog there was no `<pid>.json` at all.
+- [x] Hook payloads on 2.1.318. Both carry `session_id`, `transcript_path`, `cwd`,
+      `hook_event_name` and `prompt_id`. `Notification` adds `message` and `notification_type`
+      (`permission_prompt`, then `idle_prompt` after the turn). `Stop` adds `permission_mode`,
+      `effort`, `stop_hook_active`, `last_assistant_message`, `background_tasks` and
+      `session_crons`. Not used: the registry suffices.
 - [x] Jeston confirmed the scope ruling directly on 2026-11-04, and `CLAUDE.md` § Scope is rewritten.
 
 ## Phase 2: the deck
 
-- [ ] `sb deck` and `sb deck open <project>`, with `acts` asserted on every subcommand ([[jobs]]
-      round 1's lesson).
-- [ ] Session-scoped tmux options set, and `extended-keys` reported.
+Config is `$SB_HOME/deck.toml`, operator-written and absent by default. It holds `session` (the
+tmux session name, default `sb`), `pin` (an agent name), and `[agent.<name>]` tables with `cwd`
+and an optional `args` list for `claude`. A name not under `[agent.*]` falls back to a
+`projects.toml` project's `cwd`. Every tmux call goes through one runner function, so the suite
+never needs a tmux binary.
+
+- [ ] `sb deck`: create the session if absent (with the pinned agent in window 0), set
+      `window-size latest` on the session and `allow-passthrough on` on its windows, then attach
+      (`switch-client` inside tmux, `exec tmux attach` outside). Acts.
+- [ ] `sb deck open <name>`: a window named `<name>` running `claude` in that agent's `cwd`, or a
+      `select-window` if it already exists. Acts.
+- [ ] `extended-keys` read from the server and reported on stderr when it is off; never set.
+- [ ] `acts` asserted with `sb_acts` on every subcommand, and a test that each one chose
+      ([[jobs]] round 1).
+- [ ] No subcommand calls `send-keys`, and a test greps the module for it.
 
 ## Phase 3: the queue
 
-- [ ] The source Phase 1 chose (the registry status, or the hook writer plus the printed fragment).
-- [ ] A queue pane in the deck, with jump-to-window.
+- [ ] `sb deck queue`: an observe. One row per deck window: window name, the `claude` pid running
+      in it, and that pid's registry `status`, or `unregistered` when there is no record. Sessions
+      reading `waiting` sort first. The word is the provider's, compared literally, so sky.boss
+      orders and does not judge. Live sessions outside the deck are listed after, so none is hidden.
+- [ ] `sb deck jump <name>`: `select-window`. Acts.
+- [ ] `sb deck` puts a queue pane in the pinned window (`sb deck queue` on a refresh).
 
 ## Dropped, and why
 
 - **Typing into an agent pane.** See Scope: it would be a second permission path.
 - **Writing `~/.claude/settings.json` or `~/.tmux.conf`.** Operator-owned, like `projects.toml`.
+- **The hook writer and its ledger.** Phase 1 found the registry already says `waiting`.
 - **Scraping the TUI for task lists.** The workspace ruled it out too; screen text is not a contract.
 
 ## Notes
@@ -125,3 +150,11 @@ directories. The relayed scope ruling is recorded but not applied.
 
 Jeston confirmed the ruling directly, so the plan is unblocked. `CLAUDE.md` § Scope, the README and
 fundamentals' Decisions now say that act versus observe is decided by the surface.
+
+### 2026-11-04: Phase 1 measured, and the hook is not needed
+
+The probe ran in a detached tmux session against an empty scratch directory, with hooks from a
+`--settings` file. Claude Code writes `waiting` to its own registry while a permission prompt is
+open, so the queue reads the file sky.boss already parses. The hook writer, the settings fragment
+and the ledger seam are all dropped. The trust dialog is the one waiting state with no record,
+and the deck covers it by showing what it started.
