@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import functools
 import json
 import re
 from datetime import datetime, timezone
@@ -16,6 +17,7 @@ from click.testing import CliRunner
 
 from skyboss import cli
 from skyboss import deck as deck_
+from skyboss import output
 from skyboss.agents import Scan, Session
 from skyboss.deck import (
     Agent,
@@ -489,7 +491,7 @@ def test_queue_refuses_ticks_without_refresh(fake, home):
 
 def test_queue_refresh_off_a_terminal_is_ndjson(fake, home, monkeypatch):
     monkeypatch.setattr(deck_.agents_, "providers", lambda: [Adapter([a_session(10)])])
-    monkeypatch.setattr("skyboss.output.time.sleep", lambda seconds: None)
+    monkeypatch.setattr(output, "resident_ndjson", functools.partial(output.resident_ndjson, sleep=lambda s: None))
     result = invoke("deck", "queue", "--refresh", "1", "--ticks", "2")
     lines = [json.loads(line) for line in result.stdout.splitlines() if line.startswith("{")]
     assert result.exit_code == 0 and [line["tick"] for line in lines] == [1, 2]

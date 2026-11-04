@@ -24,6 +24,7 @@ from typing import Any, Callable
 
 import click
 from rich.console import Console
+from rich.markup import escape
 from rich.padding import Padding
 from rich.style import Style
 from rich.table import Table
@@ -416,9 +417,11 @@ def warn_now(messages: list[str]) -> None:
 
     For a command that execs or blocks before `emit` could render anything —
     `sb deck` replaces itself with `tmux attach`, so its warnings go out first.
+    Each message is escaped: `[agent.ws]` is text an operator is told to type,
+    and as markup it would vanish — or raise, when shaped like a closing tag.
     """
     for warning in messages:
-        _err().print(f"[yellow]⚠️  {warning}[/yellow]", highlight=False)
+        _err().print(f"[yellow]⚠️  {escape(warning)}[/yellow]", highlight=False)
 
 
 def _render_human(
@@ -447,9 +450,9 @@ def _render_human(
         band(top)
 
     if not result.ok:
-        _err().print(f"[sb.fail]{FAIL_GLYPH} {result.command} failed[/sb.fail]")
+        _err().print(f"[sb.fail]{FAIL_GLYPH} {escape(result.command)} failed[/sb.fail]")
     elif result.partial:
-        _err().print(f"[sb.warn]{UNKNOWN_GLYPH} {result.command} — partial[/sb.warn]")
+        _err().print(f"[sb.warn]{UNKNOWN_GLYPH} {escape(result.command)} — partial[/sb.warn]")
 
     _render_value(result.data, title=result.command or None, view=result.view)
 
@@ -1054,7 +1057,7 @@ def late_note(path: str, last_write_at: float | None, due: int, now: float) -> N
     # nowhere and uncopyable in a log. This is a sentence about a stream, not a
     # rendering, and the one thing it must carry intact is the path.
     _err().print(
-        f"[sb.warn]⚠️  late: no write to {path} in {quiet} (--due {chrome_.ago(due)})[/sb.warn]",
+        f"[sb.warn]⚠️  late: no write to {escape(path)} in {quiet} (--due {chrome_.ago(due)})[/sb.warn]",
         highlight=False,
         soft_wrap=True,
     )

@@ -446,7 +446,9 @@ def inside_tmux() -> bool:
 
 
 def has_terminal() -> bool:
-    return sys.stdin.isatty()
+    """A closed stdin (`None`) is no terminal, not a crash."""
+    stdin = sys.stdin
+    return bool(stdin is not None and stdin.isatty())
 
 
 def switch(session: str) -> bool:

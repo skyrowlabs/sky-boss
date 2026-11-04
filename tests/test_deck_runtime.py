@@ -338,3 +338,18 @@ def test_rendered_warnings_end_in_exactly_what_warn_now_writes(capsys, as_json):
     assert "careful" not in rendered.out.split('"warnings"')[0]
     if as_json:
         assert json.loads(rendered.out)["warnings"] == ["careful", "host gone"]
+
+
+def test_a_bracketed_table_name_in_a_warning_survives(capsys):
+    warn_now(["pin 'ghost': not declared — add [agent.ghost] to deck.toml"])
+    assert "add [agent.ghost] to deck.toml" in capsys.readouterr().err
+
+
+def test_a_closing_tag_shaped_warning_does_not_raise(capsys):
+    warn_now(["unknown key '[/x]' — ignored"])
+    assert "[/x]" in capsys.readouterr().err
+
+
+def test_a_closed_stdin_is_no_terminal(monkeypatch):
+    monkeypatch.setattr(deck_.sys, "stdin", None)
+    assert deck_.has_terminal() is False

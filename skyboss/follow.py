@@ -232,12 +232,12 @@ def follow(
 
             hint = unresolved_hint(target)
             if hint:
-                from skyboss.output import _err
+                from skyboss.output import warn_now
 
                 # The channel every warning uses, for the reason the band does:
                 # this is status, not payload, and a follow's stdout must stay
                 # exactly the lines the file holds.
-                _err().print(f"[yellow]⚠️  waiting on {target}{hint}[/yellow]", highlight=False)
+                warn_now([f"waiting on {target}{hint}"])
 
         follow_file(target, limit=lines, screen=screen, ruleset=ruleset, due=seconds)
     else:
