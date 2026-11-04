@@ -829,6 +829,25 @@ tools do. An agent's transcript is the operator's conversation, and a panel that
 put someone else's prompts on a canvas that also has an [[mcp]] surface. The band shows that a
 session exists, where, and whether it is working.
 
+**24. A stagger view: where agent jobs on one host overlap.** Opened 2026-11-03 from
+[[grid-observability]], whose gap 3 this is. Several agentic grids now share one machine. Spacing
+them out means knowing when each job fires *and* how long it runs, across projects, over days.
+Today that is done by reading a crontab by hand. The *whether* is settled. The *how* is not,
+because the obvious shape breaks a standing rule: [[schedule]] draws one mark per job, its next
+published occurrence, and refuses recurrence, since sky.boss never parses cron.
+
+Undecided:
+
+- **Who computes the occurrences.** Either a provider publishes a list of its own upcoming fire
+  times in its status envelope, which keeps sky.boss ordering and never judging, or there is no
+  density view. A skeletor envelope field would reach every grid at once, so this is probably a
+  request to skeletor before it is a feature here.
+- **Where duration comes from.** A slot needs a width. The last run's `duration_s` is a
+  measurement and the next run's is a guess. Drawing a guess as a bar is the clamping problem
+  [[schedule]] already refused.
+- **Whether it is a schedule screen or its own.** A per-host view crosses projects the way
+  `sb agents` does, and the schedule's project filter would cut it in half.
+
 ---
 
 ## Where a follow ends, when nobody is watching a terminal
