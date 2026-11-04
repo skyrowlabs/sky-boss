@@ -161,6 +161,9 @@ class FakeTmux:
         if verb == "list-panes":
             return Answer(asked=True, out=self.listing(target.lstrip("=")))
         if verb == "show-options":
+            if args == ["-t", target]:
+                listed = [f"{name} {value}" for (where, name), value in self.options.items() if where == target]
+                return Answer(asked=True, out="\n".join(listed) + "\n")
             if "extended-keys" in args:
                 return Answer(asked=True, out=f"{self.extended}\n")
             return Answer(asked=True, out=self.options.get((target, args[-1]), "") + "\n")
@@ -1106,7 +1109,7 @@ def test_every_binding_lands_in_the_decks_table_and_nothing_is_global(fake, home
 
 def test_root_is_copied_so_the_mouse_still_works_in_the_deck():
     copied = deck_.mirrored_root(ROOT_KEYS, "sb-deck-sb")
-    assert "-T sb-deck-sb   MouseDown1Pane     select-pane -t = \; send-keys -M" in copied
+    assert "-T sb-deck-sb   MouseDown1Pane     select-pane -t = \\; send-keys -M" in copied
     assert "MouseDrag1Border" in copied and " root " not in copied
 
 
@@ -1163,7 +1166,168 @@ def test_the_shortcuts_drive_tmux_alone():
 
 
 def test_a_scroll_key_binds_both_its_commands():
-    """A bare `;` ends the bind-key and runs the rest at once; `\;` keeps it in the binding."""
+    """A bare `;` ends the bind-key and runs the rest at once; an escaped one stays in the binding."""
     (older,) = [argv for argv in deck_.deck_bindings("sb") if argv[3] == "M-u"]
-    assert "\;" in older and ";" not in older
+    assert "\\;" in older and ";" not in older
     assert older[-1] == "#{e|+:#{@sb-scroll-seq},1}"
+
+
+# ============================================================================
+# Round 4: the panes' view state — scroll, the outside toggle
+# ============================================================================
+
+
+def rows_of_n(n):
+    return Result_(data=[{"n": i, "where": "deck" if i % 2 else "outside"} for i in range(n)])
+
+
+def Result_(**kwargs):
+    from skyboss.output import Result
+
+    return Result(**kwargs)
+
+
+def test_the_messages_fit_follows_the_offset_and_says_where_it_is():
+    pane = deck_.DeckPane("sb", lambda row: True, scroll=True)
+    fit = deck_.keep_last("message(s)", pane)
+    shown, marker = fit(rows_of_n(30), 10)
+    assert [r["n"] for r in shown.data] == list(range(20, 30)) and marker == "newest · 20 earlier message(s) not shown"
+    pane.move("pgup")
+    shown, marker = fit(rows_of_n(30), 10)
+    assert [r["n"] for r in shown.data] == list(range(10, 20))
+    assert marker == "↑ 10 back · 10 earlier · End or M-e: newest"
+    pane.move("home")
+    assert [r["n"] for r in fit(rows_of_n(30), 10)[0].data] == list(range(0, 10)) and pane.offset == 20
+    assert pane.move("end") and fit(rows_of_n(30), 10)[1].startswith("newest")
+
+
+def test_scroll_keys_move_by_line_page_and_wheel():
+    pane = deck_.DeckPane("sb", lambda row: True, scroll=True)
+    pane.page = 7
+    for key, offset in (
+        ("up", 1),
+        ("wheelup", 4),
+        ("pgup", 11),
+        ("down", 10),
+        ("wheeldown", 7),
+        ("pgdn", 0),
+        ("pgdn", 0),
+    ):
+        pane.on_key(key)
+        assert pane.offset == offset, key
+    assert pane.on_key("q") is False
+
+
+def test_a_pane_that_does_not_scroll_takes_no_keys():
+    pane = deck_.DeckPane("sb", lambda row: True)
+    assert pane.on_key("up") is False and pane.offset == 0 and not pane.counted
+
+
+def test_a_shortcut_is_adopted_on_the_next_frame_and_not_at_start(fake, home):
+    fake.session("sb")
+    fake.options[("=sb:", "@sb-scroll")] = "older"
+    fake.options[("=sb:", "@sb-scroll-seq")] = "4"
+    pane = deck_.DeckPane("sb", lambda row: True, scroll=True)
+    pane.shape(rows_of_n(3))
+    assert pane.offset == 0
+    fake.options[("=sb:", "@sb-scroll-seq")] = "5"
+    pane.shape(rows_of_n(3))
+    assert pane.offset == pane.page
+    fake.options[("=sb:", "@sb-scroll")] = "newest"
+    fake.options[("=sb:", "@sb-scroll-seq")] = "6"
+    pane.shape(rows_of_n(3))
+    assert pane.offset == 0
+
+
+@pytest.mark.parametrize(
+    "keeps",
+    [lambda row: row.get("where") == "deck", lambda row: bool(row.get("from_agent") or row.get("to_agent"))],
+    ids=["queue", "messages"],
+)
+def test_both_panes_read_the_one_outside_toggle(fake, home, keeps):
+    fake.session("sb")
+    pane = deck_.DeckPane("sb", keeps)
+    rows = Result_(data=[{"where": "deck", "from_agent": "jam"}, {"where": "outside"}])
+    assert len(pane.shape(rows).data) == 2
+    fake.options[("=sb:", "@sb-hide-outside")] = "1"
+    shaped = pane.shape(rows)
+    assert len(shaped.data) == 1 and "1 outside row(s) hidden — M-h shows them" in shaped.warnings
+
+
+def test_the_tool_panes_are_handed_their_control(fake, home, monkeypatch):
+    seen = []
+    monkeypatch.setattr(deck_, "_resident", lambda source, once, *rest: seen.append((source, rest[-1])))
+    invoke("deck", "queue", "--refresh", "5")
+    invoke("deck", "messages", "--refresh", "5")
+    (queue_source, queue_pane), (messages_source, messages_pane) = seen
+    assert not queue_pane.wheel and messages_pane.wheel and messages_pane.counted
+
+
+# ============================================================================
+# Round 4: agent colours
+# ============================================================================
+
+
+def test_slots_follow_tab_order_with_the_primary_first(fake):
+    fake.add("sb-agents", "ws", agent="ws", role="agent")
+    fake.add("sb-agents", "shell", role="shell")
+    fake.add("sb-agents", "jam", agent="jam", role="agent")
+    listed = parse_panes(fake.listing("sb-agents"))
+    slots = deck_.agent_slots(listed)
+    names = {fake.windows[w]["name"]: slot for w, slot in slots.items()}
+    assert names == {"ws": 0, "jam": 1}
+
+
+def test_tab_colours_are_written_once_and_read_by_the_tab_format(fake):
+    ws, _ = fake.add("sb-agents", "ws", agent="ws", role="agent")
+    jam, _ = fake.add("sb-agents", "jam", agent="jam", role="agent")
+    from skyboss import theme
+
+    written: dict[str, str] = {}
+    deck_.write_colours("sb", parse_panes(fake.listing("sb-agents")), written)
+    assert fake.windows[ws]["opts"]["@sb-colour"] == theme.agent_colour(0)
+    assert fake.windows[jam]["opts"]["@sb-colour"] == theme.agent_colour(1)
+    fake.calls.clear()
+    deck_.write_colours("sb", parse_panes(fake.listing("sb-agents")), written)
+    assert fake.find("set-option") == []
+    assert "#[fg=#{@sb-colour}]" in deck_.tab_format(False)
+
+
+def test_the_messages_pane_colours_a_name_exactly_as_its_tab_is_coloured():
+    from skyboss import theme
+    from skyboss.messages import Message, rows_of
+
+    message = Message(at=NOW, sender="jam", receiver="ws", body="hi", msg_id="m", session="s", key="m")
+    (row,) = rows_of([message], NOW, {"ws": ("ws", 0), "jam": ("jam", 3)})
+    assert row["between_parts"] == [["jam", "sb.agent.3"], [" → ", "sb.muted"], ["ws", "sb.agent.0"]]
+    assert theme.STYLES["sb.agent.3"] == theme.agent_colour(3)
+    (outside,) = rows_of([message], NOW, {})
+    assert outside["between_parts"][0] == ["jam", None] and outside["from_agent"] == ""
+
+
+def test_every_agent_colour_clears_the_floor_on_every_deck_ground():
+    from skyboss import theme
+
+    for colour in theme.AGENT_COLOURS:
+        for ground in theme.AGENT_GROUNDS:
+            assert theme.contrast(colour, ground) >= theme.CLI_FLOOR, (colour, ground)
+    assert len(set(theme.AGENT_COLOURS)) == len(theme.AGENT_COLOURS)
+
+
+def test_the_agent_ramp_is_the_canvas_project_ramp():
+    """Recomputed from sb.css, so the canvas and the deck cannot part."""
+    from skyboss import theme
+
+    css = (Path(deck_.__file__).parent / "canvas" / "static" / "sb.css").read_text()
+    names = {"text": theme.TEXT, "surface-2": theme.SURFACE_2, "ok": theme.OK}
+    found: list[tuple[str | None, float]] = [(None, 1.0)]
+    for partner, weight in re.findall(
+        r"\.pl-s[1-9] \{ --pl-ink: color-mix\(in oklab, var\(--sb-brand\) (\d+)%, var\(--sb-([a-z0-9-]+)\)\); \}", css
+    ):
+        found.append((names[weight], int(partner) / 100))
+    assert tuple(found) == theme.AGENT_RECIPES
+
+
+def test_an_empty_option_as_tmux_prints_it_is_empty():
+    parsed = deck_.session_options("@sb-hide-outside ''\n@sb-scroll older\n@sb-x \"a b\"\n")
+    assert parsed == {"@sb-hide-outside": "", "@sb-scroll": "older", "@sb-x": "a b"}

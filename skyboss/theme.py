@@ -152,6 +152,128 @@ CLI_REF_BG = "#103141"  # BRAND at 0.22 over BG  —  1.46 / 13.66 vs the two
 CLI_REF = BRAND  # undarkened: it sits on a ground this file chose
 
 # ============================================================================
+# Agent colours — steps along the brand
+# ============================================================================
+#
+# The canvas's project ramp (`.pl-s0`…`.pl-s5` in `sb.css`), recomputed here
+# because a terminal cannot `color-mix`: the same partners at the same weights,
+# mixed in OKLab. Then each is moved in lightness only, the least distance that
+# clears the CLI floor against both a white terminal and the void, because the
+# messages pane draws on the operator's ground. Never a new hue, never a role.
+# A test reads `sb.css` and fails if the two recipes part.
+
+AGENT_RECIPES: tuple[tuple[str | None, float], ...] = (
+    (None, 1.0),
+    (TEXT, 0.62),
+    (SURFACE_2, 0.46),
+    (OK, 0.78),
+    (TEXT, 0.34),
+    (OK, 0.55),
+)
+CLI_FLOOR = 3.5
+_WHITE = "#ffffff"
+# A white terminal and the void for the messages pane; the tab row's own two grounds.
+AGENT_GROUNDS = (_WHITE, BG, SURFACE, SURFACE_2)
+
+
+def _linear(channel: float) -> float:
+    return channel / 12.92 if channel <= 0.04045 else ((channel + 0.055) / 1.055) ** 2.4
+
+
+def _gamma(channel: float) -> float:
+    channel = min(1.0, max(0.0, channel))
+    return channel * 12.92 if channel <= 0.0031308 else 1.055 * channel ** (1 / 2.4) - 0.055
+
+
+def _rgb(colour: str) -> tuple[float, float, float]:
+    raw = colour.lstrip("#")
+    r, g, b = (int(raw[i : i + 2], 16) / 255 for i in (0, 2, 4))
+    return r, g, b
+
+
+def _hex(rgb: tuple[float, float, float]) -> str:
+    return "#" + "".join(f"{round(_gamma(c) * 255):02x}" for c in rgb)
+
+
+def _to_oklab(colour: str) -> tuple[float, float, float]:
+    r, g, b = (_linear(c) for c in _rgb(colour))
+    lms = (
+        0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b,
+        0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b,
+        0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b,
+    )
+    l_, m_, s_ = (v ** (1 / 3) for v in lms)
+    return (
+        0.2104542553 * l_ + 0.7936177850 * m_ - 0.0040720468 * s_,
+        1.9779984951 * l_ - 2.4285922050 * m_ + 0.4505937099 * s_,
+        0.0259040371 * l_ + 0.7827717662 * m_ - 0.8086757660 * s_,
+    )
+
+
+def _from_oklab(lab: tuple[float, float, float]) -> str:
+    big_l, a, b = lab
+    l_ = big_l + 0.3963377774 * a + 0.2158037573 * b
+    m_ = big_l - 0.1055613458 * a - 0.0638541728 * b
+    s_ = big_l - 0.0894841775 * a - 1.2914855480 * b
+    l, m, s = l_**3, m_**3, s_**3
+    return _hex(
+        (
+            4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s,
+            -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s,
+            -0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s,
+        )
+    )
+
+
+def luminance(colour: str) -> float:
+    r, g, b = (_linear(c) for c in _rgb(colour))
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+
+def contrast(a: str, b: str) -> float:
+    high, low = sorted((luminance(a), luminance(b)), reverse=True)
+    return (high + 0.05) / (low + 0.05)
+
+
+def _mix(partner: str | None, weight: float) -> str:
+    """BRAND at `weight` with `partner`, in OKLab — `color-mix(in oklab, brand w%, partner)`."""
+    if partner is None:
+        return BRAND
+    brand, other = _to_oklab(BRAND), _to_oklab(partner)
+    return _from_oklab(tuple(weight * x + (1 - weight) * y for x, y in zip(brand, other)))  # type: ignore[arg-type]
+
+
+def _legible(colour: str) -> str:
+    """`colour`, moved in OKLab lightness by the least that clears the floor on every ground it meets."""
+
+    def clears(candidate: str) -> bool:
+        return all(contrast(candidate, ground) >= CLI_FLOOR for ground in AGENT_GROUNDS)
+
+    if clears(colour):
+        return colour
+    big_l, a, b = _to_oklab(colour)
+    for step in range(1, 200):
+        for sign in (-1, 1):
+            candidate = _from_oklab((big_l + sign * step * 0.002, a, b))
+            if clears(candidate):
+                return candidate
+    return CLI_BRAND
+
+
+#: One colour per agent slot: the tab row and the messages pane both read these.
+AGENT_COLOURS: tuple[str, ...] = tuple(_legible(_mix(partner, weight)) for partner, weight in AGENT_RECIPES)
+
+
+def agent_colour(slot: int) -> str:
+    """The colour of the agent in tab position `slot`, primary first."""
+    return AGENT_COLOURS[slot % len(AGENT_COLOURS)]
+
+
+def agent_role(slot: int) -> str:
+    return f"sb.agent.{slot % len(AGENT_COLOURS)}"
+
+
+# ============================================================================
 # Style roles
 # ============================================================================
 #
@@ -172,6 +294,8 @@ STYLES: dict[str, str] = {
     "sb.url": CLI_PATH,
     # The one role that paints its own ground. See § Ground, not hue.
     "sb.ref": f"{CLI_REF} on {CLI_REF_BG}",
+    # One per deck agent, by tab order. See § Agent colours.
+    **{agent_role(slot): colour for slot, colour in enumerate(AGENT_COLOURS)},
 }
 
 # Roles that paint their own background, and are therefore exempt from the

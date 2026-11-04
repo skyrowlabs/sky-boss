@@ -913,6 +913,14 @@ def _view_cell(row: dict, column: dict) -> Text:
     value = resolve(row, column["key"])
     if column.get("summarise") and isinstance(value, dict):
         return Text(summarise_mapping(value), style="sb.muted")
+    segments = row.get(column["segments"]) if column.get("segments") else None
+    if isinstance(segments, list):
+        # A cell its command drew in parts, each in a role it named: `[[text, role], ...]`.
+        out = Text()
+        for part in segments:
+            if isinstance(part, (list, tuple)) and len(part) == 2:
+                out.append(str(part[0]), style=part[1] or "")
+        return out
     return _styled_value(value, column["key"])
 
 

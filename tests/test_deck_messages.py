@@ -451,3 +451,142 @@ def test_an_overshooting_trim_takes_back_the_rows_that_fit(tmp_path):
     console = Console(width=80)
     lines = fitted(result, drawn(result), 12, keep_last("message(s)"), drawn, console).plain.split("\n")
     assert len(lines) == 12 and lines[0].startswith("40 earlier") and lines[-1] == "note 49"
+
+
+# ============================================================================
+# Round 4: keys, the wheel, and a counted line
+# ============================================================================
+
+
+def resident_control():
+    from skyboss.resident import Control
+
+    return Control
+
+
+class Stream:
+    def __init__(self, text):
+        self.text = text
+
+    def read(self, n):
+        out, self.text = self.text[:n], self.text[n:]
+        return out
+
+
+@pytest.mark.parametrize(
+    ("raw", "key"),
+    [("[<64;10;5M", "wheelup"), ("[<65;1;1M", "wheeldown"), ("[<0;3;4M", None), ("[<64;10;5m", None), ("[A", "up")],
+)
+def test_an_sgr_wheel_report_is_a_key_and_any_other_report_is_nothing(raw, key):
+    from skyboss import keys
+
+    stream = Stream(raw)
+    assert keys._sequence(stream, ready=lambda s: bool(s.text)) == key
+
+
+class Taker(resident_control()):  # type: ignore[misc]
+    """A control that takes one key and counts its frames."""
+
+    counted = True
+    wheel = True
+
+    def __init__(self):
+        self.keys = []
+        self.shaped = 0
+
+    def shape(self, result):
+        self.shaped += 1
+        return result
+
+    def on_key(self, key):
+        self.keys.append(key)
+        return key == "up"
+
+
+def test_a_taken_key_redraws_at_once_and_the_wheel_is_reported_on_screen(tmp_path):
+    from rich.console import Console
+
+    from skyboss.deck import keep_last
+    from skyboss.resident import MOUSE_OFF, MOUSE_ON, reside
+
+    presses = iter(["up", None, None, None])
+    clock = Clock()
+
+    def wait(seconds):
+        clock.sleep(seconds)
+        return next(presses, None)
+
+    control = Taker()
+    import io
+
+    sink = io.StringIO()
+    console = Console(record=True, width=80, height=20, force_terminal=True, file=sink)
+    result = long_rows(tmp_path)
+    reside(
+        "deck messages",
+        10,
+        lambda: result,
+        clock=clock,
+        wait=wait,
+        console=console,
+        screen=True,
+        ticks=2,
+        fit=keep_last("message(s)"),
+        fill=True,
+        control=control,
+    )
+    written = sink.getvalue()
+    # Shaped frames: the result, the redraw the key caused, and the second tick.
+    assert control.keys == ["up"] and control.shaped == 3
+    assert written.index(MOUSE_ON) < written.rindex(MOUSE_OFF)
+
+
+def test_a_counted_view_says_newest_even_when_every_row_fits(tmp_path):
+    from rich.console import Console
+    from rich.text import Text
+
+    from skyboss.deck import DeckPane, keep_last
+    from skyboss.resident import fitted
+
+    result = messages_.messages_result([Adapter([fifty(tmp_path)])], tmp_path, NOW)
+    pane = DeckPane("sb", lambda row: True, scroll=True)
+
+    def drawn(r):
+        return Text("\n".join(row["message"] for row in r.data))
+
+    console = Console(width=80)
+    shown = fitted(result, drawn(result), 100, keep_last("message(s)", pane), drawn, console, always=True)
+    assert shown.plain.split("\n")[0] == "newest"
+
+
+def test_a_segmented_cell_is_drawn_in_its_parts_roles(tmp_path):
+    from skyboss.output import capture, render
+
+    who = session("s1", "ws")
+    write(tmp_path, who, [peer("jam", "hi", "m1", "2026-11-04T11:00:00Z")])
+    result = messages_.messages_result([Adapter([who])], tmp_path, NOW, place=lambda sessions: {"s1": ("ws", 2)})
+    assert result.data[0]["between_parts"][2] == ["ws", "sb.agent.2"]
+    with capture(width=80) as captured:
+        render(result, as_json=False)
+    assert "jam → ws" in _plain(captured.text)
+
+
+def test_the_fit_keeps_the_scroll_while_it_tries_row_counts(tmp_path):
+    from rich.console import Console
+    from rich.text import Text
+
+    from skyboss.deck import DeckPane, keep_last
+    from skyboss.resident import fitted
+
+    result = messages_.messages_result([Adapter([fifty(tmp_path)])], tmp_path, NOW)
+    pane = DeckPane("sb", lambda row: True, scroll=True)
+    pane.offset = 5
+
+    def drawn(r):
+        return Text("HEADER\n" + "\n".join(row["message"] for row in r.data))
+
+    console = Console(width=80)
+    lines = fitted(result, drawn(result), 12, keep_last("message(s)", pane), drawn, console, always=True).plain.split(
+        "\n"
+    )
+    assert pane.offset == 5 and lines[0].startswith("↑ 5 back · ") and lines[-1] == "note 44"

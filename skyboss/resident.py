@@ -106,6 +106,7 @@ def loop(
     *,
     ticks: int | None = None,
     runs: int | None = None,
+    on_key: Callable[[str], bool] | None = None,
 ) -> None:
     """Run when due, redraw every tick, until the operator leaves.
 
@@ -144,8 +145,15 @@ def loop(
                 return
         else:
             draw(None)
-        if keys.leaves(wait(keys.TICK)):
+        key = wait(keys.TICK)
+        if keys.leaves(key):
             return
+        # A key a caller takes redraws at once rather than at the next tick.
+        while key and on_key is not None and on_key(key):
+            draw(None)
+            key = wait(0)
+            if keys.leaves(key):
+                return
         count += 1
 
 
@@ -195,6 +203,27 @@ def clip(body: Text, limit: int, *, tail: bool = False) -> Text:
 #: Trims a result to its first or last `keep` rows, and says what it left out.
 Fit = Callable[[Result, int], tuple[Result, str]]
 
+# SGR mouse reporting, so a wheel over the pane arrives as a key. See `keys._WHEEL`.
+MOUSE_ON = "\x1b[?1000h\x1b[?1006h"
+MOUSE_OFF = "\x1b[?1006l\x1b[?1000l"
+
+
+class Control:
+    """What a caller may do to a resident screen: reshape a frame, take keys and the wheel.
+
+    `counted` keeps the fit's line on screen even when every row fits, for a
+    view whose line says where it is rather than only what it cut.
+    """
+
+    counted = False
+    wheel = False
+
+    def shape(self, result: Result) -> Result:
+        return result
+
+    def on_key(self, key: str) -> bool:
+        return False
+
 
 def height(text: Text, console: Console) -> int:
     """Lines `text` takes at this console's width."""
@@ -202,7 +231,14 @@ def height(text: Text, console: Console) -> int:
 
 
 def fitted(
-    result: Result, body: Text, limit: int, fit: Fit, drawn: Callable[[Result], Text], console: Console | None = None
+    result: Result,
+    body: Text,
+    limit: int,
+    fit: Fit,
+    drawn: Callable[[Result], Text],
+    console: Console | None = None,
+    *,
+    always: bool = False,
 ) -> Text:
     """`body`, or `result` re-drawn with fewer rows and a counting line, so it fits in `limit` lines.
 
@@ -212,7 +248,7 @@ def fitted(
     """
     rows = result.data if isinstance(result.data, list) else None
     lines = _count(body, console)
-    if rows is None or lines <= limit:
+    if rows is None or (lines <= limit and not always):
         return body
 
     def draw(keep: int) -> Text:
@@ -226,6 +262,10 @@ def fitted(
 
     keep = len(rows)
     shown = body
+    if always:
+        # A counted view always says where it is, even when every row fits.
+        shown = draw(keep)
+        lines = _count(shown, console)
     while keep > 0 and lines > limit:
         keep = max(0, keep - max(1, lines - limit))
         shown = draw(keep)
@@ -509,6 +549,7 @@ def reside(
     runs: int | None = None,
     fit: Fit | None = None,
     fill: bool = False,
+    control: Control | None = None,
 ) -> None:
     """The whole resident rendering: bands, body, and a way out.
 
@@ -532,6 +573,7 @@ def reside(
     `fit`, with `screen`, trims *rows* rather than lines so a table keeps its
     header: see `fitted`. `fill` draws every row on one line across the whole
     width. Both are measured at every frame, because a pane is resized.
+    `control` lets a caller reshape each frame and take keys and the wheel.
     """
     out = console or Console(theme=THEME, highlight=False)
     state = Residency(source, interval, clock)
@@ -551,11 +593,13 @@ def reside(
         facts = state.chrome()
         top, bottom = chrome_.status_bands(facts, clock(), out.width)
         top_text, bottom_text = band_text(top), band_text(bottom)
-        if fill and last is not None:
-            body = drawn(last)
-        if screen and fit is not None and last is not None:
+        shaped = control.shape(last) if control is not None and last is not None else last
+        if fill and shaped is not None:
+            body = drawn(shaped)
+        if screen and fit is not None and shaped is not None:
             limit = out.height - height(top_text, out) - height(bottom_text, out) - 1
-            shown = fitted(last, body, limit, fit, drawn, out)
+            always = control is not None and control.counted
+            shown = fitted(shaped, body, limit, fit, drawn, out, always=always)
         else:
             shown = body if screen else clip(body, room(out))
         return Group(top_text, shown, bottom_text)
@@ -567,8 +611,18 @@ def reside(
                 out.clear()
                 out.print(frame_for(result))
 
+            on_key = control.on_key if control is not None else None
+            mouse = control is not None and control.wheel
             with out.screen():
-                loop(state, run_once, draw, wait_for, ticks=ticks, runs=runs)
+                if mouse:
+                    out.file.write(MOUSE_ON)
+                    out.file.flush()
+                try:
+                    loop(state, run_once, draw, wait_for, ticks=ticks, runs=runs, on_key=on_key)
+                finally:
+                    if mouse:
+                        out.file.write(MOUSE_OFF)
+                        out.file.flush()
             return
 
         # Live owns the cursor and the in-place repaint. `transient=False` is

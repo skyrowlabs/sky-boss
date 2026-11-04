@@ -19,8 +19,10 @@ import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Callable
 
 from skyboss import agents as agents_
+from skyboss import theme
 from skyboss.chrome import ago
 from skyboss.output import Result
 from skyboss.view import describe
@@ -32,7 +34,7 @@ LIMIT = 50
 PROJECTS = Path(".claude") / "projects"
 
 INLINE = ("when", "between", "message")
-HIDDEN = ("at", "from", "to", "msg_id", "session")
+HIDDEN = ("at", "from", "to", "from_agent", "to_agent", "between_parts", "msg_id", "session")
 
 
 def projects_dir() -> Path:
@@ -158,7 +160,15 @@ def first_line(body: str) -> str:
     return lines[0].strip() if lines else ""
 
 
-def rows_of(messages: list[Message], now: datetime) -> list[dict]:
+def rows_of(messages: list[Message], now: datetime, agents: dict[str, tuple[str, int]] | None = None) -> list[dict]:
+    """One row per message. `agents` maps a session name to the deck agent it runs as, and its tab slot."""
+    agents = agents or {}
+
+    def part(name: str) -> list:
+        # An agent's name in its own colour; anyone outside the deck in the plain text colour.
+        placed = agents.get(name)
+        return [name, theme.agent_role(placed[1]) if placed else None]
+
     return [
         {
             "when": ago((now - m.at).total_seconds()) if m.at else "",
@@ -167,6 +177,9 @@ def rows_of(messages: list[Message], now: datetime) -> list[dict]:
             "at": m.at.isoformat() if m.at else "",
             "from": m.sender,
             "to": m.receiver,
+            "from_agent": agents.get(m.sender, ("", 0))[0],
+            "to_agent": agents.get(m.receiver, ("", 0))[0],
+            "between_parts": [part(m.sender), [" → ", "sb.muted"], part(m.receiver)],
             "msg_id": m.msg_id,
             "session": m.session,
         }
@@ -175,15 +188,24 @@ def rows_of(messages: list[Message], now: datetime) -> list[dict]:
 
 
 def view_of(rows: list[dict]) -> dict:
+    columns = [describe(key, rows) for key in INLINE]
+    for column in columns:
+        if column["key"] == "between":
+            column["segments"] = "between_parts"
     return {
-        "columns": [describe(key, rows) for key in INLINE],
+        "columns": columns,
         "details": [],
         "hidden": list(HIDDEN),
         "authored": True,
     }
 
 
-def messages_result(adapters: list | None = None, projects: Path | None = None, now: datetime | None = None) -> Result:
+def messages_result(
+    adapters: list | None = None,
+    projects: Path | None = None,
+    now: datetime | None = None,
+    place: Callable[[list], dict[str, tuple[str, int]]] | None = None,
+) -> Result:
     """The envelope. Every way it could not look is a warning, so empty is never ambiguous."""
     result = Result()
     chosen = adapters if adapters is not None else agents_.providers()
@@ -195,7 +217,10 @@ def messages_result(adapters: list | None = None, projects: Path | None = None, 
     messages, more = collect(sessions, projects or projects_dir())
     for problem in more:
         result.warn(problem)
-    result.data = rows_of(messages, now or datetime.now(timezone.utc))
+    # By name, because a sender is named in the message and not by session id.
+    placed = place(sessions) if place is not None else {}
+    agents = {s.name: placed[s.id] for s in sessions if s.id in placed and s.name}
+    result.data = rows_of(messages, now or datetime.now(timezone.utc), agents)
     if not result.data:
         if sessions:
             result.warn(f"no messages — {len(sessions)} live session(s) read, none received one")

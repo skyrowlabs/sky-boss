@@ -38,6 +38,7 @@ from typing import Callable
 import rich_click as click
 
 from skyboss import agents as agents_
+from skyboss import resident as resident_
 from skyboss import theme
 from skyboss.chrome import ago, clock
 from skyboss.helpers import PROJECT_ROOT, SB_HOME, child_env, mark
@@ -68,6 +69,7 @@ LAYOUT_OPTION = "@sb-layout"
 # Window: the registry's word for the tab's session. Session (tabs): when the
 # marks were last written, and the pid of the one loop that writes them.
 STATE_OPTION = "@sb-state"
+COLOUR_OPTION = "@sb-colour"
 MARKED_OPTION = "@sb-marked"
 MARKS_PID_OPTION = "@sb-marks-pid"
 
@@ -456,7 +458,9 @@ def tab_format(current: bool) -> str:
     mark = state
     for word, label, role in reversed((*labels, (UNREGISTERED, UNREGISTERED, "unregistered"))):
         mark = f"#{{?#{{==:{state},{word}}},#[{style[role]}]{label},{mark}}}"
-    return f"#[{base}] #W#{{?{state}, · ,}}{mark}#[{base}] "
+    colour = "#{" + COLOUR_OPTION + "}"
+    name = f"#{{?{colour},#[fg={colour}],}}#W#[{base}]"
+    return f"#[{base}] {name}#{{?{state}, · ,}}{mark}#[{base}] "
 
 
 def window_options(tab: bool) -> tuple[tuple[str, str], ...]:
@@ -652,7 +656,9 @@ def windows_states(listed: list[Pane], sessions: list, parent_of: dict[int, int]
     return states
 
 
-def marks_once(session: str, written: dict[str, str], adapters: list | None = None) -> Result:
+def marks_once(
+    session: str, written: dict[str, str], adapters: list | None = None, colours: dict[str, str] | None = None
+) -> Result:
     """Write each tab's state where it changed, and the time it was written. Acts on tmux only."""
     result = Result()
     name = inner(session)
@@ -679,6 +685,8 @@ def marks_once(session: str, written: dict[str, str], adapters: list | None = No
             else:
                 result.degrade(f"could not mark {labels.get(window_id, window_id)!r} — {_said(set_)}")
         rows.append({"window": labels.get(window_id, window_id), "state": word, "written": changed})
+    for problem in write_colours(session, listed, colours if colours is not None else {}):
+        result.degrade(problem)
     count = str(len({p.window_id for p in listed if p.role == AGENT}))
     for problem in _session_options(name, ((MARKED_OPTION, clock(time.time())),)) + _session_options(
         session, ((AGENT_COUNT_OPTION, count),)
@@ -876,6 +884,8 @@ def dress_sessions(session: str) -> list[str]:
     problems = _session_options(session, bar_options(False))
     problems += _session_options(inner(session), bar_options(True))
     problems += _session_options(session, ((AGENT_COUNT_OPTION, str(agent_count(session))),))
+    listed, _ = panes(inner(session))
+    problems += write_colours(session, listed, {})
     return problems + install_keys(session)
 
 
@@ -1325,6 +1335,7 @@ def deck_marks(every: int | None, ticks: int | None) -> Result:
             result.warn(problem)
         return result
 
+    coloured: dict[str, str] = {}
     own = str(os.getpid())
     _session_options(inner(config.session), ((MARKS_PID_OPTION, own),))
     count = 0
@@ -1333,7 +1344,7 @@ def deck_marks(every: int | None, ticks: int | None) -> Result:
         owner = _marks_owner(config.session)
         if not has_session(inner(config.session)) or (owner is not None and str(owner) != own):
             break
-        marks_once(config.session, written)
+        marks_once(config.session, written, colours=coloured)
         if ticks is not None and count >= ticks:
             break
         SLEEP(every)
@@ -1425,18 +1436,99 @@ def deck_messages(refresh: int | None, ticks: int | None, screen: bool) -> Resul
     receiver, and the first line. The last 50, read from each live session's
     transcript; a transcript that cannot be read is counted in a warning.
     """
-    return _resident("deck messages", messages_result, refresh, ticks, screen, keep_last("message(s)"))
+    config, _ = load()
+    pane = DeckPane(config.session, lambda row: bool(row.get("from_agent") or row.get("to_agent")), scroll=True)
+    once = functools.partial(messages_result, place=placement)
+    return _resident("deck messages", once, refresh, ticks, screen, keep_last("message(s)", pane), pane)
 
 
-def keep_last(noun: str) -> Callable[[Result, int], tuple[Result, str]]:
-    """The newest `keep` rows, with a line counting the earlier ones."""
+def keep_last(noun: str, pane: DeckPane | None = None) -> Callable[[Result, int], tuple[Result, str]]:
+    """The newest `keep` rows, or `keep` rows ending `pane.offset` back from them, with a line saying where."""
 
     def fit(result: Result, keep: int) -> tuple[Result, str]:
         rows = result.data
-        left = len(rows) - keep
-        return replace(result, data=rows[left:]), f"{left} earlier {noun} not shown — the newest {keep} fit"
+        offset = pane.within(len(rows), keep) if pane is not None else 0
+        end = len(rows) - offset
+        start = max(0, end - keep)
+        shown = replace(result, data=rows[start:end])
+        if pane is None:
+            return shown, f"{start} earlier {noun} not shown — the newest {keep} fit"
+        if offset:
+            return shown, f"↑ {offset} back · {start} earlier · End or {SHORTCUTS['newest']}: newest"
+        return shown, f"newest · {start} earlier {noun} not shown" if start else "newest"
 
     return fit
+
+
+class DeckPane(resident_.Control):
+    """A deck tool pane's view state: the outside toggle and the scroll, read from the deck session.
+
+    The pane reads its session's options each frame and writes none: a shortcut
+    sets an option, and the pane adopts it. Its own keys move only its own offset.
+    """
+
+    def __init__(self, session: str, keeps: Callable[[dict], bool], *, scroll: bool = False) -> None:
+        self.session = session
+        self.keeps = keeps
+        self.counted = scroll
+        self.wheel = scroll
+        self.offset = 0
+        self.page = 10
+        self.total = 10**6
+        self.hide = False
+        self.seq: str | None = None
+
+    def poll(self) -> None:
+        answer = tmux("show-options", "-t", scope(self.session))
+        options = session_options(answer.out) if answer.ok else {}
+        self.hide = bool(options.get(HIDE_OPTION))
+        seq = options.get(SCROLL_SEQ_OPTION, "")
+        if self.seq is not None and seq != self.seq:
+            self.move("pgup" if options.get(SCROLL_OPTION) == "older" else "end")
+        self.seq = seq
+
+    def shape(self, result: Result) -> Result:
+        self.poll()
+        if not self.hide or not isinstance(result.data, list):
+            return result
+        kept = [row for row in result.data if self.keeps(row)]
+        hidden = len(result.data) - len(kept)
+        warnings = [*result.warnings, f"{hidden} outside row(s) hidden — {SHORTCUTS['outside']} shows them"]
+        return replace(result, data=kept, warnings=warnings if hidden else result.warnings)
+
+    def on_key(self, key: str) -> bool:
+        return self.wheel and self.move(key)
+
+    def move(self, key: str) -> bool:
+        steps = {"up": 1, "down": -1, "wheelup": 3, "wheeldown": -3, "pgup": self.page, "pgdn": -self.page}
+        was = self.offset
+        if key == "end":
+            self.offset = 0
+        elif key == "home":
+            self.offset = 10**6
+        elif key in steps:
+            self.offset = max(0, self.offset + steps[key])
+        # Clamped here, against the last drawing, so `down` at the top moves at once.
+        self.offset = min(self.offset, max(0, self.total - self.page))
+        return self.offset != was
+
+    def within(self, total: int, keep: int) -> int:
+        """The offset to draw with `keep` rows of `total`. Read-only: the fit tries several `keep`s."""
+        self.total, self.page = total, max(1, keep)
+        return min(self.offset, max(0, total - keep))
+
+
+def session_options(text: str) -> dict[str, str]:
+    """`show-options` output as a mapping, unquoted as tmux quoted it (an empty value prints as `''`)."""
+    out: dict[str, str] = {}
+    for line in text.splitlines():
+        name, _, value = line.partition(" ")
+        try:
+            words = shlex.split(value)
+        except ValueError:
+            words = [value.strip()]
+        out[name] = words[0] if words else ""
+    return out
 
 
 def keep_first(noun: str) -> Callable[[Result, int], tuple[Result, str]]:
@@ -1456,6 +1548,7 @@ def _resident(
     ticks: int | None,
     screen: bool,
     fit: Callable[[Result, int], tuple[Result, str]],
+    control: resident_.Control | None = None,
 ) -> Result:
     """One read, or the same read on a cadence — `sb data`'s resident path, shared.
 
@@ -1467,12 +1560,21 @@ def _resident(
     if ticks is not None and refresh is None:
         raise click.UsageError("--ticks needs --refresh — a single read already stops after one")
     if refresh is not None:
-        from skyboss import output, resident
+        from skyboss import output
 
         if _as_json() or not output.stdout_is_terminal():
             output.resident_ndjson(once, refresh, runs=ticks)
         else:
-            resident.reside(source, refresh, once, screen=screen, runs=ticks, fit=fit, fill=screen)
+            resident_.reside(
+                source,
+                refresh,
+                once,
+                screen=screen,
+                runs=ticks,
+                fit=fit,
+                fill=screen,
+                control=control if screen else None,
+            )
         raise click.exceptions.Exit(0)
     return once()
 
@@ -1561,6 +1663,42 @@ def deck_windows(listed: list[Pane], sessions: list, parent_of: dict[int, int]) 
         if not found and agent is not None:
             entries.append((window_id, label, UNREGISTERED, None, agent.pid))
     return entries, claimed
+
+
+def placement(sessions: list) -> dict[str, tuple[str, int]]:
+    """Session id → the deck agent it runs as and that agent's tab slot, for sessions in a deck tab."""
+    config, _ = load()
+    if not has_session(inner(config.session)):
+        return {}
+    listed, _ = panes(inner(config.session))
+    slots = agent_slots(listed)
+    entries, _ = deck_windows(listed, sessions, parents())
+    return {
+        session.id: (label, slots[window_id])
+        for window_id, label, _, session, _ in entries
+        if session is not None and window_id in slots
+    }
+
+
+def agent_slots(listed: list[Pane]) -> dict[str, int]:
+    """Window id → colour slot: agent tabs in tab order, so the primary is slot 0."""
+    order = _window_order([p for p in listed if p.role == AGENT])
+    return {window_id: slot for slot, window_id in enumerate(order)}
+
+
+def write_colours(session: str, listed: list[Pane], written: dict[str, str]) -> list[str]:
+    """Each agent tab's colour as a window option, where it changed. The tab format reads it."""
+    problems = []
+    for window_id, slot in agent_slots(listed).items():
+        colour = theme.agent_colour(slot)
+        if written.get(window_id) == colour:
+            continue
+        answer = tmux("set-option", "-w", "-t", window_id, COLOUR_OPTION, colour)
+        if answer.ok:
+            written[window_id] = colour
+        else:
+            problems.append(f"could not colour a tab — {_said(answer)}")
+    return problems
 
 
 def claimed(sessions: list) -> tuple[set[str] | None, str]:
@@ -1683,7 +1821,9 @@ def deck_queue(refresh: int | None, ticks: int | None, screen: bool, scope: str)
     record reads `unregistered`. Live sessions outside the deck follow.
     """
     once = functools.partial(queue_result, scope=scope)
-    return _resident("deck queue", once, refresh, ticks, screen, keep_first("row(s)"))
+    config, _ = load()
+    pane = DeckPane(config.session, lambda row: row.get("where") == "deck")
+    return _resident("deck queue", once, refresh, ticks, screen, keep_first("row(s)"), pane)
 
 
 # **The act/observe bit, asserted on every subcommand** — a nested command that
