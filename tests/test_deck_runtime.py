@@ -269,6 +269,12 @@ def test_queue_at_a_terminal_resides_with_its_source_interval_and_runs(quiet_que
     assert call["result"].data == [] and any("no deck session" in w for w in call["result"].warnings)
 
 
+def test_screen_reaches_reside_and_is_off_by_default(quiet_queue, reside_calls, at_a_terminal):
+    assert invoke("deck", "queue", "--refresh", "5", "--screen").exit_code == 0
+    assert invoke("deck", "queue", "--refresh", "5").exit_code == 0
+    assert [call["screen"] for call in reside_calls] == [True, False]
+
+
 def test_queue_at_a_terminal_without_ticks_is_unbounded(quiet_queue, reside_calls, at_a_terminal):
     assert invoke("deck", "queue", "--refresh", "2").exit_code == 0
     assert reside_calls[0]["runs"] is None

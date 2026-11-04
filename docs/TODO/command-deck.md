@@ -233,3 +233,25 @@ The first round 2 spec (all agents at startup, roll-call and agents panes) was w
 relay. It was stopped before any code, and Phase 4 was rewritten from Jeston's own words plus three
 answers: the columns layout, switchable to stack; resizable panes; tabs only for the agents he
 activates; messages shown as time, sender to receiver and first line.
+
+### 2026-11-04: the controller layout built
+
+`sb deck layout` and `sb deck messages` shipped; `ensure`, `open`, `jump` and the queue moved to
+two sessions. Decided while building:
+- The inner session's first window is a `shell` tab in `$HOME`. A tmux session cannot have zero
+  windows, and the nested client needs something to attach to before any agent is opened.
+- `plan()` is a pure function of four pane ids, so each shape's tmux calls are tested directly.
+  It only joins and resizes; `layout` also puts back a missing tool pane by splitting a new one.
+- A bare `sb deck` on an existing deck redraws only when it had to put a pane back, so the
+  operator's own dragging survives it. `sb deck layout` always redraws.
+- `set-option -t` reads a pane target and refuses a bare `=sb`, so session options target `=sb:`.
+  The real tmux found this; the fake now refuses the bare form too.
+- Run from a pane inside either deck session, `open` and `jump` never switch the client. Switching
+  the nested client to the outer session would draw the deck inside itself.
+- Both sessions share one server and its key bindings, so the outer client sees the prefix first:
+  prefix then a key acts on the controller. Pressing the prefix twice passes it to the nested
+  client, which then acts on the tabs. Clicking a tab, and `sb deck jump`, need neither.
+- The tool panes run with `--screen`. Inline frames left stale copies above the live one after a
+  resize, which the mouse now invites.
+- `sb deck messages` keys a peer entry without a `msg_id` (a subagent's handback) by its entry
+  `uuid`. The slug rule held for every live session's directory on 2026-11-04.

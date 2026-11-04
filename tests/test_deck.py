@@ -39,16 +39,51 @@ pytestmark = [pytest.mark.unit]
 
 
 class FakeTmux:
-    """A tmux server reduced to sessions, windows and panes, recorded call by call."""
+    """A tmux server reduced to sessions, windows and panes, recorded call by call.
 
-    def __init__(self, *, sessions=(), extended="on", installed=True):
+    Panes carry the roles and window options the deck writes, so a listing is
+    whatever the deck itself built.
+    """
+
+    def __init__(self, *, extended="on", installed=True):
         self.calls: list[list[str]] = []
-        self.sessions = set(sessions)
+        self.windows: dict[str, dict] = {}
+        self.panes: dict[str, dict] = {}
+        self.order: dict[str, list[str]] = {}
+        self.options: dict[tuple[str, str], str] = {}
         self.extended = extended
         self.installed = installed
-        self.listing = ""
-        self.windows = 0
+        self.current = ""
+        self.serial = 0
         self.replaced: list[list[str]] = []
+
+    @property
+    def sessions(self) -> set[str]:
+        return set(self.order)
+
+    def session(self, name: str) -> None:
+        """A session that exists already, with one window and nothing the deck put there."""
+        self._new_window(name, "zsh")
+
+    def add(self, session: str, window: str, *, agent: str = "", role: str = "", pid: int = 0) -> tuple[str, str]:
+        wid, pid_ = self._new_window(session, window, pid=pid)
+        self.windows[wid]["agent"] = agent
+        self.panes[pid_]["role"] = role
+        return wid, pid_
+
+    def _new_window(self, session: str, name: str, pid: int = 0) -> tuple[str, str]:
+        self.serial += 1
+        wid = f"@{self.serial}"
+        index = len(self.order.setdefault(session, []))
+        self.order[session].append(wid)
+        self.windows[wid] = {"session": session, "index": index, "name": name, "agent": ""}
+        return wid, self._new_pane(wid, pid)
+
+    def _new_pane(self, wid: str, pid: int = 0) -> str:
+        self.serial += 1
+        pane = f"%{self.serial}"
+        self.panes[pane] = {"window": wid, "pid": pid or 1000 + self.serial, "role": "", "argv": []}
+        return pane
 
     def __call__(self, argv, replace=False):
         self.calls.append(list(argv))
@@ -58,25 +93,68 @@ class FakeTmux:
             self.replaced.append(list(argv))
             return Answer(asked=True)
         verb, args = argv[1], argv[2:]
+        command = args[args.index("--") + 1 :] if "--" in args else []
+        target = args[args.index("-t") + 1] if "-t" in args else ""
         if verb == "has-session":
-            return Answer(asked=True, code=0 if args[1].lstrip("=") in self.sessions else 1)
-        if verb == "new-session":
-            self.sessions.add(args[args.index("-s") + 1])
-            return self._window()
-        if verb == "new-window":
-            return self._window()
+            return Answer(asked=True, code=0 if target.lstrip("=") in self.order else 1)
+        if verb in ("new-session", "new-window"):
+            session = args[args.index("-s") + 1] if verb == "new-session" else target.strip("=:")
+            name = args[args.index("-n") + 1] if "-n" in args else ""
+            wid, pane = self._new_window(session, name)
+            self.panes[pane]["argv"] = command
+            return Answer(asked=True, out=f"{wid} {pane}\n")
         if verb == "split-window":
-            self.windows += 1
-            return Answer(asked=True, out=f"%{self.windows}\n")
+            pane = self._new_pane(target)
+            self.panes[pane]["argv"] = command
+            return Answer(asked=True, out=f"{pane}\n")
+        if verb == "set-option":
+            if args[:1] == ["-p"] and args[3] == "@sb-deck":
+                self.panes[args[2]]["role"] = args[4]
+            elif args[:1] == ["-w"] and args[3] == "@sb-agent":
+                self.windows[args[2]]["agent"] = args[4]
+            elif args[0] == "-t":
+                if not args[1].endswith(":"):
+                    # Real tmux reads a pane target here and refuses a bare `=name`.
+                    return Answer(asked=True, code=1, err=f"no such session: {args[1]}\n")
+                self.options[(args[1], args[2])] = args[3]
+            return Answer(asked=True)
         if verb == "list-panes":
-            return Answer(asked=True, out=self.listing)
+            return Answer(asked=True, out=self.listing(target.lstrip("=")))
         if verb == "show-options":
-            return Answer(asked=True, out=f"{self.extended}\n")
+            if "extended-keys" in args:
+                return Answer(asked=True, out=f"{self.extended}\n")
+            return Answer(asked=True, out=self.options.get((target, args[-1]), "") + "\n")
+        if verb == "display-message":
+            if args[-1] == "#{socket_path}":
+                return Answer(asked=True, out="/tmp/fx-socket\n")
+            return Answer(asked=True, out=f"{self.current}\n")
         return Answer(asked=True)
 
-    def _window(self):
-        self.windows += 1
-        return Answer(asked=True, out=f"@{self.windows} %{self.windows}\n")
+    def listing(self, session: str) -> str:
+        lines = []
+        for wid in self.order.get(session, []):
+            window = self.windows[wid]
+            for pane, body in self.panes.items():
+                if body["window"] == wid:
+                    fields = [
+                        wid,
+                        str(window["index"]),
+                        window["name"],
+                        window["agent"],
+                        pane,
+                        str(body["pid"]),
+                        body["role"],
+                    ]
+                    lines.append("\t".join(fields) + "\n")
+        return "".join(lines)
+
+    def roles(self, session: str = "sb") -> dict[str, str]:
+        """Role → pane id, in the controller window."""
+        return {
+            body["role"]: pane
+            for pane, body in self.panes.items()
+            if self.windows[body["window"]]["session"] == session and body["role"]
+        }
 
     def verbs(self) -> list[str]:
         return [call[1] for call in self.calls]
@@ -228,14 +306,26 @@ def test_a_window_is_found_by_its_agent_before_its_name():
 # ============================================================================
 
 
+def outer_created(fake):
+    return next(call for call in fake.find("new-session") if call[call.index("-s") + 1] == "sb")
+
+
 def test_bare_deck_creates_the_pinned_window_and_attaches(fake, home, tmp_path, said):
     home(f'pin = "ws"\n[agent.ws]\ncwd = "{tmp_path}"\nargs = ["--model", "opus"]\n')
     result = invoke("deck")
     # CliRunner has no terminal, so outside tmux it refuses to attach and says how.
     assert result.exit_code == 1 and "tmux attach -t =sb" in said(result)
-    created = fake.find("new-session")[0]
+    created = outer_created(fake)
     assert created[created.index("--") + 1 :] == ["claude", "--model", "opus"]
     assert created[created.index("-c") + 1] == str(tmp_path)
+
+
+def test_the_inner_session_comes_first_so_the_tab_pane_has_something_to_attach_to(fake, home):
+    invoke("deck")
+    sessions = [call[call.index("-s") + 1] for call in fake.find("new-session")]
+    assert sessions == ["sb-agents", "sb"]
+    inner = fake.find("new-session")[0]
+    assert "--" not in inner and inner[inner.index("-n") + 1] == "shell"
 
 
 def test_bare_deck_execs_attach_at_a_terminal(fake, home, monkeypatch):
@@ -247,19 +337,39 @@ def test_bare_deck_execs_attach_at_a_terminal(fake, home, monkeypatch):
 
 def test_inside_tmux_the_client_switches_instead(fake, home, monkeypatch):
     monkeypatch.setenv("TMUX", "/tmp/socket,1,0")
-    fake.sessions.add("sb")
+    fake.session("sb")
     result = invoke("deck")
     assert result.exit_code == 0, result.output
     assert fake.find("switch-client") == [["tmux", "switch-client", "-t", "=sb"]]
-    assert not fake.replaced and "new-session" not in fake.verbs()
+    assert not fake.replaced and "sb" not in [c[c.index("-s") + 1] for c in fake.find("new-session")]
 
 
-def test_the_deck_dresses_its_window_and_never_the_server(fake, home):
+@pytest.mark.parametrize("current", ["sb", "sb-agents"])
+def test_inside_the_deck_the_client_is_never_switched(fake, home, monkeypatch, current):
+    """Switching the nested client to the outer session would draw the deck inside itself."""
+    monkeypatch.setenv("TMUX", "/tmp/socket,1,0")
+    fake.session("sb")
+    fake.current = current
+    assert invoke("deck").exit_code == 0
+    assert fake.find("switch-client") == []
+
+
+def test_the_deck_dresses_its_windows_and_never_the_server(fake, home):
     invoke("deck")
     options = [call[2:] for call in fake.find("set-option")]
-    assert ["-w", "-t", "@1", "window-size", "latest"] in options
-    assert ["-w", "-t", "@1", "allow-passthrough", "on"] in options
+    for wid in ("@1", "@3"):
+        assert ["-w", "-t", wid, "window-size", "latest"] in options
+        assert ["-w", "-t", wid, "allow-passthrough", "on"] in options
     assert not any("-g" in o or "-s" in o for o in options)
+
+
+def test_mouse_is_on_for_both_sessions_and_the_tab_row_is_on_top(fake, home):
+    invoke("deck")
+    assert fake.options[("=sb:", "mouse")] == "on"
+    assert fake.options[("=sb-agents:", "mouse")] == "on"
+    assert fake.options[("=sb-agents:", "status")] == "on"
+    assert fake.options[("=sb-agents:", "status-position")] == "top"
+    assert ("=sb:", "status") not in fake.options
 
 
 def test_extended_keys_off_is_reported_and_never_set(fake, home, said):
@@ -284,34 +394,178 @@ def test_an_unresolvable_pin_opens_the_deck_without_it(fake, home, said):
     home('pin = "ghost"\n')
     result = invoke("deck")
     assert "pin 'ghost'" in said(result)
-    created = fake.find("new-session")[0]
-    assert created[created.index("-n") + 1] == "queue" and "claude" not in created
+    created = outer_created(fake)
+    assert "claude" not in created and created[created.index("--") + 1 :][:3] == ["env", "-u", "TMUX"]
+    assert set(fake.roles()) == {"tabs", "queue", "messages"}
 
 
 # ============================================================================
-# `sb deck open`
+# The controller: window 0's panes and their two shapes
 # ============================================================================
 
 
-def test_open_starts_a_window_in_the_agents_cwd(fake, home, tmp_path):
-    home(f'[agent.jam]\ncwd = "{tmp_path}"\n')
-    fake.sessions.add("sb")
+def test_window_zero_holds_the_workspace_tabs_queue_and_messages(fake, home, tmp_path):
+    home(f'pin = "ws"\n[agent.ws]\ncwd = "{tmp_path}"\n')
+    invoke("deck")
+    roles = fake.roles()
+    assert set(roles) == {"agent", "tabs", "queue", "messages"}
+    assert len({fake.panes[p]["window"] for p in roles.values()}) == 1
+
+
+def test_every_tool_pane_runs_this_sb_by_absolute_path(fake, home):
+    invoke("deck")
+    sb = str(deck_.PROJECT_ROOT / "sb")
+    argv = {role: fake.panes[pane]["argv"] for role, pane in fake.roles().items()}
+    assert argv["queue"] == [sb, "deck", "queue", "--refresh", "5", "--screen"]
+    assert argv["messages"] == [sb, "deck", "messages", "--refresh", "10", "--screen"]
+
+
+def test_the_tab_pane_nests_a_client_with_tmux_unset_on_the_same_server(fake, home):
+    invoke("deck")
+    argv = fake.panes[fake.roles()["tabs"]]["argv"]
+    assert argv == ["env", "-u", "TMUX", "tmux", "-S", "/tmp/fx-socket", "attach-session", "-t", "=sb-agents"]
+
+
+def test_the_columns_plan(tmp_path):
+    assert deck_.plan("columns", "%A", "%T", "%Q", "%M") == [
+        ["join-pane", "-d", "-h", "-s", "%T", "-t", "%A"],
+        ["join-pane", "-d", "-h", "-s", "%Q", "-t", "%T"],
+        ["join-pane", "-d", "-v", "-s", "%M", "-t", "%Q"],
+        ["resize-pane", "-t", "%A", "-x", "45%"],
+        ["resize-pane", "-t", "%Q", "-x", "25%"],
+        ["resize-pane", "-t", "%Q", "-y", "50%"],
+    ]
+
+
+def test_the_stack_plan():
+    assert deck_.plan("stack", "%A", "%T", "%Q", "%M") == [
+        ["join-pane", "-d", "-h", "-s", "%Q", "-t", "%A"],
+        ["join-pane", "-d", "-v", "-s", "%M", "-t", "%Q"],
+        ["join-pane", "-d", "-v", "-s", "%T", "-t", "%A"],
+        ["resize-pane", "-t", "%A", "-y", "50%"],
+        ["resize-pane", "-t", "%Q", "-x", "25%"],
+        ["resize-pane", "-t", "%Q", "-y", "50%"],
+    ]
+
+
+@pytest.mark.parametrize("shape", ["columns", "stack"])
+def test_with_no_pin_both_shapes_are_tabs_beside_the_tools(shape):
+    assert deck_.plan(shape, None, "%T", "%Q", "%M") == [
+        ["join-pane", "-d", "-h", "-s", "%Q", "-t", "%T"],
+        ["join-pane", "-d", "-v", "-s", "%M", "-t", "%Q"],
+        ["resize-pane", "-t", "%Q", "-x", "25%"],
+        ["resize-pane", "-t", "%Q", "-y", "50%"],
+    ]
+
+
+def test_bare_deck_lays_a_new_controller_out_in_columns(fake, home, tmp_path):
+    home(f'pin = "ws"\n[agent.ws]\ncwd = "{tmp_path}"\n')
+    invoke("deck")
+    roles = fake.roles()
+    moves = [call[1:] for call in fake.calls if call[1] in ("join-pane", "resize-pane")]
+    assert moves == deck_.plan("columns", roles["agent"], roles["tabs"], roles["queue"], roles["messages"])
+    assert fake.options[("=sb:", "@sb-layout")] == "columns"
+
+
+def deck_built(fake, home, tmp_path):
+    home(f'pin = "ws"\n[agent.ws]\ncwd = "{tmp_path}"\n')
+    invoke("deck")
+    fake.calls.clear()
+
+
+@pytest.mark.parametrize("shape", ["stack", "columns"])
+def test_layout_moves_panes_and_restarts_none(fake, home, tmp_path, shape):
+    deck_built(fake, home, tmp_path)
+    before = {pane: dict(body) for pane, body in fake.panes.items()}
+    result = invoke("--json", "deck", "layout", shape)
+    assert result.exit_code == 0, result.output
+    roles = fake.roles()
+    moves = [call[1:] for call in fake.calls if call[1] in ("join-pane", "resize-pane")]
+    assert moves == deck_.plan(shape, roles["agent"], roles["tabs"], roles["queue"], roles["messages"])
+    assert fake.panes == before
+    assert not {"kill-pane", "respawn-pane", "kill-window", "split-window", "new-window"} & set(fake.verbs())
+    assert fake.options[("=sb:", "@sb-layout")] == shape
+
+
+def test_the_deck_source_never_kills_or_respawns_a_pane():
+    source = Path(deck_.__file__).read_text()
+    assert not re.search(r"kill-pane|respawn-pane|kill-window|kill-session|kill-server", source)
+
+
+def test_layout_puts_back_a_tool_pane_that_has_gone(fake, home, tmp_path):
+    deck_built(fake, home, tmp_path)
+    del fake.panes[fake.roles()["messages"]]
+    result = invoke("--json", "deck", "layout", "columns")
+    assert json.loads(result.stdout)["data"]["created"] == "messages"
+    assert len(fake.find("split-window")) == 1 and "messages" in fake.roles()
+
+
+def test_layout_without_a_deck_says_how_to_start_one(fake, home, said):
+    result = invoke("deck", "layout", "stack")
+    assert result.exit_code == 2 and "no deck session 'sb'" in said(result)
+
+
+def test_layout_refuses_a_shape_it_does_not_have(fake, home):
+    assert invoke("deck", "layout", "grid").exit_code == 2 and fake.calls == []
+
+
+def test_bare_deck_on_an_existing_deck_keeps_the_operators_sizes(fake, home, tmp_path):
+    deck_built(fake, home, tmp_path)
+    assert invoke("deck").exit_code == 1
+    assert not {"join-pane", "resize-pane", "split-window", "new-session"} & set(fake.verbs())
+
+
+def test_bare_deck_rebuilds_an_inner_session_that_has_gone(fake, home, tmp_path):
+    deck_built(fake, home, tmp_path)
+    for pane in [p for p, b in fake.panes.items() if fake.windows[b["window"]]["session"] == "sb-agents"]:
+        del fake.panes[pane]
+    del fake.order["sb-agents"]
+    del fake.panes[fake.roles()["tabs"]]
+    invoke("deck")
+    assert [c[c.index("-s") + 1] for c in fake.find("new-session")] == ["sb-agents"]
+    assert "tabs" in fake.roles() and fake.find("join-pane")
+
+
+# ============================================================================
+# `sb deck open` — tabs in the inner session
+# ============================================================================
+
+
+def test_open_starts_a_tab_in_the_inner_session(fake, home, tmp_path):
+    deck_built(fake, home, tmp_path)
+    home(f'pin = "ws"\n[agent.ws]\ncwd = "{tmp_path}"\n[agent.jam]\ncwd = "{tmp_path}"\n')
     result = invoke("--json", "deck", "open", "jam")
     assert result.exit_code == 0, result.output
     window = fake.find("new-window")[0]
+    assert window[window.index("-t") + 1] == "=sb-agents:"
     assert window[window.index("-n") + 1] == "jam" and window[-1] == "claude"
-    assert ["tmux", "set-option", "-w", "-t", "@1", "@sb-agent", "jam"] in fake.calls
-    assert fake.find("select-window") == [["tmux", "select-window", "-t", "@1"]]
+    tab = window_of(fake, "jam")
+    assert ["tmux", "set-option", "-w", "-t", tab, "@sb-agent", "jam"] in fake.calls
+    controller = fake.panes[fake.roles()["tabs"]]["window"]
+    assert fake.find("select-window") == [["tmux", "select-window", "-t", w] for w in (tab, controller)]
+    assert json.loads(result.stdout)["data"]["session"] == "sb-agents"
 
 
-def test_open_selects_a_window_that_is_already_open(fake, home, tmp_path):
+def window_of(fake, agent):
+    return next(wid for wid, w in fake.windows.items() if w["agent"] == agent)
+
+
+def test_open_selects_a_tab_that_is_already_open(fake, home, tmp_path):
     home(f'[agent.jam]\ncwd = "{tmp_path}"\n')
-    fake.sessions.add("sb")
-    fake.listing = "@7\t2\tjam\tjam\t%9\t300\tagent\n"
+    fake.session("sb")
+    fake.session("sb-agents")
+    tab, _ = fake.add("sb-agents", "jam", agent="jam", role="agent")
     result = invoke("--json", "deck", "open", "jam")
     assert result.exit_code == 0
     assert "new-window" not in fake.verbs()
-    assert fake.find("select-window") == [["tmux", "select-window", "-t", "@7"]]
+    assert fake.find("select-window")[0] == ["tmux", "select-window", "-t", tab]
+
+
+def test_open_on_the_pinned_agent_selects_it_rather_than_doubling_it(fake, home, tmp_path):
+    deck_built(fake, home, tmp_path)
+    result = invoke("--json", "deck", "open", "ws")
+    assert result.exit_code == 0 and "new-window" not in fake.verbs()
+    assert json.loads(result.stdout)["data"]["session"] == "sb"
 
 
 def test_open_refuses_a_name_nobody_declared(fake, home):
@@ -321,7 +575,7 @@ def test_open_refuses_a_name_nobody_declared(fake, home):
 
 def test_open_refuses_a_cwd_that_is_not_there(fake, home, tmp_path, said):
     home(f'[agent.jam]\ncwd = "{tmp_path / "gone"}"\n')
-    fake.sessions.add("sb")
+    fake.session("sb")
     result = invoke("--json", "deck", "open", "jam")
     assert result.exit_code == 1 and "is not a directory" in said(result)
     assert "new-window" not in fake.verbs()
@@ -346,41 +600,27 @@ def test_every_deck_subcommand_chooses_its_act_bit():
 
 
 # ============================================================================
-# The queue pane, and `sb deck jump`
+# `sb deck jump`
 # ============================================================================
 
 
-def test_the_pinned_window_carries_the_queue_below_it(fake, home, tmp_path):
-    home(f'pin = "ws"\n[agent.ws]\ncwd = "{tmp_path}"\n')
-    invoke("deck")
-    split = fake.find("split-window")[0]
-    assert split[split.index("-t") + 1] == "@1"
-    assert split[split.index("--") + 1 :][1:] == ["deck", "queue", "--refresh", "5"]
-    assert ["tmux", "set-option", "-p", "-t", "%2", "@sb-deck", "queue"] in fake.calls
-
-
-def test_with_nothing_pinned_window_zero_is_the_queue(fake, home):
-    invoke("deck")
-    created = fake.find("new-session")[0]
-    assert created[created.index("-n") + 1] == "queue"
-    assert created[created.index("--") + 2 :] == ["deck", "queue", "--refresh", "5"]
-
-
-def test_jump_selects_the_window_and_switches_inside_tmux(fake, home, monkeypatch):
+def test_jump_selects_the_tab_and_switches_inside_tmux(fake, home, monkeypatch):
     monkeypatch.setenv("TMUX", "/tmp/socket,1,0")
-    fake.sessions.add("sb")
-    fake.listing = "@4\t1\tjam\tjam\t%5\t300\tagent\n"
+    fake.session("sb")
+    fake.session("sb-agents")
+    tab, _ = fake.add("sb-agents", "jam", agent="jam", role="agent")
     result = invoke("--json", "deck", "jump", "jam")
     assert result.exit_code == 0, result.output
-    assert fake.find("select-window") == [["tmux", "select-window", "-t", "@4"]]
+    assert fake.find("select-window")[0] == ["tmux", "select-window", "-t", tab]
     assert fake.find("switch-client") == [["tmux", "switch-client", "-t", "=sb"]]
 
 
-def test_jump_to_an_absent_window_names_the_ones_there(fake, home, said):
-    fake.sessions.add("sb")
-    fake.listing = "@4\t1\tjam\tjam\t%5\t300\tagent\n"
+def test_jump_to_an_absent_tab_names_the_agents_there(fake, home, said):
+    fake.session("sb")
+    fake.session("sb-agents")
+    fake.add("sb-agents", "jam", agent="jam", role="agent")
     result = invoke("deck", "jump", "ghost")
-    assert result.exit_code == 2 and "windows: jam" in said(result)
+    assert result.exit_code == 2 and "agents: jam" in said(result)
 
 
 def test_jump_without_a_deck_says_how_to_start_one(fake, home, said):
@@ -464,12 +704,25 @@ class Adapter:
 
 
 def test_the_envelope_carries_an_authored_view(fake, home, tmp_path):
-    fake.sessions.add("sb")
-    fake.listing = "@1\t0\tjam\tjam\t%1\t10\tagent\n"
+    fake.add("sb", "jam", agent="jam", role="agent", pid=10)
     result = queue_result([Adapter([a_session(10, "waiting")])], proc=tmp_path / "absent")
     assert result.ok and result.view["authored"] is True
     assert [c["key"] for c in result.view["columns"]] == ["where", "window", "status", "name", "up", "cwd"]
     assert result.data[0]["status"] == "waiting"
+
+
+def test_the_queue_finds_agents_in_the_tabs_and_beside_the_tools(fake, home, tmp_path):
+    controller, _ = fake.add("sb", "ws", agent="ws", role="agent", pid=10)
+    for role in ("tabs", "queue", "messages"):
+        fake.panes[fake._new_pane(controller)]["role"] = role
+    fake.add("sb-agents", "shell", role="shell", pid=20)
+    fake.add("sb-agents", "jam", agent="jam", role="agent", pid=30)
+    sessions = [a_session(10), a_session(30, "waiting")]
+    result = queue_result([Adapter(sessions)], proc=tmp_path / "absent")
+    assert [(r["where"], r["window"], r["status"]) for r in result.data] == [
+        ("deck", "jam", "waiting"),
+        ("deck", "ws", "idle"),
+    ]
 
 
 def test_no_tmux_is_partial_and_still_lists_every_session(fake, home, tmp_path):
@@ -499,4 +752,4 @@ def test_queue_refresh_off_a_terminal_is_ndjson(fake, home, monkeypatch):
 
 def test_the_queue_is_an_observe_and_the_rest_act():
     acts = {name: getattr(command, "sb_acts") for name, command in deck_.deck.commands.items()}
-    assert acts == {"open": True, "jump": True, "queue": False}
+    assert acts == {"open": True, "jump": True, "layout": True, "queue": False, "messages": False}
