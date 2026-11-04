@@ -132,23 +132,50 @@ never needs a tmux binary.
 - [x] `sb deck jump <name>`: `select-window`. Acts.
 - [x] `sb deck` puts a queue pane in the pinned window (`sb deck queue` on a refresh).
 
-## Phase 4 (round 2): a workspace layout
+## Phase 4 (round 2): the controller layout
 
-Ruled by Jeston on 2026-11-04, after the round 1 deck read as a plain display. Three answers:
-open every declared agent at startup; put the queue, `sb roll-call` and `sb agents` beside the
-workspace agent; lay window 0 out with the agent on the left and the tools stacked on the right.
+Jeston's own description, from the skyrow-workspace session on 2026-11-04: the workspace agent at
+about half the screen, *"a sub-tabbed representation of the different project specific agents that
+I can choose to activate"*, and tools for *"human actions that are needed"*, task lists, and the
+messages agents exchange. He chose the three-column layout below, asked for the stacked one as well
+(switchable), and asked for panes resizable by dragging.
 
-- [ ] Bare `sb deck` ensures a window for every `[agent.*]` in `deck.toml`, in declaration order,
-      after window 0. On an existing session it opens only the missing ones and then attaches.
-      Projects found only in `projects.toml` stay on-demand through `sb deck open`.
-- [ ] Window 0 holds the pinned agent on the left at about 60% of the width. On the right, stacked
-      top to bottom: `sb deck queue`, `sb roll-call` and `sb agents`, each on its own refresh
-      (5s, 30s, 10s; constants, not keys). Each pane is tagged `@sb-deck queue|tool`, so the queue
-      never mistakes one for an agent. With no pin, window 0 is the three tool panes alone.
-- [ ] `--refresh` and `--ticks` on `sb roll-call` and `sb agents`, through the same resident path
-      as `sb deck queue` (a live view at a terminal, NDJSON otherwise). Both stay observes.
-- [ ] Tests on `FakeTmux`: the layout's split order and sizes, idempotence on an existing session,
-      the no-pin case, and the new flags' `--ticks` parity with `sb data`.
+```
+columns (default)                                  stack
++--------------+-[jam]-[mind]--+-----------+       +-----------------------+-----------+
+| WORKSPACE    | project agent | NEEDS YOU |       | WORKSPACE claude      | NEEDS YOU |
+| claude       | (active tab)  |-----------|       +-[jam]-[mind]----------+-----------|
+|              |               | MESSAGES  |       | project agent         | MESSAGES  |
++--------------+---------------+-----------+       +-----------------------+-----------+
+```
+
+- [ ] **Window 0 is the controller.** Left: the pinned workspace agent (about 45% wide). Middle:
+      one pane attached to an inner tmux session, `<session>-agents`. Its windows are the project
+      agents, and its status bar is the tab row. Right column (about 25%): `sb deck queue` (NEEDS
+      YOU) over `sb deck messages`. Both refresh on a cadence (constants, not keys).
+- [ ] **Tabs only for agents you activate.** `sb deck open <name>` adds an inner window running
+      `claude` (or selects it), and `sb deck jump <name>` selects it. Clicking a tab works through
+      tmux's mouse support.
+- [ ] **`sb deck layout columns|stack`** switches window 0 between the two shapes by moving panes.
+      It never restarts a pane, so every `claude` keeps its process (asserted: no `kill-pane`,
+      `respawn-pane` or `kill-window` in the switch).
+- [ ] **Resizable by dragging:** `mouse on` set on both deck sessions (a session option, so the
+      operator's config is untouched).
+- [ ] **`sb deck messages`**, an observe with `--refresh`/`--ticks`. One row per message exchanged
+      between agent sessions: time, sender → receiver, and the body's first line. Newest at the
+      bottom, the last 50, de-duplicated by `msg_id`. Source, measured on Claude Code 2.1.318: each
+      live session's transcript (`~/.claude/projects/<slug of cwd>/<sessionId>.jsonl`) records every
+      message it **received** as a `user` entry whose `origin.kind` is `peer`, carrying `name`,
+      `msg_id` and `body`. A transcript that cannot be found or read is counted in a warning, never
+      skipped silently. Message bodies are drawn on the operator's terminal and written nowhere.
+- [ ] `sb deck queue` finds deck agents in the inner session's windows.
+- [ ] Tests on `FakeTmux` and on synthetic transcripts: both layouts' commands, the switch moving
+      panes without restarting any, `mouse on` on both sessions, the messages parse (peer entries
+      only, dedupe, first line, unreadable transcript counted), and `--ticks` parity with `sb data`.
+
+**Task lists stay deferred.** Recent transcripts on this version carry no to-do or task-creation
+tool calls, and `~/.claude/todos/` and `~/.claude/tasks/` do not exist. So window 0 has no TASKS pane:
+a pane with nothing behind it would be the nav rule broken in a smaller font.
 
 ## Dropped, and why
 
@@ -199,3 +226,10 @@ in Phase 1 is the live evidence that the registry writes the word.
 
 The round 1 deck built only window 0 and opened projects on demand, which read as a display rather
 than a command center. Reopened on Jeston's ruling, with the three answers recorded in Phase 4.
+
+### 2026-11-04: round 2 respecced from the operator's own words
+
+The first round 2 spec (all agents at startup, roll-call and agents panes) was written from a
+relay. It was stopped before any code, and Phase 4 was rewritten from Jeston's own words plus three
+answers: the columns layout, switchable to stack; resizable panes; tabs only for the agents he
+activates; messages shown as time, sender to receiver and first line.
