@@ -27,6 +27,7 @@ import shlex
 import shutil
 import subprocess
 import sys
+import time
 import tomllib
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
@@ -36,7 +37,8 @@ from typing import Callable
 import rich_click as click
 
 from skyboss import agents as agents_
-from skyboss.chrome import ago
+from skyboss import theme
+from skyboss.chrome import ago, clock
 from skyboss.helpers import PROJECT_ROOT, SB_HOME, child_env, mark
 from skyboss.messages import messages_result
 from skyboss.output import Result, emit, warn_now
@@ -45,8 +47,9 @@ from skyboss.view import describe
 DECK_FILE = "deck.toml"
 DEFAULT_SESSION = "sb"
 TOP_LEVEL_KEYS = frozenset({"session", "pin"})
-TOP_LEVEL_TABLES = frozenset({"agent"})
+TOP_LEVEL_TABLES = frozenset({"agent", "profile"})
 AGENT_KEYS = frozenset({"cwd", "args"})
+PROFILE_KEYS = frozenset({"primary", "tabs"})
 
 # tmux rewrites `.` and `:` in a session name, so a name carrying either would
 # be a session the deck could create and then never find again.
@@ -61,6 +64,11 @@ NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 AGENT_OPTION = "@sb-agent"
 ROLE_OPTION = "@sb-deck"
 LAYOUT_OPTION = "@sb-layout"
+# Window: the registry's word for the tab's session. Session (tabs): when the
+# marks were last written, and the pid of the one loop that writes them.
+STATE_OPTION = "@sb-state"
+MARKED_OPTION = "@sb-marked"
+MARKS_PID_OPTION = "@sb-marks-pid"
 
 # Pane roles. `agent` runs claude; `tabs` is the nested client showing the inner
 # session; `shell` is the inner session's first window, so it is never empty.
@@ -72,11 +80,12 @@ INNER_SUFFIX = "-agents"
 # The controller's two shapes, and its sizes. Constants until somebody needs to declare them.
 COLUMNS, STACK = "columns", "stack"
 LAYOUTS = (COLUMNS, STACK)
-WORKSPACE_WIDTH = "45%"
 TOOLS_WIDTH = "25%"
+TOOLS_HEIGHT = "30%"
 HALF = "50%"
 QUEUE_REFRESH = 5
 MESSAGES_REFRESH = 10
+MARKS_EVERY = 3
 
 # The registry's word for a session held at a permission prompt (measured on Claude
 # Code 2.1.318), and sky.boss's word for a deck window whose process has no record.
@@ -108,10 +117,40 @@ class Agent:
 
 
 @dataclass
+class Profile:
+    """A set of tabs to open together: the primary first, then `tabs` in order."""
+
+    name: str
+    primary: str = ""
+    tabs: list[str] = field(default_factory=list)
+
+    def order(self) -> tuple[list[str], list[str]]:
+        """Each name once, primary first, and a problem per repeat."""
+        names: list[str] = []
+        problems: list[str] = []
+        for name in [self.primary, *self.tabs] if self.primary else self.tabs:
+            if name in names:
+                problems.append(f"profile {self.name!r}: {name!r} is listed twice — one tab")
+                continue
+            names.append(name)
+        return names, problems
+
+
+@dataclass
 class Config:
     session: str = DEFAULT_SESSION
     pin: str = ""
     agents: dict[str, Agent] = field(default_factory=dict)
+    profiles: dict[str, Profile] = field(default_factory=dict)
+
+    def profile(self, name: str | None) -> Profile | None:
+        """The named profile, or `pin` as a profile with a primary and no tabs, or none.
+
+        Raises `KeyError` for a name nobody declared.
+        """
+        if name:
+            return self.profiles[name]
+        return Profile(name="pin", primary=self.pin) if self.pin else None
 
 
 def home_file(home: Path | None = None) -> Path:
@@ -173,7 +212,35 @@ def parse(raw: dict) -> tuple[Config, list[str]]:
             if key not in AGENT_KEYS:
                 problems.append(f"agent {name!r}: unknown key {key!r} — ignored")
         config.agents[name] = Agent(name=name, cwd=body["cwd"], args=list(body.get("args", [])))
+
+    tables = raw.get("profile", {})
+    if not isinstance(tables, dict):
+        problems.append("profile must be a table of [profile.NAME] tables — ignored")
+        tables = {}
+    for name, body in tables.items():
+        problem = _check_profile(body)
+        if problem:
+            problems.append(f"profile {name!r}: {problem}")
+            continue
+        for key in body:
+            if key not in PROFILE_KEYS:
+                problems.append(f"profile {name!r}: unknown key {key!r} — ignored")
+        config.profiles[name] = Profile(name=name, primary=body.get("primary", ""), tabs=list(body.get("tabs", [])))
     return config, problems
+
+
+def _check_profile(body) -> str | None:
+    if not isinstance(body, dict):
+        return "not a table"
+    primary = body.get("primary", "")
+    if not isinstance(primary, str):
+        return "primary must be an agent name"
+    tabs = body.get("tabs", [])
+    if not isinstance(tabs, list) or not all(isinstance(t, str) and t for t in tabs):
+        return "tabs must be a list of agent names"
+    if not primary and not tabs:
+        return "names no primary and no tabs"
+    return None
 
 
 def _check(name: str, body) -> str | None:
@@ -354,14 +421,141 @@ def extended_keys_note() -> str | None:
 # ============================================================================
 
 
-def dress(window_id: str) -> list[str]:
-    """The deck's two window options, on one of its windows. Problems, never raises."""
+def dress(window_id: str, *, tab: bool = False) -> list[str]:
+    """The deck's window options, on one of its windows. Problems, never raises.
+
+    Window options rather than session ones because tmux has no per-session
+    window option: `window-status-format` and the borders are set window by window.
+    """
     problems = []
-    for option, value in (("window-size", "latest"), ("allow-passthrough", "on")):
+    options = (("window-size", "latest"), ("allow-passthrough", "on"), *window_options(tab))
+    for option, value in options:
         answer = tmux("set-option", "-w", "-t", window_id, option, value)
         if not answer.ok:
             problems.append(f"could not set {option} on the deck window — {_said(answer)}")
     return problems
+
+
+# ============================================================================
+# The bars: theme and tab marks
+# ============================================================================
+
+
+def tab_format(current: bool) -> str:
+    """A tab: its name, then its session's registry word, drawn in the theme's colours.
+
+    `busy` reads as working, `waiting` as needs you, `idle` as quiet; any other
+    word is drawn as the provider wrote it. Only `window-status-format` is set,
+    never `status-format`, so tmux's own `range=window` keeps a click selecting the tab.
+    """
+    style = theme.tmux_styles()
+    base = style["tab-current" if current else "tab"]
+    state = "#{" + STATE_OPTION + "}"
+    labels = (("busy", "working", "working"), ("waiting", " needs you ", "needs-you"), ("idle", "quiet", "quiet"))
+    mark = state
+    for word, label, role in reversed((*labels, (UNREGISTERED, UNREGISTERED, "unregistered"))):
+        mark = f"#{{?#{{==:{state},{word}}},#[{style[role]}]{label},{mark}}}"
+    return f"#[{base}] #W#{{?{state}, · ,}}{mark}#[{base}] "
+
+
+def window_options(tab: bool) -> tuple[tuple[str, str], ...]:
+    style = theme.tmux_styles()
+    common = (
+        ("pane-border-style", style["border"]),
+        ("pane-active-border-style", style["border-active"]),
+        ("window-status-style", style["tab"]),
+        ("window-status-current-style", style["tab-current"]),
+    )
+    if not tab:
+        return common
+    return (*common, ("window-status-format", tab_format(False)), ("window-status-current-format", tab_format(True)))
+
+
+def bar_options(tabs: bool) -> tuple[tuple[str, str], ...]:
+    """Session options for a deck bar. The tab row also says when the marks were last written."""
+    style = theme.tmux_styles()
+    label = "tabs" if tabs else "sky.boss deck"
+    options: tuple[tuple[str, str], ...] = (
+        ("status-style", style["bar"]),
+        ("status-left", f"#[{style['label']}] {label} #[{style['bar']}] "),
+    )
+    if tabs:
+        marked = "#{" + MARKED_OPTION + "}"
+        options += (("status-right", f"#[{style['quiet']}]marks #{{?{marked},{marked},not running}} "),)
+    return options
+
+
+def windows_states(listed: list[Pane], sessions: list, parent_of: dict[int, int]) -> dict[str, str]:
+    """Window id → the registry word of the session running there, `unregistered` for a quiet agent pane."""
+    states: dict[str, str] = {}
+    for window_id, label, status, session, pid in deck_windows(listed, sessions, parent_of)[0]:
+        held = states.get(window_id)
+        if held is None or (status == WAITING) or (status == "busy" and held != WAITING):
+            states[window_id] = status
+    return states
+
+
+def marks_once(session: str, written: dict[str, str], adapters: list | None = None) -> Result:
+    """Write each tab's state where it changed, and the time it was written. Acts on tmux only."""
+    result = Result()
+    name = inner(session)
+    present = has_session(name)
+    if not present:
+        result.ok = False
+        result.data = {"error": f"no deck tabs {name!r} — `sb deck` starts them"}
+        return result
+    listed, answer = panes(name)
+    if not answer.ok:
+        result.degrade(f"could not list the deck's tabs — {_said(answer)}")
+    sessions, problems, _ = agents_.fold(adapters if adapters is not None else agents_.providers())
+    for problem in problems:
+        result.warn(problem)
+    states = windows_states(listed, sessions, parents())
+    labels = {p.window_id: p.agent or p.window for p in listed}
+    rows = []
+    for window_id, word in states.items():
+        changed = written.get(window_id) != word
+        if changed:
+            set_ = tmux("set-option", "-w", "-t", window_id, STATE_OPTION, word)
+            if set_.ok:
+                written[window_id] = word
+            else:
+                result.degrade(f"could not mark {labels.get(window_id, window_id)!r} — {_said(set_)}")
+        rows.append({"window": labels.get(window_id, window_id), "state": word, "written": changed})
+    for problem in _session_options(name, ((MARKED_OPTION, clock(time.time())),)):
+        result.degrade(problem)
+    result.data = rows
+    return result
+
+
+def marks_argv() -> list[str]:
+    return sb_argv("deck", "marks", "--every", str(MARKS_EVERY))
+
+
+def start_marks(session: str) -> list[str]:
+    """Start the one marks loop for this deck unless it is running. A tmux background job, so it ends with the server."""
+    if _marks_owner(session) is not None:
+        return []
+    command = "exec " + shlex.join(marks_argv()) + " >/dev/null 2>&1"
+    answer = tmux("run-shell", "-b", command)
+    return [] if answer.ok else [f"could not start the tab marks — {_said(answer)}"]
+
+
+def _marks_owner(session: str, proc: Path = Path("/proc")) -> int | None:
+    """The pid of a live marks loop recorded on the tabs session, or none."""
+    answer = tmux("show-options", "-v", "-t", scope(inner(session)), MARKS_PID_OPTION)
+    pid = answer.out.strip() if answer.ok else ""
+    if not pid.isdigit():
+        return None
+    try:
+        command = (proc / pid / "cmdline").read_bytes().split(b"\0")
+    except OSError:
+        return None
+    return int(pid) if b"deck" in command and b"marks" in command else None
+
+
+#: Injectable for the suite, which must never sleep.
+SLEEP: Callable[[float], None] = time.sleep
 
 
 def _ids(answer: Answer) -> tuple[str, str]:
@@ -388,7 +582,7 @@ def start(session: str, agent: Agent, *, new_session: bool = False) -> tuple[str
     window_id, pane_id = _ids(answer)
     tmux("set-option", "-w", "-t", window_id, AGENT_OPTION, agent.name)
     tmux("set-option", "-p", "-t", pane_id, ROLE_OPTION, AGENT)
-    return window_id, dress(window_id)
+    return window_id, dress(window_id, tab=True)
 
 
 def sb_argv(*words: str) -> list[str]:
@@ -434,50 +628,64 @@ def _session_options(session: str, options: tuple[tuple[str, str], ...]) -> list
     return problems
 
 
-def ensure_inner(session: str) -> tuple[bool, list[str]]:
-    """Create the inner session if it is absent: a shell window, a tab row on top, the mouse on."""
+def ensure_inner(session: str, first: Agent | None = None) -> tuple[bool, list[str]]:
+    """Create the inner session if it is absent, with a tab row on top and the mouse on.
+
+    Its first window is `first`'s `claude` when there is one, so a profile's
+    primary is the first tab; otherwise a shell, because a session cannot be empty.
+    """
     name = inner(session)
     present = has_session(name)
     if present is None:
         raise DeckError("tmux could not be run — is it installed?")
     if present:
         return False, []
+    problems: list[str] = []
+    if first is not None:
+        try:
+            _, problems = start(name, first, new_session=True)
+            return True, problems + _inner_options(name)
+        except DeckError as exc:
+            problems.append(str(exc))
     answer = tmux(
         "new-session", "-d", "-s", name, "-P", "-F", "#{window_id} #{pane_id}", "-n", SHELL, "-c", str(Path.home())
     )
     window_id, pane_id = _ids(answer)
     tmux("set-option", "-p", "-t", pane_id, ROLE_OPTION, SHELL)
-    options = (("mouse", "on"), ("status", "on"), ("status-position", "top"))
-    return True, dress(window_id) + _session_options(name, options)
+    return True, problems + dress(window_id, tab=True) + _inner_options(name)
 
 
-def ensure(config: Config, projects: list) -> tuple[bool, list[str]]:
-    """Create the deck if it is absent, or put back a controller pane that has gone.
+def _inner_options(name: str) -> list[str]:
+    return _session_options(name, (("mouse", "on"), ("status", "on"), ("status-position", "top"), *bar_options(True)))
 
-    Window 0 is the controller: the pinned agent, the inner session's tab pane,
-    the queue and the messages. Whether the outer session was created, and problems.
+
+def ensure(config: Config, projects: list, profile: Profile | None = None) -> tuple[bool, list[str]]:
+    """Create the deck if it is absent, put back a controller pane that has gone, and open the profile's tabs.
+
+    Window 0 is the controller: the tab pane (a client on the inner session)
+    beside the queue and the messages. Whether the outer session was created, and problems.
     """
     present = has_session(config.session)
     if present is None:
         raise DeckError("tmux could not be run — is it installed?")
-    _, problems = ensure_inner(config.session)
+    names, problems = profile.order() if profile else ([], [])
+    agents: list[Agent] = []
+    for name in names:
+        agent, why = resolve(name, config, projects)
+        if agent is None:
+            label = "pin" if profile and profile.name == "pin" else f"profile {profile.name!r}" if profile else ""
+            problems.append(f"{label} {name!r}: {why} — no tab".strip())
+            continue
+        agents.append(agent)
+
+    _, more = ensure_inner(config.session, agents[0] if agents else None)
+    problems += more
+    created = not present
     if present:
         _, more = arrange(config.session, layout_of(config.session), force=False)
-        return False, problems + more
-
-    socket = socket_path(inner(config.session))
-    window_id = ""
-    if config.pin:
-        pinned, why = resolve(config.pin, config, projects)
-        if pinned is not None:
-            try:
-                window_id, more = start(config.session, pinned, new_session=True)
-                problems += more
-            except DeckError as exc:
-                why = str(exc)
-        if not window_id:
-            problems.append(f"pin {config.pin!r}: {why} — the deck opened without it")
-    if not window_id:
+        problems += more
+    else:
+        socket = socket_path(inner(config.session))
         answer = tmux(
             "new-session",
             "-d",
@@ -494,9 +702,49 @@ def ensure(config: Config, projects: list) -> tuple[bool, list[str]]:
         window_id, pane_id = _ids(answer)
         tmux("set-option", "-p", "-t", pane_id, ROLE_OPTION, TABS)
         problems += dress(window_id)
-    problems += _session_options(config.session, (("mouse", "on"),))
-    _, more = arrange(config.session, COLUMNS, force=True, socket=socket)
-    return True, problems + more
+        problems += _session_options(config.session, (("mouse", "on"), *bar_options(False)))
+        _, more = arrange(config.session, COLUMNS, force=True, socket=socket)
+        problems += more
+    problems += open_tabs(config.session, agents)
+    return created, problems
+
+
+def open_tabs(session: str, agents: list[Agent]) -> list[str]:
+    """A tab for each agent that has none, then the profile's tabs moved to the front in its order.
+
+    Moving is `swap-window`, which moves a window and restarts nothing.
+    """
+    problems: list[str] = []
+    name = inner(session)
+    listed, _ = panes(name)
+    for agent in agents:
+        if find_window(agent.name, listed) is None:
+            try:
+                _, more = start(name, agent)
+                problems += more
+            except DeckError as exc:
+                problems.append(str(exc))
+    if not agents:
+        return problems
+    listed, _ = panes(name)
+    for position, agent in enumerate(agents):
+        windows = _window_order(listed)
+        wanted = find_window(agent.name, listed)
+        if wanted is None or position >= len(windows) or windows[position] == wanted:
+            continue
+        answer = tmux("swap-window", "-d", "-s", wanted, "-t", windows[position])
+        if not answer.ok:
+            problems.append(f"could not put {agent.name!r} in profile order — {_said(answer)}")
+            break
+        listed, _ = panes(name)
+    return problems
+
+
+def _window_order(listed: list[Pane]) -> list[str]:
+    seen: dict[str, int] = {}
+    for pane in listed:
+        seen.setdefault(pane.window_id, pane.window_index)
+    return sorted(seen, key=seen.__getitem__)
 
 
 def layout_of(session: str) -> str:
@@ -514,16 +762,12 @@ def controller(listed: list[Pane]) -> str | None:
     return ordered[0].window_id if ordered else None
 
 
-def plan(
-    shape: str, workspace: str | None, tabs: str | None, queue: str | None, messages: str | None
-) -> list[list[str]]:
-    """The tmux calls that put four panes in `shape`. Pure, and only ever moves or resizes.
+def plan(shape: str, tabs: str | None, queue: str | None, messages: str | None) -> list[list[str]]:
+    """The tmux calls that put three panes in `shape`. Pure, and only ever moves or resizes.
 
-    columns: workspace | tabs | queue over messages.  stack: workspace over tabs | queue over messages.
+    columns: tabs | queue over messages.  stack: tabs over (queue | messages).
     """
-    left = [p for p in (workspace, tabs) if p]
-    right = [p for p in (queue, messages) if p]
-    anchor = (left or right or [None])[0]
+    tools = [p for p in (queue, messages) if p]
     calls: list[list[str]] = []
 
     def join(source: str, target: str, flag: str) -> None:
@@ -532,34 +776,28 @@ def plan(
     def resize(pane: str, axis: str, size: str) -> None:
         calls.append(["resize-pane", "-t", pane, axis, size])
 
-    if anchor is None:
+    if not tools:
         return calls
-    if shape == COLUMNS and len(left) == 2:
-        join(left[1], left[0], "-h")
-    if right and right[0] != anchor:
-        join(right[0], left[-1] if shape == COLUMNS else left[0], "-h")
-    if len(right) == 2:
-        join(right[1], right[0], "-v")
-    if shape == STACK and len(left) == 2:
-        join(left[1], left[0], "-v")
-
-    if shape == COLUMNS and len(left) == 2:
-        resize(left[0], "-x", WORKSPACE_WIDTH)
-    if shape == STACK and len(left) == 2:
-        resize(left[0], "-y", HALF)
-    if left and right:
-        resize(right[0], "-x", TOOLS_WIDTH)
-    if len(right) == 2:
-        resize(right[0], "-y", HALF)
+    across, along = ("-h", "-v") if shape == COLUMNS else ("-v", "-h")
+    if tabs:
+        join(tools[0], tabs, across)
+    if len(tools) == 2:
+        join(tools[1], tools[0], along)
+    if tabs:
+        resize(tools[0], "-x" if shape == COLUMNS else "-y", TOOLS_WIDTH if shape == COLUMNS else TOOLS_HEIGHT)
+    if len(tools) == 2:
+        resize(tools[0], "-y" if shape == COLUMNS else "-x", HALF)
     return calls
 
 
 def arrange(session: str, shape: str, *, force: bool, socket: str | None = None) -> tuple[list[str], list[str]]:
     """Put back any missing tool pane, then lay the controller out — by moving panes only.
 
-    Nothing here restarts a pane, so every `claude` keeps its process. With
-    `force` off, the shape is redrawn only when a pane had to be put back, so an
-    operator's own resizing survives a bare `sb deck`. The roles created, and problems.
+    Nothing here restarts a pane, so every `claude` keeps its process. An agent
+    pane in the controller (a round 2 deck's pinned agent) moves into the tabs
+    with `break-pane`. With `force` off, the shape is redrawn only when a pane
+    had to move or be put back, so the operator's own resizing survives a bare
+    `sb deck`. The roles created, and problems.
     """
     listed, answer = panes(session)
     if not answer.ok:
@@ -568,14 +806,15 @@ def arrange(session: str, shape: str, *, force: bool, socket: str | None = None)
     if window_id is None:
         return [], [f"deck {session!r} has no window to arrange"]
     here = [p for p in listed if p.window_id == window_id]
+    problems = _move_agents_to_tabs(session, [p for p in here if p.role == AGENT])
     roles: dict[str, str] = {}
     for pane in here:
-        roles.setdefault(pane.role, pane.pane_id)
+        if pane.role != AGENT:
+            roles.setdefault(pane.role, pane.pane_id)
 
     created: list[str] = []
-    problems: list[str] = []
     wanted = {
-        TABS: lambda: tabs_argv(session, socket if socket is not None else socket_path(session)),
+        TABS: lambda: tabs_argv(session, socket if socket is not None else socket_path(inner(session))),
         QUEUE: queue_argv,
         MESSAGES: messages_argv,
     }
@@ -591,15 +830,34 @@ def arrange(session: str, shape: str, *, force: bool, socket: str | None = None)
         roles[role] = pane_id
         created.append(role)
 
-    if not (force or created):
+    moved = any(p.role == AGENT for p in here)
+    if not (force or created or moved):
         return created, problems
-    for call in plan(shape, roles.get(AGENT), roles.get(TABS), roles.get(QUEUE), roles.get(MESSAGES)):
-        moved = tmux(*call)
-        if not moved.ok:
-            problems.append(f"could not arrange the deck ({call[0]}) — {_said(moved)}")
+    for call in plan(shape, roles.get(TABS), roles.get(QUEUE), roles.get(MESSAGES)):
+        answer = tmux(*call)
+        if not answer.ok:
+            problems.append(f"could not arrange the deck ({call[0]}) — {_said(answer)}")
             break
     problems += _session_options(session, ((LAYOUT_OPTION, shape),))
     return created, problems
+
+
+def _move_agents_to_tabs(session: str, agents: list[Pane]) -> list[str]:
+    """Each agent pane in the controller becomes a tab, process and all."""
+    problems: list[str] = []
+    for pane in agents:
+        name = pane.agent or pane.window
+        answer = tmux(
+            "break-pane", "-d", "-s", pane.pane_id, "-t", scope(inner(session)), "-n", name, "-P", "-F", "#{window_id}"
+        )
+        window_id = answer.out.strip()
+        if not answer.ok or not window_id:
+            problems.append(f"could not move {name!r} into the tabs — {_said(answer)}")
+            continue
+        tmux("set-option", "-w", "-t", window_id, AGENT_OPTION, name)
+        tmux("set-option", "-w", "-u", "-t", pane.window_id, AGENT_OPTION)
+        problems += dress(window_id, tab=True)
+    return problems
 
 
 def all_panes(session: str) -> list[Pane]:
@@ -611,28 +869,21 @@ def all_panes(session: str) -> list[Pane]:
     return listed
 
 
-def locate(name: str, session: str) -> tuple[str, str | None]:
-    """Where `name`'s window is: `inner`, `outer`, or nowhere. A tab first, then the pinned agent."""
-    if has_session(inner(session)):
-        tabs, _ = panes(inner(session))
-        window_id = find_window(name, tabs)
-        if window_id is not None:
-            return "inner", window_id
-    outer, _ = panes(session)
-    for pane in outer:
-        if pane.agent == name:
-            return "outer", pane.window_id
-    return "", None
+def locate(name: str, session: str) -> str | None:
+    """`name`'s tab in the inner session, or none."""
+    if not has_session(inner(session)):
+        return None
+    tabs, _ = panes(inner(session))
+    return find_window(name, tabs)
 
 
-def focus(session: str, where: str, window_id: str) -> None:
-    """Bring `window_id` forward: a tab in the inner session, with the controller in front of the outer."""
+def focus(session: str, window_id: str) -> None:
+    """Bring a tab forward, with the controller in front of the outer session."""
     select(window_id)
-    if where == "inner":
-        listed, _ = panes(session)
-        home = controller(listed)
-        if home is not None:
-            select(home)
+    listed, _ = panes(session)
+    home = controller(listed)
+    if home is not None:
+        select(home)
 
 
 def select(window_id: str) -> None:
@@ -684,29 +935,39 @@ def _as_json() -> bool:
 
 
 @click.group(name="deck", invoke_without_command=True)
+@click.option("--profile", "profile_name", metavar="NAME", help="Open this [profile.NAME]'s tabs: its primary first.")
 @click.pass_context
-def deck(ctx: click.Context) -> None:
-    """Create the deck if it is absent, then attach to it.
+def deck(ctx: click.Context, profile_name: str | None) -> None:
+    """Create the deck if it is absent, open a profile's tabs, then attach.
 
         sb deck
+        sb deck --profile core
         sb deck open jam-sense
         sb deck layout stack
 
-    **This acts.** Window 0 is the controller: the pinned `claude`, a tab row of
-    project agents (an inner session, `<session>-agents`), and the queue over
-    the messages. Declared in `$SB_HOME/deck.toml`, which sky.boss reads and
-    never writes. Inside tmux it switches this client; outside, it becomes
-    `tmux attach`, so it emits no envelope.
+    **This acts.** Window 0 is the controller: a tab row of live `claude`s (an
+    inner session, `<session>-agents`) beside the queue over the messages. Each
+    tab shows its session's state. Declared in `$SB_HOME/deck.toml`, which
+    sky.boss reads and never writes. Inside tmux it switches this client;
+    outside, it becomes `tmux attach`, so it emits no envelope.
     """
     if ctx.invoked_subcommand is not None:
+        if profile_name:
+            raise click.UsageError("--profile opens a deck — give it to `sb deck` alone")
         return
     if _as_json():
         raise click.UsageError("deck attaches a terminal and emits no envelope — --json has no meaning here")
     config, problems = load()
     try:
-        _, more = ensure(config, _projects())
+        profile = config.profile(profile_name)
+    except KeyError:
+        known = ", ".join(sorted(config.profiles)) or "none declared"
+        raise click.UsageError(f"no profile {profile_name!r} in {DECK_FILE} (profiles: {known})") from None
+    try:
+        _, more = ensure(config, _projects(), profile)
     except DeckError as exc:
         raise click.ClickException(str(exc)) from exc
+    more += start_marks(config.session)
     note = extended_keys_note()
     warn_now(problems + more + ([note] if note else []))
 
@@ -735,8 +996,8 @@ def deck_open(name: str) -> Result:
 
     **This acts.** NAME is an `[agent.NAME]` in `deck.toml`, or a project in
     `projects.toml` that declares a `cwd`. The tab is a window of the inner
-    session, `<session>-agents`, drawn in the controller's middle pane. Creates
-    the deck first if needed; the pinned agent is selected rather than doubled.
+    session, `<session>-agents`, drawn in the controller. Creates the deck first
+    if needed.
     """
     result = Result()
     config, problems = load()
@@ -749,13 +1010,13 @@ def deck_open(name: str) -> Result:
 
     try:
         created, more = ensure(config, projects)
-        where, window_id = locate(name, config.session)
+        more += start_marks(config.session)
+        window_id = locate(name, config.session)
         opened = window_id is None
         if window_id is None:
-            where = "inner"
             window_id, dressed = start(inner(config.session), agent)
             more += dressed
-        focus(config.session, where, window_id)
+        focus(config.session, window_id)
         attached = switch(config.session)
     except DeckError as exc:
         result.ok = False
@@ -768,7 +1029,7 @@ def deck_open(name: str) -> Result:
     if note:
         result.warn(note)
     result.data = {
-        "session": config.session if where == "outer" else inner(config.session),
+        "session": inner(config.session),
         "window": name,
         "opened": opened,
         "created": created,
@@ -802,19 +1063,18 @@ def deck_jump(name: str) -> Result:
         return result
     if not present:
         raise click.UsageError(f"no deck session {config.session!r} — `sb deck` starts one")
-    where, window_id = locate(name, config.session)
+    window_id = locate(name, config.session)
     if window_id is None:
         names = sorted({p.agent for p in all_panes(config.session) if p.agent})
         raise click.UsageError(f"no agent {name!r} in deck {config.session!r} (agents: {', '.join(names) or 'none'})")
     try:
-        focus(config.session, where, window_id)
+        focus(config.session, window_id)
         attached = switch(config.session)
     except DeckError as exc:
         result.ok = False
         result.data = {"error": str(exc)}
         return result
-    session = config.session if where == "outer" else inner(config.session)
-    result.data = {"session": session, "window": name, "attached": attached}
+    result.data = {"session": inner(config.session), "window": name, "attached": attached}
     return result
 
 
@@ -828,8 +1088,8 @@ def deck_layout(shape: str) -> Result:
 
     **This acts**, on panes and never on what runs in them: it moves and resizes
     panes, so every `claude` keeps its process. A tool pane that has gone is put
-    back first. columns: workspace | tabs | queue over messages. stack: workspace
-    over tabs | queue over messages.
+    back first. columns: tabs | queue over messages. stack: tabs over queue |
+    messages.
     """
     result = Result()
     config, problems = load()
@@ -857,6 +1117,51 @@ def deck_layout(shape: str) -> Result:
         result.partial = True
     result.data = {"session": config.session, "layout": shape, "created": ", ".join(created)}
     return result
+
+
+@deck.command(name="marks")
+@click.option(
+    "--every",
+    type=click.IntRange(min=1),
+    default=None,
+    metavar="SECONDS",
+    help="Keep writing every N seconds until the deck is gone. The deck starts one such loop itself.",
+)
+@click.option("--ticks", type=click.IntRange(min=1), default=None, metavar="N", help="With --every: stop after N.")
+@emit
+def deck_marks(every: int | None, ticks: int | None) -> Result:
+    """Write each tab's session state onto its tmux window, for the tab row to draw.
+
+        sb deck marks
+        sb deck marks --every 3
+
+    **This acts**: it sets the `@sb-state` window option on the deck's own tabs,
+    and nothing else. One loop serves the whole deck and writes only what
+    changed; the tab row's right end says when it last wrote.
+    """
+    if ticks is not None and every is None:
+        raise click.UsageError("--ticks needs --every — a single write already stops after one")
+    config, problems = load()
+    written: dict[str, str] = {}
+    if every is None:
+        result = marks_once(config.session, written)
+        for problem in problems:
+            result.warn(problem)
+        return result
+
+    own = str(os.getpid())
+    _session_options(inner(config.session), ((MARKS_PID_OPTION, own),))
+    count = 0
+    while ticks is None or count < ticks:
+        count += 1
+        owner = _marks_owner(config.session)
+        if not has_session(inner(config.session)) or (owner is not None and str(owner) != own):
+            break
+        marks_once(config.session, written)
+        if ticks is not None and count >= ticks:
+            break
+        SLEEP(every)
+    raise click.exceptions.Exit(0)
 
 
 @deck.command(name="messages")
@@ -999,11 +1304,11 @@ def _waiting_first(rows: list[dict]) -> list[dict]:
     return sorted(rows, key=lambda row: row["status"] != WAITING)
 
 
-def queue_rows(listed: list[Pane], sessions: list, parent_of: dict[int, int], now: datetime) -> list[dict]:
-    """One row per deck window, waiting first; then every live session outside the deck.
+def deck_windows(listed: list[Pane], sessions: list, parent_of: dict[int, int]) -> tuple[list[tuple], set[str]]:
+    """Each deck window's sessions as `(window_id, label, status, session, pid)`, and the ids claimed.
 
-    A window the deck started whose process has no registry record is drawn as
-    `unregistered` — Claude Code's trust dialog writes none — rather than left out.
+    A window the deck started an agent in whose process has no registry record
+    is `unregistered` — Claude Code's trust dialog writes none — rather than left out.
     """
     by_pid = {s.pid: s for s in sessions if s.pid}
     claimed: set[str] = set()
@@ -1011,8 +1316,8 @@ def queue_rows(listed: list[Pane], sessions: list, parent_of: dict[int, int], no
     for pane in sorted(listed, key=lambda p: p.window_index):
         windows.setdefault(pane.window_id, []).append(pane)
 
-    inside: list[dict] = []
-    for group in windows.values():
+    entries: list[tuple] = []
+    for window_id, group in windows.items():
         label = group[0].agent or group[0].window
         found = False
         for pane in group:
@@ -1021,11 +1326,17 @@ def queue_rows(listed: list[Pane], sessions: list, parent_of: dict[int, int], no
                 if session is not None and session.id not in claimed:
                     claimed.add(session.id)
                     found = True
-                    inside.append(_row("deck", label, session.status, session, session.pid, now))
-        agent = next((p for p in group if p.role == "agent"), None)
+                    entries.append((window_id, label, session.status, session, session.pid))
+        agent = next((p for p in group if p.role == AGENT), None)
         if not found and agent is not None:
-            inside.append(_row("deck", label, UNREGISTERED, None, agent.pid, now))
+            entries.append((window_id, label, UNREGISTERED, None, agent.pid))
+    return entries, claimed
 
+
+def queue_rows(listed: list[Pane], sessions: list, parent_of: dict[int, int], now: datetime) -> list[dict]:
+    """One row per deck window, waiting first; then every live session outside the deck."""
+    entries, claimed = deck_windows(listed, sessions, parent_of)
+    inside = [_row("deck", label, status, session, pid, now) for _, label, status, session, pid in entries]
     outside = [_row("outside", "", s.status, s, s.pid, now) for s in sessions if s.id not in claimed]
     return _waiting_first(inside) + _waiting_first(outside)
 
@@ -1131,5 +1442,6 @@ mark(deck, sb_acts=True)
 mark(deck_open, sb_acts=True)
 mark(deck_jump, sb_acts=True)
 mark(deck_layout, sb_acts=True)
+mark(deck_marks, sb_acts=True)
 mark(deck_queue, sb_acts=False)
 mark(deck_messages, sb_acts=False)

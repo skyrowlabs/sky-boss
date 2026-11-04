@@ -220,3 +220,28 @@ def css_root() -> str:
     """`css_variables` as a `:root` block, for injection into the page."""
     body = "".join(f"--{name}:{value};" for name, value in css_variables().items())
     return f":root{{{body}}}"
+
+
+# ============================================================================
+# The deck's tmux bars
+# ============================================================================
+#
+# A tmux status bar paints its own ground, so like the canvas it takes the
+# tokens at full strength. Styles are space-separated: a comma would end the
+# branch of a `#{?…}` conditional the tab format puts them in.
+
+
+def tmux_styles() -> dict[str, str]:
+    """Role → tmux style string, for the deck's two status bars and its borders."""
+    return {
+        "bar": f"bg={SURFACE} fg={TEXT_2}",
+        "label": f"fg={BRAND} bold",
+        "tab": f"fg={TEXT_2} bg={SURFACE}",
+        "tab-current": f"fg={TEXT} bg={SURFACE_2} bold",
+        "working": f"fg={BRAND}",
+        "needs-you": f"fg={BG} bg={WARN} bold",
+        "quiet": f"fg={TEXT_2}",
+        "unregistered": f"fg={TEXT_2} italics",
+        "border": f"fg={TEXT_3}",
+        "border-active": f"fg={BRAND}",
+    }

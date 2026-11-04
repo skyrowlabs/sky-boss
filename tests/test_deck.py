@@ -9,6 +9,7 @@ from __future__ import annotations
 import functools
 import json
 import re
+import shlex
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -107,11 +108,30 @@ class FakeTmux:
             pane = self._new_pane(target)
             self.panes[pane]["argv"] = command
             return Answer(asked=True, out=f"{pane}\n")
+        if verb == "swap-window":
+            a, b = self.windows[args[args.index("-s") + 1]], self.windows[target]
+            a["index"], b["index"] = b["index"], a["index"]
+            return Answer(asked=True)
+        if verb == "break-pane":
+            pane = args[args.index("-s") + 1]
+            session = target.strip("=:")
+            self.serial += 1
+            wid = f"@{self.serial}"
+            self.order.setdefault(session, []).append(wid)
+            index = max((self.windows[w]["index"] for w in self.order[session] if w in self.windows), default=-1) + 1
+            self.windows[wid] = {"session": session, "index": index, "name": args[args.index("-n") + 1], "agent": ""}
+            self.panes[pane]["window"] = wid
+            return Answer(asked=True, out=f"{wid}\n")
         if verb == "set-option":
+            if "-u" in args:
+                self.windows[args[args.index("-t") + 1]]["agent"] = ""
+                return Answer(asked=True)
             if args[:1] == ["-p"] and args[3] == "@sb-deck":
                 self.panes[args[2]]["role"] = args[4]
             elif args[:1] == ["-w"] and args[3] == "@sb-agent":
                 self.windows[args[2]]["agent"] = args[4]
+            elif args[:1] == ["-w"]:
+                self.windows[args[2]].setdefault("opts", {})[args[3]] = args[4]
             elif args[0] == "-t":
                 if not args[1].endswith(":"):
                     # Real tmux reads a pane target here and refuses a bare `=name`.
@@ -132,7 +152,7 @@ class FakeTmux:
 
     def listing(self, session: str) -> str:
         lines = []
-        for wid in self.order.get(session, []):
+        for wid in sorted(self.order.get(session, []), key=lambda w: self.windows[w]["index"]):
             window = self.windows[wid]
             for pane, body in self.panes.items():
                 if body["window"] == wid:
@@ -147,6 +167,11 @@ class FakeTmux:
                     ]
                     lines.append("\t".join(fields) + "\n")
         return "".join(lines)
+
+    def tabs(self) -> list[str]:
+        """The inner session's window names, in tab order."""
+        order = sorted(self.order.get("sb-agents", []), key=lambda w: self.windows[w]["index"])
+        return [self.windows[w]["name"] for w in order]
 
     def roles(self, session: str = "sb") -> dict[str, str]:
         """Role → pane id, in the controller window."""
@@ -306,26 +331,25 @@ def test_a_window_is_found_by_its_agent_before_its_name():
 # ============================================================================
 
 
-def outer_created(fake):
-    return next(call for call in fake.find("new-session") if call[call.index("-s") + 1] == "sb")
+def created_in(fake, session):
+    return next(call for call in fake.find("new-session") if call[call.index("-s") + 1] == session)
 
 
-def test_bare_deck_creates_the_pinned_window_and_attaches(fake, home, tmp_path, said):
+def test_bare_deck_opens_the_pin_as_the_first_tab_and_attaches(fake, home, tmp_path, said):
     home(f'pin = "ws"\n[agent.ws]\ncwd = "{tmp_path}"\nargs = ["--model", "opus"]\n')
     result = invoke("deck")
     # CliRunner has no terminal, so outside tmux it refuses to attach and says how.
     assert result.exit_code == 1 and "tmux attach -t =sb" in said(result)
-    created = outer_created(fake)
+    created = created_in(fake, "sb-agents")
     assert created[created.index("--") + 1 :] == ["claude", "--model", "opus"]
     assert created[created.index("-c") + 1] == str(tmp_path)
+    assert fake.tabs() == ["ws"]
 
 
-def test_the_inner_session_comes_first_so_the_tab_pane_has_something_to_attach_to(fake, home):
+def test_the_tabs_session_comes_first_so_the_tab_pane_has_something_to_attach_to(fake, home):
     invoke("deck")
-    sessions = [call[call.index("-s") + 1] for call in fake.find("new-session")]
-    assert sessions == ["sb-agents", "sb"]
-    inner = fake.find("new-session")[0]
-    assert "--" not in inner and inner[inner.index("-n") + 1] == "shell"
+    assert [call[call.index("-s") + 1] for call in fake.find("new-session")] == ["sb-agents", "sb"]
+    assert fake.tabs() == ["shell"] and "--" not in created_in(fake, "sb-agents")
 
 
 def test_bare_deck_execs_attach_at_a_terminal(fake, home, monkeypatch):
@@ -354,10 +378,10 @@ def test_inside_the_deck_the_client_is_never_switched(fake, home, monkeypatch, c
     assert fake.find("switch-client") == []
 
 
-def test_the_deck_dresses_its_windows_and_never_the_server(fake, home):
+def test_the_deck_dresses_every_window_it_made_and_never_the_server(fake, home):
     invoke("deck")
     options = [call[2:] for call in fake.find("set-option")]
-    for wid in ("@1", "@3"):
+    for wid in fake.windows:
         assert ["-w", "-t", wid, "window-size", "latest"] in options
         assert ["-w", "-t", wid, "allow-passthrough", "on"] in options
     assert not any("-g" in o or "-s" in o for o in options)
@@ -393,10 +417,99 @@ def test_no_tmux_is_a_sentence(fake, home, said):
 def test_an_unresolvable_pin_opens_the_deck_without_it(fake, home, said):
     home('pin = "ghost"\n')
     result = invoke("deck")
-    assert "pin 'ghost'" in said(result)
-    created = outer_created(fake)
-    assert "claude" not in created and created[created.index("--") + 1 :][:3] == ["env", "-u", "TMUX"]
+    assert "pin 'ghost'" in said(result) and "no tab" in said(result)
+    assert fake.tabs() == ["shell"]
     assert set(fake.roles()) == {"tabs", "queue", "messages"}
+
+
+# ============================================================================
+# Profiles
+# ============================================================================
+
+
+PROFILE = """
+[profile.core]
+primary = "ws"
+tabs = ["jam", "mind", "ws", "jam"]
+[agent.ws]
+cwd = "{d}"
+[agent.jam]
+cwd = "{d}"
+[agent.mind]
+cwd = "{d}"
+"""
+
+
+def test_a_profile_parses_with_its_order():
+    config, problems = parse({"profile": {"core": {"primary": "ws", "tabs": ["jam", "mind"]}}})
+    assert problems == [] and config.profiles["core"].order() == (["ws", "jam", "mind"], [])
+
+
+@pytest.mark.parametrize(
+    "body, phrase",
+    [
+        ({"primary": 3}, "primary must be an agent name"),
+        ({"tabs": "jam"}, "tabs must be a list"),
+        ({"tabs": [""]}, "tabs must be a list"),
+        ({}, "names no primary and no tabs"),
+        ("core", "not a table"),
+    ],
+)
+def test_a_bad_profile_is_skipped_and_named(body, phrase):
+    config, problems = parse({"profile": {"core": body}})
+    assert "core" not in config.profiles and any(phrase in p for p in problems)
+
+
+def test_an_unknown_profile_key_is_named_and_the_profile_kept():
+    config, problems = parse({"profile": {"core": {"primary": "ws", "pin": "x"}}})
+    assert "core" in config.profiles and problems == ["profile 'core': unknown key 'pin' — ignored"]
+
+
+def test_a_repeated_name_is_one_tab_and_a_warning():
+    names, problems = deck_.Profile("core", "ws", ["jam", "ws", "jam"]).order()
+    assert names == ["ws", "jam"] and len(problems) == 2 and "listed twice — one tab" in problems[0]
+
+
+def test_pin_is_a_profile_with_a_primary_and_no_tabs():
+    assert Config(pin="ws").profile(None) == deck_.Profile("pin", "ws", [])
+    assert Config().profile(None) is None
+
+
+def test_a_profile_opens_its_tabs_in_order_primary_first(fake, home, tmp_path, said):
+    home(PROFILE.format(d=tmp_path))
+    result = invoke("deck", "--profile", "core")
+    assert fake.tabs() == ["ws", "jam", "mind"]
+    assert said(result).count("listed twice") == 2
+
+
+def test_a_profile_on_a_live_deck_opens_only_what_is_missing_and_restores_the_order(fake, home, tmp_path):
+    home(PROFILE.format(d=tmp_path))
+    fake.session("sb")
+    fake.add("sb-agents", "shell", role="shell")
+    fake.add("sb-agents", "mind", agent="mind", role="agent")
+    invoke("deck", "--profile", "core")
+    assert [c[c.index("-n") + 1] for c in fake.find("new-window")] == ["ws", "jam"]
+    assert fake.tabs() == ["ws", "jam", "mind", "shell"]
+    assert fake.find("swap-window")
+    fake.calls.clear()
+    invoke("deck", "--profile", "core")
+    assert not {"new-window", "swap-window", "new-session"} & set(fake.verbs())
+
+
+def test_an_unresolvable_tab_is_a_warning_and_no_tab(fake, home, tmp_path, said):
+    home(PROFILE.format(d=tmp_path) + '[profile.more]\ntabs = ["ghost", "jam"]\n')
+    result = invoke("deck", "--profile", "more")
+    assert "profile 'more' 'ghost'" in said(result) and fake.tabs() == ["jam"]
+
+
+def test_an_unknown_profile_names_the_known_ones(fake, home, tmp_path, said):
+    home(PROFILE.format(d=tmp_path))
+    result = invoke("deck", "--profile", "nope")
+    assert result.exit_code == 2 and "profiles: core" in said(result) and fake.calls == []
+
+
+def test_profile_is_refused_beside_a_subcommand(fake, home):
+    assert invoke("deck", "--profile", "core", "queue").exit_code == 2
 
 
 # ============================================================================
@@ -404,12 +517,13 @@ def test_an_unresolvable_pin_opens_the_deck_without_it(fake, home, said):
 # ============================================================================
 
 
-def test_window_zero_holds_the_workspace_tabs_queue_and_messages(fake, home, tmp_path):
+def test_window_zero_is_the_tabs_and_the_tools_only(fake, home, tmp_path):
     home(f'pin = "ws"\n[agent.ws]\ncwd = "{tmp_path}"\n')
     invoke("deck")
     roles = fake.roles()
-    assert set(roles) == {"agent", "tabs", "queue", "messages"}
+    assert set(roles) == {"tabs", "queue", "messages"}
     assert len({fake.panes[p]["window"] for p in roles.values()}) == 1
+    assert set(fake.roles("sb-agents")) == {"agent"}
 
 
 def test_every_tool_pane_runs_this_sb_by_absolute_path(fake, home):
@@ -426,49 +540,38 @@ def test_the_tab_pane_nests_a_client_with_tmux_unset_on_the_same_server(fake, ho
     assert argv == ["env", "-u", "TMUX", "tmux", "-S", "/tmp/fx-socket", "attach-session", "-t", "=sb-agents"]
 
 
-def test_the_columns_plan(tmp_path):
-    assert deck_.plan("columns", "%A", "%T", "%Q", "%M") == [
-        ["join-pane", "-d", "-h", "-s", "%T", "-t", "%A"],
+def test_the_columns_plan():
+    assert deck_.plan("columns", "%T", "%Q", "%M") == [
         ["join-pane", "-d", "-h", "-s", "%Q", "-t", "%T"],
         ["join-pane", "-d", "-v", "-s", "%M", "-t", "%Q"],
-        ["resize-pane", "-t", "%A", "-x", "45%"],
         ["resize-pane", "-t", "%Q", "-x", "25%"],
         ["resize-pane", "-t", "%Q", "-y", "50%"],
     ]
 
 
 def test_the_stack_plan():
-    assert deck_.plan("stack", "%A", "%T", "%Q", "%M") == [
-        ["join-pane", "-d", "-h", "-s", "%Q", "-t", "%A"],
-        ["join-pane", "-d", "-v", "-s", "%M", "-t", "%Q"],
-        ["join-pane", "-d", "-v", "-s", "%T", "-t", "%A"],
-        ["resize-pane", "-t", "%A", "-y", "50%"],
-        ["resize-pane", "-t", "%Q", "-x", "25%"],
-        ["resize-pane", "-t", "%Q", "-y", "50%"],
+    assert deck_.plan("stack", "%T", "%Q", "%M") == [
+        ["join-pane", "-d", "-v", "-s", "%Q", "-t", "%T"],
+        ["join-pane", "-d", "-h", "-s", "%M", "-t", "%Q"],
+        ["resize-pane", "-t", "%Q", "-y", "30%"],
+        ["resize-pane", "-t", "%Q", "-x", "50%"],
     ]
 
 
-@pytest.mark.parametrize("shape", ["columns", "stack"])
-def test_with_no_pin_both_shapes_are_tabs_beside_the_tools(shape):
-    assert deck_.plan(shape, None, "%T", "%Q", "%M") == [
-        ["join-pane", "-d", "-h", "-s", "%Q", "-t", "%T"],
-        ["join-pane", "-d", "-v", "-s", "%M", "-t", "%Q"],
-        ["resize-pane", "-t", "%Q", "-x", "25%"],
-        ["resize-pane", "-t", "%Q", "-y", "50%"],
-    ]
+def test_a_plan_with_no_tools_moves_nothing():
+    assert deck_.plan("columns", "%T", None, None) == []
 
 
-def test_bare_deck_lays_a_new_controller_out_in_columns(fake, home, tmp_path):
-    home(f'pin = "ws"\n[agent.ws]\ncwd = "{tmp_path}"\n')
+def test_bare_deck_lays_a_new_controller_out_in_columns(fake, home):
     invoke("deck")
     roles = fake.roles()
     moves = [call[1:] for call in fake.calls if call[1] in ("join-pane", "resize-pane")]
-    assert moves == deck_.plan("columns", roles["agent"], roles["tabs"], roles["queue"], roles["messages"])
+    assert moves == deck_.plan("columns", roles["tabs"], roles["queue"], roles["messages"])
     assert fake.options[("=sb:", "@sb-layout")] == "columns"
 
 
 def deck_built(fake, home, tmp_path):
-    home(f'pin = "ws"\n[agent.ws]\ncwd = "{tmp_path}"\n')
+    home(f'pin = "ws"\n[agent.ws]\ncwd = "{tmp_path}"\n[agent.jam]\ncwd = "{tmp_path}"\n')
     invoke("deck")
     fake.calls.clear()
 
@@ -481,7 +584,7 @@ def test_layout_moves_panes_and_restarts_none(fake, home, tmp_path, shape):
     assert result.exit_code == 0, result.output
     roles = fake.roles()
     moves = [call[1:] for call in fake.calls if call[1] in ("join-pane", "resize-pane")]
-    assert moves == deck_.plan(shape, roles["agent"], roles["tabs"], roles["queue"], roles["messages"])
+    assert moves == deck_.plan(shape, roles["tabs"], roles["queue"], roles["messages"])
     assert fake.panes == before
     assert not {"kill-pane", "respawn-pane", "kill-window", "split-window", "new-window"} & set(fake.verbs())
     assert fake.options[("=sb:", "@sb-layout")] == shape
@@ -490,6 +593,18 @@ def test_layout_moves_panes_and_restarts_none(fake, home, tmp_path, shape):
 def test_the_deck_source_never_kills_or_respawns_a_pane():
     source = Path(deck_.__file__).read_text()
     assert not re.search(r"kill-pane|respawn-pane|kill-window|kill-session|kill-server", source)
+
+
+def test_a_round_two_pinned_pane_moves_into_the_tabs_with_its_process(fake, home, tmp_path):
+    controller, agent = fake.add("sb", "deck", agent="ws", role="agent", pid=4242)
+    for role in ("tabs", "queue", "messages"):
+        fake.panes[fake._new_pane(controller)]["role"] = role
+    fake.session("sb-agents")
+    invoke("deck")
+    (moved,) = fake.find("break-pane")
+    assert moved[moved.index("-s") + 1] == agent and moved[moved.index("-t") + 1] == "=sb-agents:"
+    assert fake.panes[agent]["pid"] == 4242 and "ws" in fake.tabs()
+    assert fake.windows[controller]["agent"] == "" and fake.find("join-pane")
 
 
 def test_layout_puts_back_a_tool_pane_that_has_gone(fake, home, tmp_path):
@@ -512,10 +627,10 @@ def test_layout_refuses_a_shape_it_does_not_have(fake, home):
 def test_bare_deck_on_an_existing_deck_keeps_the_operators_sizes(fake, home, tmp_path):
     deck_built(fake, home, tmp_path)
     assert invoke("deck").exit_code == 1
-    assert not {"join-pane", "resize-pane", "split-window", "new-session"} & set(fake.verbs())
+    assert not {"join-pane", "resize-pane", "split-window", "new-session", "new-window"} & set(fake.verbs())
 
 
-def test_bare_deck_rebuilds_an_inner_session_that_has_gone(fake, home, tmp_path):
+def test_bare_deck_rebuilds_a_tabs_session_that_has_gone(fake, home, tmp_path):
     deck_built(fake, home, tmp_path)
     for pane in [p for p, b in fake.panes.items() if fake.windows[b["window"]]["session"] == "sb-agents"]:
         del fake.panes[pane]
@@ -531,9 +646,12 @@ def test_bare_deck_rebuilds_an_inner_session_that_has_gone(fake, home, tmp_path)
 # ============================================================================
 
 
+def window_of(fake, agent):
+    return next(wid for wid, w in fake.windows.items() if w["agent"] == agent)
+
+
 def test_open_starts_a_tab_in_the_inner_session(fake, home, tmp_path):
     deck_built(fake, home, tmp_path)
-    home(f'pin = "ws"\n[agent.ws]\ncwd = "{tmp_path}"\n[agent.jam]\ncwd = "{tmp_path}"\n')
     result = invoke("--json", "deck", "open", "jam")
     assert result.exit_code == 0, result.output
     window = fake.find("new-window")[0]
@@ -544,10 +662,6 @@ def test_open_starts_a_tab_in_the_inner_session(fake, home, tmp_path):
     controller = fake.panes[fake.roles()["tabs"]]["window"]
     assert fake.find("select-window") == [["tmux", "select-window", "-t", w] for w in (tab, controller)]
     assert json.loads(result.stdout)["data"]["session"] == "sb-agents"
-
-
-def window_of(fake, agent):
-    return next(wid for wid, w in fake.windows.items() if w["agent"] == agent)
 
 
 def test_open_selects_a_tab_that_is_already_open(fake, home, tmp_path):
@@ -561,11 +675,11 @@ def test_open_selects_a_tab_that_is_already_open(fake, home, tmp_path):
     assert fake.find("select-window")[0] == ["tmux", "select-window", "-t", tab]
 
 
-def test_open_on_the_pinned_agent_selects_it_rather_than_doubling_it(fake, home, tmp_path):
+def test_open_on_the_pinned_agent_selects_its_tab_rather_than_doubling_it(fake, home, tmp_path):
     deck_built(fake, home, tmp_path)
     result = invoke("--json", "deck", "open", "ws")
     assert result.exit_code == 0 and "new-window" not in fake.verbs()
-    assert json.loads(result.stdout)["data"]["session"] == "sb"
+    assert fake.find("select-window")[0][-1] == window_of(fake, "ws")
 
 
 def test_open_refuses_a_name_nobody_declared(fake, home):
@@ -752,4 +866,135 @@ def test_queue_refresh_off_a_terminal_is_ndjson(fake, home, monkeypatch):
 
 def test_the_queue_is_an_observe_and_the_rest_act():
     acts = {name: getattr(command, "sb_acts") for name, command in deck_.deck.commands.items()}
-    assert acts == {"open": True, "jump": True, "layout": True, "queue": False, "messages": False}
+    assert acts == {"open": True, "jump": True, "layout": True, "marks": True, "queue": False, "messages": False}
+
+
+# ============================================================================
+# Tab marks: one writer, window options, the theme
+# ============================================================================
+
+
+def tabbed(fake):
+    """A deck with two agent tabs and a shell, by pid."""
+    fake.session("sb")
+    fake.add("sb-agents", "shell", role="shell", pid=5)
+    jam, _ = fake.add("sb-agents", "jam", agent="jam", role="agent", pid=10)
+    mind, _ = fake.add("sb-agents", "mind", agent="mind", role="agent", pid=20)
+    return jam, mind
+
+
+def state(fake, wid):
+    return fake.windows[wid].get("opts", {}).get("@sb-state")
+
+
+def test_marks_write_each_tabs_registry_word_once(fake, home, monkeypatch):
+    jam, mind = tabbed(fake)
+    monkeypatch.setattr(deck_, "parents", lambda proc=None: {})
+    written: dict[str, str] = {}
+    result = deck_.marks_once("sb", written, [Adapter([a_session(10, "busy")])])
+    assert (state(fake, jam), state(fake, mind)) == ("busy", "unregistered")
+    assert [r["state"] for r in result.data] == ["busy", "unregistered"]
+    assert ("=sb-agents:", "@sb-marked") in fake.options
+    fake.calls.clear()
+    deck_.marks_once("sb", written, [Adapter([a_session(10, "busy")])])
+    assert [c for c in fake.find("set-option") if "@sb-state" in c] == []
+    deck_.marks_once("sb", written, [Adapter([a_session(10, "waiting")])])
+    assert [c[-1] for c in fake.find("set-option") if "@sb-state" in c] == ["waiting"]
+
+
+def test_a_shell_tab_gets_no_mark(fake, home, monkeypatch):
+    tabbed(fake)
+    monkeypatch.setattr(deck_, "parents", lambda proc=None: {})
+    deck_.marks_once("sb", {}, [Adapter([])])
+    shell = next(w for w, body in fake.windows.items() if body["name"] == "shell")
+    assert state(fake, shell) is None
+
+
+def test_marks_without_a_deck_fail_and_write_nothing(fake, home):
+    result = deck_.marks_once("sb", {}, [Adapter([])])
+    assert result.ok is False and "set-option" not in fake.verbs()
+
+
+def test_the_marks_loop_records_its_pid_and_stops_at_its_bound(fake, home, monkeypatch):
+    tabbed(fake)
+    naps: list[float] = []
+    monkeypatch.setattr(deck_, "SLEEP", naps.append)
+    monkeypatch.setattr(deck_.agents_, "providers", lambda: [])
+    result = invoke("deck", "marks", "--every", "3", "--ticks", "3")
+    assert result.exit_code == 0, result.output
+    assert naps == [3, 3]
+    assert fake.options[("=sb-agents:", "@sb-marks-pid")].isdigit()
+
+
+def test_the_marks_loop_ends_when_the_deck_is_gone(fake, home, monkeypatch):
+    naps: list[float] = []
+    monkeypatch.setattr(deck_, "SLEEP", naps.append)
+    assert invoke("deck", "marks", "--every", "3").exit_code == 0 and naps == []
+
+
+def test_the_marks_loop_yields_to_another_live_loop(fake, home, monkeypatch):
+    tabbed(fake)
+    monkeypatch.setattr(deck_, "_marks_owner", lambda session, proc=None: 1)
+    monkeypatch.setattr(deck_, "SLEEP", lambda s: pytest.fail("slept"))
+    assert invoke("deck", "marks", "--every", "3").exit_code == 0
+    assert not [c for c in fake.find("set-option") if "@sb-state" in c]
+
+
+def test_marks_ticks_needs_every(fake, home):
+    assert invoke("deck", "marks", "--ticks", "2").exit_code == 2
+
+
+def test_the_deck_starts_one_marks_job_on_its_own_server(fake, home):
+    invoke("deck")
+    (job,) = fake.find("run-shell")
+    sb = str(deck_.PROJECT_ROOT / "sb")
+    assert job[2] == "-b" and job[3] == f"exec {shlex.quote(sb)} deck marks --every 3 >/dev/null 2>&1"
+
+
+def test_a_live_marks_loop_is_not_started_twice(fake, home, monkeypatch):
+    monkeypatch.setattr(deck_, "_marks_owner", lambda session, proc=None: 77)
+    invoke("deck")
+    assert fake.find("run-shell") == []
+
+
+def test_the_marks_owner_must_be_a_live_marks_process(fake, home, tmp_path):
+    fake.session("sb-agents")
+    fake.options[("=sb-agents:", "@sb-marks-pid")] = "123"
+    (tmp_path / "123").mkdir()
+    (tmp_path / "123" / "cmdline").write_bytes(b"python\0-m\0skyboss\0deck\0marks\0")
+    assert deck_._marks_owner("sb", tmp_path) == 123
+    (tmp_path / "123" / "cmdline").write_bytes(b"bash\0")
+    assert deck_._marks_owner("sb", tmp_path) is None
+    assert deck_._marks_owner("sb", tmp_path / "absent") is None
+
+
+def test_a_tab_format_draws_each_word_and_leaves_status_format_alone(fake, home):
+    invoke("deck")
+    tab = deck_.tab_format(False)
+    for word, label in (
+        ("busy", "working"),
+        ("waiting", "needs you"),
+        ("idle", "quiet"),
+        ("unregistered", "unregistered"),
+    ):
+        assert f"#{{==:#{{@sb-state}},{word}}}" in tab and label in tab
+    assert not any("status-format" in c for c in fake.find("set-option"))
+
+
+def test_tmux_styles_carry_no_comma_and_only_design_system_hues():
+    from skyboss import theme
+
+    tokens = {theme.BG, theme.SURFACE, theme.SURFACE_2, theme.TEXT, theme.TEXT_2, theme.TEXT_3, theme.BRAND, theme.WARN}
+    for style in theme.tmux_styles().values():
+        assert "," not in style
+        assert set(re.findall(r"#[0-9a-f]{6}", style)) <= tokens
+
+
+def test_the_theme_lands_on_the_decks_own_sessions_and_windows_only(fake, home):
+    invoke("deck")
+    calls = fake.find("set-option")
+    assert not any("-g" in c for c in calls)
+    styled = {(c[c.index("-t") + 1], c[-2]) for c in calls if "status-style" in c or "pane-active-border-style" in c}
+    assert ("=sb:", "status-style") in styled and ("=sb-agents:", "status-style") in styled
+    window_targets = {target for target, option in styled if option == "pane-active-border-style"}
+    assert window_targets == set(fake.windows)
