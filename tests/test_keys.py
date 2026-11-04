@@ -90,9 +90,30 @@ def test_an_arrow_key_does_not_close_the_view():
         with keys.reader(stream) as wait:
             os.write(primary, b"\x1b[A")
             key = wait(1.0)
-            assert key == "\x1b"
-            # ...but the sequence was drained, so nothing is left to misread.
+            # It used to come back as Esc, which leaves, because stdin buffered the rest.
+            assert key == "up" and not keys.leaves(key)
+            # ...and the sequence was consumed whole, so nothing is left to misread.
             assert wait(0) is None
     finally:
         stream.close()
         os.close(primary)
+
+
+@pytest.mark.parametrize(
+    ("raw", "key"),
+    [(b"\x1b[A", "up"), (b"\x1b[5~", "pgup"), (b"\x1b[<64;3;4M", "wheelup"), (b"\x1b", "\x1b"), ("é".encode(), "é")],
+)
+def test_a_real_terminal_delivers_a_whole_sequence_as_one_key(raw, key):
+    """On a pty, as a terminal writes it: a buffered stdin used to read Up as Esc, and leave."""
+    import os
+    import pty
+    import tty
+
+    master, slave = pty.openpty()
+    try:
+        tty.setcbreak(slave)
+        os.write(master, raw)
+        assert keys._waiter(keys.Raw(slave))(1) == key
+    finally:
+        os.close(master)
+        os.close(slave)

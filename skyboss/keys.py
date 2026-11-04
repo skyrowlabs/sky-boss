@@ -36,6 +36,10 @@ LEAVE = frozenset({"q", "Q", "\x1b"})
 # See [[follow]] round 3.
 MOVES = ("up", "down", "pgup", "pgdn", "home", "end")
 
+# The wheel, as an SGR mouse report (`ESC [ < 64 ; x ; y M`). Only a view that
+# turned mouse reporting on receives these; any other report is nothing.
+_WHEEL = {64: "wheelup", 65: "wheeldown"}
+
 # Final bytes of the sequences that matter, by their two introducers. `[` is
 # the common form and `O` is application-cursor mode, which some terminals put
 # the arrow keys into — a reader that knew only `[` would work everywhere until
@@ -78,9 +82,37 @@ def reader(stream=None) -> Iterator[Callable[[float], str | None]]:
     saved = termios.tcgetattr(fd)
     try:
         tty.setcbreak(fd)
-        yield _waiter(stream)
+        yield _waiter(Raw(fd))
     finally:
         termios.tcsetattr(fd, termios.TCSADRAIN, saved)
+
+
+class Raw:
+    """A descriptor read a byte at a time, with no buffer between it and `select`.
+
+    `sys.stdin` buffers: its first `read(1)` takes the whole of `ESC [ A`, so the
+    `select` that asks whether anything followed the Esc says no, and Up reads as
+    Esc and leaves the view. Reading the descriptor directly keeps the two in step.
+    """
+
+    def __init__(self, fd: int) -> None:
+        self.fd = fd
+
+    def fileno(self) -> int:
+        return self.fd
+
+    def read(self, n: int = 1) -> str:
+        import os
+
+        data = os.read(self.fd, 1)
+        if not data:
+            return ""
+        # A UTF-8 lead byte says how many continuation bytes follow it.
+        lead = data[0]
+        more = 3 if lead >= 0xF0 else 2 if lead >= 0xE0 else 1 if lead >= 0xC0 else 0
+        for _ in range(more):
+            data += os.read(self.fd, 1)
+        return data.decode("utf-8", errors="replace")
 
 
 def _is_tty(stream) -> bool:
@@ -154,6 +186,9 @@ def _sequence(stream, ready=_ready) -> str | None:
         if char.isalpha() or char == "~":
             break
 
+    if body.startswith("<"):
+        button = body[1:].split(";", 1)[0]
+        return _WHEEL.get(int(button)) if button.isdigit() and body[-1:] == "M" else None
     if body.endswith("~"):
         return _TILDE.get(body[:-1])
     return _FINAL.get(body)
