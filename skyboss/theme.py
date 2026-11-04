@@ -244,4 +244,5 @@ def tmux_styles() -> dict[str, str]:
         "unregistered": f"fg={TEXT_2} italics",
         "border": f"fg={TEXT_3}",
         "border-active": f"fg={BRAND}",
+        "exit": f"fg={DANGER} bold",
     }

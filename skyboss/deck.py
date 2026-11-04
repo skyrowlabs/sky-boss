@@ -483,7 +483,163 @@ def bar_options(tabs: bool) -> tuple[tuple[str, str], ...]:
     if tabs:
         marked = "#{" + MARKED_OPTION + "}"
         options += (("status-right", f"#[{style['quiet']}]marks #{{?{marked},{marked},not running}} "),)
+    else:
+        options += (("status-right", hints()), ("status-right-length", "120"))
     return options
+
+
+# ============================================================================
+# Keys: a table only the deck uses
+# ============================================================================
+
+# Shortcuts in the deck's table, and the status-bar hint for each. None collides
+# with Claude Code 2.1.318's own keys or with tmux's root defaults; see [[command-deck]]
+# round 4 for the check. Ctrl-C is never bound: it is claude's own.
+EXIT_KEY = "C-q"
+SHORTCUTS = {
+    "outside": "M-h",
+    "layout": "M-l",
+    "previous": "M-,",
+    "next": "M-.",
+    "older": "M-u",
+    "newest": "M-e",
+}
+NEVER_BOUND = frozenset({"C-c"})
+# Session options the panes read each frame, and the marks loop keeps the agent count in.
+HIDE_OPTION = "@sb-hide-outside"
+SCROLL_OPTION = "@sb-scroll"
+SCROLL_SEQ_OPTION = "@sb-scroll-seq"
+AGENT_COUNT_OPTION = "@sb-agent-count"
+EXIT_RANGE = "exit"
+
+
+def key_table(session: str) -> str:
+    """One table per deck, so two decks on one server cannot drive each other."""
+    return f"sb-deck-{session}"
+
+
+def mirrored_root(listing: str, table: str) -> str:
+    """`list-keys -T root`, rebound into `table`. tmux never falls back to root from a session's
+    `key-table`, so without these a deck would lose the mouse: tab clicks, border drags, the wheel.
+    A Ctrl-C binding is dropped rather than copied."""
+    out = []
+    for line in listing.splitlines():
+        match = re.match(r"^(bind-key\s+(?:-r\s+)?-T\s+)root(\s+)(\S+)(\s.*)$", line)
+        if match is None or match.group(3) in NEVER_BOUND:
+            continue
+        out.append(f"{match.group(1)}{table}{match.group(2)}{match.group(3)}{match.group(4)}")
+    return "\n".join(out) + ("\n" if out else "")
+
+
+def deck_bindings(session: str) -> list[list[str]]:
+    """The deck's own bindings, as `bind-key` argv. Pure, so the suite reads exactly what is bound."""
+    table = key_table(session)
+    outer, tabs = scope(session), scope(inner(session))
+    sb = shlex.quote(str(PROJECT_ROOT / "sb"))
+
+    def job(*words: str) -> str:
+        return f"run-shell -b \"exec {sb} {' '.join(words)} >/dev/null 2>&1\""
+
+    count = "#{" + AGENT_COUNT_OPTION + "}"
+    ask = (
+        f'confirm-before -p "end the deck {session} and its {count} agent sessions? (y/n)" ' f"'{job('deck', 'exit')}'"
+    )
+    seq = "#{e|+:#{" + SCROLL_SEQ_OPTION + "},1}"
+    hide = "#{" + HIDE_OPTION + "}"
+    layout = "#{" + LAYOUT_OPTION + "}"
+
+    def scroll(word: str) -> list[str]:
+        # `\;` rather than `;`: a bare one would end the bind-key and run the rest at once.
+        then = ["\\;", "set-option", "-F", "-t", outer, SCROLL_SEQ_OPTION, seq]
+        return ["set-option", "-t", outer, SCROLL_OPTION, word, *then]
+
+    keys = SHORTCUTS
+    return [
+        ["bind-key", "-T", table, EXIT_KEY, *ask_argv(session, ask)],
+        [
+            "bind-key",
+            "-T",
+            table,
+            "MouseDown1Status",
+            "if-shell",
+            "-F",
+            "#{==:#{mouse_status_range}," + EXIT_RANGE + "}",
+            ask,
+            "switch-client -t =",
+        ],
+        ["bind-key", "-T", table, keys["outside"], "set-option", "-F", "-t", outer, HIDE_OPTION, f"#{{?{hide},,1}}"],
+        [
+            "bind-key",
+            "-T",
+            table,
+            keys["layout"],
+            "if-shell",
+            "-F",
+            f"#{{==:{layout},stack}}",
+            job("deck", "layout", COLUMNS),
+            job("deck", "layout", STACK),
+        ],
+        ["bind-key", "-T", table, keys["previous"], "previous-window", "-t", tabs],
+        ["bind-key", "-T", table, keys["next"], "next-window", "-t", tabs],
+        ["bind-key", "-T", table, keys["older"], *scroll("older")],
+        ["bind-key", "-T", table, keys["newest"], *scroll("newest")],
+    ]
+
+
+def ask_argv(session: str, ask: str) -> list[str]:
+    """The exit prompt as argv for `bind-key`, which takes a command rather than a string."""
+    return shlex.split(ask)
+
+
+def install_keys(session: str) -> list[str]:
+    """Mirror root into the deck's table, bind the deck's keys over it, and point both sessions at it."""
+    table = key_table(session)
+    problems: list[str] = []
+    listing = tmux("list-keys", "-T", "root")
+    if listing.ok:
+        problems += _source(mirrored_root(listing.out, table))
+    else:
+        problems.append(f"could not read tmux's root keys, so the deck has no mouse bindings — {_said(listing)}")
+    for argv in deck_bindings(session):
+        answer = tmux(*argv)
+        if not answer.ok:
+            problems.append(f"could not bind {argv[3]} — {_said(answer)}")
+    for name in (session, inner(session)):
+        problems += _session_options(name, (("key-table", table),))
+    return problems
+
+
+def _source(text: str) -> list[str]:
+    """`source-file` a generated config: bindings as tmux prints them are not argv."""
+    if not text:
+        return []
+    import tempfile
+
+    with tempfile.NamedTemporaryFile("w", suffix=".tmux", prefix="sb-deck-", delete=False) as handle:
+        handle.write(text)
+        path = handle.name
+    try:
+        answer = tmux("source-file", path)
+    finally:
+        Path(path).unlink(missing_ok=True)
+    return [] if answer.ok else [f"could not copy tmux's root keys into the deck — {_said(answer)}"]
+
+
+def hints() -> str:
+    """The outer bar's right end: each shortcut, then the ✕ that ends the deck."""
+    style = theme.tmux_styles()
+    k = SHORTCUTS
+    parts = [
+        f"{k['outside']} outside",
+        f"{k['layout']} layout",
+        f"{k['previous']} {k['next']} tab",
+        f"{k['older']} {k['newest']} messages",
+        f"{EXIT_KEY} exit",
+    ]
+    return (
+        f"#[{style['quiet']}]{'  '.join(parts)} "
+        f"#[range=user|{EXIT_RANGE}]#[{style['exit']}] ✕ #[norange]#[{style['bar']}]"
+    )
 
 
 def windows_states(listed: list[Pane], sessions: list, parent_of: dict[int, int]) -> dict[str, str]:
@@ -523,7 +679,10 @@ def marks_once(session: str, written: dict[str, str], adapters: list | None = No
             else:
                 result.degrade(f"could not mark {labels.get(window_id, window_id)!r} — {_said(set_)}")
         rows.append({"window": labels.get(window_id, window_id), "state": word, "written": changed})
-    for problem in _session_options(name, ((MARKED_OPTION, clock(time.time())),)):
+    count = str(len({p.window_id for p in listed if p.role == AGENT}))
+    for problem in _session_options(name, ((MARKED_OPTION, clock(time.time())),)) + _session_options(
+        session, ((AGENT_COUNT_OPTION, count),)
+    ):
         result.degrade(problem)
     result.data = rows
     return result
@@ -707,7 +866,22 @@ def ensure(config: Config, projects: list, profile: Profile | None = None) -> tu
         _, more = arrange(config.session, COLUMNS, force=True, socket=socket)
         problems += more
     problems += open_tabs(config.session, agents)
+    problems += dress_sessions(config.session)
     return created, problems
+
+
+def dress_sessions(session: str) -> list[str]:
+    """The bars and the key table, on both deck sessions. Re-applied on every `sb deck`, so an
+    older deck picks them up; `mouse` is set only when a session is made, as it is the operator's."""
+    problems = _session_options(session, bar_options(False))
+    problems += _session_options(inner(session), bar_options(True))
+    problems += _session_options(session, ((AGENT_COUNT_OPTION, str(agent_count(session))),))
+    return problems + install_keys(session)
+
+
+def agent_count(session: str) -> int:
+    listed, _ = panes(inner(session))
+    return len({p.window_id for p in listed if p.role == AGENT})
 
 
 def open_tabs(session: str, agents: list[Agent]) -> list[str]:
@@ -1112,6 +1286,7 @@ def deck_layout(shape: str) -> Result:
     more += _session_options(config.session, (("mouse", "on"),))
     more += _session_options(inner(config.session), (("mouse", "on"),))
     created, arranged = arrange(config.session, shape, force=True)
+    more += dress_sessions(config.session)
     for problem in more + arranged:
         result.warn(problem)
     if arranged:
@@ -1163,6 +1338,60 @@ def deck_marks(every: int | None, ticks: int | None) -> Result:
             break
         SLEEP(every)
     raise click.exceptions.Exit(0)
+
+
+@deck.command(name="exit")
+@emit
+def deck_exit() -> Result:
+    """End the deck: stop its marks loop, then kill its two tmux sessions.
+
+        sb deck exit
+
+    **This acts, and it is the only deck command that kills anything.** Every
+    `claude` in a tab ends with its session. Nothing outside the deck's two
+    sessions is touched. Ctrl-Q or the ✕ in the deck's bar asks first, then runs this.
+    """
+    config, problems = load()
+    result = Result()
+    for problem in problems:
+        result.warn(problem)
+    present = [name for name in (inner(config.session), config.session) if has_session(name)]
+    if not present:
+        raise click.UsageError(f"no deck session {config.session!r} — nothing to end")
+    agents = agent_count(config.session) if inner(config.session) in present else 0
+    stopped = stop_marks(config.session)
+    ended, failed = end_sessions(present)
+    for name, why in failed:
+        result.degrade(f"could not end {name!r} — {why}")
+    result.data = {"ended": ", ".join(ended), "agents": agents, "marks": stopped}
+    return result
+
+
+def stop_marks(session: str) -> str:
+    """Stop the marks loop, if one is live. Its pid, or empty."""
+    import signal
+
+    pid = _marks_owner(session)
+    if pid is None:
+        return ""
+    try:
+        os.kill(pid, signal.SIGTERM)
+    except OSError:
+        return ""
+    return str(pid)
+
+
+def end_sessions(names: list[str]) -> tuple[list[str], list[tuple[str, str]]]:
+    """Kill exactly these sessions, the tabs first. The one place the deck kills anything."""
+    ended: list[str] = []
+    failed: list[tuple[str, str]] = []
+    for name in names:
+        answer = tmux("kill-session", "-t", f"={name}")
+        if answer.ok:
+            ended.append(name)
+        else:
+            failed.append((name, _said(answer)))
+    return ended, failed
 
 
 @deck.command(name="messages")
@@ -1465,5 +1694,6 @@ mark(deck_open, sb_acts=True)
 mark(deck_jump, sb_acts=True)
 mark(deck_layout, sb_acts=True)
 mark(deck_marks, sb_acts=True)
+mark(deck_exit, sb_acts=True)
 mark(deck_queue, sb_acts=False)
 mark(deck_messages, sb_acts=False)

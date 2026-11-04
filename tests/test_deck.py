@@ -39,6 +39,14 @@ from skyboss.deck import (
 pytestmark = [pytest.mark.unit]
 
 
+ROOT_KEYS = (
+    "bind-key    -T root   MouseDown1Pane     select-pane -t = \\; send-keys -M\n"
+    "bind-key    -T root   MouseDown1Status   switch-client -t =\n"
+    "bind-key    -T root   MouseDrag1Border   resize-pane -M\n"
+    "bind-key -r -T root   C-c                display-message fx-operator-binding\n"
+)
+
+
 class FakeTmux:
     """A tmux server reduced to sessions, windows and panes, recorded call by call.
 
@@ -57,6 +65,7 @@ class FakeTmux:
         self.current = ""
         self.serial = 0
         self.replaced: list[list[str]] = []
+        self.sourced: list[str] = []
 
     @property
     def sessions(self) -> set[str]:
@@ -108,6 +117,17 @@ class FakeTmux:
             pane = self._new_pane(target)
             self.panes[pane]["argv"] = command
             return Answer(asked=True, out=f"{pane}\n")
+        if verb == "list-keys":
+            return Answer(asked=True, out=ROOT_KEYS)
+        if verb == "source-file":
+            self.sourced.append(Path(args[-1]).read_text())
+            return Answer(asked=True)
+        if verb == "kill-session":
+            name = target.lstrip("=")
+            for wid in self.order.pop(name, []):
+                for pane in [p for p, b in self.panes.items() if b["window"] == wid]:
+                    del self.panes[pane]
+            return Answer(asked=True)
         if verb == "swap-window":
             a, b = self.windows[args[args.index("-s") + 1]], self.windows[target]
             a["index"], b["index"] = b["index"], a["index"]
@@ -592,7 +612,21 @@ def test_layout_moves_panes_and_restarts_none(fake, home, tmp_path, shape):
 
 def test_the_deck_source_never_kills_or_respawns_a_pane():
     source = Path(deck_.__file__).read_text()
-    assert not re.search(r"kill-pane|respawn-pane|kill-window|kill-session|kill-server", source)
+    assert not re.search(r"kill-pane|respawn-pane|kill-window|kill-server", source)
+
+
+def test_kill_session_appears_only_in_the_exit_command():
+    """Recomputed from the source: every `kill-session` literal sits inside `end_sessions`."""
+    import ast
+
+    tree = ast.parse(Path(deck_.__file__).read_text())
+    owners = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef):
+            for inner_node in ast.walk(node):
+                if isinstance(inner_node, ast.Constant) and "kill-session" in str(inner_node.value):
+                    owners.add(node.name)
+    assert owners == {"end_sessions"}
 
 
 def test_a_round_two_pinned_pane_moves_into_the_tabs_with_its_process(fake, home, tmp_path):
@@ -866,7 +900,15 @@ def test_queue_refresh_off_a_terminal_is_ndjson(fake, home, monkeypatch):
 
 def test_the_queue_is_an_observe_and_the_rest_act():
     acts = {name: getattr(command, "sb_acts") for name, command in deck_.deck.commands.items()}
-    assert acts == {"open": True, "jump": True, "layout": True, "marks": True, "queue": False, "messages": False}
+    assert acts == {
+        "open": True,
+        "jump": True,
+        "layout": True,
+        "marks": True,
+        "exit": True,
+        "queue": False,
+        "messages": False,
+    }
 
 
 # ============================================================================
@@ -984,7 +1026,17 @@ def test_a_tab_format_draws_each_word_and_leaves_status_format_alone(fake, home)
 def test_tmux_styles_carry_no_comma_and_only_design_system_hues():
     from skyboss import theme
 
-    tokens = {theme.BG, theme.SURFACE, theme.SURFACE_2, theme.TEXT, theme.TEXT_2, theme.TEXT_3, theme.BRAND, theme.WARN}
+    tokens = {
+        theme.BG,
+        theme.SURFACE,
+        theme.SURFACE_2,
+        theme.TEXT,
+        theme.TEXT_2,
+        theme.TEXT_3,
+        theme.BRAND,
+        theme.WARN,
+        theme.DANGER,
+    }
     for style in theme.tmux_styles().values():
         assert "," not in style
         assert set(re.findall(r"#[0-9a-f]{6}", style)) <= tokens
@@ -1030,3 +1082,88 @@ def test_claimed_reads_both_deck_sessions(fake, home, monkeypatch):
     assert deck_.claimed([a_session(10), a_session(11)]) == ({"id-10"}, "")
     fake.installed = False
     assert deck_.claimed([])[0] is None
+
+
+# ============================================================================
+# Round 4: the deck's key table, exit, shortcuts
+# ============================================================================
+
+
+def test_the_key_table_is_set_on_the_two_deck_sessions_only(fake, home):
+    invoke("deck")
+    tables = {(c[c.index("-t") + 1], c[-1]) for c in fake.find("set-option") if "key-table" in c}
+    assert tables == {("=sb:", "sb-deck-sb"), ("=sb-agents:", "sb-deck-sb")}
+
+
+def test_every_binding_lands_in_the_decks_table_and_nothing_is_global(fake, home):
+    invoke("deck")
+    for call in fake.find("bind-key"):
+        assert call[2:4] == ["-T", "sb-deck-sb"], call
+    assert not any("-g" in call for call in fake.calls if call[1] in ("set-option", "bind-key"))
+    (sourced,) = fake.sourced
+    assert all(" -T sb-deck-sb " in line for line in sourced.splitlines())
+
+
+def test_root_is_copied_so_the_mouse_still_works_in_the_deck():
+    copied = deck_.mirrored_root(ROOT_KEYS, "sb-deck-sb")
+    assert "-T sb-deck-sb   MouseDown1Pane     select-pane -t = \; send-keys -M" in copied
+    assert "MouseDrag1Border" in copied and " root " not in copied
+
+
+def test_ctrl_c_is_never_bound(fake, home):
+    """Ctrl-C is claude's own: one press interrupts a turn, two end it."""
+    invoke("deck")
+    bound = [call[4] for call in fake.find("bind-key")]
+    assert "C-c" not in bound and "C-c" not in "".join(fake.sourced)
+    assert not any(argv[3] == "C-c" for argv in deck_.deck_bindings("sb"))
+
+
+def test_exit_asks_first_and_names_what_ends():
+    (ctrl_q,) = [argv for argv in deck_.deck_bindings("sb") if argv[3] == "C-q"]
+    assert ctrl_q[4:6] == ["confirm-before", "-p"]
+    assert ctrl_q[6] == "end the deck sb and its #{@sb-agent-count} agent sessions? (y/n)"
+    assert "deck exit" in ctrl_q[7]
+
+
+def test_the_close_box_asks_and_any_other_status_click_still_selects():
+    (click_,) = [argv for argv in deck_.deck_bindings("sb") if argv[3] == "MouseDown1Status"]
+    assert click_[4:7] == ["if-shell", "-F", "#{==:#{mouse_status_range},exit}"]
+    assert click_[7].startswith("confirm-before") and click_[8] == "switch-client -t ="
+
+
+def test_the_bar_shows_every_shortcut_and_the_close_box():
+    bar = deck_.hints()
+    for key in (*deck_.SHORTCUTS.values(), "C-q"):
+        assert key in bar
+    assert "#[range=user|exit]" in bar and "✕" in bar
+
+
+def test_exit_stops_the_marks_loop_then_kills_exactly_the_two_deck_sessions(fake, home, monkeypatch):
+    tabbed(fake)
+    fake.session("work")
+    killed = []
+    monkeypatch.setattr(deck_, "_marks_owner", lambda session, proc=None: 4321)
+    monkeypatch.setattr(deck_.os, "kill", lambda pid, sig: killed.append(pid))
+    result = invoke("--json", "deck", "exit")
+    assert result.exit_code == 0, result.output
+    assert killed == [4321]
+    assert [c[3] for c in fake.find("kill-session")] == ["=sb-agents", "=sb"]
+    assert fake.sessions == {"work"}
+    assert json.loads(result.stdout)["data"]["agents"] == 2
+
+
+def test_exit_without_a_deck_is_a_usage_error(fake, home):
+    assert invoke("deck", "exit").exit_code == 2 and "kill-session" not in fake.verbs()
+
+
+def test_the_shortcuts_drive_tmux_alone():
+    """Every shortcut is a tmux command or the deck's own `sb`; none types into a pane."""
+    for argv in deck_.deck_bindings("sb"):
+        assert argv[4] in ("confirm-before", "if-shell", "set-option", "previous-window", "next-window")
+
+
+def test_a_scroll_key_binds_both_its_commands():
+    """A bare `;` ends the bind-key and runs the rest at once; `\;` keeps it in the binding."""
+    (older,) = [argv for argv in deck_.deck_bindings("sb") if argv[3] == "M-u"]
+    assert "\;" in older and ";" not in older
+    assert older[-1] == "#{e|+:#{@sb-scroll-seq},1}"
