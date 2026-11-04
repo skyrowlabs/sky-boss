@@ -2,7 +2,9 @@
 title: "The deck: a tmux command center for agent sessions"
 slug: command-deck
 priority: medium
-shelf_status: in-progress
+category: surfaces
+agent_value: 3
+completed: 2026-11-04
 updated: 2026-11-04
 tags: [agents, act, tmux, surfaces]
 summary: Adds `sb deck`, a tmux session holding one window per agent, plus a queue of sessions waiting on the operator, read by both surfaces. It is the first act surface beside the observe-only canvas.
@@ -11,7 +13,6 @@ summary: Adds `sb deck`, a tmux session holding one window per agent, plus a que
 # The deck: a tmux command center for agent sessions
 
 > **Status**: 🟡 In progress
-> **Shelf-Status**: in-progress
 > **Priority**: Medium. Round 3: profiles, tab states, scoping, fitted tables and the theme, on the operator's ruling.
 > **Updated**: 2026-11-04
 
@@ -192,29 +193,29 @@ columns (default)                          stack
 +----------------------------+-----------+  +----------------+-----------------+
 ```
 
-- [ ] **Profiles in `deck.toml`.** A `[profile.<name>]` table carries `primary` (an agent name) and
+- [x] **Profiles in `deck.toml`.** A `[profile.<name>]` table carries `primary` (an agent name) and
       `tabs` (agent names, in order). `sb deck --profile <name>` opens the primary as the first tab
       and every listed tab after it, each a live `claude`. On an existing deck it opens only the
       missing tabs. A name resolves exactly as `open` resolves it (`[agent.*]`, then a
       `projects.toml` `cwd`). A name repeated in a profile is one tab and a warning; an unresolvable
       name is a warning and no tab. A profile key outside `primary` and `tabs` is named as a problem.
-- [ ] **No fixed left pane.** Window 0 is the tab area plus the tools in both layouts. The `pin`
+- [x] **No fixed left pane.** Window 0 is the tab area plus the tools in both layouts. The `pin`
       key keeps working and means the same as a profile with a primary and no tabs.
-- [ ] **Tabs say what each agent is doing.** Each tab is drawn with the registry's word for its
+- [x] **Tabs say what each agent is doing.** Each tab is drawn with the registry's word for its
       session: `busy` as working, `waiting` as needs you, `idle` as quiet, and no record as
       unregistered. The state reaches tmux within a few seconds. Whatever writes it acts and says
       so; it keeps no process per tab and spawns no Python per tab per tick. The order is the
       profile's: primary first.
-- [ ] **`--scope deck|outside|all`** on `sb agents` and on `sb deck queue`, default `all`. `deck`
+- [x] **`--scope deck|outside|all`** on `sb agents` and on `sb deck queue`, default `all`. `deck`
       means sessions running in a deck pane, and `outside` means every other live session.
-- [ ] **Tables fill their pane and never wrap.** In the deck's tool panes, columns widen to use the
+- [x] **Tables fill their pane and never wrap.** In the deck's tool panes, columns widen to use the
       room the pane has and shrink with ellipsis when it has none. A row is always one line, at every
       width, re-measured each render because panes are dragged.
-- [ ] **A sky.boss theme for the deck's own bars.** The tab row and the outer status bar take their
+- [x] **A sky.boss theme for the deck's own bars.** The tab row and the outer status bar take their
       colours from `skyboss/theme.py`, replacing tmux's default green, and are set as options on the
       deck's own sessions only. Nothing outside `theme.py` names a colour, so tmux style strings are
       generated there.
-- [ ] Tests on `FakeTmux`: profile parsing and its problems, opening order and idempotence, the
+- [x] Tests on `FakeTmux`: profile parsing and its problems, opening order and idempotence, the
       state marks, the scope filter, the no-wrap fit at several widths, and the theme options set on
       the deck's sessions only. A smoke test on a throwaway socket covers the clicks and the marks.
 
@@ -345,3 +346,13 @@ args = ["--model", "opus"]   # optional
 primary = "workspace"   # the first tab
 tabs = ["jam", "mind"]  # in order; a name may also come from a projects.toml cwd
 ```
+
+### 2026-11-04: round 3 built
+
+Shipped in sky-boss@09ef614, sky-boss@97c15d3 and sky-boss@5c9bf1d, with the schema and decisions
+recorded in sky-boss@20079d8. Tab states are a window option written by one `sb deck marks` loop:
+`#()` forked once per tab per tick, and `monitor-activity` cannot tell waiting from working. Seen
+on a throwaway socket: a mouse click selecting a tab, all four states drawn, and a state change
+reaching its tab within three seconds. Not yet seen with a real `claude`; fake ones wrote the
+registry records. The skyrow-core profile was added to the operator's own `deck.toml` by hand, not
+by sky.boss.

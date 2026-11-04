@@ -80,7 +80,7 @@ Needs Python 3.12+. Shell completion for fish:
 | `sb roll-call` | reads | Asks every declared project how it is, and folds the answers |
 | `sb schedule` | reads | What fires next, across every project that declares a schedule |
 | `sb agents` | reads | Which agent sessions are running right now, across every provider |
-| `sb deck` | **acts** | A tmux controller: the workspace `claude`, a tab per project agent, and panes for who is waiting on you and what agents told each other — `open`, `jump` and `layout` act; `queue` and `messages` read |
+| `sb deck` | **acts** | A tmux controller: a tab per agent, each a live `claude` marked as working or needing you, beside panes for who is waiting on you and what agents told each other. `--profile` opens a declared set of tabs — `open`, `jump`, `layout` and `marks` act; `queue` and `messages` read |
 | `sb history <project>` | reads | A project's own run ledger, newest first |
 | `sb job` | both | Jobs sky.boss issues — `list` reads; `run`, `install` and `uninstall` act |
 | `sb tools` | reads | The commands you saved |

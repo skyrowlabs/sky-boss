@@ -78,8 +78,8 @@ replaced by a browser one the same day. What exists:
 | `sb follow -- <argv>` | Holds a command's stream open. Resident by nature; any exit is a visible death. Arrows and PgUp scroll back through the ring |
 | `sb follow <path>` | Follows a file with a native stat cursor, so quiet and dead are different words. `--due 15m` makes late a word too |
 | `sb roll-call` | Asks every declared project how it is and folds the answers. An observe. See [[roll-call]] |
-| `sb agents` | Which agent sessions are running right now, across every provider. An observe. See [[agent-sessions]] |
-| `sb deck` | The controller: a tmux window with the workspace `claude`, a tab per project agent you open, and NEEDS YOU and MESSAGES panes, declared in `$SB_HOME/deck.toml`. **Acts**, as do `open`, `jump` and `layout`; `queue` and `messages` observe. See [[command-deck]] |
+| `sb agents` | Which agent sessions are running right now, across every provider. `--scope deck\|outside` splits them by the deck. An observe. See [[agent-sessions]] |
+| `sb deck` | The controller: a tmux window of agent tabs, each a live `claude` marked working, needs you or quiet, beside NEEDS YOU and MESSAGES panes. `--profile NAME` opens a declared set of tabs, primary first; declared in `$SB_HOME/deck.toml`. **Acts**, as do `open`, `jump`, `layout` and `marks`; `queue` and `messages` observe. See [[command-deck]] |
 | `sb history <project>` | A project's own run ledger, newest first. An observe, and the only one that looks backwards. See [[history]] |
 | `sb job` | Jobs sky.boss **issues**. `list` observes; `run`, `install` and `uninstall` act. systemd is the daemon. See [[jobs]] |
 | `sb schedule` | What fires next, across projects **and sky.boss's own jobs**, ordered by the parsed instant. `clock` says which fires it. An observe; it schedules nothing. See [[schedule]] |
