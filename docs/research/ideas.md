@@ -224,3 +224,24 @@ a deleted memo is an invitation to buy the same investigation twice. Moved from
   emitting a declaration of where a repo's truth lives, so `projects.toml` stops being hand-typed
   — and the two are complementary: this one works today and covers only adopters, that one needs
   a template change and covers every repo
+
+- **Reminders on the surface — ruled 2026-11-04: nothing to build in sky.boss yet.** A one-shot
+  reminder producer (systemd user timers, `list --json` with the grid's field names) already
+  reaches `sb schedule` and `sb roll-call` through `projects.toml` alone, measured that day. Three
+  gaps were raised by the workspace session; each one was weighed against a rule that already exists:
+
+  - *Due-soon and failed get no emphasis.* **Declined.** `failed` is the provider's word, and
+    [[roll-call]] already carries it verbatim; a sky.boss tint for it would be a severity vocabulary.
+    *Soon* is ordering, which [[schedule]] already does, and its span selector is the filter.
+  - *No way to open a fired reminder's report.* **The producer's to close.** `report` is a filename
+    relative to a per-reminder directory, and only the provider knows the join. If it publishes a
+    resolvable location (an absolute path, or a `<project>:<path>` address under its own slug), then
+    [[state-root]] and `sb follow <path>` open it today. Note that the project key and the
+    state-directory slug differ for this producer, so the address must use the slug. What *would*
+    be sky.boss's is general rather than reminder-shaped: a table cell holding an address that the
+    canvas can open. That is an idea and not a plan until a second producer needs it.
+  - *Done reminders are absent from `sb history`.* **The producer's to close.** [[history]] reads a
+    declared JSONL ledger; a per-reminder status file is not one. One appended line per fire, with
+    a name, an outcome and an instant, makes this a `[project.<key>.history]` block and no code.
+    sky.boss must not build a ledger out of status files, because that would mean it writing a
+    record on a provider's behalf.
