@@ -1,7 +1,7 @@
 ---
 title: "The deck: a tmux command center for agent sessions"
 slug: command-deck
-shelf_status: planned
+shelf_status: blocked
 priority: medium
 updated: 2026-11-04
 tags: [agents, act, tmux, surfaces]
@@ -10,8 +10,8 @@ summary: "Adds `sb deck`, a tmux session holding one window per agent, plus a qu
 
 # The deck: a tmux command center for agent sessions
 
-> **Status**: 🔴 Planned
-> **Shelf-Status**: planned
+> **Status**: 🔴 Blocked
+> **Shelf-Status**: blocked
 > **Priority**: Medium. The proposal is the workspace's, and the scope rule it rests on is not yet in `CLAUDE.md`.
 > **Updated**: 2026-11-04
 > **Blocked-On**: owner-ops. The Scope section of `CLAUDE.md` changes only on Jeston's word in this repo's own session, not on a relay.
