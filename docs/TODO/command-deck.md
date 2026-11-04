@@ -2,9 +2,7 @@
 title: "The deck: a tmux command center for agent sessions"
 slug: command-deck
 priority: medium
-category: surfaces
-agent_value: 3
-completed: 2026-11-04
+shelf_status: in-progress
 updated: 2026-11-04
 tags: [agents, act, tmux, surfaces]
 summary: Adds `sb deck`, a tmux session holding one window per agent, plus a queue of sessions waiting on the operator, read by both surfaces. It is the first act surface beside the observe-only canvas.
@@ -13,7 +11,8 @@ summary: Adds `sb deck`, a tmux session holding one window per agent, plus a que
 # The deck: a tmux command center for agent sessions
 
 > **Status**: 🟡 In progress
-> **Priority**: Medium. Round 2 builds the deck out into a workspace layout, on the operator's ruling.
+> **Shelf-Status**: in-progress
+> **Priority**: Medium. Round 3: profiles, tab states, scoping, fitted tables and the theme, on the operator's ruling.
 > **Updated**: 2026-11-04
 
 ## Problem
@@ -178,6 +177,47 @@ columns (default)                                  stack
 tool calls, and `~/.claude/todos/` and `~/.claude/tasks/` do not exist. So window 0 has no TASKS pane:
 a pane with nothing behind it would be the nav rule broken in a smaller font.
 
+## Phase 5 (round 3): profiles, live tabs, scope, fit and theme
+
+Ruled by Jeston on 2026-11-04, after using the round 2 controller. Three answers: the workspace
+lives in the tabs, so there is no fixed left pane; a tab shows the live `claude`, so its prompts are
+answered there; a name repeated in a profile is one tab and a warning.
+
+```
+columns (default)                          stack
++-[workspace]-[stash]-[mind]-+-----------+  +-[workspace]-[stash]-[mind]-[sky]-+
+| the selected tab's claude  | NEEDS YOU |  | the selected tab's claude        |
+|                            |-----------|  +----------------+-----------------+
+|                            | MESSAGES  |  | NEEDS YOU      | MESSAGES        |
++----------------------------+-----------+  +----------------+-----------------+
+```
+
+- [ ] **Profiles in `deck.toml`.** A `[profile.<name>]` table carries `primary` (an agent name) and
+      `tabs` (agent names, in order). `sb deck --profile <name>` opens the primary as the first tab
+      and every listed tab after it, each a live `claude`. On an existing deck it opens only the
+      missing tabs. A name resolves exactly as `open` resolves it (`[agent.*]`, then a
+      `projects.toml` `cwd`). A name repeated in a profile is one tab and a warning; an unresolvable
+      name is a warning and no tab. A profile key outside `primary` and `tabs` is named as a problem.
+- [ ] **No fixed left pane.** Window 0 is the tab area plus the tools in both layouts. The `pin`
+      key keeps working and means the same as a profile with a primary and no tabs.
+- [ ] **Tabs say what each agent is doing.** Each tab is drawn with the registry's word for its
+      session: `busy` as working, `waiting` as needs you, `idle` as quiet, and no record as
+      unregistered. The state reaches tmux within a few seconds. Whatever writes it acts and says
+      so; it keeps no process per tab and spawns no Python per tab per tick. The order is the
+      profile's: primary first.
+- [ ] **`--scope deck|outside|all`** on `sb agents` and on `sb deck queue`, default `all`. `deck`
+      means sessions running in a deck pane, and `outside` means every other live session.
+- [ ] **Tables fill their pane and never wrap.** In the deck's tool panes, columns widen to use the
+      room the pane has and shrink with ellipsis when it has none. A row is always one line, at every
+      width, re-measured each render because panes are dragged.
+- [ ] **A sky.boss theme for the deck's own bars.** The tab row and the outer status bar take their
+      colours from `skyboss/theme.py`, replacing tmux's default green, and are set as options on the
+      deck's own sessions only. Nothing outside `theme.py` names a colour, so tmux style strings are
+      generated there.
+- [ ] Tests on `FakeTmux`: profile parsing and its problems, opening order and idempotence, the
+      state marks, the scope filter, the no-wrap fit at several widths, and the theme options set on
+      the deck's sessions only. A smoke test on a throwaway socket covers the clicks and the marks.
+
 ## Dropped, and why
 
 - **Typing into an agent pane.** See Scope: it would be a second permission path.
@@ -265,3 +305,9 @@ newest; what does not fit is counted on a band line. Checked on a throwaway tmux
 `claude`: both layouts, the switch keeping every pane's process, the tab row, and the fit
 re-measured after a resize. Not observed, because no keys were sent: a mouse click on a tab, and
 the outer/inner prefix (prefix twice reaches the tabs). Task lists remain deferred.
+
+### 2026-11-04: round 3 reopened
+
+Jeston, after using the controller, asked for profiles (a skyrow-core set of five repos with the
+workspace first), tabs that show when an agent is working, a deck/outside filter, tables that fill
+their pane without wrapping, and a theme in place of tmux's green. Recorded in Phase 5.
