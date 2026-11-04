@@ -1,10 +1,8 @@
 ---
 title: "The deck: a tmux command center for agent sessions"
 slug: command-deck
+shelf_status: in-progress
 priority: medium
-category: surfaces
-agent_value: 3
-completed: 2026-11-04
 updated: 2026-11-04
 tags: [agents, act, tmux, surfaces]
 summary: Adds `sb deck`, a tmux session holding one window per agent, plus a queue of sessions waiting on the operator, read by both surfaces. It is the first act surface beside the observe-only canvas.
@@ -12,8 +10,9 @@ summary: Adds `sb deck`, a tmux session holding one window per agent, plus a que
 
 # The deck: a tmux command center for agent sessions
 
-> **Status**: 🔴 Planned
-> **Priority**: Medium. The proposal is the workspace's; the scope rule it rests on was confirmed 2026-11-04.
+> **Status**: 🟡 In progress
+> **Shelf-Status**: in-progress
+> **Priority**: Medium. Round 2 builds the deck out into a workspace layout, on the operator's ruling.
 > **Updated**: 2026-11-04
 
 ## Problem
@@ -133,6 +132,24 @@ never needs a tmux binary.
 - [x] `sb deck jump <name>`: `select-window`. Acts.
 - [x] `sb deck` puts a queue pane in the pinned window (`sb deck queue` on a refresh).
 
+## Phase 4 (round 2): a workspace layout
+
+Ruled by Jeston on 2026-11-04, after the round 1 deck read as a plain display. Three answers:
+open every declared agent at startup; put the queue, `sb roll-call` and `sb agents` beside the
+workspace agent; lay window 0 out with the agent on the left and the tools stacked on the right.
+
+- [ ] Bare `sb deck` ensures a window for every `[agent.*]` in `deck.toml`, in declaration order,
+      after window 0. On an existing session it opens only the missing ones and then attaches.
+      Projects found only in `projects.toml` stay on-demand through `sb deck open`.
+- [ ] Window 0 holds the pinned agent on the left at about 60% of the width. On the right, stacked
+      top to bottom: `sb deck queue`, `sb roll-call` and `sb agents`, each on its own refresh
+      (5s, 30s, 10s; constants, not keys). Each pane is tagged `@sb-deck queue|tool`, so the queue
+      never mistakes one for an agent. With no pin, window 0 is the three tool panes alone.
+- [ ] `--refresh` and `--ticks` on `sb roll-call` and `sb agents`, through the same resident path
+      as `sb deck queue` (a live view at a terminal, NDJSON otherwise). Both stay observes.
+- [ ] Tests on `FakeTmux`: the layout's split order and sizes, idempotence on an existing session,
+      the no-pin case, and the new flags' `--ticks` parity with `sb data`.
+
 ## Dropped, and why
 
 - **Typing into an agent pane.** See Scope: it would be a second permission path.
@@ -177,3 +194,8 @@ and the deck covers it by showing what it started.
 
 A deck row reading `waiting` was exercised only in unit tests, against a fake `claude`; the probe
 in Phase 1 is the live evidence that the registry writes the word.
+
+### 2026-11-04: round 2 reopened
+
+The round 1 deck built only window 0 and opened projects on demand, which read as a display rather
+than a command center. Reopened on Jeston's ruling, with the three answers recorded in Phase 4.

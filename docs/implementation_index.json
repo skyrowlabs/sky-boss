@@ -1,7 +1,7 @@
 {
   "_generated_by": "scripts/docs/gen_impl_index.py",
   "_note": "Generated — never hand-edit. Edit the doc's frontmatter and rerun.",
-  "count": 25,
+  "count": 24,
   "by_category": {
     "commands": [
       "capture",
@@ -31,7 +31,6 @@
     ],
     "surfaces": [
       "canvas",
-      "command-deck",
       "mcp",
       "workbench"
     ],
@@ -110,25 +109,6 @@
       "auto_generated": false,
       "category": "rendering",
       "completed": "2026-08-23",
-      "agent_value": 3
-    },
-    {
-      "slug": "command-deck",
-      "title": "The deck: a tmux command center for agent sessions",
-      "path": "docs/implementations/surfaces/command-deck.md",
-      "priority": "medium",
-      "updated": "2026-11-04",
-      "tags": [
-        "agents",
-        "act",
-        "tmux",
-        "surfaces"
-      ],
-      "summary": "Adds `sb deck`, a tmux session holding one window per agent, plus a queue of sessions waiting on the operator, read by both surfaces. It is the first act surface beside the observe-only canvas.",
-      "open_tasks": 0,
-      "auto_generated": false,
-      "category": "surfaces",
-      "completed": "2026-11-04",
       "agent_value": 3
     },
     {
