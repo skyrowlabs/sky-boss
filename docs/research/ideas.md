@@ -235,9 +235,11 @@ a deleted memo is an invitation to buy the same investigation twice. Moved from
     *Soon* is ordering, which [[schedule]] already does, and its span selector is the filter.
   - *No way to open a fired reminder's report.* **The producer's to close.** `report` is a filename
     relative to a per-reminder directory, and only the provider knows the join. If it publishes a
-    resolvable location (an absolute path, or a `<project>:<path>` address under its own slug), then
-    [[state-root]] and `sb follow <path>` open it today. Note that the project key and the
-    state-directory slug differ for this producer, so the address must use the slug. What *would*
+    resolvable location (an absolute path), then
+    `sb follow <path>` opens it today. ~~…or a `<project>:<path>` address under its own slug~~
+    *Corrected the same day:* that address resolves only against a **declared** key, and this
+    producer's key is not its state slug, so neither spelling resolves. I misread an unresolved
+    return as a resolved one. See `docs/open.md` § One project per state directory. What *would*
     be sky.boss's is general rather than reminder-shaped: a table cell holding an address that the
     canvas can open. That is an idea and not a plan until a second producer needs it.
   - *Done reminders are absent from `sb history`.* **The producer's to close.** [[history]] reads a

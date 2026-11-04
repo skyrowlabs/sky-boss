@@ -1091,3 +1091,23 @@ at the bottom of the screen, nowhere near what the operator is looking at.
 Whatever answers the band here answers the alert half of the docked-window idea in [[ideas]],
 which has the same shape and is strictly harder: a docked window is by definition the one nobody is
 watching.
+
+### `sb follow` on an absent file says nothing down a pipe
+
+*Found 2026-11-04 by the skyrow-workspace session, then reproduced here.* [[file-follow]] has an
+absent file read as *"waiting for it to exist"*, but only the terminal band says that. Piped,
+`sb follow <absent path>` prints nothing on stdout or stderr until the file appears, and a quiet
+existing file prints nothing too, so the two are the same bytes. The reporter could not tell which
+of the two it was watching. The likely shape is the lapsed-`--due` rule: one stderr line, once per
+absence, worded through the same function the band uses.
+
+### One project per state directory, when one repo publishes several feeds
+
+*Found 2026-11-04.* The address `<project>:<path>` takes a **declared key** and uses that same key as
+the state-directory name. That is the no-second-table rule above. A repo that publishes two feeds,
+for example skyrow-workspace's reminders beside its own status, can satisfy only one of them: the
+feed declared as `reminders` has no `<root>/reminders/`, and the state lives under a key nobody
+declared. The *per-project override* that § Getting from a project to its directory deferred is the
+obvious answer, and this is the first case that calls for it. It is not urgent. A producer that
+publishes an absolute path is already openable, so this is about whether the address form should
+reach such a feed at all.
