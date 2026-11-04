@@ -1094,11 +1094,10 @@ watching.
 
 ### `sb follow` on an absent file says nothing down a pipe
 
-*Found 2026-11-04 by the skyrow-workspace session, then reproduced here.* [[file-follow]] has an
+*Found 2026-11-04 here, by reproduction.* [[file-follow]] has an
 absent file read as *"waiting for it to exist"*, but only the terminal band says that. Piped,
 `sb follow <absent path>` prints nothing on stdout or stderr until the file appears, and a quiet
-existing file prints nothing too, so the two are the same bytes. The reporter could not tell which
-of the two it was watching. The likely shape is the lapsed-`--due` rule: one stderr line, once per
+existing file prints nothing too, so the two are the same bytes. The likely shape is the lapsed-`--due` rule: one stderr line, once per
 absence, worded through the same function the band uses.
 
 ### One project per state directory, when one repo publishes several feeds
