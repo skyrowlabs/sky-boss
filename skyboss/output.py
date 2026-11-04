@@ -408,7 +408,16 @@ def _render_warnings(result: Result) -> None:
     while the warnings still reach the terminal. They also remain in the JSON
     envelope, so a machine consumer sees them structurally.
     """
-    for warning in result.warnings:
+    warn_now(result.warnings)
+
+
+def warn_now(messages: list[str]) -> None:
+    """Warnings on stderr immediately, in the envelope's own wording.
+
+    For a command that execs or blocks before `emit` could render anything —
+    `sb deck` replaces itself with `tmux attach`, so its warnings go out first.
+    """
+    for warning in messages:
         _err().print(f"[yellow]⚠️  {warning}[/yellow]", highlight=False)
 
 
