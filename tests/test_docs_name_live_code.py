@@ -89,8 +89,8 @@ pytestmark = [pytest.mark.unit]
 # every path below — can be imported. See scripts/paths.py.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from repo_files import present, reference_docs  # noqa: E402
-from scripts.paths import PROJECT_ROOT  # noqa: E402
+from repo_files import present, python_sources, reference_docs  # noqa: E402
+from scripts.paths import FOREIGN, PROJECT_ROOT  # noqa: E402
 
 #: A backticked call. The parentheses are the whole signal — they are what
 #: separates a code reference from a word that happens to sit in a code span.
@@ -107,7 +107,7 @@ def _git(*args: str, root: Path = PROJECT_ROOT) -> str:
 def defined_now(root: Path = PROJECT_ROOT) -> set[str]:
     """Every callable this repo currently defines."""
     names: set[str] = set()
-    for path in present("*.py", root=root):
+    for path in python_sources(root=root):
         names.update(DEFINITION.findall(path.read_text(encoding="utf-8", errors="replace")))
     return names
 
@@ -132,8 +132,10 @@ def was_ever_ours(symbol: str, root: Path = PROJECT_ROOT) -> bool:
     predicate and judged it the right trade: the alternative is asking about
     somebody else's history, which is the false-positive problem again.
     """
+    # A foreign subtree's history is not this tree's either (scripts/paths.py FOREIGN).
+    outside = [f":(exclude){entry}/**" for entry in FOREIGN]
     for pattern in (f"def {symbol}\\(", f"class {symbol}[(:]"):
-        if _git("log", "--all", "-G", pattern, "--oneline", "--", "*.py", root=root).strip():
+        if _git("log", "--all", "-G", pattern, "--oneline", "--", "*.py", *outside, root=root).strip():
             return True
     return False
 

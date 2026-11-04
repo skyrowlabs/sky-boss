@@ -48,7 +48,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts import allowlist  # noqa: E402
 from scripts.output import detail, emit, fail, item, ok, skip  # noqa: E402
-from scripts.paths import DOCS_DIR, PROJECT_ROOT, SCRIPTS_DIR  # noqa: E402
+from scripts.paths import DOCS_DIR, PROJECT_ROOT, SCRIPTS_DIR, is_foreign  # noqa: E402
 
 BASELINE = SCRIPTS_DIR / "doc_links_baseline.json"
 ALLOWLIST = SCRIPTS_DIR / "doc_refs_allowlist.yaml"
@@ -199,7 +199,8 @@ def markdown_files() -> list[Path]:
     # far likelier, and their parametrised version rendered as `[NOTSET]` — an
     # empty parameter set, passing. The entries were right both times; the
     # predicate was wrong, and no amount of care about the entries reaches that.
-    return [p for p in out if "node_modules" not in p.relative_to(PROJECT_ROOT).parts]
+    rels = [(p, p.relative_to(PROJECT_ROOT)) for p in out]
+    return [p for p, rel in rels if "node_modules" not in rel.parts and not is_foreign(rel)]
 
 
 def _mask(text: str) -> str:

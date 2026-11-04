@@ -231,13 +231,35 @@ PRESENT_TENSE = {
 #: fails rather than waiting for somebody to paste it.
 
 
-# ── Extending NARRATIVE and PRESENT_TENSE ────────────────────────────────────
+#: Subtrees this tree carries but whose files are not its own source: a vendored
+#: tree, fixtures that are broken on purpose, a template rendered somewhere else.
+#: The walking checks skip them (doc links, doc refs, cited paths, the suites'
+#: scans), and `tests/test_scratch_is_not_linted.py` requires every walking linter
+#: to skip them in its own config, since a config file cannot read this one.
+#: Checks about what is *published* still read them: a vendored file is published
+#: all the same. Paths are relative to the root and `/`-separated.
+#:
+#: **Add your own subtrees as an append**, in the space between the two frozen
+#: rules at the end of this section. skeletor's own tree is the first user: its
+#: `template/` is every overlay, unrendered.
+#:
+#:     FOREIGN += ("vendor",)
+FOREIGN: tuple = ()
+
+
+def is_foreign(rel: str | Path) -> bool:
+    """Whether a root-relative path is inside a subtree `FOREIGN` names."""
+    posix = Path(rel).as_posix()
+    return any(posix == entry or posix.startswith(entry.rstrip("/") + "/") for entry in FOREIGN)
+
+
+# ── Extending NARRATIVE, PRESENT_TENSE and FOREIGN ───────────────────────────
 #
-# **Put every append to NARRATIVE and PRESENT_TENSE, and every comment you
-# write about them, in the space between the two frozen rules at the bottom of
-# this block** — below `Nothing below this line is skeletor's`, above
-# `Skeletor's again below this line` — not directly under this heading. Both
-# constants are defined above, so both spellings reach from there.
+# **Put every append to NARRATIVE, PRESENT_TENSE and FOREIGN, and every comment
+# you write about them, in the space between the two frozen rules at the bottom
+# of this block** — below `Nothing below this line is skeletor's`, above
+# `Skeletor's again below this line` — not directly under this heading. All
+# three constants are defined above, so every spelling reaches from there.
 #
 # skeletor renders nothing in that space, ever. That is the whole mechanism: a
 # three-way merge collides when two changes land at one insertion point, and an

@@ -40,6 +40,8 @@ name: Nightly Coverage
 # Until then this job is not red and not skipped — it is unregistered, which is
 # the state with nothing to query. Locking in a coverage ratchet and giving it
 # no runner is `continue-on-error` reporting success one workflow over.
+# `dev check scheduled` runs this job locally, in a clean venv, which is the
+# only way to see it pass before its first night.
 on:
   schedule:
     - cron: '15 4 * * *'

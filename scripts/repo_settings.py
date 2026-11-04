@@ -81,6 +81,28 @@ def dependabot_labels(config: Path) -> list[str]:
     return found
 
 
+def workflow_labels(workflows: Path) -> list[str]:
+    """Every label a workflow adds with `addLabels(... labels: [...])`, comments masked."""
+    found: list[str] = []
+    for workflow in sorted(workflows.glob("*.yml")) if workflows.is_dir() else []:
+        for listed in re.findall(r"addLabels\([^)]*?labels:\s*\[([^\]]*)\]", read_uncommented(workflow)):
+            for raw in listed.split(","):
+                label = raw.strip().strip("'\"")
+                if label and label not in found:
+                    found.append(label)
+    return found
+
+
+def labels_wanted(github: Path) -> list[str]:
+    """Every label something here applies: Dependabot's, then the workflows'.
+
+    Both kinds must exist: Dependabot drops a missing label, and a doctor fact
+    reading only dependabot.yml stayed green for one the merge workflow adds (sky.vault).
+    """
+    found = dependabot_labels(github / "dependabot.yml")
+    return found + [label for label in workflow_labels(github / "workflows") if label not in found]
+
+
 @dataclass(frozen=True)
 class Row:
     setting: Setting

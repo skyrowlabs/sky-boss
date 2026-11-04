@@ -14,7 +14,7 @@ import subprocess
 import click
 
 from scripts.paths import GITHUB_DIR
-from scripts.repo_settings import DESCRIPTION, compare, dependabot_labels, onoff, patch_body
+from scripts.repo_settings import DESCRIPTION, compare, labels_wanted, onoff, patch_body
 
 from .doctor import Unreadable, gh_api
 from .helpers import PROJECT_ROOT, detail, fail, ok, warn
@@ -53,7 +53,7 @@ def planned() -> tuple[dict, list[str], bool, list[str]]:
         alerts_off = True
     if alerts_off:
         shown.append("Dependabot alerts: off → on")
-    wanted = dependabot_labels(GITHUB_DIR / "dependabot.yml")
+    wanted = labels_wanted(GITHUB_DIR)
     present = {label["name"] for label in gh_api("repos/{owner}/{repo}/labels?per_page=100")} if wanted else set()
     missing = [label for label in wanted if label not in present]
     shown += [f"label {label}: absent → created" for label in missing]

@@ -43,6 +43,7 @@ directory.
 
 from __future__ import annotations
 
+import ast
 import json
 import re
 import shutil
@@ -59,12 +60,20 @@ pytestmark = [pytest.mark.unit]
 # every path below — can be imported. See scripts/paths.py.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts.paths import PROJECT_ROOT, SHELL_PACKAGE, TMP_DIR  # noqa: E402
+from scripts.paths import FOREIGN, PROJECT_ROOT, SHELL_PACKAGE, TMP_DIR  # noqa: E402
 
 SCRATCH = TMP_DIR.relative_to(PROJECT_ROOT).as_posix()
 PROBE_DIR = TMP_DIR / "_scratch_lint_probe"
 CHECK = PROJECT_ROOT / SHELL_PACKAGE / "check.py"
 PACKAGE = PROJECT_ROOT / "package.json"
+
+
+def _table_tools(text: str, table: str) -> list[str]:
+    """The first argv element of each `(label, argv)` row of `table`, read with `ast`."""
+    for node in ast.parse(text).body:
+        if isinstance(node, ast.Assign) and any(getattr(t, "id", None) == table for t in node.targets):
+            return [argv[0] for _label, argv in ast.literal_eval(node.value)]
+    return []
 
 
 def _walkers() -> list[str]:
@@ -81,6 +90,10 @@ def _walkers() -> list[str]:
     if CHECK.exists():
         text = CHECK.read_text(encoding="utf-8")
         found += re.findall(r"""run\(\[\s*["']([\w-]+)["'][^\]]*["']\.["']""", text)
+        # A table run over the tree, `run([*argv, "."]) for label, argv in TABLE`,
+        # names its tools in the table: the literal form above matches nothing there.
+        for table in re.findall(r"""run\(\[\*argv,\s*["']\.["']\]\)[^\n]*for \w+, argv in (\w+)""", text):
+            found += _table_tools(text, table)
         if re.search(r"pyright[^\n]*--project", text):
             found.append("pyright")
     if PACKAGE.exists():
@@ -231,9 +244,8 @@ def test_every_walker_has_a_probe_and_every_probe_a_walker():
     assert not stale, f"you appended probes for tools nothing here walks with: {stale}. Delete the append."
 
 
-def test_every_walking_linter_skips_scratch():
-    walkers = [tool for tool in _walkers() if tool in PROBES]
-    assert walkers, "no walking linter to probe, so this measured nothing"
+def _walked(walkers: list[str]) -> dict:
+    """Each walker's verdict on a probe planted in `PROBE_DIR`, removed afterwards."""
     PROBE_DIR.mkdir(parents=True, exist_ok=True)
     try:
         verdicts = {tool: PROBES[tool]() for tool in walkers}
@@ -244,7 +256,13 @@ def test_every_walking_linter_skips_scratch():
         "these walkers could not be asked, so whether they lint scratch is unknown — which is not a pass:\n"
         + "\n".join(f"  {tool}: {how}" for tool, how in unasked.items())
     )
-    lints_scratch = {tool: how for tool, (walked, how) in verdicts.items() if walked}
+    return {tool: how for tool, (walked, how) in verdicts.items() if walked}
+
+
+def test_every_walking_linter_skips_scratch():
+    walkers = [tool for tool in _walkers() if tool in PROBES]
+    assert walkers, "no walking linter to probe, so this measured nothing"
+    lints_scratch = _walked(walkers)
     assert not lints_scratch, (
         f"these linters walk into `{SCRATCH}/`, where this tree's gates write their reports and its rules "
         f"send scratch work:\n"
@@ -252,3 +270,19 @@ def test_every_walking_linter_skips_scratch():
         + f"\nExclude `{SCRATCH}` in that tool's own configuration; scratch otherwise fails the lint gate "
         f"as an ordinary finding."
     )
+
+
+def test_every_walking_linter_skips_each_foreign_subtree(monkeypatch):
+    """The same probes, planted in each subtree `scripts/paths.py::FOREIGN` names."""
+    walkers = [tool for tool in _walkers() if tool in PROBES]
+    module = sys.modules[__name__]
+    for subtree in FOREIGN:
+        assert (PROJECT_ROOT / subtree).is_dir(), f"FOREIGN names `{subtree}`, which is not a directory here"
+        monkeypatch.setattr(module, "SCRATCH", subtree)
+        monkeypatch.setattr(module, "PROBE_DIR", PROJECT_ROOT / subtree / "_foreign_lint_probe")
+        linted = _walked(walkers)
+        assert not linted, (
+            f"FOREIGN names `{subtree}`, and these linters still read it:\n"
+            + "\n".join(f"  {tool}: {how}" for tool, how in linted.items())
+            + f"\nExclude `{subtree}` in each tool's own configuration."
+        )

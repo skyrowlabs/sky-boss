@@ -60,13 +60,16 @@ def test_a_job_missing_from_the_crontab_is_not_installed_rather_than_overdue(cro
     assert all(e["scheduled_in_cron"] is None for e in status.jobs())
 
 
-def test_the_checkouts_offset_moves_every_fire_time(monkeypatch):
+def test_the_installed_offset_moves_every_fire_time(monkeypatch, crontab):
     monkeypatch.setattr(jobs, "SCHEDULE_OFFSET_PINNED", 7)
-    delay = timedelta(minutes=7)
-    for entry in scanned([e for e in status.jobs() if e["next_run"]], "scheduled entries"):
-        slot = datetime.fromisoformat(entry["next_run"]).replace(tzinfo=None) - delay
-        job = jobs.JOBS_BY_KEY[entry["job"]]
-        assert cron_schedule.next_fire(job.cron, slot - timedelta(minutes=1), job.first_week_only) == slot, entry
+    crontab["text"] = "\n".join(job.cron_line() for job in JOBS)
+    for minutes in (7, 0):
+        if not minutes:  # a block installed before the offset existed fires at the slot (mind.head)
+            crontab["text"] = crontab["text"].replace("sleep 420 && ", "")
+        for entry in scanned([e for e in status.jobs() if e["next_run"]], "scheduled entries"):
+            slot = datetime.fromisoformat(entry["next_run"]).replace(tzinfo=None) - timedelta(minutes=minutes)
+            job = jobs.JOBS_BY_KEY[entry["job"]]
+            assert cron_schedule.next_fire(job.cron, slot - timedelta(minutes=1), job.first_week_only) == slot, entry
 
 
 def test_a_slot_before_the_install_is_not_a_missed_run(monkeypatch, tmp_path):

@@ -34,6 +34,7 @@ from scripts.paths import (  # noqa: E402
     STATE_ROOT_DEFAULT,
     STATE_ROOT_ENV,
     STATE_SLUG,
+    is_foreign,
     state_dir,
     state_root,
 )
@@ -54,7 +55,12 @@ ROOT_TOKENS = re.compile("|".join(re.escape(token) for token in (STATE_ROOT_ENV,
 
 def _sources():
     return scanned(
-        [p for base in (CLI_DIR, SCRIPTS_DIR) for p in sorted(base.rglob("*.py")) if p != RESOLVER],
+        [
+            p
+            for base in (CLI_DIR, SCRIPTS_DIR)
+            for p in sorted(base.rglob("*.py"))
+            if p != RESOLVER and not is_foreign(p.relative_to(PROJECT_ROOT))
+        ],
         f".py under {CLI_DIR.name}/ or {SCRIPTS_DIR.name}/, excluding the resolver",
     )
 

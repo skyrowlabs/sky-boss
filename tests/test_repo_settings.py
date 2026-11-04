@@ -112,3 +112,16 @@ def test_the_labels_dependabot_applies_are_read_from_its_config(tmp_path):
         encoding="utf-8",
     )
     assert repo_settings.dependabot_labels(config) == ["dependencies", "ci"], "block style must be read too"
+
+
+def test_a_label_a_workflow_adds_is_wanted_too(tmp_path):
+    (tmp_path / "workflows").mkdir()
+    (tmp_path / "dependabot.yml").write_text(
+        "updates:\n  - package-ecosystem: pip\n    labels: [dependencies]\n", encoding="utf-8"
+    )
+    (tmp_path / "workflows" / "merge.yml").write_text(
+        "steps:\n  - run: |\n      addLabels({ issue_number: 1, labels: ['runtime-major'] })\n"
+        "      # addLabels({ labels: ['commented'] })\n",
+        encoding="utf-8",
+    )
+    assert scanned(repo_settings.labels_wanted(tmp_path), "labels", least=2) == ["dependencies", "runtime-major"]

@@ -163,19 +163,17 @@ def setup_blocks() -> dict:
 
 
 def ci_requirements() -> set:
-    """Every requirements file a CI workflow installs from, comments masked.
+    """Every requirements file CI installs from, in a workflow or a local action, comments masked.
 
     `scripts/yaml_text.py` owns the masking and carries the two gates that
     learned it the expensive way: a commented-out `pip install` is prose to a
-    reader and a substring match to a naive scan.
-
-    A local composite action is read too: a job that installs through
-    `uses: ./.github/actions/<name>` installs what that action installs.
+    reader and a substring match to a naive scan. Local actions count because a
+    workflow's `uses: ./.github/actions/<name>` runs their steps (sky.boss).
     """
     found = set()
-    workflows = sorted((GITHUB_DIR / "workflows").glob("*.yml"))
-    for workflow in workflows + sorted((GITHUB_DIR / "actions").glob("*/action.yml")):
-        found.update(requirements_in(read_uncommented(workflow)))
+    sources = [*(GITHUB_DIR / "workflows").glob("*.yml"), *(GITHUB_DIR / "actions").glob("*/action.yml")]
+    for source in sorted(sources):
+        found.update(requirements_in(read_uncommented(source)))
     return found
 
 

@@ -189,6 +189,19 @@ def test_codeowners_errors_are_a_problem_and_an_absent_file_is_not_applicable(mo
     assert doctor.codeowners().state == doctor.UNKNOWN
 
 
+def test_a_branch_with_no_codeowners_is_a_problem_and_a_missing_branch_is_unknown(monkeypatch, tmp_path):
+    owned = tmp_path / "CODEOWNERS"
+    owned.write_text("*  @someone\n", encoding="utf-8")
+    monkeypatch.setattr(doctor, "CODEOWNERS", owned)
+    branch = BRANCHES[-1]
+    absent = {**{owners_path(b): {"errors": []} for b in BRANCHES}, owners_path(branch): 404}
+    stub(monkeypatch, {**absent, f"{REPO}/branches/{branch}": {"name": branch}})
+    fact = doctor.codeowners()
+    assert fact.state == doctor.PROBLEM and "no CODEOWNERS" in fact.detail and branch in fact.detail, fact
+    stub(monkeypatch, absent)
+    assert doctor.codeowners().state == doctor.UNKNOWN
+
+
 def test_codeowners_with_no_rule_names_no_owner(monkeypatch, tmp_path):
     ownerless = tmp_path / "CODEOWNERS"
     ownerless.write_text("# scaffolded without --owner\n\n", encoding="utf-8")
@@ -231,7 +244,7 @@ def test_an_inapplicable_fact_is_listed_and_not_counted(monkeypatch):
     monkeypatch.setattr(doctor, "RELEASE_CONFIG", doctor.RELEASE_CONFIG.with_name("absent.json"))
     monkeypatch.setattr(doctor, "CODEOWNERS", GITHUB_DIR / "absent-CODEOWNERS")
     # This tree may own its dependabot.yml, so the labels it names are stubbed too.
-    monkeypatch.setattr(doctor.repo_settings, "dependabot_labels", lambda _config: ["dependencies"])
+    monkeypatch.setattr(doctor.repo_settings, "labels_wanted", lambda _github: ["dependencies"])
     unprotected = {checks_path(): 404, checks_path(doctor.RELEASE_BRANCH): 404}
     answered = {
         f"{REPO}/compare/{doctor.BASE_BRANCH}...{doctor.RELEASE_BRANCH}": {"ahead_by": 0, "files": []},

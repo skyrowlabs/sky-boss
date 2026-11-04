@@ -50,7 +50,7 @@ def _tracked_json() -> list:
     until somebody stages it, and that is precisely the file this gate exists to
     catch before the commit rather than during it. See `repo_files.present`.
     """
-    return [path.relative_to(PROJECT_ROOT).as_posix() for path in present("*.json")]
+    return [path.relative_to(PROJECT_ROOT).as_posix() for path in present("*.json", foreign=True)]
 
 
 def _check_json_exclude() -> str:
@@ -67,6 +67,12 @@ def _check_json_exclude() -> str:
     return found.group(1) if found else ""
 
 
+def _top_level_exclude() -> str:
+    """The config's top-level `exclude:`, which pre-commit applies to every hook."""
+    found = re.search(r"^exclude: '([^']*)'", PRECOMMIT.read_text(encoding="utf-8"), re.M)
+    return found.group(1) if found else ""
+
+
 def _parses(path: Path) -> bool:
     try:
         json.loads(path.read_text(encoding="utf-8"))
@@ -80,7 +86,8 @@ def test_every_tracked_json_the_hook_sees_is_parseable() -> None:
     exclude = _check_json_exclude()
     pattern = re.compile(exclude) if exclude else None
     seen = scanned(_tracked_json(), "tracked .json files")
-    excluded = {name for name in seen if pattern and pattern.match(name)}
+    everywhere = re.compile(_top_level_exclude()) if _top_level_exclude() else None
+    excluded = {name for name in seen if any(p and p.match(name) for p in (pattern, everywhere))}
     unreadable = [name for name in seen if name not in excluded and not _parses(PROJECT_ROOT / name)]
     assert not unreadable, (
         f"these are tracked, not excluded, and are not strict JSON, so "

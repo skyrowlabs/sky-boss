@@ -41,7 +41,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts import allowlist  # noqa: E402
 from scripts.output import STATE_SYMBOLS, detail, emit, fail, item, ok  # noqa: E402
-from scripts.paths import CLI_DIR, PROJECT_ROOT, SCRIPTS_DIR  # noqa: E402
+from scripts.paths import CLI_DIR, PROJECT_ROOT, SCRIPTS_DIR, is_foreign  # noqa: E402
 
 ALLOWLIST = SCRIPTS_DIR / "output_allowlist.yaml"
 
@@ -95,7 +95,13 @@ def _sources() -> list[Path]:
     for directory in SCAN_DIRS:
         root = PROJECT_ROOT / directory
         if root.exists():
-            found.extend(sorted(p for p in root.rglob("*.py") if "__pycache__" not in p.relative_to(root).parts))
+            found.extend(
+                sorted(
+                    p
+                    for p in root.rglob("*.py")
+                    if "__pycache__" not in p.relative_to(root).parts and not is_foreign(p.relative_to(PROJECT_ROOT))
+                )
+            )
     return found
 
 

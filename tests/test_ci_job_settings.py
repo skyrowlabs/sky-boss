@@ -79,13 +79,13 @@ pytestmark = [pytest.mark.unit]
 # every path below — can be imported. See scripts/paths.py.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from repo_files import python_sources  # noqa: E402
 from scanning import scanned  # noqa: E402
-from scripts.paths import GITHUB_DIR, TESTS_DIR  # noqa: E402
+from scripts.paths import GITHUB_DIR, PROJECT_ROOT, TESTS_DIR, is_foreign  # noqa: E402
 from scripts.yaml_text import read_uncommented  # noqa: E402
 
 CI = GITHUB_DIR / "workflows" / "ci.yml"
 WORKFLOWS = GITHUB_DIR / "workflows"
-SCRIPTS_ROOT = TESTS_DIR.parent / "scripts"
 
 #: The tell that a test refuses to run against a shallow clone: it *tests for*
 #: the path git writes, on one line. Matched on the path rather than on a helper
@@ -141,6 +141,22 @@ _READS_HISTORY = re.compile(
     )
 )
 
+#: The same questions asked inline, in a job's own `run:` text: a shell range
+#: (`"$PREV".."$TAG"`), and the tag list `git tag` and `git describe` read, which
+#: a shallow checkout does not fetch. Workflow text only: in a script these words
+#: are as likely to be prose.
+_RUN_READS_HISTORY = re.compile(
+    "|".join(
+        (
+            r"""\brev-list\b""",
+            r"""\blog\s+--all""",
+            r"""\$\{?\w+\}?"?\.\."?\$""",
+            r"""\bgit\s+tag\s+(?:-l|--list|--sort)""",
+            r"""\bgit\s+describe\b""",
+        )
+    )
+)
+
 _JOB = re.compile(r"^  (?P<id>[A-Za-z0-9_-]+):$", re.MULTILINE)
 _MARKER_IN_FILE = re.compile(r"pytestmark\s*=\s*\[?pytest\.mark\.(?P<name>\w+)")
 _DASH_M = re.compile(r"-m\s+(?P<marker>\w+)")
@@ -151,7 +167,7 @@ def history_dependent_markers() -> set:
     """Markers of every suite holding a test that refuses a shallow clone."""
     markers = set()
     for path in sorted(TESTS_DIR.rglob("test_*.py")):
-        if "__pycache__" in path.relative_to(TESTS_DIR).parts:
+        if "__pycache__" in path.relative_to(TESTS_DIR).parts or is_foreign(path.relative_to(PROJECT_ROOT)):
             continue
         text = path.read_text(encoding="utf-8")
         if _NEEDS_HISTORY.search(text) and ".git" in text:
@@ -160,12 +176,12 @@ def history_dependent_markers() -> set:
 
 
 def history_dependent_scripts() -> set:
-    """Every script under `scripts/` that shells out to whole-history git."""
+    """Every python source that shells out to whole-history git, `bin/` tools included."""
     return {
-        path.relative_to(SCRIPTS_ROOT.parent).as_posix()
-        for path in sorted(SCRIPTS_ROOT.rglob("*.py"))
-        if "__pycache__" not in path.relative_to(SCRIPTS_ROOT).parts
-        and _READS_HISTORY.search(path.read_text(encoding="utf-8"))
+        path.relative_to(PROJECT_ROOT).as_posix()
+        for path in sorted(python_sources())
+        if not path.relative_to(PROJECT_ROOT).as_posix().startswith(TESTS_DIR.name + "/")
+        and _READS_HISTORY.search(path.read_text(encoding="utf-8", errors="replace"))
     }
 
 
@@ -178,7 +194,8 @@ def jobs_needing_history(markers: set, scripts: set) -> dict:
         for index, (job, start) in enumerate(bounds):
             end = bounds[index + 1][1] if index + 1 < len(bounds) else len(text)
             body = text[start:end]
-            if markers & set(_DASH_M.findall(body)) or any(script in body for script in scripts):
+            inline = _RUN_READS_HISTORY.search(body)
+            if markers & set(_DASH_M.findall(body)) or any(script in body for script in scripts) or inline:
                 needing[f"{workflow.name}:{job}"] = body
     return needing
 

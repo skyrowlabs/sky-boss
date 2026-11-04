@@ -36,7 +36,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts import allowlist  # noqa: E402
 from scripts.output import detail, emit, fail, item, ok  # noqa: E402
-from scripts.paths import DOCS_DIR, PROJECT_ROOT, SCRIPTS_DIR  # noqa: E402
+from scripts.paths import DOCS_DIR, PROJECT_ROOT, SCRIPTS_DIR, is_foreign  # noqa: E402
 
 ALLOWLIST = SCRIPTS_DIR / "doc_refs_allowlist.yaml"
 
@@ -67,7 +67,7 @@ def _sources() -> list[Path]:
         rel = path.relative_to(PROJECT_ROOT)
         if any(part in SKIP_DIRS for part in rel.parts):
             continue
-        if any(rel.as_posix().startswith(f"{prefix}/") for prefix in SKIP_PREFIXES):
+        if any(rel.as_posix().startswith(f"{prefix}/") for prefix in SKIP_PREFIXES) or is_foreign(rel):
             continue
         out.append(path)
     return sorted(out)

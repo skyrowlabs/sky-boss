@@ -9,6 +9,7 @@ a tree with it is then a `projects.toml` entry rather than code.
 
 from __future__ import annotations
 
+import re
 import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -35,8 +36,8 @@ def _crontab() -> str | None:
 
 def _installed_at() -> datetime | None:
     """When `report cron --install` last ran here, read from its newest backup's name."""
-    stamps = [_instant(path.stem.removeprefix("crontab-")) for path in INSTALL_BACKUPS.glob("crontab-*.bak")]
-    stamps = [stamp for stamp in stamps if stamp]
+    read = (_instant(path.stem.removeprefix("crontab-")) for path in INSTALL_BACKUPS.glob("crontab-*.bak"))
+    stamps: list[datetime] = [stamp for stamp in read if stamp is not None]
     return max(stamps, default=None)
 
 
@@ -70,6 +71,17 @@ def humanize_age(instant: datetime | None, now: datetime) -> str:
     return "just now"
 
 
+def _installed_delay(live: str | None, needle: str) -> int:
+    """Seconds the live crontab waits before `needle`; the registry's when cron is unreadable."""
+    if live is None:
+        return schedule_offset() * 60
+    for line in live.splitlines():
+        if needle in line:
+            found = re.search(r"sleep (\d+) && " + re.escape(needle), line)
+            return int(found.group(1)) if found else 0
+    return schedule_offset() * 60
+
+
 def jobs(now: datetime | None = None) -> list[dict]:
     """One entry per registered job, in registry order."""
     now = now or datetime.now(UTC)
@@ -82,8 +94,9 @@ def jobs(now: datetime | None = None) -> list[dict]:
         last = run_ledger.last_run(job.key)
         finished = _instant(last.get("finished") if last else None)
         started = _instant(last.get("started") if last else None)
-        # Every job starts this checkout's offset after its slot, so both fire times shift.
-        delay = timedelta(minutes=schedule_offset())
+        # The delay the installed line carries, which is the registry's only after
+        # `report cron --install`: an older block fires at the slot (mind.head).
+        delay = timedelta(seconds=_installed_delay(live, job.needle()))
         due = cron_schedule.previous_fire(job.cron, local_now - delay, job.first_week_only)
         upcoming = cron_schedule.next_fire(job.cron, local_now - delay, job.first_week_only)
         due, upcoming = (when + delay if when else None for when in (due, upcoming))

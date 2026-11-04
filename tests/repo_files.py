@@ -42,7 +42,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import pytest
 
-from scripts.paths import NARRATIVE, PROJECT_ROOT  # noqa: E402
+from scripts.paths import NARRATIVE, PROJECT_ROOT, is_foreign  # noqa: E402
 
 #: Every test here is host-side and needs no services up.
 pytestmark = [pytest.mark.unit]
@@ -83,7 +83,7 @@ def git(*args: str, root: Path = PROJECT_ROOT) -> str:
     return done.stdout
 
 
-def present(pattern: str, root: Path = PROJECT_ROOT) -> list:
+def present(pattern: str, root: Path = PROJECT_ROOT, *, foreign: bool = False) -> list:
     """Files in the working tree that git does not disclaim — tracked or not.
 
     **The index is the wrong population, and this was named `tracked` for one
@@ -145,7 +145,26 @@ def present(pattern: str, root: Path = PROJECT_ROOT) -> list:
     """
     names = git("ls-files", pattern, root=root).splitlines()
     names += git("ls-files", "--others", "--exclude-standard", pattern, root=root).splitlines()
-    return [root / line for line in dict.fromkeys(names) if line.strip()]
+    # A subtree `FOREIGN` names is not this tree's source; `foreign=True` is for
+    # a check about what a tool reads regardless (the json hook).
+    return [root / line for line in dict.fromkeys(names) if line.strip() and (foreign or not is_foreign(line))]
+
+
+def python_sources(root: Path = PROJECT_ROOT) -> list:
+    """Python in the tree: every `*.py`, and every suffixless file whose shebang names python.
+
+    A `bin/` tool is python with no suffix, so a check asking what the tree
+    defines or runs that reads `*.py` alone does not see it.
+    """
+    found = present("*.py", root=root)
+    for path in present("*", root=root):
+        if path.suffix or not path.is_file():
+            continue
+        with path.open("rb") as handle:
+            first = handle.readline(200)
+        if first.startswith(b"#!") and b"python" in first:
+            found.append(path)
+    return found
 
 
 # Released as the name of the function above, and therefore permanent: adopter

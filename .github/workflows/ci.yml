@@ -295,12 +295,18 @@ jobs:
           fetch-depth: 0
 
       # The interpreter, the `.venv` and every requirements file: one action,
-      # shared with coverage-nightly.yml so the two install the same thing. The
-      # nightly was deleted for failing at import while this job was green,
-      # because its copy of these steps had not learned ours.
+      # shared by every workflow that runs this suite so they install the same
+      # thing. The nightly was once deleted for failing at import while this job
+      # was green, because its copy of these steps had not learned ours. The pip
+      # cache is passed in; the nightly runs uncached.
       - uses: ./.github/actions/unit-setup
         with:
           python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+            scripts/requirements.txt
 
       # `pywebview` installs here but its GTK bindings (`gi`) are system-owned
       # and absent on a runner. That is fine and checked: `skyboss/canvas/shell.py`

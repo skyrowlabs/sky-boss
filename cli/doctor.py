@@ -306,6 +306,14 @@ def backmerge() -> Fact:
     )
 
 
+def _branch_exists(branch: str) -> bool:
+    try:
+        gh_api("repos/{owner}/{repo}/branches/" + quote(branch, safe=""))
+    except Unreadable:
+        return False
+    return True
+
+
 def codeowners() -> Fact:
     """Every owner CODEOWNERS names is one GitHub recognises, so a review is actually requested."""
     name = "CODEOWNERS names owners GitHub recognises"
@@ -320,6 +328,10 @@ def codeowners() -> Fact:
         try:
             found = gh_api("repos/{owner}/{repo}/codeowners/errors?ref=" + quote(branch, safe=""))
         except Unreadable as error:
+            if error.status == 404 and _branch_exists(branch):
+                # GitHub answers 404 for a branch with no CODEOWNERS, which is a
+                # finding, not an unreadable answer (stash.flow).
+                return Fact(name, PROBLEM, f"{branch}: no CODEOWNERS, so a pull request into it requests no review")
             return Fact(name, UNKNOWN, f"{branch}: {error}")
         errors = found.get("errors") or []
         if errors:
@@ -397,11 +409,11 @@ def dependabot_alerts(repo: dict | None = None) -> Fact:
 
 
 def labels_exist() -> Fact:
-    """Every label `.github/dependabot.yml` names exists, because Dependabot drops one that does not."""
-    name = "labels Dependabot applies exist"
-    wanted = repo_settings.dependabot_labels(GITHUB_DIR / "dependabot.yml")
+    """Every label dependabot.yml or a workflow applies exists; Dependabot drops one that does not."""
+    name = "labels Dependabot and the workflows apply exist"
+    wanted = repo_settings.labels_wanted(GITHUB_DIR)
     if not wanted:
-        return Fact(name, NOT_APPLICABLE, "no .github/dependabot.yml names a label")
+        return Fact(name, NOT_APPLICABLE, "neither .github/dependabot.yml nor a workflow applies a label")
     try:
         present = {label["name"] for label in gh_api("repos/{owner}/{repo}/labels?per_page=100")}
     except Unreadable as error:
