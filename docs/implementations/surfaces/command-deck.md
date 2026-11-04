@@ -2,7 +2,9 @@
 title: "The deck: a tmux command center for agent sessions"
 slug: command-deck
 priority: medium
-shelf_status: in-progress
+category: surfaces
+agent_value: 3
+completed: 2026-11-04
 updated: 2026-11-04
 tags: [agents, act, tmux, surfaces]
 summary: Adds `sb deck`, a tmux session holding one window per agent, plus a queue of sessions waiting on the operator, read by both surfaces. It is the first act surface beside the observe-only canvas.
@@ -11,7 +13,6 @@ summary: Adds `sb deck`, a tmux session holding one window per agent, plus a que
 # The deck: a tmux command center for agent sessions
 
 > **Status**: 🟡 In progress
-> **Shelf-Status**: in-progress
 > **Priority**: Medium. Round 4: exit, scrolling, agent colours and shortcut keys, on the operator's ruling.
 > **Updated**: 2026-11-04
 
@@ -225,30 +226,30 @@ double Ctrl-C exit and was shown the conflict: Ctrl-C is claude's own (one press
 two exit it), so binding it would put every press through the deck. He chose Ctrl-Q plus a
 clickable ✕ instead, kept agent colours on the brand-step rule, and asked for four shortcuts.
 
-- [ ] **Bindings live in the deck's own key table.** Both deck sessions set `key-table` to a table
+- [x] **Bindings live in the deck's own key table.** Both deck sessions set `key-table` to a table
       only they use, so the operator's other tmux sessions see no new binding. Measured before
       relying on it: the prefix still works there, an unbound key still reaches the pane, and a
       session outside the deck is unaffected.
-- [ ] **Exit.** Ctrl-Q, or clicking a ✕ at the right of the status bar, opens a tmux confirm that
+- [x] **Exit.** Ctrl-Q, or clicking a ✕ at the right of the status bar, opens a tmux confirm that
       names what ends ("end the deck and its N agent sessions?"). Confirming runs `sb deck exit`,
       an act that stops the marks loop and kills both deck sessions and nothing else. `kill-session`
       is allowed in that command only; the layout switch still never kills anything. Ctrl-C is
       never bound.
-- [ ] **Messages scroll.** The messages pane takes an offset: arrows, PgUp/PgDn and the wheel when it
+- [x] **Messages scroll.** The messages pane takes an offset: arrows, PgUp/PgDn and the wheel when it
       is focused, plus a deck shortcut when it is not. The band says how far back it is
       (`↑ 12 older shown`, or `newest`) and returns to newest on a key.
-- [ ] **Each agent has its own colour.** The colour is a step along the brand, by tab order with the
+- [x] **Each agent has its own colour.** The colour is a step along the brand, by tab order with the
       primary first (CLAUDE.md: never a new hue, never a borrowed role), and is assigned once in
       `theme.py` so the tab row and the messages pane cannot disagree. A tab's label is drawn in its
       agent's colour, and in MESSAGES each name in `sender → receiver` is drawn in that agent's
       colour. A sender outside the deck stays the plain text colour. Each step clears the CLI
       contrast floor, checked by a test.
-- [ ] **Shortcuts, shown in the status bar.** Hide or show outside agents in NEEDS YOU and MESSAGES
+- [x] **Shortcuts, shown in the status bar.** Hide or show outside agents in NEEDS YOU and MESSAGES
       (a toggle stored as an option on the deck session, which the panes read each frame); switch
       layout; next and previous tab; and scroll messages. The keys are chosen to collide with none
       of Claude Code's own keybindings or tmux's defaults; the choice and its check are recorded
       in Notes.
-- [ ] Tests on `FakeTmux`: the key table is set on the deck's sessions only and nothing is bound
+- [x] Tests on `FakeTmux`: the key table is set on the deck's sessions only and nothing is bound
       globally; Ctrl-C is never bound; `exit` kills exactly the two deck sessions; the scroll
       offset and its band; colour assignment by tab order, shared by both renderers, above the
       floor; the outside toggle read by both panes. A smoke test on a throwaway socket covers the
@@ -422,3 +423,15 @@ Shipped in sky-boss@0e7e5ee, sky-boss@d14a1cf and sky-boss@ebba8f5. Measured and
 - An agent's colour is a step of the canvas's project ramp, recomputed in OKLab and moved in
   lightness until it clears 3.5:1 on white, the void, and both tab-row grounds. A test reads
   `sb.css`, so the two ramps cannot part.
+
+### 2026-11-04: round 4 built
+
+Shipped in sky-boss@0e7e5ee, sky-boss@d14a1cf and sky-boss@ebba8f5, with the measurement, the keys
+and the decisions in sky-boss@17139d6. One ruling was made in the orchestrating session rather than
+by Jeston: tmux 3.8 does not fall back to `root` from a session's `key-table`, so mouse clicks, drags
+and the wheel died in the deck. The deck now copies `root` into its own table, minus Ctrl-C, and
+binds over it. That is accepted because it changes nothing global. Its cost is that a root binding
+added later reaches the deck only on the next `sb deck`. Every behaviour was seen on throwaway
+sockets with fake `claude` scripts; none has been run against a real one yet. A side fix:
+`skyboss/keys.py` now reads unbuffered, so an arrow key in any resident view, `sb follow` included,
+is no longer taken for Esc.
