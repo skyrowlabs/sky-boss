@@ -80,6 +80,8 @@ def selections(text: str) -> set:
             continue
         for match in _SELECTION.finditer(tail):
             expression = next(g for g in match.groups() if g is not None)
+            if expression.startswith("$"):
+                continue  # a shell variable, filled from the registry at run time
             found.update(part for part in _OPERATORS.split(expression) if part and part.strip())
     return {marker.strip() for marker in found}
 
@@ -94,14 +96,19 @@ def selected_markers() -> dict:
     return where
 
 
-def test_a_workflow_measuring_coverage_runs_every_suite_ci_runs():
-    """A coverage run over fewer suites than CI measures less code than its baseline did (stash.flow)."""
-    ci = selections(read_uncommented(WORKFLOWS / "ci.yml")) if (WORKFLOWS / "ci.yml").exists() else set()
+def test_coverage_is_measured_over_the_registrys_scheduled_suites():
+    """The nightly and `test coverage` read one set from SUITES, under one key (proto.pilot, stash.flow)."""
+    commands = module("test_cmds")
+    scheduled = set(commands.scheduled_suites())
+    assert commands.coverage_selection(()) == (" or ".join(commands.scheduled_suites()), commands.SCHEDULED_KEY)
     for path in sorted(WORKFLOWS.glob("*.yml")):
         text = read_uncommented(path)
-        if "--cov" in text and path.name != "ci.yml":
-            missing = sorted(ci - selections(text))
-            assert not missing, f"{path.name} measures coverage without the suites ci.yml runs: {missing}"
+        if "--cov" not in text or path.name == "ci.yml":
+            continue
+        assert "test suites --scheduled" in text, f"{path.name} measures coverage over a list of its own"
+        assert f"--suite {commands.SCHEDULED_KEY}" in text, f"{path.name} checks coverage under another key"
+        unscheduled = sorted(selections(text) - scheduled)
+        assert not unscheduled, f"{path.name} measures suites the registry does not schedule: {unscheduled}"
 
 
 def test_the_scan_reads_real_selections():

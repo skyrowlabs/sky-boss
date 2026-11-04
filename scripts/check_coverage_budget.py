@@ -9,8 +9,8 @@ The tolerance absorbs honest run-to-run variance (an env-gated branch, a
 skipped optional dependency) without absorbing a real regression.
 
 Usage:
-    pytest --cov --cov-report=xml:tmp/coverage.xml && python scripts/check_coverage_budget.py --suite unit
-    python scripts/check_coverage_budget.py --suite unit --json
+    pytest --cov --cov-report=xml:tmp/coverage.xml && python scripts/check_coverage_budget.py --suite scheduled
+    python scripts/check_coverage_budget.py --suite scheduled --json
 
 `--json` reports on **every** path, including the ones that pass. A ratchet a
 dashboard can only read when it is red tells you nothing about the direction it
@@ -344,7 +344,7 @@ def main() -> int:
     parser.add_argument("--update", action="store_true", help="record the observed percentage as the new baseline")
     parser.add_argument("--json", action="store_true", help="the machine-readable result on stdout")
     args = parser.parse_args()
-    args.suite = "+".join(args.suite or ["unit"])
+    args.suite = "+".join(args.suite or ["scheduled"])
 
     def done(payload: dict, status: int) -> int:
         """One exit, one payload. Emitting per-branch is how a path loses its."""
@@ -377,7 +377,7 @@ def main() -> int:
     unrecorded = entry is None
     if unrecorded:
         # **No entry is the floor a new suite starts at, 0.00%**, the same value the
-        # shipped `unit` entry holds. Failing here made `test coverage --suite unit
+        # shipped `scheduled` entry holds. Failing here made `test coverage --suite unit
         # --suite ui` red in every fresh tree, where `--update` rightly refuses to
         # record anything (dream-doll, sky.boss). Nothing is written by a check.
         entry = {"baseline_pct": 0.0}

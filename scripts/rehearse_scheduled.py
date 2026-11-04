@@ -213,8 +213,8 @@ def interpreter(version: str) -> str | None:
     return shutil.which(f"python{wanted.group(1)}.{wanted.group(2)}")
 
 
-def snapshot() -> str:
-    """A commit of the working tree as `git add -A` would stage it; the real index is untouched.
+def snapshot() -> tuple[str, str]:
+    """`(commit, tree)` of the working tree as `git add -A` would stage it; the index is untouched.
 
     After an upgrade the files are written and not yet committed, and that is the
     release worth rehearsing. HEAD there is the one the tree is leaving.
@@ -235,7 +235,8 @@ def snapshot() -> str:
 
         git("read-tree", "HEAD")
         git("add", "-A")
-        return git("commit-tree", git("write-tree"), "-p", "HEAD", "-m", "rehearsal snapshot")
+        tree = git("write-tree")
+        return git("commit-tree", tree, "-p", "HEAD", "-m", "rehearsal snapshot"), tree
 
 
 def _runner_files(scratch: Path) -> dict:
@@ -375,8 +376,10 @@ def main(argv: list | None = None) -> int:
             describe(job)
         return 0
 
-    ref = snapshot()
-    detail(f"rehearsing the working tree as `git add -A` would commit it ({ref[:9]})")
+    # The tree id, not the commit's: a commit's id has a timestamp in it, so the
+    # same contents printed a new id every run (node-zero).
+    ref, tree = snapshot()
+    detail(f"rehearsing the working tree as `git add -A` would commit it (tree {tree[:9]})")
     passed: list[Job] = []
     failed: list[Job] = []
     partial: list[tuple[Job, str]] = []
