@@ -130,6 +130,8 @@ def run(drain: Drain, *, base_branch: str = "develop") -> int:
     heartbeat_url = os.environ.get(job.heartbeat_var or "")
     dry = agent_runner.dry_run()
 
+    spent: dict = {}
+
     def finish(outcome: str, reason: str = "", committed: str | None = None, ran: bool = False) -> int:
         if dry:
             skip(f"{job.key} (dry run, nothing recorded): {reason or outcome}")
@@ -144,6 +146,7 @@ def run(drain: Drain, *, base_branch: str = "develop") -> int:
                 agent_ran=ran,
                 committed=committed,
                 reason=reason,
+                **spent,
             )
         )
         agent_runner.heartbeat(heartbeat_url, "down" if outcome == "failed" else "up")
@@ -163,12 +166,20 @@ def run(drain: Drain, *, base_branch: str = "develop") -> int:
     work_branch = branch_for(drain, issue.number)
     if dry:
         return finish("declined", f"would work #{issue.number} on {work_branch}: {issue.title}")
+    return _work(drain, issue, finish, spent, base_branch)
+
+
+def _work(drain: Drain, issue: Issue, finish, spent: dict, base_branch: str) -> int:
+    """The agent's half: branch, run, comment the attempt, and open the draft PR."""
+    job = JOBS_BY_KEY[drain.job_key]
+    work_branch = branch_for(drain, issue.number)
     prompt = prompt_for(drain, issue, work_branch)
     if prompt is None:
         return finish("declined", f"no prompt for {job.module}; the fix policy is resolved from its name")
     try:
         argv = agent_runner.agent_argv(prompt)
-    except ValueError as error:
+        env = agent_runner.agent_env(job.key)
+    except ValueError as error:  # SeatError included: an identity that cannot run
         return finish("declined", str(error))
 
     head_before = _git("rev-parse", "HEAD").stdout.strip()
@@ -181,8 +192,9 @@ def run(drain: Drain, *, base_branch: str = "develop") -> int:
         capture_output=True,
         text=True,
         timeout=agent_runner.AGENT_TIMEOUT_S,
-        env=agent_runner.agent_env(job.key),
+        env=env,
     )
+    spent.update(agent_runner.usage(ran.stdout))
     head_after = _git("rev-parse", "HEAD").stdout.strip()
     _gh(
         "issue",

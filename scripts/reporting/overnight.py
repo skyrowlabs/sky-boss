@@ -34,8 +34,12 @@ def digest(now: datetime | None = None) -> str:
     rows = [entry for entry in status.jobs(now) if entry["job"] != KEY]
     failed = sorted({r["job"] for r in runs if r.get("outcome") == "failed"})
     overdue = [entry["job"] for entry in rows if entry["overdue"]]
-    if failed or overdue:
-        verdict = f"🔴 attention: failed {', '.join(failed) or 'none'}; overdue {', '.join(overdue) or 'none'}"
+    missing = [e["job"] for e in rows if e["scheduled_in_cron"] is False and not e["intentionally_off"]]
+    if failed or overdue or missing:
+        verdict = (
+            f"🔴 attention: failed {', '.join(failed) or 'none'}; overdue {', '.join(overdue) or 'none'}; "
+            f"not installed {', '.join(missing) or 'none'}"
+        )
     elif not runs:
         verdict = f"🟡 idle: no job ran in the last {int(WINDOW.total_seconds() // 3600)}h, and none was overdue"
     else:

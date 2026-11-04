@@ -38,7 +38,7 @@ def parse(cron: str) -> tuple[set[int], ...]:
     fields = cron.split()
     if len(fields) != 5:
         raise ValueError(f"{cron!r} is not five cron fields")
-    sets = tuple(_field(spec, low, high) for spec, (low, high) in zip(fields, _BOUNDS))
+    sets = tuple(_field(spec, low, high) for spec, (low, high) in zip(fields, _BOUNDS, strict=True))
     minutes, hours, days, months, weekdays = sets
     if 7 in weekdays:
         weekdays.add(0)

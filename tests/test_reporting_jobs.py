@@ -189,6 +189,44 @@ def test_install_saves_the_crontab_it_replaces(monkeypatch, tmp_path):
     assert [p.read_text(encoding="utf-8") for p in (tmp_path / "reporting").iterdir()] == [SIBLING + "\n"]
 
 
+def test_a_host_in_another_zone_is_named(monkeypatch):
+    import time
+
+    from scripts.reporting.jobs import SCHEDULE_TZ, host_zone_disagreement
+
+    for zone, disagrees in ((SCHEDULE_TZ.key, False), ("Etc/GMT-14", True)):
+        monkeypatch.setenv("TZ", zone)
+        time.tzset()
+        assert bool(host_zone_disagreement()) is disagrees, zone
+    monkeypatch.undo()
+    time.tzset()
+
+
+def test_every_line_waits_this_checkouts_offset_and_the_block_names_its_seat(monkeypatch):
+    from scripts.reporting import jobs
+
+    assert 0 <= jobs.schedule_offset() < jobs.OFFSET_SPAN_MINUTES
+    monkeypatch.setattr(jobs, "SCHEDULE_OFFSET_PINNED", 5)
+    assert all(job.cron_line().split(" ", 5)[5].startswith("sleep 300 && ") for job in JOBS)
+    monkeypatch.setattr(jobs, "SCHEDULE_OFFSET_PINNED", 0)
+    assert not any("sleep" in job.cron_line() for job in JOBS)
+    assert f"{jobs.SEAT_ENV}={jobs.CRON_SEAT}" in crontab_block().splitlines()
+
+
+def test_a_seat_resolves_by_name_and_refuses_without_its_credential(monkeypatch):
+    from scripts.reporting import jobs
+
+    assert jobs.resolve_seat({}).name == jobs.DEFAULT_SEAT and jobs.seat_env({}) == {}
+    with pytest.raises(jobs.SeatError):
+        jobs.resolve_seat({jobs.SEAT_ENV: "teem"})
+    team = jobs.Seat("team", "an automation seat", "TEAM_CLAUDE", "TEAM_GH")
+    monkeypatch.setattr(jobs, "SEATS", (*jobs.SEATS, team))
+    with pytest.raises(jobs.SeatError, match="TEAM_CLAUDE"):
+        jobs.seat_env({jobs.SEAT_ENV: "team"})
+    granted = jobs.seat_env({jobs.SEAT_ENV: "team", "TEAM_CLAUDE": "c", "TEAM_GH": "g"})
+    assert granted == {"CLAUDE_CODE_OAUTH_TOKEN": "c", "GH_TOKEN": "g"}
+
+
 def test_agent_argv_substitutes_the_prompt():
     """The default invocation carries the prompt as one argument."""
     from scripts.reporting.agent_runner import agent_argv

@@ -93,8 +93,9 @@ RULES: list[tuple[str, list[Pattern[str]], dict[str, str]]] = [
         "runs the suite",
         [re.compile(r"python\s+-m\s+pytest\b")],
         {
-            "scripts/install_project.py|pip install -e": "without it a tree that is a package cannot import its "
-            "own dependencies, and the suite fails at collection — see scripts/install_project.py",
+            "scripts/install_project.py|pip install -e|uses: ./.github/actions/unit-setup": "without it a tree "
+            "that is a package cannot import its own dependencies, and the suite fails at collection — see "
+            "scripts/install_project.py and .github/actions/unit-setup",
         },
     ),
 ]

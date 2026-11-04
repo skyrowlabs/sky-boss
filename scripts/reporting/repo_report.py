@@ -43,7 +43,7 @@ def collect() -> dict[str, object]:
     log = _git("log", "--pretty=%s", commit_range).splitlines()
     types = Counter(line.split("(")[0].split(":")[0].strip() for line in log if ":" in line)
 
-    churn = Counter()
+    churn: Counter[str] = Counter()
     for line in _git("log", "--name-only", "--pretty=format:", commit_range).splitlines():
         if line.strip():
             churn[line.strip()] += 1

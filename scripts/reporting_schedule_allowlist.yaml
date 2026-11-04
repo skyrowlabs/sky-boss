@@ -14,3 +14,4 @@
 # `dev report cron --install`. Try it first with `dev report <key> --dry-run`.
 agent-task: 'opens a draft PR per night from the agent-task lane; switched on deliberately'
 agent-fix: 'opens a draft PR per night from the agent-bug lane; switched on deliberately'
+dep-migrate: 'drafts a migration per night for a held runtime-major Dependabot PR; switched on deliberately'

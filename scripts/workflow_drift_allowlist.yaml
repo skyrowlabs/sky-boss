@@ -11,5 +11,3 @@
 # that no longer exists is an exemption for a step nobody remembers.
 
 # example-workflow.yml:example-job: "runs against a prebuilt image, so it never boots the stack itself"
-
-ci.yml:unit-tests: "no [project] block in pyproject.toml, so install_project.py would install nothing; the job builds .venv from requirements*.txt instead"

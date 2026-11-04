@@ -171,9 +171,12 @@ Three things are load-bearing, and only the first two are about this tree today:
 days (`cooldown`) so a hijacked release can be yanked before it is proposed.
 `.github/workflows/dependabot-auto-merge.yml` merges a Dependabot pull request
 once CI passes on it, using the GitHub App's token (`APP_ID`, `APP_PRIVATE_KEY`)
-so the merge itself runs CI on the base branch. It leaves a major bump, read from
-the diff, and a security update for a person; the decision is
-`.github/scripts/dependabot-hold.cjs`. Without the App's secrets it merges
+so the merge itself runs CI on the base branch. Patches and minors merge,
+security updates included, and so does a major in a dev manifest
+(`scripts/requirements.txt`, `requirements-dev*.txt`, `package.json`
+devDependencies), because the suite running under it is the migration test. A
+major anywhere else is runtime and is left for a person. The decision, and the
+list of dev manifests to extend, is `.github/scripts/dependabot-hold.cjs`. Without the App's secrets it merges
 nothing and says so in the run.
 
 The lint tools (black, flake8, isort, pyright) are ignored there. Each is pinned

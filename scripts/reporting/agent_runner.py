@@ -39,7 +39,7 @@ from scripts.lanes import SOURCE_ENV  # noqa: E402
 from scripts.output import line, skip, step  # noqa: E402
 from scripts.paths import PROJECT_ROOT  # noqa: E402
 from scripts.reporting import run_ledger, shellout  # noqa: E402
-from scripts.reporting.jobs import FIX_POLICIES, JOBS_BY_KEY  # noqa: E402
+from scripts.reporting.jobs import FIX_POLICIES, JOBS_BY_KEY, SeatError, seat_env  # noqa: E402
 
 PROMPTS = Path(__file__).resolve().parent / "prompts"
 
@@ -64,7 +64,7 @@ AGENT_TIMEOUT_S = 900
 #: scaffold placeholder. It refuses unknown ones, which is how this was caught.
 PROMPT_TOKEN = "{prompt}"
 
-DEFAULT_AGENT_CMD = f"claude -p {PROMPT_TOKEN} --permission-mode acceptEdits"
+DEFAULT_AGENT_CMD = f"claude -p {PROMPT_TOKEN} --permission-mode acceptEdits --output-format json"
 
 #: Override with a full argv template:
 #:     SB_AGENT_CMD='some-agent run --yes {prompt}'
@@ -99,6 +99,37 @@ def dry_run() -> bool:
     return os.environ.get(DRY_RUN_ENV) == "1"
 
 
+def usage(stdout: str) -> dict:
+    """What the agent spent, from Claude's `--output-format json` result.
+
+    None for each field the output does not carry: an adapter printing text has
+    an unmeasured cost, which a 0 would misreport as free.
+    """
+    try:
+        result = json.loads(stdout.strip().splitlines()[-1]) if stdout.strip() else {}
+    except ValueError:
+        result = {}
+    result = result if isinstance(result, dict) else {}
+    cost = result.get("total_cost_usd", result.get("cost_usd"))
+    counts = [n for n in (result.get("usage") or {}).values() if isinstance(n, int)]
+    return {
+        "cost_usd": float(cost) if isinstance(cost, (int, float)) else None,
+        "num_turns": result["num_turns"] if isinstance(result.get("num_turns"), int) else None,
+        "tokens": sum(counts) if counts else None,
+    }
+
+
+def said(stdout: str) -> str:
+    """The agent's reply: the `result` field of a JSON result, else stdout as printed."""
+    if not stdout.strip():
+        return stdout
+    try:
+        result = json.loads(stdout.strip().splitlines()[-1])
+    except ValueError:
+        return stdout
+    return result["result"] if isinstance(result, dict) and isinstance(result.get("result"), str) else stdout
+
+
 def agent_argv(prompt: str) -> list[str]:
     """The command to run, with the prompt substituted in.
 
@@ -120,11 +151,11 @@ def agent_argv(prompt: str) -> list[str]:
 
 
 def agent_env(job_key: str) -> dict[str, str]:
-    """The agent's environment: ours, plus the job every capture it files is from.
+    """The agent's environment: ours, run as the resolved seat, plus the job every capture it files is from.
 
     The capture command reads it and caps the job; the agent never types it.
     """
-    return {**os.environ, SOURCE_ENV: job_key}
+    return {**os.environ, **seat_env(), SOURCE_ENV: job_key}
 
 
 def heartbeat(url: str | None, status: str = "up") -> None:
@@ -245,6 +276,8 @@ def run_triage(job_key: str, collected: dict, *, base_branch: str = "develop") -
         )
     except FileNotFoundError:
         return decline(f"`{argv[0]}` is not on PATH (cron does not give you your login PATH)")
+    except SeatError as error:
+        return decline(str(error))
     except subprocess.TimeoutExpired:
         run_ledger.record(
             run_ledger.Run(
@@ -288,10 +321,11 @@ def run_triage(job_key: str, collected: dict, *, base_branch: str = "develop") -
             committed=head_after if job.commits and head_after != head_before else None,
             findings=int(collected.get("finding_count", 0) or 0),
             reason=reason,
+            **usage(result.stdout),
         )
     )
     heartbeat(os.environ.get(job.heartbeat_var or ""), "up" if agent_ran else "down")
-    line(result.stdout[-4000:])
+    line(said(result.stdout)[-4000:])
     return 0 if agent_ran else 1
 
 

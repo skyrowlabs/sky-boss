@@ -81,15 +81,7 @@ UNSCHEDULED = {
 #: the marker; nothing here is a file list.
 SUITES = {
     "unit": Suite("host-side tests, no services required", ships_tests=True),
-    # sky.boss has no stack to stand up: every test is host-side, and the ones
-    # that spawn a real child still talk to nothing but this machine. The row
-    # stays so the vocabulary is here when it is needed, and `empty` expires by
-    # itself the moment one test carries the marker.
-    "integration": Suite(
-        "requires the stack up and seeded",
-        scheduled=False,
-        unscheduled="empty",
-    ),
+    "integration": Suite("requires the stack up and seeded"),
     # Costs money or needs a person. The one row CI is not expected to run, and
     # the reason that is a field rather than an `if marker != "manual"` in two
     # places, which is what it used to be.

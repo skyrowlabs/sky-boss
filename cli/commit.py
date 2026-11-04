@@ -20,7 +20,8 @@ import click
 
 from scripts.paths import TMP_DIR
 
-from .helpers import PROJECT_ROOT, current_branch, detail, fail, ok, run, script, step, summarize
+from .check import PYTHON_LINTERS, typecheck
+from .helpers import PROJECT_ROOT, current_branch, detail, fail, ok, run, step, summarize
 
 
 def _staged_check(paths: list, message: str) -> int:
@@ -29,19 +30,13 @@ def _staged_check(paths: list, message: str) -> int:
     results = []
 
     if py:
-        results.append(("flake8", run(["flake8", "--select=E9,F63,F7,F82,F401", "--show-source", *py]).returncode))
-        results.append(("isort", run(["isort", "--check-only", "--diff", *py]).returncode))
-        results.append(("black", run(["black", "--check", *py]).returncode))
-        # Pyright is whole-project by construction — it has no per-file scoping,
-        # and running it on a subset would report errors from imports rather
-        # than from the files you changed.
-        if (PROJECT_ROOT / "pyrightconfig.json").exists():
-            # The wrapper, not pyright directly — the same entry the pre-commit
-            # hook runs, and this command is a re-implementation of that hook.
-            # It pre-flights the interpreter pyright would resolve, because a
-            # bare one reports an environment fault as errors in files this
-            # commit never touched. scripts/lint_pyright_gate.py.
-            results.append(("pyright", script("scripts/lint_pyright_gate.py", "--project", "pyrightconfig.json")))
+        # `check lint`'s own table, scoped to these paths (mind.head ported both to ruff).
+        results += [(label, run([*argv, *py]).returncode) for label, argv in PYTHON_LINTERS]
+        # Whole-project by construction: a type checker scoped to a subset
+        # reports errors from imports rather than from the files you changed.
+        typed = typecheck()
+        if typed:
+            results.append(typed)
 
     if any(p.startswith("docs/") for p in paths):
         results.append(("docs indexes", run([sys.executable, "scripts/docs/regen.py", "--check"]).returncode))

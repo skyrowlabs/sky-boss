@@ -76,7 +76,7 @@ _register()
 @click.option("--install", "install", is_flag=True, help="replace this tree's block; keep every other line")
 def cron(print_: bool, check_: bool, install: bool) -> None:
     """The crontab, generated from the registry."""
-    from scripts.reporting.jobs import JOBS, _allowlisted, crontab_block
+    from scripts.reporting.jobs import JOBS, SEAT_ENV, _allowlisted, crontab_block, host_zone_disagreement
 
     if print_ or not (check_ or install):
         click.echo(crontab_block())
@@ -122,6 +122,19 @@ def cron(print_: bool, check_: bool, install: bool) -> None:
         detail("identically to a job that silently stopped running.")
         sys.exit(1)
 
+    # Unset resolves to the default seat and every job still reports ok, so absence
+    # is the silent failure (jam.sense's REPORTING_SEAT); the generated block sets it.
+    if not any(line.strip().startswith(f"{SEAT_ENV}=") for line in live.splitlines()):
+        fail(f"the live crontab declares no {SEAT_ENV}, so no job here names the identity it runs as")
+        detail("  dev report cron --install   # writes the block, which sets it")
+        sys.exit(1)
+
+    disagreement = host_zone_disagreement()
+    if disagreement:
+        fail(f"cron fires in this host's time, and it is not the schedule's: {disagreement}")
+        detail("Set the host's zone, or SCHEDULE_TZ in scripts/reporting/jobs.py, so every fire time is true.")
+        sys.exit(1)
+
     ok(f"the live crontab matches the registry ({len(JOBS) - len(off)} scheduled, {len(off)} intentionally off)")
 
 
@@ -160,6 +173,9 @@ def status(as_json: bool) -> None:
     for entry in envelope["jobs"]:
         if entry["intentionally_off"]:
             skip(f"{entry['job']:<14} off — {entry['unscheduled_reason']}")
+            continue
+        if entry["scheduled_in_cron"] is False:
+            warn(f"{entry['job']:<14} NOT INSTALLED — it never runs until `report cron --install`")
             continue
         row = f"{entry['job']:<14} {entry['result']:<9} {entry['last_age']:<10} next {entry['next_run'] or '—'}"
         (warn if entry["overdue"] else ok)(row + ("  OVERDUE" if entry["overdue"] else ""))

@@ -168,9 +168,13 @@ def ci_requirements() -> set:
     `scripts/yaml_text.py` owns the masking and carries the two gates that
     learned it the expensive way: a commented-out `pip install` is prose to a
     reader and a substring match to a naive scan.
+
+    A local composite action is read too: a job that installs through
+    `uses: ./.github/actions/<name>` installs what that action installs.
     """
     found = set()
-    for workflow in sorted((GITHUB_DIR / "workflows").glob("*.yml")):
+    workflows = sorted((GITHUB_DIR / "workflows").glob("*.yml"))
+    for workflow in workflows + sorted((GITHUB_DIR / "actions").glob("*/action.yml")):
         found.update(requirements_in(read_uncommented(workflow)))
     return found
 

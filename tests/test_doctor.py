@@ -33,6 +33,14 @@ def stub(monkeypatch, answers: dict) -> None:
     monkeypatch.setattr(doctor, "gh_api", gh_api)
 
 
+#: Every long-lived branch, once each; one name in a one-branch tree.
+BRANCHES = list(dict.fromkeys((doctor.BASE_BRANCH, doctor.RELEASE_BRANCH)))
+
+
+def owners_path(branch: str) -> str:
+    return f"{REPO}/codeowners/errors?ref={branch}"
+
+
 def checks_path(branch: str = doctor.BASE_BRANCH) -> str:
     return f"{REPO}/branches/{branch}/protection/required_status_checks"
 
@@ -169,11 +177,13 @@ def test_codeowners_errors_are_a_problem_and_an_absent_file_is_not_applicable(mo
     owned = tmp_path / "CODEOWNERS"
     owned.write_text("# a note\n*  @someone\n", encoding="utf-8")
     monkeypatch.setattr(doctor, "CODEOWNERS", owned)
-    path = f"{REPO}/codeowners/errors"
-    stub(monkeypatch, {path: {"errors": [{"line": 2, "message": "Unknown owner on line 2"}]}})
-    fact = doctor.codeowners()
-    assert fact.state == doctor.PROBLEM and "Unknown owner" in fact.detail, fact
-    stub(monkeypatch, {path: {"errors": []}})
+    clean = {owners_path(b): {"errors": []} for b in BRANCHES}
+    broken = {"errors": [{"line": 2, "message": "Unknown owner on line 2"}]}
+    for branch in BRANCHES:
+        stub(monkeypatch, {**clean, owners_path(branch): broken})
+        fact = doctor.codeowners()
+        assert fact.state == doctor.PROBLEM and "Unknown owner" in fact.detail and branch in fact.detail, fact
+    stub(monkeypatch, clean)
     assert doctor.codeowners().state == doctor.OK
     stub(monkeypatch, {})
     assert doctor.codeowners().state == doctor.UNKNOWN
@@ -183,7 +193,7 @@ def test_codeowners_with_no_rule_names_no_owner(monkeypatch, tmp_path):
     ownerless = tmp_path / "CODEOWNERS"
     ownerless.write_text("# scaffolded without --owner\n\n", encoding="utf-8")
     monkeypatch.setattr(doctor, "CODEOWNERS", ownerless)
-    stub(monkeypatch, {f"{REPO}/codeowners/errors": {"errors": []}})
+    stub(monkeypatch, {owners_path(b): {"errors": []} for b in BRANCHES})
     assert doctor.codeowners().state == doctor.PROBLEM
 
 
@@ -221,15 +231,15 @@ def test_an_inapplicable_fact_is_listed_and_not_counted(monkeypatch):
     monkeypatch.setattr(doctor, "RELEASE_CONFIG", doctor.RELEASE_CONFIG.with_name("absent.json"))
     monkeypatch.setattr(doctor, "CODEOWNERS", GITHUB_DIR / "absent-CODEOWNERS")
     # This tree may own its dependabot.yml, so the labels it names are stubbed too.
-    monkeypatch.setattr(doctor, "dependabot_labels", lambda _config: ["dependencies"])
+    monkeypatch.setattr(doctor.repo_settings, "dependabot_labels", lambda _config: ["dependencies"])
     unprotected = {checks_path(): 404, checks_path(doctor.RELEASE_BRANCH): 404}
     answered = {
         f"{REPO}/compare/{doctor.BASE_BRANCH}...{doctor.RELEASE_BRANCH}": {"ahead_by": 0, "files": []},
-        f"{REPO}/codeowners/errors": {"errors": []},
+        **{owners_path(b): {"errors": []} for b in BRANCHES},
         f"{REPO}/vulnerability-alerts": {},
         f"{REPO}/labels?per_page=100": [{"name": "dependencies"}],
     }
-    profile = {s.key: s.want for s in doctor.REPOSITORY}
+    profile = {s.key: s.want for s in doctor.repo_settings.REPOSITORY}
     repo = {"default_branch": doctor.BASE_BRANCH, "description": "d", "visibility": "private", **profile}
     repo["permissions"] = {"admin": True}
     stub(monkeypatch, {REPO: repo, **unprotected, **answered})

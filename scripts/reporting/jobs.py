@@ -37,10 +37,12 @@ Stdlib only — imported by host-side jobs that must not grow dependencies.
 
 from __future__ import annotations
 
+import hashlib
 import os
 import sys
+from collections.abc import Mapping
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -67,6 +69,75 @@ SCHEDULE_ALLOWLIST = SCRIPTS_DIR / "reporting_schedule_allowlist.yaml"
 #: push the assignment past the line limit.
 CRON_CWD = str(PROJECT_ROOT)
 
+#: Minutes every job here waits after its cron slot. Every checkout on a host
+#: shares one crontab, so trees with the same registry would all start at the same
+#: minute; the default spreads them by a hash of this checkout's path, which
+#: keeps the order of this tree's own jobs. Set an int to pin it; 0 turns it off.
+SCHEDULE_OFFSET_PINNED: int | None = None
+OFFSET_SPAN_MINUTES = 30
+
+
+def schedule_offset() -> int:
+    """This checkout's delay after every cron slot, in minutes."""
+    if SCHEDULE_OFFSET_PINNED is not None:
+        return SCHEDULE_OFFSET_PINNED
+    return int(hashlib.sha256(CRON_CWD.encode()).hexdigest(), 16) % OFFSET_SPAN_MINUTES
+
+
+@dataclass(frozen=True)
+class Seat:
+    """An identity a job's agent runs as: whose Claude account it bills, whose GitHub it acts as."""
+
+    name: str
+    what: str
+    credential_env: str | None = None  # holds a `claude setup-token` token; None is the ambient login
+    gh_token_env: str | None = None  # holds a GitHub token for `gh` and pushes; None is gh's own login
+
+
+#: Every identity a job may run as. `personal` is whoever is logged into `claude`
+#: and `gh` here. An automation seat is a row naming the variables its tokens
+#: live in, e.g. `Seat("team", "the automation seat", "TEAM_CLAUDE_TOKEN", "TEAM_GH_TOKEN")`,
+#: each declared in .env.example and marked `# secret`.
+SEATS = (Seat("personal", "whoever is logged into `claude` and `gh` on this host"),)
+
+#: Which seat a run uses. The cron block sets it to CRON_SEAT; unset is DEFAULT_SEAT.
+SEAT_ENV = "SB_SEAT"
+DEFAULT_SEAT = "personal"
+#: The seat scheduled jobs run as, written into the generated cron block.
+CRON_SEAT = "personal"
+
+
+class SeatError(ValueError):
+    """A seat that is unknown, or named with no credential to run it."""
+
+
+def resolve_seat(env: Mapping[str, str] | None = None) -> Seat:
+    """The seat a run started now would use; a typo raises rather than billing `personal`."""
+    raw = ((os.environ if env is None else env).get(SEAT_ENV) or DEFAULT_SEAT).strip().lower()
+    for seat in SEATS:
+        if seat.name == raw:
+            return seat
+    raise SeatError(f"{SEAT_ENV}={raw!r} is not a seat; expected one of {', '.join(s.name for s in SEATS)}")
+
+
+def seat_env(env: Mapping[str, str] | None = None) -> dict[str, str]:
+    """The variables that make a child process run as the resolved seat; raises SeatError.
+
+    A seat naming a credential that is unset refuses: falling through to the
+    ambient login would bill somebody else and still report ok.
+    """
+    source = os.environ if env is None else env
+    seat = resolve_seat(source)
+    out = {}
+    for var, child in ((seat.credential_env, "CLAUDE_CODE_OAUTH_TOKEN"), (seat.gh_token_env, "GH_TOKEN")):
+        if var is None:
+            continue
+        if not source.get(var):
+            raise SeatError(f"seat {seat.name!r} needs {var}, and it is unset")
+        out[child] = source[var]
+    return out
+
+
 #: The timezone every schedule here is expressed in.
 #:
 #: These describe the HOST's crontab, which fires in the host's local time — so
@@ -88,6 +159,27 @@ SCHEDULE_TZ = ZoneInfo("America/Chicago")
 def now_local() -> datetime:
     """Now on the schedule clock — naive, and identical on every machine."""
     return datetime.now(SCHEDULE_TZ).replace(tzinfo=None)
+
+
+def host_zone_disagreement(now: datetime | None = None) -> str | None:
+    """Why this host's clock is not SCHEDULE_TZ's, or None when every offset agrees.
+
+    Cron fires in host time and every schedule here is read in SCHEDULE_TZ, so a
+    host in another zone runs each job at a time nothing here reports. Checked now
+    and half a year on, since two zones can agree until one changes for DST.
+    """
+    now = now or datetime.now(UTC)
+    for instant in (now, now + timedelta(days=182)):
+        host, ours = instant.astimezone().utcoffset(), instant.astimezone(SCHEDULE_TZ).utcoffset()
+        if host != ours:
+            zone = f"{SCHEDULE_TZ.key} (UTC{_hours(ours)})"
+            return f"on {instant:%Y-%m-%d} this host is UTC{_hours(host)} and the schedule is {zone}"
+    return None
+
+
+def _hours(offset: timedelta | None) -> str:
+    minutes = int((offset or timedelta()).total_seconds() // 60)
+    return f"{'+' if minutes >= 0 else '-'}{abs(minutes) // 60:02d}:{abs(minutes) % 60:02d}"
 
 
 #: What a job is allowed to repair without asking.
@@ -156,7 +248,9 @@ class Job:
         return f"cd {CRON_CWD} && ./dev report {self.key}"
 
     def command(self) -> str:
-        return f"{self.needle()} >> {CRON_LOG} 2>&1"
+        offset = schedule_offset()
+        delay = f"sleep {offset * 60} && " if offset else ""
+        return f"{delay}{self.needle()} >> {CRON_LOG} 2>&1"
 
     def cron_line(self) -> str:
         return f"{self.cron} {self.command()}"
@@ -214,6 +308,16 @@ JOBS: list[Job] = [
         heartbeat_var="HEARTBEAT_AGENT_FIX",
     ),
     Job(
+        key="dep-migrate",
+        module="dep_migrate",
+        cadence="nightly 04:15",
+        cron="15 4 * * *",
+        writes="—",
+        fix_policy="code",
+        commits=True,
+        heartbeat_var="HEARTBEAT_DEP_MIGRATE",
+    ),
+    Job(
         key="overnight",
         module="overnight",
         cadence="nightly 06:30",
@@ -255,6 +359,9 @@ def crontab_block() -> str:
         # and not under cron is almost always this, and it fails by not finding
         # the interpreter — which reads as a broken job rather than a broken PATH.
         f"PATH={os.environ.get('PATH', '/usr/local/bin:/usr/bin:/bin')}",
+        # The identity every job below runs as; `report cron --check` requires it.
+        f"{SEAT_ENV}={CRON_SEAT}",
+        f"# Each job starts {schedule_offset()} min after its slot (this checkout's offset).",
         "",
     ]
     for job in JOBS:

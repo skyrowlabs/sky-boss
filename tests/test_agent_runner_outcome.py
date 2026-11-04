@@ -84,3 +84,11 @@ def test_committed_is_the_new_head_only_when_head_moved(tree, monkeypatch):
         assert row["committed"] not in (None, before), row
     else:
         assert row["committed"] is None, row
+
+
+def test_the_row_carries_what_the_agent_spent_and_null_when_unmeasured(tree, monkeypatch):
+    result = '{"total_cost_usd": 0.42, "num_turns": 3, "usage": {"input_tokens": 10, "output_tokens": 5}}'
+    row = _run_with(monkeypatch, ["sh", "-c", f"echo changed >> {tree / JOB.writes}; echo '{result}'"], tree)
+    assert (row["cost_usd"], row["num_turns"], row["tokens"], row["seat"]) == (0.42, 3, 15, "personal"), row
+    row = _run_with(monkeypatch, ["sh", "-c", f"echo again >> {tree / JOB.writes}; echo plain text"], tree)
+    assert (row["cost_usd"], row["num_turns"], row["tokens"]) == (None, None, None), row

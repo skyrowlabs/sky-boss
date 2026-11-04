@@ -59,6 +59,11 @@ class Run:
     committed: str | None = None  # sha, if it wrote anything
     findings: int = 0
     reason: str = ""  # required for declined/failed
+    # What the agent spent, when its output says; None is "not measured", not free.
+    cost_usd: float | None = None
+    num_turns: int | None = None
+    tokens: int | None = None
+    seat: str | None = None  # the identity the agent ran as; None when no agent ran
 
     def validate(self) -> None:
         if self.outcome not in OUTCOMES:
@@ -90,6 +95,13 @@ def _uses_agent(job: str) -> bool:
 
 def record(run: Run) -> None:
     run.validate()
+    if run.agent_ran and run.seat is None:
+        from scripts.reporting.jobs import SeatError, resolve_seat
+
+        try:
+            run.seat = resolve_seat().name
+        except SeatError:
+            run.seat = None
     ledger = ledger_path()
     ledger.parent.mkdir(parents=True, exist_ok=True)
     with ledger.open("a", encoding="utf-8") as handle:

@@ -294,35 +294,13 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-python@v7
+      # The interpreter, the `.venv` and every requirements file: one action,
+      # shared with coverage-nightly.yml so the two install the same thing. The
+      # nightly was deleted for failing at import while this job was green,
+      # because its copy of these steps had not learned ours.
+      - uses: ./.github/actions/unit-setup
         with:
           python-version: ${{ matrix.python }}
-          cache: pip
-          cache-dependency-path: |
-            requirements.txt
-            requirements-dev.txt
-
-      # A real `.venv`, not a bare `pip install`, and this is load-bearing.
-      # `tests/test_readme.py` runs the README's examples through the actual
-      # `sb` wrapper with `PATH` pinned to `<repo>:/usr/bin:/bin` — so it finds
-      # `./sb`, which prefers `.venv/bin/python` and otherwise falls back to
-      # `/usr/bin/python3`, where nothing this workflow installed would be.
-      # Without the venv those examples fail on a runner and pass everywhere
-      # else, which is the worst shape a CI failure can have.
-      - name: Create the venv the wrapper expects
-        run: python -m venv .venv
-
-      - name: Install
-        run: |
-          .venv/bin/python -m pip install --upgrade pip
-          # One `-r` per line, deliberately. `tests/test_setup_blocks_agree.py`
-          # reads which requirements files CI installs with a regex that
-          # captures a single target per `pip install`, so three `-r` flags on
-          # one line are seen as one file and the other two read as documented
-          # by nobody. Reported upstream; splitting is clearer regardless.
-          .venv/bin/pip install -r requirements.txt
-          .venv/bin/pip install -r requirements-dev.txt
-          .venv/bin/pip install -r scripts/requirements.txt
 
       # `pywebview` installs here but its GTK bindings (`gi`) are system-owned
       # and absent on a runner. That is fine and checked: `skyboss/canvas/shell.py`

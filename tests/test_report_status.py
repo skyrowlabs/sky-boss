@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import sys
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -15,7 +15,7 @@ pytestmark = [pytest.mark.unit]
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scanning import scanned  # noqa: E402
-from scripts.reporting import cron_schedule, overnight, run_ledger, status  # noqa: E402
+from scripts.reporting import cron_schedule, jobs, overnight, run_ledger, status  # noqa: E402
 from scripts.reporting.jobs import JOBS  # noqa: E402
 from tests.shell import module  # noqa: E402
 
@@ -29,6 +29,7 @@ FIELDS = {
     "duration_s",
     "overdue",
     "intentionally_off",
+    "scheduled_in_cron",
     "unscheduled_reason",
     "next_run",
 }
@@ -39,6 +40,43 @@ def ledger(monkeypatch, tmp_path):
     path = tmp_path / "ledger.jsonl"
     monkeypatch.setattr(run_ledger, "ledger_path", lambda: path)
     return path
+
+
+@pytest.fixture(autouse=True)
+def crontab(monkeypatch, tmp_path):
+    """Every job installed, no install recorded and no offset; a test narrows any of them."""
+    monkeypatch.setattr(jobs, "SCHEDULE_OFFSET_PINNED", 0)
+    live = {"text": "\n".join(job.cron_line() for job in JOBS)}
+    monkeypatch.setattr(status, "_crontab", lambda: live["text"])
+    monkeypatch.setattr(status, "INSTALL_BACKUPS", tmp_path / "no-backups")
+    return live
+
+
+def test_a_job_missing_from_the_crontab_is_not_installed_rather_than_overdue(crontab):
+    crontab["text"] = ""
+    entries = scanned([e for e in status.jobs() if not e["intentionally_off"]], "scheduled jobs")
+    assert all(e["scheduled_in_cron"] is False and not e["overdue"] for e in entries)
+    crontab["text"] = None
+    assert all(e["scheduled_in_cron"] is None for e in status.jobs())
+
+
+def test_the_checkouts_offset_moves_every_fire_time(monkeypatch):
+    monkeypatch.setattr(jobs, "SCHEDULE_OFFSET_PINNED", 7)
+    delay = timedelta(minutes=7)
+    for entry in scanned([e for e in status.jobs() if e["next_run"]], "scheduled entries"):
+        slot = datetime.fromisoformat(entry["next_run"]).replace(tzinfo=None) - delay
+        job = jobs.JOBS_BY_KEY[entry["job"]]
+        assert cron_schedule.next_fire(job.cron, slot - timedelta(minutes=1), job.first_week_only) == slot, entry
+
+
+def test_a_slot_before_the_install_is_not_a_missed_run(monkeypatch, tmp_path):
+    now = datetime(2026, 11, 4, 12, tzinfo=UTC)
+    entries = scanned([e for e in status.jobs(now) if not e["intentionally_off"]], "scheduled jobs")
+    assert all(e["overdue"] for e in entries)
+    tmp_path.joinpath("backups").mkdir()
+    tmp_path.joinpath("backups", "crontab-20261104T115900Z.bak").write_text("", encoding="utf-8")
+    monkeypatch.setattr(status, "INSTALL_BACKUPS", tmp_path / "backups")
+    assert not any(e["overdue"] for e in status.jobs(now))
 
 
 def test_the_envelope_has_every_field_for_every_job():

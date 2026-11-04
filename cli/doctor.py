@@ -23,8 +23,8 @@ from urllib.parse import quote
 
 import click
 
+from scripts import repo_settings
 from scripts.paths import GITHUB_DIR
-from scripts.repo_settings import ALERTS_WHY, PUBLIC_ONLY, REPOSITORY, compare, dependabot_labels, onoff
 from scripts.yaml_text import uncommented
 
 from .helpers import PROJECT_ROOT, detail, emit, fail, ok, skip, warn
@@ -314,20 +314,23 @@ def codeowners() -> Fact:
     rules = [line for line in CODEOWNERS.read_text(encoding="utf-8").splitlines() if line.split("#")[0].strip()]
     if not rules:
         return Fact(name, PROBLEM, "it names no owner, so no review is ever requested — add `* @user` or `* @org/team`")
-    try:
-        found = gh_api("repos/{owner}/{repo}/codeowners/errors")
-    except Unreadable as error:
-        return Fact(name, UNKNOWN, str(error))
-    errors = found.get("errors") or []
-    if errors:
-        first = errors[0]
-        return Fact(
-            name,
-            PROBLEM,
-            f"{len(errors)} line(s) GitHub rejects, e.g. line {first.get('line')}: {first.get('message', '')} "
-            "— no review is requested from an owner that does not resolve",
-        )
-    return Fact(name, OK, "every owner resolves")
+    # Asked per long-lived branch: with no `ref`, GitHub reads the DEFAULT branch's
+    # file, so a branch that changed its owners was judged by another's (stash.flow).
+    for branch in dict.fromkeys((BASE_BRANCH, RELEASE_BRANCH)):
+        try:
+            found = gh_api("repos/{owner}/{repo}/codeowners/errors?ref=" + quote(branch, safe=""))
+        except Unreadable as error:
+            return Fact(name, UNKNOWN, f"{branch}: {error}")
+        errors = found.get("errors") or []
+        if errors:
+            first = errors[0]
+            return Fact(
+                name,
+                PROBLEM,
+                f"{branch}: {len(errors)} line(s) GitHub rejects, e.g. line {first.get('line')}: "
+                f"{first.get('message', '')} — no review is requested from an owner that does not resolve",
+            )
+    return Fact(name, OK, "every owner resolves on every long-lived branch")
 
 
 def setting_name(key: str) -> str:
@@ -348,12 +351,13 @@ def repository_settings(repo: dict | None = None) -> list[Fact]:
     try:
         repo = _repo(repo)
     except Unreadable as error:
-        names = [setting_name(s.key) for s in REPOSITORY + PUBLIC_ONLY] + ["repository description"]
+        settings = repo_settings.REPOSITORY + repo_settings.PUBLIC_ONLY
+        names = [setting_name(s.key) for s in settings] + ["repository description"]
         return [Fact(name, UNKNOWN, str(error)) for name in names]
     facts = []
-    for row in compare(repo):
+    for row in repo_settings.compare(repo):
         name, why = setting_name(row.setting.key), row.setting.why
-        have, want = onoff(row.have), onoff(row.setting.want)
+        have, want = repo_settings.onoff(row.have), repo_settings.onoff(row.setting.want)
         if not row.applies:
             facts.append(Fact(name, NOT_APPLICABLE, f"the repository is {repo.get('visibility', 'not public')}"))
         elif row.have is None:
@@ -388,14 +392,14 @@ def dependabot_alerts(repo: dict | None = None) -> Fact:
             return Fact(name, UNKNOWN, str(error))
         if not admin:
             return Fact(name, UNKNOWN, "GitHub answers 404 to a token that is not an admin, on or off")
-        return Fact(name, PROBLEM, f"off; should be on — {ALERTS_WHY}. {APPLY} turns them on")
-    return Fact(name, OK, f"on — {ALERTS_WHY}")
+        return Fact(name, PROBLEM, f"off; should be on — {repo_settings.ALERTS_WHY}. {APPLY} turns them on")
+    return Fact(name, OK, f"on — {repo_settings.ALERTS_WHY}")
 
 
 def labels_exist() -> Fact:
     """Every label `.github/dependabot.yml` names exists, because Dependabot drops one that does not."""
     name = "labels Dependabot applies exist"
-    wanted = dependabot_labels(GITHUB_DIR / "dependabot.yml")
+    wanted = repo_settings.dependabot_labels(GITHUB_DIR / "dependabot.yml")
     if not wanted:
         return Fact(name, NOT_APPLICABLE, "no .github/dependabot.yml names a label")
     try:

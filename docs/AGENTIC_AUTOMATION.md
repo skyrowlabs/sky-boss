@@ -50,6 +50,28 @@ look" is not "empty". An issue that already has an open draft from its drainer,
 or that has failed three times, is skipped. The attempt count is a marker comment
 on the issue itself.
 
+`dep-migrate` drains a different queue, and it also ships switched off.
+`dependabot-auto-merge.yml` merges patches, minors and dev-tool majors itself,
+and labels a runtime major it holds `dependabot-runtime-major`. Each night the
+job takes the oldest one, branches from Dependabot's head as
+`agent/migrate/<pr>`, and has the agent migrate the code, capped at
+`--max-turns`. Then the job runs `dev test unit` itself. Green opens a draft
+pull request linking Dependabot's, which stays open. Red opens nothing: it
+comments the agent's notes on Dependabot's pull request and labels it
+`migration-failed`. A bump that needs no change is labelled
+`migration-not-needed`. Either label takes the pull request out of the queue.
+
+Every agent runs as a **seat**, one of `SEATS` in `scripts/reporting/jobs.py`.
+The generated cron block sets `SB_SEAT`, and `cron --check` is
+red without it. `personal`, the only seat shipped, is whoever is logged into
+`claude` and `gh` on the host. An automation seat names the variables holding
+its Claude and GitHub tokens, and refuses to run when they are unset rather than
+falling back to `personal`. Each ledger row records the seat that ran.
+
+Every job starts `schedule_offset()` minutes after its slot, from a hash of the
+checkout's path, so checkouts sharing one host's crontab do not all start at
+once. Set `SCHEDULE_OFFSET_PINNED` in `jobs.py` to choose it, or 0 to turn it off.
+
 `dev report <key> --dry-run` runs any job's deterministic stage, says what
 the agent stage would do, and records nothing.
 
@@ -146,8 +168,12 @@ shells out, through one argv template:
 
 ```bash
 # the default, and the only invocation tested here
-SB_AGENT_CMD='claude -p {prompt} --permission-mode acceptEdits'
+SB_AGENT_CMD='claude -p {prompt} --permission-mode acceptEdits --output-format json'
 ```
+
+`--output-format json` is what puts `cost_usd`, `num_turns` and `tokens` on each
+ledger row. An agent that prints anything else still runs; its rows carry
+`null` there, which reads as "not measured" rather than as free.
 
 `{prompt}` is replaced with the whole prompt and the argv is executed directly,
 never through a shell — so `codex exec {prompt}` and

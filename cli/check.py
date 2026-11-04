@@ -71,6 +71,27 @@ LANGUAGE_CONFIGS = (
 )
 
 
+#: The python lint gates, as (label, argv) with the paths to check appended.
+#: `dev commit` runs this same list over the paths it commits, so a tree
+#: that changes its linters here (ruff, say) changes them for both.
+PYTHON_LINTERS = (
+    ("flake8 (errors)", ("flake8", "--select=E9,F63,F7,F82,F401", "--show-source")),
+    ("isort", ("isort", "--check-only", "--diff")),
+    ("black", ("black", "--check")),
+)
+
+
+def typecheck() -> tuple[str, int] | None:
+    """The whole-project type check, or None when this tree configures none."""
+    if not (PROJECT_ROOT / "pyrightconfig.json").exists():
+        return None
+    # The wrapper, not pyright directly — the same entry the pre-commit hook
+    # runs. It pre-flights the interpreter pyright would resolve, because a
+    # bare one reports an environment fault as errors in files this run never
+    # touched (`reportMissingImports` is `none`). scripts/lint_pyright_gate.py.
+    return ("pyright", script("scripts/lint_pyright_gate.py", "--project", "pyrightconfig.json"))
+
+
 def _unlinted() -> list[str]:
     """Languages this tree holds source for that no configured linter reads."""
     gaps = []
@@ -95,17 +116,10 @@ def _lint() -> int:
 
     results = []
     if (PROJECT_ROOT / ".flake8").exists():
-        results.append(
-            ("flake8 (errors)", run(["flake8", ".", "--select=E9,F63,F7,F82,F401", "--show-source"]).returncode)
-        )
-        results.append(("isort", run(["isort", "--check-only", "--diff", "."]).returncode))
-        results.append(("black", run(["black", "--check", "."]).returncode))
-    if (PROJECT_ROOT / "pyrightconfig.json").exists():
-        # The wrapper, not pyright directly — the same entry the pre-commit hook
-        # runs. It pre-flights the interpreter pyright would resolve, because a
-        # bare one reports an environment fault as errors in files this run never
-        # touched (`reportMissingImports` is `none`). scripts/lint_pyright_gate.py.
-        results.append(("pyright", script("scripts/lint_pyright_gate.py", "--project", "pyrightconfig.json")))
+        results += [(label, run([*argv, "."]).returncode) for label, argv in PYTHON_LINTERS]
+    typed = typecheck()
+    if typed:
+        results.append(typed)
     if (PROJECT_ROOT / "eslint.config.js").exists():
         results.append(("eslint", run(["npm", "run", "lint:check"]).returncode))
     if not results:

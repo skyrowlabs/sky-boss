@@ -39,6 +39,7 @@ class World:
             self.agent_ran = True
             if self.agent_commits:
                 self.head = "bbb"
+            out = '{"total_cost_usd": 1.5, "num_turns": 7, "usage": {"input_tokens": 4}}'
         return subprocess.CompletedProcess(argv, code, out, "")
 
 
@@ -92,6 +93,7 @@ def test_a_commit_becomes_a_draft_pr_on_the_lanes_branch(world):
     created = next(c for c in made.calls if c[:3] == ["gh", "pr", "create"])
     assert "--draft" in created and created[created.index("--head") + 1] == drain.branch_for(DRAIN, 1)
     assert made.recorded[0].outcome == "ok" and made.recorded[0].committed == "bbb"
+    assert (made.recorded[0].cost_usd, made.recorded[0].num_turns, made.recorded[0].tokens) == (1.5, 7, 4)
 
 
 def test_no_commit_is_a_failure_and_opens_nothing(world):
