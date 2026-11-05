@@ -77,7 +77,7 @@ Needs Python 3.12+. Shell completion for fish:
 | `sb roll-call` | reads | Asks every declared project how it is, and folds the answers |
 | `sb schedule` | reads | What fires next, across every project that declares a schedule |
 | `sb agents` | reads | Which agent sessions are running right now, across every provider |
-| `sb deck` | **acts** | A tmux controller: a tab per agent, each a live `claude` marked as working or needing you, beside panes for who is waiting on you and what agents told each other. `--profile` opens a declared set of tabs, each agent in its own colour; shortcuts are listed in the bar, and Ctrl-Q asks before ending everything — `open`, `jump`, `layout`, `marks`, `exit` and `todo add`/`done`/`rm` act; `queue`, `messages`, `brief` and `todo list` read. See [the deck](#the-deck) |
+| `sb deck` | **acts** | A tmux controller: a tab per agent, each a live `claude` marked as working or needing you, beside panes for who is waiting on you and what agents told each other. `--profile` opens a declared set of tabs, each agent in its own colour; shortcuts are listed in the bar, and Ctrl-Q asks before ending everything — `open`, `jump`, `layout`, `marks`, `save`, `exit` and `todo add`/`done`/`rm` act; `queue`, `messages`, `brief` and `todo list` read. See [the deck](#the-deck) |
 | `sb history <project>` | reads | A project's own run ledger, newest first |
 | `sb job` | both | Jobs sky.boss issues — `list` reads; `run`, `install` and `uninstall` act |
 | `sb tools` | reads | The commands you saved |
@@ -538,6 +538,7 @@ session outside the deck cannot write a tab's list even if it shares the name.
 | `sb deck jump <name>` | **acts** | Focuses an agent's tab |
 | `sb deck layout columns\|stack` | **acts** | Moves the panes between layouts; nothing is killed |
 | `sb deck marks` | **acts** | The loop that marks each tab working, needs you or quiet; the deck starts it |
+| `sb deck save` | **acts** | Saves exactly the open tabs' sessions, so a later `sb deck` resumes them; the marks loop and `sb deck exit` save too, and `sb deck --fresh` starts over |
 | `sb deck exit` | **acts** | Ends the deck and every agent in it |
 | `sb deck todo add\|done\|rm` | **acts** | Edits the calling tab's todo list |
 | `sb deck queue` | reads | Every agent session and its status, the deck's first |

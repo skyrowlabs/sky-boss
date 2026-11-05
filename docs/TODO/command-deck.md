@@ -815,3 +815,23 @@ kept the TODOS pane's pid.
   speaks for the marks loop and the cadence, not for each pane.
 - **`sb deck reload` restarts the marks loop.** An old loop would have gone on writing the tabs
   session, and the footer would have said `not running` over a live one.
+
+### 2026-11-05: round 11 built, save and resume
+
+- **Why:** Jeston's session saver idea, split in two on his ruling. This is the half that loses
+  nothing; `sb deck compact` waits, because it types into a tab and cannot see a draft there.
+- **Shape:** `$SB_STATE/deck/<session>/saved.json` holds each tab's agent, session id and cwd, plus
+  the primary and profile. `sb deck` on a stopped deck reopens the saved tabs; `--profile` opens its
+  own tabs and resumes those it can; `open` resumes too; `--fresh` forgets. A running deck is never
+  restored over.
+- **Three writers.** The marks loop saves on change and never drops a tab, because at shutdown the
+  tabs die before it does, and that is what covers a reboot. So a closed tab stays saved until
+  `sb deck save` or `sb deck exit`, which write exactly what is open.
+- **Measured on Claude Code 2.1.318, with a control:** `--resume` keeps the session id, so a save
+  does not go stale by being used. A session keeps the `--append-system-prompt` it started with and
+  ignores a new one, so a resumed tab has its launch roster and `sb deck brief` is how it catches up.
+  A lost id prints `No conversation found` and ends the tab, so the transcript is checked first.
+- **Smoked in a throwaway deck:** a real tab told a word, `sb deck exit`, `sb deck`: same session
+  id, same name, the word recalled, the brief still known.
+- **Does not do:** compact, or save a tab whose `claude` never registered. A session open elsewhere
+  is not resumed twice: the tab starts new and says so.

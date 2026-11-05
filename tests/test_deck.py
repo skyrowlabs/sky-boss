@@ -212,9 +212,12 @@ class FakeTmux:
 
 
 @pytest.fixture
-def fake(monkeypatch):
+def fake(monkeypatch, tmp_path):
     server = FakeTmux()
     monkeypatch.setattr(deck_, "RUNNER", server)
+    # A save is deck state: one test's must not reach the next, nor the real registry the fake's pids.
+    monkeypatch.setattr(deck_.decksave.helpers, "STATE_DIR", tmp_path / "state")
+    monkeypatch.setattr(deck_.agents_, "providers", lambda: [])
     monkeypatch.delenv("TMUX", raising=False)
     monkeypatch.setattr(deck_.shutil, "which", lambda name, path=None: f"/usr/bin/{name}")
     return server
@@ -927,6 +930,7 @@ def test_the_queue_is_an_observe_and_the_rest_act():
         "layout": True,
         "marks": True,
         "exit": True,
+        "save": True,
         "queue": False,
         "messages": False,
         "message": False,
@@ -2254,3 +2258,155 @@ def test_an_unthemed_deck_writes_no_theme(fake, home, tmp_path, monkeypatch):
     home(f'pin = "ws"\n[agent.ws]\ncwd = "{tmp_path}"\n')
     invoke("deck")
     assert not (tmp_path / "claude").exists()
+
+
+# ============================================================================
+# Save and resume
+# ============================================================================
+
+
+def tab(agent, ident="id-1"):
+    return deck_.decksave.Tab(agent, ident, "/src")
+
+
+def saved_as(*tabs, primary="", profile=""):
+    deck_.decksave.save("sb", deck_.decksave.Saved(list(tabs), primary, profile))
+
+
+def transcripts(tmp_path, monkeypatch, *idents):
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path / "claude"))
+    (tmp_path / "claude" / "projects" / "-src").mkdir(parents=True)
+    for ident in idents:
+        (tmp_path / "claude" / "projects" / "-src" / f"{ident}.jsonl").write_text("{}\n")
+
+
+def test_a_resumed_launch_names_its_session_and_an_operators_own_choice_stays_out():
+    assert deck_.Agent("x", "/x").launch(resume="id-1")[-2:] == ["--resume", "id-1"]
+    assert "--resume" not in deck_.Agent("x", "/x").launch()
+    assert deck_.Agent("x", "/x", args=["--continue"]).picks_session
+    assert deck_.Agent("x", "/x", args=["--session-id=abc"]).picks_session
+    assert not deck_.Agent("x", "/x", args=["--model", "opus"]).picks_session
+
+
+def test_a_saved_tab_is_never_dropped_by_a_shutdown_that_kills_tabs_first():
+    kept = deck_.decksave.merged([tab("jam", "old"), tab("mind")], [tab("jam", "new")])
+    assert kept == [tab("jam", "new"), tab("mind")]
+    assert deck_.decksave.merged(kept, []) == kept
+
+
+def test_an_unreadable_save_says_so_and_resumes_nothing(fake, home):
+    path = deck_.decksave.path_for("sb")
+    path.parent.mkdir(parents=True)
+    path.write_text("{not json")
+    saved, problems = deck_.decksave.load("sb")
+    assert saved.tabs == [] and "unreadable" in problems[0]
+
+
+def test_a_session_with_no_transcript_starts_new_and_says_so(fake, home, tmp_path, monkeypatch):
+    transcripts(tmp_path, monkeypatch, "kept")
+    saved_as(tab("jam", "kept"), tab("mind", "lost"))
+    problems: list[str] = []
+    resumed = deck_.resume_lookup("sb", problems)
+    assert resumed(deck_.Agent("jam", "/x")) == "kept"
+    assert resumed(deck_.Agent("mind", "/x")) == "" and "is gone" in problems[0]
+    assert resumed(deck_.Agent("other", "/x")) == ""
+
+
+def test_a_session_open_elsewhere_is_not_resumed_twice(fake, home, tmp_path, monkeypatch):
+    transcripts(tmp_path, monkeypatch, "id-10")
+    saved_as(tab("jam", "id-10"))
+    monkeypatch.setattr(deck_.agents_, "providers", lambda: [Adapter([a_session(10)])])
+    problems: list[str] = []
+    assert deck_.resume_lookup("sb", problems)(deck_.Agent("jam", "/x")) == ""
+    assert "open elsewhere" in problems[0]
+
+
+def test_sb_deck_reopens_the_saved_tabs_and_resumes_each(core, fake, tmp_path, monkeypatch):
+    transcripts(tmp_path, monkeypatch, "a", "b")
+    saved_as(tab("skyrow-workspace", "a"), tab("mind-head", "b"), primary="skyrow-workspace", profile="core")
+    invoke("deck")
+    assert "a" in launched(fake, "skyrow-workspace")
+    assert "b" in launched(fake, "mind-head")
+    assert ("=sb-agents:", "@sb-profile") in fake.options
+
+
+def test_a_named_profile_opens_its_own_tabs_and_resumes_those_it_can(core, fake, tmp_path, monkeypatch):
+    transcripts(tmp_path, monkeypatch, "b", "z")
+    saved_as(tab("mind-head", "b"), tab("sky-boss", "z"))
+    invoke("deck", "--profile", "core")
+    assert "b" in launched(fake, "mind-head") and "--resume" not in launched(fake, "stash-flow")
+    with pytest.raises(AssertionError):
+        launched(fake, "sky-boss")
+
+
+def test_fresh_forgets_the_save_and_resumes_nothing(core, fake, tmp_path, monkeypatch):
+    transcripts(tmp_path, monkeypatch, "a")
+    saved_as(tab("skyrow-workspace", "a"))
+    invoke("deck", "--fresh", "--profile", "core")
+    assert "--resume" not in launched(fake, "skyrow-workspace")
+    assert not deck_.decksave.path_for("sb").exists()
+
+
+def test_fresh_opens_a_deck_so_a_subcommand_refuses_it(fake, home):
+    assert invoke("deck", "--fresh", "brief").exit_code == 2
+
+
+def test_a_running_deck_is_not_restored_over(core, fake, tmp_path, monkeypatch):
+    tabbed(fake)
+    transcripts(tmp_path, monkeypatch, "a")
+    saved_as(tab("skyrow-workspace", "a"))
+    fake.calls.clear()
+    invoke("deck")
+    with pytest.raises(AssertionError):
+        launched(fake, "skyrow-workspace")
+
+
+def test_open_resumes_a_saved_tab_unless_told_fresh(core, fake, tmp_path, monkeypatch):
+    transcripts(tmp_path, monkeypatch, "a")
+    saved_as(tab("mind-head", "a"))
+    invoke("--json", "deck", "open", "mind-head")
+    assert "a" in launched(fake, "mind-head")
+    fake.calls.clear()
+    fake.windows.clear()
+    fake.panes.clear()
+    fake.order.clear()
+    invoke("--json", "deck", "open", "mind-head", "--fresh")
+    assert "--resume" not in launched(fake, "mind-head")
+
+
+def test_the_marks_loop_saves_what_changed_and_only_that(fake, home, monkeypatch):
+    tabbed(fake)
+    monkeypatch.setattr(deck_, "parents", lambda proc=None: {})
+    writes = []
+    real = deck_.decksave.save
+    monkeypatch.setattr(deck_.decksave, "save", lambda *a: (writes.append(a), real(*a)))
+    for _ in range(2):
+        deck_.marks_once("sb", {}, [Adapter([a_session(10)])])
+    assert len(writes) == 1
+    assert [(t.agent, t.id) for t in deck_.decksave.load("sb")[0].tabs] == [("jam", "id-10")]
+
+
+def test_save_writes_exactly_the_open_tabs(fake, home, monkeypatch):
+    tabbed(fake)
+    saved_as(tab("closed", "old"), tab("mind", "kept"))
+    monkeypatch.setattr(deck_, "parents", lambda proc=None: {})
+    monkeypatch.setattr(deck_.agents_, "providers", lambda: [Adapter([a_session(10)])])
+    result = invoke("--json", "deck", "save")
+    assert result.exit_code == 0, result.output
+    assert [(t.agent, t.id) for t in deck_.decksave.load("sb")[0].tabs] == [("jam", "id-10"), ("mind", "kept")]
+
+
+def test_save_says_which_tab_it_could_not_save(fake, home, monkeypatch):
+    tabbed(fake)
+    monkeypatch.setattr(deck_, "parents", lambda proc=None: {})
+    monkeypatch.setattr(deck_.agents_, "providers", lambda: [Adapter([a_session(10)])])
+    result = invoke("--json", "deck", "save")
+    assert result.exit_code == 3 and "no session to save for mind" in result.stdout
+
+
+def test_exit_saves_the_tabs_it_ends(fake, home, monkeypatch):
+    tabbed(fake)
+    monkeypatch.setattr(deck_, "parents", lambda proc=None: {})
+    monkeypatch.setattr(deck_.agents_, "providers", lambda: [Adapter([a_session(10), a_session(20)])])
+    data = json.loads(invoke("--json", "deck", "exit").stdout)["data"]
+    assert data["saved"] == 2 and len(deck_.decksave.load("sb")[0].tabs) == 2

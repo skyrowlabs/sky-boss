@@ -40,6 +40,7 @@ import rich_click as click
 
 from skyboss import agents as agents_
 from skyboss import column as column_
+from skyboss import decksave
 from skyboss import keys as keys_
 from skyboss import resident as resident_
 from skyboss import theme
@@ -137,11 +138,18 @@ class Agent:
     def argv(self) -> list[str]:
         return ["claude", *self.args]
 
-    def launch(self, brief: str = "", themed: bool = False) -> list[str]:
+    @property
+    def picks_session(self) -> bool:
+        """The operator's own args already say which conversation this is, so a save stays out."""
+        flags = ("-r", "-c", "--resume", "--continue", "--session-id", "--fork-session")
+        return any(a in flags or a.startswith(("--resume=", "--session-id=")) for a in self.args)
+
+    def launch(self, brief: str = "", themed: bool = False, resume: str = "") -> list[str]:
         """What the deck runs: `claude` named after its tab and told it is in a deck.
 
         The operator's own `-n`/`--name` or appended system prompt wins over the deck's. `themed`
         selects the agent's console theme for this session only, under the operator's own `--settings`.
+        `resume` is a session id: Claude Code keeps that session's first brief and ignores this one.
         """
         named = any(a in ("-n", "--name") or a.startswith("--name=") for a in self.args)
         prompted = any(a.startswith("--append-system-prompt") for a in self.args)
@@ -151,6 +159,8 @@ class Agent:
         # The deck's own plugin, for this session only: its skills ship with this sky.boss, and
         # nothing is installed into the operator's Claude Code configuration.
         ours += ["--plugin-dir", str(PLUGIN_DIR)]
+        if resume:
+            ours += ["--resume", resume]
         if themed and not any(a == "--settings" or a.startswith("--settings=") for a in self.args):
             ours += ["--settings", json.dumps({"theme": f"custom:{theme_slug(self.name)}"})]
         return ["claude", *ours, *self.args]
@@ -913,6 +923,96 @@ def windows_states(listed: list[Pane], sessions: list, parent_of: dict[int, int]
     return states
 
 
+def transcript_exists(ident: str) -> bool:
+    """Whether Claude Code still holds this session: `--resume` on a lost id ends the tab at once."""
+    return any((claude_dir() / "projects").glob(f"*/{ident}.jsonl"))
+
+
+def resume_lookup(session: str, problems: list[str], fresh: bool = False) -> Callable[[Agent], str]:
+    """Which saved session an agent resumes, empty for a new one. A save it cannot use goes in `problems`."""
+    saved, more = (decksave.Saved(), []) if fresh else decksave.load(session)
+    problems += more
+    tabs = {tab.agent: tab for tab in saved.tabs}
+    if not tabs:
+        return lambda agent: ""
+    live = {s.id for s in agents_.fold(agents_.providers())[0]}
+
+    def resumed(agent: Agent) -> str:
+        tab = tabs.get(agent.name)
+        if tab is None or agent.picks_session:
+            return ""
+        if tab.id in live:
+            problems.append(f"{agent.name}: its saved session is open elsewhere — this tab started new")
+            return ""
+        if not transcript_exists(tab.id):
+            problems.append(f"{agent.name}: its saved session {tab.id} is gone — this tab started new")
+            return ""
+        return tab.id
+
+    return resumed
+
+
+def restored(config: Config, problems: list[str]) -> Profile | None:
+    """The saved tabs as a profile, so `sb deck` reopens what was open. None with nothing saved."""
+    saved, more = decksave.load(config.session)
+    problems += more
+    if not saved.tabs:
+        return None
+    declared = config.profiles.get(saved.profile)
+    return Profile(
+        name=saved.profile or "saved",
+        primary=saved.primary,
+        tabs=[tab.agent for tab in saved.tabs],
+        brief=declared.brief if declared else "",
+    )
+
+
+def live_tabs(listed: list[Pane], sessions: list, parent_of: dict[int, int]) -> tuple[list[decksave.Tab], list[str]]:
+    """Each agent tab's session in tab order, and the agents with no session to save."""
+    agents = {p.window_id: p.agent or p.window for p in listed if p.role == AGENT}
+    held: dict[str, decksave.Tab] = {}
+    for window_id, _, _, session, _ in deck_windows(listed, sessions, parent_of)[0]:
+        if window_id in agents and session is not None and window_id not in held:
+            held[window_id] = decksave.Tab(agents[window_id], session.id, session.cwd)
+    return list(held.values()), [name for window_id, name in agents.items() if window_id not in held]
+
+
+def write_save(session: str, tabs: list[decksave.Tab]) -> list[str]:
+    """Save `tabs` with the deck's primary and profile. A problem if it could not be written."""
+    profile = tmux("show-options", "-v", "-t", scope(inner(session)), PROFILE_OPTION)
+    saved = decksave.Saved(tabs, deck_primary(session), profile.out.strip() if profile.ok else "")
+    try:
+        decksave.save(session, saved)
+    except OSError as exc:
+        return [f"could not save the deck's tabs — {exc}"]
+    return []
+
+
+def autosave(session: str, tabs: list[decksave.Tab]) -> list[str]:
+    """Fold the live tabs into the save when they changed it, so a reboot finds them."""
+    saved, problems = decksave.load(session)
+    kept = decksave.merged(saved.tabs, tabs)
+    if problems or kept == saved.tabs:
+        return []
+    return write_save(session, kept)
+
+
+def save_now(session: str, adapters: list | None = None) -> tuple[list[decksave.Tab], list[str]]:
+    """Save exactly the open tabs, keeping the last session of one that has none now. Tabs, and problems."""
+    listed, answer = panes(inner(session))
+    if not answer.ok:
+        return [], [f"could not list the deck's tabs — {_said(answer)}"]
+    sessions, problems, _ = agents_.fold(adapters if adapters is not None else agents_.providers())
+    tabs, missing = live_tabs(listed, sessions, parents())
+    saved, more = decksave.load(session)
+    problems = [*problems, *more]
+    tabs += [tab for tab in saved.tabs if tab.agent in missing]
+    unsaved = sorted(set(missing) - {tab.agent for tab in tabs})
+    if unsaved:
+        problems.append(f"no session to save for {', '.join(unsaved)}")
+    return tabs, problems + write_save(session, tabs)
+
+
 def marks_once(
     session: str, written: dict[str, str], adapters: list | None = None, colours: dict[str, str] | None = None
 ) -> Result:
@@ -930,7 +1030,8 @@ def marks_once(
     sessions, problems, _ = agents_.fold(adapters if adapters is not None else agents_.providers())
     for problem in problems:
         result.warn(problem)
-    states = windows_states(listed, sessions, parents())
+    parent_of = parents()
+    states = windows_states(listed, sessions, parent_of)
     labels = {p.window_id: p.agent or p.window for p in listed}
     rows = []
     for window_id, word in states.items():
@@ -946,6 +1047,9 @@ def marks_once(
         result.degrade(problem)
     for problem in scroll_once(session):
         result.degrade(problem)
+    if answer.ok:
+        for problem in autosave(session, live_tabs(listed, sessions, parent_of)[0]):
+            result.degrade(problem)
     count = str(len({p.window_id for p in listed if p.role == AGENT}))
     for problem in _session_options(session, ((MARKED_OPTION, clock(time.time())), (AGENT_COUNT_OPTION, count))):
         result.degrade(problem)
@@ -995,7 +1099,9 @@ def inner(session: str) -> str:
     return f"{session}{INNER_SUFFIX}"
 
 
-def start(session: str, agent: Agent, *, new_session: bool = False, brief: str = "") -> tuple[str, list[str]]:
+def start(
+    session: str, agent: Agent, *, new_session: bool = False, brief: str = "", resume: str = ""
+) -> tuple[str, list[str]]:
     """A window running `claude` in the agent's directory, briefed. Its window id, and problems."""
     directory = agent.directory
     if not Path(directory).is_dir():
@@ -1009,7 +1115,7 @@ def start(session: str, agent: Agent, *, new_session: bool = False, brief: str =
         listed, _ = panes(session) if not new_session else ([], None)
         slot = len(agent_slots(listed))
         write_theme(agent.name, theme.agent_colour(agent.name, slot), theme_base(config))
-    argv = agent.launch(brief, themed=config.themes)
+    argv = agent.launch(brief, themed=config.themes, resume=resume)
     answer = tmux(*where, "-P", "-F", "#{window_id} #{pane_id}", "-n", agent.name, "-c", directory, "--", *argv)
     window_id, pane_id = _ids(answer)
     tmux("set-option", "-w", "-t", window_id, AGENT_OPTION, agent.name)
@@ -1207,7 +1313,9 @@ def _session_options(session: str, options: tuple[tuple[str, str], ...]) -> list
     return problems
 
 
-def ensure_inner(session: str, first: Agent | None = None, first_brief: str = "") -> tuple[bool, list[str]]:
+def ensure_inner(
+    session: str, first: Agent | None = None, first_brief: str = "", first_resume: str = ""
+) -> tuple[bool, list[str]]:
     """Create the inner session if it is absent, with a tab row on top and the mouse on.
 
     Its first window is `first`'s `claude` when there is one, so a profile's
@@ -1222,7 +1330,7 @@ def ensure_inner(session: str, first: Agent | None = None, first_brief: str = ""
     problems: list[str] = []
     if first is not None:
         try:
-            _, problems = start(name, first, new_session=True, brief=first_brief)
+            _, problems = start(name, first, new_session=True, brief=first_brief, resume=first_resume)
             return True, problems + _inner_options(name)
         except DeckError as exc:
             problems.append(str(exc))
@@ -1238,7 +1346,9 @@ def _inner_options(name: str) -> list[str]:
     return _session_options(name, (("mouse", "on"), ("status-position", "top"), *bar_options(True)))
 
 
-def ensure(config: Config, projects: list, profile: Profile | None = None) -> tuple[bool, list[str]]:
+def ensure(
+    config: Config, projects: list, profile: Profile | None = None, fresh: bool = False
+) -> tuple[bool, list[str]]:
     """Create the deck if it is absent, put back a controller pane that has gone, and open the profile's tabs.
 
     Window 0 is the controller: the tab pane (a client on the inner session)
@@ -1263,8 +1373,11 @@ def ensure(config: Config, projects: list, profile: Profile | None = None) -> tu
     def told(agent: Agent) -> str:
         return brief(agent.name, config.session, rows, primary, profile.brief if profile else "")
 
+    resumed = resume_lookup(config.session, problems, fresh)
     first = agents[0] if agents else None
-    _, more = ensure_inner(config.session, first, told(first) if first else "")
+    created_inner = not has_session(inner(config.session))
+    first_resume = resumed(first) if first and created_inner else ""
+    _, more = ensure_inner(config.session, first, told(first) if first else "", first_resume)
     problems += more
     if profile and profile.primary:
         problems += _session_options(inner(config.session), ((PRIMARY_OPTION, profile.primary),))
@@ -1296,7 +1409,7 @@ def ensure(config: Config, projects: list, profile: Profile | None = None) -> tu
         problems += _session_options(config.session, (("mouse", "on"), *bar_options(False)))
         _, more = arrange(config.session, COLUMNS, force=True, socket=socket)
         problems += more
-    problems += open_tabs(config.session, agents, told)
+    problems += open_tabs(config.session, agents, told, resumed)
     problems += dress_sessions(config.session)
     return created, problems
 
@@ -1356,7 +1469,12 @@ def agent_count(session: str) -> int:
     return len({p.window_id for p in listed if p.role == AGENT})
 
 
-def open_tabs(session: str, agents: list[Agent], told: Callable[[Agent], str] = lambda agent: "") -> list[str]:
+def open_tabs(
+    session: str,
+    agents: list[Agent],
+    told: Callable[[Agent], str] = lambda agent: "",
+    resumed: Callable[[Agent], str] = lambda agent: "",
+) -> list[str]:
     """A tab for each agent that has none, briefed, then the profile's tabs moved to the front in its order.
 
     Moving is `swap-window`, which moves a window and restarts nothing.
@@ -1367,7 +1485,7 @@ def open_tabs(session: str, agents: list[Agent], told: Callable[[Agent], str] = 
     for agent in agents:
         if find_window(agent.name, listed) is None:
             try:
-                _, more = start(name, agent, brief=told(agent))
+                _, more = start(name, agent, brief=told(agent), resume=resumed(agent))
                 problems += more
             except DeckError as exc:
                 problems.append(str(exc))
@@ -1638,12 +1756,14 @@ def _as_json() -> bool:
 
 @click.group(name="deck", invoke_without_command=True)
 @click.option("--profile", "profile_name", metavar="NAME", help="Open this [profile.NAME]'s tabs: its primary first.")
+@click.option("--fresh", is_flag=True, help="Starting a deck: forget the save, and start every tab new.")
 @click.pass_context
-def deck(ctx: click.Context, profile_name: str | None) -> None:
+def deck(ctx: click.Context, profile_name: str | None, fresh: bool) -> None:
     """Create the deck if it is absent, open a profile's tabs, then attach.
 
         sb deck
         sb deck --profile core
+        sb deck --fresh
         sb deck open jam-sense
         sb deck layout stack
 
@@ -1653,12 +1773,14 @@ def deck(ctx: click.Context, profile_name: str | None) -> None:
     sky.boss reads and never writes: `[agent.NAME]` takes `cwd`, `args` and a
     one-line `role`; `[profile.NAME]` takes `primary`, `tabs` and a `brief`
     appended to every agent it launches. Each agent is told the roster, roles
-    included, at launch. Inside tmux it switches this client;
+    included, at launch. A deck that is not running comes back as it was saved:
+    with no `--profile` it reopens the saved tabs, and any tab with a saved
+    session resumes it. Inside tmux it switches this client;
     outside, it becomes `tmux attach`, so it emits no envelope.
     """
     if ctx.invoked_subcommand is not None:
-        if profile_name:
-            raise click.UsageError("--profile opens a deck — give it to `sb deck` alone")
+        if profile_name or fresh:
+            raise click.UsageError("--profile and --fresh open a deck — give them to `sb deck` alone")
         return
     if _as_json():
         raise click.UsageError("deck attaches a terminal and emits no envelope — --json has no meaning here")
@@ -1668,8 +1790,13 @@ def deck(ctx: click.Context, profile_name: str | None) -> None:
     except KeyError:
         known = ", ".join(sorted(config.profiles)) or "none declared"
         raise click.UsageError(f"no profile {profile_name!r} in {DECK_FILE} (profiles: {known})") from None
+    starting = has_session(inner(config.session)) is False
+    if starting and fresh:
+        decksave.clear(config.session)
+    elif starting and not profile_name:
+        profile = restored(config, problems) or profile
     try:
-        _, more = ensure(config, _projects(), profile)
+        _, more = ensure(config, _projects(), profile, fresh)
     except DeckError as exc:
         raise click.ClickException(str(exc)) from exc
     more += start_marks(config.session)
@@ -1693,8 +1820,9 @@ def deck(ctx: click.Context, profile_name: str | None) -> None:
 
 @deck.command(name="open")
 @click.argument("name")
+@click.option("--fresh", is_flag=True, help="Start this tab new, even with a saved session.")
 @emit
-def deck_open(name: str) -> Result:
+def deck_open(name: str, fresh: bool) -> Result:
     """A tab running `claude` for NAME, or that tab if it is open.
 
         sb deck open jam-sense
@@ -1704,6 +1832,7 @@ def deck_open(name: str) -> Result:
     session, `<session>-agents`, drawn in the controller. Creates the deck first
     if needed. The new agent is briefed with the deck as it stands now; agents
     already running are not told about it, so the brief says to check the live list.
+    A saved session is resumed, and keeps the brief it started with.
     """
     result = Result()
     config, problems = load()
@@ -1724,7 +1853,8 @@ def deck_open(name: str) -> Result:
             primary = deck_primary(config.session)
             rows = roster(config, projects, [agent], primary)
             told = brief(agent.name, config.session, rows, primary, deck_profile_brief(config))
-            window_id, dressed = start(inner(config.session), agent, brief=told)
+            resume = resume_lookup(config.session, more, fresh)(agent)
+            window_id, dressed = start(inner(config.session), agent, brief=told, resume=resume)
             more += dressed
         focus(config.session, window_id)
         attached = switch(config.session)
@@ -2056,16 +2186,40 @@ def deck_scroll() -> Result:
     return result
 
 
+@deck.command(name="save")
+@emit
+def deck_save() -> Result:
+    """Save each open tab's session, so a later `sb deck` resumes it.
+
+        sb deck save
+
+    **This acts**, on sky.boss's own state. The marks loop saves as it goes, so a
+    reboot loses nothing, but it never forgets a tab; this writes exactly the open
+    tabs, which is how a closed tab leaves the save. `sb deck exit` does the same.
+    """
+    result = Result()
+    config, problems = load()
+    for problem in problems:
+        result.warn(problem)
+    if not has_session(inner(config.session)):
+        raise click.UsageError(f"no deck tabs {inner(config.session)!r} — nothing to save")
+    tabs, more = save_now(config.session)
+    for problem in more:
+        result.degrade(problem)
+    result.data = [{"agent": tab.agent, "session": tab.id, "cwd": tab.cwd} for tab in tabs]
+    return result
+
+
 @deck.command(name="exit")
 @emit
 def deck_exit() -> Result:
-    """End the deck: stop its marks loop, then kill its two tmux sessions.
+    """Save the tabs, then end the deck: stop its marks loop and kill its two tmux sessions.
 
         sb deck exit
 
     **This acts, and it is the only deck command that kills anything.** Every
-    `claude` in a tab ends with its session. Nothing outside the deck's two
-    sessions is touched. Ctrl-Q or the ✕ in the deck's bar asks first, then runs this.
+    `claude` in a tab ends with its session, and a later `sb deck` resumes it.
+    Nothing outside the deck's two sessions is touched. Ctrl-Q or the ✕ in the deck's bar asks first, then runs this.
     """
     config, problems = load()
     result = Result()
@@ -2075,11 +2229,16 @@ def deck_exit() -> Result:
     if not present:
         raise click.UsageError(f"no deck session {config.session!r} — nothing to end")
     agents = agent_count(config.session) if inner(config.session) in present else 0
+    saved: list[decksave.Tab] = []
+    if inner(config.session) in present:
+        saved, more = save_now(config.session)
+        for problem in more:
+            result.warn(problem)
     stopped = stop_marks(config.session)
     ended, failed = end_sessions(present)
     for name, why in failed:
         result.degrade(f"could not end {name!r} — {why}")
-    result.data = {"ended": ", ".join(ended), "agents": agents, "marks": stopped}
+    result.data = {"ended": ", ".join(ended), "agents": agents, "marks": stopped, "saved": len(saved)}
     return result
 
 
@@ -3129,6 +3288,7 @@ mark(deck_jump, sb_acts=True)
 mark(deck_layout, sb_acts=True)
 mark(deck_marks, sb_acts=True)
 mark(deck_exit, sb_acts=True)
+mark(deck_save, sb_acts=True)
 mark(deck_scroll, sb_acts=True)
 mark(deck_queue, sb_acts=False)
 mark(deck_messages, sb_acts=False)
