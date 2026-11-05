@@ -563,6 +563,8 @@ def bar_options(tabs: bool) -> tuple[tuple[str, str], ...]:
     options: tuple[tuple[str, str], ...] = (
         ("status-style", style["bar"]),
         ("status-left", f"#[{style['label']}] {label} #[{style['bar']}] "),
+        # tmux's default of 10 cut the label to "sky.boo…"; its visible width is the label and three spaces.
+        ("status-left-length", str(len(label) + 3)),
     )
     if tabs:
         marked = "#{" + MARKED_OPTION + "}"

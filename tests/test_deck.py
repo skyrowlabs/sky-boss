@@ -1961,3 +1961,9 @@ def test_fold_names_only_a_right_column_pane_and_saves_without_a_deck(fake, home
     folded = invoke("deck", "column", "fold", "todos")
     assert folded.exit_code == 0 and "saved" in said(folded)
     assert column.load("sb")[0].collapsed == {"todos"}
+
+
+def test_each_bars_label_is_given_room_for_its_whole_width():
+    for tabs, label in ((False, "sky.boss deck"), (True, "tabs")):
+        options = dict(deck_.bar_options(tabs))
+        assert f" {label} " in options["status-left"] and options["status-left-length"] == str(len(label) + 3)
