@@ -13,6 +13,7 @@ import sys
 
 import click
 
+from scripts.gates import DOCS_GATES, PRE_PUSH_GATES, Gate
 from scripts.paths import TMP_DIR
 from scripts.yaml_text import read_uncommented
 
@@ -167,8 +168,14 @@ def _docs() -> int:
             ("doc links", script("scripts/check_doc_links.py")),
             ("source → doc refs", script("scripts/check_source_doc_refs.py")),
             ("report anchors", script("scripts/docs/release_window.py", "--check")),
+            *_product(DOCS_GATES),
         ]
     )
+
+
+def _product(gates: list[Gate]) -> list:
+    """Your gates from `scripts/gates.py`, run after the template's own."""
+    return [(gate.label, script(gate.script, *gate.args)) for gate in gates]
 
 
 @check.command(name="doc-links")
@@ -275,6 +282,7 @@ def pre_push(quick: bool) -> None:
         # cannot require it: the merge driver and commit template live in
         # .git/config, which every second clone starts without.
         ("clone-local config", script("scripts/git/install_merge_drivers.py", "--check")),
+        *_product(PRE_PUSH_GATES),
     ]
     if not quick:
         junit = TMP_DIR / "junit-unit.xml"

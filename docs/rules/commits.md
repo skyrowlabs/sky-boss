@@ -84,6 +84,9 @@ Commit after each **independent logical idea**, not after finishing everything:
   Its merge commit carries the title, and a changelog built from commit subjects
   reads that as one more commit: a `fix(...)` title is listed beside the fixes it
   merges (sky.boss's 0.2.0). `chore` is a hidden type.
+- **A release made only of hidden types publishes nothing.** Release Please skips
+  it (`No user facing commits found`). To ship one anyway, add an empty commit
+  whose body is `Release-As: X.Y.Z`.
 - **Force-push is permitted on your own unreviewed branch** — amending or squashing your own
   in-flight work is how four CI runs become one — but **never** on `develop` or
   `main`, and never from an unattended agent.

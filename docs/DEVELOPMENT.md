@@ -76,6 +76,11 @@ version of this sentence said "everything" and was wrong about three gates.
 Every gate runs even after one fails. One fix per round trip is the thing this
 exists to avoid.
 
+Your own gates go in `scripts/gates.py`, as an append to `DOCS_GATES` (run by
+`check docs` and `check pre-push`) or `PRE_PUSH_GATES` (`check pre-push` alone).
+Editing a list in `cli/check.py` instead conflicts with every
+release that adds a gate there.
+
 ## Testing
 
 Suites are selected by **marker**, and a test file joins a suite by declaring

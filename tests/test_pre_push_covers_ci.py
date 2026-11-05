@@ -56,6 +56,7 @@ pytestmark = [pytest.mark.unit]
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scanning import scanned  # noqa: E402
+from scripts.gates import DOCS_GATES, PRE_PUSH_GATES  # noqa: E402
 from scripts.paths import CLI_DIR, GITHUB_DIR, TESTS_DIR  # noqa: E402
 from scripts.yaml_text import read_uncommented  # noqa: E402
 
@@ -179,6 +180,8 @@ def _pre_push_reaches() -> set:
             reached.update(
                 f"pytest:{args[i + 1]}" for i, a in enumerate(args[:-1]) if a == "-m" and args[i + 1] in _markers()
             )
+    # Your gates are data in `scripts/gates.py`, not calls, and `pre_push` runs both lists.
+    reached.update(f"script:{gate.script}" for gate in (*DOCS_GATES, *PRE_PUSH_GATES))
     return reached
 
 
@@ -194,7 +197,7 @@ def test_every_blocking_check_is_run_or_declared():
     orphans = sorted(set(blocking) - reached - set(UNREACHABLE))
     assert not orphans, (
         f"CI blocks on these and `check pre-push` neither runs them nor declares them: {orphans}.\n"
-        "Add them to the shell's check.py::pre_push, or add an entry to UNREACHABLE saying why this host "
+        "Append them to scripts/gates.py's PRE_PUSH_GATES, or add an entry to UNREACHABLE saying why this host "
         "cannot. A gate in neither set is one somebody finds out about from a red CI run."
     )
 
