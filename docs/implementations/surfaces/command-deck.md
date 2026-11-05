@@ -455,3 +455,36 @@ and answers prompts by clicking a tab. The primary gets one more line saying it 
 - Seen on a throwaway socket: a fake `claude` dumped its argv, and the brief arrived intact as one
   argument through tmux. `sb agents --scope deck` run from inside a tab found the deck's server
   through `TMUX` and listed all five agents. Not yet run against a real `claude`.
+
+### 2026-11-04: message endpoints by session, and the operator's words in the brief
+
+Two live sessions were both named `skeletor`, one a deck tab and one not, and MESSAGES painted the
+outside one's messages in the tab's colour, because senders were looked up by name. Now neither
+end of a message is identified by name:
+- The receiver is the session whose transcript holds the entry. The sender is the live session
+  that `verifiedPeerPid` with `verifiedPeerProcStart` names in Claude's registry, else the one whose
+  `messagingSocketPath` is the entry's `from: "uds:…"`. A sender with neither, or naming a session
+  that is not live, is never a deck agent and stays plain.
+- A name held by one live session is shown bare. Of several, the one deck agent keeps it bare and
+  every other is shown `name·<first 8 of its session id>`; an unverifiable sender sharing a live
+  name is shown `name·?`.
+- The queue, the marks and `sb agents --scope` already placed a session by its pane's process
+  tree, never by name; a test now pins that for two same-named sessions.
+
+`deck.toml` takes two more optional keys, both strings and both checked like the rest:
+
+```toml
+[agent.skeletor]
+cwd = "~/src/skeletor"
+role = "the scaffold generator; upgrades flow from here"   # one line, beside it in every roster
+
+[profile.skyrow-core]
+primary = "skyrow-workspace"
+tabs = ["stash-flow", "mind-head", "sky-boss", "skeletor"]
+brief = '''Extra text appended, unedited, to every brief this profile launches.'''
+```
+
+The primary's hardcoded "coordinating agent" line is gone: the roster still marks `(primary)`, and
+what it does comes from its `role`. The fifteen-line limit covers sky.boss's own lines only, never
+the operator's `brief`. A tab opened later with `sb deck open` is not launched under a profile, so
+it gets the roster and roles but no profile `brief`.

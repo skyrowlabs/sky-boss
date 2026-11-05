@@ -256,6 +256,35 @@ class Claude:
         return out
 
 
+def peer_index(directory: Path | None = None) -> dict[tuple, str]:
+    """How a received message's sender maps to a session id, from Claude's registry.
+
+    Two keys per record: `("pid", pid, procStart)` and `("socket", path)`, matching
+    a peer entry's `verifiedPeerPid`/`verifiedPeerProcStart` and `from: "uds:<path>"`.
+    Stale records are included; the caller keeps only ids that are live.
+    """
+    out: dict[tuple, str] = {}
+    where = directory or (Path.home() / CLAUDE_SESSIONS)
+    try:
+        files = sorted(where.glob("*.json"))
+    except OSError:
+        return out
+    for path in files:
+        try:
+            record = json.loads(path.read_text())
+        except (OSError, ValueError):
+            continue
+        if not isinstance(record, dict) or not record.get("sessionId"):
+            continue
+        ident = str(record["sessionId"])
+        pid, start = _int(record.get("pid")), str(record.get("procStart") or "")
+        if pid and start:
+            out[("pid", pid, start)] = ident
+        if record.get("messagingSocketPath"):
+            out[("socket", str(record["messagingSocketPath"]))] = ident
+    return out
+
+
 def _int(value) -> int:
     try:
         return int(value)

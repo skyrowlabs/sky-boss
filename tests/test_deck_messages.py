@@ -591,3 +591,101 @@ def test_the_fit_keeps_the_scroll_while_it_tries_row_counts(tmp_path):
         "\n"
     )
     assert pane.offset == 5 and lines[0].startswith("↑ 5 back · ") and lines[-1] == "note 44"
+
+
+# ============================================================================
+# Endpoints by session, never by name: two sessions called `skeletor`
+# ============================================================================
+
+
+def registry(tmp_path, records):
+    where = tmp_path / "sessions"
+    where.mkdir()
+    for record in records:
+        (where / f"{record['pid']}.json").write_text(json.dumps(record))
+    return where
+
+
+@pytest.fixture
+def twins(tmp_path):
+    """A deck tab and an outside session, both named skeletor; a workspace that hears from both."""
+    deck_twin = Session(provider="claude", id="aaaaaaaa-deck", name="skeletor", cwd="/fx/sk", pid=101)
+    away_twin = Session(provider="claude", id="bbbbbbbb-away", name="skeletor", cwd="/fx/sk2", pid=202)
+    ws = Session(provider="claude", id="cccccccc-ws", name="ws", cwd="/fx/ws", pid=303)
+    index = messages_.agents_.peer_index(
+        registry(
+            tmp_path,
+            [
+                {"sessionId": deck_twin.id, "pid": 101, "procStart": "11", "messagingSocketPath": "/fx/s/101.sock"},
+                {"sessionId": away_twin.id, "pid": 202, "procStart": "22", "messagingSocketPath": "/fx/s/202.sock"},
+                {"sessionId": ws.id, "pid": 303, "procStart": "33", "messagingSocketPath": "/fx/s/303.sock"},
+            ],
+        )
+    )
+    write(
+        tmp_path,
+        ws,
+        [
+            peer(
+                "skeletor",
+                "from the deck tab",
+                "m1",
+                "2026-11-04T11:00:00Z",
+                verifiedPeerPid=101,
+                verifiedPeerProcStart="11",
+            ),
+            peer("skeletor", "from outside", "m2", "2026-11-04T11:01:00Z", **{"from": "uds:/fx/s/202.sock"}),
+            peer("skeletor", "no from at all", "m3", "2026-11-04T11:02:00Z"),
+            peer("skeletor", "a dead socket", "m4", "2026-11-04T11:03:00Z", **{"from": "uds:/fx/s/999.sock"}),
+            peer(
+                "skeletor",
+                "a recycled pid",
+                "m5",
+                "2026-11-04T11:04:00Z",
+                verifiedPeerPid=101,
+                verifiedPeerProcStart="99",
+            ),
+        ],
+    )
+    placed = {deck_twin.id: ("skeletor", 4), ws.id: ("skyrow-workspace", 0)}
+    sessions = [deck_twin, away_twin, ws]
+    result = messages_.messages_result(
+        [Adapter(sessions)], tmp_path, NOW, place=lambda found: placed, paint=True, index=index
+    )
+    return {row["message"]: row for row in result.data}
+
+
+def test_only_the_deck_twin_is_coloured_and_named_as_its_agent(twins):
+    deck_row = twins["from the deck tab"]
+    assert deck_row["between_parts"][0] == ["skeletor", "sb.agent.sk"] and deck_row["from_agent"] == "skeletor"
+    assert deck_row["from_session"] == "aaaaaaaa-deck"
+    away = twins["from outside"]
+    assert away["between_parts"][0] == ["skeletor·bbbbbbbb", None] and away["from_agent"] == ""
+    assert away["from_session"] == "bbbbbbbb-away"
+
+
+@pytest.mark.parametrize("body", ["no from at all", "a dead socket", "a recycled pid"])
+def test_an_unverifiable_sender_is_plain_and_marked_unknown(twins, body):
+    row = twins[body]
+    assert row["between_parts"][0] == ["skeletor·?", None]
+    assert row["from_agent"] == "" and row["from_session"] == ""
+
+
+def test_the_receiver_is_the_transcripts_own_session(twins):
+    for row in twins.values():
+        assert row["to_session"] == "cccccccc-ws" and row["between_parts"][2] == ["ws", "sb.agent.brand"]
+
+
+def test_a_name_held_by_one_session_is_shown_bare():
+    from skyboss.messages import labels_for
+
+    label = labels_for({"a1": "jam", "b2": "mind"}, {})
+    assert (label("jam", "a1"), label("mind", "b2"), label("stranger", "")) == ("jam", "mind", "stranger")
+
+
+def test_the_registry_index_keys_a_session_by_pid_start_and_socket(tmp_path):
+    index = messages_.agents_.peer_index(
+        registry(tmp_path, [{"sessionId": "s1", "pid": 7, "procStart": "70", "messagingSocketPath": "/fx/7.sock"}])
+    )
+    assert index == {("pid", 7, "70"): "s1", ("socket", "/fx/7.sock"): "s1"}
+    assert messages_.agents_.peer_index(tmp_path / "absent") == {}

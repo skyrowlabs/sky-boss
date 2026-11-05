@@ -1309,8 +1309,10 @@ def test_the_messages_pane_colours_a_name_exactly_as_its_tab_is_coloured():
     from skyboss import theme
     from skyboss.messages import Message, rows_of
 
-    message = Message(at=NOW, sender="jam-sense", receiver="ws", body="hi", msg_id="m", session="s", key="m")
-    placed = {"ws": ("skyrow-workspace", 0), "jam-sense": ("jam-sense", 3)}
+    message = Message(
+        at=NOW, sender="jam-sense", receiver="ws", body="hi", msg_id="m", session="id-ws", key="m", sender_id="id-js"
+    )
+    placed = {"id-ws": ("skyrow-workspace", 0), "id-js": ("jam-sense", 3)}
     (row,) = rows_of([message], NOW, placed, paint=True)
     assert row["between_parts"] == [["jam-sense", "sb.agent.js"], [" → ", "sb.muted"], ["ws", "sb.agent.brand"]]
     assert theme.STYLES["sb.agent.js"] == f"bold {theme.agent_colour('jam-sense', 3)}"
@@ -1368,8 +1370,11 @@ CORE = """
 [profile.core]
 primary = "skyrow-workspace"
 tabs = ["stash-flow", "mind-head"]
+brief = '''Coordinate through the workspace.
+Ask before pushing.'''
 [agent.skyrow-workspace]
 cwd = "{d}/ws"
+role = "coordinates the others"
 [agent.stash-flow]
 cwd = "{d}/sf"
 [agent.mind-head]
@@ -1411,13 +1416,14 @@ def test_the_primary_and_a_profile_tab_are_named_and_briefed(core, fake):
     )
     roster_ = [line for line in lines if line.startswith("- ")]
     assert roster_ == [
-        f"- skyrow-workspace (primary) — {core}/ws",
+        f"- skyrow-workspace (primary) — {core}/ws — coordinates the others",
         f"- stash-flow — {core}/sf",
         f"- mind-head — {core}/mh",
     ]
-    assert lines[-1] == "You are the operator's coordinating agent; the others are the agents of their repos."
-    assert "coordinating agent" not in told(tab) and told(tab).count("- ") >= 3
-    assert len(lines) <= 15
+    generated, _, extra = told(primary).partition("\n\n")
+    assert extra == "Coordinate through the workspace.\nAsk before pushing."
+    assert told(tab).endswith(extra) and "coordinating agent" not in told(primary)
+    assert len(generated.split("\n")) <= deck_.BRIEF_LIMIT
 
 
 def test_a_tab_opened_later_gets_the_roster_as_it_stands(core, fake):
@@ -1478,3 +1484,48 @@ def test_scope_deck_works_from_inside_a_deck_pane(fake, home, monkeypatch, tmp_p
     assert result.exit_code == 0, result.output
     assert [row["name"] for row in json.loads(result.stdout)["data"]] == ["jam"]
     assert {call[1] for call in fake.calls} <= {"has-session", "list-panes", "show-options"}
+
+
+def test_queue_scope_and_marks_place_a_session_by_its_pane_never_its_name(fake, home, monkeypatch):
+    """Two live sessions called skeletor: only the one whose pid runs in the tab is the deck's."""
+    monkeypatch.setattr(deck_, "parents", lambda proc=None: {})
+    tab, _ = fake.add("sb-agents", "skeletor", agent="skeletor", role="agent", pid=101)
+    fake.session("sb")
+    inside = a_session(101, "waiting", name="skeletor")
+    outside = a_session(202, "busy", name="skeletor")
+    listed = parse_panes(fake.listing("sb-agents"))
+    rows = queue_rows(listed, [inside, outside], {}, NOW)
+    assert [(r["where"], r["pid"]) for r in rows] == [("deck", 101), ("outside", 202)]
+    assert deck_.claimed([inside, outside]) == ({"id-101"}, "")
+    assert deck_.windows_states(listed, [outside, inside], {}) == {tab: "waiting"}
+    assert set(deck_.placement([inside, outside])) == {"id-101"}
+
+
+def test_a_tab_opened_later_carries_no_profile_brief(core, fake):
+    invoke("deck", "--profile", "core")
+    fake.options[("=sb-agents:", "@sb-primary")] = "skyrow-workspace"
+    fake.calls.clear()
+    assert invoke("--json", "deck", "open", "sky-boss").exit_code == 0
+    later = told(launched(fake, "sky-boss"))
+    assert "Ask before pushing" not in later
+    assert f"- skyrow-workspace (primary) — {core}/ws — coordinates the others" in later
+
+
+@pytest.mark.parametrize(
+    "raw, phrase",
+    [
+        ({"agent": {"x": {"cwd": "/x", "role": 3}}}, "role must be one line of text"),
+        ({"agent": {"x": {"cwd": "/x", "role": "two\nlines"}}}, "role must be one line of text"),
+        ({"profile": {"p": {"tabs": ["x"], "brief": ["a"]}}}, "brief must be text"),
+    ],
+)
+def test_a_bad_role_or_brief_is_a_problem_not_silence(raw, phrase):
+    _, problems = parse(raw)
+    assert any(phrase in p for p in problems)
+
+
+def test_role_and_brief_are_known_keys():
+    config, problems = parse(
+        {"agent": {"x": {"cwd": "/x", "role": "r"}}, "profile": {"p": {"tabs": ["x"], "brief": "b"}}}
+    )
+    assert problems == [] and config.agents["x"].role == "r" and config.profiles["p"].brief == "b"

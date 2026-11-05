@@ -50,8 +50,8 @@ DECK_FILE = "deck.toml"
 DEFAULT_SESSION = "sb"
 TOP_LEVEL_KEYS = frozenset({"session", "pin"})
 TOP_LEVEL_TABLES = frozenset({"agent", "profile"})
-AGENT_KEYS = frozenset({"cwd", "args"})
-PROFILE_KEYS = frozenset({"primary", "tabs"})
+AGENT_KEYS = frozenset({"cwd", "args", "role"})
+PROFILE_KEYS = frozenset({"primary", "tabs", "brief"})
 
 # tmux rewrites `.` and `:` in a session name, so a name carrying either would
 # be a session the deck could create and then never find again.
@@ -109,6 +109,8 @@ class Agent:
     cwd: str
     args: list[str] = field(default_factory=list)
     source: str = DECK_FILE
+    # One line the operator wrote about this agent, printed beside it in every roster.
+    role: str = ""
 
     @property
     def argv(self) -> list[str]:
@@ -138,6 +140,8 @@ class Profile:
     name: str
     primary: str = ""
     tabs: list[str] = field(default_factory=list)
+    # The operator's own text, appended to the brief of every agent this profile launches.
+    brief: str = ""
 
     def order(self) -> tuple[list[str], list[str]]:
         """Each name once, primary first, and a problem per repeat."""
@@ -226,7 +230,9 @@ def parse(raw: dict) -> tuple[Config, list[str]]:
         for key in body:
             if key not in AGENT_KEYS:
                 problems.append(f"agent {name!r}: unknown key {key!r} — ignored")
-        config.agents[name] = Agent(name=name, cwd=body["cwd"], args=list(body.get("args", [])))
+        config.agents[name] = Agent(
+            name=name, cwd=body["cwd"], args=list(body.get("args", [])), role=body.get("role", "").strip()
+        )
 
     tables = raw.get("profile", {})
     if not isinstance(tables, dict):
@@ -240,7 +246,9 @@ def parse(raw: dict) -> tuple[Config, list[str]]:
         for key in body:
             if key not in PROFILE_KEYS:
                 problems.append(f"profile {name!r}: unknown key {key!r} — ignored")
-        config.profiles[name] = Profile(name=name, primary=body.get("primary", ""), tabs=list(body.get("tabs", [])))
+        config.profiles[name] = Profile(
+            name=name, primary=body.get("primary", ""), tabs=list(body.get("tabs", [])), brief=body.get("brief", "")
+        )
     return config, problems
 
 
@@ -255,6 +263,8 @@ def _check_profile(body) -> str | None:
         return "tabs must be a list of agent names"
     if not primary and not tabs:
         return "names no primary and no tabs"
+    if not isinstance(body.get("brief", ""), str):
+        return "brief must be text"
     return None
 
 
@@ -271,6 +281,9 @@ def _check(name: str, body) -> str | None:
         return "args must be a list of strings, not a shell string"
     if not isinstance(args, list) or not all(isinstance(a, str) for a in args):
         return "args must be a list of strings"
+    role = body.get("role", "")
+    if not isinstance(role, str) or "\n" in role.strip():
+        return "role must be one line of text"
     return None
 
 
@@ -776,8 +789,8 @@ def start(session: str, agent: Agent, *, new_session: bool = False, brief: str =
 PRIMARY_OPTION = "@sb-primary"
 
 
-def roster(config: Config, projects: list, planned: list[Agent], primary: str) -> list[tuple[str, str]]:
-    """(name, directory) for each agent in the deck at a launch, primary first, then tab order.
+def roster(config: Config, projects: list, planned: list[Agent], primary: str) -> list[tuple[str, str, str]]:
+    """(name, directory, role) for each agent in the deck at a launch, primary first, then tab order.
 
     Read from tmux and the declarations only; never from a transcript.
     """
@@ -787,29 +800,41 @@ def roster(config: Config, projects: list, planned: list[Agent], primary: str) -
         tabs = {p.window_id: p.agent for p in listed if p.role == AGENT and p.agent}
         names += [tabs[w] for w in _window_order([p for p in listed if p.window_id in tabs])]
     names += [agent.name for agent in planned]
-    rows: list[tuple[str, str]] = []
+    rows: list[tuple[str, str, str]] = []
     for name in dict.fromkeys(names):
         agent = next((a for a in planned if a.name == name), None) or resolve(name, config, projects)[0]
-        rows.append((name, agent.directory if agent else ""))
+        rows.append((name, agent.directory if agent else "", agent.role if agent else ""))
     return rows
 
 
-def brief(name: str, session: str, rows: list[tuple[str, str]], primary: str) -> str:
-    """The system prompt appended at launch. Plain, short, and true at the moment it is built."""
+#: Lines of the brief sky.boss writes; a profile's own `brief` is appended after them and not counted.
+BRIEF_LIMIT = 15
+
+
+def brief(name: str, session: str, rows: list[tuple[str, str, str]], primary: str, extra: str = "") -> str:
+    """The system prompt appended at launch. Plain, short, and true at the moment it is built.
+
+    What an agent does comes from its `role` in the roster, primary included; a
+    profile's `brief` is the operator's own words and follows unedited.
+    """
+
+    def entry(who: str, where: str, role: str) -> str:
+        parts = [f"{who}{' (primary)' if who == primary else ''}", where, role]
+        return "- " + " — ".join(part for part in parts if part)
+
     lines = [
         f'You are "{name}", started by the operator as an agent in a sky.boss deck (tmux session "{session}").',
         "The deck's other agents are peer Claude Code sessions; message one by its name with SendMessage.",
         "List them with `sb agents --scope deck` (the deck's own view: name, status, repo), or with",
         "ListAgents (every session on this machine, the deck's and others).",
         "Agents in the deck at your launch, primary first:",
-        *[f"- {who}{' (primary)' if who == primary else ''}{f' — {where}' if where else ''}" for who, where in rows],
+        *[entry(*row) for row in rows],
         "Tabs open and close, so check the live list before assuming a peer is there.",
         "The operator sees every message between agents in the deck's MESSAGES pane, and answers",
         "an agent's prompts by clicking its tab.",
     ]
-    if name == primary:
-        lines.append("You are the operator's coordinating agent; the others are the agents of their repos.")
-    return "\n".join(lines)
+    text = "\n".join(lines)
+    return f"{text}\n\n{extra.strip()}" if extra.strip() else text
 
 
 def deck_primary(session: str) -> str:
@@ -914,7 +939,7 @@ def ensure(config: Config, projects: list, profile: Profile | None = None) -> tu
     rows = roster(config, projects, agents, primary)
 
     def told(agent: Agent) -> str:
-        return brief(agent.name, config.session, rows, primary)
+        return brief(agent.name, config.session, rows, primary, profile.brief if profile else "")
 
     first = agents[0] if agents else None
     _, more = ensure_inner(config.session, first, told(first) if first else "")
@@ -1227,7 +1252,10 @@ def deck(ctx: click.Context, profile_name: str | None) -> None:
     **This acts.** Window 0 is the controller: a tab row of live `claude`s (an
     inner session, `<session>-agents`) beside the queue over the messages. Each
     tab shows its session's state. Declared in `$SB_HOME/deck.toml`, which
-    sky.boss reads and never writes. Inside tmux it switches this client;
+    sky.boss reads and never writes: `[agent.NAME]` takes `cwd`, `args` and a
+    one-line `role`; `[profile.NAME]` takes `primary`, `tabs` and a `brief`
+    appended to every agent it launches. Each agent is told the roster, roles
+    included, at launch. Inside tmux it switches this client;
     outside, it becomes `tmux attach`, so it emits no envelope.
     """
     if ctx.invoked_subcommand is not None:
