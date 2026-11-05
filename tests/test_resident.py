@@ -722,3 +722,19 @@ def test_follow_refuses_ticks_and_says_why(said):
     result = CliRunner().invoke(cli, ["follow", "--ticks", "2", "/tmp/nothing.log"])
     assert result.exit_code == 2
     assert "counts refreshes" in said(result)
+
+
+def test_a_screen_frame_is_repainted_in_place_never_cleared():
+    import io
+
+    from rich.console import Console
+
+    from skyboss.resident import ERASE_BELOW, repaint
+
+    buffer = io.StringIO()
+    console = Console(file=buffer, force_terminal=True, width=40)
+    repaint(console, "first line\nsecond")
+    written = buffer.getvalue()
+    assert "\x1b[2J" not in written
+    assert written.startswith("\x1b[H") and written.endswith(ERASE_BELOW)
+    assert "first line" in written and "second" + " " * 34 in written

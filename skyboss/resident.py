@@ -33,7 +33,9 @@ import time
 from typing import Callable, Iterable
 
 from rich.console import Console, Group
+from rich.control import Control as RichControl
 from rich.live import Live
+from rich.segment import ControlType, Segment, Segments
 from rich.text import Text
 
 from skyboss import chrome as chrome_
@@ -204,6 +206,31 @@ def clip(body: Text, limit: int, *, tail: bool = False) -> Text:
 Fit = Callable[[Result, int], tuple[Result, str]]
 
 # SGR mouse reporting, so a wheel over the pane arrives as a key. See `keys._WHEEL`.
+
+#: Erase from the cursor to the end of the screen, after a repaint. `console.clear()`
+#: blanked the screen before each frame, which a
+#: one-second tick turns into a visible blink.
+ERASE_BELOW = "\x1b[J"
+
+
+def repaint(console: Console, renderable) -> None:
+    """Draw a frame over the last one in place: no blank screen between frames.
+
+    Lines are rendered padded to the full width, so each overwrites whatever the
+    last frame left on that row, and they go out as one buffered write. Anything
+    below a frame that got shorter is erased after it.
+    """
+    segments: list[Segment] = []
+    for line in console.render_lines(renderable, pad=True):
+        segments.extend(line)
+        segments.append(Segment.line())
+    with console:
+        console.control(RichControl((ControlType.HOME,)))
+        console.print(Segments(segments), end="")
+    console.file.write(ERASE_BELOW)
+    console.file.flush()
+
+
 MOUSE_ON = "\x1b[?1000h\x1b[?1006h"
 MOUSE_OFF = "\x1b[?1006l\x1b[?1000l"
 
@@ -369,8 +396,7 @@ def hold(
         if screen:
 
             def draw() -> None:
-                console.clear()
-                console.print(frame())
+                repaint(console, frame())
 
             with console.screen():
                 _turn(draw, tick, wait_for, ticks, on_key)
@@ -608,8 +634,7 @@ def reside(
         if screen:
 
             def draw(result: Result | None) -> None:
-                out.clear()
-                out.print(frame_for(result))
+                repaint(out, frame_for(result))
 
             on_key = control.on_key if control is not None else None
             mouse = control is not None and control.wheel
