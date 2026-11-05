@@ -293,6 +293,19 @@ asked for directly.
       hide/show path, killing nothing.
 - [x] Tests on `FakeTmux` and the pure renderers, plus a smoke on a throwaway socket.
 
+## Phase 8 (round 6): the mark, and one countdown
+
+Ruled by Jeston on 2026-11-05.
+
+- [ ] **The SL mark at the top left of the tab bar.** The favicon (`skyrowlabs.com/favicon.svg`,
+      a brand-blue L with a white block S in its corner) redrawn in half-block glyphs across the
+      tab bar's three rows, the L's base running the full width under the S as in the favicon,
+      then `skyrow.labs` in the brand colour, then the `tabs` label. A status bar cannot draw an
+      SVG, so this is a redraw, made in `theme.py` like every other colour.
+- [ ] **One countdown in the footer, for one shared cadence.** Every tool pane refreshes on the same
+      interval, and the deck's footer shows the single countdown to it; each pane's own countdown
+      goes. Jeston chose a shared cadence over showing the soonest of several.
+
 ## Dropped, and why
 
 - **Binding Ctrl-C for exit.** It is claude's interrupt, and forwarding it would put every
