@@ -35,7 +35,8 @@ thing this file exists to prevent.
 **What is deliberately not scanned.** `.html` is out for the reason it is out
 of `tests/test_theme.py`: `docs/design/*.dc.html` are design artboards, drawn
 elsewhere and carried here as renders, and editing one by hand is how a render
-stops matching its source. Identifiers are out by construction — `$SB_HOME`,
+stops matching its source. The changelog is out for the same reason: Release
+Please writes it from commit subjects, and its path comes from that config. Identifiers are out by construction — `$SB_HOME`,
 `SB_STATE`, `sb.fish` and `readme-banner.png`'s alt text all fail the word
 boundary or live inside a tag, so nothing has to name them. And a dated record
 of the old spelling stays: the sentences saying the CLI *was* `tb` are facts
@@ -44,6 +45,7 @@ about the past, and they are already in backticks, where the rule leaves them.
 
 import ast
 import io
+import json
 import re
 import tokenize
 from pathlib import Path
@@ -128,6 +130,21 @@ def _spans_blanked(text: str) -> str:
 def _blank(text: str) -> str:
     """Same shape, no content — newlines survive so line numbers do."""
     return "".join("\n" if c == "\n" else " " for c in text)
+
+
+def generated() -> set[Path]:
+    """Files Release Please writes from commit subjects, read from its own config.
+
+    A subject is a record of what was typed, and the changelog is a copy of
+    subjects, so this rule cannot be met there without rewriting history.
+    """
+    config = PROJECT_ROOT / ".github" / "release-please-config.json"
+    if not config.is_file():
+        return set()
+    packages = json.loads(config.read_text()).get("packages", {})
+    return {
+        (PROJECT_ROOT / name / body.get("changelog-path", "CHANGELOG.md")).resolve() for name, body in packages.items()
+    }
 
 
 def in_tree(suffix: str) -> list[Path]:
@@ -259,7 +276,7 @@ def _report(path: Path, mask: str, hits: list[int]) -> str:
 
 @pytest.mark.parametrize(
     "path",
-    [p for suffix in MASKS for p in in_tree(suffix)],
+    [p for suffix in MASKS for p in in_tree(suffix) if p.resolve() not in generated()],
     ids=lambda p: str(p.relative_to(PROJECT_ROOT)),
 )
 def test_prose_says_sky_boss(path: Path):
@@ -296,3 +313,8 @@ def test_the_mask_is_the_same_length_as_the_file():
     for suffix, mask_of in MASKS.items():
         for path in in_tree(suffix)[:8]:
             assert len(mask_of(path)) == len(path.read_text()), path
+
+
+def test_the_changelog_release_please_writes_is_not_scanned():
+    """It is a copy of commit subjects; the path is read from the config, so a move follows."""
+    assert (PROJECT_ROOT / "CHANGELOG.md").resolve() in generated()
