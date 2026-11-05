@@ -416,7 +416,7 @@ def test_mouse_is_on_for_both_sessions_and_the_tab_row_is_on_top(fake, home):
     invoke("deck")
     assert fake.options[("=sb:", "mouse")] == "on"
     assert fake.options[("=sb-agents:", "mouse")] == "on"
-    assert fake.options[("=sb-agents:", "status")] == "on"
+    assert fake.options[("=sb-agents:", "status")] == "3"
     assert fake.options[("=sb-agents:", "status-position")] == "top"
     assert ("=sb:", "status") not in fake.options
 
@@ -1026,17 +1026,25 @@ def test_the_marks_owner_must_be_a_live_marks_process(fake, home, tmp_path):
     assert deck_._marks_owner("sb", tmp_path / "absent") is None
 
 
-def test_a_tab_format_draws_each_word_and_leaves_status_format_alone(fake, home):
+def test_the_tab_bar_is_three_rows_of_boxes_and_names_no_state_word(fake, home):
     invoke("deck")
-    tab = deck_.tab_format(False)
-    for word, label in (
-        ("busy", "working"),
-        ("waiting", "needs you"),
-        ("idle", "quiet"),
-        ("unregistered", "unregistered"),
-    ):
-        assert f"#{{==:#{{@sb-state}},{word}}}" in tab and label in tab
-    assert not any("status-format" in c for c in fake.find("set-option"))
+    rows = {c[-2]: c[-1] for c in fake.find("set-option") if c[-2].startswith("status-format[")}
+    assert sorted(rows) == ["status-format[0]", "status-format[1]", "status-format[2]"]
+    assert ("status", "3") in {(c[-2], c[-1]) for c in fake.find("set-option") if "=sb-agents:" in c}
+    for row in rows.values():
+        assert row.count("#[range=window|#{window_index}]") == 2  # every row clicks, current tab included
+        assert not any(word in row for word in ("working", "quiet", "needs you"))
+    assert "╭─#{s/./─/:window_name}─╮" in rows["status-format[0]"] and "╰" in rows["status-format[2]"]
+
+
+def test_a_tabs_ground_is_lit_when_busy_and_the_warn_block_when_waiting():
+    from skyboss import theme
+
+    style = theme.tmux_styles()
+    name = deck_.tab_cell(1, current=False)
+    assert f"#{{?#{{==:#{{@sb-state}},busy}},#[{style['tab-working']}]," in name
+    assert f"#{{?#{{==:#{{@sb-state}},waiting}},#[{style['needs-you']}]," in name
+    assert theme.contrast(theme.TEXT, theme.WORKING_GROUND) >= theme.DECK_FLOOR
 
 
 def test_tmux_styles_carry_no_comma_and_only_design_system_hues():
@@ -1052,6 +1060,7 @@ def test_tmux_styles_carry_no_comma_and_only_design_system_hues():
         theme.BRAND,
         theme.WARN,
         theme.DANGER,
+        theme.WORKING_GROUND,  # a tint of BRAND, made in theme.py
     }
     for style in theme.tmux_styles().values():
         assert "," not in style
@@ -1318,12 +1327,10 @@ def test_tab_colours_are_written_once_and_read_by_the_tab_format(fake):
     assert fake.find("set-option") == []
 
 
-def test_a_tab_is_its_hue_and_the_active_tab_a_block_of_it():
-    from skyboss import theme
-
-    assert "#{?#{@sb-colour},#[fg=#{@sb-colour} bold],} #W " in deck_.tab_format(False)
-    block = f"#[{theme.tmux_styles()['on-hue']} bg=#{{@sb-colour}}]"
-    assert f"#{{?#{{@sb-colour}},{block},}} #W " in deck_.tab_format(True)
+def test_a_tab_is_its_hue_and_the_active_tabs_box_is_drawn_in_it():
+    assert "#{?#{@sb-colour},#[fg=#{@sb-colour}]," in deck_.tab_cell(1, current=False)
+    assert "#{?#{@sb-colour},#[fg=#{@sb-colour} bold]," in deck_.tab_cell(0, current=True)
+    assert "#[fg=#{@sb-colour} bold]" not in deck_.tab_cell(0, current=False)
 
 
 def test_the_messages_pane_colours_a_name_exactly_as_its_tab_is_coloured():

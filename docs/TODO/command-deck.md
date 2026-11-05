@@ -257,25 +257,32 @@ clickable ✕ instead, kept agent colours on the brand-step rule, and asked for 
 
 ## Phase 7 (round 5): the right column
 
-Requested by Jeston on 2026-11-05, five items relayed by the skyrow-workspace session. Items 4 and
-5 needed no ruling. Items 1 to 3 wait on two questions put to him: where a decision comes from, and
-what collapsing means in the stack layout.
+Requested by Jeston on 2026-11-05: five items relayed by the skyrow-workspace session, and a sixth,
+the tab boxes, asked for directly.
 
-- [ ] **The outside count moves to the footer band.** NEEDS YOU and MESSAGES say
+- [x] **The outside count moves to the footer band.** NEEDS YOU and MESSAGES say
       `N outside hidden · M-h shows` in the bottom band, muted, with no ⚠️ and no warn colour: it
       is information, not a fault. The count stays, because a hidden row must not read as no row. `--json` is
       unchanged, since hiding is the pane's view state and never reaches the envelope.
-- [ ] **TODOS orders by recency, still grouped by agent.** Groups sort by their list's `updated`,
+- [x] **TODOS orders by recency, still grouped by agent.** Groups sort by their list's `updated`,
       newest first, and every add, done and rm moves it, so a new task lifts that agent's list
       to the top. Items keep their numbers. An agent with no list yet keeps the tab order below
       every list.
-- [ ] **A DECISIONS pane**, grouped by agent, the same recency order. *Waits on the source ruling.*
+- [x] **Each tab is a box, and its ground says what the agent is doing.** Added by Jeston directly
+      on 2026-11-05. The tab bar is three rows (`status 3`, one `status-format[i]` each), and a
+      tab's edges are its name with every character replaced, so a box always fits its name. The
+      words `working`, `needs you` and `quiet` are gone. A busy tab is lit with `WORKING_GROUND`,
+      a tint of the brand made in `theme.py`. A waiting tab is the warn block, and anything else is
+      plain. The current tab's edge is drawn in its agent's hue. Every row carries the window's
+      `range`, so a click anywhere on a box selects the tab.
+- [ ] **A DECISIONS pane**, grouped by agent, the same recency order. Agents declare their own
+      decisions with `sb deck decide add` and `sb deck decide done <n> "<ruling>"`; nothing is
+      inferred (ruled 2026-11-05).
 - [ ] **A chooser for which right-column panes show, and in what order.** A popup in the deck's key
       table. The choice is machine state under `$SB_STATE`, because sky.boss never writes
-      `deck.toml`. Applying it moves and resizes panes only. *Waits on the collapse ruling, which
-      shares its storage.*
-- [ ] **Each pane collapses to a thin row** drawing one consolidated line. *Waits on the stack
-      ruling.*
+      `deck.toml`. Applying it moves and resizes panes only.
+- [ ] **Each pane collapses to a thin row** drawing one consolidated line. In the stack layout it
+      is a thin column with the same line shortened to fit (ruled 2026-11-05).
 - [ ] Tests on `FakeTmux` and the pure renderers, plus a smoke on a throwaway socket.
 
 ## Dropped, and why
@@ -572,3 +579,18 @@ kept the TODOS pane's pid.
   session only. The skill moves with the sky.boss that started the tab, and nothing is installed.
   Measured on Claude Code 2.1.318: `claude --plugin-dir plugin plugin details sky-boss` lists the one
   skill at about 100 tokens a session.
+
+### 2026-11-05: round 5 reopened, and half of it built
+
+- **The outside count is a footer note, not a warning.** `Chrome` gained a `note`, drawn muted after
+  the warning count, and a `Control` supplies it from its last `shape`. So the hidden count stays on
+  screen without the ⚠️ and without inflating anything that counts warnings.
+- **TODOS sorts on `updated`**, which `save` now stamps in microseconds. In seconds, two writes in
+  one second tied, and the newest list did not reliably rise.
+- **The tab bar now sets `status-format`, which round 3 avoided on purpose.** The reason given then
+  was that tmux's own `range=window` keeps a click selecting a tab. Each row now carries that range
+  itself, and `MouseDown1Status` (`switch-client -t =`, mirrored into the deck's table) resolves its
+  target from it. Rendered on a throwaway server through a nested client: the boxes align and each
+  state draws its ground. **A real click is not yet measured.**
+- **Needs-you stays warn yellow.** It had been called orange in conversation. The only orange is
+  stash.flow's hue, and stash-flow's own tab is drawn in it, so Jeston kept the warn colour.

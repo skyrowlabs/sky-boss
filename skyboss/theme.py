@@ -404,6 +404,10 @@ def css_root() -> str:
 # branch of a `#{?…}` conditional the tab format puts them in.
 
 
+#: A working tab's ground: the brand mixed into the bar's surface, a tint and never a fifth hue.
+WORKING_GROUND = _mix(SURFACE, 0.35)
+
+
 def tmux_styles() -> dict[str, str]:
     """Role → tmux style string, for the deck's two status bars and its borders."""
     return {
@@ -412,6 +416,9 @@ def tmux_styles() -> dict[str, str]:
         "tab": f"fg={TEXT_2} bg={SURFACE}",
         "tab-current": f"fg={TEXT} bg={SURFACE_2} bold",
         "working": f"fg={BRAND}",
+        # A working tab's lit ground: the brand tinted into the bar, under full-strength text.
+        "tab-working": f"fg={TEXT} bg={WORKING_GROUND} bold",
+        "tab-edge": f"fg={TEXT_3}",
         "needs-you": f"fg={BG} bg={WARN} bold",
         "quiet": f"fg={TEXT_2}",
         "unregistered": f"fg={TEXT_2} italics",

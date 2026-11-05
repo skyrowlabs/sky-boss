@@ -463,7 +463,7 @@ def dress(window_id: str, *, tab: bool = False) -> list[str]:
     """The deck's window options, on one of its windows. Problems, never raises.
 
     Window options rather than session ones because tmux has no per-session
-    window option: `window-status-format` and the borders are set window by window.
+    window option: the borders and tab styles are set window by window.
     """
     problems = []
     options = (("window-size", "latest"), ("allow-passthrough", "on"), *window_options(tab))
@@ -479,25 +479,43 @@ def dress(window_id: str, *, tab: bool = False) -> list[str]:
 # ============================================================================
 
 
-def tab_format(current: bool) -> str:
-    """A tab: its name, then its session's registry word, drawn in the theme's colours.
+TAB_ROWS = 3
 
-    `busy` reads as working, `waiting` as needs you, `idle` as quiet; any other
-    word is drawn as the provider wrote it. Only `window-status-format` is set,
-    never `status-format`, so tmux's own `range=window` keeps a click selecting the tab.
+
+def tab_cell(row: int, current: bool) -> str:
+    """One row of one tab's box: 0 the top edge, 1 the name, 2 the bottom edge.
+
+    A box is the name's width plus a space each side, so its edges are the name
+    with every character replaced. The ground says what the agent is doing:
+    `busy` is lit, `waiting` is the warn block, anything else is plain. The
+    current tab's edge is drawn in its agent's hue. Every row carries the
+    window's range, so a click anywhere on a box selects that tab.
     """
     style = theme.tmux_styles()
-    base = style["tab-current" if current else "tab"]
     state = "#{" + STATE_OPTION + "}"
-    labels = (("busy", "working", "working"), ("waiting", " needs you ", "needs-you"), ("idle", "quiet", "quiet"))
-    mark = state
-    for word, label, role in reversed((*labels, (UNREGISTERED, UNREGISTERED, "unregistered"))):
-        mark = f"#{{?#{{==:{state},{word}}},#[{style[role]}]{label},{mark}}}"
     colour = "#{" + COLOUR_OPTION + "}"
-    # The whole name in its agent's hue; the active tab is the hue as a block, unmistakably.
-    lit = f"#[{style['on-hue']} bg={colour}]" if current else f"#[fg={colour} bold]"
-    name = f"#{{?{colour},{lit},}} #W #[{base}]"
-    return f"#[{base}]{name}#{{?{state},· ,}}{mark}#[{base}] "
+    bar = style["bar"]
+    edge = f"#{{?{colour},#[fg={colour} bold],#[{style['label']}]}}" if current else f"#[{style['tab-edge']}]"
+    plain = f"#{{?{colour},#[fg={colour}],#[{style['tab']}]}}"
+    if row == 1:
+        idle = f"#{{?#{{==:{state},{UNREGISTERED}}},#[{style['unregistered']}],{plain}}}"
+        ground = (
+            f"#{{?#{{==:{state},busy}},#[{style['tab-working']}],"
+            f"#{{?#{{==:{state},{WAITING}}},#[{style['needs-you']}],{idle}}}}}"
+        )
+        body = f"{edge}│{ground} #W #[{bar}]{edge}│"
+    else:
+        left, right = ("╭", "╮") if row == 0 else ("╰", "╯")
+        body = f"{edge}{left}─#{{s/./─/:window_name}}─{right}"
+    return f"#[range=window|#{{window_index}}]{body}#[norange {bar}] "
+
+
+def tab_row(row: int, indent: int) -> str:
+    """`status-format[row]` for the tab bar: the label and marks on the name row, `indent` blanks above and below."""
+    cells = f"#{{W:{tab_cell(row, False)},{tab_cell(row, True)}}}"
+    if row == 1:
+        return f"#[align=left]#{{T:status-left}}{cells}#[align=right]#{{T:status-right}}"
+    return f"#[align=left]{' ' * indent}{cells}"
 
 
 def window_options(tab: bool) -> tuple[tuple[str, str], ...]:
@@ -508,9 +526,7 @@ def window_options(tab: bool) -> tuple[tuple[str, str], ...]:
         ("window-status-style", style["tab"]),
         ("window-status-current-style", style["tab-current"]),
     )
-    if not tab:
-        return common
-    return (*common, ("window-status-format", tab_format(False)), ("window-status-current-format", tab_format(True)))
+    return common
 
 
 def bar_options(tabs: bool) -> tuple[tuple[str, str], ...]:
@@ -524,6 +540,10 @@ def bar_options(tabs: bool) -> tuple[tuple[str, str], ...]:
     if tabs:
         marked = "#{" + MARKED_OPTION + "}"
         options += (("status-right", f"#[{style['quiet']}]marks #{{?{marked},{marked},not running}} "),)
+        # The label's visible width: ` tabs ` and the space after it.
+        indent = len(label) + 3
+        options += (("status", str(TAB_ROWS)),)
+        options += tuple((f"status-format[{row}]", tab_row(row, indent)) for row in range(TAB_ROWS))
     else:
         options += (("status-right", hints()), ("status-right-length", "120"))
     return options
@@ -940,7 +960,7 @@ def ensure_inner(session: str, first: Agent | None = None, first_brief: str = ""
 
 
 def _inner_options(name: str) -> list[str]:
-    return _session_options(name, (("mouse", "on"), ("status", "on"), ("status-position", "top"), *bar_options(True)))
+    return _session_options(name, (("mouse", "on"), ("status-position", "top"), *bar_options(True)))
 
 
 def ensure(config: Config, projects: list, profile: Profile | None = None) -> tuple[bool, list[str]]:
