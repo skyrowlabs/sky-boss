@@ -297,7 +297,7 @@ asked for directly.
 
 Ruled by Jeston on 2026-11-05.
 
-- [ ] **The SL mark at the top left of the tab bar.** The favicon (`skyrowlabs.com/favicon.svg`,
+- [x] **The SL mark at the top left of the tab bar.** The favicon (`skyrowlabs.com/favicon.svg`,
       a brand-blue L with a white block S in its corner) redrawn in half-block glyphs across the
       tab bar's three rows, the L's base running the full width under the S as in the favicon,
       then `skyrow.labs` in the brand colour, then the `tabs` label. A status bar cannot draw an

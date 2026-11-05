@@ -404,6 +404,41 @@ def css_root() -> str:
 # branch of a `#{?…}` conditional the tab format puts them in.
 
 
+#: The favicon (`skyrowlabs.com/favicon.svg`) as six rows of pixels: B the brand-blue L, W the white S in
+#: its corner, the L's base running the full width under it. Drawn two pixels to a cell with half blocks,
+#: so it fills the tab bar's three rows. A status bar cannot draw the SVG; this is its redraw.
+MARK_PIXELS = (
+    "BB.WWWW.",
+    "BB.W....",
+    "BB.WWWW.",
+    "BB....W.",
+    "BB.WWWW.",
+    "BBBBBBBB",
+)
+
+
+def tmux_mark(ground: str = SURFACE) -> tuple[str, ...]:
+    """The mark as one tmux format string per bar row, each cell a half block over `ground`."""
+    ink = {"B": BRAND, "W": TEXT, ".": None}
+    rows = []
+    for top_row, bottom_row in zip(MARK_PIXELS[::2], MARK_PIXELS[1::2]):
+        cells = []
+        for top, bottom in zip(top_row, bottom_row):
+            up, down = ink[top], ink[bottom]
+            if up is None and down is None:
+                cells.append(f"#[bg={ground}] ")
+            elif up == down:
+                cells.append(f"#[fg={up} bg={ground}]█")
+            elif down is None:
+                cells.append(f"#[fg={up} bg={ground}]▀")
+            elif up is None:
+                cells.append(f"#[fg={down} bg={ground}]▄")
+            else:
+                cells.append(f"#[fg={up} bg={down}]▀")
+        rows.append("".join(cells))
+    return tuple(rows)
+
+
 #: A working tab's ground: the brand mixed into the bar's surface, a tint and never a fifth hue.
 WORKING_GROUND = _mix(SURFACE, 0.35)
 

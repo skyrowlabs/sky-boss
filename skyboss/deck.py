@@ -534,15 +534,33 @@ def tab_cell(row: int, current: bool) -> str:
     else:
         left, right = ("╭", "╮") if row == 0 else ("╰", "╯")
         body = f"{edge}{left}─#{{s/./─/:window_name}}─{right}"
-    return f"#[range=window|#{{window_index}}]{body}#[norange {bar}] "
+    return f"#[range=window|#{{window_index}}]{body}#[norange nobold {bar}] "
 
 
-def tab_row(row: int, indent: int) -> str:
-    """`status-format[row]` for the tab bar: the label and marks on the name row, `indent` blanks above and below."""
+WORDMARK = "skyrow.labs"
+
+
+def tab_lefts(label: str) -> tuple[tuple[str, ...], int]:
+    """The tab bar's left end, one format per row: the SL mark, then the wordmark and `label` on the
+    middle row, the rows above and below blank to the same width. And that visible width."""
+    style = theme.tmux_styles()
+    bar = style["bar"]
+    words = f"  {WORDMARK}  {label} "
+    width = 1 + len(theme.MARK_PIXELS[0]) + len(words)
+    # `nobold`: a colour change does not end tmux's bold, which would run on into `label` and the marks.
+    middle = f"#[{style['label']}]  {WORDMARK}  #[nobold {style['quiet']}]{label} "
+    lefts = tuple(
+        f"#[{bar}] {mark}" + (middle if row == 1 else f"#[{bar}]{' ' * len(words)}")
+        for row, mark in enumerate(theme.tmux_mark())
+    )
+    return tuple(f"{left}#[nobold {bar}]" for left in lefts), width
+
+
+def tab_row(row: int, left: str) -> str:
+    """`status-format[row]` for the tab bar: `left`, the tabs' boxes, and the marks on the name row."""
     cells = f"#{{W:{tab_cell(row, False)},{tab_cell(row, True)}}}"
-    if row == 1:
-        return f"#[align=left]#{{T:status-left}}{cells}#[align=right]#{{T:status-right}}"
-    return f"#[align=left]{' ' * indent}{cells}"
+    right = "#[align=right]#{T:status-right}" if row == 1 else ""
+    return f"#[align=left]{left}{cells}{right}"
 
 
 def window_options(tab: bool) -> tuple[tuple[str, str], ...]:
@@ -560,19 +578,24 @@ def bar_options(tabs: bool) -> tuple[tuple[str, str], ...]:
     """Session options for a deck bar. The tab row also says when the marks were last written."""
     style = theme.tmux_styles()
     label = "tabs" if tabs else "sky.boss deck"
+    lefts: tuple[str, ...] = ()
+    if tabs:
+        lefts, width = tab_lefts(label)
+        left = lefts[1]
+    else:
+        width = len(label) + 3
+        left = f"#[{style['label']}] {label} #[{style['bar']}] "
     options: tuple[tuple[str, str], ...] = (
         ("status-style", style["bar"]),
-        ("status-left", f"#[{style['label']}] {label} #[{style['bar']}] "),
-        # tmux's default of 10 cut the label to "sky.boo…"; its visible width is the label and three spaces.
-        ("status-left-length", str(len(label) + 3)),
+        ("status-left", left),
+        # tmux's default of 10 cut the label to "sky.boo…"; this is the label's visible width.
+        ("status-left-length", str(width)),
     )
     if tabs:
         marked = "#{" + MARKED_OPTION + "}"
         options += (("status-right", f"#[{style['quiet']}]marks #{{?{marked},{marked},not running}} "),)
-        # The label's visible width: ` tabs ` and the space after it.
-        indent = len(label) + 3
         options += (("status", str(TAB_ROWS)),)
-        options += tuple((f"status-format[{row}]", tab_row(row, indent)) for row in range(TAB_ROWS))
+        options += tuple((f"status-format[{row}]", tab_row(row, lefts[row])) for row in range(TAB_ROWS))
     else:
         options += (("status-right", hints()), ("status-right-length", "120"))
     return options

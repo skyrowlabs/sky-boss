@@ -1978,9 +1978,24 @@ def test_fold_names_only_a_right_column_pane_and_saves_without_a_deck(fake, home
 
 
 def test_each_bars_label_is_given_room_for_its_whole_width():
-    for tabs, label in ((False, "sky.boss deck"), (True, "tabs")):
-        options = dict(deck_.bar_options(tabs))
-        assert f" {label} " in options["status-left"] and options["status-left-length"] == str(len(label) + 3)
+    options = dict(deck_.bar_options(False))
+    assert " sky.boss deck " in options["status-left"] and options["status-left-length"] == "16"
+    tabs = dict(deck_.bar_options(True))
+    _, width = deck_.tab_lefts("tabs")
+    assert "skyrow.labs" in tabs["status-left"] and tabs["status-left-length"] == str(width)
+
+
+def test_the_mark_and_wordmark_lead_every_tab_row_at_one_width():
+    from skyboss import theme
+
+    lefts, width = deck_.tab_lefts("tabs")
+    visible = [re.sub(r"#\[[^]]*\]", "", left) for left in lefts]
+    assert [len(v) for v in visible] == [width] * 3  # so every row's boxes start in one column
+    assert "skyrow.labs" in visible[1] and "tabs" in visible[1]
+    assert len(theme.tmux_mark()) == 3 and all(len(row) == len(theme.MARK_PIXELS[0]) for row in theme.MARK_PIXELS)
+    assert theme.MARK_PIXELS[-1] == "B" * len(theme.MARK_PIXELS[0])  # the L's base runs under the whole S
+    rows = dict(deck_.bar_options(True))
+    assert all(rows[f"status-format[{n}]"].startswith(f"#[align=left]{lefts[n]}") for n in range(3))
 
 
 def test_reload_restarts_every_tool_pane_that_closes_itself_and_kills_none(fake, home, sb_state, monkeypatch):
