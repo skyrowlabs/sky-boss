@@ -366,7 +366,7 @@ def test_bare_deck_opens_the_pin_as_the_first_tab_and_attaches(fake, home, tmp_p
     created = created_in(fake, "sb-agents")
     argv = created[created.index("--") + 1 :]
     assert argv[:3] == ["claude", "-n", "ws"] and argv[3] == "--append-system-prompt"
-    assert argv[5:] == ["--model", "opus"]
+    assert argv[5:] == ["--plugin-dir", str(deck_.PLUGIN_DIR), "--model", "opus"]
     assert created[created.index("-c") + 1] == str(tmp_path)
     assert fake.tabs() == ["ws"]
 
@@ -1462,7 +1462,16 @@ def test_the_operators_name_wins_and_is_not_doubled(core, fake):
 
 def test_the_operators_own_prompt_wins_too():
     agent = deck_.Agent("x", "/x", args=["--append-system-prompt-file", "/fx/p.md"])
-    assert agent.launch("brief") == ["claude", "-n", "x", "--append-system-prompt-file", "/fx/p.md"]
+    plugin = ["--plugin-dir", str(deck_.PLUGIN_DIR)]
+    assert agent.launch("brief") == ["claude", "-n", "x", *plugin, "--append-system-prompt-file", "/fx/p.md"]
+
+
+def test_every_tab_loads_the_decks_plugin_and_it_ships_its_skill():
+    """The skill reaches agents in other repos through --plugin-dir; nothing is installed for it."""
+    assert deck_.Agent("x", "/x").launch()[-2:] == ["--plugin-dir", str(deck_.PLUGIN_DIR)]
+    manifest = json.loads((deck_.PLUGIN_DIR / ".claude-plugin" / "plugin.json").read_text())
+    skill = (deck_.PLUGIN_DIR / "skills" / "deck-connect" / "SKILL.md").read_text()
+    assert manifest["name"] == "sky-boss" and "name: deck-connect" in skill and "sb --json deck brief" in skill
 
 
 def test_nothing_in_the_brief_comes_from_a_transcript(core, fake, monkeypatch):

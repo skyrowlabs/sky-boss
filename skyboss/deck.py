@@ -43,6 +43,9 @@ from skyboss import theme
 from skyboss import todos as todos_
 from skyboss.chrome import ago, clock
 from skyboss.helpers import PROJECT_ROOT, SB_HOME, child_env, mark
+
+#: The Claude Code plugin every deck tab loads with `--plugin-dir`; see `plugin/` at the repo root.
+PLUGIN_DIR = PROJECT_ROOT / "plugin"
 from skyboss.messages import messages_result
 from skyboss.output import Result, emit, warn_now
 from skyboss.view import describe
@@ -130,6 +133,9 @@ class Agent:
         ours = ([] if named else ["-n", self.name]) + (
             [] if prompted or not brief else ["--append-system-prompt", brief]
         )
+        # The deck's own plugin, for this session only: its skills ship with this sky.boss, and
+        # nothing is installed into the operator's Claude Code configuration.
+        ours += ["--plugin-dir", str(PLUGIN_DIR)]
         return ["claude", *ours, *self.args]
 
     @property

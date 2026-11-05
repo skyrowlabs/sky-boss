@@ -1,0 +1,9 @@
+{
+  "name": "sky-boss",
+  "description": "What an agent in a sky.boss deck needs: the skill that connects it to the deck's other agents. Loaded by `sb deck` with --plugin-dir; nothing installs it.",
+  "author": {
+    "name": "SKYROW LABS LLC"
+  },
+  "repository": "https://github.com/skyrowlabs/sky-boss",
+  "license": "MIT"
+}

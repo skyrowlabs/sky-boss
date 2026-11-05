@@ -492,6 +492,11 @@ the deck it is in, every agent at launch with its directory and role, and how to
 them. The deck never types into a running agent, so one started before a peer opened catches up
 with `sb deck brief`, which rebuilds its brief with the deck as it stands now.
 
+**`/deck-connect` brings an agent in on your word.** Type it in any tab: the agent reads its brief
+afresh, checks who is live, and introduces itself to the primary. It ships in [`plugin/`](plugin),
+a Claude Code plugin every tab loads with `--plugin-dir`, so it comes with this sky.boss and nothing
+is installed into your Claude Code configuration.
+
 **A profile is a declared set of tabs**, primary first, in `~/.sky-boss/deck.toml`:
 
 ```toml

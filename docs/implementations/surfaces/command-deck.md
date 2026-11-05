@@ -535,6 +535,17 @@ kept the TODOS pane's pid.
 - **The operator brings an agent in by typing, not by sky.boss typing.** A user-level skill that
   runs `sb --json deck brief` and introduces the agent to the primary is the intended trigger. It
   lives in the operator's own skills directory, not in this repo. The brief now names the command.
+  *(Reversed the same day; see the next entry.)*
 - **The brief's cap counts fixed text only** (`BRIEF_LIMIT = 12`). The roster grows by one line
   per declared agent and the profile's `brief` is the operator's own, so counting either would let
   a sixth agent break a cap meant for sky.boss's own wording.
+
+### 2026-11-04: the skill ships with sky.boss, as a plugin every tab loads
+
+- **A project skill would not reach the agents.** `.claude/skills/` loads for sessions whose
+  directory is this repo, and a deck's tabs run in other repos. A user-level copy reaches them, but
+  it is unversioned and is a write into the operator's Claude Code configuration.
+- **So `plugin/` is a Claude Code plugin, and every tab loads it with `--plugin-dir`**, for that
+  session only. The skill moves with the sky.boss that started the tab, and nothing is installed.
+  Measured on Claude Code 2.1.318: `claude --plugin-dir plugin plugin details sky-boss` lists the one
+  skill at about 100 tokens a session.
