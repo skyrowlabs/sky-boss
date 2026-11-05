@@ -333,6 +333,24 @@ Asked by Jeston on 2026-11-05, typed in skeletor's tab and relayed.
       tmux keeps the current tab in view, and a fourth bar row draws where the view sits.
 - [x] **A lighter ground on the pane label rows**: the brand at 28% over the void, from 20%.
 
+## Phase 11 (round 9): each tab's console in its agent's colour
+
+Asked by Jeston on 2026-11-05, relayed by the workspace. He chose a deck setting over per-repo
+settings files, and chose that `sb deck` writes the theme files itself.
+
+- [x] **`themes = true` in `deck.toml`** gives each tab's Claude Code a custom theme whose accent
+      (`claude`, the spinner and assistant label, and `promptBorder`, the input box) is that
+      agent's deck hue. So the console matches its tab, NEEDS YOU and MESSAGES.
+- [x] **`theme_base`** names the preset under it. Absent, it is the operator's own `theme` when that
+      is a preset, else `dark`.
+- [x] **Only deck tabs change.** A tab selects `custom:sb-<agent>` with `--settings` for its own
+      session; Claude Code opened anywhere else keeps the operator's theme.
+
+```toml
+themes = true             # optional; off unless set
+theme_base = "dark-ansi"  # optional; dark, light, dark-daltonized, light-daltonized, dark-ansi, light-ansi
+```
+
 ## Dropped, and why
 
 - **Binding Ctrl-C for exit.** It is claude's interrupt, and forwarding it would put every
@@ -746,3 +764,20 @@ kept the TODOS pane's pid.
   hooks and a thumb moved only by the marks loop. The hooks now target `scope()`.
 - **The lighter ground costs the band's muted text some contrast**: `sb.muted` on it measures
   about 2.9 (3.4 at round 7's 20%). The label and its text hold above 11. Jeston asked for lighter.
+
+### 2026-11-05: round 9 built
+
+- **The one write into Claude Code's configuration, by the operator's ruling.** sky.boss writes
+  `sb-<agent>.json` in `$CLAUDE_CONFIG_DIR/themes` (else `~/.claude/themes`) and nothing else
+  there. It writes only when `themes = true`, only when the content would change, and through a
+  rename. Claude Code reloads a changed theme file, so a tab whose slot moves gets a recoloured
+  console from the same `write_colours` that recolours its tab. The file is written before the tab
+  launches, so the console finds it at start: Claude Code watches the directory only if it existed
+  at launch, and a deck's first themed tab is the one that creates it.
+- **`--settings` scopes it to the session.** The operator's own `--settings` in an agent's `args` wins,
+  as `-n` and the appended prompt already do. Open tabs change only on restart.
+- **The suite redirects `CLAUDE_CONFIG_DIR`** in `conftest.py`, beside `SB_HOME`, so no test can
+  write the operator's themes.
+- **Not yet seen in a real console.** Verifying needs a theme file in the operator's real Claude Code
+  directory, which this round would not write outside a deck Jeston starts. The file format and the
+  `--settings` key come from Claude Code's docs (terminal-config, settings), read on 2026-11-05.

@@ -22,6 +22,7 @@ middle pane, so the inner status bar is the tab row. Session options (`mouse`,
 from __future__ import annotations
 
 import functools
+import json
 import os
 import re
 import shlex
@@ -54,7 +55,7 @@ from skyboss.view import describe
 
 DECK_FILE = "deck.toml"
 DEFAULT_SESSION = "sb"
-TOP_LEVEL_KEYS = frozenset({"session", "pin", "panes"})
+TOP_LEVEL_KEYS = frozenset({"session", "pin", "panes", "themes", "theme_base"})
 TOP_LEVEL_TABLES = frozenset({"agent", "profile"})
 AGENT_KEYS = frozenset({"cwd", "args", "role"})
 PROFILE_KEYS = frozenset({"primary", "tabs", "brief"})
@@ -136,10 +137,11 @@ class Agent:
     def argv(self) -> list[str]:
         return ["claude", *self.args]
 
-    def launch(self, brief: str = "") -> list[str]:
+    def launch(self, brief: str = "", themed: bool = False) -> list[str]:
         """What the deck runs: `claude` named after its tab and told it is in a deck.
 
-        The operator's own `-n`/`--name` or appended system prompt wins over the deck's.
+        The operator's own `-n`/`--name` or appended system prompt wins over the deck's. `themed`
+        selects the agent's console theme for this session only, under the operator's own `--settings`.
         """
         named = any(a in ("-n", "--name") or a.startswith("--name=") for a in self.args)
         prompted = any(a.startswith("--append-system-prompt") for a in self.args)
@@ -149,6 +151,8 @@ class Agent:
         # The deck's own plugin, for this session only: its skills ship with this sky.boss, and
         # nothing is installed into the operator's Claude Code configuration.
         ours += ["--plugin-dir", str(PLUGIN_DIR)]
+        if themed and not any(a == "--settings" or a.startswith("--settings=") for a in self.args):
+            ours += ["--settings", json.dumps({"theme": f"custom:{theme_slug(self.name)}"})]
         return ["claude", *ours, *self.args]
 
     @property
@@ -185,6 +189,9 @@ class Config:
     agents: dict[str, Agent] = field(default_factory=dict)
     profiles: dict[str, Profile] = field(default_factory=dict)
     panes: list[str] = field(default_factory=list)
+    # Each tab's Claude Code takes a theme accented in its agent's deck hue, on `theme_base`.
+    themes: bool = False
+    theme_base: str = ""
 
     def profile(self, name: str | None) -> Profile | None:
         """The named profile, or `pin` as a profile with a primary and no tabs, or none.
@@ -253,6 +260,18 @@ def parse(raw: dict) -> tuple[Config, list[str]]:
             config.panes = [p for p in panes if p in TOOL_ROLES]
         else:
             problems.append("panes must be a list of pane names — ignored")
+
+    if "themes" in raw:
+        if isinstance(raw["themes"], bool):
+            config.themes = raw["themes"]
+        else:
+            problems.append("themes must be true or false — ignored")
+    if "theme_base" in raw:
+        base = raw["theme_base"]
+        if base in THEME_BASES:
+            config.theme_base = base
+        else:
+            problems.append(f"theme_base must be one of {', '.join(THEME_BASES)} — ignored")
 
     tables = raw.get("agent", {})
     if not isinstance(tables, dict):
@@ -988,12 +1007,82 @@ def start(session: str, agent: Agent, *, new_session: bool = False, brief: str =
     if shutil.which("claude", path=child_env().get("PATH")) is None:
         raise DeckError("claude is not on PATH")
     where = ["new-session", "-d", "-s", session] if new_session else ["new-window", "-d", "-t", f"={session}:"]
-    argv = agent.launch(brief)
+    config, _ = load()
+    if config.themes:
+        # Written before the launch, so the console finds its theme at start; the slot is the next tab's.
+        listed, _ = panes(session) if not new_session else ([], None)
+        slot = len(agent_slots(listed))
+        write_theme(agent.name, theme.agent_colour(agent.name, slot), theme_base(config))
+    argv = agent.launch(brief, themed=config.themes)
     answer = tmux(*where, "-P", "-F", "#{window_id} #{pane_id}", "-n", agent.name, "-c", directory, "--", *argv)
     window_id, pane_id = _ids(answer)
     tmux("set-option", "-w", "-t", window_id, AGENT_OPTION, agent.name)
     tmux("set-option", "-p", "-t", pane_id, ROLE_OPTION, AGENT)
     return window_id, dress(window_id, tab=True)
+
+
+# ============================================================================
+# Console themes: each tab's Claude Code accented in its agent's hue
+# ============================================================================
+#
+# On with `themes = true` in deck.toml (Jeston's ruling, 2026-11-05). The one place
+# sky.boss writes into Claude Code's configuration: `sb-<agent>.json` files in its
+# themes directory, and only those. A tab selects its theme for its own session with
+# `--settings`, so Claude Code outside the deck keeps the operator's theme.
+
+#: Claude Code's built-in presets, the only values a custom theme's `base` may take.
+THEME_BASES = ("dark", "light", "dark-daltonized", "light-daltonized", "dark-ansi", "light-ansi")
+#: The theme tokens that carry the accent: the spinner and assistant label, and the input box border.
+THEME_TOKENS = ("claude", "promptBorder")
+
+
+def claude_dir() -> Path:
+    """Claude Code's configuration directory: `CLAUDE_CONFIG_DIR`, else `~/.claude`. Read at call time."""
+    configured = os.environ.get("CLAUDE_CONFIG_DIR")
+    return Path(configured).expanduser() if configured else Path.home() / ".claude"
+
+
+def theme_slug(agent: str) -> str:
+    return f"sb-{agent}"
+
+
+def theme_base(config: Config) -> str:
+    """The declared `theme_base`, else the operator's own theme if it is a preset, else `dark`."""
+    if config.theme_base:
+        return config.theme_base
+    try:
+        chosen = json.loads((claude_dir() / "settings.json").read_text()).get("theme")
+    except (OSError, ValueError, AttributeError):
+        chosen = None
+    return chosen if chosen in THEME_BASES else "dark"
+
+
+def theme_body(agent: str, colour: str, base: str) -> dict:
+    return {
+        "name": f"sky.boss · {agent}",
+        "base": base,
+        "overrides": {token: colour for token in THEME_TOKENS},
+    }
+
+
+def write_theme(agent: str, colour: str, base: str) -> list[str]:
+    """Write `sb-<agent>.json` if its content would change, through a rename. Problems, never raises."""
+    import tempfile
+
+    folder = claude_dir() / "themes"
+    path = folder / f"{theme_slug(agent)}.json"
+    text = json.dumps(theme_body(agent, colour, base), indent=2) + "\n"
+    try:
+        if path.is_file() and path.read_text() == text:
+            return []
+        folder.mkdir(parents=True, exist_ok=True)
+        handle, temp = tempfile.mkstemp(dir=folder, prefix=f".{path.stem}.", suffix=".json")
+        with os.fdopen(handle, "w") as out:
+            out.write(text)
+        os.replace(temp, path)
+    except OSError as exc:
+        return [f"could not write {agent}'s console theme — {exc}"]
+    return []
 
 
 # ============================================================================
@@ -2489,10 +2578,14 @@ def write_colours(session: str, listed: list[Pane], written: dict[str, str]) -> 
     """Each agent tab's colour as a window option, where it changed. The tab format reads it."""
     problems = []
     labels = {p.window_id: p.agent or p.window for p in listed}
+    config, _ = load()
     for window_id, slot in agent_slots(listed).items():
         colour = theme.agent_colour(labels[window_id], slot)
         if written.get(window_id) == colour:
             continue
+        if config.themes:
+            # Claude Code reloads a changed theme file, so a moved tab's console follows its colour.
+            problems += write_theme(labels[window_id], colour, theme_base(config))
         answer = tmux("set-option", "-w", "-t", window_id, COLOUR_OPTION, colour)
         if answer.ok:
             written[window_id] = colour

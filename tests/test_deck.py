@@ -2132,3 +2132,62 @@ def test_the_footer_counts_down_to_the_shared_refresh_every_second():
     assert "⟳ next in #{e|-:5,#{e|%%:%s,5}}s" in options["status-left"]
     assert options["status-interval"] == "1" and "status-interval" not in dict(deck_.bar_options(True))
     assert {argv[argv.index("--refresh") + 1] for argv in (deck_.queue_argv(), deck_.messages_argv())} == {"5"}
+
+
+# ============================================================================
+# Console themes
+# ============================================================================
+
+
+def test_themes_and_their_base_are_declared_in_deck_toml():
+    config, problems = deck_.parse({"themes": True, "theme_base": "dark-ansi"})
+    assert (config.themes, config.theme_base, problems) == (True, "dark-ansi", [])
+    config, problems = deck_.parse({"themes": "yes", "theme_base": "neon"})
+    assert not config.themes and not config.theme_base and len(problems) == 2
+
+
+def test_a_themed_launch_selects_the_agents_theme_and_the_operators_settings_win():
+    themed = deck_.Agent("ws", "/x").launch(themed=True)
+    assert themed[-2:] == ["--settings", '{"theme": "custom:sb-ws"}']
+    assert "--settings" not in deck_.Agent("ws", "/x").launch()
+    own = deck_.Agent("ws", "/x", args=["--settings", "/fx/mine.json"]).launch(themed=True)
+    assert own.count("--settings") == 1 and own[-1] == "/fx/mine.json"
+
+
+def test_a_theme_file_is_the_hue_on_both_accents_and_is_rewritten_only_on_change(tmp_path, monkeypatch):
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path))
+    assert deck_.write_theme("ws", "#38bdf8", "dark-ansi") == []
+    path = tmp_path / "themes" / "sb-ws.json"
+    body = json.loads(path.read_text())
+    assert body["base"] == "dark-ansi" and body["overrides"] == {"claude": "#38bdf8", "promptBorder": "#38bdf8"}
+    stamp = path.stat().st_mtime_ns
+    deck_.write_theme("ws", "#38bdf8", "dark-ansi")
+    assert path.stat().st_mtime_ns == stamp
+    assert sorted(p.name for p in (tmp_path / "themes").iterdir()) == ["sb-ws.json"]  # no temp left behind
+
+
+def test_the_base_is_the_operators_preset_unless_declared(tmp_path, monkeypatch):
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path))
+    assert deck_.theme_base(deck_.Config()) == "dark"  # no settings file
+    (tmp_path / "settings.json").write_text('{"theme": "light-ansi"}')
+    assert deck_.theme_base(deck_.Config()) == "light-ansi"
+    (tmp_path / "settings.json").write_text('{"theme": "custom:mine"}')
+    assert deck_.theme_base(deck_.Config()) == "dark"  # a custom theme cannot be a base
+    assert deck_.theme_base(deck_.Config(theme_base="dark-ansi")) == "dark-ansi"
+
+
+def test_a_themed_deck_writes_each_tabs_theme_before_launching_it(fake, home, tmp_path, monkeypatch):
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path / "claude"))
+    home(f'pin = "ws"\nthemes = true\ntheme_base = "dark-ansi"\n[agent.ws]\ncwd = "{tmp_path}"\n')
+    invoke("deck")
+    created = created_in(fake, "sb-agents")
+    assert '{"theme": "custom:sb-ws"}' in created
+    body = json.loads((tmp_path / "claude" / "themes" / "sb-ws.json").read_text())
+    assert body["overrides"]["claude"] == deck_.theme.agent_colour("ws", 0)
+
+
+def test_an_unthemed_deck_writes_no_theme(fake, home, tmp_path, monkeypatch):
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path / "claude"))
+    home(f'pin = "ws"\n[agent.ws]\ncwd = "{tmp_path}"\n')
+    invoke("deck")
+    assert not (tmp_path / "claude").exists()
