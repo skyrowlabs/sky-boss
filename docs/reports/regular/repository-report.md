@@ -1,14 +1,16 @@
 ---
-commit_range: v0.1.0..HEAD
-generated: "2026-11-05T03:04:22Z"
-previous_release: v0.1.0
+commit_range: v0.2.0..HEAD
+generated: "2026-11-05T04:03:36Z"
+previous_release: v0.2.0
 release: unreleased
 status: in-flight
 ---
 
 # Repository Report
 
-> **Window:** unreleased (since v0.1.0) — `v0.1.0..HEAD` (283 commits, at `9f1f410`)
+> **Window:** unreleased (since v0.2.0) — `v0.2.0..HEAD` (1 commits, at `0d0753f`)
+
+
 
 This edition closes the window that became **v0.2.0**, the first release cut by
 Release Please. v0.1.0 was the only tag from the tag-versioning era, and the
