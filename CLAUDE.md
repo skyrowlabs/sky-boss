@@ -287,6 +287,13 @@ in `rollcall.parse` by declaration order and shipped by `/api/projects`, so the 
 cannot disagree; it is **not** a declarable key, because a file that could set it could argue with
 the assignment.
 
+**The deck is the exception, by the brand owner's ruling (Jeston, 2026-11-04).** Brand steps read
+as shades of one green in a tab row, so a deck agent named for a product takes that product's own
+hue from the landing page (`docs/design/skyrowlabs-product-hues.css`, vendored and checked like the
+palette). The workspace takes the brand, and any other name keeps the step. Those hues are legible
+only on the void, so the deck paints its own ground and colours nothing it does not paint. The
+canvas keeps the rule above. See [[command-deck]].
+
 **A second list on a filtered screen inherits the filter or contradicts the first.** Two halves of
 one screen must describe the same set — the schedule's "declares no schedule" panels were drawn for
 projects the selection had excluded.
