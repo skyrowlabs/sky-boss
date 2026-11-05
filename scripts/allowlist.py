@@ -37,8 +37,8 @@ exemption nobody chose.
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable, Dict, List, Optional
 
 #: `key: reason`, splitting on the first colon **followed by whitespace**.
 #: A key may itself contain colons (`ci.yml:integration`) and a reason may
@@ -46,11 +46,17 @@ from typing import Callable, Dict, List, Optional
 _ENTRY = re.compile(r"^(.*?):\s+(.*)$")
 
 
-def read(path: Path) -> Dict[str, str]:
-    """Every `key: reason` in `path`. Missing file, comments and blanks: skipped."""
+def read(path: Path) -> dict[str, str]:
+    """Every `key: reason` in `path`. Missing file, comments and blanks: skipped.
+
+    A key written twice raises: a dict keeps the last, so a template entry and an
+    adopter's copy of it merged clean and one reason silently replaced the other
+    (proto.pilot, six keys).
+    """
     if not path.exists():
         return {}
-    out: Dict[str, str] = {}
+    out: dict[str, str] = {}
+    twice: list[str] = []
     for raw in path.read_text(encoding="utf-8").splitlines():
         line = raw.strip()
         if not line or line.startswith("#"):
@@ -71,11 +77,16 @@ def read(path: Path) -> Dict[str, str]:
         reason = match.group(2).strip().strip("\"'").strip()
         if not reason:
             continue
-        out[match.group(1).strip()] = reason
+        key = match.group(1).strip()
+        if key in out:
+            twice.append(key)
+        out[key] = reason
+    if twice:
+        raise ValueError(f"{path.name}: key(s) written twice, so one reason silently replaces another: {twice}")
     return out
 
 
-def stale(entries: Dict[str, str], still_needed: Callable[[str], Optional[str]]) -> List[str]:
+def stale(entries: dict[str, str], still_needed: Callable[[str], str | None]) -> list[str]:
     """Entries that no longer need to exist, as ready-to-print findings.
 
     `still_needed(key)` returns `None` when the entry is doing its job, or a

@@ -24,7 +24,6 @@ from __future__ import annotations
 import subprocess
 import sys
 from pathlib import Path
-from typing import Optional
 
 import pytest
 
@@ -39,7 +38,7 @@ from scripts.paths import PROJECT_ROOT  # noqa: E402
 BASE_BRANCH = "develop"
 
 
-def origin_head(root: Path = PROJECT_ROOT) -> Optional[str]:
+def origin_head(root: Path = PROJECT_ROOT) -> str | None:
     """The branch `origin/HEAD` names in this checkout, or None when there is no such pointer."""
     done = subprocess.run(
         ["git", "symbolic-ref", "--quiet", "refs/remotes/origin/HEAD"],

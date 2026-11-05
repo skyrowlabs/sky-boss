@@ -1,0 +1,17 @@
+/* Product hues — the six project declarations from the landing page's own stylesheet.
+ *
+ * Copied verbatim from skyrowlabs.com's styles.css `:root` (skyrowlabs.com@1c3a587,
+ * committed 2026-10-30) on 2026-11-04. The deck draws each agent in its product's hue,
+ * by the brand owner's ruling. skyboss/theme.py declares these; tests/test_theme.py
+ * checks it against this file. Do not edit by hand — copy again when the site moves.
+ *
+ * `--mh` here is the landing page's, not the design system's `#e6dc0e`, as asked.
+ */
+:root {
+  --js:        #38bdf8;
+  --bb:        #4ade80;
+  --sf:        #fb923c;
+  --mh:        #d4cb3a;
+  --sb:        #a78bfa;
+  --sk:        #c3b391;
+}

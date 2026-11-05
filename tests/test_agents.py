@@ -19,13 +19,16 @@ from click.testing import CliRunner
 
 from skyboss import cli
 from skyboss.agents import (
+    CannotTell,
     Claude,
     Scan,
     Session,
     alive,
+    claims,
     empty_reason,
     epoch_ms,
     fold,
+    git_common_dir,
     order,
     proc_start,
     rows_of,
@@ -275,7 +278,7 @@ def test_the_view_is_authored_and_hides_identity_without_dropping_it():
     view = view_of(rows)
     assert view["authored"] is True
     assert [c["key"] for c in view["columns"]] == ["provider", "name", "status", "up", "cwd"]
-    assert view["hidden"] == ["id", "pid", "started"]
+    assert view["hidden"] == ["id", "pid", "started", "claim"]
     assert rows[0]["id"] == "x" and rows[0]["up"] == "1m"
 
 
@@ -330,3 +333,154 @@ def test_an_unverified_row_is_reported_in_the_envelope(monkeypatch, said):
     monkeypatch.setattr(agents_.providers()[0].__class__, "scan", scan_with_unverified)
     result = CliRunner().invoke(cli, ["agents"])
     assert "drawn unverified" in said(result)
+
+
+# ============================================================================
+# Claims — round 3
+# ============================================================================
+
+
+def in_dir(ident: str, cwd: str) -> Session:
+    return Session(provider="a", id=ident, name=ident, cwd=cwd, started=at(int(ident)))
+
+
+def test_sessions_sharing_a_repository_share_a_letter_and_a_lone_one_has_none():
+    sessions = [in_dir("1", "/r1/a"), in_dir("2", "/lone"), in_dir("3", "/r1/b")]
+    repo = {"/r1/a": "/r1/.git", "/r1/b": "/r1/.git", "/lone": "/lone/.git"}
+    letters, unknown = claims(sessions, probe=repo.get)
+    assert letters == {"1": "A", "3": "A"} and unknown == 0
+
+
+def test_letters_run_in_session_order_so_a_is_the_claim_held_longest():
+    sessions = [in_dir(str(n), cwd) for n, cwd in enumerate(["/x", "/y", "/x", "/y"], 1)]
+    letters, _ = claims(sessions, probe=lambda cwd: cwd + "/.git")
+    assert letters == {"1": "A", "3": "A", "2": "B", "4": "B"}
+
+
+def test_a_directory_in_no_repository_is_no_claim_and_no_warning():
+    letters, unknown = claims([in_dir("1", "/t"), in_dir("2", "/t")], probe=lambda _: None)
+    assert letters == {} and unknown == 0
+
+
+def test_a_probe_that_cannot_ask_is_counted_once_per_directory():
+    def blind(_):
+        raise CannotTell("no git")
+
+    letters, unknown = claims([in_dir("1", "/t"), in_dir("2", "/t"), in_dir("3", "/u")], blind)
+    assert letters == {} and unknown == 2
+
+
+def git(*args, cwd):
+    import subprocess
+
+    subprocess.run(
+        ["git", "-c", "user.name=t", "-c", "user.email=t@t", *args],
+        cwd=cwd,
+        check=True,
+        capture_output=True,
+    )
+
+
+def test_real_git_puts_a_worktree_in_its_main_checkouts_repository(tmp_path):
+    """The worktree case is the one a `cwd` comparison misses and the reason
+    this asks git, so it is checked against git rather than a fixture of it."""
+    main, other, plain = tmp_path / "main", tmp_path / "other", tmp_path / "plain"
+    for d in (main, other, plain):
+        d.mkdir()
+    for d in (main, other):
+        git("init", "-q", cwd=d)
+        git("commit", "-q", "--allow-empty", "-m", "x", cwd=d)
+    git("worktree", "add", "-q", str(tmp_path / "pool"), cwd=main)
+    assert git_common_dir(str(plain)) is None
+    assert git_common_dir(str(tmp_path / "gone")) is None
+    sessions = [
+        in_dir("1", str(main)),
+        in_dir("2", str(tmp_path / "pool")),
+        in_dir("3", str(other)),
+        in_dir("4", str(plain)),
+    ]
+    letters, unknown = claims(sessions)
+    assert letters == {"1": "A", "2": "A"} and unknown == 0
+
+
+def test_an_inherited_git_dir_does_not_put_every_session_in_one_repository(tmp_path, monkeypatch):
+    a, b = tmp_path / "a", tmp_path / "b"
+    for d in (a, b):
+        d.mkdir()
+        git("init", "-q", cwd=d)
+    monkeypatch.setenv("GIT_DIR", str(a / ".git"))
+    assert git_common_dir(str(a)) != git_common_dir(str(b))
+
+
+def test_what_git_printed_never_reaches_the_envelope(monkeypatch, tmp_path):
+    """Run on sky.boss's own initiative, so its output is a key and never data —
+    a probe that printed a token must not put the token in front of a reader."""
+    secret = "TOKEN-must-not-leak"
+    bin_ = tmp_path / "bin"
+    bin_.mkdir()
+    fake = bin_ / "git"
+    fake.write_text(f"#!/bin/sh\necho {secret}\n")
+    fake.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{bin_}:/usr/bin:/bin")
+    sessions = [in_dir("1", str(tmp_path)), in_dir("2", str(tmp_path))]
+    monkeypatch.setattr("skyboss.agents.providers", lambda: [Fake("a", sessions)])
+    result = CliRunner().invoke(cli, ["--json", "agents"])
+    body = json.loads(result.stdout)
+    assert [r["claim"] for r in body["data"]] == ["A", "A"]
+    assert secret not in result.stdout
+    assert "claim" in [c["key"] for c in body["view"]["columns"]]
+
+
+def test_no_git_on_path_is_said_rather_than_drawn_as_no_contention(monkeypatch, tmp_path, said):
+    monkeypatch.setenv("PATH", str(tmp_path / "empty"))
+    sessions = [in_dir("1", str(tmp_path)), in_dir("2", str(tmp_path))]
+    monkeypatch.setattr("skyboss.agents.providers", lambda: [Fake("a", sessions)])
+    result = CliRunner().invoke(cli, ["agents"])
+    assert "claims not derived for 1 directory(ies)" in said(result)
+
+
+# ============================================================================
+# --scope: inside or outside the deck
+# ============================================================================
+
+
+@pytest.fixture
+def two(monkeypatch):
+    a = Session(provider="a", id="in", name="inside", started=at(100))
+    b = Session(provider="a", id="out", name="outside", started=at(200))
+    monkeypatch.setattr("skyboss.agents.providers", lambda: [Fake("a", [a, b])])
+    monkeypatch.setattr("skyboss.agents.claims", lambda sessions: ({}, 0))
+    return a, b
+
+
+def names(result):
+    return [r["name"] for r in json.loads(result.stdout)["data"]]
+
+
+@pytest.mark.parametrize(
+    ("scope", "expected"), [("deck", ["inside"]), ("outside", ["outside"]), ("all", ["inside", "outside"])]
+)
+def test_scope_places_each_session_by_the_deck(two, monkeypatch, scope, expected):
+    monkeypatch.setattr("skyboss.deck.claimed", lambda sessions: ({"in"}, ""))
+    assert names(CliRunner().invoke(cli, ["--json", "agents", "--scope", scope])) == expected
+
+
+def test_without_scope_the_deck_is_never_asked_and_the_output_is_unchanged(two, monkeypatch):
+    monkeypatch.setattr("skyboss.deck.claimed", lambda sessions: pytest.fail("asked the deck"))
+    bare = CliRunner().invoke(cli, ["agents"])
+    monkeypatch.setattr("skyboss.deck.claimed", lambda sessions: ({"in"}, ""))
+    assert bare.exit_code == 0 and bare.output == CliRunner().invoke(cli, ["agents", "--scope", "all"]).output
+
+
+def test_a_deck_that_cannot_be_read_is_partial_not_empty(two, monkeypatch, said):
+    monkeypatch.setattr("skyboss.deck.claimed", lambda sessions: (None, "tmux could not be run"))
+    result = CliRunner().invoke(cli, ["--json", "agents", "--scope", "deck"])
+    envelope = json.loads(result.stdout)
+    assert result.exit_code == 3 and envelope["partial"] and envelope["data"] == []
+    assert "no session can be placed in the deck" in " ".join(envelope["warnings"])
+
+
+def test_an_empty_scope_says_which_side_is_empty(two, monkeypatch):
+    monkeypatch.setattr("skyboss.deck.claimed", lambda sessions: (set(), ""))
+    envelope = json.loads(CliRunner().invoke(cli, ["--json", "agents", "--scope", "deck"]).stdout)
+    assert envelope["data"] == [] and "no sessions in the deck" in envelope["warnings"]

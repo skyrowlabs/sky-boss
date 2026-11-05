@@ -1,0 +1,13 @@
+# Intended divergences from the shared stack-setup shape.
+#
+# Format:  <workflow-file>:<job-id>: "<why this job legitimately differs>"
+#
+# The reason is the point. A divergence that is intended is fine; a divergence
+# nobody decided is the failure this check exists to catch — so an entry with no
+# reason is worse than no entry, because it converts an unanswered question into
+# a settled one.
+#
+# Review these when the shared setup changes: an exemption written for a step
+# that no longer exists is an exemption for a step nobody remembers.
+
+# example-workflow.yml:example-job: "runs against a prebuilt image, so it never boots the stack itself"

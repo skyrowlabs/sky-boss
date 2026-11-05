@@ -4,7 +4,7 @@ slug: tools
 category: commands
 agent_value: 3
 completed: 2026-08-30
-updated: 2026-08-30
+updated: 2026-10-17
 tags: [tools, operator-content, surface]
 summary: "The operator's saved commands: one block per tool, spliced rather than rewritten, with the surface allowed to write."
 created: 2026-08-20
@@ -1252,3 +1252,10 @@ is that a title-bar tag is a one-shot on a window you are looking at rather than
 surface must stay live through. An inline chip editor is a larger change than this round. Recorded
 as a compromise rather than left to be discovered — the same standing the `forget()` confirmation
 has.
+
+### 2026-10-17 — the expandable rail is parked behind a trigger
+
+[[open]] item 19's residual, ruled by the operator: not built. `tools.toml` holds one tool in one
+group, and rounds 7 and 8 already answer a long name (drag) and a long list (filter). **Reopen when
+either fires:** about a dozen tools, or two names that clip to the same string — the real failure,
+since the rail is how you tell them apart. Try the grouped rail first when it does.

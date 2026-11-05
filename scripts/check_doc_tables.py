@@ -40,7 +40,6 @@ import argparse
 import re
 import sys
 from pathlib import Path
-from typing import Set, Tuple
 
 # Bootstrap only: put the package on sys.path so `scripts.paths` — which
 # owns every path below — can be imported. See scripts/paths.py.
@@ -103,8 +102,8 @@ _DOC_DIR = re.compile(r"docs/(?:[A-Za-z0-9_.-]+/)+(?![A-Za-z0-9_.-])")
 _FOLDER_INDEX = "/README.md"
 
 
-def referenced() -> Set[str]:
-    seen: Set[str] = set()
+def referenced() -> set[str]:
+    seen: set[str] = set()
     for table in TABLES:
         if table.exists():
             text = table.read_text(encoding="utf-8")
@@ -115,7 +114,7 @@ def referenced() -> Set[str]:
     return seen
 
 
-def unrouted(directory: Path, listed: Set[str]) -> Tuple[list, list]:
+def unrouted(directory: Path, listed: set[str]) -> tuple[list, list]:
     """`(stranded, routed)` — subfolders no table row reaches, and the ones it does.
 
     A folder is routed by its own `README.md` or by its own path — checked

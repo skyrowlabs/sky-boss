@@ -824,7 +824,7 @@ def test_an_accruing_child_is_spawned_with_the_declared_variable(tmp_path):
     from skyboss.canvas.server import resolve_run
 
     job = resolve_run(
-        ["run", "--env", "SB_DECLARED=canvas", "--", "python3", "-c", "import os; print(os.environ['SB_DECLARED'])"]
+        ["run", "--env", "FX_DECLARED=canvas", "--", "python3", "-c", "import os; print(os.environ['FX_DECLARED'])"]
     )
     child = stream_.ChildStream(job.foreign, cwd=job.cwd, env=job.env)
     child.proc.wait(timeout=10)

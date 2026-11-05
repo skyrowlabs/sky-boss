@@ -45,6 +45,7 @@ owns the masking and carries the two gates that learned it the expensive way;
 
 from __future__ import annotations
 
+import json
 import re
 import sys
 from pathlib import Path
@@ -128,3 +129,22 @@ def test_a_ratchet_reads_a_report_its_own_job_produced():
             f"step in that job writes {artifact}. The ratchet will report that it found no "
             "report — a check with nothing to read has not passed, it has not run."
         )
+
+
+def test_every_suite_a_workflow_budgets_has_a_budget():
+    """A `--suite X` with no `X` in skip_budget.json fails on CI's first run and nowhere earlier.
+
+    sky.boss's restored nightly named a suite the file lacked: green in pre-push,
+    red on its first night.
+    """
+    budgeted = set(json.loads((Path(__file__).parent / "skip_budget.json").read_text(encoding="utf-8"))["suites"])
+    named = [
+        (path.name, job, suite)
+        for path in sorted(WORKFLOWS.glob("*.yml"))
+        for job, body in jobs(path).items()
+        for line in body.splitlines()
+        if "check_skip_budget.py" in line
+        for suite in re.findall(r"--suite[ =](\S+)", line)
+    ]
+    for workflow, job, suite in scanned(named, "check_skip_budget.py --suite invocations"):
+        assert suite in budgeted, f"{workflow}: job '{job}' budgets suite '{suite}', which tests/skip_budget.json lacks"

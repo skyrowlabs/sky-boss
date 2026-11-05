@@ -1,0 +1,13 @@
+# Workflows disabled on GitHub on purpose.
+#
+# Format:  <workflow-file>: "<why it is off, and who ruled it>"
+#
+# `dev doctor` reports a disabled workflow that the coverage floor relies on
+# as a problem, since nothing then holds the floor. An entry here makes it a
+# hold it reports, reason included. GitHub's own state does not say whether
+# somebody meant it, so this file is where you say so (stash.flow).
+#
+# An entry is stale when its workflow is gone from .github/workflows (the unit
+# suite fails) or when GitHub runs it again (doctor fails). Delete it then.
+
+# coverage-nightly.yml: "held off while the suite is rebuilt; ruled by the owner"

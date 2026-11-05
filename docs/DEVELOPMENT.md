@@ -6,7 +6,7 @@
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 .venv/bin/pip install -r requirements-dev.txt
 .venv/bin/pip install -r scripts/requirements.txt
-.venv/bin/pre-commit install --install-hooks
+.venv/bin/pre-commit install --install-hooks && .venv/bin/python scripts/git/install_merge_drivers.py
 npm install
 cp .env.example .env
 ./dev check pre-push   # green on a fresh tree
@@ -41,11 +41,12 @@ Two things it installs are easy to miss, because they live outside version contr
 
 - **Git hooks** (`pre-commit install --install-hooks`, above) — the commit-msg
   format check and the lint gates.
-- **The `regen-docs` merge driver** — its definition lives in `.git/config`, which
-  is not tracked, so a fresh clone has `.gitattributes` pointing at a driver that
-  does not exist. **Every clone after the first installs it by hand:**
-  `python scripts/git/install_merge_drivers.py`. Verify with
-  `dev check merge-drivers`, which checks and never installs.
+- **The clone-local config** (`scripts/git/install_merge_drivers.py`, on the same
+  line) — the `regen-docs` merge driver and `commit.template`. Both live in
+  `.git/config`, which is not tracked, so a clone that skipped that line has
+  `.gitattributes` naming a driver that does not exist and a `check pre-push` that
+  is red until it runs. Verify with `dev check merge-drivers`, which checks and
+  never installs.
 
 ## Configuration
 
@@ -90,6 +91,7 @@ pytestmark = [pytest.mark.unit]
 ./dev test all              # everything except `manual`
 ./dev test unit --ci        # reproduce CI's skip semantics locally
 ./dev test coverage -w 20   # the worst-covered modules — where a test buys most
+./dev test coverage --suite unit --suite ui   # only these suites, budgeted as unit+ui
 ```
 
 `--ci` sets `SB_CI=1`, under which an env-gate skip becomes a **failure**.
@@ -111,7 +113,7 @@ reader inferring a cost model from a workflow that has none.
 | Ready PR → `develop`           | `CI Gate` + `pytest` + `eslint` + `All checks`   | ~2   |
 | Ready PR → `main`              | `CI Gate` + `pytest` + `eslint` + `All checks`   | ~2   |
 | Ready PR opened by Dependabot  | `CI Gate` + `pytest` + `eslint` + `All checks`   | ~2   |
-| Push to `develop` or `main`    | `CI Gate` + `pytest` + `eslint` + `All checks`   | ~2   |
+| Push to `develop` or `main`    | `CI Gate` + `pytest` + `eslint` + `All checks`, and Release Please on `main` | ~2   |
 
 **This table said something else until 2026-09-11, and it had never been true
 here.** It arrived as the template's placeholder and was never adapted: it named
@@ -139,9 +141,9 @@ Three things are load-bearing, and only the first two are about this tree today:
    once per interpreter, as `pytest <version>`, and a skipped matrix is never
    expanded: one check reports, named `pytest ${{ matrix.python }}` with the
    expression unexpanded, so a protection naming `pytest <version>` waits for
-   ever. Upstream that is a docs-only pull request; here `unit-tests` has no
-   `if:`, so it is only a failed `CI Gate` — which blocks rather than passes,
-   the safe direction, but for the wrong reason. **Require `pytest`, never
+   ever. `unit-tests` has no `if:` — here since round 7, upstream since
+   skeletor v0.59.0, because its tests read `docs/` — so the only skip is a
+   failed `CI Gate`, which `pytest` fails rather than passes. **Require `pytest`, never
    `pytest <version>`**: it is one job that `needs:` the matrix and always
    reports, so a change to the matrix also costs no protection edit. Which
    contexts are required is a setting no file here can see — ask the API (see
@@ -163,17 +165,41 @@ Three things are load-bearing, and only the first two are about this tree today:
    fires as soon as branch protection is satisfied, so an exemption that is
    missing then lets every eligible bump merge having run nothing.
 
+### Dependency updates
+
+`.github/dependabot.yml` proposes version updates monthly, each held back five
+days (`cooldown`) so a hijacked release can be yanked before it is proposed.
+`.github/workflows/dependabot-auto-merge.yml` merges a Dependabot pull request
+once CI passes on it, using the GitHub App's token (`APP_ID`, `APP_PRIVATE_KEY`)
+so the merge itself runs CI on the base branch. Patches and minors merge,
+security updates included, and so does a major in a dev manifest
+(`scripts/requirements.txt`, `requirements-dev*.txt`, `package.json`
+devDependencies), because the suite running under it is the migration test. A
+major anywhere else is runtime and is left for a person. The decision, and the
+list of dev manifests to extend, is `.github/scripts/dependabot-hold.cjs`. Without the App's secrets it merges
+nothing and says so in the run.
+
+The lint tools (black, flake8, isort, pyright) are ignored there. Each is pinned
+in two files and `tests/test_lint_tool_parity.py` is red until both agree, so a
+bump to one of them could never merge. Bump those by hand, in both files.
+
 ## Releases
 
-Versioning is the annotated git tag and nothing else. There is no `VERSION`
-file and no `CHANGELOG.md`: a repository run from a checkout already has the
-answer in `git describe`, and a file would be a second home for it — kept in
-step by hand, wrong the first time somebody forgets.
+Versioning is Conventional Commits → Release Please. Commit types decide the
+bump; `CHANGELOG.md` and `VERSION` are generated. **Never hand-edit either.**
 
-Cut a release with `git tag -a vX.Y.Z -m "what moved"` and **push the tag** — an
-unpushed tag names a version only your machine can resolve, and `dev --version`
-reads exactly this. Conventional commit subjects are still the rule; they are
-what a reader of `git log` between two tags gets instead of a changelog.
+The release lands on `main`, so back-merge it. Until you do,
+`develop` does not contain the release commit, and `git describe` there
+names the release before this one (mind.head):
+
+```bash
+git switch develop && git merge --no-ff main && git push
+```
+
+**This tree versioned by annotated tag until 2026-11-04**, when Jeston moved every
+adopter to Release Please and accepted that versions restart at the template's
+`0.1.0` seed. `v0.1.0` is the one tag from the tag era, so the first release here
+is whatever the commits since it earn.
 
 A release closes the report window: in-flight reports under
 `docs/reports/regular/` freeze into `docs/reports/releases/<tag>/`. See
@@ -213,3 +239,32 @@ SB_PYTHON=.venv-ci/bin/python ./dev check pre-push   # 3. CI's exact interpreter
 Step 3 matters more than it looks. A local venv that has drifted from CI's
 pinned interpreter produces failures that exist in one environment and not the
 other, and the tool names are identical, so the version never occurs to anyone.
+
+### After an upgrade
+
+An upgrade that writes leaves `tmp/upgrade/REPORT.md` behind: the conflict
+count, the base it started from and each pending file are filled in, and every
+other section says in a comment what belongs there. Fill those in, whoever ran
+it, so every upgrade of this tree is reported the same way. A second run of the
+same upgrade, such as `--ported`, keeps what you wrote and marks a conflict you
+resolved; an upgrade to a different version starts the file again.
+
+### A scheduled workflow
+
+No pull request runs a job triggered by `schedule:`, so its first real run is
+the night after the merge. Run it here first:
+
+```bash
+./dev check scheduled --plan   # what would run, and where it would stop
+./dev check scheduled          # run it: the working tree, a clean venv
+```
+
+It rehearses the working tree as `git add -A` would commit it, so run it straight
+after an upgrade, before committing. It exits 2 when no job could be rehearsed in
+full: nothing was checked, and that is not a pass.
+
+A clean venv is the point. A dependency only that job needs is missing there
+and present in your `.venv`, so the rehearsal fails and your own suite passes.
+What it cannot stand in for (another action, a secret, a condition beyond
+`github.event_name`) stops the job, and the job is reported as not rehearsed,
+never as passing. `scripts/rehearse_scheduled.py` has the rules.

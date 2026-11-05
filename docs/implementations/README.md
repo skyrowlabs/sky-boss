@@ -16,7 +16,7 @@ that were dropped, and the constraints that shaped what landed.
 
 **Machine-readable index**: [`../implementation_index.json`](../implementation_index.json).
 
-**24 archived plans** across 5 categories.
+**25 archived plans** across 5 categories.
 
 ---
 
@@ -41,7 +41,7 @@ that were dropped, and the constraints that shaped what landed.
 | ----- | ---- | --------- | ------- |
 | ⭐⭐⭐ | [Roll-call — many projects, one answer](projects/roll-call.md) | 2026-08-23 | Asks every declared project how it is and folds the answers without inventing a status vocabulary of its own. |
 | ⭐⭐⭐ | [The agent-state root](projects/state-root.md) | 2026-08-29 | Teaches sky.boss where agent state lives and adds `<project>:<path>` as an address rather than a command. |
-| ⭐⭐⭐ | [Agent sessions — who is running right now](projects/agent-sessions.md) | 2026-09-01 | Lists the agent sessions running right now across every provider, behind an adapter seam so a new provider is a new file rather than a new branch. |
+| ⭐⭐⭐ | [Agent sessions — who is running right now](projects/agent-sessions.md) | 2026-09-01 | Lists the agent sessions running right now across every provider, behind an adapter seam, and draws them on an `agents` screen that marks sessions sharing a repository as an advisory claim. |
 | ⭐⭐⭐ | [Jobs — sky.boss issues a schedule of its own](projects/jobs.md) | 2026-09-01 | Gives sky.boss a schedule of its own with systemd as the daemon, and enforces the act/observe split per subcommand rather than per group. |
 | ⭐⭐⭐ | [The schedule view](projects/schedule.md) | 2026-09-01 | Draws what fires next across projects and sky.boss's own jobs, ordered by an instant Python parsed and the page never re-reads. |
 | ⭐⭐ | [History — how did this go the last seven nights](projects/history.md) | 2026-09-01 | Reads a declared project's own run ledger newest-first — the only observe that looks backwards. |
@@ -52,7 +52,7 @@ that were dropped, and the constraints that shaped what landed.
 | ----- | ---- | --------- | ------- |
 | ⭐⭐⭐ | [Chrome — what a window knows about its output](rendering/chrome.md) | 2026-08-23 | Gives a window a band stating what it knows about its own output — quiet, late, dead — so silence and death stop looking alike. |
 | ⭐⭐⭐ | [Table views — shaping a foreign CLI's JSON into a table worth reading](rendering/table-views.md) | 2026-08-23 | The shaping contract — a view describes data and never filters it, decided in Python so both renderers draw what they are told. |
-| ⭐⭐⭐ | [The mark — a header for `sb`](rendering/header.md) | 2026-08-30 | Draws the sky.boss mark from one source so the CLI header, the README banner and the app icon cannot drift apart. |
+| ⭐⭐⭐ | [The mark — a header for `sb`](rendering/header.md) | 2026-08-30 | Draws the sky.boss mark from one source so the CLI header, the README hero and the app icon cannot drift apart. |
 | ⭐⭐ | [Wrap — a followed line that fits the window](rendering/wrap.md) | 2026-08-29 | Wraps a followed line to the window with a hanging indent, which is why a rendered line is a block rather than a span plus a newline. |
 
 ## Surfaces
@@ -62,6 +62,7 @@ that were dropped, and the constraints that shaped what landed.
 | ⭐⭐⭐ | [The MCP surface — the tools, offered to an agent](surfaces/mcp.md) | 2026-08-23 | Speaks MCP on stdio so an agent gets the same observes the operator does, and nothing that acts. |
 | ⭐⭐⭐ | [Workbench — where a command gets made](surfaces/workbench.md) | 2026-08-30 | A second screen where a command is authored rather than invoked: the contract is asserted, the argv drafted, and a trial run draws the real envelope. |
 | ⭐⭐⭐ | [The canvas — a command palette over a window canvas](surfaces/canvas.md) | 2026-09-26 | Replaces the removed terminal surface with a browser one — a command palette over draggable windows, where a pinned window re-runs itself on a Python-side cadence, and a right-click menu that takes what is on screen out of it. |
+| ⭐⭐⭐ | [The deck: a tmux command center for agent sessions](surfaces/command-deck.md) | 2026-11-04 | Adds `sb deck`, a tmux session holding one window per agent, plus a queue of sessions waiting on the operator, read by both surfaces. It is the first act surface beside the observe-only canvas. |
 
 ## Tooling
 

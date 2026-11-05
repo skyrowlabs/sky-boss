@@ -1,4 +1,4 @@
-"""`sb run` — the only door that writes.
+"""`sb run` — runs an argv you name; the general-purpose act.
 
 Runs an argv and reports what happened. That is the whole of it for now: the
 declarative job layer, its lanes and its ledger were removed on 2026-08-20 to
@@ -58,7 +58,7 @@ def run(
     delay: str | None,
     refresh: str | None,
 ) -> Result:
-    """Run a command and report what it printed. The only command that acts —
+    """Run a command and report what it printed. It acts, so
     it runs once, ever, and never takes a cadence, because re-running a write
     on a timer is a scheduler nobody asked for.
 

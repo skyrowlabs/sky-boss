@@ -1,0 +1,54 @@
+name: Unit setup
+description: >-
+  The interpreter and every dependency the unit suite imports. Every workflow that
+  runs the unit suite installs through this, so one edit here reaches all of them.
+
+# A tree whose suite needs more than scripts/requirements.txt (its own
+# requirements file, a system package) adds the step here. sky.boss's nightly
+# failed at import because its ci.yml had learned its own requirements and the
+# nightly's copy of the steps had not.
+#
+# sky.boss is that tree. Its suite imports `skyboss`, whose dependencies are in
+# requirements.txt, and `tests/test_readme.py` runs `./sb` with PATH pinned, so
+# the wrapper must find `.venv/bin/python` or those tests fail only on a runner.
+# So everything installs into a real `.venv`, and `.venv/bin` goes on PATH for
+# the steps after this one: a caller's bare `python` is then the venv's.
+
+inputs:
+  python-version:
+    description: The interpreter to install.
+    required: true
+  # Passed through to setup-python, so a caller keeps its pip cache without
+  # forking this file (proto.pilot dropped `cache: pip` on four legs rather than fork).
+  cache:
+    description: setup-python's `cache`, e.g. pip; empty is no cache.
+    required: false
+    default: ''
+  cache-dependency-path:
+    description: setup-python's `cache-dependency-path`; empty is its default.
+    required: false
+    default: ''
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@v7
+      with:
+        python-version: ${{ inputs.python-version }}
+        cache: ${{ inputs.cache }}
+        cache-dependency-path: ${{ inputs.cache-dependency-path }}
+    - name: Create the venv the wrapper expects
+      run: |
+        python -m venv .venv
+        echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+      shell: bash
+    # One `-r` per line: the setup-block gates read one target per `pip install`.
+    - run: |
+        .venv/bin/python -m pip install --upgrade pip
+        .venv/bin/pip install -r requirements.txt
+        .venv/bin/pip install -r requirements-dev.txt
+        .venv/bin/pip install -r scripts/requirements.txt
+      shell: bash
+    - name: Install the project, if it is one
+      run: .venv/bin/python scripts/install_project.py
+      shell: bash

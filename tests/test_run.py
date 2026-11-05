@@ -126,12 +126,12 @@ def test_the_scrub_is_two_variables_and_not_a_clean_room(monkeypatch):
     operator's shell would have given it. Only what sky.boss added to boot is taken."""
     monkeypatch.setenv("PYTHONPATH", "/somewhere")
     monkeypatch.setenv("PYTHONSAFEPATH", "1")
-    monkeypatch.setenv("SB_A_REAL_VARIABLE", "kept")
+    monkeypatch.setenv("FX_A_REAL_VARIABLE", "kept")
 
     env = child_env()
     assert "PYTHONPATH" not in env
     assert "PYTHONSAFEPATH" not in env
-    assert env["SB_A_REAL_VARIABLE"] == "kept"
+    assert env["FX_A_REAL_VARIABLE"] == "kept"
     # PATH is the operator's: the wrapper prepends its venv's bin, and stripping
     # that would be sky.boss choosing which python3 a foreign tool finds.
     assert env["PATH"] == os.environ["PATH"]
@@ -273,11 +273,11 @@ def test_env_reaches_the_child(tmp_path):
             "--json",
             "run",
             "--env",
-            "SB_DECLARED=hello",
+            "FX_DECLARED=hello",
             "--",
             "python3",
             "-c",
-            "import os; print(os.environ['SB_DECLARED'])",
+            "import os; print(os.environ['FX_DECLARED'])",
         ],
     )
     assert result.exit_code == 0, result.output

@@ -1,0 +1,17 @@
+# Jobs that are REGISTERED but deliberately not scheduled.
+#
+# Format:  <job-key>: "<why it is held off, and what would turn it on>"
+#
+# `dev report cron --check` reports these as `off (intentional)` and stays green.
+# Without an entry, a registered-but-unscheduled job reads as a missing crontab
+# line — which is the same signal as a job that silently stopped running, and
+# the two must stay distinguishable.
+
+# governor: "proposes gate changes; ships switched off until its proposals have been read once"
+
+# The drainers open draft pull requests unattended. Turning one on is a decision
+# about who reviews them, so it is made by deleting its line here and running
+# `dev report cron --install`. Try it first with `dev report <key> --dry-run`.
+agent-task: 'opens a draft PR per night from the agent-task lane; switched on deliberately'
+agent-fix: 'opens a draft PR per night from the agent-bug lane; switched on deliberately'
+dep-migrate: 'drafts a migration per night for a held runtime-major Dependabot PR; switched on deliberately'

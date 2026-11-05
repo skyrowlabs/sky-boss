@@ -62,7 +62,9 @@ from scripts.yaml_text import read_uncommented  # noqa: E402
 CHECK_PY = CLI_DIR / "check.py"
 WORKFLOWS = GITHUB_DIR / "workflows"
 
-_SCRIPT = re.compile(r"scripts/[a-z0-9_]+\.py")
+#: A script CI runs. `install_*` is setup, not a check: it changes the environment
+#: and judges nothing, and the setup block already runs it on the host.
+_SCRIPT = re.compile(r"scripts/(?!install_)[a-z0-9_]+\.py")
 _DASH_M = re.compile(r"-m\s+([a-z_]+)")
 _JOB = re.compile(r"^  (?P<id>[A-Za-z_][A-Za-z0-9_-]*):\s*$", re.MULTILINE)
 _NEEDS = re.compile(r"^\s+needs:\s*(?P<value>\S.*)$", re.MULTILINE)
@@ -92,16 +94,18 @@ def _markers() -> frozenset:
 #: A blocking check `pre-push` does not run, and the reason, which is checked
 #: against the thing it exempts on every run.
 #:
-#: `nostack` is a fact about the check: it needs services this host does not
-#: have, and that stays true however the tree changes. There is deliberately no
-#: second kind — an exemption because *nobody got round to it* is the state this
-#: file exists to make visible, not to license.
+#: Each entry is a fact about the check that stays true however the tree
+#: changes: services this host does not have, or a binary it need not have.
+#: An exemption because *nobody got round to it* is the state this file exists
+#: to make visible, not to license.
 UNREACHABLE: dict[str, str] = {
-    # Empty, and the test below fails if an entry goes stale rather than letting
-    # it sit. `pytest:integration` was here on arrival and was deleted rather
-    # than reworded: this tree declares the integration suite unscheduled
-    # (`cli/test_cmds.py`), so ci.yml does not run it and there is no unreachable
-    # check to excuse. An exemption for a check nobody runs is not an exemption.
+    # `pytest:integration` was here on arrival and was deleted rather than
+    # reworded: this tree declares the integration suite unscheduled
+    # (`cli/test_cmds.py`), so ci.yml does not run it and there is nothing to excuse.
+    "script:scripts/leak_scan.py": (
+        "needs the gitleaks binary, which CI installs and a host need not have; "
+        "the gitleaks commit hook scans the same changes as each one is staged"
+    ),
 }
 
 

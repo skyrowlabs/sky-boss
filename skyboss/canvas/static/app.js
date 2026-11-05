@@ -23,12 +23,13 @@ import * as api from "./api.js";
 import { Body, markedLine, summarise } from "./render.js";
 import { BENCH_WINDOW, Bench, RESIDENT, compose, tagPool } from "./bench.js";
 import { Plan } from "./schedule.js";
+import { Agents } from "./agents.js";
 import { Menu, contextOf, cwdOf, itemsFor, openableAt } from "./menu.js";
 
 const TILE = "tile";
 const FLOAT = "float";
 
-/* Three screens as of [[schedule]] round 4. The design pass drew four —
+/* Four screens as of [[agent-sessions]] round 3; three as of [[schedule]] round 4. The design pass drew four —
  * workbench, flight plan, control tower — and the rule here used to be that a
  * nav offering a screen that is not there is the palette's own failure wearing
  * different clothes: it has already told you the thing exists.
@@ -52,6 +53,8 @@ function tileColumns(count) {
 }
 const WORKBENCH = "workbench";
 const SCHEDULE = "schedule";
+/* The fourth, as of [[agent-sessions]] round 3: who is running now. */
+const AGENTS = "agents";
 
 /* The view flags a saved tool may carry in its argv, and the draft field each
  * belongs in. Named here rather than in the loop so adding a fourth is one
@@ -1212,6 +1215,9 @@ function App() {
    * `mode` went with the tab bar in [[schedule]] round 8: all three panels are
    * drawn, so nothing chooses between them. */
   const [planUi, setPlanUi] = useState({ projects: [], span: "24h" });
+  /* The agents screen's reading, kept beside it for the schedule's reason. */
+  const [crew, setCrew] = useState(null);
+  const [crewAt, setCrewAt] = useState(0);
   const [draft, setDraft] = useState(EMPTY_DRAFT);
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState(0);
@@ -1774,6 +1780,26 @@ function App() {
   useEffect(() => {
     if (screen !== SCHEDULE) return;
     readPlan();
+  }, [screen]);
+
+  /* Same funnel and same rule as the schedule: read on entering the screen
+   * and on demand, never on a browser timer. */
+  const readAgents = () => {
+    api
+      .run(["agents"])
+      .then((body) => {
+        setCrew(body);
+        setCrewAt(Date.now());
+      })
+      .catch((error) => {
+        setCrew({ error: String(error) });
+        setCrewAt(Date.now());
+      });
+  };
+
+  useEffect(() => {
+    if (screen !== AGENTS) return;
+    readAgents();
   }, [screen]);
 
   const actions = {
@@ -2464,6 +2490,12 @@ function App() {
           >
             schedule
           </button>
+          <button
+            class=${screen === AGENTS ? "on" : ""}
+            onClick=${() => setScreen(AGENTS)}
+          >
+            agents
+          </button>
         </div>
         <${BarPalette}
           commands=${commands}
@@ -2509,7 +2541,9 @@ function App() {
         />
       `}
 
-      ${screen === SCHEDULE
+      ${screen === AGENTS
+        ? html`<${Agents} result=${crew} readAt=${crewAt} now=${now} onRefresh=${readAgents} />`
+        : screen === SCHEDULE
         ? html`<${Plan}
             result=${plan}
             projects=${planSources}
@@ -2577,7 +2611,12 @@ function App() {
       />`}
 
       <div class="foot-bar">
-        ${screen === SCHEDULE
+        ${screen === AGENTS
+          ? html`
+              <span>⟳ re-read</span>
+              <span>a claim is a mark, never a lock</span>
+            `
+          : screen === SCHEDULE
           ? html`
               <span>⟳ re-read</span>
               <span>one mark per job — never a recurrence</span>

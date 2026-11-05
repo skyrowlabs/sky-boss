@@ -1,0 +1,185 @@
+name: Dependabot auto-merge
+
+# Merges a Dependabot pull request once CI has passed on it: patches and minors,
+# security updates included, and majors in dev manifests. A runtime major waits
+# for a person. The decision is
+# `.github/scripts/dependabot-hold.cjs`, which reads the diff. The shape is
+# jam.sense's `dependabot-auto-approve.yml`.
+#
+# `workflow_run`, not `pull_request`, for two reasons. A run triggered by a
+# Dependabot `pull_request` gets no Actions secrets, so it could not mint the App
+# token. And this runs after CI, so "CI passed" is a fact it reads rather than
+# one it waits for.
+#
+# The App token, not `GITHUB_TOKEN`: a push made with `GITHUB_TOKEN` starts no
+# workflow, so a merge made with it would land on the base branch with no CI run
+# there. Without the App's secrets this job says so and merges nothing.
+#
+# A held runtime major is labelled `dependabot-runtime-major`, so it can be found
+# by a person, or by a job that drafts migrations.
+#
+# `sweep` is the same decision over every open Dependabot pull request, daily and
+# on demand: one whose CI finished before this workflow existed, or while the
+# App's secrets were missing, never gets a `workflow_run` of its own.
+
+on:
+  workflow_run:
+    workflows: ['CI']
+    types: [completed]
+  schedule:
+    - cron: '17 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  merge:
+    if: >-
+      github.event_name == 'workflow_run' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'pull_request' &&
+      startsWith(github.event.workflow_run.head_branch, 'dependabot/')
+    concurrency:
+      group: dependabot-merge-${{ github.event.workflow_run.head_sha }}
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      HAS_RELEASE_APP: ${{ secrets.APP_ID != '' }}
+    steps:
+      - name: No App secrets, so nothing merges
+        if: env.HAS_RELEASE_APP != 'true'
+        run: echo "::notice::APP_ID / APP_PRIVATE_KEY are not set here; Dependabot pull requests stay open for a person."
+      - uses: actions/create-github-app-token@v3
+        id: app-token
+        if: env.HAS_RELEASE_APP == 'true'
+        with:
+          client-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+      # The default branch: this workflow's own decision script, never the pull
+      # request's code.
+      - uses: actions/checkout@v7
+        if: env.HAS_RELEASE_APP == 'true'
+      - uses: actions/github-script@v9
+        id: decide
+        if: env.HAS_RELEASE_APP == 'true'
+        with:
+          github-token: ${{ steps.app-token.outputs.token }}
+          script: |
+            const decide = require('./.github/scripts/dependabot-hold.cjs');
+            const { owner, repo } = context.repo;
+            // Each package.json and npm lockfile at the PR's base, so a bump is classed by
+            // where it is declared rather than by what the hunk happens to show. A file
+            // over 1 MB comes back without content, and the hunk decides.
+            async function baseManifests(pr, files) {
+              const manifests = {};
+              for (const path of decide.manifestPaths(files)) {
+                try {
+                  const { data } = await github.rest.repos.getContent({ owner, repo, path, ref: pr.base.sha });
+                  manifests[path] = Buffer.from(data.content, 'base64').toString('utf8');
+                } catch (error) {
+                  core.info(`${path} at the base could not be read (${error.status}); the hunk decides`);
+                }
+              }
+              return manifests;
+            }
+            const sha = context.payload.workflow_run.head_sha;
+            const pulls = await github.request('GET /repos/{owner}/{repo}/commits/{ref}/pulls', { owner, repo, ref: sha });
+            const pr = pulls.data.find((p) => p.state === 'open' && p.head.sha === sha);
+            if (!pr) {
+              core.info('no open pull request has this commit at its head');
+              return;
+            }
+            const files = await github.paginate(github.rest.pulls.listFiles, { owner, repo, pull_number: pr.number, per_page: 100 });
+            const verdict = decide({ pr, files, manifests: await baseManifests(pr, files) });
+            core.info(`#${pr.number}: ${verdict.reason}`);
+            core.summary.addRaw(`#${pr.number}: ${verdict.reason}\n`).write();
+            if (verdict.tier === 'runtime-major') {
+              await github.rest.issues.addLabels({ owner, repo, issue_number: pr.number, labels: ['dependabot-runtime-major'] });
+            }
+            core.setOutput('number', verdict.merge ? String(pr.number) : '');
+      # Auto-merge waits for any other required check; a branch with none
+      # refuses auto-merge as already mergeable, so that case merges directly.
+      - name: Merge
+        if: steps.decide.outputs.number != ''
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          PR: ${{ steps.decide.outputs.number }}
+        run: gh pr merge "$PR" --repo "$GITHUB_REPOSITORY" --merge --auto || gh pr merge "$PR" --repo "$GITHUB_REPOSITORY" --merge
+
+  sweep:
+    if: github.event_name != 'workflow_run'
+    concurrency:
+      group: dependabot-sweep
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      HAS_RELEASE_APP: ${{ secrets.APP_ID != '' }}
+    steps:
+      - name: No App secrets, so nothing merges
+        if: env.HAS_RELEASE_APP != 'true'
+        run: echo "::notice::APP_ID / APP_PRIVATE_KEY are not set here; Dependabot pull requests stay open for a person."
+      - uses: actions/create-github-app-token@v3
+        id: app-token
+        if: env.HAS_RELEASE_APP == 'true'
+        with:
+          client-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+      - uses: actions/checkout@v7
+        if: env.HAS_RELEASE_APP == 'true'
+      # A pull request merges only when the newest CI run on its head commit
+      # succeeded: an older green run under a newer red one is not a pass.
+      - uses: actions/github-script@v9
+        id: decide
+        if: env.HAS_RELEASE_APP == 'true'
+        with:
+          github-token: ${{ steps.app-token.outputs.token }}
+          script: |
+            const decide = require('./.github/scripts/dependabot-hold.cjs');
+            const { owner, repo } = context.repo;
+            // Each package.json and npm lockfile at the PR's base, so a bump is classed by
+            // where it is declared rather than by what the hunk happens to show. A file
+            // over 1 MB comes back without content, and the hunk decides.
+            async function baseManifests(pr, files) {
+              const manifests = {};
+              for (const path of decide.manifestPaths(files)) {
+                try {
+                  const { data } = await github.rest.repos.getContent({ owner, repo, path, ref: pr.base.sha });
+                  manifests[path] = Buffer.from(data.content, 'base64').toString('utf8');
+                } catch (error) {
+                  core.info(`${path} at the base could not be read (${error.status}); the hunk decides`);
+                }
+              }
+              return manifests;
+            }
+            const open = await github.paginate(github.rest.pulls.list, { owner, repo, state: 'open', per_page: 100 });
+            const merge = [];
+            for (const pr of open.filter((p) => p.head.ref.startsWith('dependabot/'))) {
+              const runs = await github.rest.actions.listWorkflowRunsForRepo({ owner, repo, head_sha: pr.head.sha, event: 'pull_request', per_page: 100 });
+              const ci = runs.data.workflow_runs.filter((run) => run.name === 'CI').sort((a, b) => b.run_number - a.run_number)[0];
+              if (!ci || ci.conclusion !== 'success') {
+                core.info(`#${pr.number}: CI on its head is ${ci ? ci.conclusion || ci.status : 'missing'}, so it waits`);
+                continue;
+              }
+              const files = await github.paginate(github.rest.pulls.listFiles, { owner, repo, pull_number: pr.number, per_page: 100 });
+              const verdict = decide({ pr, files, manifests: await baseManifests(pr, files) });
+              core.info(`#${pr.number}: ${verdict.reason}`);
+              core.summary.addRaw(`#${pr.number}: ${verdict.reason}\n`);
+              if (verdict.merge) merge.push(pr.number);
+              if (verdict.tier === 'runtime-major') {
+                await github.rest.issues.addLabels({ owner, repo, issue_number: pr.number, labels: ['dependabot-runtime-major'] });
+              }
+            }
+            await core.summary.write();
+            core.setOutput('numbers', merge.join(' '));
+      - name: Merge
+        if: steps.decide.outputs.numbers != ''
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          NUMBERS: ${{ steps.decide.outputs.numbers }}
+        run: |
+          for pr in $NUMBERS; do
+            gh pr merge "$pr" --repo "$GITHUB_REPOSITORY" --merge --auto || gh pr merge "$pr" --repo "$GITHUB_REPOSITORY" --merge
+          done

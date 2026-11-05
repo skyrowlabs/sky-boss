@@ -7,8 +7,8 @@ then ran into the ceiling of its medium — overlapping draggable windows are th
 central metaphor here, and a terminal cannot do them.
 
 **A surface, not a verb.** It renders the same envelope every command returns
-rather than adding one of its own, which is why `sb run` stays the only door
-that acts even with the canvas in front of it.
+rather than adding one of its own, so it adds no act: each command it launches
+still asserts `acts`, and that bit is what the canvas reads.
 
 The window is a native webview (`skyboss/canvas/shell.py`), which is what makes it
 frameless, resizable, and draggable by its own bar. `--browser` opens it in
@@ -128,8 +128,8 @@ def ui(
     """Open the canvas — a command palette over tiled and floating windows.
 
     A surface, not a verb: it renders the same envelope every command returns
-    and adds none of its own, which is why `sb run` stays the only door that
-    acts even with the canvas in front of it. Development mode:
+    and adds none of its own, so every act it launches is a command's own,
+    labelled by that command's `acts`. Development mode:
 
         sb ui --no-browser --port 8765
     """

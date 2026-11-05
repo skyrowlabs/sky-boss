@@ -1576,3 +1576,28 @@ pre.stream.wrap .ln {
  * highlight has to reach the lane cell as well as the text cells. */
 .pl-row:hover .pl-lane-cell,
 .pl-row:focus-visible .pl-lane-cell { background: var(--sb-surface-2); }
+
+/* --- the agents screen: [[agent-sessions]] round 3 ------------------------
+ * A claim band per shared repository, in the excluded band's shape: a brand
+ * rule and wash, because a claim is a statement about the rows below it and
+ * not a fault. `warn` is what a late job is on the schedule screen. */
+.ag-claim {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 2rem;
+  padding: 2rem 3rem;
+  font-size: 3rem;
+  border-left: 2px solid var(--sb-brand);
+  background: color-mix(in oklab, var(--sb-brand) 8%, transparent);
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+}
+.ag-claim b { color: var(--sb-text); }
+.ag-letter {
+  font-weight: 600;
+  color: var(--sb-brand);
+}
+.ag-note {
+  margin-left: auto;
+  color: var(--sb-text-2);
+}

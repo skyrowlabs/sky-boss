@@ -4,14 +4,18 @@ slug: agent-sessions
 category: projects
 agent_value: 3
 completed: 2026-09-01
-updated: 2026-09-01
+updated: 2026-10-17
 tags: [observe, agents, adapters]
-summary: Lists the agent sessions running right now across every provider, behind an adapter seam so a new provider is a new file rather than a new branch.
+summary: Lists the agent sessions running right now across every provider, behind an adapter seam, and draws them on an `agents` screen that marks sessions sharing a repository as an advisory claim.
 created: 2026-08-29
-key_files: [skyboss/agents.py, tests/test_agents.py, skyboss/__init__.py]
+key_files: [skyboss/agents.py, tests/test_agents.py, skyboss/__init__.py, skyboss/canvas/static/agents.js, skyboss/canvas/static/app.js, skyboss/canvas/static/sb.css, tests/js/agents.test.js]
 ---
 
 # Agent sessions — who is running right now
+
+> **Status**: 🟡 In progress — round 3, the `agents` screen
+> **Priority**: Medium — the second tower screen
+> **Updated**: 2026-10-17
 
 ## Why
 
@@ -152,9 +156,21 @@ repo, never written by sky.boss. Splitting it that way means shipping code for a
 operator has turned off, which is fine, and lets a machine with nothing installed stay silent with
 no config file existing at all. Round 1 ships one adapter and does not need the answer.
 
-### Round 3 — the band (not scheduled)
+### Round 3 — the `agents` screen (2026-10-17)
 
-The tower does not exist. When it does, this is a consumer of the envelope round 1 returns.
+~~The tower does not exist. When it does, this is a consumer of the envelope round 1 returns.~~
+The tower arrives a screen at a time, and this is the second after `schedule`. Ruled by the
+operator 2026-10-17; see Notes.
+
+- [x] A nav entry reading **`agents`**, drawing what `sb agents` returns — its own screen, not a
+      band on `schedule`. Named for what it shows, not `in flight`, by the rule that kept `plan` off
+      the nav.
+- [x] **A claim mark, derived by repository, not directory** — [[open]] item 7. Two live sessions
+      whose `cwd`s share a `git rev-parse --git-common-dir` are marked; that catches the jam-sense
+      worktrees, which a `cwd` comparison misses. The first command sky.boss runs that nobody
+      declared, so **only the derived boolean reaches the envelope** — never git's output. A `cwd`
+      that is not in a repository has no claim, and that is not an error.
+- [x] Advisory only, per item 7's 2026-09-01 ruling: a mark, never a lock or a refusal.
 
 ## Notes
 
@@ -234,3 +250,37 @@ back to eight, which is the exact failure [[schedule]] round 3 found.
 
 **The banner is a screenshot of root help**, so adding a command made `readme-banner.png` stale in
 the way no test can see. Re-rendered. See [[header]] round 3.
+
+### 2026-10-17 — round 3 ruled: a screen of its own, and claims by repository
+
+Two rulings from the operator, taken from [[open]] items 7 and 16 with a recommendation each.
+**A screen, not a band on `schedule`**: the two answer different tenses from different sources,
+and the schedule screen's filter rules would have to reach a population they were not written for.
+**Claims by repository**: the same-directory derivation costs nothing and misses the jam-pool
+worktrees, which are the case that motivated the item. Both are recorded as round 3's shape rather
+than built.
+
+### Round 3 — built (2026-10-17)
+
+**The claim is a letter, not the boolean the ruling named.** A boolean says a session shares a
+repository and not with whom; two separate contentions would draw as one. The letter is still
+derived — git's `--git-common-dir` is a grouping key and never reaches `data`, which a test holds
+with a fake git that prints a token. `A` is the claim held longest, because rows arrive oldest first.
+
+**Three answers again, as liveness had.** In a repository, in none, and *could not ask* (no git, or
+it timed out). The third is counted in a warning, because a row with no letter looks the same
+whether it is alone or was never asked. `GIT_DIR` and its two siblings are scrubbed from the probe's
+environment: inherited, they would have put every session in one repository.
+
+**Checked against real git, with a positive control.** The worktree test builds a repository and a
+worktree in `tmp_path`; swapping the probe for a `cwd` comparison fails it, which is the case the
+ruling chose repository for. Live, the two jam-sense sessions drew as `A` and the other four as none.
+
+**The screen reuses `Body`**, so the table is a window's table and the claim band is the only new
+drawing. Rendered headless at 0.9, 1.15 and 2.4 with `error` and `unhandledrejection` listening and
+a re-read after: no errors, nothing past the right edge. A manufactured empty home drew
+*registry present and empty* rather than a bare table.
+
+**Found and not fixed: shaped tables clip below their `ch` budget.** `PROVIDER` gets `8.25ch` and
+renders `PRO…`, in a canvas window exactly as on this screen, so it predates the round and belongs
+to [[table-views]]. Seen in headless Chromium only; the native shell's fonts are unmeasured.

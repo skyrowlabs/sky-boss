@@ -414,8 +414,8 @@ the output does *not* say, and takes the terminator half of this in its own roun
       the specific fix.
 - [x] **The header states type and dimensions.** `● data  table · 15 × 27`, from the view; scalar
       and mapping payloads say what they are too. Both renderers.
-- [x] **A fixture with a wrapper.** `tests/test_view.py` gains the shape of `jam report status
-      --json` — a metadata key beside a row list — for the same reason round 1's fixture was
+- [x] **A fixture with a wrapper.** `tests/test_view.py` gains the shape of
+      `jam report status --json` — a metadata key beside a row list — for the same reason round 1's fixture was
       synthetic, and covering the case round 1's fixture structurally could not.
 
 ### Round 3 — the budget is a fit, not a count (2026-08-22)
@@ -643,7 +643,7 @@ the tail wagging the dog."
 
 That reasoning held and the conclusion still did not survive the afternoon, because [[tools]]
 turned up needing the same directory for its own reasons and got there first. The useful part is
-*why the reversal cost nothing*: a tool is a sb argv, and `--cols` is a flag on a sb command, so
+*why the reversal cost nothing*: a tool is a sky.boss argv, and `--cols` is a flag on a sky.boss command, so
 the moment tools existed, saved column sets existed too — with no view store, no second config
 format, and no edit to this feature at all. **A flag composes with a mechanism that saves argvs; a
 bespoke persistence layer would not have.** Worth remembering the next time something here is
@@ -661,7 +661,7 @@ then hides it. The table you are left with identifies its rows by number alone.
 The fix is that the *first* prose column is the row's label and keeps its place;
 only the second and later ones move. `_label_of` in `skyboss/output.py` has treated
 the first string field as the label since long before this, so the corrected
-rule is one sb already believed.
+rule is one sky.boss already believed.
 
 **Rich's `ratio` and `min_width` are mutually exclusive, undocumentedly so.**
 The first implementation handed `flex` straight to Rich as a column `ratio` and
@@ -860,3 +860,17 @@ now one call per click, asserted.
 `head` (11) → re-run → still 11, strip still open. The re-run is the round's actual claim: a choice
 made against one payload holds across the next. All four bugs lived in the transitions; none is
 visible in any single state.
+
+### 2026-11-04 — a named empty list is zero rows
+
+**`--rows <key>` naming an empty list now returns zero rows instead of failing.** Round 4's
+`find_rows` accepted only a non-empty list of objects, even at a path the operator named, so
+`{"reminders": []}` reported *did not find a list of rows*. Measured by the skyrow-workspace session
+on a reminders producer with nothing due: roll-call drew an error, and `sb schedule` went partial.
+That is *worked fine, told nobody* inverted: "nothing due" read as a broken producer.
+
+The line is drawn at the assertion. A **named** `[]` is an answer. An **inferred** `[]` is still not
+a candidate, because an empty list has no values to be recognised by, which is round 4's own rule.
+Both renderers draw the named case as `table · 0 rows`, and any other empty list stays `-`, since
+nothing says it is a table. The canvas half was verified in a headless browser against a scratch
+`SB_HOME`.

@@ -411,3 +411,12 @@ def test_an_unknown_top_level_key_is_named_as_a_key_not_a_table():
 def test_an_unknown_table_is_still_called_a_table():
     _, problems = parse({"projct": {"jam-sense": {}}})
     assert problems == ["unknown table 'projct' — ignored"]
+
+
+def test_a_project_answering_an_empty_named_list_is_not_an_error(tmp_path):
+    write(tmp_path, """[project.empty]\nargv = ["printf", '{"reminders": []}']\nrows = "reminders"\n""")
+    from skyboss.rollcall import ask
+
+    (project,), problems = load(tmp_path)
+    result = ask(project)
+    assert not problems and result.ok and result.data == {"reminders": []}

@@ -722,3 +722,43 @@ def test_follow_refuses_ticks_and_says_why(said):
     result = CliRunner().invoke(cli, ["follow", "--ticks", "2", "/tmp/nothing.log"])
     assert result.exit_code == 2
     assert "counts refreshes" in said(result)
+
+
+def test_a_screen_frame_is_repainted_in_place_never_cleared():
+    import io
+
+    from rich.console import Console
+
+    from skyboss.resident import ERASE_BELOW, repaint
+
+    buffer = io.StringIO()
+    console = Console(file=buffer, force_terminal=True, width=40)
+    repaint(console, "first line\nsecond")
+    written = buffer.getvalue()
+    assert "\x1b[2J" not in written
+    assert written.startswith("\x1b[H") and written.endswith(ERASE_BELOW)
+    assert "first line" in written and "second" + " " * 34 in written
+
+
+def test_a_long_result_draws_no_band_inside_the_residencys_own():
+    """Past BAND_MIN_LINES a result bands itself; resident, the residency's frame is the only one."""
+    from rich.console import Console
+
+    from skyboss.output import BAND_MIN_LINES
+
+    clock = Clock()
+    recording = Console(record=True, width=60, height=80, force_terminal=True)
+    rows = [{"n": i} for i in range(BAND_MIN_LINES + 5)]
+    reside(
+        "long",
+        30,
+        lambda: Result(ok=True, data=rows),
+        clock=clock,
+        wait=clock.sleep,
+        console=recording,
+        screen=False,
+        ticks=1,
+    )
+    text = recording.export_text()
+    assert text.count("┌") == text.count("┐") and all("┌ sb" not in line for line in text.splitlines())
+    assert "┌ long" in text

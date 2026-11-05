@@ -78,9 +78,12 @@ CLI_NAME = "dev"
 #: picked a different fence label is making the same claim.
 BLOCK = re.compile(r"```(?:bash|sh|console)\n(.*?)```", re.DOTALL)
 
-#: `dev <group> [<command>]`, however it is introduced — bare, `./`-prefixed,
-#: or mid-line after a pipe or `&&`.
-INVOCATION = re.compile(rf"(?:^|\s|\./)\b{re.escape(CLI_NAME)}\s+([a-z][a-z-]*)(?:\s+([a-z][a-z-]*))?")
+#: `dev <group> [<command>]` in command position: a line's start, after `&&`,
+#: `||`, `;`, `|` or a `$` prompt, optionally `./`-prefixed. Any whitespace used to
+#: do, which read `npm run format` as a command when the CLI is called `run`.
+INVOCATION = re.compile(
+    rf"(?:^|(?:&&|\|\||[;|$])\s*)(?:\./)?{re.escape(CLI_NAME)}\s+([a-z][a-z-]*)(?:\s+([a-z][a-z-]*))?"
+)
 
 
 def known_commands() -> set:

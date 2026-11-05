@@ -15,8 +15,6 @@ ordering lives here and is *imported*, never reimplemented.
 
 from __future__ import annotations
 
-from typing import Tuple
-
 #: Priority rank, lowest first. Priority is the SECOND key, not the first: it
 #: answers "how much does this matter", which is a different question from
 #: "what should be built first", and several plans can honestly share one.
@@ -57,7 +55,7 @@ def queue_position(entry: dict) -> int:
         return UNORDERED
 
 
-def run_order(entry: dict) -> Tuple[int, int, str]:
+def run_order(entry: dict) -> tuple[int, int, str]:
     """Sort key: declared queue order, then priority, then slug.
 
     Three keys, each covering the previous one's blind spot:

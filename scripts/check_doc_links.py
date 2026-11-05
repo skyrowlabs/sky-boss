@@ -39,18 +39,19 @@ import json
 import os
 import re
 import sys
+from collections.abc import Iterator, Sequence
 from pathlib import Path
-from typing import Dict, Iterator, List, Optional, Sequence, Tuple
 
 # Bootstrap only: put the package on sys.path so `scripts.paths` — which
 # owns every path below — can be imported. See scripts/paths.py.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from scripts import allowlist  # noqa: E402
 from scripts.output import detail, emit, fail, item, ok, skip  # noqa: E402
-from scripts.paths import DOCS_DIR, GITHUB_DIR, PROJECT_ROOT, SCRIPTS_DIR  # noqa: E402
+from scripts.paths import DOCS_DIR, PROJECT_ROOT, SCRIPTS_DIR, is_foreign  # noqa: E402
 
 BASELINE = SCRIPTS_DIR / "doc_links_baseline.json"
-IGNORE_FILE = GITHUB_DIR / "scripts" / ".validate-ignore"
+ALLOWLIST = SCRIPTS_DIR / "doc_refs_allowlist.yaml"
 
 SCAN_ROOTS = ["docs", ".claude", ".github"]
 
@@ -154,16 +155,10 @@ def slugify(heading: str) -> str:
 
 
 def _ignored() -> set:
-    if not IGNORE_FILE.exists():
-        return set()
-    return {
-        line.strip()
-        for line in IGNORE_FILE.read_text(encoding="utf-8").splitlines()
-        if line.strip() and not line.startswith("#")
-    }
+    return set(allowlist.read(ALLOWLIST))
 
 
-def markdown_files() -> List[Path]:
+def markdown_files() -> list[Path]:
     """Every markdown file this checker is responsible for.
 
     The scan roots, plus **every `.md` at the top level** — discovered, not
@@ -204,7 +199,8 @@ def markdown_files() -> List[Path]:
     # far likelier, and their parametrised version rendered as `[NOTSET]` — an
     # empty parameter set, passing. The entries were right both times; the
     # predicate was wrong, and no amount of care about the entries reaches that.
-    return [p for p in out if "node_modules" not in p.relative_to(PROJECT_ROOT).parts]
+    rels = [(p, p.relative_to(PROJECT_ROOT)) for p in out]
+    return [p for p, rel in rels if "node_modules" not in rel.parts and not is_foreign(rel)]
 
 
 def _mask(text: str) -> str:
@@ -222,7 +218,7 @@ def _mask(text: str) -> str:
     return _COMMENT.sub(blank, _CODE_FENCE.sub(blank, text))
 
 
-def headings(path: Path) -> List[str]:
+def headings(path: Path) -> list[str]:
     """Every heading slug in a file, in document order.
 
     A list and not a set: `--fix` reports the successor it chose, and an
@@ -278,7 +274,7 @@ def _leaves_repo(walked: Path) -> bool:
     return str(walked) != root and not str(walked).startswith(root + os.sep)
 
 
-def _walk() -> Iterator[Tuple[Path, Path, str, "re.Match[str]"]]:
+def _walk() -> Iterator[tuple[Path, Path, str, re.Match[str]]]:
     """Every link in the tree, once: `(source, rel_source, original, match)`.
 
     The check and the fix share this generator rather than each writing their
@@ -302,7 +298,7 @@ def _contains_run(haystack: Sequence[str], needle: Sequence[str]) -> bool:
     return any(list(haystack[i : i + len(needle)]) == list(needle) for i in range(len(haystack) - len(needle) + 1))
 
 
-def _successor(anchor: str, available: Sequence[str]) -> Optional[str]:
+def _successor(anchor: str, available: Sequence[str]) -> str | None:
     """The one heading this dead fragment obviously became, or `None`.
 
     A heading edit breaks an anchor in one of two ways: the heading grew
@@ -338,12 +334,12 @@ def _successor(anchor: str, available: Sequence[str]) -> Optional[str]:
     return sorted(hits)[0] if len(hits) == 1 else None
 
 
-def scan() -> Tuple[List[str], List[str], List[str]]:
+def scan() -> tuple[list[str], list[str], list[str]]:
     ignore = _ignored()
-    dead_paths: List[str] = []
-    dead_anchors: List[str] = []
-    outside: List[str] = []
-    heading_cache: Dict[Path, List[str]] = {}
+    dead_paths: list[str] = []
+    dead_anchors: list[str] = []
+    outside: list[str] = []
+    heading_cache: dict[Path, list[str]] = {}
 
     for source, rel_source, _original, match in _walk():
         href = match.group("href")
@@ -376,7 +372,7 @@ def scan() -> Tuple[List[str], List[str], List[str]]:
     return dead_paths, dead_anchors, outside
 
 
-def repoint_fragments() -> List[str]:
+def repoint_fragments() -> list[str]:
     """Rewrite every dead fragment that has exactly one obvious successor.
 
     Deliberately narrower than the check. It touches **fragments only** — a
@@ -388,9 +384,9 @@ def repoint_fragments() -> List[str]:
     Commits nothing. Read the diff.
     """
     ignore = _ignored()
-    heading_cache: Dict[Path, List[str]] = {}
-    edits: Dict[Path, List[Tuple[int, int, str]]] = {}
-    repointed: List[str] = []
+    heading_cache: dict[Path, list[str]] = {}
+    edits: dict[Path, list[tuple[int, int, str]]] = {}
+    repointed: list[str] = []
 
     for source, rel_source, original, match in _walk():
         href = match.group("href")
@@ -434,7 +430,7 @@ def repoint_fragments() -> List[str]:
     return sorted(repointed)
 
 
-def _repoint_and_report() -> List[str]:
+def _repoint_and_report() -> list[str]:
     """`--fix`'s repair pass and its report, lifted out of `main`.
 
     Not a stylistic split: `main` is measured by `flake8 --max-complexity=15` in

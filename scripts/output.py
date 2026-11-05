@@ -34,7 +34,8 @@ from __future__ import annotations
 
 import json
 import sys
-from typing import Any, Iterable, NoReturn, Sequence, Tuple
+from collections.abc import Iterable, Sequence
+from typing import Any, NoReturn
 
 #: The whole vocabulary. Add a state here, never at a call site.
 #:
@@ -174,14 +175,14 @@ def badge(outcome: str) -> str:
 # ── The gate table ───────────────────────────────────────────────────────────
 
 
-def summarize(results: Iterable[Tuple[str, int]]) -> int:
+def summarize(results: Iterable[tuple[str, int]]) -> int:
     """Print a pass/fail table for a set of gates and return the exit code.
 
     Every gate runs even when an earlier one failed. A pre-push check that stops
     at the first red gives you one fix per round trip; the whole point is to
     learn everything that is wrong in a single run.
     """
-    rows: Sequence[Tuple[str, int]] = list(results)
+    rows: Sequence[tuple[str, int]] = list(results)
     print("\n" + "─" * _RULE_WIDTH, file=sys.stderr)
     for name, code in rows:
         _say(SYMBOLS["ok"] if code == 0 else SYMBOLS["fail"], f" {name}")

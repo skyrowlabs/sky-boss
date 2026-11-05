@@ -66,7 +66,6 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import List, Optional, Tuple
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -102,7 +101,7 @@ SENTINEL_IMPORTS = ("click", "pytest")
 _VENV_BINDIRS = (("bin", "python"), ("bin", "python3"), ("Scripts", "python.exe"))
 
 
-def resolve_interpreter(config: Path) -> Tuple[Optional[Path], str]:
+def resolve_interpreter(config: Path) -> tuple[Path | None, str]:
     """The interpreter pyright will use for `config`, and where it came from.
 
     Mirrors pyright's own order, measured rather than read out of the docs:
@@ -146,7 +145,7 @@ def resolve_interpreter(config: Path) -> Tuple[Optional[Path], str]:
     return None, "neither python3 nor python is on PATH"
 
 
-def probe(interpreter: Path, module: str) -> Tuple[bool, str]:
+def probe(interpreter: Path, module: str) -> tuple[bool, str]:
     """Can `interpreter` import `module`? Any failure to run it is a failure."""
     try:
         proc = subprocess.run(
@@ -163,7 +162,7 @@ def probe(interpreter: Path, module: str) -> Tuple[bool, str]:
     return False, output.splitlines()[-1] if output else f"exited {proc.returncode} with no output"
 
 
-def preflight(config: Path) -> Tuple[Optional[Path], List[str]]:
+def preflight(config: Path) -> tuple[Path | None, list[str]]:
     """`(interpreter, [])` when the environment is sound, `(None, lines)` otherwise."""
     interpreter, source = resolve_interpreter(config)
     if interpreter is None:
@@ -202,7 +201,7 @@ def preflight(config: Path) -> Tuple[Optional[Path], List[str]]:
     return interpreter, []
 
 
-def main(argv: Optional[List[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,

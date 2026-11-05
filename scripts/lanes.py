@@ -24,21 +24,18 @@ The design is jam.sense's. Theirs is a ``Capture`` descriptor driving one engine
 with two shapes, and their reason for it is the one that generalises: *a second,
 subtly-different copy of a capture is how the next intake loses a finding.*
 
-**What is deliberately not here: the drain.** A lane names the job key that would
-empty it, and this template ships no such job — ``scripts/reporting/jobs.py``
-(SCAFFOLD-OPTIONAL scripts/reporting/jobs.py — it arrives with the agentic tier,
-and every reader below tests for it rather than assuming it)
-ships exactly one fully-worked entry on purpose, and a registry seeded with keys
-whose modules do not exist is a registry whose own tests are red on arrival. So
-:func:`drainer_of` answers *honestly* rather than optimistically, and every
-consumer renders what it gets: a fresh tree's queues are drained by you, and say
-so. Add a job with the lane's ``drainer_job`` key and every consumer picks up its
-schedule with no second edit.
+**The drain arrives with the agentic tier.** A lane names the job key that
+empties it, and ``scripts/reporting/jobs.py`` (SCAFFOLD-OPTIONAL
+scripts/reporting/jobs.py — it arrives with the agentic tier, and every reader
+below tests for it rather than assuming it) registers ``agent-task`` and
+``agent-fix`` under those keys. Below that tier there is no registry, and
+:func:`drainer_of` says so rather than guessing: a ``core`` tree's queues are
+drained by you, and every consumer says that in those words.
 """
 
 from __future__ import annotations
 
-from typing import Any, List, NamedTuple, Optional, Tuple
+from typing import Any, NamedTuple
 
 from scripts.paths import SCRIPTS_DIR
 
@@ -66,7 +63,7 @@ class Section(NamedTuple):
 #: A defect found while doing something else. Every section here answers a
 #: question the fixer would otherwise have to come back for, and `reproduce` is
 #: the one that makes it a bug report rather than a rumour.
-BUG_SECTIONS: Tuple[Section, ...] = (
+BUG_SECTIONS: tuple[Section, ...] = (
     Section("finding", "path:line + what is wrong"),
     Section("reproduce", "exact command; observed vs expected", fenced=True),
     Section("scope", "what is in, and what is explicitly out"),
@@ -77,7 +74,7 @@ BUG_SECTIONS: Tuple[Section, ...] = (
 #: failure to reproduce — which is exactly why a flag on the bug intake was the
 #: wrong shape and this is a second lane. `why` is not decoration: it is what
 #: stops a task queue becoming a wish list.
-TASK_SECTIONS: Tuple[Section, ...] = (
+TASK_SECTIONS: tuple[Section, ...] = (
     Section("what", "the change itself, in terms of the files it touches"),
     Section("why", "what is worse today because this has not been done"),
     Section("acceptance", "the assertions; the command that must pass"),
@@ -94,7 +91,7 @@ class Lane(NamedTuple):
     #: Hex, no leading ``#`` — what ``gh label create --color`` wants.
     color: str
     description: str
-    sections: Tuple[Section, ...]
+    sections: tuple[Section, ...]
     #: Shown in the editor's issue view. Human words, because that is where it
     #: is read; the label is the machine name and is shown in the query itself.
     title: str
@@ -111,7 +108,7 @@ class Lane(NamedTuple):
 #: means adding its intake in the same change; `tests/test_lanes.py` fails
 #: otherwise, and `scripts/gen_vscode_queries.py` would otherwise put a
 #: permanently-blank pane in the editor of everyone who scaffolds.
-LANES: List[Lane] = [
+LANES: list[Lane] = [
     Lane(
         key="bug",
         label="agent-bug",
@@ -119,7 +116,7 @@ LANES: List[Lane] = [
         description="A defect captured mid-session; queued for a fix drainer",
         sections=BUG_SECTIONS,
         title="Agent Bugs",
-        drainer_job="agent-bug",
+        drainer_job="agent-fix",
         emoji="🐛",
     ),
     Lane(
@@ -137,16 +134,35 @@ LANES: List[Lane] = [
 LANES_BY_KEY = {lane.key: lane for lane in LANES}
 LANES_BY_LABEL = {lane.label: lane for lane in LANES}
 
+#: Who filed a capture: a person in a session, or a scheduled job by its key.
+SESSION = "session"
 
-def labels() -> List[str]:
+#: Where the job runner names the job for every capture its agent files. Unset is
+#: a person; nothing else sets it, so a job cannot file as one by omission.
+SOURCE_ENV = "SB_CAPTURE_SOURCE"
+
+#: How many captures one job may have open, across every lane, at once.
+#:
+#: Standing rather than per run, so an unattended filer is self-limiting: a job
+#: at its cap files nothing until somebody works the queue down, and a finding it
+#: skips stays in its report. jam.sense's number (`jam-sense@a4894a3ac`).
+SOURCE_CAP = 3
+
+
+def source_line(source: str) -> str:
+    """The body line that attributes a capture, and the needle its count reads."""
+    return f"_Source: `{source}`_"
+
+
+def labels() -> list[str]:
     """Every lane label, in registry order. The set the editor views partition."""
     return [lane.label for lane in LANES]
 
 
-def job_registry() -> Optional[Any]:
+def job_registry() -> Any | None:
     """`scripts.reporting.jobs` if this tree ships it, else ``None``.
 
-    Typed `Optional[Any]` rather than `Optional[object]`, and that is a real
+    Typed `Any | None` rather than `object | None`, and that is a real
     choice rather than laziness: the module is resolvable at some tiers and not
     others, so there is no annotation that is true everywhere, and `object`
     makes every attribute access on the result an error at every tier —
@@ -184,7 +200,7 @@ def job_registry() -> Optional[Any]:
     return jobs
 
 
-def drainer_of(lane: Lane) -> Optional[object]:
+def drainer_of(lane: Lane) -> object | None:
     """The registered job that drains this lane, or ``None`` if nothing does.
 
     Two ways to get ``None`` and they are deliberately the same answer, because

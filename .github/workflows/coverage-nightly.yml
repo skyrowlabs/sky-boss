@@ -1,0 +1,122 @@
+name: Nightly Coverage
+
+# Runs the suites that a pull request does not, on a schedule, because their
+# verdict does not change a merge decision — only a weekly one.
+#
+# The rule this encodes: **detection latency should match consequence latency.**
+# Nothing on the integration branch reaches a user until a release, so a check
+# belongs on a nightly or on the release train unless its cost GROWS before then.
+#
+# It must set up the way ci.yml does — see check_workflow_drift.py, which holds
+# every job that runs pytest to the steps a suite needs. The bug that check
+# exists for was exactly this workflow missing a setup step that ci.yml had, so
+# three tests failed every run for two days and had never once been green, while
+# the same tests passed on pull requests. It then happened again here, to the
+# project install, because the check only enrolled jobs that start a stack.
+
+# NEITHER TRIGGER BELOW FIRES UNTIL THIS FILE REACHES THE DEFAULT BRANCH, and
+# that is a property of the repository's settings rather than of anything here.
+# `skeletor-new` defaults to `--base-branch develop` while `gh repo create`
+# commonly leaves `default_branch` at `main`, so a scaffolded tree is in that
+# state by construction and nothing in it can say so.
+#
+# Measured across seven trees: one with this file on its default branch has four
+# successful `schedule` runs; one with the identical file on a non-default
+# branch went five days and five cron windows with zero scheduled runs of any
+# workflow. `workflow_dispatch` is not the escape hatch it looks like either —
+# `gh workflow run` answers `404: workflow not found on the default branch`
+# until some event has fired this file, so **the manual override is unavailable
+# exactly when the automatic one has not run.**
+#
+# The remedy is one API call, and it is written here rather than behind a
+# pointer because the pointer was wrong: the first draft of this comment sent
+# you to the generator's own setup guide, which no scaffolded tree ships. This
+# tree's `scripts/check_source_doc_refs.py` caught it, which is the check
+# working — a fact that lives outside every file still has to be actionable
+# from inside this one.
+#
+#     gh api -X PATCH repos/<org>/<slug> -f 'default_branch=<this branch>'
+#
+# Until then this job is not red and not skipped — it is unregistered, which is
+# the state with nothing to query. Locking in a coverage ratchet and giving it
+# no runner is `continue-on-error` reporting success one workflow over.
+# `dev check scheduled` runs this job locally, in a clean venv, which is the
+# only way to see it pass before its first night.
+on:
+  schedule:
+    - cron: '15 4 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  coverage:
+    name: Coverage & ratchets
+    runs-on: ubuntu-latest
+    env:
+      SB_CI: '1'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: develop
+          fetch-depth: 0
+
+      # ci.yml's unit job installs through the same action, so the two cannot
+      # differ: they once did twice, and each time the nightly failed at import
+      # while pull requests were green (proto.pilot, then sky.boss).
+      - uses: ./.github/actions/unit-setup
+        with:
+          python-version: '3.12'
+
+      # One junit report per marker, because the two ratchets below measure
+      # opposite kinds of thing. A skip count belongs to the run that produced
+      # it — `count_skips` sums a whole report, so a combined one charges
+      # integration's skips to the unit budget and says "unit" while doing it.
+      # Coverage is the reverse: a whole-tree line rate that both runs
+      # contribute to, so they append into one data file and the xml is written
+      # once, in its own step, where an empty integration selection cannot skip
+      # it.
+      - name: Full suite with coverage
+        run: |
+          mkdir -p tmp
+          python -m pytest tests/ -m unit -q \
+            --junitxml=tmp/junit-unit.xml \
+            --cov --cov-report= \
+            --durations=25
+          status=0
+          python -m pytest tests/ -m integration -q \
+            --junitxml=tmp/junit-integration.xml \
+            --cov --cov-append --cov-report= \
+            --durations=25 || status=$?
+          # Exit 5 is pytest for "the marker selected nothing", and a scaffold
+          # ships no integration tests. The report is still written, so the
+          # ratchet reads a real zero rather than a missing file.
+          [ "$status" -eq 0 ] || [ "$status" -eq 5 ]
+          # Every other suite the registry schedules, read from it rather than
+          # listed: a tree that unschedules `ui` does not run it here (proto.pilot),
+          # and one that schedules it is measured over it (stash.flow: 79% vs 93%).
+          # Read into a variable first: under `bash -e` a failed substitution in an
+          # assignment stops the step, and in a `for` list it reads as no suites.
+          suites=$(python -m cli test suites --scheduled)
+          [ -n "$suites" ]
+          for marker in $suites; do
+            case "$marker" in unit | integration) continue ;; esac
+            status=0
+            python -m pytest tests/ -m "$marker" -q \
+              --cov --cov-append --cov-report= || status=$?
+            [ "$status" -eq 0 ] || [ "$status" -eq 5 ]
+          done
+          python -m coverage xml -o tmp/coverage.xml
+
+      - name: Coverage ratchet
+        # The key `dev test coverage` checks with no flags: one set, one name.
+        run: python scripts/check_coverage_budget.py --suite scheduled
+
+      - name: Skip budget
+        run: |
+          python scripts/check_skip_budget.py --suite unit --junit tmp/junit-unit.xml
+          python scripts/check_skip_budget.py --suite integration --junit tmp/junit-integration.xml
+
+      - name: Workflow drift
+        run: python scripts/check_workflow_drift.py

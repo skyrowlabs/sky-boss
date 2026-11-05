@@ -2801,3 +2801,336 @@ except `./dev test coverage` by hand, so locking a number is Jeston's call.
 stash.flow had. A fresh run measured the same 89.37% over the same 5420 own
 statements (16281 whole, at 91.58%), and `own_baseline_pct: 89.37` is now in
 `tests/coverage_budget.json`. The ratchet still runs only by hand.
+
+### Round 39 — 2026-10-02: v0.42.0, a release-job hunk with no job to land in
+
+One conflict: `ci.yml`. The whole hunk is in the template's `release` job,
+which gains a GitHub App token door and pins `target-branch` to the release
+branch. This fork has no `release` job — round 7 declined the graph, and the
+tree versions by tag, so there is no `.github/release-please-config.json`
+either. The port is empty, as in round 29. Advanced with `--ported`.
+
+The job is not wanted back. In a `--versioning tag` tree, the template's job
+only prints a notice that Release Please is not configured. The App token it
+would mint has nothing to open a pull request for. If this tree ever moves to
+Release Please, take the job verbatim then, with `target-branch` pinned. An
+unpinned job here would open its release PR against `develop`.
+
+`pr-draft-discipline.yml` merged cleanly. The fix is to its comment, not its
+behaviour: `pull_request_target` runs the **default** branch's copy, not the
+base branch's. Our header made no claim about which branch that is, so nothing
+of ours went false.
+
+### Round 40 — 2026-10-14: v0.43.0, one untouched test and a replayed probe
+
+One file, untouched here, updated cleanly: `tests/test_workflow_permissions.py`
+gains `job_headers()` and a direct test of it. Checked rather than trusted:
+reverting the `^jobs:` scope fails the new test alone, and the nine predicate
+rows stay green — mind.head's point, that those rows could not catch it. The
+release skill's Phase D change does not reach this tree, which ships no
+release skill.
+
+The tool's new `conflicts_without_anchor` report had nothing to fire on this
+round. Replaying round 39 (v0.41.1 → v0.42.0) in a scratch worktree with the
+v0.43.0 tool showed it: `ci.yml` is listed in `--json` and flagged in prose
+as having none of its seven changes' context in our file. That is the
+release-job hunk round 39 ported as empty by reading.
+
+### Round 41 — 2026-10-14: v0.45.0, a relabel, and round 40's probe re-run
+
+Nothing rendered here changed between v0.43.0 and v0.45.0. The dry run called
+it a relabel of the record, and the apply moved `.skeletor.json` alone. The
+apply also confirmed the tag is on origin, a check the tool used to leave to us.
+
+The round-39 replay was re-run with the v0.45.0 tool, with results predicted
+first. `ci.yml` is still listed under `conflicts_without_anchor`. Its count now
+reads "2 patch hunk(s)", which matches the two `@@` in the `.patch`; v0.43.0
+said "7 change(s)". The normalise diagnostic is down to one line.
+
+### Round 42 — 2026-10-14: v0.46.0, capture attribution and a per-job cap
+
+Clean. One new file (`tests/test_capture_source.py`) and three untouched files
+updated (`cli/_capture.py`, `scripts/lanes.py`, `tests/test_lanes.py`). The
+render differs from the tag only by placeholder substitution. `--normalise`
+found nothing in doubt and reported binding black and isort.
+
+`dev bug` and `dev task` take `--source <job>`. No sky.boss job files captures,
+so here this only changes the scaffold's own `dev`. Probed with `gh` off PATH so
+nothing could be filed. A malformed key is a usage error. A job that cannot
+count its open captures is refused before filing. A `--local` capture is
+written without its source, which went upstream as a finding.
+
+### Round 43 — 2026-10-14: v0.47.0, the capture source moves off the command line
+
+Clean. `tests/test_agent_settings.py` is new. `.claude/settings.json`,
+`cli/_capture.py`, `scripts/lanes.py` and the two capture tests were untouched
+here and are replaced. The render differs from the tag only by placeholder
+substitution, and `SOURCE_ENV` renders as `SB_CAPTURE_SOURCE`. The settings file
+loses `Bash(gh issue create*)` and nothing else.
+
+Round 42's finding was re-measured with `gh` stubbed. The source now comes from
+`SB_CAPTURE_SOURCE` and `--source` is gone. Local captures record the source,
+or `session` when none is set, and two in one second write two files. This tree
+ships no job registry, so a job source is refused before filing. The refusal
+comes after one read-only `gh issue list`, never after an issue is created.
+
+### Round 44 — 2026-10-14: v0.48.1, a refused capture asks `gh` nothing
+
+Clean. `tests/test_freeze_release.py` is new. `cli/_capture.py`, the two
+`scripts/docs/` release scripts and the two capture tests were untouched here
+and are replaced. Neither declined file changed upstream in this window.
+
+Round 43's last sentence is out of date. It was re-measured with a logging
+`gh` stub first on PATH. A job source and an explicit `session` are now both
+refused as unregistered, with **zero** `gh` calls. With nothing set, a local
+capture still records `session`.
+
+`freeze-release` was run against a throwaway tag in a scratch clone. With zero
+reports it writes `WINDOW.md` and an index entry. A second freeze of the same
+tag is refused, and `dev check docs` stays green.
+
+### Round 45 — 2026-10-14: v0.49.0, `doctor`, `inbox`, and our own publication test returns
+
+One conflict and one collision. `scripts/check_source_doc_refs.py` had a comment
+edited to dodge our home-anchored-path shape (a tilde before `build/`). The template made the same fix, so it
+folded back and is now byte-identical to the template.
+
+The template now ships its own `tests/test_publication.py`, ported from ours. **Ours is
+held.** The template's version exempts by `<path> <match>` in an allowlist, and this
+tree would need 51 entries: 28 invented `10.0.0.x` addresses in two frozen renders,
+13 `~/src` stand-ins, and the rest placeholders. Ours does that with an eight-word
+placeholder vocabulary and a two-file exemption. Two of their changes were ported into
+ours: a positive control, and self-scanning instead of skipping itself. Their
+version-pin guard on IPv4 came across as well. `tests/publication_allowlist.yaml`
+has no reader here, so it is deleted.
+
+`.github/actionlint.yaml` is deleted too. Both of its ignores are for the
+template's release job, which round 7 declined. actionlint passes without it, and a
+broken `needs:` proved the hook reads `ci.yml`. `tests/test_doctor.py` asserted that
+`ci.yml` reads the release secrets. It now uses the same `RELEASE_CONFIG` guard as
+its sibling test and as `doctor` itself. `dev doctor` and `dev inbox` were run
+read-only and both came back green.
+
+`tests/test_naming.py` and `scripts/prose.py` were not offered. `skeletor-new`
+leaves both out when `--cli` is an ordinary word, and `dev` is one. Our
+`tests/test_naming.py` checks `sb`, not `dev`, so nothing is lost. Standing
+divergences: 28 → 29.
+
+### Round 46 — 2026-10-15: v0.50.0, all three declines answered, two fold back
+
+skeletor accepted the three findings from round 45, and both conflicts this round are
+those answers arriving.
+
+`tests/test_publication.py` is now the template's verbatim, and ours is retired. The
+allowlist accepts a bare match and a whole tracked path as keys, so this tree's
+placeholder vocabulary and its two frozen renders are entries in
+`tests/publication_allowlist.yaml`, each stale-checked. Before it was filled, the
+template's scan found 52 findings, every one an existing placeholder or a render. Two
+old placeholders, `user` and `me`, matched nothing and were dropped. Our file never
+checked whether its own vocabulary was still needed. The template's version keeps the
+positive control, the self-scan and the version-pin guard ported into ours last round.
+One thing is lost: ours also failed CI on a tracked `.env`. That is now held only by
+`.gitignore` and a local pre-commit hook, and it went upstream as a finding.
+
+`tests/test_doctor.py` is verbatim too. Its guard on `RELEASE_CONFIG` replaces ours
+and asserts *not applicable* rather than returning. `.github/actionlint.yaml` stays
+deleted. The new `tests/test_actionlint_ignores.py` passes with it absent and fails
+with the template's copy restored, so the decline is now the state the template
+expects.
+
+Probes, with the outcome predicted before each was run: a stale allowlist key fails,
+a real-looking home path in a doc fails, and `dev doctor` reads required checks on
+`develop` and `main` as two facts, with the release fact *not applicable*. All four
+matched. Standing divergences: 29 → 28.
+
+### Round 47 — 2026-10-15: v0.50.1, the negotiation closes
+
+Clean. Four files we never touched were updated: `cli/doctor.py` and three tests.
+`.github/actionlint.yaml` stays deleted, and the template's test agrees. The other
+two answers from round 45 are verbatim.
+
+`dev doctor` now reads each branch's workflows at that branch's ref and refuses a
+required check that only a matrix job reports. All four contexts here are reported
+by non-matrix jobs on both branches, so the prediction was ✅ for `develop` and
+`main`. That is what it reported.
+
+This tree's finding, a tracked `.env`, was re-measured in a throwaway clone. With
+`.env`, `.env.local`, `.env.example` and `.env.ci` force-added, the scan failed on
+exactly the first two, as predicted. The clone passed before they were added.
+Standing divergences: 28 → 28. Nothing is left open with skeletor.
+
+### Round 48 — 2026-10-15: v0.51.0, a unit test reaches loopback only
+
+Clean. 25 files we never touched were updated, `tests/conftest.py` and
+`tests/scanning.py` merged without conflict, and `tests/guards.py` is new. The guard
+is an autouse fixture keyed on the `unit` marker. Every test here carries it, so it
+covers the whole suite. It went green with no sky.boss test changed. The collected
+IDs only gained tests: six guard tests, plus `test_naming` scanning the new file.
+
+Probes, with the outcome predicted before each was run. A routable `connect` in a unit
+test raises, and `GH_TOKEN` set in the shell is gone inside the test. Both matched. A
+child process the test spawns connects to a routable address unrefused, as predicted:
+the guard patches this interpreter's socket, and this suite spawns real children
+throughout. That went upstream as a finding. Standing divergences: 28 → 28.
+
+### Round 49 — 2026-10-15: v0.51.1, the guard's claim now holds
+
+Clean. Six files we never touched were updated, and `tests/conftest.py` merged
+cleanly. The collected test IDs are identical before and after.
+
+Round 48's finding was answered with a docstring. `tests/guards.py` now says the
+guard holds only the test's own interpreter, and that a child inherits the hidden
+environment and nothing else. The prediction, stated before re-running the round-48
+probe with `GH_TOKEN` and `APP_PRIVATE_KEY` set in the shell, was:
+
+- the child's routable `connect` is attempted and not refused;
+- the child sees neither variable. `APP_PRIVATE_KEY` is new: the widened secret
+  shape now matches it.
+
+Both matched, so the docstring is now true for this tree.
+
+`conftest.py` now ends in a frozen *your fixtures go below this line* rule. Ours
+(`sb_state`, `sb_home`, `said`, `at_a_terminal`) sit at the top of the file, and the
+template's always arrive at the end. That is why they merged cleanly in both rounds
+that touched this file. They stay where they are. Standing divergences: 28 → 28.
+Nothing is open with skeletor.
+
+### Round 50 — 2026-10-15: v0.51.2, the frozen block moves once
+
+Clean. The only change is the wording of `conftest.py`'s frozen *your fixtures go
+below* block, which now covers imports too. It merged without conflict here
+because our fixtures sit at the top of the file and nothing of ours touches the
+block.
+
+The workspace read that any edit to the end of the block conflicts in every tree
+that follows its instruction. That was checked in a throwaway clone of `develop`,
+with the prediction stated first. One fixture appended directly under the v0.51.1
+block made `--dry-run --ref v0.51.2` report `tests/conftest.py` as a conflict, as
+predicted. The block is frozen only for as long as it never changes. That went
+upstream as a finding. Standing divergences: 28 → 28.
+
+### Round 51 — 2026-10-15: v0.53.0, the template's commit gate arrives beside ours
+
+Two conflicts, both forecast. `cli/check.py` took the template's `clone-local
+config` pre-push step as written. `ci.yml` kept our `Commit subjects the hook
+would have caught` step and ported nothing of the template's renamed one.
+
+v0.53.0's `check_commit_subjects.py` now runs the hook in a `--versioning tag`
+tree, and its docstring says it was derived from `check_commit_style.py`. So the
+question was whether ours was a stopgap that folds back. It was measured on a
+scratch range rather than read. Theirs passed two commits that ours refuses: a
+second subject line in a body, because theirs hands the hook the subject alone,
+and a bot's 73-character subject ending in a period, because theirs skips the
+whole hook for bot authors. The 2026-09-26 ruling kept bots bound. So ours stays
+and is no longer the only gate that can fail. Pre-push runs both; CI runs ours.
+
+`.validate-ignore` is gone. Its two sky.boss entries, the highlighter's
+path-shaped fixtures, are in `scripts/doc_refs_allowlist.yaml` with reasons.
+Deleting them made `check_source_doc_refs.py` fail, so they are still needed.
+
+The new `.env.example` parity test went red on arrival. Its read side scans
+quoted `SB_*` names, and `SB_` is the product's prefix as well as the dev
+shell's. Three were real (`SB_HOME`, `SB_STATE`, `SB_DEBUG`) and are now
+declared. Four were test fixtures passed to `monkeypatch.setenv`, which sets a
+name rather than reading one. Those were renamed to `FX_*` instead of forking
+the test. `clone-local config` is red in this clone until
+`scripts/git/install_merge_drivers.py` sets `commit.template`. A scratch clone
+confirmed that one run fixes it. Standing divergences: 28 → 28.
+
+### Round 52 — 2026-10-15: v0.54.0, our commit gate folds back
+
+Five conflicts, all forecast. `AGENTS.md` and `docs/DEVELOPMENT.md` took the
+installer on the `pre-commit install` line and the rewritten clone-local bullet.
+`README.md` had nothing to port, because its block is the product's setup, not
+the toolchain's. `cli/check.py` took the template's one-line comment. The
+allowlist took the adopter-region rule, and our two highlighter entries now
+sit below it.
+
+skeletor accepted round 51's decline in full. The template gate now hands the
+hook `%B` and runs it for bot authors, with the length cap behind
+`BOTS_EXEMPT_FROM_LENGTH`. This was measured on a scratch range, not read from
+the notes. With the switch at `False`, theirs refused the second subject line in
+a body, a bot's trailing period and a bot's 75-character subject, which is every
+case ours refused. With it at `True`, the 75-character bot subject passed, so
+the switch is live. So `check_commit_style.py` and its range test are retired,
+and CI runs the template's step. This was the stopgap kind of divergence: its
+subject was the weakness, and the weakness is gone.
+
+Holding the switch costs two lines, not one. The new
+`test_commit_gate_runs_the_hook.py` asserted the module default, so it went red
+the moment the switch was held. It now sets the switch to `True` itself before
+checking the exemption, and was reported upstream. Standing divergences: 28 → 30.
+
+### Round 53 — 2026-10-15: v0.55.0, conftest's fixtures move below the rule
+
+One conflict, forecast. `test_commit_gate_runs_the_hook.py` takes the
+template's version verbatim, because skeletor shipped round 52's both-ways
+line with a comment naming this tree. Standing divergences: 31 → 30; conftest
+stays edited, below its rule.
+
+The new open-region gate went red on `tests/conftest.py`. Every line of ours
+sat above the rule. Round 50 had kept them there because a fixture under the
+block conflicted when v0.51.2 edited it. The block has not changed since then,
+it now calls itself frozen, and a gate now holds the boundary. So the
+template's half is verbatim above the rule and ours is below it. Our
+docstring became a comment, and our `require_or_skip` docstring edit went back
+to theirs. Isolation still runs at import, because nothing above the rule
+imports `skyboss`.
+
+The rehearsal's red baseline came from this tree, not the tool.
+`test_imports.py` matched `tmp` against the absolute path, so in
+`/tmp/skeletor-rehearse-*` it read no file at all. That is the predicate
+`test_naming.py` fixed on 2026-09-07. It is fixed here and in `test_docs.py`,
+and the fix was checked by checking the tree out under a `tmp/` directory.
+That red hid the conftest red from `--rehearse`.
+
+The workspace's reading of the allowlist red held when measured. With the
+new file untracked, `test_every_entry_still_exempts_something` named all six
+entries. Once staged, it passed.
+
+### Round 54 — 2026-10-15: v0.56.1, the project installer arrives with nothing to install
+
+Six conflicts, all forecast. Two were pins. `scripts/requirements.txt` and
+`.pre-commit-config.yaml` already carried dependabot's flake8, isort and
+pyright, so only black (26.10.1) and actionlint (v1.7.12.25) moved, in both
+files at once. black 26.10.1 reformatted nothing. `ci.yml` was an empty port,
+because the fork has no project-install step and its pyright comes from the
+`.venv`. `README.md` had nothing to port, because its block is the product's.
+
+The setup-line call to `scripts/install_project.py` is declined in `AGENTS.md`
+and `docs/DEVELOPMENT.md`. `pyproject.toml` here is tool config with no
+`[project]`, and nothing installs this repo, so the line would only print that
+nothing was installed. The script and its test are taken: they cost nothing
+and are correct the day a `[project]` block appears. `docs/DEVELOPMENT.md` took
+the `--suite` cheat-sheet line. It exits 1 here until a `unit+ui` entry is
+recorded, and it says so. This tree has no `ui` tests, so none is.
+
+### Round 55 — 2026-10-15: v0.57.0, the setup ratchet counts commands
+
+One conflict, as forecast: `tests/setup_block_budget.json`. The template's
+wording was taken, our dated note on the 3 → 5 raise was kept, and the floor
+was re-measured at 7. Two blocks are still enrolled and neither changed. Line
+one joins three commands with `&&`, so the five lines that agreed are seven
+commands. That is a change of unit, not a tightening.
+
+The new project-install gate skips any tree whose `pyproject.toml` has no
+`[project]`, and its docstring names this tree. `install_project.target()`
+returns `None` here, so round 54's decline does not hit the gate. `./dev test
+coverage --suite unit --suite ui` exits 0 now, at the 0.00% floor, so round 54's
+"exits 1" no longer holds.
+
+### 2026-11-04: v0.72.2, the tree moves to Release Please
+
+Jeston moved every adopter to Release Please and accepted that versions restart at the
+template's `0.1.0` seed. The run took `--set-arg versioning=release-please`. It added `VERSION`,
+the Release Please config and manifest, and the release skill, and `.skeletor.json` records the
+new value after the `--ported` run. Two conflicts were ported by hand. `README.md`'s badge row is
+ours, so the tag badge became a release badge there. `docs/DEVELOPMENT.md` took the template's
+Releases section, and its push row (ours since 2026-09-11) gained the Release Please clause.
+
+Round 39 said the job was not wanted back in a tag tree, and to take it pinned if the tree moved.
+It moved, and `ci.yml` now carries the template's job with `target-branch: main`. One difference
+is this fork's: it waits on `verdict` rather than on the template's leaf jobs, three of which this
+graph does not have. Without the job, `test_ci_pipeline_table` and `test_doctor`'s secrets check
+fail, as the workspace forecast. Its App token step also made `.github/actionlint.yaml`'s stated
+reason for diverging false ("this tree has no release job"), so that file is the template's again.

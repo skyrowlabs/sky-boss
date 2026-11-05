@@ -95,6 +95,10 @@ _JOB = re.compile(r"^  (?P<id>[A-Za-z_][A-Za-z0-9_-]*):\s*$", re.MULTILINE)
 #: so one install cannot swallow the next one's flags.
 _PIP_INSTALL = re.compile(r"pip install\b(?P<args>[^\n;&|]*)")
 
+#: A step using a composite action in this repository. Its installs are the
+#: job's installs: the unit job's requirements moved into one in v0.65.0.
+_LOCAL_ACTION = re.compile(r"uses:\s*\./(?P<path>\.github/actions/[\w./-]+?)/?\s*$", re.MULTILINE)
+
 #: **Every** `-r` in those arguments, not the first. `pip install -r a -r b`
 #: measured as `['a']` under the obvious regex, and the failure is silent in
 #: exactly the direction that matters here: an under-collected job install set
@@ -157,7 +161,12 @@ def _jobs_running_pyright() -> dict:
             end = bounds[index + 1][1] if index + 1 < len(bounds) else len(text)
             body = text[start:end]
             if "pyright" in body and "--project" in body:
-                found[f"{workflow.name}:{job}"] = _requirements_in(body, PROJECT_ROOT)
+                installs = _requirements_in(body, PROJECT_ROOT)
+                for action in _LOCAL_ACTION.finditer(body):
+                    installs |= _requirements_in(
+                        read_uncommented(PROJECT_ROOT / action["path"] / "action.yml"), PROJECT_ROOT
+                    )
+                found[f"{workflow.name}:{job}"] = installs
     return found
 
 
@@ -172,6 +181,11 @@ def test_the_scan_finds_a_job_that_type_checks():
     adopter deletes.
     """
     scanned(_jobs_running_pyright(), "workflow jobs running pyright", least=1)
+
+
+def test_the_scan_follows_a_local_action():
+    """The unit job installs through `.github/actions/unit-setup`; missing it would empty the subject."""
+    assert any("requirements.txt" in installs for installs in _jobs_running_pyright().values())
 
 
 def test_the_declaration_has_a_caller():

@@ -33,10 +33,10 @@ false; that is why the rename notes in [[tools]] and [[header]] read the way the
 was the other one and is not any more: it was a drawing of a toolbox lettered `TOOLBOX`, printed
 beside the word by `skyboss/banner.py`, and it was redrawn the same day as a **control tower**
 ([[header]] round 2). `ART` in `skyboss/banner.py` is the picture; `docs/design/render-mark.py` renders
-every PNG from it — the header, the README banner, and the square app icon — so the drawing and the
-word cannot drift apart again, which they had, for exactly as long as it took to notice. **Re-run it
-after adding a command**: the banner is a screenshot of root help, so a new subcommand makes it
-stale in a way no test can see ([[header]] round 3).
+every image of it — the CLI header, the README's animated hero, and the square app icon — so the
+drawing and the word cannot drift apart again, which they had, for exactly as long as it took to
+notice. **Re-run it after changing `ART` or the palette.** The README no longer carries a
+screenshot of root help, so adding a command no longer stales it ([[header]] round 4).
 
 **This is a machine-neutral repo, as of the 2026-08-22 pass.** Nothing tracked here names a host,
 a distro, a desktop environment, or a window-manager rule — the mechanisms are documented, the
@@ -70,7 +70,7 @@ replaced by a browser one the same day. What exists:
 
 | Command | Does |
 |---|---|
-| `sb run -- <argv>` | Runs a command and reports what it printed. **The only command that acts**. `--delay 5m` runs it once, later, behind a countdown you can cancel |
+| `sb run -- <argv>` | Runs a command and reports what it printed. **Acts**, and never takes a cadence. `--delay 5m` runs it once, later, behind a countdown you can cancel |
 | `sb data -- <argv>` | Reads another CLI's JSON as data. An observe; `--refresh N` keeps it resident |
 | `sb data <path>` | Reads a file of records as data — `--from jsonl` is one object per line. See [[jsonl-reads]] |
 | `<project>:<path>` | An address, not a command: a declared project's state directory. See [[state-root]] |
@@ -78,7 +78,8 @@ replaced by a browser one the same day. What exists:
 | `sb follow -- <argv>` | Holds a command's stream open. Resident by nature; any exit is a visible death. Arrows and PgUp scroll back through the ring |
 | `sb follow <path>` | Follows a file with a native stat cursor, so quiet and dead are different words. `--due 15m` makes late a word too |
 | `sb roll-call` | Asks every declared project how it is and folds the answers. An observe. See [[roll-call]] |
-| `sb agents` | Which agent sessions are running right now, across every provider. An observe. See [[agent-sessions]] |
+| `sb agents` | Which agent sessions are running right now, across every provider. `--scope deck\|outside` splits them by the deck. An observe. See [[agent-sessions]] |
+| `sb deck` | The controller: a tmux window of agent tabs, each a live `claude` marked working, needs you or quiet, beside NEEDS YOU and MESSAGES panes. `--profile NAME` opens a declared set of tabs, primary first; declared in `$SB_HOME/deck.toml`. Its keys live in a key table only the deck's sessions use, shown in the bar; Ctrl-Q or ✕ asks, then `exit` ends both sessions. Ctrl-C is never bound. **Acts**, as do `open`, `jump`, `layout`, `marks`, `exit` and `todo add`/`done`/`rm`; `queue`, `messages`, `brief` and `todo list` observe. See [[command-deck]] |
 | `sb history <project>` | A project's own run ledger, newest first. An observe, and the only one that looks backwards. See [[history]] |
 | `sb job` | Jobs sky.boss **issues**. `list` observes; `run`, `install` and `uninstall` act. systemd is the daemon. See [[jobs]] |
 | `sb schedule` | What fires next, across projects **and sky.boss's own jobs**, ordered by the parsed instant. `clock` says which fires it. An observe; it schedules nothing. See [[schedule]] |
@@ -114,10 +115,13 @@ document, and correct the document when it has fallen behind.
 
 ## Scope
 
-There is no taxonomy to defend yet. The one property worth preserving from the version that was
-removed is this: **`sb run` is the single *top-level* command that acts.** Everything else at that
-level reads. When a group of commands returns, that is the line to keep — a command that wants to
-both read and write is two commands.
+There is no taxonomy to defend yet. **Act versus observe is a property of the surface, and every
+command still says which it is.** On 2026-11-04 Jeston dropped the rule that `sb run` is the only
+top-level command that acts. The canvas (`sb ui`) is a monitoring surface and stays one, unchanged:
+it reads each command's `acts` bit, refuses an act a cadence, and asks before running one. The deck
+([[command-deck]]) is an act surface. What survives is the per-command split: a command asserts
+whether it acts, nested ones included, and a command that wants to both read and write is still two
+commands.
 
 **`sb job` is the group that returned, on 2026-09-01, and it splits exactly that way**: `list`
 observes, while `run`, `install` and `uninstall` act and say so. What matters is that the split
@@ -231,10 +235,12 @@ clothes: it has already told you the thing exists.
 **The tower is still not offered.** The plan is, in half, as of [[schedule]] round 4 — a third entry
 reading **`schedule`**, drawing what `sb schedule` returns. That discharges the rule rather than
 overriding it: the objection was to *offering something absent*, and building the screen answers it.
-What would have broken the rule is naming the entry `plan`, since the rest of the drawn flight plan
-— CLAIMS, CLOCK SOURCE, IN FLIGHT, LIMITS — still needs `docs/open.md` items 6, 7 and 9. **A nav
-entry that names the whole of a thing while showing a tenth of it is the same over-promise in a
-smaller font.** Both remaining screens are drawn in `docs/design/`. See `docs/open.md`.
+What would have broken the rule is naming the entry `plan`. **A nav entry that names the whole of a
+thing while showing a tenth of it is the same over-promise in a smaller font.** A fourth entry,
+**`agents`**, arrived with [[agent-sessions]] round 3 (2026-10-17): IN FLIGHT and its CLAIMS, the
+claim being an advisory mark derived by repository. CLOCK SOURCE and LIMITS have nothing to draw —
+no provider publishes either — so the tower is offered as the screens that exist, not by its name.
+See `docs/open.md` items 8 and 9.
 
 **`display: contents` has no box, so it has no rect and no background.** The schedule screen's rows
 are one — that is what lets a whole group share a single grid and align structurally rather than by
@@ -280,6 +286,13 @@ the stylesheet already has, so nothing outside `skyboss/theme.py` names a colour
 in `rollcall.parse` by declaration order and shipped by `/api/projects`, so the CLI and the surface
 cannot disagree; it is **not** a declarable key, because a file that could set it could argue with
 the assignment.
+
+**The deck is the exception, by the brand owner's ruling (Jeston, 2026-11-04).** Brand steps read
+as shades of one green in a tab row, so a deck agent named for a product takes that product's own
+hue from the landing page (`docs/design/skyrowlabs-product-hues.css`, vendored and checked like the
+palette). The workspace takes the brand, and any other name keeps the step. Those hues are legible
+only on the void, so the deck paints its own ground and colours nothing it does not paint. The
+canvas keeps the rule above. See [[command-deck]].
 
 **A second list on a filtered screen inherits the filter or contradicts the first.** Two halves of
 one screen must describe the same set — the schedule's "declares no schedule" panels were drawn for
@@ -591,6 +604,7 @@ check there first.
 | Saved commands (`tools.toml`) | `~/.sky-boss/` (`$SB_HOME`) | the operator, `--save`, and the surface | never |
 | Capture formats and highlight rules (`formats.toml`) | `~/.sky-boss/` (`$SB_HOME`) | the operator | never |
 | Declared projects and the agent-state root (`projects.toml`) | `~/.sky-boss/` (`$SB_HOME`) | the operator | never |
+| The deck's agents (`deck.toml`) | `~/.sky-boss/` (`$SB_HOME`) | the operator | never |
 | Backups of `tools.toml` | `~/.sky-boss/backups/` | sky.boss, before every write | never |
 | Browser profile for the canvas | `~/.local/state/sb/` (`$SB_STATE`) | the machine | never |
 | What the surface remembers about itself (`prefs.json`) | `~/.local/state/sb/` (`$SB_STATE`) | the surface | never |

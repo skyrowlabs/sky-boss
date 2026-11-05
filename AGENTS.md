@@ -27,7 +27,7 @@ look optional to anybody not using that tool.
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 .venv/bin/pip install -r requirements-dev.txt
 .venv/bin/pip install -r scripts/requirements.txt
-.venv/bin/pre-commit install --install-hooks
+.venv/bin/pre-commit install --install-hooks && .venv/bin/python scripts/git/install_merge_drivers.py
 npm install
 ./dev check pre-push   # every host-runnable CI gate; green on a fresh tree
 ./dev test unit        # the fast suite
@@ -273,4 +273,4 @@ Load on-demand only. Full mapping in `.github/DOCS_INDEX.md`.
 
 > `docs:` for hand-written prose wherever it lives — this file and `README.md`
 > included — never `feat:`. The path is the hint, not the test; `docs/rules/commits.md`
-> holds the rule. These subjects are the only changelog this repository has.
+> holds the rule. Release Please owns `CHANGELOG.md`.

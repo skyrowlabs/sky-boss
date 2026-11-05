@@ -22,7 +22,8 @@ HERE = Path(__file__).resolve().parent
 # every path below — can be imported. See scripts/paths.py.
 sys.path.insert(0, str(HERE.parents[1]))
 
-from scripts.output import fail, step  # noqa: E402
+from scripts.git.install_merge_drivers import MARKER  # noqa: E402
+from scripts.output import detail, fail, step  # noqa: E402
 from scripts.paths import PROJECT_ROOT  # noqa: E402
 
 #: (script, human label). Frontmatter first — both indexes read it.
@@ -53,6 +54,12 @@ def main() -> int:
 
     if args.check and status:
         fail("generated docs are stale — run `dev docs index`")
+    # The merge driver's marker means "a regeneration is owed", and a run that
+    # regenerated, or found nothing stale, has paid it. Nothing else clears it,
+    # so a clone where the driver ever fired kept `check pre-push` red for good.
+    if not status and MARKER.exists():
+        MARKER.unlink()
+        detail(f"cleared {MARKER.relative_to(PROJECT_ROOT)}: the regeneration a merge owed is done")
     return status
 
 

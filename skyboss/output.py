@@ -24,6 +24,7 @@ from typing import Any, Callable
 
 import click
 from rich.console import Console
+from rich.markup import escape
 from rich.padding import Padding
 from rich.style import Style
 from rich.table import Table
@@ -408,8 +409,61 @@ def _render_warnings(result: Result) -> None:
     while the warnings still reach the terminal. They also remain in the JSON
     envelope, so a machine consumer sees them structurally.
     """
-    for warning in result.warnings:
-        _err().print(f"[yellow]⚠️  {warning}[/yellow]", highlight=False)
+    warn_now(result.warnings)
+
+
+#: One line per row, filling the width: set by `filled()` for the deck's tool panes.
+_FILL = threading.local()
+
+
+@contextlib.contextmanager
+def filled(on: bool = True):
+    """Draw shaped tables to the full width, every line clipped rather than wrapped.
+
+    For a pane the operator drags: a wrapped row is two lines that the height
+    fit cannot count, and a table narrower than its pane leaves the room unused.
+    """
+    was = getattr(_FILL, "on", False)
+    _FILL.on = on
+    try:
+        yield
+    finally:
+        _FILL.on = was
+
+
+def _filling() -> bool:
+    return getattr(_FILL, "on", False)
+
+
+#: Set by `framed()`: the caller draws the bands, so a long result must not draw its own inside them.
+_FRAMED = threading.local()
+
+
+@contextlib.contextmanager
+def framed():
+    """Render without the result's own chrome bands, for a caller that frames it already."""
+    was = getattr(_FRAMED, "on", False)
+    _FRAMED.on = True
+    try:
+        yield
+    finally:
+        _FRAMED.on = was
+
+
+def _line_kwargs() -> dict:
+    return {"no_wrap": True, "overflow": "ellipsis", "crop": True} if _filling() else {}
+
+
+def warn_now(messages: list[str]) -> None:
+    """Warnings on stderr immediately, in the envelope's own wording.
+
+    For a command that execs or blocks before `emit` could render anything —
+    `sb deck` replaces itself with `tmux attach`, so its warnings go out first.
+    Each message is escaped: `[agent.ws]` is text an operator is told to type,
+    and as markup it would vanish — or raise, when shaped like a closing tag.
+    """
+    for warning in messages:
+        _err().print(f"[yellow]⚠️  {escape(warning)}[/yellow]", highlight=False, **_line_kwargs())
 
 
 def _render_human(
@@ -418,7 +472,7 @@ def _render_human(
     duration_s: float | None = None,
     source: str | None = None,
 ) -> None:
-    banded = _body_lines(result.data, result.view) >= BAND_MIN_LINES
+    banded = not getattr(_FRAMED, "on", False) and _body_lines(result.data, result.view) >= BAND_MIN_LINES
     facts = None
     if banded:
         import time as _time
@@ -438,9 +492,9 @@ def _render_human(
         band(top)
 
     if not result.ok:
-        _err().print(f"[sb.fail]{FAIL_GLYPH} {result.command} failed[/sb.fail]")
+        _err().print(f"[sb.fail]{FAIL_GLYPH} {escape(result.command)} failed[/sb.fail]")
     elif result.partial:
-        _err().print(f"[sb.warn]{UNKNOWN_GLYPH} {result.command} — partial[/sb.warn]")
+        _err().print(f"[sb.warn]{UNKNOWN_GLYPH} {escape(result.command)} — partial[/sb.warn]")
 
     _render_value(result.data, title=result.command or None, view=result.view)
 
@@ -501,8 +555,11 @@ def _render_mapping(mapping: dict, indent: int = 2, view: dict | None = None) ->
     if not mapping:
         return
 
-    flat = {k: v for k, v in mapping.items() if not _is_block(v)}
-    nested = {k: v for k, v in mapping.items() if _is_block(v)}
+    # An empty list the view names as the rows is a zero-row table, not a `-`:
+    # "nothing due" has to be told apart from a field that was never set.
+    named = (view or {}).get("rows")
+    flat = {k: v for k, v in mapping.items() if not (_is_block(v) or (v == [] and k == named))}
+    nested = {k: v for k, v in mapping.items() if k not in flat}
 
     if flat:
         table = Table(
@@ -542,7 +599,8 @@ def _render_mapping(mapping: dict, indent: int = 2, view: dict | None = None) ->
             # found the rows in. Handing it to any other would draw a table
             # with another list's columns, which is the failure this whole
             # round is about. See [[table-views]] round 4.
-            _render_columns(list(value), title=None, indent=indent, view=sub)
+            if value:
+                _render_columns(list(value), title=None, indent=indent, view=sub)
         _out().print()
 
 
@@ -746,9 +804,12 @@ def _render_view(rows: list[dict], view: dict, indent: int = 0) -> None:
     the layout is small and it buys the header rule, the detail lines and the
     record spacing outright.
     """
-    columns, overflowed = fit_columns(view["columns"], _out().width - indent)
+    available = _out().width - indent
+    columns, overflowed = fit_columns(view["columns"], available)
     details = view.get("details") or []
-    widths = _resolve_widths(columns, _out().width - indent)
+    widths = _resolve_widths(columns, available)
+    if _filling():
+        widths = _fill_widths(columns, widths, available)
     pad = " " * _COLUMN_PADDING
     total = sum(widths) + _COLUMN_PADDING * max(0, len(columns) - 1)
 
@@ -758,7 +819,7 @@ def _render_view(rows: list[dict], view: dict, indent: int = 0) -> None:
     body_width = max(20, _out().width - indent - hang)
 
     def emit(text: Text) -> None:
-        _out().print(Padding(text, (0, 0, 0, indent)) if indent else text)
+        _out().print(Padding(text, (0, 0, 0, indent)) if indent else text, **_line_kwargs())
 
     header = Text()
     for i, (column, width) in enumerate(zip(columns, widths)):
@@ -809,6 +870,23 @@ def _render_view(rows: list[dict], view: dict, indent: int = 0) -> None:
         )
 
 
+def _fill_widths(columns: list[dict], widths: list[int], available: int) -> list[int]:
+    """Widths that use the whole line: the room left goes to the most flexible column,
+    and a first column wider than the line is cut to it."""
+    if not widths:
+        return widths
+    widths = list(widths)
+    gutters = _COLUMN_PADDING * max(0, len(widths) - 1)
+    spare = available - sum(widths) - gutters
+    if spare > 0:
+        weights = [column.get("flex", 1) for column in columns]
+        widest = max(range(len(widths)), key=lambda i: (weights[i], i))
+        widths[widest] += spare
+    elif len(widths) == 1:
+        widths[0] = max(1, available)
+    return widths
+
+
 def _fit(text: str, width: int, align: str | None, last: bool = False) -> str:
     clipped = text if len(text) <= width else text[: max(0, width - 1)] + "…"
     if align == "right":
@@ -850,6 +928,14 @@ def _view_cell(row: dict, column: dict) -> Text:
     value = resolve(row, column["key"])
     if column.get("summarise") and isinstance(value, dict):
         return Text(summarise_mapping(value), style="sb.muted")
+    segments = row.get(column["segments"]) if column.get("segments") else None
+    if isinstance(segments, list):
+        # A cell its command drew in parts, each in a role it named: `[[text, role], ...]`.
+        out = Text()
+        for part in segments:
+            if isinstance(part, (list, tuple)) and len(part) == 2:
+                out.append(str(part[0]), style=part[1] or "")
+        return out
     return _styled_value(value, column["key"])
 
 
@@ -1045,7 +1131,7 @@ def late_note(path: str, last_write_at: float | None, due: int, now: float) -> N
     # nowhere and uncopyable in a log. This is a sentence about a stream, not a
     # rendering, and the one thing it must carry intact is the path.
     _err().print(
-        f"[sb.warn]⚠️  late: no write to {path} in {quiet} (--due {chrome_.ago(due)})[/sb.warn]",
+        f"[sb.warn]⚠️  late: no write to {escape(path)} in {quiet} (--due {chrome_.ago(due)})[/sb.warn]",
         highlight=False,
         soft_wrap=True,
     )

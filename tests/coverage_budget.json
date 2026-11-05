@@ -14,8 +14,8 @@
   ],
   "tolerance_pts": 0.5,
   "suites": {
-    "unit": {
-      "own_baseline_pct": 89.37
+    "scheduled": {
+      "own_baseline_pct": 90.59
     }
   }
 }

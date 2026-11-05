@@ -81,15 +81,7 @@ UNSCHEDULED = {
 #: the marker; nothing here is a file list.
 SUITES = {
     "unit": Suite("host-side tests, no services required", ships_tests=True),
-    # sky.boss has no stack to stand up: every test is host-side, and the ones
-    # that spawn a real child still talk to nothing but this machine. The row
-    # stays so the vocabulary is here when it is needed, and `empty` expires by
-    # itself the moment one test carries the marker.
-    "integration": Suite(
-        "requires the stack up and seeded",
-        scheduled=False,
-        unscheduled="empty",
-    ),
+    "integration": Suite("requires the stack up and seeded"),
     # Costs money or needs a person. The one row CI is not expected to run, and
     # the reason that is a field rather than an `if marker != "manual"` in two
     # places, which is what it used to be.
@@ -114,17 +106,7 @@ SUITES = {
     # at any point. A browser or an Electron window may still need a display,
     # and that setup is the adopting repo's — a job failing loudly for want of
     # one is strictly better than tests quietly leaving CI.
-    # Nothing carries this yet. The canvas is exercised through Starlette's
-    # TestClient, which is host-side and therefore `unit` — CLAUDE.md is explicit
-    # that a runner cannot see an unpainted mark or a control off the edge of the
-    # screen, so the headless render pass it calls an obligation is still a thing
-    # a person does. When that becomes a job, this row flips and the `empty`
-    # reason expires on its own.
-    "ui": Suite(
-        "drives a user interface; needs a display, a browser, or a pilot",
-        scheduled=False,
-        unscheduled="empty",
-    ),
+    "ui": Suite("drives a user interface; needs a display, a browser, or a pilot"),
 }
 
 
@@ -153,6 +135,24 @@ def _pytest(marker: str, extra: tuple, ci: bool) -> int:
         skip(f"no {marker} tests are marked yet — the suite is empty, not passing")
         return 0
     return code
+
+
+#: The coverage budget key for every scheduled suite measured together: what the
+#: nightly measures, and what `dev test coverage` measures with no `--suite`.
+#: One name for one set; `unit` had meant two (stash.flow).
+SCHEDULED_KEY = "scheduled"
+
+
+def scheduled_suites() -> list[str]:
+    """The markers the automatic runs include, in the registry's order."""
+    return [marker for marker, suite in SUITES.items() if suite.scheduled]
+
+
+def coverage_selection(suites: tuple) -> tuple[str, str]:
+    """`(pytest marker expression, budget key)` for `suites`, or for every scheduled suite."""
+    if not suites:
+        return " or ".join(scheduled_suites()), SCHEDULED_KEY
+    return " or ".join(suites), "+".join(suites)
 
 
 @click.group(invoke_without_command=True)
@@ -190,9 +190,24 @@ def all(ci: bool) -> None:
     sys.exit(summarize(results))
 
 
+@test.command(name="suites")
+@click.option("--scheduled", "only_scheduled", is_flag=True, help="only the suites the automatic runs include")
+def suites_cmd(only_scheduled: bool) -> None:
+    """Every suite's marker, one per line: what a workflow reads instead of a list of its own."""
+    for marker in scheduled_suites() if only_scheduled else list(SUITES):
+        click.echo(marker)
+
+
 @test.command()
 @click.option("-w", "--worst", default=20, show_default=True, help="how many modules to list")
-def coverage(worst: int) -> None:
+@click.option(
+    "--suite",
+    "suites",
+    multiple=True,
+    type=click.Choice(sorted(SUITES)),
+    help="measure these suites (budgeted as e.g. `unit+ui`); default: every scheduled one, as the nightly does",
+)
+def coverage(worst: int, suites: tuple) -> None:
     """Measure coverage and list the worst-covered modules.
 
     The list is the point: it tells you where a new test buys the most, which is
@@ -211,7 +226,14 @@ def coverage(worst: int) -> None:
     it looked. Both are one fix, and the second is why the first survived: with
     nothing to measure the ratchet never disagreed, so nothing ever tested
     whether disagreement was reported.
+
+    **The suite is a choice, and several can be measured as one.** It measured
+    `unit` alone, so a module only the `ui` suite exercises read as uncovered
+    own code and the ratchet went red on code that was tested (stash.flow, #3).
+    `--suite unit --suite ui` runs `-m "unit or ui"` against the budget key
+    `unit+ui`.
     """
+    marker, key = coverage_selection(suites)
     report = TMP_DIR / "coverage.xml"
     report.parent.mkdir(parents=True, exist_ok=True)
     code = run(
@@ -221,7 +243,7 @@ def coverage(worst: int) -> None:
             "pytest",
             "tests/",
             "-m",
-            "unit",
+            marker,
             "-q",
             "--cov",
             "--cov-report=term-missing",
@@ -229,5 +251,7 @@ def coverage(worst: int) -> None:
         ]
     ).returncode
     if code == 0:
-        code = run([sys.executable, "scripts/check_coverage_budget.py", "--xml", str(report)]).returncode
+        code = run(
+            [sys.executable, "scripts/check_coverage_budget.py", "--suite", key, "--xml", str(report)]
+        ).returncode
     sys.exit(code)

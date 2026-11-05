@@ -29,7 +29,6 @@ from __future__ import annotations
 import re
 import sys
 from pathlib import Path
-from typing import Optional, Union
 
 import pytest
 
@@ -47,10 +46,8 @@ WORKFLOWS = GITHUB_DIR / "workflows"
 #: A job header: two spaces, an identifier, a colon, nothing else on the line.
 _JOB = re.compile(r"^  (?P<id>[A-Za-z_][A-Za-z0-9_-]*):\s*$", re.MULTILINE)
 
-Permissions = Union[None, str, dict]
 
-
-def permissions_at(text: str, indent: int) -> Permissions:
+def permissions_at(text: str, indent: int) -> str | dict | None:
     """The `permissions:` declared at exactly `indent` spaces in `text`.
 
     `None` when there is no such key; the inline value (`read-all`, `{}`) as a
@@ -73,7 +70,7 @@ def permissions_at(text: str, indent: int) -> Permissions:
     return scopes
 
 
-def reads_contents(permissions: Permissions) -> bool:
+def reads_contents(permissions: str | dict | None) -> bool:
     if permissions is None:
         return True  # the default token, which this rule does not police
     if isinstance(permissions, str):
@@ -81,11 +78,26 @@ def reads_contents(permissions: Permissions) -> bool:
     return permissions.get("contents") in ("read", "write")
 
 
+def job_headers(text: str) -> list:
+    """`[(job id, offset)]` for the headers under `jobs:`, and nothing else.
+
+    Matched over the whole file, `on:`'s keys read as jobs too — stash.flow
+    measured `['pull_request', 'push', 'workflow_dispatch', 'gate', ...]` — and
+    the last trigger's slice ran up to the first real job. That was harmless
+    for `unreadable_checkouts`, since no trigger holds a checkout, which is
+    exactly why its rows could not catch a revert (mind.head): both matchers
+    agree on every valid workflow. So the ids are asserted here, directly.
+    """
+    section = re.search(r"^jobs:\s*$", text, re.MULTILINE)
+    offset = section.end() if section else len(text)
+    return [(m.group("id"), m.start()) for m in _JOB.finditer(text, offset)]
+
+
 def unreadable_checkouts(workflow: str) -> list:
     """Job ids in `workflow` that run `actions/checkout` with no `contents` scope."""
     text = uncommented(workflow)
-    starts = [(m.group("id"), m.start()) for m in _JOB.finditer(text)]
     top = permissions_at(text, 0)
+    starts = job_headers(text)
     found = []
     for index, (job, start) in enumerate(starts):
         body = text[start : starts[index + 1][1] if index + 1 < len(starts) else len(text)]
@@ -122,11 +134,30 @@ def test_every_checkout_can_read_the_repository():
             ["a"],
         ),
         ("permissions:\n  pull-requests: write\njobs:\n  a:\n    steps:\n      - run: echo hi\n", []),
+        (
+            "on:\n  push:\n  workflow_dispatch:\npermissions:\n  pull-requests: write\n"
+            "jobs:\n  a:\n    steps:\n      - uses: actions/checkout@v7\n",
+            ["a"],
+        ),
     ],
-    ids=["names-another-scope", "names-contents", "no-block", "empty", "read-all", "job-replaces-top", "no-checkout"],
+    ids=[
+        "names-another-scope",
+        "names-contents",
+        "no-block",
+        "empty",
+        "read-all",
+        "job-replaces-top",
+        "no-checkout",
+        "triggers-are-not-jobs",
+    ],
 )
-def test_the_predicate(workflow: str, expected: Optional[list]):
+def test_the_predicate(workflow: str, expected: list | None):
     """Each shape on a workflow built to have it, so the real-tree test above
     cannot pass by reading nothing — the job-level row is the one GitHub's own
     replace-not-merge rule decides, and the easiest to get backwards."""
     assert unreadable_checkouts(workflow) == expected
+
+
+def test_triggers_are_not_job_headers():
+    text = "on:\n  push:\n  workflow_dispatch:\njobs:\n  a:\n    steps: []\n  b:\n    steps: []\n"
+    assert [job for job, _ in job_headers(text)] == ["a", "b"]

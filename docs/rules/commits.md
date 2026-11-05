@@ -24,8 +24,7 @@ commits wearing one hat, and the changelog generator will take only the first.
 5. **Commit without asking; push when the work is complete.** Make the commit as soon as a
    logical unit is done and its checks pass — do not pause to request permission. When the
    whole task is complete and checks pass, push autonomously. Never push half-finished work.
-6. **These subjects are the changelog.** Nothing generates one here, so
-   `git log <old-tag>..<new-tag> --format='%s'` is what a reader gets.
+6. **Never hand-edit `CHANGELOG.md`** — Release Please generates it from these commits.
 7. **`docs:` for hand-written documentation** — never `feat:`, which would trigger a
    version bump for a prose edit.
 
@@ -79,8 +78,8 @@ Commit after each **independent logical idea**, not after finishing everything:
 ## Branching
 
 - **Base branch: `develop`.** New branches are cut from it and every PR targets it.
-- **Never commit directly to `main`** — that is the release branch. It
-  moves by merge from `develop`, and releases are tagged on it.
+- **Never commit directly to `main`** — that is the release branch, and
+  Release Please owns it.
 - **Force-push is permitted on your own unreviewed branch** — amending or squashing your own
   in-flight work is how four CI runs become one — but **never** on `develop` or
   `main`, and never from an unattended agent.

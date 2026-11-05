@@ -43,7 +43,7 @@
 # **Both jobs need `fetch-depth: 0`, and each names its own caller.** This
 # paragraph has been wrong in both directions within one day, so the rule it
 # ended on is: a depth is justified by the line that reads history, never by a
-# paragraph. `gate` reads a commit range (`check_commit_style.py`); `unit-tests` asks
+# paragraph. `gate` reads a commit range (`check_commit_subjects.py`); `unit-tests` asks
 # `git log --all` whether a symbol a doc names was ever ours, and refuses
 # outright against a shallow clone rather than passing having looked at nothing.
 #
@@ -178,12 +178,13 @@ jobs:
       # binds whoever ran `pre-commit install`; this binds everyone else, which
       # is the whole reason it is here rather than only in `check pre-push`.
       #
-      # NOT `check_commit_subjects.py`, which is the neighbouring script and the
-      # obvious-looking choice. That one asks whether Release Please can parse a
-      # subject, reading its vocabulary from a config a `--versioning tag` tree
-      # does not have — so here it finds no contract and exits 0 on every commit
-      # forever. Wiring it in would have been a green step that never looked.
-      - name: Commit subjects the hook would have caught
+      # skeletor's step, taken back in [[skeletor-adoption]] round 52: from
+      # v0.54.0 the script hands the hook the whole message and runs it for bot
+      # authors too. `BOTS_EXEMPT_FROM_LENGTH = False` in the script is held
+      # here, because the 2026-09-26 ruling bound bots to the 72-column cap.
+      # The range both steps below check, decided once (skeletor v0.59.0).
+      - name: Which commits this change adds
+        id: range
         env:
           BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
           FORCED: ${{ github.event.forced }}
@@ -196,10 +197,29 @@ jobs:
           if [ "$FORCED" = "true" ] || [ -z "$BASE" ] \
              || [ "$BASE" = "0000000000000000000000000000000000000000" ]; then
             echo "no usable base for this event — checking HEAD alone"
-            python scripts/check_commit_style.py --range -1
+            echo "range=-1" >> "$GITHUB_OUTPUT"
           else
-            python scripts/check_commit_style.py --range "$BASE..${{ github.sha }}"
+            echo "range=$BASE..${{ github.sha }}" >> "$GITHUB_OUTPUT"
           fi
+
+      - name: Commit subjects the contract in force can read
+        run: python scripts/check_commit_subjects.py --range "${{ steps.range.outputs.range }}"
+
+      # Secrets in the same commits, here rather than in `lint` because this job
+      # never skips: a token pasted into a docs-only change is still a leak.
+      # The binary is the hook's own pin, checksum-verified; `gitleaks-action`
+      # needs a licence key for organisation repositories.
+      - name: No secret in the commits this change adds
+        run: |
+          VERSION="$(python scripts/leak_scan.py --pinned)"
+          ASSET="gitleaks_${VERSION}_linux_x64.tar.gz"
+          URL="https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}"
+          cd "$RUNNER_TEMP"
+          curl -fsSLO "$URL/$ASSET" -O "$URL/gitleaks_${VERSION}_checksums.txt"
+          grep " $ASSET\$" "gitleaks_${VERSION}_checksums.txt" | sha256sum -c -
+          tar xzf "$ASSET" gitleaks
+          cd "$GITHUB_WORKSPACE"
+          PATH="$RUNNER_TEMP:$PATH" python scripts/leak_scan.py --range "${{ steps.range.outputs.range }}"
 
   unit-tests:
     # **The floor of this list is the number the README is allowed to say.**
@@ -274,35 +294,19 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-python@v7
+      # The interpreter, the `.venv` and every requirements file: one action,
+      # shared by every workflow that runs this suite so they install the same
+      # thing. The nightly was once deleted for failing at import while this job
+      # was green, because its copy of these steps had not learned ours. The pip
+      # cache is passed in; the nightly runs uncached.
+      - uses: ./.github/actions/unit-setup
         with:
           python-version: ${{ matrix.python }}
           cache: pip
           cache-dependency-path: |
             requirements.txt
             requirements-dev.txt
-
-      # A real `.venv`, not a bare `pip install`, and this is load-bearing.
-      # `tests/test_readme.py` runs the README's examples through the actual
-      # `sb` wrapper with `PATH` pinned to `<repo>:/usr/bin:/bin` — so it finds
-      # `./sb`, which prefers `.venv/bin/python` and otherwise falls back to
-      # `/usr/bin/python3`, where nothing this workflow installed would be.
-      # Without the venv those examples fail on a runner and pass everywhere
-      # else, which is the worst shape a CI failure can have.
-      - name: Create the venv the wrapper expects
-        run: python -m venv .venv
-
-      - name: Install
-        run: |
-          .venv/bin/python -m pip install --upgrade pip
-          # One `-r` per line, deliberately. `tests/test_setup_blocks_agree.py`
-          # reads which requirements files CI installs with a regex that
-          # captures a single target per `pip install`, so three `-r` flags on
-          # one line are seen as one file and the other two read as documented
-          # by nobody. Reported upstream; splitting is clearer regardless.
-          .venv/bin/pip install -r requirements.txt
-          .venv/bin/pip install -r requirements-dev.txt
-          .venv/bin/pip install -r scripts/requirements.txt
+            scripts/requirements.txt
 
       # `pywebview` installs here but its GTK bindings (`gi`) are system-owned
       # and absent on a runner. That is fine and checked: `skyboss/canvas/shell.py`
@@ -396,40 +400,33 @@ jobs:
           PATH="$PWD/.venv/bin:$PATH" .venv/bin/python scripts/lint_pyright_gate.py --project pyrightconfig.json
 
   # ── The unit suite's one name ─────────────────────────────────────────
-  # The matrix above reports once per leg, as `pytest <version>` — and only when
-  # it runs. Skipped by the job-level `if` on a docs-only change, GitHub never
-  # expands the matrix, so it reports ONE check named `pytest ${{ matrix.python }}`
-  # with the expression unexpanded, and a branch protection that requires
-  # `pytest 3.12` waits on it forever. stash.flow's docs-only pull requests were
-  # BLOCKED with every check green or skipped; the other gated jobs are not
-  # matrices, so they report skipped under their real names and pass.
-  #
-  # So protection requires THIS: one static name whatever the matrix holds, so
-  # nobody has to read the leg names off a run to set it up, and a change to the
-  # matrix costs no protection edit. `docs/DEVELOPMENT.md` says the same to a
-  # reader deciding what to require, which is where one looks. It passes when
-  # the matrix passed, or was skipped because the gate chose docs-only; it fails
-  # when a leg failed or was cancelled, and when the gate itself did not pass —
-  # a skip caused by a failed classifier is not a docs-only skip.
+  # The matrix above reports once per leg, as `pytest <version>`, and a skipped
+  # matrix reports ONE check with the expression unexpanded — so a protection
+  # naming `pytest 3.12` can wait forever (stash.flow's PRs were blocked so).
+  # Protection requires THIS: one static name whatever the matrix holds.
+  # `docs/DEVELOPMENT.md` says the same to a reader deciding what to require.
+  # It passes only when the matrix passed. The suite has no condition of its
+  # own, so a skip means the gate failed, and a skip is never a pass.
   unit-tests-result:
     name: pytest
     needs: [gate, unit-tests]
     if: always()
     runs-on: ubuntu-latest
     steps:
-      - name: The matrix passed, or was skipped for a docs-only change
+      - name: The matrix passed
         env:
           GATE: ${{ needs.gate.result }}
           UNIT: ${{ needs.unit-tests.result }}
         run: |
           if [ "$GATE" != "success" ]; then
-            echo "::error::the gate did not pass ($GATE), so the unit suite's skip means nothing"
+            echo "::error::the gate did not pass ($GATE), so the unit suite did not run"
             exit 1
           fi
-          case "$UNIT" in
-            success|skipped) echo "unit suite: $UNIT" ;;
-            *) echo "::error::unit suite: $UNIT"; exit 1 ;;
-          esac
+          if [ "$UNIT" != "success" ]; then
+            echo "::error::unit suite: $UNIT"
+            exit 1
+          fi
+          echo "unit suite: $UNIT"
 
   lint:
     name: eslint
@@ -475,8 +472,8 @@ jobs:
   # weighed one: the docs-only skip it guards cannot happen here, since
   # `unit-tests` has no job-level `if`, but a static name for the matrix is
   # what makes a change to the matrix cost no protection edit — and it is the
-  # name every sibling tree requires. Its `skipped` branch is dead code here
-  # and harmless: `unit-tests` skips only when the gate fails, which it rejects.
+  # name every sibling tree requires. Its `skipped` branch, dead code here,
+  # went upstream in v0.59.0 when the template dropped the docs-only skip too.
   #
   # This job is stricter, and stays so: **only `success` passes.** It used to
   # fail on `failure` alone, so a cancelled leg read "all green". No job here
@@ -508,3 +505,35 @@ jobs:
             fi
           done
           echo "all green"
+
+  # Release Please, restored by the 2026-11-04 switch from `--versioning tag` (Jeston's ruling;
+  # the skeletor v0.72.2 round of [[skeletor-adoption]]). Taken from the template's job, with one difference that is
+  # this fork's: it waits on `verdict` rather than on the template's leaf jobs, since `verdict`
+  # already passes only when every job here succeeded. The token comment is the template's — read
+  # it there; three doors, the organisation's App first, and why GITHUB_TOKEN alone is refused.
+  release-please:
+    name: Release Please
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [verdict]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    # A step `if:` cannot read `secrets`, so whether an App is configured crosses in as an env value.
+    env:
+      HAS_RELEASE_APP: ${{ secrets.APP_ID != '' }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/create-github-app-token@v3
+        id: app-token
+        if: env.HAS_RELEASE_APP == 'true'
+        with:
+          client-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+      - uses: googleapis/release-please-action@v5
+        with:
+          config-file: .github/release-please-config.json
+          manifest-file: .github/.release-please-manifest.json
+          # Pinned: the default is the repository's default branch, which here is `develop`.
+          target-branch: main
+          token: ${{ steps.app-token.outputs.token || secrets.RELEASE_TOKEN || github.token }}

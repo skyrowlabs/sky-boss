@@ -1,0 +1,23 @@
+# Findings `tests/test_publication.py` may leave in a tracked file, and why.
+#
+# Format, three keys:
+#   <path> <match>: <why>   one finding in one file
+#   <path>: <why>           every finding in that tracked file, e.g. a frozen design render
+#   <match>: <why>          that exact match in any file, e.g. a placeholder path
+#
+# An entry that exempts nothing is stale and fails the test, so an exemption
+# cannot outlive what it was written for.
+
+# Placeholders: a shape standing in for a name. A new one is a deliberate act.
+~/src: the stand-in the 2026-08-30 history rewrite chose for the operator's workspace root
+/home/you: the stand-in for a home directory in a quoted workbench bug
+/home/x: a highlight fixture's arbitrary path
+~/some: a docstring example, `--cwd ~/some/repo`
+~/somewhere: a fixture's state root, `state_root = "~/somewhere"`
+~/logs: the arbitrary target in the tests that assert `~` expansion at all
+Path.home() / "logs": the same target, spelled as the expansion a test compares against
+
+# Frozen renders of the canvas mockup's invented home network (pfsense, a synology,
+# three reolink cameras). Editing a render to satisfy a test breaks the record.
+docs/design/sky-boss-demo.html: the clickable mockup the canvas was built from, invented 10.0.0.x fleet
+docs/design/Sky Boss Surface.dc.html: a render of the same invented dataset

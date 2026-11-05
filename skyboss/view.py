@@ -241,8 +241,13 @@ def find_rows(data, path: str | None = None) -> Found:
     """
     if path:
         found = resolve(data, path) if isinstance(data, dict) else None
+        # A named empty list is zero rows, not a missing list: "nothing due" must
+        # not read as a broken producer. Inference below still skips `[]`, since
+        # an empty list has no values to be recognised by.
         if is_rows(found):
             return Found(found, path)
+        if found == []:
+            return Found([], path)
         return Found(None, reason=f"--rows {path} did not find a list of rows")
 
     if is_rows(data):

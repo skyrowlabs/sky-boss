@@ -71,6 +71,27 @@ LANGUAGE_CONFIGS = (
 )
 
 
+#: The python lint gates, as (label, argv) with the paths to check appended.
+#: A command that lints a subset of paths runs this same list over them, so a
+#: tree that changes its linters here (ruff, say) changes them everywhere.
+PYTHON_LINTERS = (
+    ("flake8 (errors)", ("flake8", "--select=E9,F63,F7,F82,F401", "--show-source")),
+    ("isort", ("isort", "--check-only", "--diff")),
+    ("black", ("black", "--check")),
+)
+
+
+def typecheck() -> tuple[str, int] | None:
+    """The whole-project type check, or None when this tree configures none."""
+    if not (PROJECT_ROOT / "pyrightconfig.json").exists():
+        return None
+    # The wrapper, not pyright directly — the same entry the pre-commit hook
+    # runs. It pre-flights the interpreter pyright would resolve, because a
+    # bare one reports an environment fault as errors in files this run never
+    # touched (`reportMissingImports` is `none`). scripts/lint_pyright_gate.py.
+    return ("pyright", script("scripts/lint_pyright_gate.py", "--project", "pyrightconfig.json"))
+
+
 def _unlinted() -> list[str]:
     """Languages this tree holds source for that no configured linter reads."""
     gaps = []
@@ -95,17 +116,10 @@ def _lint() -> int:
 
     results = []
     if (PROJECT_ROOT / ".flake8").exists():
-        results.append(
-            ("flake8 (errors)", run(["flake8", ".", "--select=E9,F63,F7,F82,F401", "--show-source"]).returncode)
-        )
-        results.append(("isort", run(["isort", "--check-only", "--diff", "."]).returncode))
-        results.append(("black", run(["black", "--check", "."]).returncode))
-    if (PROJECT_ROOT / "pyrightconfig.json").exists():
-        # The wrapper, not pyright directly — the same entry the pre-commit hook
-        # runs. It pre-flights the interpreter pyright would resolve, because a
-        # bare one reports an environment fault as errors in files this run never
-        # touched (`reportMissingImports` is `none`). scripts/lint_pyright_gate.py.
-        results.append(("pyright", script("scripts/lint_pyright_gate.py", "--project", "pyrightconfig.json")))
+        results += [(label, run([*argv, "."]).returncode) for label, argv in PYTHON_LINTERS]
+    typed = typecheck()
+    if typed:
+        results.append(typed)
     if (PROJECT_ROOT / "eslint.config.js").exists():
         results.append(("eslint", run(["npm", "run", "lint:check"]).returncode))
     if not results:
@@ -180,6 +194,23 @@ def merge_drivers() -> None:
     sys.exit(script("scripts/git/install_merge_drivers.py", "--check"))
 
 
+@check.command()
+@click.option("--plan", is_flag=True, help="print what would run, run nothing")
+@click.option("--workflow", "workflows", multiple=True, help="one workflow file name; repeatable")
+@click.option("--keep", is_flag=True, help="leave the worktree and venv behind")
+def scheduled(plan: bool, workflows: tuple, keep: bool) -> None:
+    """Rehearse each scheduled workflow here: the working tree, a clean venv.
+
+    No pull request runs a scheduled job, so this is the only way to see one
+    pass before its first night. Exits 2 when nothing could be rehearsed.
+    scripts/rehearse_scheduled.py says what it can and cannot stand in for.
+    """
+    args = ["--plan"] * plan + ["--keep"] * keep
+    for name in workflows:
+        args += ["--workflow", name]
+    sys.exit(script("scripts/rehearse_scheduled.py", *args))
+
+
 @check.command(name="pre-push")
 @click.option("--quick", is_flag=True, help="lint and docs only — skip the test suites")
 def pre_push(quick: bool) -> None:
@@ -219,22 +250,12 @@ def pre_push(quick: bool) -> None:
         # here one commit deep and there three: same gate, same name, two sets,
         # and the bigger one runs after the push. The script prints the range
         # it chose, because two ranges that print alike is the whole defect.
-        # Self-guarding: with no release automation in the tree there is no
-        # contract to check and it says so.
+        # With no Release Please config the contract is the commit-msg hook.
         ("commit subjects", script("scripts/check_commit_subjects.py")),
-        # And the one that can actually fail here. The line above checks a
-        # Release Please contract this tree does not have, so it passes on
-        # every commit forever; this checks the conventional-commit rule, by
-        # running the `commit-msg` hook over the same range. Both are kept
-        # because they are two contracts, not two spellings of one — see the
-        # docstring of `check_commit_style.py`, which argues it at length
-        # precisely because the filenames invite deleting one.
-        #
-        # Local duplication with the hook is deliberate and cheap: the hook
-        # binds whoever ran `pre-commit install`, and this repository's own
-        # checkout had no hooks installed at all when the check was written,
-        # which is how four over-length subjects reached `develop` unremarked.
-        ("commit style", script("scripts/check_commit_style.py")),
+        # A clone fact, so CI cannot hold it and `tests/test_pre_push_covers_ci.py`
+        # cannot require it: the merge driver and commit template live in
+        # .git/config, which every second clone starts without.
+        ("clone-local config", script("scripts/git/install_merge_drivers.py", "--check")),
     ]
     if not quick:
         junit = TMP_DIR / "junit-unit.xml"

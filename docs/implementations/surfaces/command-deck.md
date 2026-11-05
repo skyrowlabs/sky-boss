@@ -1,0 +1,551 @@
+---
+title: "The deck: a tmux command center for agent sessions"
+slug: command-deck
+priority: medium
+category: surfaces
+agent_value: 3
+completed: 2026-11-04
+updated: 2026-11-04
+tags: [agents, act, tmux, surfaces]
+summary: Adds `sb deck`, a tmux session holding one window per agent, plus a queue of sessions waiting on the operator, read by both surfaces. It is the first act surface beside the observe-only canvas.
+---
+
+# The deck: a tmux command center for agent sessions
+
+> **Status**: 🟡 In progress
+> **Priority**: Medium. Round 4: exit, scrolling, agent colours and shortcut keys, on the operator's ruling.
+> **Updated**: 2026-11-04
+
+## Problem
+
+Several Claude Code sessions run at once across the sibling repos. [[agent-sessions]] can say which
+ones are live, but not which one is **waiting on the operator**, and it gives no way to get to that
+one. Today the operator finds a blocked agent by walking terminals. An agent waiting on a
+permission prompt costs wall-clock time, and nothing reports that it is waiting.
+
+## Approach
+
+The skyrow-workspace session proposed this on 2026-11-04 and relayed an owner ruling with it. Its
+four parts are ruled one at a time below.
+
+**The ruling, relayed and then confirmed.** *"`sb run` is the single top-level command that acts"*
+is dropped. Observe versus act is now a property of the **surface**: `sb ui` stays observe-only, and
+its per-command `acts` bit is unchanged; the deck is an act surface. Jeston confirmed it in this repo's session
+on 2026-11-04, and `CLAUDE.md` § Scope now says it. Note that the
+per-command split the rule protected survives the ruling: the canvas still reads `acts` to refuse a
+cadence, and that does not depend on which top-level commands may act.
+
+### The name: `sb deck`
+
+It is short and names the thing rather than the mechanism: `sb tmux` would be the wrapper this repo
+refuses. It has no collision on this machine (checked 2026-11-04) and none among sibling CLIs. It is
+not `fleet` (breeze.brain's word) and not `tower` (the canvas's plan screens). It is Jeston's to
+overrule.
+
+### Scope: what the deck does and does not do
+
+- **It acts, and says so.** `sb deck` creates or attaches one tmux session. `sb deck open <project>`
+  starts the real `claude` in a new window, with the project's `cwd` taken from `projects.toml`.
+  Every pane is the real `claude`, so nothing in Claude Code is lost.
+- **It never types into an agent.** No `send-keys` into a `claude` pane, ever. Answering a prompt is
+  the operator's, and a deck that could answer one would be a second permission path. Jumping to a
+  window is `select-window`; it moves the operator, not the agent.
+- **It never edits the operator's tmux config.** The options the workspace named have different
+  scopes. `window-size latest` and `allow-passthrough on` are both window options in tmux 3.8, so
+  the deck sets them on each of its own windows. `extended-keys` is a **server** option, so the deck
+  reports it when it is off and does not set it. That is the KWin rule again: a desktop belongs to
+  whoever runs it.
+- **Names and paths come from `projects.toml`**, never from tracked code (the publication rule).
+  The pinned workspace pane is a declared entry, not a special case in code.
+
+### The waiting queue: the hook writes, and sky.boss owns the writer, not the install
+
+- **Measured 2026-11-04: the registry is the source, and no hook is needed.** A session held at a
+  permission prompt writes `status: "waiting"` to `~/.claude/sessions/<pid>.json`, the file
+  [[agent-sessions]] already parses; it returns to `idle` when its turn ends. So the queue is a
+  read of that file. See Phase 1 for the full measurement.
+- **The one gap the registry leaves is the trust prompt.** A session stopped at Claude Code's
+  "do you trust this folder" dialog has only a `<pid>.*.key` file and no `<pid>.json`, and no hook
+  fires there either, because hooks wait for trust. The deck knows which `claude` it started in
+  each window, so a window whose process has no record is shown as **unregistered**, never left
+  out. That is the same *could not see* as [[agent-sessions]]' third liveness answer.
+- **If a hook is ever needed, the writer is sky.boss code.** It is a hidden command that reads the
+  hook's stdin JSON and appends one normalised line. One author for the line format, with tests,
+  and the real seam is where it should be: Claude Code's hook payload is the producer, and it
+  changes between versions.
+- **The install is user config, written by the operator.** sky.boss prints the `settings.json`
+  fragment and never writes `~/.claude/`. Same rule as the KWin rule and `projects.toml`.
+- **The line is a seam.** Once it settles, the contract goes to the workspace's `strategy/seams/`,
+  which the workspace has offered to keep. Where it lives under the state root is decided there,
+  not here.
+- **A null queue must say whether it looked.** An empty queue with the hook uninstalled is the same
+  bytes as an empty queue with nobody waiting. The deck shows whether any event has *ever* arrived.
+
+### Task lists: deferred, with no source to read
+
+There is no `~/.claude/todos/` or `~/.claude/tasks/` on this machine (checked 2026-11-04 on the
+Claude Code version running here). Nothing gets built on a guessed path. This reopens when a source
+exists and has been read.
+
+### The canvas gets the queue read-only
+
+The queue is `sb deck queue`, an observe returning an envelope, so the canvas can pin it like any
+read. `sb agents` already shows the same `waiting` word there today. Jumping to a window stays on the deck, because the
+canvas is observe-only.
+
+## Phase 1: measure
+
+- [x] Held a probe session at a permission prompt (Claude Code 2.1.318), with hooks supplied by a
+      one-off `--settings` file so no user config changed. The registry read `waiting` at the
+      prompt and `idle` after the turn. At the trust dialog there was no `<pid>.json` at all.
+- [x] Hook payloads on 2.1.318. Both carry `session_id`, `transcript_path`, `cwd`,
+      `hook_event_name` and `prompt_id`. `Notification` adds `message` and `notification_type`
+      (`permission_prompt`, then `idle_prompt` after the turn). `Stop` adds `permission_mode`,
+      `effort`, `stop_hook_active`, `last_assistant_message`, `background_tasks` and
+      `session_crons`. Not used: the registry suffices.
+- [x] Jeston confirmed the scope ruling directly on 2026-11-04, and `CLAUDE.md` § Scope is rewritten.
+
+## Phase 2: the deck
+
+Config is `$SB_HOME/deck.toml`, operator-written and absent by default. It holds `session` (the
+tmux session name, default `sb`), `pin` (an agent name), and `[agent.<name>]` tables with `cwd`
+and an optional `args` list for `claude`. A name not under `[agent.*]` falls back to a
+`projects.toml` project's `cwd`. Every tmux call goes through one runner function, so the suite
+never needs a tmux binary.
+
+- [x] `sb deck`: create the session if absent (with the pinned agent in window 0), set
+      `window-size latest` and `allow-passthrough on` on each deck window (both are window
+      options in tmux 3.8), then attach
+      (`switch-client` inside tmux, `exec tmux attach` outside). Acts.
+- [x] `sb deck open <name>`: a window named `<name>` running `claude` in that agent's `cwd`, or a
+      `select-window` if it already exists. Acts.
+- [x] `extended-keys` read from the server and reported on stderr when it is off; never set.
+- [x] `acts` asserted with `sb_acts` on every subcommand, and a test that each one chose
+      ([[jobs]] round 1).
+- [x] No subcommand calls `send-keys`, and a test greps the module for it.
+
+## Phase 3: the queue
+
+- [x] `sb deck queue`: an observe. One row per deck window: window name, the `claude` pid running
+      in it, and that pid's registry `status`, or `unregistered` when there is no record. Sessions
+      reading `waiting` sort first. The word is the provider's, compared literally, so sky.boss
+      orders and does not judge. Live sessions outside the deck are listed after, so none is hidden.
+- [x] `sb deck jump <name>`: `select-window`. Acts.
+- [x] `sb deck` puts a queue pane in the pinned window (`sb deck queue` on a refresh).
+
+## Phase 4 (round 2): the controller layout
+
+Jeston's own description, from the skyrow-workspace session on 2026-11-04: the workspace agent at
+about half the screen, *"a sub-tabbed representation of the different project specific agents that
+I can choose to activate"*, and tools for *"human actions that are needed"*, task lists, and the
+messages agents exchange. He chose the three-column layout below, asked for the stacked one as well
+(switchable), and asked for panes resizable by dragging.
+
+```
+columns (default)                                  stack
++--------------+-[jam]-[mind]--+-----------+       +-----------------------+-----------+
+| WORKSPACE    | project agent | NEEDS YOU |       | WORKSPACE claude      | NEEDS YOU |
+| claude       | (active tab)  |-----------|       +-[jam]-[mind]----------+-----------|
+|              |               | MESSAGES  |       | project agent         | MESSAGES  |
++--------------+---------------+-----------+       +-----------------------+-----------+
+```
+
+- [x] **Window 0 is the controller.** Left: the pinned workspace agent (about 45% wide). Middle:
+      one pane attached to an inner tmux session, `<session>-agents`. Its windows are the project
+      agents, and its status bar is the tab row. Right column (about 25%): `sb deck queue` (NEEDS
+      YOU) over `sb deck messages`. Both refresh on a cadence (constants, not keys).
+- [x] **Tabs only for agents you activate.** `sb deck open <name>` adds an inner window running
+      `claude` (or selects it), and `sb deck jump <name>` selects it. Clicking a tab works through
+      tmux's mouse support.
+- [x] **`sb deck layout columns|stack`** switches window 0 between the two shapes by moving panes.
+      It never restarts a pane, so every `claude` keeps its process (asserted: no `kill-pane`,
+      `respawn-pane` or `kill-window` in the switch).
+- [x] **Resizable by dragging:** `mouse on` set on both deck sessions (a session option, so the
+      operator's config is untouched).
+- [x] **`sb deck messages`**, an observe with `--refresh`/`--ticks`. One row per message exchanged
+      between agent sessions: time, sender → receiver, and the body's first line. Newest at the
+      bottom, the last 50, de-duplicated by `msg_id`. Source, measured on Claude Code 2.1.318: each
+      live session's transcript (`~/.claude/projects/<slug of cwd>/<sessionId>.jsonl`) records every
+      message it **received** as a `user` entry whose `origin.kind` is `peer`, carrying `name`,
+      `msg_id` and `body`. A transcript that cannot be found or read is counted in a warning, never
+      skipped silently. Message bodies are drawn on the operator's terminal and written nowhere.
+- [x] `sb deck queue` finds deck agents in the inner session's windows.
+- [x] Tests on `FakeTmux` and on synthetic transcripts: both layouts' commands, the switch moving
+      panes without restarting any, `mouse on` on both sessions, the messages parse (peer entries
+      only, dedupe, first line, unreadable transcript counted), and `--ticks` parity with `sb data`.
+
+**Task lists stay deferred.** Recent transcripts on this version carry no to-do or task-creation
+tool calls, and `~/.claude/todos/` and `~/.claude/tasks/` do not exist. So window 0 has no TASKS pane:
+a pane with nothing behind it would be the nav rule broken in a smaller font.
+
+## Phase 5 (round 3): profiles, live tabs, scope, fit and theme
+
+Ruled by Jeston on 2026-11-04, after using the round 2 controller. Three answers: the workspace
+lives in the tabs, so there is no fixed left pane; a tab shows the live `claude`, so its prompts are
+answered there; a name repeated in a profile is one tab and a warning.
+
+```
+columns (default)                          stack
++-[workspace]-[stash]-[mind]-+-----------+  +-[workspace]-[stash]-[mind]-[sky]-+
+| the selected tab's claude  | NEEDS YOU |  | the selected tab's claude        |
+|                            |-----------|  +----------------+-----------------+
+|                            | MESSAGES  |  | NEEDS YOU      | MESSAGES        |
++----------------------------+-----------+  +----------------+-----------------+
+```
+
+- [x] **Profiles in `deck.toml`.** A `[profile.<name>]` table carries `primary` (an agent name) and
+      `tabs` (agent names, in order). `sb deck --profile <name>` opens the primary as the first tab
+      and every listed tab after it, each a live `claude`. On an existing deck it opens only the
+      missing tabs. A name resolves exactly as `open` resolves it (`[agent.*]`, then a
+      `projects.toml` `cwd`). A name repeated in a profile is one tab and a warning; an unresolvable
+      name is a warning and no tab. A profile key outside `primary` and `tabs` is named as a problem.
+- [x] **No fixed left pane.** Window 0 is the tab area plus the tools in both layouts. The `pin`
+      key keeps working and means the same as a profile with a primary and no tabs.
+- [x] **Tabs say what each agent is doing.** Each tab is drawn with the registry's word for its
+      session: `busy` as working, `waiting` as needs you, `idle` as quiet, and no record as
+      unregistered. The state reaches tmux within a few seconds. Whatever writes it acts and says
+      so; it keeps no process per tab and spawns no Python per tab per tick. The order is the
+      profile's: primary first.
+- [x] **`--scope deck|outside|all`** on `sb agents` and on `sb deck queue`, default `all`. `deck`
+      means sessions running in a deck pane, and `outside` means every other live session.
+- [x] **Tables fill their pane and never wrap.** In the deck's tool panes, columns widen to use the
+      room the pane has and shrink with ellipsis when it has none. A row is always one line, at every
+      width, re-measured each render because panes are dragged.
+- [x] **A sky.boss theme for the deck's own bars.** The tab row and the outer status bar take their
+      colours from `skyboss/theme.py`, replacing tmux's default green, and are set as options on the
+      deck's own sessions only. Nothing outside `theme.py` names a colour, so tmux style strings are
+      generated there.
+- [x] Tests on `FakeTmux`: profile parsing and its problems, opening order and idempotence, the
+      state marks, the scope filter, the no-wrap fit at several widths, and the theme options set on
+      the deck's sessions only. A smoke test on a throwaway socket covers the clicks and the marks.
+
+## Phase 6 (round 4): exit, scrolling, agent colours, keys
+
+Ruled by Jeston on 2026-11-04, after the first real run of round 3 (*"it works"*). He asked for a
+double Ctrl-C exit and was shown the conflict: Ctrl-C is claude's own (one press interrupts a turn,
+two exit it), so binding it would put every press through the deck. He chose Ctrl-Q plus a
+clickable ✕ instead, kept agent colours on the brand-step rule, and asked for four shortcuts.
+
+- [x] **Bindings live in the deck's own key table.** Both deck sessions set `key-table` to a table
+      only they use, so the operator's other tmux sessions see no new binding. Measured before
+      relying on it: the prefix still works there, an unbound key still reaches the pane, and a
+      session outside the deck is unaffected.
+- [x] **Exit.** Ctrl-Q, or clicking a ✕ at the right of the status bar, opens a tmux confirm that
+      names what ends ("end the deck and its N agent sessions?"). Confirming runs `sb deck exit`,
+      an act that stops the marks loop and kills both deck sessions and nothing else. `kill-session`
+      is allowed in that command only; the layout switch still never kills anything. Ctrl-C is
+      never bound.
+- [x] **Messages scroll.** The messages pane takes an offset: arrows, PgUp/PgDn and the wheel when it
+      is focused, plus a deck shortcut when it is not. The band says how far back it is
+      (`↑ 12 older shown`, or `newest`) and returns to newest on a key.
+- [x] **Each agent has its own colour.** The colour is a step along the brand, by tab order with the
+      primary first (CLAUDE.md: never a new hue, never a borrowed role), and is assigned once in
+      `theme.py` so the tab row and the messages pane cannot disagree. A tab's label is drawn in its
+      agent's colour, and in MESSAGES each name in `sender → receiver` is drawn in that agent's
+      colour. A sender outside the deck stays the plain text colour. Each step clears the CLI
+      contrast floor, checked by a test.
+- [x] **Shortcuts, shown in the status bar.** Hide or show outside agents in NEEDS YOU and MESSAGES
+      (a toggle stored as an option on the deck session, which the panes read each frame); switch
+      layout; next and previous tab; and scroll messages. The keys are chosen to collide with none
+      of Claude Code's own keybindings or tmux's defaults; the choice and its check are recorded
+      in Notes.
+- [x] Tests on `FakeTmux`: the key table is set on the deck's sessions only and nothing is bound
+      globally; Ctrl-C is never bound; `exit` kills exactly the two deck sessions; the scroll
+      offset and its band; colour assignment by tab order, shared by both renderers, above the
+      floor; the outside toggle read by both panes. A smoke test on a throwaway socket covers the
+      popup, the ✕ click, the keys and the scroll.
+
+## Dropped, and why
+
+- **Binding Ctrl-C for exit.** It is claude's interrupt, and forwarding it would put every
+  press through the deck; Jeston chose Ctrl-Q and a ✕.
+- **Typing into an agent pane.** See Scope: it would be a second permission path.
+- **Writing `~/.claude/settings.json` or `~/.tmux.conf`.** Operator-owned, like `projects.toml`.
+- **The hook writer and its ledger.** Phase 1 found the registry already says `waiting`.
+- **Scraping the TUI for task lists.** The workspace ruled it out too; screen text is not a contract.
+
+## Notes
+
+### 2026-11-04: drafted from the workspace's proposal
+
+Ruled here: the name, the scope, the hook's ownership, and the deferred task lists. The only
+measurement so far is the registry's `status` (two values, seven sessions) and the absent todo
+directories. The relayed scope ruling is recorded but not applied.
+
+### 2026-11-04: the scope ruling confirmed
+
+Jeston confirmed the ruling directly, so the plan is unblocked. `CLAUDE.md` § Scope, the README and
+fundamentals' Decisions now say that act versus observe is decided by the surface.
+
+### 2026-11-04: Phase 1 measured, and the hook is not needed
+
+The probe ran in a detached tmux session against an empty scratch directory, with hooks from a
+`--settings` file. Claude Code writes `waiting` to its own registry while a permission prompt is
+open, so the queue reads the file sky.boss already parses. The hook writer, the settings fragment
+and the ledger seam are all dropped. The trust dialog is the one waiting state with no record,
+and the deck covers it by showing what it started.
+
+### 2026-11-04: Phases 2 and 3 built
+
+`sb deck`, `open`, `queue` and `jump` shipped in `skyboss/deck.py`. Decided while building:
+- The deck finds its own windows by tmux user options (`@sb-agent` on a window, `@sb-deck` on a
+  pane), not by name, so a renamed window is still found.
+- Bare `sb deck` always refuses `--json`. Inside tmux it could return an envelope, but one that
+  exists only sometimes is worse than none. With no terminal, it creates the session and says how
+  to attach.
+- `unregistered` is shown only for a window the deck started an agent in. A shell the operator
+  opened gets no row, because the word would mislead there.
+- The tester found that warnings were rendered as rich markup, so `[agent.<name>]` in a message
+  vanished and a `[/x]` crashed. That had been true of every command's warnings. It is fixed in
+  `skyboss/output.py`, and `skyboss/follow.py` now shares the one escaped path.
+
+A deck row reading `waiting` was exercised only in unit tests, against a fake `claude`; the probe
+in Phase 1 is the live evidence that the registry writes the word.
+
+### 2026-11-04: round 2 reopened
+
+The round 1 deck built only window 0 and opened projects on demand, which read as a display rather
+than a command center. Reopened on Jeston's ruling, with the three answers recorded in Phase 4.
+
+### 2026-11-04: round 2 respecced from the operator's own words
+
+The first round 2 spec (all agents at startup, roll-call and agents panes) was written from a
+relay. It was stopped before any code, and Phase 4 was rewritten from Jeston's own words plus three
+answers: the columns layout, switchable to stack; resizable panes; tabs only for the agents he
+activates; messages shown as time, sender to receiver and first line.
+
+### 2026-11-04: the controller layout built
+
+`sb deck layout` and `sb deck messages` shipped; `ensure`, `open`, `jump` and the queue moved to
+two sessions. Decided while building:
+- The inner session's first window is a `shell` tab in `$HOME`. A tmux session cannot have zero
+  windows, and the nested client needs something to attach to before any agent is opened.
+- `plan()` is a pure function of four pane ids, so each shape's tmux calls are tested directly.
+  It only joins and resizes; `layout` also puts back a missing tool pane by splitting a new one.
+- A bare `sb deck` on an existing deck redraws only when it had to put a pane back, so the
+  operator's own dragging survives it. `sb deck layout` always redraws.
+- `set-option -t` reads a pane target and refuses a bare `=sb`, so session options target `=sb:`.
+  The real tmux found this; the fake now refuses the bare form too.
+- Run from a pane inside either deck session, `open` and `jump` never switch the client. Switching
+  the nested client to the outer session would draw the deck inside itself.
+- Both sessions share one server and its key bindings, so the outer client sees the prefix first:
+  prefix then a key acts on the controller. Pressing the prefix twice passes it to the nested
+  client, which then acts on the tabs. Clicking a tab, and `sb deck jump`, need neither.
+- The tool panes run with `--screen`. Inline frames left stale copies above the live one after a
+  resize, which the mouse now invites.
+- `sb deck messages` keys a peer entry without a `msg_id` (a subagent's handback) by its entry
+  `uuid`. The slug rule held for every live session's directory on 2026-11-04.
+
+### 2026-11-04: round 2 built
+
+The controller shipped in sky-boss@d672d9c, and the tool panes were fitted to their height in
+sky-boss@ee1742f. The queue keeps its top rows, because waiting sorts first, while messages keep the
+newest; what does not fit is counted on a band line. Checked on a throwaway tmux socket with a fake
+`claude`: both layouts, the switch keeping every pane's process, the tab row, and the fit
+re-measured after a resize. Not observed, because no keys were sent: a mouse click on a tab, and
+the outer/inner prefix (prefix twice reaches the tabs). Task lists remain deferred.
+
+### 2026-11-04: round 3 reopened
+
+Jeston, after using the controller, asked for profiles (a skyrow-core set of five repos with the
+workspace first), tabs that show when an agent is working, a deck/outside filter, tables that fill
+their pane without wrapping, and a theme in place of tmux's green. Recorded in Phase 5.
+
+### 2026-11-04: round 3 built
+
+Profiles, live tabs, `--scope`, the fill and the theme shipped. Decided while building:
+- **Tab state is a window option, `@sb-state`, written by one loop.** Measured on tmux 3.8: a
+  window option is drawn about 5 ms after `set-option`, at any `status-interval`. `#()` in a tab
+  format forked once per tab per interval (30 forks in 10 s for 3 tabs). `monitor-activity` flags
+  output only on non-current tabs, cannot tell waiting from working, and clears only on a visit.
+- The writer is `sb deck marks --every 3`, an act. `sb deck` starts it once, as a tmux background
+  job, so it ends with the server; it writes only what changed and exits when the deck is gone.
+  Its pid is a session option, so a second loop yields. The tab row's right end shows when it last
+  wrote, so a dead writer reads as stale rather than as calm.
+- `window-status-format` is a window option in tmux 3.8, so tab formats are set on each tab. Only
+  it is set, never `status-format`, so tmux's `range=window` still makes a click select the tab.
+- A round 2 deck's pinned pane moves into the tabs with `break-pane`, process and all.
+- The profile's tabs are put in its order with `swap-window`, ahead of any tab the operator
+  opened. On a live deck, missing tabs are opened and nothing else is touched.
+- The queue keeps its first rows when trimmed, because `waiting` sorts first; messages keep
+  the newest.
+
+The `deck.toml` schema after this round:
+
+```toml
+session = "sb"          # optional; the tabs session is "<session>-agents"
+pin = "workspace"       # optional; the same as a profile with this primary and no tabs
+
+[agent.workspace]
+cwd = "~/src/workspace"
+args = ["--model", "opus"]   # optional
+
+[profile.core]
+primary = "workspace"   # the first tab
+tabs = ["jam", "mind"]  # in order; a name may also come from a projects.toml cwd
+```
+
+### 2026-11-04: round 3 built
+
+Shipped in sky-boss@09ef614, sky-boss@97c15d3 and sky-boss@5c9bf1d, with the schema and decisions
+recorded in sky-boss@20079d8. Tab states are a window option written by one `sb deck marks` loop:
+`#()` forked once per tab per tick, and `monitor-activity` cannot tell waiting from working. Seen
+on a throwaway socket: a mouse click selecting a tab, all four states drawn, and a state change
+reaching its tab within three seconds. Not yet seen with a real `claude`; fake ones wrote the
+registry records. The skyrow-core profile was added to the operator's own `deck.toml` by hand, not
+by sky.boss.
+
+### 2026-11-04: round 4 reopened
+
+After the first real run, Jeston asked for an exit, scrolling messages, an agent colour shared by the
+tabs and the messages, and visible shortcuts including hiding outside agents. Recorded in Phase 6.
+
+### 2026-11-04: round 4 built
+
+Shipped in sky-boss@0e7e5ee, sky-boss@d14a1cf and sky-boss@ebba8f5. Measured and decided:
+- **A session's `key-table` does not fall back to root.** Measured on tmux 3.8, throwaway socket:
+  the prefix still works and an unbound key still reaches the pane, but root's mouse bindings are
+  never consulted, so tab clicks, border drags and the wheel all stopped. The deck therefore copies
+  `list-keys -T root` into its own table, `sb-deck-<session>`, with any Ctrl-C binding dropped, and
+  binds its keys over that. Root is unchanged and a session outside the deck sees none of them.
+- **The keys.** Checked against Claude Code 2.1.318's own key strings and its input's Meta switch
+  (`b`, `d`, `f`, `y`), plus the listed `alt+o/p/t/v/w`, `meta+j/m/o/p/t/w` and `meta+up/down`;
+  tmux's root table has no Meta binding by default. Chosen: `C-q` exit, `M-h` outside, `M-l`
+  layout, `M-,` and `M-.` previous and next tab, `M-u` older messages, `M-e` newest. Not checked:
+  any `keybindings.json` the operator has written, which sky.boss does not read.
+- Exit asks with `confirm-before`, whose prompt names the count from `@sb-agent-count` (kept by
+  the marks loop). `sb deck exit` stops that loop and kills the two sessions; `kill-session`
+  appears only in `end_sessions`, which a test recomputes from the source.
+- The panes write no option. A shortcut sets one; the pane adopts a changed sequence number on its
+  next frame, and its own keys move only its own offset.
+- **A bug the scroll exposed:** `sys.stdin` buffered `ESC [ A`, so Up read as Esc and left every
+  resident view, `sb follow` included. A test had pinned that behaviour; it now pins Up.
+- An agent's colour is a step of the canvas's project ramp, recomputed in OKLab and moved in
+  lightness until it clears 3.5:1 on white, the void, and both tab-row grounds. A test reads
+  `sb.css`, so the two ramps cannot part.
+
+### 2026-11-04: round 4 built
+
+Shipped in sky-boss@0e7e5ee, sky-boss@d14a1cf and sky-boss@ebba8f5, with the measurement, the keys
+and the decisions in sky-boss@17139d6. One ruling was made in the orchestrating session rather than
+by Jeston: tmux 3.8 does not fall back to `root` from a session's `key-table`, so mouse clicks, drags
+and the wheel died in the deck. The deck now copies `root` into its own table, minus Ctrl-C, and
+binds over it. That is accepted because it changes nothing global. Its cost is that a root binding
+added later reaches the deck only on the next `sb deck`. Every behaviour was seen on throwaway
+sockets with fake `claude` scripts; none has been run against a real one yet. A side fix:
+`skyboss/keys.py` now reads unbuffered, so an arrow key in any resident view, `sb follow` included,
+is no longer taken for Esc.
+
+### 2026-11-04: every agent the deck starts is told it is in a deck
+
+Asked by Jeston after the workspace agent could not say what "the deck" was. Each `claude` the deck
+starts now runs as `claude -n <tab name> --append-system-prompt <brief> …args`. The brief names the
+agent and the tmux session, says the others are peers reached by name with SendMessage, points at
+`sb agents --scope deck` and ListAgents, lists the roster at launch (name and directory, primary
+first and marked), says tabs come and go so the live list wins, and says the operator reads MESSAGES
+and answers prompts by clicking a tab. The primary gets one more line saying it coordinates.
+- Built at launch from `deck.toml` and tmux only, never from a transcript; a test makes every
+  transcript and registry read fail and the brief is still built. The paths are the operator's,
+  computed at runtime and written nowhere.
+- The operator's own `-n`/`--name`, or appended system prompt, wins over the deck's.
+- The primary is recorded as `@sb-primary` on the tabs session, so a tab opened later is briefed
+  with the roster as it stands then, primary marked. **Agents already running are not updated**:
+  the only way would be typing into them, which stays banned, and the brief says to check the
+  live list instead.
+- Seen on a throwaway socket: a fake `claude` dumped its argv, and the brief arrived intact as one
+  argument through tmux. `sb agents --scope deck` run from inside a tab found the deck's server
+  through `TMUX` and listed all five agents. Not yet run against a real `claude`.
+
+### 2026-11-04: message endpoints by session, and the operator's words in the brief
+
+Two live sessions were both named `skeletor`, one a deck tab and one not, and MESSAGES painted the
+outside one's messages in the tab's colour, because senders were looked up by name. Now neither
+end of a message is identified by name:
+- The receiver is the session whose transcript holds the entry. The sender is the live session
+  that `verifiedPeerPid` with `verifiedPeerProcStart` names in Claude's registry, else the one whose
+  `messagingSocketPath` is the entry's `from: "uds:…"`. A sender with neither, or naming a session
+  that is not live, is never a deck agent and stays plain.
+- A name held by one live session is shown bare. Of several, the one deck agent keeps it bare and
+  every other is shown `name·<first 8 of its session id>`; an unverifiable sender sharing a live
+  name is shown `name·?`.
+- The queue, the marks and `sb agents --scope` already placed a session by its pane's process
+  tree, never by name; a test now pins that for two same-named sessions.
+
+`deck.toml` takes two more optional keys, both strings and both checked like the rest:
+
+```toml
+[agent.skeletor]
+cwd = "~/src/skeletor"
+role = "the scaffold generator; upgrades flow from here"   # one line, beside it in every roster
+
+[profile.skyrow-core]
+primary = "skyrow-workspace"
+tabs = ["stash-flow", "mind-head", "sky-boss", "skeletor"]
+brief = '''Extra text appended, unedited, to every brief this profile launches.'''
+```
+
+The primary's hardcoded "coordinating agent" line is gone: the roster still marks `(primary)`, and
+what it does comes from its `role`. The fifteen-line limit covers sky.boss's own lines only, never
+the operator's `brief`. A tab opened later with `sb deck open` is not launched under a profile, so
+it gets the roster and roles but no profile `brief`.
+
+### 2026-11-04: todo lists, the TODOS pane, and the profile brief on a later tab
+
+Claude Code's main sessions have no todo tool sky.boss can read, so each agent keeps its own
+list through the deck: `sb deck todo add "<text>"`, `done <n>` and `rm <n>` act, and `list`
+observes. A list is one JSON file per agent, `$SB_STATE/deck/<session>/todos/<agent>.json`: never
+in a repo or `$SB_HOME`, keyed by deck session and agent name, stamped with `updated` on every
+write, and written through a rename. The brief gains one line asking the agent to keep it; the
+generated part is still fifteen lines for a five-agent profile.
+
+- **The owner is the caller's tab, by the process tree.** `caller_tab` walks this process's
+  parents up to an agent pane's pid in `<session>-agents`. There is no name argument, so a
+  same-named session outside the deck reaches no tab and is refused with the sentence saying why.
+  `list` inside a tab shows that tab's list; elsewhere, or with `--all`, every list.
+- **The TODOS pane** is a third tool pane, role `todos`, below MESSAGES in columns and beside it in
+  stack. A switch moves it, and a bare `sb deck` on an older deck puts it back. It is grouped by
+  agent in tab order, primary first. Each heading is the agent's name in its tab colour, plus how
+  long ago the list changed. A list whose agent has no tab follows, marked `(no tab)`. An agent that
+  never wrote a list reads `no list kept`, and one with nothing left reads `nothing open`. Done items
+  stay **dimmed, with a ✓**, rather than hidden, so the operator sees what moved. It refreshes every
+  5s on the `--screen` repaint, and it scrolls from the **top** with its own keys (arrows, PgUp/PgDn,
+  wheel, Home/End) once focused. There is no global shortcut, so the bar hints are unchanged.
+- **Two fixes the third pane exposed.** On a new detached deck the first join landed the tool
+  column in the tab pane's share of the stack, and the third join then hit a one-row pane and was
+  refused. The first join is now full-window (`-f`). Separately, `fitted`'s grow-back left a pane
+  remembering a page one row larger than it drew, so End stopped one row short of the last row (in
+  MESSAGES too). The fit now sees the `keep` it drew last.
+- **A tab opened later gets the profile's brief.** `sb deck --profile NAME` records `@sb-profile`
+  on the inner session beside `@sb-primary`, and `sb deck open` reads it back. This reverses the
+  last line of the previous entry.
+
+Smoke-tested on a throwaway `-L` socket with a fake `claude` and scratch HOME, SB_HOME and SB_STATE.
+`add` and `done` from inside one tab wrote that tab's list and nothing else. The same command from a
+`claude -n sky-boss` outside the deck was refused and left the list untouched. Both layout switches
+kept the TODOS pane's pid.
+
+### 2026-11-04: `sb deck brief`, a way for a running agent to catch up
+
+- **A brief is fixed at launch.** An agent started before briefs existed, or before a peer opened,
+  has no way to learn the current deck, and the deck never types into a running agent. `sb deck
+  brief` is an observe that rebuilds the calling tab's brief now: the live roster, the roles and the
+  loaded profile's `brief`. The caller is found by the process tree, as for `todo`. A NAME previews
+  another agent's brief from anywhere, and outside a tab with no NAME it refuses with a sentence.
+  The `--json` data also carries `peers` as a list.
+- **The operator brings an agent in by typing, not by sky.boss typing.** A user-level skill that
+  runs `sb --json deck brief` and introduces the agent to the primary is the intended trigger. It
+  lives in the operator's own skills directory, not in this repo. The brief now names the command.
+  *(Reversed the same day; see the next entry.)*
+- **The brief's cap counts fixed text only** (`BRIEF_LIMIT = 12`). The roster grows by one line
+  per declared agent and the profile's `brief` is the operator's own, so counting either would let
+  a sixth agent break a cap meant for sky.boss's own wording.
+
+### 2026-11-04: the skill ships with sky.boss, as a plugin every tab loads
+
+- **A project skill would not reach the agents.** `.claude/skills/` loads for sessions whose
+  directory is this repo, and a deck's tabs run in other repos. A user-level copy reaches them, but
+  it is unversioned and is a write into the operator's Claude Code configuration.
+- **So `plugin/` is a Claude Code plugin, and every tab loads it with `--plugin-dir`**, for that
+  session only. The skill moves with the sky.boss that started the tab, and nothing is installed.
+  Measured on Claude Code 2.1.318: `claude --plugin-dir plugin plugin details sky-boss` lists the one
+  skill at about 100 tokens a session.

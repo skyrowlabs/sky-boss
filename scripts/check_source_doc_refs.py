@@ -12,7 +12,10 @@ the time anyone measured.
 the only record of why the code is shaped that way.
 
 Paths that name nothing real by design — help text, output destinations, test
-fixtures — go in `.github/scripts/.validate-ignore`.
+fixtures — go in `scripts/doc_refs_allowlist.yaml`, with a reason. It was a
+bare path-per-line file outside the `*_allowlist.yaml` pattern, so nothing
+checked its entries against anything and the grid's allowlist gate could not
+see it; `tests/test_doc_refs_allowlist.py` now fails an entry nothing references.
 
 Usage:  python scripts/check_source_doc_refs.py [--json]
 
@@ -26,16 +29,16 @@ import argparse
 import re
 import sys
 from pathlib import Path
-from typing import List
 
 # Bootstrap only: put the package on sys.path so `scripts.paths` — which
 # owns every path below — can be imported. See scripts/paths.py.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from scripts import allowlist  # noqa: E402
 from scripts.output import detail, emit, fail, item, ok  # noqa: E402
-from scripts.paths import DOCS_DIR, GITHUB_DIR, PROJECT_ROOT  # noqa: E402
+from scripts.paths import DOCS_DIR, PROJECT_ROOT, SCRIPTS_DIR, is_foreign  # noqa: E402
 
-IGNORE_FILE = GITHUB_DIR / "scripts" / ".validate-ignore"
+ALLOWLIST = SCRIPTS_DIR / "doc_refs_allowlist.yaml"
 
 SOURCE_SUFFIXES = {".py", ".js", ".mjs", ".cjs", ".ts", ".tsx", ".sh", ".yml", ".yaml", ".toml"}
 SKIP_DIRS = {".git", "node_modules", ".venv", "venv", "dist", "build", "__pycache__", "tmp"}
@@ -48,29 +51,23 @@ _REF = re.compile(r"(?P<path>docs/[A-Za-z0-9_./-]+\.(?:md|json|ya?ml))")
 
 
 def _ignored() -> set:
-    if not IGNORE_FILE.exists():
-        return set()
-    return {
-        line.strip()
-        for line in IGNORE_FILE.read_text(encoding="utf-8").splitlines()
-        if line.strip() and not line.startswith("#")
-    }
+    return set(allowlist.read(ALLOWLIST))
 
 
-def _sources() -> List[Path]:
+def _sources() -> list[Path]:
     out = []
     for path in PROJECT_ROOT.rglob("*"):
         if not path.is_file() or path.suffix not in SOURCE_SUFFIXES:
             continue
         # Match against the path RELATIVE to the project root. Matching the
         # absolute path lets an ancestor directory decide: a checkout under
-        # `/tmp`, or in a `build/` or `dist/` directory, hits `tmp`/`build`/`dist` on a
+        # `/tmp`, or a `build/` or `dist/` directory, hits `tmp`/`build`/`dist` on a
         # component nobody chose, skips every file in the repository, and
         # reports "0 references, all resolve" — a green that means unchecked.
         rel = path.relative_to(PROJECT_ROOT)
         if any(part in SKIP_DIRS for part in rel.parts):
             continue
-        if any(rel.as_posix().startswith(f"{prefix}/") for prefix in SKIP_PREFIXES):
+        if any(rel.as_posix().startswith(f"{prefix}/") for prefix in SKIP_PREFIXES) or is_foreign(rel):
             continue
         out.append(path)
     return sorted(out)
@@ -95,7 +92,7 @@ def main() -> int:
     args = parser.parse_args()
 
     ignore = _ignored()
-    dead: List[str] = []
+    dead: list[str] = []
     checked = 0
 
     for source in _sources():
@@ -120,7 +117,7 @@ def main() -> int:
         for entry in dead:
             item(entry)
         detail()
-        detail("A reference that names nothing by design goes in .github/scripts/.validate-ignore")
+        detail(f"A reference that names nothing by design goes in {ALLOWLIST.relative_to(PROJECT_ROOT)}, with a reason")
         return 1
     ok(f"{checked} doc reference(s) in source, all resolve")
     return 0

@@ -9,8 +9,8 @@ The tolerance absorbs honest run-to-run variance (an env-gated branch, a
 skipped optional dependency) without absorbing a real regression.
 
 Usage:
-    pytest --cov --cov-report=xml:tmp/coverage.xml && python scripts/check_coverage_budget.py --suite unit
-    python scripts/check_coverage_budget.py --suite unit --json
+    pytest --cov --cov-report=xml:tmp/coverage.xml && python scripts/check_coverage_budget.py --suite scheduled
+    python scripts/check_coverage_budget.py --suite scheduled --json
 
 `--json` reports on **every** path, including the ones that pass. A ratchet a
 dashboard can only read when it is red tells you nothing about the direction it
@@ -123,20 +123,25 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
-from typing import List, NamedTuple, Optional, Tuple
+from typing import NamedTuple
 
 # Bootstrap only: put the package on sys.path so `scripts.paths` — which
 # owns every path below — can be imported. See scripts/paths.py.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts.output import detail, emit, fail, ok  # noqa: E402
-from scripts.paths import PROJECT_ROOT, SCAFFOLD_MANIFEST, TESTS_DIR, TMP_DIR  # noqa: E402
+from scripts import manifest  # noqa: E402
+from scripts.output import detail, emit, fail, ok, warn  # noqa: E402
+from scripts.paths import GITHUB_DIR, PROJECT_ROOT, SCAFFOLD_MANIFEST, TESTS_DIR, TMP_DIR  # noqa: E402
+from scripts.yaml_text import read_uncommented  # noqa: E402
 
 BUDGET = TESTS_DIR / "coverage_budget.json"
 DEFAULT_XML = TMP_DIR / "coverage.xml"
+#: coverage's data file. An xml older than it describes an earlier run (stash.flow).
+DATA_FILE = PROJECT_ROOT / ".coverage"
 
 
 #: A name rather than a parenthesised tuple in the `except`: at a 3.14 target black
@@ -146,18 +151,15 @@ DEFAULT_XML = TMP_DIR / "coverage.xml"
 _UNREADABLE_BUDGET = (OSError, ValueError)
 
 
-def _own_lines(root: ET.Element) -> Optional[List[ET.Element]]:
+def _own_lines(root: ET.Element) -> list[ET.Element] | None:
     """Every measured `<line>` in a file of this project's own, or `None` without a manifest.
 
     Own means *not named by `.skeletor.json`* and *not under `tests/`* — the
     module docstring says why tests are out. One function so the count and the
     rate cannot disagree about the population.
     """
-    if not SCAFFOLD_MANIFEST.exists():
-        return None
-    try:
-        scaffolded = set(json.loads(SCAFFOLD_MANIFEST.read_text(encoding="utf-8")).get("files", {}))
-    except _UNREADABLE_BUDGET:
+    scaffolded = manifest.scaffolded_paths(SCAFFOLD_MANIFEST)
+    if scaffolded is None:
         return None
     tests = TESTS_DIR.relative_to(PROJECT_ROOT).as_posix() + "/"
     return [
@@ -168,7 +170,7 @@ def _own_lines(root: ET.Element) -> Optional[List[ET.Element]]:
     ]
 
 
-def own_rate(root: ET.Element) -> Optional[float]:
+def own_rate(root: ET.Element) -> float | None:
     """The line rate over `_own_lines`, as a percentage; `None` when there is
     no manifest to ask or nothing of yours was measured."""
     lines = _own_lines(root)
@@ -177,7 +179,7 @@ def own_rate(root: ET.Element) -> Optional[float]:
     return 100.0 * sum(1 for line in lines if int(line.get("hits", "0")) > 0) / len(lines)
 
 
-def own_statements(root: ET.Element) -> Optional[int]:
+def own_statements(root: ET.Element) -> int | None:
     """How many of the measured statements are this project's own.
 
     A percentage is a claim about a population, and this is the one question
@@ -212,8 +214,8 @@ class Reading(NamedTuple):
     """One coverage report, read once, so the two paths below cannot disagree about it."""
 
     whole: float
-    own: Optional[int]
-    mine: Optional[float]
+    own: int | None
+    mine: float | None
     measured: dict
     composition: str
 
@@ -240,7 +242,7 @@ def read(root: ET.Element, tolerance: float) -> Reading:
     return Reading(whole, own, mine, measured, composition)
 
 
-def record(suite: str, budget: dict, entry: dict, reading: Reading) -> Tuple[dict, int]:
+def record(suite: str, budget: dict, entry: dict, reading: Reading) -> tuple[dict, int]:
     """`--update`: write the baseline down, or refuse to."""
     if reading.own == 0:
         fail(f"{suite}: refusing to record a baseline — {NOTHING_OF_YOURS}")
@@ -260,7 +262,7 @@ def record(suite: str, budget: dict, entry: dict, reading: Reading) -> Tuple[dic
     return {"state": "updated", key: round(recorded, 2), **reading.measured}, 0
 
 
-def compare(suite: str, entry: dict, tolerance: float, reading: Reading) -> Tuple[dict, int]:
+def compare(suite: str, entry: dict, tolerance: float, reading: Reading) -> tuple[dict, int]:
     """Measure against the baseline, on the population the baseline was recorded over.
 
     The old key is honoured as written: a figure recorded over one population,
@@ -335,18 +337,57 @@ def compare(suite: str, entry: dict, tolerance: float, reading: Reading) -> Tupl
     return {"state": "within", **measured}, 0
 
 
+#: What a workflow runs to reach this check: the script, or the CLI command
+#: wrapping it, which is the one the warning below recommends (sky.vault).
+INVOCATION = re.compile(rf"{re.escape(Path(__file__).name)}|\btest\s+coverage\b")
+
+
+def runners() -> list[str]:
+    """The workflows that name this check, comments masked: a TODO naming it runs nothing.
+
+    Named is all a file can say. Whether GitHub runs that workflow (a disabled
+    one is still on disk) is `dev doctor`'s question (stash.flow).
+    """
+    workflows = sorted((GITHUB_DIR / "workflows").glob("*.y*ml"))
+    return [path.name for path in workflows if INVOCATION.search(read_uncommented(path))]
+
+
+def floor_of(suite: str) -> float:
+    """The floor stored for `suite`, either basis; 0 for none."""
+    entry = json.loads(BUDGET.read_text(encoding="utf-8"))["suites"].get(suite) or {}
+    return max(float(entry.get("baseline_pct") or 0), float(entry.get("own_baseline_pct") or 0))
+
+
+def unnamed(named_by: list[str], floor: float) -> None:
+    """Say so when a floor above 0 is named by no workflow: it bites only by hand.
+
+    Quiet at 0, where there is nothing to enforce yet (node-zero).
+    """
+    if named_by or floor <= 0:
+        return
+    warn(f"no workflow under .github/workflows runs this check, so the {floor:.2f}% floor holds only by hand")
+    detail("Add a scheduled workflow step that runs `dev test coverage`.")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--suite", default="unit")
+    # Repeatable, joined as `test coverage` joins it: a second `--suite` silently
+    # replaced the first, so `--suite unit --suite ui` checked `ui` (dream-doll).
+    parser.add_argument("--suite", action="append", help="repeat to name a combined key, e.g. unit+ui")
     parser.add_argument("--xml", type=Path, default=DEFAULT_XML)
     parser.add_argument("--update", action="store_true", help="record the observed percentage as the new baseline")
     parser.add_argument("--json", action="store_true", help="the machine-readable result on stdout")
     args = parser.parse_args()
+    args.suite = "+".join(args.suite or ["scheduled"])
+
+    named_by = runners()
 
     def done(payload: dict, status: int) -> int:
         """One exit, one payload. Emitting per-branch is how a path loses its."""
+        if BUDGET.exists():
+            unnamed(named_by, floor_of(args.suite))
         if args.json:
-            emit({"suite": args.suite, **payload})
+            emit({"suite": args.suite, **payload, "named_by": named_by})
         return status
 
     if not args.xml.exists():
@@ -360,17 +401,33 @@ def main() -> int:
         detail("Nothing was measured, so nothing is being ratcheted. See docs/rules/testing.md.")
         return done({"state": "no-report", "xml": str(args.xml)}, 1)
 
+    if DATA_FILE.exists() and DATA_FILE.stat().st_mtime > args.xml.stat().st_mtime:
+        fail(f"{args.xml} is older than {DATA_FILE.name}, so it reports an earlier run than the last one measured")
+        detail(f"Regenerate it: python -m coverage xml -o {args.xml}")
+        return done({"state": "stale-report", "xml": str(args.xml)}, 1)
+
     budget = json.loads(BUDGET.read_text(encoding="utf-8"))
     entry = budget["suites"].get(args.suite)
-    if entry is None:
-        fail(f"suite '{args.suite}' has no entry in tests/coverage_budget.json — add one")
-        return done({"state": "unbudgeted"}, 1)
+    if entry is None and args.update:
+        # A new suite, or a combination such as `unit+ui`, gets its entry from
+        # the act that baselines it; the refusals in `record()` still apply.
+        entry = budget["suites"][args.suite] = {"baseline_pct": 0.0}
+    unrecorded = entry is None
+    if unrecorded:
+        # **No entry is the floor a new suite starts at, 0.00%**, the same value the
+        # shipped `scheduled` entry holds. Failing here made `test coverage --suite unit
+        # --suite ui` red in every fresh tree, where `--update` rightly refuses to
+        # record anything (dream-doll, sky.boss). Nothing is written by a check.
+        entry = {"baseline_pct": 0.0}
 
     tolerance = float(budget.get("tolerance_pts", 0.5))
     reading = read(ET.parse(args.xml).getroot(), tolerance)
     if args.update:
         return done(*record(args.suite, budget, entry, reading))
-    return done(*compare(args.suite, entry, tolerance, reading))
+    payload, status = compare(args.suite, entry, tolerance, reading)
+    if unrecorded:
+        detail(f"'{args.suite}' has no entry in tests/coverage_budget.json, so it is held at 0.00%.")
+    return done({**payload, "unrecorded": unrecorded}, status)
 
 
 if __name__ == "__main__":

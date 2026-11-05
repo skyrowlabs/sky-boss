@@ -92,6 +92,12 @@ LOGO_BG = SURFACE_2
 LOGO_BRAND = BRAND
 LOGO_DARK = TEXT_3
 LOGO_LIGHT = TEXT
+# The tower is lit from the left, so its right edge needs a darker brand. Not
+# `CLI_BRAND`: that is a contrast derivation for an unknown terminal, and the
+# mark must stay out of STYLES. This is BRAND at 0.7 over the mark's own
+# ground, the same mixing `CLI_REF_BG` uses, so it is a shadow and not a hue.
+LOGO_SHADE = "#2c8bb7"  # BRAND at 0.70 over SURFACE_2
+LOGO_BEACON = DANGER  # an aircraft warning light is red, and so is this one
 
 # ============================================================================
 # CLI-safe derivations
@@ -146,6 +152,177 @@ CLI_REF_BG = "#103141"  # BRAND at 0.22 over BG  —  1.46 / 13.66 vs the two
 CLI_REF = BRAND  # undarkened: it sits on a ground this file chose
 
 # ============================================================================
+# Product hues — the landing page's, vendored
+# ============================================================================
+#
+# From skyrowlabs.com's own `:root`, copied into
+# `docs/design/skyrowlabs-product-hues.css` and checked against it. The deck
+# draws an agent in its product's hue: the fifth-hue question, ruled by the
+# brand owner for the deck. `mh` is the landing page's, not the system's SIGNAL.
+PRODUCT_HUES: dict[str, str] = {
+    "js": "#38bdf8",  # jam.sense
+    "bb": "#4ade80",  # breeze.brain
+    "sf": "#fb923c",  # stash.flow
+    "mh": "#d4cb3a",  # mind.head
+    "sb": "#a78bfa",  # sky.boss
+    "sk": "#c3b391",  # skeletor
+}
+# Agent name (a repository slug) → its hue's key. The workspace is the company's, so the brand.
+SLUG_HUES: dict[str, str] = {
+    "jam-sense": "js",
+    "breeze-brain": "bb",
+    "mind-head": "mh",
+    "stash-flow": "sf",
+    "sky-boss": "sb",
+    "skeletor": "sk",
+    "skyrow-workspace": "brand",
+}
+
+# ============================================================================
+# Agent colours — steps along the brand, for an agent with no product hue
+# ============================================================================
+#
+# The canvas's project ramp (`.pl-s0`…`.pl-s5` in `sb.css`), recomputed here
+# because a terminal cannot `color-mix`: the same partners at the same weights,
+# mixed in OKLab. Then each is moved in lightness only, the least distance that
+# clears the CLI floor against both a white terminal and the void, because the
+# messages pane draws on the operator's ground. Never a new hue, never a role.
+# A test reads `sb.css` and fails if the two recipes part.
+
+AGENT_RECIPES: tuple[tuple[str | None, float], ...] = (
+    (None, 1.0),
+    (TEXT, 0.62),
+    (SURFACE_2, 0.46),
+    (OK, 0.78),
+    (TEXT, 0.34),
+    (OK, 0.55),
+)
+# Every ground a deck agent's name is drawn on, all painted by the deck: the tool
+# panes' void and the tab row's two surfaces. Painted grounds take the text floor.
+DECK_FLOOR = 4.5
+AGENT_GROUNDS = (BG, SURFACE, SURFACE_2)
+
+
+def _linear(channel: float) -> float:
+    return channel / 12.92 if channel <= 0.04045 else ((channel + 0.055) / 1.055) ** 2.4
+
+
+def _gamma(channel: float) -> float:
+    channel = min(1.0, max(0.0, channel))
+    return channel * 12.92 if channel <= 0.0031308 else 1.055 * channel ** (1 / 2.4) - 0.055
+
+
+def _rgb(colour: str) -> tuple[float, float, float]:
+    raw = colour.lstrip("#")
+    r, g, b = (int(raw[i : i + 2], 16) / 255 for i in (0, 2, 4))
+    return r, g, b
+
+
+def _hex(rgb: tuple[float, float, float]) -> str:
+    return "#" + "".join(f"{round(_gamma(c) * 255):02x}" for c in rgb)
+
+
+def _to_oklab(colour: str) -> tuple[float, float, float]:
+    r, g, b = (_linear(c) for c in _rgb(colour))
+    lms = (
+        0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b,
+        0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b,
+        0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b,
+    )
+    l_, m_, s_ = (v ** (1 / 3) for v in lms)
+    return (
+        0.2104542553 * l_ + 0.7936177850 * m_ - 0.0040720468 * s_,
+        1.9779984951 * l_ - 2.4285922050 * m_ + 0.4505937099 * s_,
+        0.0259040371 * l_ + 0.7827717662 * m_ - 0.8086757660 * s_,
+    )
+
+
+def _from_oklab(lab: tuple[float, float, float]) -> str:
+    big_l, a, b = lab
+    l_ = big_l + 0.3963377774 * a + 0.2158037573 * b
+    m_ = big_l - 0.1055613458 * a - 0.0638541728 * b
+    s_ = big_l - 0.0894841775 * a - 1.2914855480 * b
+    l, m, s = l_**3, m_**3, s_**3
+    return _hex(
+        (
+            4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s,
+            -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s,
+            -0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s,
+        )
+    )
+
+
+def luminance(colour: str) -> float:
+    r, g, b = (_linear(c) for c in _rgb(colour))
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+
+def contrast(a: str, b: str) -> float:
+    high, low = sorted((luminance(a), luminance(b)), reverse=True)
+    return (high + 0.05) / (low + 0.05)
+
+
+def _mix(partner: str | None, weight: float) -> str:
+    """BRAND at `weight` with `partner`, in OKLab — `color-mix(in oklab, brand w%, partner)`."""
+    if partner is None:
+        return BRAND
+    brand, other = _to_oklab(BRAND), _to_oklab(partner)
+    return _from_oklab(tuple(weight * x + (1 - weight) * y for x, y in zip(brand, other)))  # type: ignore[arg-type]
+
+
+def _legible(colour: str) -> str:
+    """`colour`, moved in OKLab lightness by the least that clears the floor on every ground it meets."""
+
+    def clears(candidate: str) -> bool:
+        return all(contrast(candidate, ground) >= DECK_FLOOR for ground in AGENT_GROUNDS)
+
+    if clears(colour):
+        return colour
+    big_l, a, b = _to_oklab(colour)
+    for step in range(1, 200):
+        for sign in (-1, 1):
+            candidate = _from_oklab((big_l + sign * step * 0.002, a, b))
+            if clears(candidate):
+                return candidate
+    return CLI_BRAND
+
+
+#: The fallback ramp, one colour per tab slot, for an agent with no product hue.
+AGENT_COLOURS: tuple[str, ...] = tuple(_legible(_mix(partner, weight)) for partner, weight in AGENT_RECIPES)
+
+
+def _hue_key(name: str, slot: int) -> str:
+    return SLUG_HUES.get(name) or f"step{slot % len(AGENT_COLOURS)}"
+
+
+def agent_colour(name: str, slot: int) -> str:
+    """An agent's colour: its product's hue at full strength, else its tab slot's step.
+
+    The one assignment the tab row and the messages pane both read.
+    """
+    key = _hue_key(name, slot)
+    if key == "brand":
+        return BRAND
+    if key in PRODUCT_HUES:
+        return PRODUCT_HUES[key]
+    return AGENT_COLOURS[int(key[4:])]
+
+
+def agent_role(name: str, slot: int) -> str:
+    """The Rich role for `agent_colour(name, slot)`. Drawn only on a ground the deck paints."""
+    return f"sb.agent.{_hue_key(name, slot)}"
+
+
+#: Roles drawn only inside a deck pane, whose ground the deck paints: exempt from the
+#: unknown-terminal floor and held to `DECK_FLOOR` on `AGENT_GROUNDS` instead.
+DECK_ROLES: dict[str, str] = {
+    **{f"sb.agent.{key}": hue for key, hue in PRODUCT_HUES.items()},
+    "sb.agent.brand": BRAND,
+    **{f"sb.agent.step{slot}": colour for slot, colour in enumerate(AGENT_COLOURS)},
+}
+
+
+# ============================================================================
 # Style roles
 # ============================================================================
 #
@@ -166,6 +343,8 @@ STYLES: dict[str, str] = {
     "sb.url": CLI_PATH,
     # The one role that paints its own ground. See § Ground, not hue.
     "sb.ref": f"{CLI_REF} on {CLI_REF_BG}",
+    # The deck's agents, on its own painted ground. See § Product hues.
+    **{role: f"bold {colour}" for role, colour in DECK_ROLES.items()},
 }
 
 # Roles that paint their own background, and are therefore exempt from the
@@ -214,3 +393,33 @@ def css_root() -> str:
     """`css_variables` as a `:root` block, for injection into the page."""
     body = "".join(f"--{name}:{value};" for name, value in css_variables().items())
     return f":root{{{body}}}"
+
+
+# ============================================================================
+# The deck's tmux bars
+# ============================================================================
+#
+# A tmux status bar paints its own ground, so like the canvas it takes the
+# tokens at full strength. Styles are space-separated: a comma would end the
+# branch of a `#{?…}` conditional the tab format puts them in.
+
+
+def tmux_styles() -> dict[str, str]:
+    """Role → tmux style string, for the deck's two status bars and its borders."""
+    return {
+        "bar": f"bg={SURFACE} fg={TEXT_2}",
+        "label": f"fg={BRAND} bold",
+        "tab": f"fg={TEXT_2} bg={SURFACE}",
+        "tab-current": f"fg={TEXT} bg={SURFACE_2} bold",
+        "working": f"fg={BRAND}",
+        "needs-you": f"fg={BG} bg={WARN} bold",
+        "quiet": f"fg={TEXT_2}",
+        "unregistered": f"fg={TEXT_2} italics",
+        "border": f"fg={TEXT_3}",
+        "border-active": f"fg={BRAND}",
+        "exit": f"fg={DANGER} bold",
+        # The deck's tool panes paint their own ground, so names may take full-strength hues.
+        "pane": f"bg={BG}",
+        # The active tab: the void on a block of its agent's hue, which the format supplies.
+        "on-hue": f"fg={BG} bold",
+    }

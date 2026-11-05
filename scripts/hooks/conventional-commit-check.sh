@@ -26,9 +26,9 @@ RELEASE_CONFIG=".github/release-please-config.json"
 #
 # The fallback is not the same bug wearing a hat. It applies only when the
 # config is ABSENT, which is the `--versioning tag` tree, and there
-# `check_commit_subjects.py` finds no contract and checks nothing — so there is
-# no second opinion to disagree with. Wider is right there: the hook is
-# enforcing style alone, and `style`/`revert` are real conventional types.
+# `check_commit_subjects.py` reads this very line — so the list has one home
+# and no second opinion to disagree with. Wider is right there: nothing parses
+# subjects for a changelog, and `style`/`revert` are real conventional types.
 #
 # A missing python3 with the config PRESENT is a hard failure rather than a
 # quiet fallback, because the quiet fallback is *precisely* the defect — a
@@ -117,10 +117,11 @@ fi
 # 72 is for people, and a bot does not read it. Dependabot's subjects run to 73
 # and past (`build(deps): bump <package> from <old> to <new>` grows with the
 # package name), so wiring this hook to machine commits in CI turns every such
-# pull request red on a length nobody chose. This hook exempts nobody, because
-# which identities it should bind is a decision about your CI, not about a
-# subject line — sky.boss met it on theirs. Skip bot authors where you apply it.
-if [ "${#SUBJECT}" -gt 72 ]; then
+# pull request red on a length nobody chose. This hook exempts nobody by
+# itself: which identities it binds is a decision about your CI. The CI gate,
+# `scripts/check_commit_subjects.py`, sets COMMIT_CHECK_EXEMPT_LENGTH=1 for a
+# bot author, which skips this rule and no other.
+if [ "${#SUBJECT}" -gt 72 ] && [ "${COMMIT_CHECK_EXEMPT_LENGTH:-}" != 1 ]; then
     echo "❌ subject is ${#SUBJECT} chars (max 72): $SUBJECT" >&2
     exit 1
 fi

@@ -131,7 +131,10 @@ by hand.
 Two counts are pinned so they can only move deliberately:
 
 - **Skips**: `scripts/check_skip_budget.py` against `tests/skip_budget.json`.
-- **Coverage**: `scripts/check_coverage_budget.py` against `tests/coverage_budget.json`.
+- **Coverage**: `scripts/check_coverage_budget.py` against `tests/coverage_budget.json`, one
+  entry per measured set. `test coverage` and the nightly both measure every scheduled
+  suite together, under `scheduled`; `--suite` narrows it, under a key naming the suites
+  (`unit+ui`).
 
 Adding a legitimate skip → raise the budget **in the same commit** and justify it in the
 body. Removing skips, or raising coverage meaningfully → lower/raise the baseline in the same

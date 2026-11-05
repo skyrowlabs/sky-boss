@@ -128,6 +128,9 @@ still the one this item already prescribed: the catalog reports
 most of the answer already built. Note what the exit does not claim: the residual is unbuilt, and a
 filter may have removed the need for it entirely.
 
+*2026-10-17: parked with a trigger, on the operator's ruling — see [[tools]] Notes. One tool in one
+group today.*
+
 **20. Five tweaks to the followed line's tint.** *Closed 2026-08-29 → [[highlight]] rounds 5 and 6.* Round 5 answered everything **weight** could
 answer — glyphs widened and emphasised, ALL CAPS split into an identifier and a shout, and the
 bench given a picker and a legend instead of a text box. Round 6 then answered the rest with
@@ -288,6 +291,10 @@ crossed deliberately with a dated decision. **This closes item 6 for anything sk
 and leaves it open for anything sky.boss merely runs**: `sb run -- <argv>` is still anonymous and
 still dies with its window, which is the `--label` the mockup drew and nothing has needed yet.
 
+***Closed 2026-10-17, on the operator's ruling.*** *Scheduled identity is [[jobs]]'; `sb run --label`
+is parked in [[ideas]] territory with no consumer — reopen it when something needs to name an
+anonymous run, not before.*
+
 **7. The claim.** Several agentic jobs contending for one working tree is a real fact with no
 vocabulary in sb. The mockup renders it as a glyph and a contested band; what it *means* — advisory
 label, or something that actually blocks a departure — was undecided, and those are very different
@@ -348,6 +355,10 @@ and a scheduled job would have killed a running one. What is still unbuilt is th
 contention between jobs sky.boss did **not** start, which is where the `cwd`/worktree derivation
 above still applies.
 
+***Ruled 2026-10-17 → [[agent-sessions]] round 3: same repository.*** *The claim is a mark on the
+new `agents` screen, derived from `git rev-parse --git-common-dir` per live session; only the
+boolean reaches the envelope. The reading half leaves this file; the item stays only as the record.*
+
 **8. The budget.** ~~A wall-clock ceiling on a run.~~ **Answered 2026-08-29: the supervisor owns
 it and sky.boss displays it.** The mockup put `--budget` on `follow`, which is a contradiction —
 follow observes, and a budget that kills the child makes it act — and the mockup's own header line
@@ -367,6 +378,12 @@ whether to cross the line at all (below), and **read-back drift** — every cron
 where the model and the machine disagree. The mockup's `timers read 20:44` footer is a hint that
 wants to become load-bearing: a per-row read-back age and a visible *drifted* state for a unit
 disabled outside sky.boss.
+
+***Closed 2026-10-17, on the operator's ruling.*** *The selector half went to [[schedule]] round 1
+(sky.boss reads the clock each provider stamped). Drift splits by owner: for sky.boss's own jobs it
+is [[jobs]]'; for a provider's, it is drawn as the provider publishes it — jam.sense's
+`scheduled_in_cron` and `intentionally_off` — and never recomputed, per **sky.boss may order; only a
+provider may judge**.*
 
 ## Boundaries
 
@@ -726,7 +743,7 @@ window nobody can see the bottom of. That is the tower's subject arriving early,
 
 **16. The tower shows live agent sessions.** An observe, in the tower, listing what is running now.
 
-*Specced 2026-08-29 → [[agent-sessions]]; **round 1 built 2026-09-01** as `sb agents`.* Items 16 and 17 became one doc: the seam and its first adapter are the same decision, and splitting them would have described an interface with nothing behind it. Building it moved item 6 without closing it — the tower's `IN FLIGHT` band can have real rows now, because someone else is persisting the identity. Two things round 1 found that the spec had not: liveness needs a third answer (*cannot tell*, where there is no `/proc` to ask), and an empty table needs a sentence saying which of three empties it is.
+*Specced 2026-08-29 → [[agent-sessions]]; **round 1 built 2026-09-01** as `sb agents`.* Items 16 and 17 became one doc: the seam and its first adapter are the same decision, and splitting them would have described an interface with nothing behind it. Building it moved item 6 without closing it — the tower's `IN FLIGHT` band can have real rows now, because someone else is persisting the identity. Two things round 1 found that the spec had not: liveness needs a third answer (*cannot tell*, where there is no `/proc` to ask), and an empty table needs a sentence saying which of three empties it is. *2026-10-17: the tower half is ruled → [[agent-sessions]] round 3 — an `agents` screen of its own, beside `schedule`, not a band on it.*
 
 The mechanism exists and was verified on this machine rather than assumed: `~/.claude/sessions/`
 holds one JSON file per live session, `<pid>.json`, written by the session itself and carrying
@@ -811,6 +828,25 @@ starting them, routing work between them, or reading their transcripts. sky.boss
 tools do. An agent's transcript is the operator's conversation, and a panel that surfaced it would
 put someone else's prompts on a canvas that also has an [[mcp]] surface. The band shows that a
 session exists, where, and whether it is working.
+
+**24. A stagger view: where agent jobs on one host overlap.** Opened 2026-11-03 from
+[[grid-observability]], whose gap 3 this is. Several agentic grids now share one machine. Spacing
+them out means knowing when each job fires *and* how long it runs, across projects, over days.
+Today that is done by reading a crontab by hand. The *whether* is settled. The *how* is not,
+because the obvious shape breaks a standing rule: [[schedule]] draws one mark per job, its next
+published occurrence, and refuses recurrence, since sky.boss never parses cron.
+
+Undecided:
+
+- **Who computes the occurrences.** Either a provider publishes a list of its own upcoming fire
+  times in its status envelope, which keeps sky.boss ordering and never judging, or there is no
+  density view. A skeletor envelope field would reach every grid at once, so this is probably a
+  request to skeletor before it is a feature here.
+- **Where duration comes from.** A slot needs a width. The last run's `duration_s` is a
+  measurement and the next run's is a guess. Drawing a guess as a bar is the clamping problem
+  [[schedule]] already refused.
+- **Whether it is a schedule screen or its own.** A per-host view crosses projects the way
+  `sb agents` does, and the schedule's project filter would cut it in half.
 
 ---
 
@@ -1055,3 +1091,22 @@ at the bottom of the screen, nowhere near what the operator is looking at.
 Whatever answers the band here answers the alert half of the docked-window idea in [[ideas]],
 which has the same shape and is strictly harder: a docked window is by definition the one nobody is
 watching.
+
+### `sb follow` on an absent file says nothing down a pipe
+
+*Found 2026-11-04 here, by reproduction.* [[file-follow]] has an
+absent file read as *"waiting for it to exist"*, but only the terminal band says that. Piped,
+`sb follow <absent path>` prints nothing on stdout or stderr until the file appears, and a quiet
+existing file prints nothing too, so the two are the same bytes. The likely shape is the lapsed-`--due` rule: one stderr line, once per
+absence, worded through the same function the band uses.
+
+### One project per state directory, when one repo publishes several feeds
+
+*Found 2026-11-04.* The address `<project>:<path>` takes a **declared key** and uses that same key as
+the state-directory name. That is the no-second-table rule above. A repo that publishes two feeds,
+for example skyrow-workspace's reminders beside its own status, can satisfy only one of them: the
+feed declared as `reminders` has no `<root>/reminders/`, and the state lives under a key nobody
+declared. The *per-project override* that § Getting from a project to its directory deferred is the
+obvious answer, and this is the first case that calls for it. It is not urgent. A producer that
+publishes an absolute path is already openable, so this is about whether the address form should
+reach such a feed at all.

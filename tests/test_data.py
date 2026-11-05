@@ -614,3 +614,9 @@ def test_a_torn_tail_is_reported_on_every_read_not_once_per_file(tmp_path):
         assert any(
             "1 of 2 lines not a JSON object" in w for w in envelope["warnings"]
         ), f"read {read} went quiet about the torn tail"
+
+
+def test_rows_naming_an_empty_list_is_an_empty_answer_not_a_failure():
+    result, envelope = invoke(["--rows", "reminders", "--", "printf", '{"reminders": []}'])
+    assert result.exit_code == 0 and envelope["ok"] and not envelope["warnings"]
+    assert envelope["data"] == {"reminders": []} and envelope["view"]["rows"] == "reminders"

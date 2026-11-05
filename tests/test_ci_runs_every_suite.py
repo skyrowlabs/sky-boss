@@ -80,8 +80,18 @@ def selections(text: str) -> set:
             continue
         for match in _SELECTION.finditer(tail):
             expression = next(g for g in match.groups() if g is not None)
+            if expression.startswith("$"):
+                continue  # a shell variable, filled from the registry at run time
             found.update(part for part in _OPERATORS.split(expression) if part and part.strip())
     return {marker.strip() for marker in found}
+
+
+#: A workflow that loops pytest over the registry selects every scheduled suite:
+#: it reads `test suites --scheduled` and runs `-m "$marker"`. Both halves, so a
+#: mention of the command alone credits nothing (sky.boss: a `ui` the nightly ran
+#: read as run nowhere).
+REGISTRY_LOOP = "test suites --scheduled"
+_VARIABLE_SELECTION = re.compile(r"""pytest[^\n]*-m\s+["']?\$""")
 
 
 def selected_markers() -> dict:
@@ -89,9 +99,32 @@ def selected_markers() -> dict:
     files = scanned(sorted(WORKFLOWS.glob("*.yml")), "workflow files", least=2)
     where: dict = {}
     for path in files:
-        for marker in selections(read_uncommented(path)):
+        text = read_uncommented(path)
+        markers = selections(text)
+        if REGISTRY_LOOP in text and _VARIABLE_SELECTION.search(text):
+            markers |= {marker for marker, suite in SUITES.items() if suite.scheduled}
+        for marker in markers:
             where.setdefault(marker, []).append(path.name)
     return where
+
+
+def test_coverage_is_measured_over_the_registrys_scheduled_suites():
+    """The nightly and `test coverage` read one set from SUITES, under one key (proto.pilot, stash.flow)."""
+    commands = module("test_cmds")
+    scheduled = set(commands.scheduled_suites())
+    assert commands.coverage_selection(()) == (" or ".join(commands.scheduled_suites()), commands.SCHEDULED_KEY)
+    for path in sorted(WORKFLOWS.glob("*.yml")):
+        text = read_uncommented(path)
+        if "--cov" not in text or path.name == "ci.yml":
+            continue
+        assert REGISTRY_LOOP in text, f"{path.name} measures coverage over a list of its own"
+        read_first = re.search(r"^\s*suites=\$\(.*" + re.escape(REGISTRY_LOOP), text, re.M)
+        assert (
+            read_first and '[ -n "$suites" ]' in text
+        ), f"{path.name} loops over the registry without failing when it cannot be read (stash.flow)"
+        assert f"--suite {commands.SCHEDULED_KEY}" in text, f"{path.name} checks coverage under another key"
+        unscheduled = sorted(selections(text) - scheduled)
+        assert not unscheduled, f"{path.name} measures suites the registry does not schedule: {unscheduled}"
 
 
 def test_the_scan_reads_real_selections():

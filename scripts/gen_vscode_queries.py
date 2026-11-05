@@ -45,7 +45,6 @@ import json
 import subprocess
 import sys
 from pathlib import Path
-from typing import Dict, List
 
 # Bootstrap only: put the package on sys.path so `scripts.paths` — which owns
 # every path below — can be imported. See scripts/paths.py.
@@ -76,7 +75,7 @@ REPO = "repo:${owner}/${repository}"
 REVIEWER = "is:open review-requested:${user}"
 
 
-def issue_queries() -> List[Dict[str, object]]:
+def issue_queries() -> list[dict[str, object]]:
     """One view per lane, then the two that make the set a partition.
 
     The partition is the load-bearing part. Without "All Other" an issue filed
@@ -85,7 +84,7 @@ def issue_queries() -> List[Dict[str, object]]:
     see all of is one people stop trusting and then stop using. Its query is
     built by negating the registry, so it stays a true complement for free.
     """
-    queries: List[Dict[str, object]] = []
+    queries: list[dict[str, object]] = []
     for lane in LANES:
         queries.append(
             {
@@ -104,7 +103,7 @@ def issue_queries() -> List[Dict[str, object]]:
     return queries
 
 
-def pr_queries() -> List[Dict[str, object]]:
+def pr_queries() -> list[dict[str, object]]:
     """The three states a pull request is in here, plus the extension's own view.
 
     These are label-free and therefore true in any repository — they read

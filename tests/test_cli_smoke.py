@@ -28,7 +28,6 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-from typing import Dict, List, Tuple
 
 import click
 import pytest
@@ -52,15 +51,15 @@ root = group()
 ALLOWLIST = Path(__file__).resolve().parent / "cli_smoke_allowlist.yaml"
 
 
-def _allowlist() -> Dict[str, str]:
+def _allowlist() -> dict[str, str]:
     """Exemptions, read through the one reader every allowlist here shares."""
     return allowlist.read(ALLOWLIST)
 
 
-def _walk(command: click.Command, path: Tuple[str, ...] = ()) -> List[Tuple[Tuple[str, ...], click.Command]]:
+def _walk(command: click.Command, path: tuple[str, ...] = ()) -> list[tuple[tuple[str, ...], click.Command]]:
     """Every leaf command in the tree, with the path you would type to reach it."""
     if isinstance(command, click.Group):
-        found: List[Tuple[Tuple[str, ...], click.Command]] = []
+        found: list[tuple[tuple[str, ...], click.Command]] = []
         for name, sub in sorted(command.commands.items()):
             found += _walk(sub, path + (name,))
         return found
@@ -97,7 +96,7 @@ def _agent_backed() -> set:
 AGENT_BACKED = _agent_backed()
 
 
-def _exempt(path: Tuple[str, ...]) -> str:
+def _exempt(path: tuple[str, ...]) -> str:
     """The reason this command is not executed, or ''. A group exempts its children."""
     if path in AGENT_BACKED:
         return "invokes a headless agent (from the job registry)"
@@ -112,7 +111,7 @@ def _exempt(path: Tuple[str, ...]) -> str:
 RUNNABLE = [p for p, c in COMMANDS if not _needs_arguments(c) and not _exempt(p)]
 
 
-def _run(args: List[str], timeout: int = 90) -> subprocess.CompletedProcess:
+def _run(args: list[str], timeout: int = 90) -> subprocess.CompletedProcess:
     env = dict(os.environ)
     env["PYTHONPATH"] = str(PROJECT_ROOT)
     return subprocess.run(
@@ -126,7 +125,7 @@ def _run(args: List[str], timeout: int = 90) -> subprocess.CompletedProcess:
 
 
 @pytest.mark.parametrize("path", [p for p, _ in COMMANDS], ids=lambda p: " ".join(p))
-def test_every_command_answers_help(path: Tuple[str, ...]):
+def test_every_command_answers_help(path: tuple[str, ...]):
     """`--help` proves the module imports and the decorators are well formed.
 
     Cheap, and it is the check that fails when a command's module grows an
@@ -166,7 +165,7 @@ def test_the_allowlist_names_commands_that_exist():
 
 
 @pytest.mark.parametrize("path", RUNNABLE, ids=lambda p: " ".join(p))
-def test_read_only_commands_succeed(path: Tuple[str, ...]):
+def test_read_only_commands_succeed(path: tuple[str, ...]):
     """Run it for real. `--help` proves a command parses; this proves it works."""
     result = _run(list(path))
     assert result.returncode == 0, (
@@ -175,14 +174,14 @@ def test_read_only_commands_succeed(path: Tuple[str, ...]):
     )
 
 
-def _forwarded_flags() -> List[Tuple[str, str, str]]:
+def _forwarded_flags() -> list[tuple[str, str, str]]:
     """Every `(cli module, script path, flag)` the CLI hands to a repo script.
 
     Read from the source rather than by running commands, because the flags are
     usually behind an option nobody passes in a smoke run — which is exactly how
     `check doc-links --fix` stayed broken.
     """
-    found: List[Tuple[str, str, str]] = []
+    found: list[tuple[str, str, str]] = []
     for module in sorted(CLI_DIR.glob("*.py")):
         tree = ast.parse(module.read_text(encoding="utf-8"))
         for node in ast.walk(tree):
@@ -221,7 +220,7 @@ def _accepted_flags(script_path: Path) -> set:
 # text and passed against a deliberately reintroduced bug, because the script's
 # *docstring* mentions the flag and argparse prints it as the description.
 @pytest.mark.parametrize("case", _forwarded_flags(), ids=lambda c: f"{c[0]}:{Path(c[1]).name} {c[2]}")
-def test_forwarded_flags_are_accepted(case: Tuple[str, str, str]):
+def test_forwarded_flags_are_accepted(case: tuple[str, str, str]):
     """A flag the CLI forwards must be one the receiving script defines.
 
     This is the check that would have caught `check doc-links --fix`: the CLI

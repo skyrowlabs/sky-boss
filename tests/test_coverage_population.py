@@ -16,10 +16,11 @@ yours* license different behaviour, so they are different values.
 from __future__ import annotations
 
 import json
+import os
 import sys
+import time
 import xml.etree.ElementTree as ET
 from pathlib import Path
-from typing import Optional
 
 import pytest
 
@@ -80,12 +81,13 @@ def tree(tmp_path, monkeypatch, manifest):
     monkeypatch.setattr(budget, "SCAFFOLD_MANIFEST", manifest)
 
     budget_file = tmp_path / "coverage_budget.json"
-    budget_file.write_text(json.dumps({"tolerance_pts": 0.5, "suites": {"unit": {"baseline_pct": 0.0}}}))
+    budget_file.write_text(json.dumps({"tolerance_pts": 0.5, "suites": {"scheduled": {"baseline_pct": 0.0}}}))
     monkeypatch.setattr(budget, "BUDGET", budget_file)
+    monkeypatch.setattr(budget, "DATA_FILE", tmp_path / ".coverage")
 
-    def run(files: dict, *flags: str, entry: Optional[dict] = None) -> tuple[int, dict]:
+    def run(files: dict, *flags: str, entry: dict | None = None) -> tuple[int, dict]:
         if entry is not None:
-            budget_file.write_text(json.dumps({"tolerance_pts": 0.5, "suites": {"unit": entry}}))
+            budget_file.write_text(json.dumps({"tolerance_pts": 0.5, "suites": {"scheduled": entry}}))
         xml = coverage_xml(tmp_path / "coverage.xml", files)
         monkeypatch.setattr(sys, "argv", ["check", "--xml", str(xml), "--json", *flags])
         return budget.main(), json.loads(budget_file.read_text())
@@ -97,7 +99,7 @@ def test_a_scaffold_only_population_has_none_of_ours(tree):
     """The shipped state of every tree on its first coverage run."""
     code, stored = tree(SCAFFOLDED)
     assert code == 0
-    assert stored["suites"]["unit"]["baseline_pct"] == 0.0
+    assert stored["suites"]["scheduled"]["baseline_pct"] == 0.0
 
 
 def test_the_baseline_is_refused_while_none_of_it_is_ours(tree):
@@ -109,7 +111,7 @@ def test_the_baseline_is_refused_while_none_of_it_is_ours(tree):
     """
     code, stored = tree(SCAFFOLDED, "--update")
     assert code == 1
-    assert stored["suites"]["unit"]["baseline_pct"] == 0.0, "refused and wrote anyway"
+    assert stored["suites"]["scheduled"]["baseline_pct"] == 0.0, "refused and wrote anyway"
 
 
 def test_the_baseline_is_recorded_once_some_of_it_is_ours(tree):
@@ -119,7 +121,22 @@ def test_the_baseline_is_recorded_once_some_of_it_is_ours(tree):
     """
     code, stored = tree({**SCAFFOLDED, **OURS}, "--update")
     assert code == 0
-    assert stored["suites"]["unit"] == {"own_baseline_pct": 100.0}, "recorded over the whole set, or kept the old key"
+    recorded = stored["suites"]["scheduled"]
+    assert recorded == {"own_baseline_pct": 100.0}, "recorded over the whole set, or kept the old key"
+
+
+def test_a_suite_with_no_entry_is_held_at_the_floor_and_not_written(tree, capsys):
+    """`test coverage --suite unit --suite ui` in a fresh tree, where `--update` refuses."""
+    code, stored = tree(SCAFFOLDED, "--suite", "unit+ui")
+    assert code == 0
+    assert json.loads(capsys.readouterr().out)["unrecorded"] is True
+    assert "unit+ui" not in stored["suites"], "a check wrote the budget"
+
+
+def test_a_repeated_suite_names_the_combined_key(tree, capsys):
+    """By hand as `test coverage` does it, not the last flag alone."""
+    tree(SCAFFOLDED, "--suite", "unit", "--suite", "ui")
+    assert json.loads(capsys.readouterr().out)["suite"] == "unit+ui"
 
 
 def test_no_manifest_is_not_the_same_answer_as_none_of_it_is_ours(tree, manifest, tmp_path):
@@ -132,7 +149,7 @@ def test_no_manifest_is_not_the_same_answer_as_none_of_it_is_ours(tree, manifest
     manifest.unlink()
     code, stored = tree({f"{SHELL_PACKAGE}/check.py": (4, 1), "scripts/output.py": (6, 4)}, "--update")
     assert code == 0
-    assert stored["suites"]["unit"] == {"baseline_pct": 50.0}, "without a manifest the whole set is all there is"
+    assert stored["suites"]["scheduled"] == {"baseline_pct": 50.0}, "without a manifest the whole set is all there is"
 
     xml = ET.parse(coverage_xml(tmp_path / "c.xml", SCAFFOLDED))
     assert budget.own_statements(xml.getroot()) is None
@@ -178,7 +195,7 @@ def test_an_upgrade_that_lowers_the_shell_does_not_fail_your_baseline(tree):
     assert code == 0
     code, stored = tree({**UPGRADED, **OURS})
     assert code == 0, "the shell's coverage fell and the adopter's ratchet went red"
-    assert stored["suites"]["unit"] == {"own_baseline_pct": 100.0}
+    assert stored["suites"]["scheduled"] == {"own_baseline_pct": 100.0}
 
 
 def test_your_own_code_falling_still_fails(tree):
@@ -195,7 +212,7 @@ def test_the_old_key_is_not_reinterpreted(tree, capsys):
     assert code == 1, "an old whole-set baseline was compared against the own-code rate"
     err = capsys.readouterr().err
     assert "measured statements are your own" in err and "--update" in err, err
-    assert stored["suites"]["unit"] == {"baseline_pct": 87.43}, "a comparison rewrote the budget"
+    assert stored["suites"]["scheduled"] == {"baseline_pct": 87.43}, "a comparison rewrote the budget"
 
 
 def test_the_shipped_floor_does_not_ask_to_migrate(tree, capsys):
@@ -209,7 +226,7 @@ def test_your_tests_are_not_your_code(tree):
     the rate with how much testing you write, not with what it reaches."""
     code, stored = tree({**SCAFFOLDED, "app/engine.py": (10, 5), "tests/test_engine.py": (90, 90)}, "--update")
     assert code == 0
-    assert stored["suites"]["unit"] == {"own_baseline_pct": 50.0}
+    assert stored["suites"]["scheduled"] == {"own_baseline_pct": 50.0}
 
 
 def test_an_own_baseline_with_nothing_of_yours_measured_fails(tree):
@@ -242,3 +259,35 @@ def test_every_json_key_names_one_population(tree, capsys):
 
     whole = payload(everything, entry={"baseline_pct": 10.0})
     assert whole["basis"] == "whole" and "baseline_pct" in whole and "own_baseline_pct" not in whole, whole
+
+
+def test_a_report_older_than_the_data_it_came_from_is_refused(tree, tmp_path, capsys):
+    data = tmp_path / ".coverage"
+    data.write_text("a later run", encoding="utf-8")
+    later = time.time() + 60
+    os.utime(data, (later, later))
+    code, _ = tree(OURS)
+    assert code == 1 and '"state": "stale-report"' in capsys.readouterr().out
+
+
+def test_a_floor_no_workflow_runs_says_so(tree, tmp_path, monkeypatch, capsys):
+    """A comment naming the check runs nothing; the script or the CLI command does."""
+    workflows = tmp_path / ".github" / "workflows"
+    workflows.mkdir(parents=True)
+    (workflows / "ci.yml").write_text("# TODO: run scripts/check_coverage_budget.py here\njobs: {}\n")
+    monkeypatch.setattr(budget, "GITHUB_DIR", tmp_path / ".github")
+    tree(SCAFFOLDED, entry={"baseline_pct": 50.0})
+    out = capsys.readouterr()
+    assert json.loads(out.out)["named_by"] == [] and "no workflow" in out.err, out.err
+
+    for name, command in (("nightly.yml", "python scripts/check_coverage_budget.py"), ("cov.yml", "./x test coverage")):
+        (workflows / name).write_text(f"jobs:\n  c:\n    steps:\n      - run: {command}\n")
+    tree(SCAFFOLDED, entry={"baseline_pct": 50.0})
+    out = capsys.readouterr()
+    assert json.loads(out.out)["named_by"] == ["cov.yml", "nightly.yml"] and "no workflow" not in out.err, out.err
+
+
+def test_a_floor_of_zero_has_nothing_to_enforce(tree, tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(budget, "GITHUB_DIR", tmp_path / ".github")
+    tree(SCAFFOLDED)
+    assert "no workflow" not in capsys.readouterr().err

@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import re
 import sys
+from fnmatch import fnmatch
 from importlib import metadata
 from pathlib import Path
 
@@ -42,7 +43,8 @@ pytestmark = [pytest.mark.unit]
 # owns every path below — can be imported. See scripts/paths.py.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts.paths import PROJECT_ROOT, REQUIREMENTS  # noqa: E402
+from scripts.paths import GITHUB_DIR, PROJECT_ROOT, REQUIREMENTS  # noqa: E402
+from tests.scanning import scanned  # noqa: E402
 
 PRECOMMIT = PROJECT_ROOT / ".pre-commit-config.yaml"
 
@@ -122,3 +124,73 @@ def test_installed_tools_match_requirements():
         "major bump can reformat files, so give the reinstall its own commit if it "
         "does."
     )
+
+
+def covers(entry: dict, directory: str, file: str = "requirements.txt") -> bool:
+    """Whether a Dependabot entry updates `directory/file`: named there, or at an ancestor, and not excluded.
+
+    An entry at `/` updates `scripts/requirements.txt` too (sky.boss, measured),
+    so matching the directory exactly passed vacuously there. Its `exclude-paths`
+    take it back out (mind-head), tried from the root and from the entry's own
+    directory, which agree at `/`.
+    """
+    named = [entry["directory"]] if "directory" in entry else list(entry.get("directories") or [])
+    path = f"{directory.strip('/')}/{file}"
+    for spelled in named:
+        root = "/" + str(spelled).strip("/")
+        if not (root == "/" or directory == root or directory.startswith(root + "/") or fnmatch(directory, root)):
+            continue
+        inside = path[len(root.strip("/")) :].lstrip("/") if directory.startswith(root) else path
+        excluded = any(
+            fnmatch(candidate, str(pattern).strip("/")) or candidate.startswith(str(pattern).strip("/*") + "/")
+            for pattern in entry.get("exclude-paths") or []
+            for candidate in (path, inside)
+        )
+        if not excluded:
+            return True
+    return False
+
+
+def test_dependabot_never_bumps_a_lint_pin_alone():
+    """A pip update reaching the requirements file ignores every tool above.
+
+    pip writes `requirements.txt` only, so a lint bump arrives red against
+    `.pre-commit-config.yaml` and never merges (mind-head's ruff and mypy, added
+    to `TOOLS` and not to the ignore list). No dependabot.yml, or no pip entry
+    reaching that file, means nothing bumps these pins, and there is nothing to ask.
+    """
+    import yaml
+
+    config = GITHUB_DIR / "dependabot.yml"
+    if not config.exists():
+        return
+    directory = "/" + REQUIREMENTS.parent.relative_to(PROJECT_ROOT).as_posix()
+    entries = [
+        entry
+        for entry in (yaml.safe_load(config.read_text(encoding="utf-8")) or {}).get("updates") or []
+        if entry.get("package-ecosystem") == "pip" and covers(entry, directory)
+    ]
+    for entry in entries:
+        ignored = {rule.get("dependency-name") for rule in entry.get("ignore") or []}
+        unignored = sorted(set(TOOLS.values()) - ignored)
+        assert not unignored, (
+            f".github/dependabot.yml's pip update for {entry.get('directory') or entry.get('directories')} "
+            f"would bump {unignored} alone; add each to its `ignore:` list, since a bump of one pin is red "
+            "against the other"
+        )
+
+
+def test_an_entry_reaches_the_requirements_file_from_an_ancestor():
+    scanned(
+        [d for d in ("/", "/scripts", "scripts/", "/scr*") if covers({"directory": d}, "/scripts")],
+        "spellings reaching /scripts",
+        least=4,
+    )
+    assert covers({"directories": ["/app", "/"]}, "/scripts")
+    assert not covers({"directory": "/app"}, "/scripts")
+
+
+def test_an_excluded_path_is_not_reached():
+    assert not covers({"directory": "/", "exclude-paths": ["scripts/**"]}, "/scripts")
+    assert not covers({"directory": "/", "exclude-paths": ["scripts/requirements.txt"]}, "/scripts")
+    assert covers({"directory": "/", "exclude-paths": ["app/**"]}, "/scripts")
