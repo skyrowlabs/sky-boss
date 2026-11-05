@@ -263,6 +263,10 @@ class Control:
 
     counted = False
     wheel = False
+    #: A role laid under the top band (and a folded summary), full width; empty for none.
+    head = ""
+    #: Hand `framed` each frame's lines, so a click (`keys.clicked`) can be read against them.
+    clicks = False
 
     def shape(self, result: Result) -> Result:
         return result
@@ -284,6 +288,9 @@ class Control:
 
     def summary(self, result: Result | None) -> str:
         return ""
+
+    def framed(self, lines: list[str]) -> None:
+        """The frame just drawn, one plain string per screen line. Called only when `clicks`."""
 
 
 def height(text: Text, console: Console) -> int:
@@ -656,13 +663,17 @@ def reside(
         shaped = control.shape(last) if control is not None and last is not None else last
         if control is not None and control.folded():
             line = Text(control.summary(shaped), style="sb.label", no_wrap=True, overflow="ellipsis")
-            line.truncate(max(1, out.width), overflow="ellipsis")
+            line.truncate(max(1, out.width), overflow="ellipsis", pad=bool(control.head))
+            if control.head:
+                line.stylize_before(control.head)
             return Group(line)
         facts = state.chrome()
         if control is not None:
             facts = dataclasses.replace(facts, note=control.note())
         top, bottom = chrome_.status_bands(facts, clock(), out.width)
         top_text, bottom_text = band_text(top), band_text(bottom)
+        if control is not None and control.head:
+            top_text.stylize_before(control.head)
         if fill and shaped is not None:
             body = drawn(shaped)
         if screen and fit is not None and shaped is not None:
@@ -671,7 +682,10 @@ def reside(
             shown = fitted(shaped, body, limit, fit, drawn, out, always=always)
         else:
             shown = body if screen else clip(body, room(out))
-        return Group(top_text, shown, bottom_text)
+        frame = Group(top_text, shown, bottom_text)
+        if control is not None and control.clicks:
+            control.framed(["".join(seg.text for seg in line) for line in out.render_lines(frame, pad=False)])
+        return frame
 
     def run(wait_for: Callable[[float], str | None]) -> None:
         if screen:

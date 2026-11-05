@@ -142,6 +142,30 @@ def remove(session: str, agent: str, n: int, book: str = TODOS) -> TodoList:
     return save(todo)
 
 
+def clear_done(session: str, book: str = TODOS) -> tuple[dict[str, int], list[str]]:
+    """Drop every done item from every agent's list: agent → items removed, and unreadable lists.
+
+    A list with nothing done is not rewritten, so its `updated` (the pane's order) holds still.
+    """
+    cleared: dict[str, int] = {}
+    problems: list[str] = []
+    for agent in stored(session, book):
+        try:
+            todo = load(session, agent, book)
+        except ValueError as exc:
+            problems.append(f"{agent}: {exc}")
+            continue
+        if todo is None:
+            continue
+        kept = [item for item in todo.items if not item.done]
+        if len(kept) == len(todo.items):
+            continue
+        cleared[agent] = len(todo.items) - len(kept)
+        todo.items = kept
+        save(todo)
+    return cleared, problems
+
+
 def stored(session: str, book: str = TODOS) -> list[str]:
     """Every agent with a list file in this deck, by name."""
     try:

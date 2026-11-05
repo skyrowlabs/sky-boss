@@ -18,7 +18,7 @@ from click.testing import CliRunner
 
 from skyboss import cli
 from skyboss import deck as deck_
-from skyboss import output
+from skyboss import output, todos
 from skyboss.agents import Scan, Session
 from skyboss.deck import (
     Agent,
@@ -929,6 +929,7 @@ def test_the_queue_is_an_observe_and_the_rest_act():
         "exit": True,
         "queue": False,
         "messages": False,
+        "message": False,
         "brief": False,
         "todo": True,
         "decide": True,
@@ -940,12 +941,13 @@ def test_the_queue_is_an_observe_and_the_rest_act():
         "fold": True,
         "pick": True,
     }
-    for group in (deck_.deck_todo, deck_.deck_decide):
+    for group, more in ((deck_.deck_todo, {"clear": True}), (deck_.deck_decide, {})):
         assert {name: getattr(command, "sb_acts") for name, command in group.commands.items()} == {
             "add": True,
             "done": True,
             "rm": True,
             "list": False,
+            **more,
         }
 
 
@@ -1982,21 +1984,73 @@ def test_each_bars_label_is_given_room_for_its_whole_width():
     assert " sky.boss deck " in options["status-left"]
     assert options["status-left-length"] == str(len(" sky.boss deck ") + 1 + len("⟳ next in 5s "))
     tabs = dict(deck_.bar_options(True))
-    _, width = deck_.tab_lefts("tabs")
-    assert "skyrow.labs" in tabs["status-left"] and tabs["status-left-length"] == str(width)
+    _, width = deck_.tab_lefts()
+    assert "skyrow" in tabs["status-left"] and tabs["status-left-length"] == str(width)
 
 
 def test_the_mark_and_wordmark_lead_every_tab_row_at_one_width():
     from skyboss import theme
 
-    lefts, width = deck_.tab_lefts("tabs")
+    lefts, width = deck_.tab_lefts()
     visible = [re.sub(r"#\[[^]]*\]", "", left) for left in lefts]
     assert [len(v) for v in visible] == [width] * 3  # so every row's boxes start in one column
-    assert "skyrow.labs" in visible[1] and "tabs" in visible[1]
+    assert "skyrow.labs" in visible[1] and "tabs" not in visible[1]
+    assert all(v.rstrip().endswith(deck_.SEPARATOR) for v in visible)  # the separator spans all three rows
     assert len(theme.tmux_mark()) == 3 and all(len(row) == len(theme.MARK_PIXELS[0]) for row in theme.MARK_PIXELS)
     assert theme.MARK_PIXELS[-1] == "B" * len(theme.MARK_PIXELS[0])  # the L's base runs under the whole S
     rows = dict(deck_.bar_options(True))
     assert all(rows[f"status-format[{n}]"].startswith(f"#[align=left]{lefts[n]}") for n in range(3))
+
+
+def test_the_mark_is_four_cells_a_row_padded_each_side():
+    from skyboss import theme
+
+    marks = [re.sub(r"#\[[^]]*\]", "", row) for row in theme.tmux_mark()]
+    assert [len(m) for m in marks] == [theme.MARK_WIDTH] * 3 == [4] * 3
+    assert all(re.sub(r"#\[[^]]*\]", "", left).startswith(" " * deck_.MARK_PAD) for left in deck_.tab_lefts()[0])
+
+
+def test_a_quadrant_cell_refuses_a_third_colour():
+    from skyboss import theme
+
+    assert theme._quadrant(("a", "b", "a", "b"), "g") == "#[fg=a bg=b]▌"
+    assert theme._quadrant(("a", None, None, None), "g") == "#[fg=a bg=g]▘"
+    with pytest.raises(ValueError):
+        theme._quadrant(("a", "b", None, None), "g")
+
+
+def test_the_wordmark_is_white_then_brand_and_bold():
+    style = deck_.theme.tmux_styles()
+    middle = deck_.tab_lefts()[0][1]
+    assert f"#[{style['wordmark']}]skyrow#[{style['label']}].labs" in middle
+    assert "bold" in style["wordmark"] and "bold" in style["label"]
+
+
+def test_clear_drops_every_agents_done_todos_and_leaves_the_rest(home, sb_state):
+    todos.add("sb", "one", "keep")
+    todos.add("sb", "one", "finished")
+    todos.done("sb", "one", 2)
+    todos.add("sb", "two", "open")
+    before = todos.load("sb", "two")
+    result = invoke("--json", "deck", "todo", "clear")
+    one, two = todos.load("sb", "one"), todos.load("sb", "two")
+    assert before and one and two
+    assert json.loads(result.stdout)["data"] == [{"agent": "one", "cleared": 1}]
+    assert [i.text for i in one.items] == ["keep"]
+    assert two.updated == before.updated  # untouched, so its place in the pane holds
+
+
+def test_clear_with_nothing_done_says_so(home, sb_state, said):
+    todos.add("sb", "one", "open")
+    result = invoke("deck", "todo", "clear")
+    assert result.exit_code == 0 and "nothing to clear" in said(result)
+
+
+def test_the_clear_key_reports_how_many_lists_it_cleared():
+    bound = {argv[3]: argv for argv in deck_.deck_bindings("sb")}
+    command = bound[deck_.SHORTCUTS["clear"]][-1]
+    assert "deck todo clear" in command and "display-message" in command and "--json" in command
+    assert f"{deck_.SHORTCUTS['clear']} clear done" in deck_.hints()
 
 
 def test_reload_restarts_every_tool_pane_that_closes_itself_and_kills_none(fake, home, sb_state, monkeypatch):

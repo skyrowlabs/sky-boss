@@ -39,6 +39,7 @@ import rich_click as click
 
 from skyboss import agents as agents_
 from skyboss import column as column_
+from skyboss import keys as keys_
 from skyboss import resident as resident_
 from skyboss import theme
 from skyboss import todos as todos_
@@ -47,7 +48,7 @@ from skyboss.helpers import PROJECT_ROOT, SB_HOME, child_env, mark
 
 #: The Claude Code plugin every deck tab loads with `--plugin-dir`; see `plugin/` at the repo root.
 PLUGIN_DIR = PROJECT_ROOT / "plugin"
-from skyboss.messages import messages_result
+from skyboss.messages import message_result, messages_result
 from skyboss.output import Result, emit, warn_now
 from skyboss.view import describe
 
@@ -535,23 +536,32 @@ def tab_cell(row: int, current: bool) -> str:
     return f"#[range=window|#{{window_index}}]{body}#[norange nobold {bar}] "
 
 
-WORDMARK = "skyrow.labs"
+WORDMARK = ("skyrow", ".labs")
+#: Blank cells each side of the mark, and between the wordmark and the separator.
+MARK_PAD = 2
+#: Drawn on all three rows between the wordmark and the first tab.
+SEPARATOR = "│"
 
 
-def tab_lefts(label: str) -> tuple[tuple[str, ...], int]:
-    """The tab bar's left end, one format per row: the SL mark, then the wordmark and `label` on the
-    middle row, the rows above and below blank to the same width. And that visible width."""
+def tab_lefts() -> tuple[tuple[str, ...], int]:
+    """The tab bar's left end, one format per row, and its visible width.
+
+    The SL mark padded each side, then on the middle row the wordmark (`skyrow` white,
+    `.labs` brand, both bold), then a separator on every row before the tabs.
+    """
     style = theme.tmux_styles()
     bar = style["bar"]
-    words = f"  {WORDMARK}  {label} "
-    width = 1 + len(theme.MARK_PIXELS[0]) + len(words)
-    # `nobold`: a colour change does not end tmux's bold, which would run on into `label` and the marks.
-    middle = f"#[{style['label']}]  {WORDMARK}  #[nobold {style['quiet']}]{label} "
+    pad = " " * MARK_PAD
+    word = "".join(WORDMARK)
+    # `nobold`: a colour change does not end tmux's bold, which would run on into the separator and tabs.
+    middle = f"#[{style['wordmark']}]{WORDMARK[0]}#[{style['label']}]{WORDMARK[1]}#[nobold {bar}]"
+    separator = f"#[{bar}]{pad}#[{style['tab-edge']}]{SEPARATOR}#[{bar}] "
     lefts = tuple(
-        f"#[{bar}] {mark}" + (middle if row == 1 else f"#[{bar}]{' ' * len(words)}")
+        f"#[{bar}]{pad}{mark}#[{bar}]{pad}" + (middle if row == 1 else " " * len(word)) + separator
         for row, mark in enumerate(theme.tmux_mark())
     )
-    return tuple(f"{left}#[nobold {bar}]" for left in lefts), width
+    width = MARK_PAD + theme.MARK_WIDTH + MARK_PAD + len(word) + MARK_PAD + len(SEPARATOR) + 1
+    return lefts, width
 
 
 def tab_row(row: int, left: str) -> str:
@@ -582,10 +592,10 @@ def shared_countdown(every: int = TOOLS_REFRESH) -> str:
 def bar_options(tabs: bool) -> tuple[tuple[str, str], ...]:
     """Session options for a deck bar. The tab row also says when the marks were last written."""
     style = theme.tmux_styles()
-    label = "tabs" if tabs else "sky.boss deck"
+    label = "sky.boss deck"
     lefts: tuple[str, ...] = ()
     if tabs:
-        lefts, width = tab_lefts(label)
+        lefts, width = tab_lefts()
         left = lefts[1]
     else:
         tick = shared_countdown()
@@ -627,6 +637,7 @@ SHORTCUTS = {
     "newest": "M-e",
     "column": "M-s",
     "fold": "M-c",
+    "clear": "M-x",
 }
 NEVER_BOUND = frozenset({"C-c"})
 # Session options the panes read each frame, and the marks loop keeps the agent count in.
@@ -731,6 +742,17 @@ def deck_bindings(session: str) -> list[list[str]]:
             f"{sb} deck column fold '#{{{ROLE_OPTION}}}' >/dev/null 2>&1 "
             f"|| tmux display-message '{keys['fold']} folds a right-column pane: focus one first'",
         ],
+        # Counted from the envelope (one `"cleared"` line per list), so a press with nothing done says 0.
+        [
+            "bind-key",
+            "-T",
+            table,
+            keys["clear"],
+            "run-shell",
+            "-b",
+            f"n=$({sb} --json deck todo clear 2>/dev/null | grep -c '\"cleared\"'); "
+            'tmux display-message "cleared the done todos from $n list(s)"',
+        ],
     ]
 
 
@@ -784,6 +806,7 @@ def hints() -> str:
         f"{k['older']} {k['newest']} messages",
         f"{k['column']} panes",
         f"{k['fold']} fold",
+        f"{k['clear']} clear done",
         f"{EXIT_KEY} exit",
     ]
     return (
@@ -1921,6 +1944,51 @@ def deck_messages(refresh: int | None, ticks: int | None, screen: bool) -> Resul
     return _resident("deck messages", once, refresh, ticks, screen, keep_last("message(s)", pane), pane)
 
 
+@deck.command(name="message")
+@click.argument("key")
+@click.option("--page", is_flag=True, help="On a terminal, read it in a pager (q closes), as the deck's popup does.")
+@emit
+def deck_message(key: str, page: bool) -> Result:
+    """One message whole: who sent it, to whom, when, and the full body.
+
+        sb deck message <key>
+
+    An observe. KEY is the `key` a row of `sb --json deck messages` carries;
+    clicking a row in the MESSAGES pane opens this in a popup.
+    """
+    result = message_result(key, place=placement)
+    if page and result.ok and has_terminal() and not _as_json():
+        _page(result.data)
+        raise click.exceptions.Exit(0)
+    return result
+
+
+def _page(data: dict) -> None:
+    """The message through `less -R`, or printed and held for a key when there is no less."""
+    import io
+
+    from rich.console import Console
+
+    from skyboss import messages as messages_
+    from skyboss.output import THEME
+
+    width = shutil.get_terminal_size().columns
+    buffer = io.StringIO()
+    Console(
+        file=buffer, theme=THEME, highlight=False, force_terminal=True, color_system="truecolor", width=width
+    ).print(messages_.page(data))
+    less = shutil.which("less")
+    if less:
+        # `-+F`: an operator's LESS may quit at once on a short page, which would close the popup unread.
+        subprocess.run([less, "-R", "-c", "-+F", "-Pq closes"], input=buffer.getvalue(), text=True, env=child_env())
+        return
+    sys.stdout.write(buffer.getvalue() + "\n(any key closes)")
+    sys.stdout.flush()
+    with keys_.reader() as wait_for:
+        while wait_for(60.0) is None:
+            pass
+
+
 def keep_last(noun: str, pane: DeckPane | None = None) -> Callable[[Result, int], tuple[Result, str]]:
     """The newest `keep` rows, or `keep` rows ending `pane.offset` back from them, with a line saying where."""
 
@@ -1930,6 +1998,8 @@ def keep_last(noun: str, pane: DeckPane | None = None) -> Callable[[Result, int]
         end = len(rows) - offset
         start = max(0, end - keep)
         shown = replace(result, data=rows[start:end])
+        if pane is not None:
+            pane.rows = shown.data
         if pane is None:
             return shown, f"{start} earlier {noun} not shown — the newest {keep} fit"
         if offset:
@@ -1957,6 +2027,11 @@ class DeckPane(resident_.Control):
     ) -> None:
         self.session = session
         self.role = role
+        self.head = "sb.deck.head"
+        # MESSAGES opens a clicked row in a popup; `rows` and `lines` are what the last frame drew.
+        self.clicks = role == MESSAGES
+        self.rows: list[dict] = []
+        self.lines: list[str] = []
         self.fold = False
         self.keeps = keeps
         self.counted = scroll
@@ -2009,7 +2084,16 @@ class DeckPane(resident_.Control):
         return column_.summary(self.role, rows, ok=result.ok, note=self.note())
 
     def on_key(self, key: str) -> bool:
+        cell = keys_.clicked(key)
+        if cell is not None:
+            row = clicked_row(self.lines, self.rows, cell[1])
+            if self.clicks and row is not None and row.get("key"):
+                open_message(row["key"])
+            return False
         return self.wheel and self.move(key)
+
+    def framed(self, lines: list[str]) -> None:
+        self.lines = lines
 
     def move(self, key: str) -> bool:
         steps = {"up": 1, "down": -1, "wheelup": 3, "wheeldown": -3, "pgup": self.page, "pgdn": -self.page}
@@ -2044,6 +2128,60 @@ def session_options(text: str) -> dict[str, str]:
             words = [value.strip()]
         out[name] = words[0] if words else ""
     return out
+
+
+def clicked_row(lines: list[str], rows: list[dict], y: int) -> dict | None:
+    """The table row drawn on screen line `y` (one-based), or None.
+
+    A deck table is its header, a rule of `─`, then one line per row, so rows count from the line
+    after the first all-rule line; the top band starts `┌` and is never taken for it.
+    """
+    rule = next((i for i, line in enumerate(lines) if line.strip() and set(line.strip()) == {"─"}), None)
+    if rule is None:
+        return None
+    index = y - 1 - (rule + 1)
+    return rows[index] if 0 <= index < len(rows) else None
+
+
+#: The message popup: most of the client, so a long message reads without scrolling sideways.
+POPUP_SIZE = ("80%", "80%")
+
+
+def message_popup_argv(key: str) -> list[str]:
+    """`display-popup` reading one message, on the void the deck paints so agent hues stay legible."""
+    style = theme.tmux_styles()
+    sb = shlex.quote(str(PROJECT_ROOT / "sb"))
+    width, height = POPUP_SIZE
+    return [
+        "display-popup",
+        "-E",
+        "-w",
+        width,
+        "-h",
+        height,
+        "-s",
+        style["pane"],
+        "-S",
+        style["border-active"],
+        "-T",
+        " message ",
+        f"exec {sb} deck message --page {shlex.quote(key)}",
+    ]
+
+
+def open_message(key: str) -> None:
+    """Open the popup and return at once: the pane keeps drawing while the operator reads."""
+    try:
+        subprocess.Popen(
+            ["tmux", *message_popup_argv(key)],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            env=child_env(),
+            start_new_session=True,
+        )
+    except OSError:
+        pass
 
 
 def keep_first(noun: str) -> Callable[[Result, int], tuple[Result, str]]:
@@ -2568,6 +2706,29 @@ def deck_todo_rm(n: int) -> Result:
     return _todo_change(lambda session, agent: todos_.remove(session, agent, n))
 
 
+@deck_todo.command(name="clear")
+@emit
+def deck_todo_clear() -> Result:
+    """Remove every done item from every agent's list in the deck.
+
+        sb deck todo clear
+
+    **This acts**, on all the deck's lists, from anywhere: it is the operator's
+    tidy-up, bound to M-x in the deck. Open items stay; a list with nothing done is untouched.
+    """
+    result = Result()
+    config, problems = load()
+    for problem in problems:
+        result.warn(problem)
+    cleared, unreadable = todos_.clear_done(config.session)
+    for problem in unreadable:
+        result.warn(problem)
+    result.data = [{"agent": agent, "cleared": n} for agent, n in cleared.items()]
+    if not cleared:
+        result.warn(f"nothing to clear — no list in deck {config.session!r} has a done item")
+    return result
+
+
 @deck_todo.command(name="list")
 @click.option("--all", "every", is_flag=True, help="Every agent's list, even from inside a tab.")
 @click.option(
@@ -2730,11 +2891,13 @@ mark(deck_marks, sb_acts=True)
 mark(deck_exit, sb_acts=True)
 mark(deck_queue, sb_acts=False)
 mark(deck_messages, sb_acts=False)
+mark(deck_message, sb_acts=False)
 mark(deck_brief, sb_acts=False)
 mark(deck_todo, sb_acts=True)
 mark(deck_todo_add, sb_acts=True)
 mark(deck_todo_done, sb_acts=True)
 mark(deck_todo_rm, sb_acts=True)
+mark(deck_todo_clear, sb_acts=True)
 mark(deck_reload, sb_acts=True)
 mark(deck_column, sb_acts=True)
 mark(deck_column_show, sb_acts=False)

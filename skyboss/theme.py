@@ -322,6 +322,10 @@ DECK_ROLES: dict[str, str] = {
 }
 
 
+#: A deck pane's label row: the brand tinted into the void the pane paints, clear of the working-tab ground.
+HEAD_GROUND = _mix(BG, 0.20)
+
+
 # ============================================================================
 # Style roles
 # ============================================================================
@@ -343,6 +347,8 @@ STYLES: dict[str, str] = {
     "sb.url": CLI_PATH,
     # The one role that paints its own ground. See § Ground, not hue.
     "sb.ref": f"{CLI_REF} on {CLI_REF_BG}",
+    # A deck pane's label row, under its band's own spans: where each right-column table starts.
+    "sb.deck.head": f"{TEXT} on {HEAD_GROUND}",
     # The deck's agents, on its own painted ground. See § Product hues.
     **{role: f"bold {colour}" for role, colour in DECK_ROLES.items()},
 }
@@ -352,7 +358,7 @@ STYLES: dict[str, str] = {
 # already has, stated as data so the contrast test can check the right thing
 # rather than skip them. What a painted role owes instead is a *ground* that
 # clears the floor and a foreground legible on that ground; both are asserted.
-PAINTED: frozenset[str] = frozenset({"sb.ref"})
+PAINTED: frozenset[str] = frozenset({"sb.ref", "sb.deck.head"})
 
 
 # ============================================================================
@@ -405,38 +411,68 @@ def css_root() -> str:
 
 
 #: The favicon (`skyrowlabs.com/favicon.svg`) as six rows of pixels: B the brand-blue L, W the white S in
-#: its corner, the L's base running the full width under it. Drawn two pixels to a cell with half blocks,
-#: so it fills the tab bar's three rows. A status bar cannot draw the SVG; this is its redraw.
+#: its corner, the L's base running the full width under it. Drawn four pixels to a cell with quadrant
+#: blocks, so it is four cells wide over the tab bar's three rows. A status bar cannot draw the SVG; this
+#: is its redraw. A cell takes two colours at most (its glyph's and its ground), which this layout keeps.
 MARK_PIXELS = (
-    "BB.WWWW.",
-    "BB.W....",
-    "BB.WWWW.",
-    "BB....W.",
-    "BB.WWWW.",
+    "B.WWWWWW",
+    "B.W.....",
+    "B.WWWWWW",
+    "B......W",
+    "B.WWWWWW",
     "BBBBBBBB",
 )
 
+#: Quadrant glyphs by which quarters are inked: top-left, top-right, bottom-left, bottom-right.
+_QUADRANTS = {
+    (0, 0, 0, 0): " ",
+    (1, 0, 0, 0): "▘",
+    (0, 1, 0, 0): "▝",
+    (0, 0, 1, 0): "▖",
+    (0, 0, 0, 1): "▗",
+    (1, 1, 0, 0): "▀",
+    (0, 0, 1, 1): "▄",
+    (1, 0, 1, 0): "▌",
+    (0, 1, 0, 1): "▐",
+    (1, 0, 0, 1): "▚",
+    (0, 1, 1, 0): "▞",
+    (1, 1, 1, 0): "▛",
+    (1, 1, 0, 1): "▜",
+    (1, 0, 1, 1): "▙",
+    (0, 1, 1, 1): "▟",
+    (1, 1, 1, 1): "█",
+}
+
+
+def _quadrant(quarters: tuple[str | None, ...], ground: str) -> str:
+    """One cell: the quarters' inks as a glyph in the first ink over the second, or over `ground`."""
+    inks = list(dict.fromkeys(ink for ink in quarters if ink is not None))
+    if len(inks) > 2 or (len(inks) == 2 and None in quarters):
+        raise ValueError(f"a cell takes two colours at most, not {quarters}")
+    if not inks:
+        return f"#[bg={ground}] "
+    fg = inks[0]
+    bg = inks[1] if len(inks) == 2 else ground
+    tl, tr, bl, br = (int(ink == fg) for ink in quarters)
+    glyph = _QUADRANTS[(tl, tr, bl, br)]
+    return f"#[fg={fg} bg={bg}]{glyph}"
+
 
 def tmux_mark(ground: str = SURFACE) -> tuple[str, ...]:
-    """The mark as one tmux format string per bar row, each cell a half block over `ground`."""
+    """The mark as one tmux format string per bar row, each cell a quadrant block over `ground`."""
     ink = {"B": BRAND, "W": TEXT, ".": None}
     rows = []
     for top_row, bottom_row in zip(MARK_PIXELS[::2], MARK_PIXELS[1::2]):
-        cells = []
-        for top, bottom in zip(top_row, bottom_row):
-            up, down = ink[top], ink[bottom]
-            if up is None and down is None:
-                cells.append(f"#[bg={ground}] ")
-            elif up == down:
-                cells.append(f"#[fg={up} bg={ground}]█")
-            elif down is None:
-                cells.append(f"#[fg={up} bg={ground}]▀")
-            elif up is None:
-                cells.append(f"#[fg={down} bg={ground}]▄")
-            else:
-                cells.append(f"#[fg={up} bg={down}]▀")
+        cells = [
+            _quadrant((ink[top_row[x]], ink[top_row[x + 1]], ink[bottom_row[x]], ink[bottom_row[x + 1]]), ground)
+            for x in range(0, len(top_row), 2)
+        ]
         rows.append("".join(cells))
     return tuple(rows)
+
+
+#: The mark's width in cells.
+MARK_WIDTH = len(MARK_PIXELS[0]) // 2
 
 
 #: A working tab's ground: the brand mixed into the bar's surface, a tint and never a fifth hue.
@@ -448,6 +484,8 @@ def tmux_styles() -> dict[str, str]:
     return {
         "bar": f"bg={SURFACE} fg={TEXT_2}",
         "label": f"fg={BRAND} bold",
+        # The wordmark's `skyrow`; its `.labs` is `label`.
+        "wordmark": f"fg={TEXT} bold",
         "tab": f"fg={TEXT_2} bg={SURFACE}",
         "tab-current": f"fg={TEXT} bg={SURFACE_2} bold",
         "working": f"fg={BRAND}",

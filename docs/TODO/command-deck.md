@@ -306,6 +306,21 @@ Ruled by Jeston on 2026-11-05.
       interval, and the deck's footer shows the single countdown to it; each pane's own countdown
       goes. Jeston chose a shared cadence over showing the soonest of several.
 
+## Phase 9 (round 7): the bar's left end, pane headers, clearing todos, reading a message
+
+Asked by Jeston on 2026-11-05, relayed by the workspace; he answered the two open questions himself.
+
+- [x] **The mark at half its size, padded.** Four cells wide rather than eight, two blank cells each
+      side. It still spans the bar's three rows: the S needs five pixel rows and the L's base a
+      sixth, so there is no room above or below it for vertical padding.
+- [x] **The wordmark in two colours.** `skyrow` white and `.labs` brand blue, both bold.
+- [x] **A separator, and no `tabs` label.** A `│` on all three rows between the wordmark and the first tab.
+- [x] **A ground on each right-column pane's label row**, so a reader sees where each table starts.
+- [x] **M-x clears the done todos, every agent's** (Jeston's choice over only the focused tab's).
+      `sb deck todo clear`; the key says how many lists it cleared, 0 included.
+- [x] **Clicking a message opens it whole in a popup**, with a header of from, to and when it was
+      sent (Jeston's choice of fields), the body drawn as Markdown, q to close.
+
 ## Dropped, and why
 
 - **Binding Ctrl-C for exit.** It is claude's interrupt, and forwarding it would put every
@@ -674,3 +689,26 @@ kept the TODOS pane's pid.
   strftime's `%s` before the format, with `status-interval 1`. Nothing writes it, and it cannot
   drift from the panes, since both read the same clock. Smoked: four panes `ran 09:56:45`, and one
   countdown on screen. MESSAGES moved from 10s to the shared 5s.
+
+### 2026-11-05: round 7 built
+
+- **The mark is drawn in quadrant blocks**, four pixels to a cell, which is what halves it. A
+  quadrant cell takes two colours, its glyph's and its ground, so a cell holding blue, white and
+  blank cannot be drawn. The round-6 pixels had two such cells. The new layout uses a one-pixel L
+  stem, a one-pixel gap and an S six pixels wide, and every cell holds two colours at most.
+  `_quadrant` raises on a third, so a future redraw cannot lose one silently.
+- **The header ground is the brand at 20% over the void** (`HEAD_GROUND`), registered as a painted
+  role and so held to the painted-role checks: text measures 13.1 on it and text-2 4.64. It is
+  laid *under* the band's spans (`stylize_before`), so each span keeps its own colour. It is a
+  `Control.head` role, so nothing outside the deck grounds its band.
+- **A click is a key.** The reader decodes an SGR left press as `click:<x>:<y>`, and a resident
+  control may ask for each frame's plain lines (`clicks`, `framed`). The MESSAGES pane maps a
+  line to a row by counting from the table's rule, against the rows its fit last drew. The popup
+  runs `sb deck message --page <key>`, an observe: the message found by the `key` its row now
+  carries, searched past the pane's last 50, paged through `less -R -c -+F`. Here `-+F` matters,
+  because an operator's `LESS` may quit at once on a short page and close the popup unread. `-c`
+  starts the page at the top. Smoked on a throwaway server: a real SGR click opened the
+  workspace's message with the header, Markdown lists and `q closes`, and q closed it.
+- **M-x prints its count from the envelope.** It greps one `"cleared"` per list in `--json`, so it
+  reads none of the human output. A list with nothing done is not rewritten, so its place in the
+  newest-first TODOS order holds.
