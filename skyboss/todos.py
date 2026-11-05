@@ -59,7 +59,8 @@ def path_for(session: str, agent: str) -> Path:
 
 
 def now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+    """Microseconds, so two writes in one second still order (the pane sorts on this)."""
+    return datetime.now(timezone.utc).isoformat(timespec="microseconds")
 
 
 def load(session: str, agent: str) -> TodoList | None:
@@ -145,22 +146,35 @@ def _age(updated: str, now: datetime) -> str:
         return ""
 
 
+def _recency(todo: TodoList | None) -> tuple[bool, float]:
+    """Sort key: kept lists newest first, then agents with none; stable within each."""
+    try:
+        return (False, -datetime.fromisoformat(todo.updated).timestamp()) if todo else (True, 0.0)
+    except ValueError:
+        return (False, 0.0)
+
+
 def rows_of(
     session: str, order: list[tuple[str, int]], now: datetime, paint: bool = False, only: str | None = None
 ) -> tuple[list[dict], list[str]]:
-    """One heading row per agent, then its items; in `order` (tab order, primary first), then any
-    list whose agent has no tab, unless `only` names one agent. A heading is the agent's name in its
-    tab colour, when painted."""
+    """One heading row per agent, then its items, unless `only` names one agent.
+
+    Lists come newest update first, so a change lifts its agent to the top; agents
+    with no list follow in `order` (tab order, primary first). A list whose agent
+    has no tab is included. A heading is the agent's name in its tab colour, when painted.
+    """
     rows: list[dict] = []
     problems: list[str] = []
     tabbed = [name for name, _ in order]
     rest = [] if only else [(name, -1) for name in stored(session) if name not in tabbed]
+    entries: list[tuple[str, int, TodoList | None]] = []
     for name, slot in [*order, *rest]:
         try:
-            todo = load(session, name)
+            entries.append((name, slot, load(session, name)))
         except ValueError as exc:
             problems.append(f"{name}: {exc}")
-            todo = None
+            entries.append((name, slot, None))
+    for name, slot, todo in sorted(entries, key=lambda entry: _recency(entry[2])):
         colour = theme.agent_role(name, max(slot, 0)) if paint and slot >= 0 else None
         heading = [[name, colour or "sb.accent"]]
         if slot < 0:

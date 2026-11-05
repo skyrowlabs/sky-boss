@@ -4,8 +4,8 @@ slug: command-deck
 priority: medium
 category: surfaces
 agent_value: 3
-completed: 2026-11-04
-updated: 2026-11-04
+shelf_status: in-progress
+updated: 2026-11-05
 tags: [agents, act, tmux, surfaces]
 summary: Adds `sb deck`, a tmux session holding one window per agent, plus a queue of sessions waiting on the operator, read by both surfaces. It is the first act surface beside the observe-only canvas.
 ---
@@ -13,8 +13,8 @@ summary: Adds `sb deck`, a tmux session holding one window per agent, plus a que
 # The deck: a tmux command center for agent sessions
 
 > **Status**: 🟡 In progress
-> **Priority**: Medium. Round 4: exit, scrolling, agent colours and shortcut keys, on the operator's ruling.
-> **Updated**: 2026-11-04
+> **Priority**: Medium. Round 5: the right column — a DECISIONS pane, a pane chooser, collapsing, the footer, and TODOS by recency.
+> **Updated**: 2026-11-05
 
 ## Problem
 
@@ -254,6 +254,29 @@ clickable ✕ instead, kept agent colours on the brand-step rule, and asked for 
       offset and its band; colour assignment by tab order, shared by both renderers, above the
       floor; the outside toggle read by both panes. A smoke test on a throwaway socket covers the
       popup, the ✕ click, the keys and the scroll.
+
+## Phase 7 (round 5): the right column
+
+Requested by Jeston on 2026-11-05, five items relayed by the skyrow-workspace session. Items 4 and
+5 needed no ruling. Items 1 to 3 wait on two questions put to him: where a decision comes from, and
+what collapsing means in the stack layout.
+
+- [ ] **The outside count moves to the footer band.** NEEDS YOU and MESSAGES say
+      `N outside hidden · M-h shows` in the bottom band, muted, with no ⚠️ and no warn colour: it
+      is information, not a fault. The count stays, because a hidden row must not read as no row. `--json` is
+      unchanged, since hiding is the pane's view state and never reaches the envelope.
+- [ ] **TODOS orders by recency, still grouped by agent.** Groups sort by their list's `updated`,
+      newest first, and every add, done and rm moves it, so a new task lifts that agent's list
+      to the top. Items keep their numbers. An agent with no list yet keeps the tab order below
+      every list.
+- [ ] **A DECISIONS pane**, grouped by agent, the same recency order. *Waits on the source ruling.*
+- [ ] **A chooser for which right-column panes show, and in what order.** A popup in the deck's key
+      table. The choice is machine state under `$SB_STATE`, because sky.boss never writes
+      `deck.toml`. Applying it moves and resizes panes only. *Waits on the collapse ruling, which
+      shares its storage.*
+- [ ] **Each pane collapses to a thin row** drawing one consolidated line. *Waits on the stack
+      ruling.*
+- [ ] Tests on `FakeTmux` and the pure renderers, plus a smoke on a throwaway socket.
 
 ## Dropped, and why
 

@@ -112,6 +112,8 @@ class Chrome:
     # Bounded ring, stream and cursor.
     ring_shown: int | None = None
     ring_limit: int | None = None
+    # A view's own information for the footer, muted: never a warning and never counted as one.
+    note: str = ""
 
     def to_dict(self) -> dict:
         """The same facts for the canvas renderer, keys omitted when unset —
@@ -495,6 +497,8 @@ def _bottom_spans(chrome: Chrome, now: float) -> tuple[list[Span], list[Span]]:
         if chrome.warnings:
             plural = "" if chrome.warnings == 1 else "s"
             left.append((f" · {chrome.warnings} warning{plural}", "sb.warn"))
+        if chrome.note:
+            left.append((f" · {chrome.note}", "sb.muted"))
     else:
         lead = ""
         if chrome.size_bytes is not None:

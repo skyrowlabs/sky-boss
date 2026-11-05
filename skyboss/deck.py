@@ -1642,6 +1642,7 @@ class DeckPane(resident_.Control):
         self.page = 10
         self.total = 10**6
         self.hide = False
+        self.hidden = 0
         self.seq: str | None = None
 
     def poll(self) -> None:
@@ -1655,12 +1656,16 @@ class DeckPane(resident_.Control):
 
     def shape(self, result: Result) -> Result:
         self.poll()
+        self.hidden = 0
         if not self.hide or not isinstance(result.data, list):
             return result
         kept = [row for row in result.data if self.keeps(row)]
-        hidden = len(result.data) - len(kept)
-        warnings = [*result.warnings, f"{hidden} outside row(s) hidden — {SHORTCUTS['outside']} shows them"]
-        return replace(result, data=kept, warnings=warnings if hidden else result.warnings)
+        self.hidden = len(result.data) - len(kept)
+        return replace(result, data=kept)
+
+    def note(self) -> str:
+        # Information, so the footer and not a warning; the count stays so hidden never reads as none.
+        return f"{self.hidden} outside hidden · {SHORTCUTS['outside']} shows" if self.hidden else ""
 
     def on_key(self, key: str) -> bool:
         return self.wheel and self.move(key)

@@ -29,6 +29,7 @@ screen, and is the only part that touches real time by default.
 
 from __future__ import annotations
 
+import dataclasses
 import time
 from typing import Callable, Iterable
 
@@ -250,6 +251,10 @@ class Control:
 
     def on_key(self, key: str) -> bool:
         return False
+
+    def note(self) -> str:
+        """Information for the footer band about the last `shape`; empty for none."""
+        return ""
 
 
 def height(text: Text, console: Console) -> int:
@@ -619,10 +624,12 @@ def reside(
         if result is not None:
             last = result
             body = drawn(result)
+        shaped = control.shape(last) if control is not None and last is not None else last
         facts = state.chrome()
+        if control is not None:
+            facts = dataclasses.replace(facts, note=control.note())
         top, bottom = chrome_.status_bands(facts, clock(), out.width)
         top_text, bottom_text = band_text(top), band_text(bottom)
-        shaped = control.shape(last) if control is not None and last is not None else last
         if fill and shaped is not None:
             body = drawn(shaped)
         if screen and fit is not None and shaped is not None:

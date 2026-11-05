@@ -1264,7 +1264,18 @@ def test_both_panes_read_the_one_outside_toggle(fake, home, keeps):
     assert len(pane.shape(rows).data) == 2
     fake.options[("=sb:", "@sb-hide-outside")] = "1"
     shaped = pane.shape(rows)
-    assert len(shaped.data) == 1 and "1 outside row(s) hidden — M-h shows them" in shaped.warnings
+    assert len(shaped.data) == 1 and shaped.warnings == [] and pane.note() == "1 outside hidden · M-h shows"
+
+
+def test_the_outside_note_is_a_muted_footer_segment_and_not_a_warning():
+    import dataclasses
+
+    from skyboss import chrome
+
+    facts = chrome.resident("deck queue", ok=True, partial=False, warnings=0, ran_at=0.0, interval=5)
+    _, bottom = chrome.status_bands(dataclasses.replace(facts, note="1 outside hidden · M-h shows"), 0.0, 80)
+    assert (" · 1 outside hidden · M-h shows", "sb.muted") in bottom
+    assert not any(role == "sb.warn" for _, role in bottom)
 
 
 def test_the_tool_panes_are_handed_their_control(fake, home, monkeypatch):
@@ -1622,7 +1633,7 @@ def test_rm_removes_and_renumbers(fake, home, sb_state, monkeypatch):
     assert [(i["n"], i["text"]) for i in data["items"]] == [(1, "a"), (2, "c")]
 
 
-def test_lists_group_by_agent_in_tab_order_primary_first(fake, home, sb_state, monkeypatch):
+def test_kept_lists_lead_newest_first_then_agents_without_one_in_tab_order(fake, home, sb_state, monkeypatch):
     from skyboss import todos
 
     fake.add("sb", "deck", role="tabs", pid=1)
@@ -1634,9 +1645,20 @@ def test_lists_group_by_agent_in_tab_order_primary_first(fake, home, sb_state, m
     caller_under(monkeypatch, 999)
     rows = json.loads(invoke("--json", "deck", "todo", "list").stdout)["data"]
     headings = [row["agent"] for row in rows if row["kind"] == "agent"]
-    assert headings == ["ws", "jam", "mh", "gone"]
+    assert headings == ["gone", "mh", "ws", "jam"]
     assert deck_.tab_order("sb") == [("ws", 1), ("jam", 0), ("mh", 2)]
     assert [r["todos"] for r in rows if r["agent"] == "gone"][0].startswith("gone (no tab)")
+
+
+def test_any_change_to_a_list_lifts_its_agent_to_the_top(sb_state):
+    from skyboss import todos
+
+    todos.add("sb", "ws", "one")
+    todos.add("sb", "jam", "two")
+    first = [r["agent"] for r in todos.rows_of("sb", [("ws", 0), ("jam", 1)], NOW)[0] if r["kind"] == "agent"]
+    todos.done("sb", "ws", 1)
+    after = [r["agent"] for r in todos.rows_of("sb", [("ws", 0), ("jam", 1)], NOW)[0] if r["kind"] == "agent"]
+    assert (first, after) == (["jam", "ws"], ["ws", "jam"])
 
 
 def test_no_list_kept_is_not_nothing_open(sb_state):
