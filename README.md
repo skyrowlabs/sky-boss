@@ -15,7 +15,8 @@
   <a href="#install"><b>Install</b></a> ·
   <a href="#the-commands"><b>Commands</b></a> ·
   <a href="#many-projects-at-once"><b>Many projects</b></a> ·
-  <a href="#the-surface"><b>The surface</b></a> ·
+  <a href="#the-canvas"><b>The canvas</b></a> ·
+  <a href="#the-deck"><b>The deck</b></a> ·
   <a href="#offering-it-to-an-agent"><b>Agents</b></a>
 </p>
 
@@ -36,25 +37,21 @@ Four ideas, and everything else follows from them:
 
 ## What it looks like
 
-`sb ui` opens the canvas: a followed log holding open on the left, tinted by *shape* rather than by
-anyone's severity vocabulary, the same records shaped into a table on the right, and the commands
-you saved down the side.
-
-<p align="center">
-  <img src="docs/design/readme-canvas.png" alt="The sky.boss canvas: a tools rail, a tinted follow window, and a shaped table" width="900">
-</p>
-
-And the same envelope in a terminal — the band under a `run`, and a file of records shaped into a
-table:
+In a terminal, every command draws the same envelope — the band under a `run`, and a file of
+records shaped into a table:
 
 <p align="center">
   <img src="docs/design/readme-session.png" alt="A terminal session: sb run -- echo hello, then sb data --from jsonl over a file of records" width="800">
 </p>
 
-Every picture on this page is *rendered*, never drawn by hand: `docs/design/render-mark.py` writes
-the mark from `ART` in `skyboss/banner.py` and captures the terminal through a pty, and
-`docs/design/render-canvas.mjs` drives a real `sb ui` over the DevTools protocol. Re-run them after
-changing anything they show.
+Two surfaces sit on top of that: [the canvas](#the-canvas), a window of commands for watching, and
+[the deck](#the-deck), a tmux controller for the agents working in your repos.
+
+The mark, this terminal session and the canvas are *rendered*, never drawn by hand:
+`docs/design/render-mark.py` writes the mark from `ART` in `skyboss/banner.py` and captures the
+terminal through a pty, and `docs/design/render-canvas.mjs` drives a real `sb ui` over the DevTools
+protocol. Re-run them after changing anything they show. The deck's picture is a screenshot of a
+live deck, with the operator's directories blanked out.
 
 ## Install
 
@@ -80,11 +77,11 @@ Needs Python 3.12+. Shell completion for fish:
 | `sb roll-call` | reads | Asks every declared project how it is, and folds the answers |
 | `sb schedule` | reads | What fires next, across every project that declares a schedule |
 | `sb agents` | reads | Which agent sessions are running right now, across every provider |
-| `sb deck` | **acts** | A tmux controller: a tab per agent, each a live `claude` marked as working or needing you, beside panes for who is waiting on you and what agents told each other. `--profile` opens a declared set of tabs, each agent in its own colour; shortcuts are listed in the bar, and Ctrl-Q asks before ending everything — `open`, `jump`, `layout`, `marks` and `exit` act; `queue` and `messages` read |
+| `sb deck` | **acts** | A tmux controller: a tab per agent, each a live `claude` marked as working or needing you, beside panes for who is waiting on you and what agents told each other. `--profile` opens a declared set of tabs, each agent in its own colour; shortcuts are listed in the bar, and Ctrl-Q asks before ending everything — `open`, `jump`, `layout`, `marks`, `exit` and `todo add`/`done`/`rm` act; `queue`, `messages`, `brief` and `todo list` read. See [the deck](#the-deck) |
 | `sb history <project>` | reads | A project's own run ledger, newest first |
 | `sb job` | both | Jobs sky.boss issues — `list` reads; `run`, `install` and `uninstall` act |
 | `sb tools` | reads | The commands you saved |
-| `sb ui` | — | Opens the surface — a canvas of windows, and a workbench for authoring a command |
+| `sb ui` | — | Opens [the canvas](#the-canvas) — a canvas of windows, and a workbench for authoring a command |
 | `sb mcp` | — | Speaks MCP on stdio, offering your saved commands to an agent |
 
 `--` separates sky.boss's flags from the command's own.
@@ -431,13 +428,21 @@ sensors
 
 </details>
 
-## The surface
+## The canvas
 
 ```bash
 sb ui
 ```
 
-Two screens, and the canvas is [pictured above](#what-it-looks-like). **The canvas** is a command
+A followed log holding open on the left, tinted by *shape* rather than by anyone's severity
+vocabulary, the same records shaped into a table on the right, and the commands you saved down the
+side:
+
+<p align="center">
+  <img src="docs/design/readme-canvas.png" alt="The sky.boss canvas: a tools rail, a tinted follow window, and a shaped table" width="900">
+</p>
+
+Two screens. **The canvas** is a command
 palette over tiled and floating windows: every command opens a window, and a pinned window re-runs
 itself on a cadence. **Nothing keeps a command table** — the palette walks the real Click tree, so
 it cannot offer a command that does not exist.
@@ -461,6 +466,79 @@ bench exists for: one you get wrong by typing and right by looking.
 ```bash
 sb ui --no-browser --port 8765     # develop against it in a browser
 ```
+
+</details>
+
+## The deck
+
+```bash
+sb deck --profile core
+```
+
+A tmux controller for the Claude Code agents working in your repos. Each agent is a tab: a live
+`claude` in that repo's directory, its name in the repo's own colour and marked `working`,
+`needs you` or `quiet`. Down the right, three panes: **NEEDS YOU** (every agent session and its
+status, with the ones outside the deck hidden on a key), **MESSAGES** (what the agents told each
+other, sender and receiver in their tab colours) and **TODOS** (each agent's own list, grouped by
+agent).
+
+<p align="center">
+  <img src="docs/design/readme-deck.png" alt="The sky.boss deck: a row of agent tabs, the primary agent's Claude Code session on the left, and NEEDS YOU, MESSAGES and TODOS panes on the right" width="900">
+</p>
+
+**Agents know they are in a deck.** Each tab's `claude` is started with `-n <tab name>`, so the
+name you see is the name its peers message, and with a short brief appended to its system prompt:
+the deck it is in, every agent at launch with its directory and role, and how to list and message
+them. The deck never types into a running agent, so one started before a peer opened catches up
+with `sb deck brief`, which rebuilds its brief with the deck as it stands now.
+
+**A profile is a declared set of tabs**, primary first, in `~/.sky-boss/deck.toml`:
+
+```toml
+[agent.workspace]
+cwd  = "~/src/workspace"
+role = "coordinates the other repos"
+
+[agent.api]
+cwd  = "~/src/api"
+role = "the public API"
+
+[profile.core]
+primary = "workspace"
+tabs    = ["api"]
+brief   = "Route cross-repo changes through workspace before committing."
+```
+
+An agent that is a project in `projects.toml` with a `cwd` needs no `[agent]` entry unless it wants
+a `role`. `args` passes flags to its `claude`; your own `-n` or `--append-system-prompt` wins over
+the deck's.
+
+**The keys are listed in the bar**, and live in a key table only the deck's sessions use, so your
+own tmux bindings are untouched: Alt-h shows or hides outside agents, Alt-l switches between three
+columns and a stacked layout, Alt-, and Alt-. move between tabs, Alt-u scrolls MESSAGES back
+and Alt-e returns it to the newest. Panes are dragged to resize. Ctrl-Q, or the ✕ in the corner, asks before ending the deck
+and every agent in it. Ctrl-C is never bound: it belongs to the agent.
+
+**An agent keeps its own todo list** with `sb deck todo add "<text>"` and `sb deck todo done <n>`.
+A list belongs to the tab whose pane runs the command, found by process rather than by name, so a
+session outside the deck cannot write a tab's list even if it shares the name.
+
+<details>
+<summary><strong>Every deck subcommand</strong></summary>
+
+| Command | | Does |
+|---|---|---|
+| `sb deck` | **acts** | Creates or attaches the deck; `--profile NAME` opens a declared set of tabs |
+| `sb deck open <name>` | **acts** | A tab for one agent, or that tab if it is open |
+| `sb deck jump <name>` | **acts** | Focuses an agent's tab |
+| `sb deck layout columns\|stack` | **acts** | Moves the panes between layouts; nothing is killed |
+| `sb deck marks` | **acts** | The loop that marks each tab working, needs you or quiet; the deck starts it |
+| `sb deck exit` | **acts** | Ends the deck and every agent in it |
+| `sb deck todo add\|done\|rm` | **acts** | Edits the calling tab's todo list |
+| `sb deck queue` | reads | Every agent session and its status, the deck's first |
+| `sb deck messages` | reads | What agents told each other, newest first |
+| `sb deck todo list` | reads | The todo lists, grouped by agent |
+| `sb deck brief [name]` | reads | An agent's brief, rebuilt with the live roster |
 
 </details>
 
@@ -497,7 +575,7 @@ a shell with a reassuring name.
 | Capture formats and highlight rules | `~/.sky-boss/formats.toml` |
 | Declared projects | `~/.sky-boss/projects.toml` |
 | Deck agents | `~/.sky-boss/deck.toml` |
-| Canvas browser profile | `~/.local/state/sb/` |
+| Canvas browser profile, deck todo lists | `~/.local/state/sb/` |
 
 `$SB_HOME` and `$SB_STATE` override the first four and the last. An absent file degrades to
 nothing declared rather than raising.
