@@ -302,7 +302,7 @@ Ruled by Jeston on 2026-11-05.
       tab bar's three rows, the L's base running the full width under the S as in the favicon,
       then `skyrow.labs` in the brand colour, then the `tabs` label. A status bar cannot draw an
       SVG, so this is a redraw, made in `theme.py` like every other colour.
-- [ ] **One countdown in the footer, for one shared cadence.** Every tool pane refreshes on the same
+- [x] **One countdown in the footer, for one shared cadence.** Every tool pane refreshes on the same
       interval, and the deck's footer shows the single countdown to it; each pane's own countdown
       goes. Jeston chose a shared cadence over showing the soonest of several.
 
@@ -656,3 +656,21 @@ kept the TODOS pane's pid.
 - **`reload` cannot reach a pane from before this round**, because only the new code reads the
   hidden set. It waits `HIDE_WAIT` for such a pane, names it, and says to press q in it. The first
   upgrade of a running deck therefore needs q in each old tool pane, then `sb deck`.
+
+### 2026-11-05: round 6 built
+
+- **The mark is the favicon, redrawn.** `theme.MARK_PIXELS` holds six rows of pixels, two to a
+  half-block cell, so the mark fills the tab bar's three rows: the blue L, the white S in its
+  corner, and the base run one column past the S at Jeston's request, as the favicon's does.
+  `tab_lefts` pads the rows above and below to the middle row's width, so every row's boxes still
+  start in one column (tested by stripping the styles and measuring).
+- **Bold leaked in tmux, twice.** A colour change does not end tmux's `bold`, so the wordmark's
+  bold ran on into `tabs`, and a current tab's bold edge ran on into "marks not running" (the
+  latter since round 5). Each now ends with `nobold`. Only a coloured capture shows it.
+- **One countdown is only true if the panes refresh together.** A shared interval alone would leave
+  four clocks started at four instants. So a deck pane's residency is *aligned*: it is due at each
+  multiple of `TOOLS_REFRESH` on the clock, and its band draws no countdown of its own. The footer's
+  countdown is tmux's own arithmetic, `#{e|-:5,#{e|%%:%s,5}}`, which works because tmux expands
+  strftime's `%s` before the format, with `status-interval 1`. Nothing writes it, and it cannot
+  drift from the panes, since both read the same clock. Smoked: four panes `ran 09:56:45`, and one
+  countdown on screen. MESSAGES moved from 10s to the shared 5s.

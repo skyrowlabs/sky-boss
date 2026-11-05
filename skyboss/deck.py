@@ -102,10 +102,8 @@ LAYOUTS = (COLUMNS, STACK)
 TOOLS_WIDTH = "25%"
 TOOLS_HEIGHT = "30%"
 HALF = "50%"
-QUEUE_REFRESH = 5
-MESSAGES_REFRESH = 10
-TODOS_REFRESH = 5
-DECISIONS_REFRESH = 5
+# One cadence for every tool pane, on the clock's multiples of it, so the footer's one countdown is true of all.
+TOOLS_REFRESH = 5
 # A folded pane's size: one line in columns, a narrow strip in stack.
 FOLDED_HEIGHT = "1"
 FOLDED_WIDTH = "16"
@@ -574,6 +572,13 @@ def window_options(tab: bool) -> tuple[tuple[str, str], ...]:
     return common
 
 
+def shared_countdown(every: int = TOOLS_REFRESH) -> str:
+    """Seconds to the tool panes' next refresh, as a tmux format: they refresh on the clock's
+    multiples of `every`, so this is `every - now % every`. `%s` is strftime's epoch, which
+    tmux expands before the arithmetic, and `%%` survives that as the modulus."""
+    return f"#{{e|-:{every},#{{e|%%:%s,{every}}}}}"
+
+
 def bar_options(tabs: bool) -> tuple[tuple[str, str], ...]:
     """Session options for a deck bar. The tab row also says when the marks were last written."""
     style = theme.tmux_styles()
@@ -583,14 +588,18 @@ def bar_options(tabs: bool) -> tuple[tuple[str, str], ...]:
         lefts, width = tab_lefts(label)
         left = lefts[1]
     else:
-        width = len(label) + 3
-        left = f"#[{style['label']}] {label} #[{style['bar']}] "
+        tick = shared_countdown()
+        width = len(label) + 3 + len(f"⟳ next in {TOOLS_REFRESH}s ")
+        left = f"#[{style['label']}] {label} #[nobold {style['working']}]⟳ next in {tick}s #[{style['bar']}]"
     options: tuple[tuple[str, str], ...] = (
         ("status-style", style["bar"]),
         ("status-left", left),
         # tmux's default of 10 cut the label to "sky.boo…"; this is the label's visible width.
         ("status-left-length", str(width)),
     )
+    if not tabs:
+        # The countdown is tmux's own arithmetic on the clock, so it has to redraw every second.
+        options += (("status-interval", "1"),)
     if tabs:
         marked = "#{" + MARKED_OPTION + "}"
         options += (("status-right", f"#[{style['quiet']}]marks #{{?{marked},{marked},not running}} "),)
@@ -971,19 +980,19 @@ def sb_argv(*words: str) -> list[str]:
 
 
 def queue_argv() -> list[str]:
-    return sb_argv("deck", "queue", "--refresh", str(QUEUE_REFRESH), "--screen")
+    return sb_argv("deck", "queue", "--refresh", str(TOOLS_REFRESH), "--screen")
 
 
 def todos_argv() -> list[str]:
-    return sb_argv("deck", "todo", "list", "--all", "--refresh", str(TODOS_REFRESH), "--screen")
+    return sb_argv("deck", "todo", "list", "--all", "--refresh", str(TOOLS_REFRESH), "--screen")
 
 
 def decisions_argv() -> list[str]:
-    return sb_argv("deck", "decide", "list", "--all", "--refresh", str(DECISIONS_REFRESH), "--screen")
+    return sb_argv("deck", "decide", "list", "--all", "--refresh", str(TOOLS_REFRESH), "--screen")
 
 
 def messages_argv() -> list[str]:
-    return sb_argv("deck", "messages", "--refresh", str(MESSAGES_REFRESH), "--screen")
+    return sb_argv("deck", "messages", "--refresh", str(TOOLS_REFRESH), "--screen")
 
 
 def tabs_argv(session: str, socket: str) -> list[str]:
@@ -1988,6 +1997,10 @@ class DeckPane(resident_.Control):
 
     def folded(self) -> bool:
         return self.fold
+
+    def shared_clock(self) -> bool:
+        # Every deck pane refreshes together; the outer bar's footer draws the one countdown.
+        return True
 
     def summary(self, result: Result | None) -> str:
         if result is None:

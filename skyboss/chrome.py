@@ -114,6 +114,8 @@ class Chrome:
     ring_limit: int | None = None
     # A view's own information for the footer, muted: never a warning and never counted as one.
     note: str = ""
+    # The refresh rides a clock shown elsewhere (the deck's footer), so this band draws no countdown.
+    shared: bool = False
 
     def to_dict(self) -> dict:
         """The same facts for the canvas renderer, keys omitted when unset —
@@ -242,6 +244,7 @@ def resident(
     interval: int,
     last_run: float | None = None,
     running_since: float | None = None,
+    shared: bool = False,
 ) -> Chrome:
     """A snapshot with a cadence: `--refresh` in the terminal, a pinned window
     on the canvas. While a run is in flight the attention is `running` —
@@ -256,6 +259,7 @@ def resident(
         interval=interval,
         last_run=last_run,
         running_since=running_since,
+        shared=shared,
     )
 
 
@@ -436,7 +440,7 @@ def _top_spans(chrome: Chrome, now: float) -> tuple[list[Span], list[Span]]:
         # window swaps its countdown for it, and an accruing one has no
         # countdown to swap. See [[follow]] round 4.
         right = [(f"running {ago(now - chrome.running_since)}", "sb.accent")]
-    elif chrome.shape == "resident":
+    elif chrome.shape == "resident" and not chrome.shared:
         remaining = countdown(chrome, now)
         if remaining is not None:
             right = [(f"⟳ next in {remaining}s", "sb.accent")]

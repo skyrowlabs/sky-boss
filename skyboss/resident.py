@@ -57,10 +57,13 @@ class Residency:
     wherever the countdown is drawn. See [[chrome]].
     """
 
-    def __init__(self, source: str, interval: int, clock: Callable[[], float] = time.time):
+    def __init__(self, source: str, interval: int, clock: Callable[[], float] = time.time, aligned: bool = False):
         self.source = source
         self.interval = interval
         self._clock = clock
+        # Aligned: due at each multiple of `interval` on the clock, so every aligned
+        # residency with one interval refreshes together and one countdown is true of all.
+        self.aligned = aligned
         self.last_run: float | None = None
         self.running_since: float | None = None
         self.ran_at: float | None = None
@@ -70,7 +73,11 @@ class Residency:
         self.warnings = 0
 
     def due(self) -> bool:
-        return self.last_run is None or self._clock() - self.last_run >= self.interval
+        if self.last_run is None:
+            return True
+        if self.aligned:
+            return self._clock() // self.interval > self.last_run // self.interval
+        return self._clock() - self.last_run >= self.interval
 
     def begin(self) -> None:
         now = self._clock()
@@ -98,6 +105,7 @@ class Residency:
             interval=self.interval,
             last_run=self.last_run,
             running_since=self.running_since,
+            shared=self.aligned,
         )
 
 
@@ -268,6 +276,10 @@ class Control:
 
     def folded(self) -> bool:
         """Draw only `summary`, one line, in place of the bands and the body."""
+        return False
+
+    def shared_clock(self) -> bool:
+        """Refresh on the clock's multiples of the interval, and leave the countdown to whoever shows it."""
         return False
 
     def summary(self, result: Result | None) -> str:
@@ -626,7 +638,7 @@ def reside(
     `control` lets a caller reshape each frame and take keys and the wheel.
     """
     out = console or Console(theme=THEME, highlight=False)
-    state = Residency(source, interval, clock)
+    state = Residency(source, interval, clock, aligned=control is not None and control.shared_clock())
     body = Text("")
     last: Result | None = None
 

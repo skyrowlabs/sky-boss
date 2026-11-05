@@ -556,7 +556,7 @@ def test_every_tool_pane_runs_this_sb_by_absolute_path(fake, home):
     sb = str(deck_.PROJECT_ROOT / "sb")
     argv = {role: fake.panes[pane]["argv"] for role, pane in fake.roles().items()}
     assert argv["queue"] == [sb, "deck", "queue", "--refresh", "5", "--screen"]
-    assert argv["messages"] == [sb, "deck", "messages", "--refresh", "10", "--screen"]
+    assert argv["messages"] == [sb, "deck", "messages", "--refresh", "5", "--screen"]
     assert argv["todos"] == [sb, "deck", "todo", "list", "--all", "--refresh", "5", "--screen"]
     assert argv["decisions"] == [sb, "deck", "decide", "list", "--all", "--refresh", "5", "--screen"]
 
@@ -1979,7 +1979,8 @@ def test_fold_names_only_a_right_column_pane_and_saves_without_a_deck(fake, home
 
 def test_each_bars_label_is_given_room_for_its_whole_width():
     options = dict(deck_.bar_options(False))
-    assert " sky.boss deck " in options["status-left"] and options["status-left-length"] == "16"
+    assert " sky.boss deck " in options["status-left"]
+    assert options["status-left-length"] == str(len(" sky.boss deck ") + 1 + len("⟳ next in 5s "))
     tabs = dict(deck_.bar_options(True))
     _, width = deck_.tab_lefts("tabs")
     assert "skyrow.labs" in tabs["status-left"] and tabs["status-left-length"] == str(width)
@@ -2015,3 +2016,26 @@ def test_reload_names_a_pane_too_old_to_close_itself(fake, home, sb_state, monke
     monkeypatch.setattr(deck_, "_sleep", lambda s: None)
     data = json.loads(invoke("--json", "deck", "reload").stdout)
     assert data["partial"] and any("press q in it" in w for w in data["warnings"])
+
+
+def test_every_deck_pane_refreshes_on_the_clocks_multiples_and_draws_no_countdown():
+    from skyboss import chrome
+    from skyboss.resident import Residency
+
+    clock = [12.0]
+    state = Residency("deck queue", 5, lambda: clock[0], aligned=True)
+    state.begin()
+    clock[0] = 14.9
+    assert not state.due()
+    clock[0] = 15.0
+    assert state.due()  # 3 seconds after the first run, because 15 is the boundary
+    top, _ = chrome.status_bands(state.chrome(), 15.0, 80)
+    assert not any("next in" in text for text, _ in top)
+    assert deck_.DeckPane("sb", lambda row: True).shared_clock()
+
+
+def test_the_footer_counts_down_to_the_shared_refresh_every_second():
+    options = dict(deck_.bar_options(False))
+    assert "⟳ next in #{e|-:5,#{e|%%:%s,5}}s" in options["status-left"]
+    assert options["status-interval"] == "1" and "status-interval" not in dict(deck_.bar_options(True))
+    assert {argv[argv.index("--refresh") + 1] for argv in (deck_.queue_argv(), deck_.messages_argv())} == {"5"}
