@@ -444,7 +444,7 @@ def test_an_unresolvable_pin_opens_the_deck_without_it(fake, home, said):
     result = invoke("deck")
     assert "pin 'ghost'" in said(result) and "no tab" in said(result)
     assert fake.tabs() == ["shell"]
-    assert set(fake.roles()) == {"tabs", "queue", "messages", "todos"}
+    assert set(fake.roles()) == {"tabs", "queue", "messages", "todos", "decisions"}
 
 
 # ============================================================================
@@ -546,7 +546,7 @@ def test_window_zero_is_the_tabs_and_the_tools_only(fake, home, tmp_path):
     home(f'pin = "ws"\n[agent.ws]\ncwd = "{tmp_path}"\n')
     invoke("deck")
     roles = fake.roles()
-    assert set(roles) == {"tabs", "queue", "messages", "todos"}
+    assert set(roles) == {"tabs", "queue", "messages", "todos", "decisions"}
     assert len({fake.panes[p]["window"] for p in roles.values()}) == 1
     assert set(fake.roles("sb-agents")) == {"agent"}
 
@@ -558,6 +558,7 @@ def test_every_tool_pane_runs_this_sb_by_absolute_path(fake, home):
     assert argv["queue"] == [sb, "deck", "queue", "--refresh", "5", "--screen"]
     assert argv["messages"] == [sb, "deck", "messages", "--refresh", "10", "--screen"]
     assert argv["todos"] == [sb, "deck", "todo", "list", "--all", "--refresh", "5", "--screen"]
+    assert argv["decisions"] == [sb, "deck", "decide", "list", "--all", "--refresh", "5", "--screen"]
 
 
 def test_the_tab_pane_nests_a_client_with_tmux_unset_on_the_same_server(fake, home):
@@ -567,7 +568,7 @@ def test_the_tab_pane_nests_a_client_with_tmux_unset_on_the_same_server(fake, ho
 
 
 def test_the_columns_plan():
-    assert deck_.plan("columns", "%T", "%Q", "%M") == [
+    assert deck_.plan("columns", "%T", ["%Q", "%M"]) == [
         ["join-pane", "-d", "-h", "-f", "-s", "%Q", "-t", "%T"],
         ["join-pane", "-d", "-v", "-s", "%M", "-t", "%Q"],
         ["resize-pane", "-t", "%Q", "-x", "25%"],
@@ -576,7 +577,7 @@ def test_the_columns_plan():
 
 
 def test_the_stack_plan():
-    assert deck_.plan("stack", "%T", "%Q", "%M") == [
+    assert deck_.plan("stack", "%T", ["%Q", "%M"]) == [
         ["join-pane", "-d", "-v", "-f", "-s", "%Q", "-t", "%T"],
         ["join-pane", "-d", "-h", "-s", "%M", "-t", "%Q"],
         ["resize-pane", "-t", "%Q", "-y", "30%"],
@@ -585,14 +586,14 @@ def test_the_stack_plan():
 
 
 def test_a_plan_with_no_tools_moves_nothing():
-    assert deck_.plan("columns", "%T", None, None) == []
+    assert deck_.plan("columns", "%T", []) == []
 
 
 def test_bare_deck_lays_a_new_controller_out_in_columns(fake, home):
     invoke("deck")
     roles = fake.roles()
     moves = [call[1:] for call in fake.calls if call[1] in ("join-pane", "resize-pane")]
-    assert moves == deck_.plan("columns", roles["tabs"], roles["queue"], roles["messages"], roles["todos"])
+    assert moves == deck_.plan("columns", roles["tabs"], [roles[r] for r in deck_.TOOL_ROLES])
     assert fake.options[("=sb:", "@sb-layout")] == "columns"
 
 
@@ -610,7 +611,7 @@ def test_layout_moves_panes_and_restarts_none(fake, home, tmp_path, shape):
     assert result.exit_code == 0, result.output
     roles = fake.roles()
     moves = [call[1:] for call in fake.calls if call[1] in ("join-pane", "resize-pane")]
-    assert moves == deck_.plan(shape, roles["tabs"], roles["queue"], roles["messages"], roles["todos"])
+    assert moves == deck_.plan(shape, roles["tabs"], [roles[r] for r in deck_.TOOL_ROLES])
     assert fake.panes == before
     assert not {"kill-pane", "respawn-pane", "kill-window", "split-window", "new-window"} & set(fake.verbs())
     assert fake.options[("=sb:", "@sb-layout")] == shape
@@ -917,14 +918,21 @@ def test_the_queue_is_an_observe_and_the_rest_act():
         "messages": False,
         "brief": False,
         "todo": True,
+        "decide": True,
+        "column": True,
     }
-    todo = deck_.deck_todo.commands
-    assert {name: getattr(command, "sb_acts") for name, command in todo.items()} == {
-        "add": True,
-        "done": True,
-        "rm": True,
-        "list": False,
+    assert {name: getattr(c, "sb_acts") for name, c in deck_.deck_column.commands.items()} == {
+        "show": False,
+        "fold": True,
+        "pick": True,
     }
+    for group in (deck_.deck_todo, deck_.deck_decide):
+        assert {name: getattr(command, "sb_acts") for name, command in group.commands.items()} == {
+            "add": True,
+            "done": True,
+            "rm": True,
+            "list": False,
+        }
 
 
 # ============================================================================
@@ -1184,7 +1192,15 @@ def test_exit_without_a_deck_is_a_usage_error(fake, home):
 def test_the_shortcuts_drive_tmux_alone():
     """Every shortcut is a tmux command or the deck's own `sb`; none types into a pane."""
     for argv in deck_.deck_bindings("sb"):
-        assert argv[4] in ("confirm-before", "if-shell", "set-option", "previous-window", "next-window")
+        assert argv[4] in (
+            "confirm-before",
+            "if-shell",
+            "set-option",
+            "previous-window",
+            "next-window",
+            "display-popup",
+            "run-shell",
+        )
 
 
 def test_a_scroll_key_binds_both_its_commands():
@@ -1356,7 +1372,7 @@ def test_the_tool_panes_are_painted_and_the_tabs_are_not(fake, home):
     invoke("deck")
     painted = {c[4] for c in fake.find("set-option") if "window-style" in c or "window-active-style" in c}
     roles = fake.roles()
-    assert painted == {roles["queue"], roles["messages"], roles["todos"]}
+    assert painted == {roles[role] for role in deck_.TOOL_ROLES}
     assert all(c[-1] == theme.tmux_styles()["pane"] for c in fake.find("set-option") if "window-style" in c)
     assert not any("-g" in c or "-w" in c for c in fake.find("set-option") if "window-style" in c)
 
@@ -1668,6 +1684,27 @@ def test_any_change_to_a_list_lifts_its_agent_to_the_top(sb_state):
     assert (first, after) == (["jam", "ws"], ["ws", "jam"])
 
 
+def test_a_decision_closes_with_its_ruling_beside_it(sb_state):
+    from skyboss import todos
+
+    todos.add("sb", "jam", "hold ci.yml?", book=todos.DECISIONS)
+    todos.done("sb", "jam", 1, book=todos.DECISIONS, ruling="take the template's")
+    rows, _ = todos.rows_of("sb", [("jam", 0)], NOW, book=todos.DECISIONS)
+    assert rows[-1]["decisions"].strip() == "1. ✓ hold ci.yml? → take the template's"
+    assert todos.load("sb", "jam") is None  # a separate book from the todo list
+
+
+def test_decisions_list_only_agents_that_recorded_one_and_say_so_when_none_has(sb_state):
+    from skyboss import todos
+
+    empty = todos.result_of("sb", [("ws", 0), ("jam", 1)], book=todos.DECISIONS)
+    assert [r["decisions"] for r in empty.data] == ["no agent in deck 'sb' has recorded a decision"]
+    assert empty.warnings == []
+    todos.add("sb", "jam", "q", book=todos.DECISIONS)
+    rows = todos.result_of("sb", [("ws", 0), ("jam", 1)], book=todos.DECISIONS).data
+    assert {r["agent"] for r in rows} == {"jam"}
+
+
 def test_no_list_kept_is_not_nothing_open(sb_state):
     from skyboss import todos
 
@@ -1699,16 +1736,28 @@ def test_an_unreadable_list_is_a_warning_and_reads_as_no_list(sb_state):
     assert problems and "jam.json unreadable" in problems[0] and rows[1]["todos"].strip() == "no list kept"
 
 
-def test_the_three_tool_plans():
-    assert deck_.plan("columns", "%T", "%Q", "%M", "%D") == [
+def test_the_four_tool_plans_share_the_column_evenly():
+    assert deck_.plan("columns", "%T", ["%Q", "%M", "%D", "%C"]) == [
         ["join-pane", "-d", "-h", "-f", "-s", "%Q", "-t", "%T"],
         ["join-pane", "-d", "-v", "-s", "%M", "-t", "%Q"],
         ["join-pane", "-d", "-v", "-s", "%D", "-t", "%M"],
+        ["join-pane", "-d", "-v", "-s", "%C", "-t", "%D"],
         ["resize-pane", "-t", "%Q", "-x", "25%"],
-        ["resize-pane", "-t", "%Q", "-y", "33%"],
-        ["resize-pane", "-t", "%M", "-y", "33%"],
+        ["resize-pane", "-t", "%Q", "-y", "25%"],
+        ["resize-pane", "-t", "%M", "-y", "25%"],
+        ["resize-pane", "-t", "%D", "-y", "25%"],
     ]
-    assert deck_.plan("stack", "%T", "%Q", "%M", "%D")[2] == ["join-pane", "-d", "-h", "-s", "%D", "-t", "%M"]
+    assert deck_.plan("stack", "%T", ["%Q", "%M", "%D"])[2] == ["join-pane", "-d", "-h", "-s", "%D", "-t", "%M"]
+
+
+def test_a_folded_pane_is_one_line_in_columns_and_a_strip_in_stack_and_resized_last():
+    columns = deck_.plan("columns", "%T", ["%Q", "%M", "%D"], frozenset({"%M"}))
+    assert columns[-2:] == [
+        ["resize-pane", "-t", "%Q", "-y", "50%"],
+        ["resize-pane", "-t", "%M", "-y", deck_.FOLDED_HEIGHT],
+    ]
+    stack = deck_.plan("stack", "%T", ["%Q", "%M"], frozenset({"%Q"}))
+    assert stack[-1] == ["resize-pane", "-t", "%Q", "-x", deck_.FOLDED_WIDTH]
 
 
 @pytest.mark.parametrize("shape", ["stack", "columns"])
@@ -1788,3 +1837,127 @@ def test_brief_with_no_deck_says_so(fake, home):
     home("")
     result = invoke("--json", "deck", "brief", "x")
     assert result.exit_code == 1 and "no deck session" in json.loads(result.stdout)["data"]["error"]
+
+
+# ============================================================================
+# Round 5: the right column — choosing, hiding and folding panes
+# ============================================================================
+
+
+def test_a_saved_column_keeps_known_panes_once_and_appends_any_it_never_named(sb_state):
+    from skyboss import column
+
+    column.path_for("sb").parent.mkdir(parents=True)
+    column.path_for("sb").write_text('{"order": ["todos", "ghost", "todos", "queue"], "hidden": ["ghost"]}')
+    chosen, problems = column.load("sb")
+    assert chosen.order == ["todos", "queue", "messages", "decisions"] and chosen.hidden == set() and not problems
+
+
+def test_the_declared_panes_order_is_the_default_until_a_choice_is_saved(sb_state):
+    from skyboss import column
+
+    assert column.load("sb", ["decisions", "queue"])[0].order == ["decisions", "queue", "messages", "todos"]
+    column.save("sb", column.Column(order=["messages", "queue", "todos", "decisions"]))
+    assert column.load("sb", ["decisions"])[0].order[0] == "messages"
+
+
+def test_an_unreadable_column_file_is_said_and_the_default_drawn(sb_state):
+    from skyboss import column
+
+    column.path_for("sb").parent.mkdir(parents=True)
+    column.path_for("sb").write_text("{nope")
+    chosen, problems = column.load("sb")
+    assert chosen.order == list(column.TOOLS) and "unreadable" in problems[0]
+
+
+def test_deck_toml_panes_names_an_unknown_pane():
+    config, problems = deck_.parse({"panes": ["todos", "inbox"]})
+    assert config.panes == ["todos"] and any("'inbox'" in p for p in problems)
+
+
+def test_the_chooser_moves_shows_folds_and_never_hides_the_last_pane():
+    from skyboss import column
+
+    chosen = column.Column()
+    chosen, at, _ = column.press(chosen, 0, "J")
+    assert chosen.order[:2] == ["messages", "queue"] and at == 1
+    chosen, at, _ = column.press(chosen, at, " ")
+    chosen, at, _ = column.press(chosen, at, "c")
+    assert "queue" in chosen.hidden and "queue" in chosen.collapsed and not chosen.folded("queue")
+    for role in ("messages", "todos"):
+        chosen, _, _ = column.press(chosen, chosen.order.index(role), " ")
+    last, _, _ = column.press(chosen, chosen.order.index("decisions"), " ")
+    assert last.shown == ["decisions"]
+    assert column.press(chosen, 0, "\r")[2] == "apply" and column.press(chosen, 0, "q")[2] == "cancel"
+
+
+def test_a_folded_summary_counts_what_the_pane_would_draw():
+    from skyboss import column
+
+    queue = [{"where": "deck", "status": "waiting"}, {"where": "deck", "status": "idle"}, {"where": "outside"}]
+    assert column.summary("queue", queue, note="1 outside hidden") == (
+        "NEEDS YOU · 1 waiting · 2 in deck · 1 outside hidden"
+    )
+    items = [
+        {"kind": "item", "agent": "ws", "done": False},
+        {"kind": "item", "agent": "jam", "done": True},
+        {"kind": "item", "agent": "jam", "done": False},
+    ]
+    assert column.summary("decisions", items) == "DECISIONS · 2 open · 2 agents"
+    assert (
+        column.summary("messages", [{"when": "2m", "between": "ws → jam"}]) == "MESSAGES · 1 shown · last 2m ws → jam"
+    )
+    assert column.summary("todos", [], ok=False).startswith("TODOS · ✗")
+
+
+def test_a_pane_reads_its_fold_and_leaves_when_its_role_is_hidden(fake, home):
+    from skyboss.resident import Leave
+
+    fake.session("sb")
+    pane = deck_.DeckPane("sb", lambda row: True, role="todos")
+    fake.options[("=sb:", "@sb-folded")] = "queue,todos"
+    pane.shape(Result_(data=[]))
+    assert pane.folded() and pane.summary(Result_(data=[])) == "TODOS · 0 open · 0 agents"
+    fake.options[("=sb:", "@sb-hidden")] = "todos"
+    with pytest.raises(Leave):
+        pane.shape(Result_(data=[]))
+
+
+def test_hiding_a_pane_lets_it_close_itself_and_the_deck_kills_nothing(fake, home, sb_state, monkeypatch):
+    from skyboss import column
+
+    invoke("deck")
+    messages = fake.roles()["messages"]
+    column.save("sb", column.Column(hidden={"messages"}, collapsed={"todos"}))
+    monkeypatch.setattr(deck_, "_sleep", lambda seconds: fake.panes.pop(messages, None))
+    fake.calls.clear()
+    _, problems = deck_.arrange("sb", "columns", force=True)
+    assert problems == [] and "messages" not in fake.roles()
+    assert not {"kill-pane", "respawn-pane", "kill-window"} & set(fake.verbs())
+    assert fake.options[("=sb:", "@sb-hidden")] == "messages" and fake.options[("=sb:", "@sb-folded")] == "todos"
+    roles = fake.roles()
+    tools = [roles[r] for r in ("queue", "todos", "decisions")]
+    moves = [call[1:] for call in fake.calls if call[1] in ("join-pane", "resize-pane")]
+    assert moves == deck_.plan("columns", roles["tabs"], tools, frozenset({roles["todos"]}))
+
+
+def test_a_hidden_pane_that_does_not_close_is_said_and_left_in_place(fake, home, sb_state, monkeypatch):
+    from skyboss import column
+
+    invoke("deck")
+    column.save("sb", column.Column(hidden={"queue"}))
+    monkeypatch.setattr(deck_, "_sleep", lambda seconds: None)
+    _, problems = deck_.arrange("sb", "columns", force=True)
+    assert problems == [
+        f"the hidden queue pane has not closed itself after {deck_.HIDE_WAIT:.0f}s — it is left in place"
+    ]
+
+
+def test_fold_names_only_a_right_column_pane_and_saves_without_a_deck(fake, home, sb_state, said):
+    from skyboss import column
+
+    refused = invoke("deck", "column", "fold", "tabs")
+    assert refused.exit_code == 2 and "not a right-column pane" in said(refused)
+    folded = invoke("deck", "column", "fold", "todos")
+    assert folded.exit_code == 0 and "saved" in said(folded)
+    assert column.load("sb")[0].collapsed == {"todos"}

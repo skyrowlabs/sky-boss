@@ -38,6 +38,7 @@ from typing import Callable
 import rich_click as click
 
 from skyboss import agents as agents_
+from skyboss import column as column_
 from skyboss import resident as resident_
 from skyboss import theme
 from skyboss import todos as todos_
@@ -52,7 +53,7 @@ from skyboss.view import describe
 
 DECK_FILE = "deck.toml"
 DEFAULT_SESSION = "sb"
-TOP_LEVEL_KEYS = frozenset({"session", "pin"})
+TOP_LEVEL_KEYS = frozenset({"session", "pin", "panes"})
 TOP_LEVEL_TABLES = frozenset({"agent", "profile"})
 AGENT_KEYS = frozenset({"cwd", "args", "role"})
 PROFILE_KEYS = frozenset({"primary", "tabs", "brief"})
@@ -76,11 +77,21 @@ STATE_OPTION = "@sb-state"
 COLOUR_OPTION = "@sb-colour"
 MARKED_OPTION = "@sb-marked"
 MARKS_PID_OPTION = "@sb-marks-pid"
+# The folded tool panes, comma-separated, on the deck session: each pane reads it every frame.
+FOLDED_OPTION = "@sb-folded"
+# The hidden ones: a pane that finds its role here ends its own residency, so no pane is ever killed.
+HIDDEN_OPTION = "@sb-hidden"
+# How long `arrange` waits for a hidden pane to close itself, polled every `HIDE_POLL` seconds.
+HIDE_WAIT = 3.0
+HIDE_POLL = 0.2
 
 # Pane roles. `agent` runs claude; `tabs` is the nested client showing the inner
 # session; `shell` is the inner session's first window, so it is never empty.
 AGENT, TABS, QUEUE, MESSAGES, SHELL = "agent", "tabs", "queue", "messages", "shell"
 TODOS = "todos"
+DECISIONS = "decisions"
+# The right column's panes, in their default order; `skyboss/column.py` holds the operator's choice.
+TOOL_ROLES = (QUEUE, MESSAGES, TODOS, DECISIONS)
 
 # The inner session holding one window per project agent. Its status bar is the tab row.
 INNER_SUFFIX = "-agents"
@@ -91,10 +102,13 @@ LAYOUTS = (COLUMNS, STACK)
 TOOLS_WIDTH = "25%"
 TOOLS_HEIGHT = "30%"
 HALF = "50%"
-THIRD = "33%"
 QUEUE_REFRESH = 5
 MESSAGES_REFRESH = 10
 TODOS_REFRESH = 5
+DECISIONS_REFRESH = 5
+# A folded pane's size: one line in columns, a narrow strip in stack.
+FOLDED_HEIGHT = "1"
+FOLDED_WIDTH = "16"
 MARKS_EVERY = 3
 
 # The registry's word for a session held at a permission prompt (measured on Claude
@@ -171,6 +185,7 @@ class Config:
     pin: str = ""
     agents: dict[str, Agent] = field(default_factory=dict)
     profiles: dict[str, Profile] = field(default_factory=dict)
+    panes: list[str] = field(default_factory=list)
 
     def profile(self, name: str | None) -> Profile | None:
         """The named profile, or `pin` as a profile with a primary and no tabs, or none.
@@ -227,6 +242,18 @@ def parse(raw: dict) -> tuple[Config, list[str]]:
             config.pin = raw["pin"]
         else:
             problems.append("pin must be an agent name — ignored")
+
+    if "panes" in raw:
+        panes = raw["panes"]
+        if isinstance(panes, list) and all(isinstance(p, str) for p in panes):
+            unknown = [p for p in panes if p not in TOOL_ROLES]
+            if unknown:
+                problems.append(
+                    f"panes: unknown {', '.join(map(repr, unknown))} — the panes are {', '.join(TOOL_ROLES)}"
+                )
+            config.panes = [p for p in panes if p in TOOL_ROLES]
+        else:
+            problems.append("panes must be a list of pane names — ignored")
 
     tables = raw.get("agent", {})
     if not isinstance(tables, dict):
@@ -564,6 +591,8 @@ SHORTCUTS = {
     "next": "M-.",
     "older": "M-u",
     "newest": "M-e",
+    "column": "M-s",
+    "fold": "M-c",
 }
 NEVER_BOUND = frozenset({"C-c"})
 # Session options the panes read each frame, and the marks loop keeps the agent count in.
@@ -644,6 +673,30 @@ def deck_bindings(session: str) -> list[list[str]]:
         ["bind-key", "-T", table, keys["next"], "next-window", "-t", tabs],
         ["bind-key", "-T", table, keys["older"], *scroll("older")],
         ["bind-key", "-T", table, keys["newest"], *scroll("newest")],
+        [
+            "bind-key",
+            "-T",
+            table,
+            keys["column"],
+            "display-popup",
+            "-E",
+            "-w",
+            "72",
+            "-h",
+            str(len(column_.TOOLS) + 4),
+            f"exec {sb} deck column pick",
+        ],
+        # The focused pane's own role names what folds; anything else says so rather than doing nothing.
+        [
+            "bind-key",
+            "-T",
+            table,
+            keys["fold"],
+            "run-shell",
+            "-b",
+            f"{sb} deck column fold '#{{{ROLE_OPTION}}}' >/dev/null 2>&1 "
+            f"|| tmux display-message '{keys['fold']} folds a right-column pane: focus one first'",
+        ],
     ]
 
 
@@ -695,6 +748,8 @@ def hints() -> str:
         f"{k['layout']} layout",
         f"{k['previous']} {k['next']} tab",
         f"{k['older']} {k['newest']} messages",
+        f"{k['column']} panes",
+        f"{k['fold']} fold",
         f"{EXIT_KEY} exit",
     ]
     return (
@@ -866,8 +921,8 @@ def brief(name: str, session: str, rows: list[tuple[str, str, str]], primary: st
         "`sb deck brief` reprints this with the deck as it stands now.",
         "The operator sees every message between agents in the deck's MESSAGES pane, and answers",
         "an agent's prompts by clicking its tab.",
-        'Keep your current todos with `sb deck todo add "<text>"` and `sb deck todo done <n>`; the',
-        "operator sees them in the TODOS pane.",
+        'Keep todos with `sb deck todo add "<text>"` / `done <n>` (TODOS pane), and each decision you need',
+        'from the operator with `sb deck decide add "<question>"` / `done <n> "<ruling>"` (DECISIONS pane).',
     ]
     text = "\n".join(lines)
     return f"{text}\n\n{extra.strip()}" if extra.strip() else text
@@ -896,6 +951,10 @@ def queue_argv() -> list[str]:
 
 def todos_argv() -> list[str]:
     return sb_argv("deck", "todo", "list", "--all", "--refresh", str(TODOS_REFRESH), "--screen")
+
+
+def decisions_argv() -> list[str]:
+    return sb_argv("deck", "decide", "list", "--all", "--refresh", str(DECISIONS_REFRESH), "--screen")
 
 
 def messages_argv() -> list[str]:
@@ -1027,7 +1086,7 @@ def ensure(config: Config, projects: list, profile: Profile | None = None) -> tu
 
 
 #: The tool panes whose ground the deck paints, so a name may be drawn at full strength.
-PAINTED_ROLES = frozenset({QUEUE, MESSAGES, TODOS})
+PAINTED_ROLES = frozenset(TOOL_ROLES)
 
 
 def paint(pane_id: str) -> list[str]:
@@ -1108,20 +1167,19 @@ def layout_of(session: str) -> str:
 def controller(listed: list[Pane]) -> str | None:
     """The window holding the deck's tool panes, else the lowest-numbered window."""
     for pane in listed:
-        if pane.role in (TABS, QUEUE, MESSAGES, TODOS):
+        if pane.role in (TABS, *TOOL_ROLES):
             return pane.window_id
     ordered = sorted(listed, key=lambda p: p.window_index)
     return ordered[0].window_id if ordered else None
 
 
-def plan(
-    shape: str, tabs: str | None, queue: str | None, messages: str | None, todos: str | None = None
-) -> list[list[str]]:
+def plan(shape: str, tabs: str | None, tools: list[str], folded: frozenset[str] = frozenset()) -> list[list[str]]:
     """The tmux calls that put the deck's panes in `shape`. Pure, and only ever moves or resizes.
 
-    columns: tabs | queue over messages over todos.  stack: tabs over (queue | messages | todos).
+    columns: tabs | the tools stacked.  stack: tabs over the tools side by side.
+    `tools` are pane ids in the column's order; a pane in `folded` is drawn as one
+    line (columns) or a narrow strip (stack), and the others share the rest.
     """
-    tools = [p for p in (queue, messages, todos) if p]
     calls: list[list[str]] = []
 
     def join(source: str, target: str, *flags: str) -> None:
@@ -1141,9 +1199,15 @@ def plan(
         join(after, before, along)
     if tabs:
         resize(tools[0], "-x" if shape == COLUMNS else "-y", TOOLS_WIDTH if shape == COLUMNS else TOOLS_HEIGHT)
-    share = HALF if len(tools) == 2 else THIRD
-    for pane in tools[:-1]:
-        resize(pane, "-y" if shape == COLUMNS else "-x", share)
+    axis = "-y" if shape == COLUMNS else "-x"
+    open_ = [pane for pane in tools if pane not in folded]
+    share = f"{100 // len(open_)}%" if open_ else HALF
+    for pane in open_[:-1]:
+        resize(pane, axis, share)
+    # Folded last, so the room they give up goes to their open neighbours.
+    for pane in tools:
+        if pane in folded:
+            resize(pane, axis, FOLDED_HEIGHT if shape == COLUMNS else FOLDED_WIDTH)
     return calls
 
 
@@ -1154,8 +1218,13 @@ def arrange(session: str, shape: str, *, force: bool, socket: str | None = None)
     pane in the controller (a round 2 deck's pinned agent) moves into the tabs
     with `break-pane`. With `force` off, the shape is redrawn only when a pane
     had to move or be put back, so the operator's own resizing survives a bare
-    `sb deck`. The roles created, and problems.
+    `sb deck`. The column's choice (`skyboss/column.py`) says which tool panes
+    show, in what order, and which are folded. A hidden pane closes itself on
+    reading the hidden set, and this waits a bounded time for it before laying
+    out. The roles created, and problems.
     """
+    config, _ = load()
+    chosen, problems = column_.load(session, config.panes)
     listed, answer = panes(session)
     if not answer.ok:
         return [], [f"could not list the deck's panes — {_said(answer)}"]
@@ -1163,20 +1232,29 @@ def arrange(session: str, shape: str, *, force: bool, socket: str | None = None)
     if window_id is None:
         return [], [f"deck {session!r} has no window to arrange"]
     here = [p for p in listed if p.window_id == window_id]
-    problems = _move_agents_to_tabs(session, [p for p in here if p.role == AGENT])
+    problems += _move_agents_to_tabs(session, [p for p in here if p.role == AGENT])
     roles: dict[str, str] = {}
     for pane in here:
         if pane.role != AGENT:
             roles.setdefault(pane.role, pane.pane_id)
 
+    hidden = [role for role in TOOL_ROLES if role in chosen.hidden]
+    folded = [role for role in chosen.shown if chosen.folded(role)]
+    problems += _session_options(session, ((HIDDEN_OPTION, ",".join(hidden)), (FOLDED_OPTION, ",".join(folded))))
+    closed = [role for role in hidden if role in roles]
+    if closed:
+        roles, problems = _await_closed(session, window_id, roles, closed, problems)
+
     created: list[str] = []
-    wanted = {
+    makers = {
         TABS: lambda: tabs_argv(session, socket if socket is not None else socket_path(inner(session))),
         QUEUE: queue_argv,
         MESSAGES: messages_argv,
         TODOS: todos_argv,
+        DECISIONS: decisions_argv,
     }
-    for role, argv in wanted.items():
+    for role in (TABS, *chosen.shown):
+        argv = makers[role]
         if role in roles:
             continue
         made = tmux("split-window", "-d", "-t", window_id, "-P", "-F", "#{pane_id}", "--", *argv())
@@ -1191,15 +1269,43 @@ def arrange(session: str, shape: str, *, force: bool, socket: str | None = None)
         created.append(role)
 
     moved = any(p.role == AGENT for p in here)
-    if not (force or created or moved):
+    if not (force or created or closed or moved):
         return created, problems
-    for call in plan(shape, roles.get(TABS), roles.get(QUEUE), roles.get(MESSAGES), roles.get(TODOS)):
+    tools = [roles[role] for role in chosen.shown if role in roles]
+    for call in plan(shape, roles.get(TABS), tools, frozenset(roles[role] for role in folded if role in roles)):
         answer = tmux(*call)
         if not answer.ok:
             problems.append(f"could not arrange the deck ({call[0]}) — {_said(answer)}")
             break
     problems += _session_options(session, ((LAYOUT_OPTION, shape),))
     return created, problems
+
+
+def _await_closed(
+    session: str, window_id: str, roles: dict[str, str], closing: list[str], problems: list[str]
+) -> tuple[dict[str, str], list[str]]:
+    """Wait, bounded, for each hidden pane to end itself; the roles still standing, and problems."""
+    waited = 0.0
+    while True:
+        listed, answer = panes(session)
+        live = {p.pane_id for p in listed if p.window_id == window_id} if answer.ok else set(roles.values())
+        left = [role for role in closing if roles.get(role) in live]
+        if not left or waited >= HIDE_WAIT:
+            break
+        _sleep(HIDE_POLL)
+        waited += HIDE_POLL
+    for role in closing:
+        if role in left:
+            problems.append(
+                f"the hidden {role} pane has not closed itself after {HIDE_WAIT:.0f}s — it is left in place"
+            )
+        else:
+            roles.pop(role, None)
+    return roles, problems
+
+
+def _sleep(seconds: float) -> None:
+    time.sleep(seconds)
 
 
 def _move_agents_to_tabs(session: str, agents: list[Pane]) -> list[str]:
@@ -1488,6 +1594,117 @@ def deck_layout(shape: str) -> Result:
     return result
 
 
+@deck.group(name="column")
+def deck_column() -> None:
+    """The deck's right column: which tool panes show, in what order, and which are folded.
+
+        sb deck column show
+        sb deck column fold todos
+        sb deck column pick
+
+    `show` observes. `fold` and `pick` act: they save the choice under
+    `$SB_STATE` and re-lay the column, moving and resizing panes only (a hidden
+    pane is closed; it is a read, and showing it again re-runs it). `pick` is
+    the chooser the deck opens on M-s; `fold` is what M-c runs on the focused pane.
+    `panes = [...]` in `deck.toml` sets the starting order.
+    """
+
+
+def _column_rows(chosen: column_.Column) -> list[dict]:
+    return [
+        {
+            "pane": role,
+            "label": column_.LABELS[role],
+            "shown": role not in chosen.hidden,
+            "folded": chosen.folded(role),
+        }
+        for role in chosen.order
+    ]
+
+
+def _apply_column(session: str, chosen: column_.Column) -> Result:
+    result = Result()
+    column_.save(session, chosen)
+    present = has_session(session)
+    if present:
+        _, problems = arrange(session, layout_of(session), force=True)
+        for problem in problems:
+            result.warn(problem)
+        result.partial = bool(problems)
+    elif present is None:
+        result.warn("tmux could not be run — the choice is saved and applies when the deck next lays out")
+    else:
+        result.warn(f"no deck session {session!r} — the choice is saved and applies when `sb deck` starts one")
+    result.data = _column_rows(chosen)
+    return result
+
+
+@deck_column.command(name="show")
+@emit
+def deck_column_show() -> Result:
+    """The right column's panes in order, each shown or hidden, folded or open.
+
+        sb deck column show
+
+    An observe: it reads the saved choice and changes nothing.
+    """
+    result = Result()
+    config, problems = load()
+    chosen, more = column_.load(config.session, config.panes)
+    for problem in problems + more:
+        result.warn(problem)
+    result.data = _column_rows(chosen)
+    return result
+
+
+@deck_column.command(name="fold")
+@click.argument("pane")
+@emit
+def deck_column_fold(pane: str) -> Result:
+    """Fold PANE to one line, or unfold it.
+
+        sb deck column fold todos
+
+    **This acts.** A folded pane draws its label and counts in one line (a
+    narrow strip in the stack layout), and its neighbours take the room.
+    """
+    if pane not in column_.TOOLS:
+        raise click.UsageError(f"{pane!r} is not a right-column pane — the panes are {', '.join(column_.TOOLS)}")
+    config, _ = load()
+    chosen, _ = column_.load(config.session, config.panes)
+    chosen.collapsed = column_.toggle(chosen.collapsed, pane)
+    return _apply_column(config.session, chosen)
+
+
+@deck_column.command(name="pick")
+@emit
+def deck_column_pick() -> Result:
+    """Choose the right column's panes, their order and their folding, on a terminal.
+
+        sb deck column pick
+
+    **This acts** when you press Enter: the choice is saved and the column re-laid.
+    q or Esc leaves with nothing changed. The deck opens this in a popup on M-s.
+    """
+    from rich.console import Console
+
+    from skyboss import keys
+    from skyboss.output import THEME
+
+    if not has_terminal():
+        raise click.UsageError("pick needs a terminal — use `sb deck column fold`, or M-s inside the deck")
+    config, _ = load()
+    chosen, _ = column_.load(config.session, config.panes)
+    with keys.reader() as wait_for:
+        picked = column_.pick(chosen, Console(theme=THEME, highlight=False), wait_for)
+    if picked is None:
+        result = Result()
+        result.data = _column_rows(chosen)
+        result.warn("cancelled — nothing changed")
+        return result
+    return _apply_column(config.session, picked)
+
+
 @deck.command(name="marks")
 @click.option(
     "--every",
@@ -1620,7 +1837,9 @@ def deck_messages(refresh: int | None, ticks: int | None, screen: bool) -> Resul
     transcript; a transcript that cannot be read is counted in a warning.
     """
     config, _ = load()
-    pane = DeckPane(config.session, lambda row: bool(row.get("from_agent") or row.get("to_agent")), scroll=True)
+    pane = DeckPane(
+        config.session, lambda row: bool(row.get("from_agent") or row.get("to_agent")), scroll=True, role=MESSAGES
+    )
     # Colour only where the deck paints the ground: in its pane, not in whatever terminal ran this.
     once = functools.partial(messages_result, place=placement, paint=bool(refresh and screen))
     return _resident("deck messages", once, refresh, ticks, screen, keep_last("message(s)", pane), pane)
@@ -1651,8 +1870,18 @@ class DeckPane(resident_.Control):
     sets an option, and the pane adopts it. Its own keys move only its own offset.
     """
 
-    def __init__(self, session: str, keeps: Callable[[dict], bool], *, scroll: bool = False, top: bool = False) -> None:
+    def __init__(
+        self,
+        session: str,
+        keeps: Callable[[dict], bool],
+        *,
+        scroll: bool = False,
+        top: bool = False,
+        role: str = "",
+    ) -> None:
         self.session = session
+        self.role = role
+        self.fold = False
         self.keeps = keeps
         self.counted = scroll
         self.wheel = scroll
@@ -1669,6 +1898,9 @@ class DeckPane(resident_.Control):
         answer = tmux("show-options", "-t", scope(self.session))
         options = session_options(answer.out) if answer.ok else {}
         self.hide = bool(options.get(HIDE_OPTION))
+        self.fold = bool(self.role) and self.role in options.get(FOLDED_OPTION, "").split(",")
+        if self.role and self.role in options.get(HIDDEN_OPTION, "").split(","):
+            raise resident_.Leave
         seq = options.get(SCROLL_SEQ_OPTION, "")
         if self.seq is not None and seq != self.seq and not self.top:
             self.move("pgup" if options.get(SCROLL_OPTION) == "older" else "end")
@@ -1686,6 +1918,15 @@ class DeckPane(resident_.Control):
     def note(self) -> str:
         # Information, so the footer and not a warning; the count stays so hidden never reads as none.
         return f"{self.hidden} outside hidden · {SHORTCUTS['outside']} shows" if self.hidden else ""
+
+    def folded(self) -> bool:
+        return self.fold
+
+    def summary(self, result: Result | None) -> str:
+        if result is None:
+            return f"{column_.LABELS.get(self.role, self.role)} · nothing has run yet"
+        rows = result.data if isinstance(result.data, list) else []
+        return column_.summary(self.role, rows, ok=result.ok, note=self.note())
 
     def on_key(self, key: str) -> bool:
         return self.wheel and self.move(key)
@@ -2033,7 +2274,7 @@ def deck_queue(refresh: int | None, ticks: int | None, screen: bool, scope: str)
     """
     once = functools.partial(queue_result, scope=scope)
     config, _ = load()
-    pane = DeckPane(config.session, lambda row: row.get("where") == "deck")
+    pane = DeckPane(config.session, lambda row: row.get("where") == "deck", role=QUEUE)
     return _resident("deck queue", once, refresh, ticks, screen, keep_first("row(s)"), pane)
 
 
@@ -2126,7 +2367,7 @@ def _todo_owner(session: str) -> tuple[str | None, str]:
     if present is None:
         return None, "tmux could not be run — is it installed?"
     if not present:
-        return None, f"no deck session {session!r} — a todo list belongs to a deck tab, and there is none"
+        return None, f"no deck session {session!r} — a todo or decision list belongs to a deck tab, and there is none"
     agent = caller_tab(session)
     if agent is None:
         return None, (
@@ -2157,7 +2398,10 @@ def _todo_change(change: Callable[[str, str], todos_.TodoList]) -> Result:
         "agent": agent,
         "updated": todo.updated,
         "open": todo.open,
-        "items": [{"n": n, "text": item.text, "done": item.done} for n, item in enumerate(todo.items, start=1)],
+        "items": [
+            {"n": n, "text": item.text, "done": item.done, **({"ruling": item.ruling} if item.ruling else {})}
+            for n, item in enumerate(todo.items, start=1)
+        ],
     }
     return result
 
@@ -2249,6 +2493,11 @@ def deck_todo_list(every: bool, refresh: int | None, ticks: int | None, screen: 
     agent's. Each heading says when its list last changed; an agent that never
     wrote one reads `no list kept`, and one with nothing left reads `nothing open`.
     """
+    return _book_list(todos_.TODOS, "deck todo", every, refresh, ticks, screen)
+
+
+def _book_list(book: str, source: str, every: bool, refresh: int | None, ticks: int | None, screen: bool) -> Result:
+    """`todo list` and `decide list`: one book's lists, this tab's alone from inside one."""
     config, _ = load()
     mine = None if every else caller_tab(config.session)
 
@@ -2256,11 +2505,111 @@ def deck_todo_list(every: bool, refresh: int | None, ticks: int | None, screen: 
         order = tab_order(config.session)
         if mine is not None:
             order = [pair for pair in order if pair[0] == mine] or [(mine, 0)]
-        result = todos_.result_of(config.session, order, paint=bool(refresh and screen), only=mine)
-        return result
+        return todos_.result_of(config.session, order, paint=bool(refresh and screen), only=mine, book=book)
 
-    pane = DeckPane(config.session, lambda row: True, scroll=True, top=True)
-    return _resident("deck todo", once, refresh, ticks, screen, keep_from_top("row(s)", pane), pane)
+    pane = DeckPane(config.session, lambda row: True, scroll=True, top=True, role=book)
+    return _resident(source, once, refresh, ticks, screen, keep_from_top("row(s)", pane), pane)
+
+
+LIST_OPTIONS = (
+    click.option("--all", "every", is_flag=True, help="Every agent's list, even from inside a tab."),
+    click.option(
+        "--refresh",
+        type=click.IntRange(min=1),
+        default=None,
+        metavar="SECONDS",
+        help="Stay resident and re-read every N seconds. Off a terminal, one NDJSON envelope per tick.",
+    ),
+    click.option(
+        "--ticks",
+        type=click.IntRange(min=1),
+        default=None,
+        metavar="N",
+        help="With --refresh: stop after N refreshes and exit 0.",
+    ),
+    click.option(
+        "--screen",
+        is_flag=True,
+        help="With --refresh: redraw on the alternate screen, as the deck's own panes do.",
+    ),
+)
+
+
+def _list_options(command: Callable) -> Callable:
+    for option in reversed(LIST_OPTIONS):
+        command = option(command)
+    return command
+
+
+@deck.group(name="decide")
+def deck_decide() -> None:
+    """Each deck agent's open decisions for the operator, drawn in the DECISIONS pane.
+
+        sb deck decide add "take the template's ci.yml step, or hold ours?"
+        sb deck decide done 1 "take it"
+        sb deck decide list
+
+    Record one wherever you would otherwise write a question for the operator
+    into a report. `add`, `done` and `rm` act, on the list of the tab they run
+    in, and refuse anywhere else. `list` observes. Nothing is inferred: a
+    decision exists because an agent recorded it.
+    """
+
+
+@deck_decide.command(name="add")
+@click.argument("question")
+@emit
+def deck_decide_add(question: str) -> Result:
+    """Record QUESTION as open, on this tab's list.
+
+        sb deck decide add "take the template's ci.yml step, or hold ours?"
+
+    **This acts**, on the list of the tab it runs in, and refuses anywhere else.
+    """
+    if not todos_.clean(question):
+        raise click.UsageError("a decision needs a question")
+    return _todo_change(lambda session, agent: todos_.add(session, agent, question, book=todos_.DECISIONS))
+
+
+@deck_decide.command(name="done")
+@click.argument("n", type=click.IntRange(min=1))
+@click.argument("ruling", required=False, default="")
+@emit
+def deck_decide_done(n: int, ruling: str) -> Result:
+    """Close decision N with the operator's RULING.
+
+        sb deck decide done 1 "take it"
+
+    **This acts.** The decision stays, ticked, with its ruling beside it.
+    """
+    return _todo_change(lambda session, agent: todos_.done(session, agent, n, book=todos_.DECISIONS, ruling=ruling))
+
+
+@deck_decide.command(name="rm")
+@click.argument("n", type=click.IntRange(min=1))
+@emit
+def deck_decide_rm(n: int) -> Result:
+    """Remove decision N, one recorded by mistake. Later ones renumber.
+
+        sb deck decide rm 2
+
+    **This acts.**
+    """
+    return _todo_change(lambda session, agent: todos_.remove(session, agent, n, book=todos_.DECISIONS))
+
+
+@deck_decide.command(name="list")
+@_list_options
+@emit
+def deck_decide_list(every: bool, refresh: int | None, ticks: int | None, screen: bool) -> Result:
+    """The open decisions, grouped by agent, the most recently changed list first.
+
+        sb deck decide list --all
+
+    An observe. Inside a tab, that tab's list; elsewhere, or with `--all`, every
+    agent that has recorded one. When none has, it says so in a row.
+    """
+    return _book_list(todos_.DECISIONS, "deck decide", every, refresh, ticks, screen)
 
 
 # **The act/observe bit, asserted on every subcommand** — a nested command that
@@ -2279,4 +2628,13 @@ mark(deck_todo, sb_acts=True)
 mark(deck_todo_add, sb_acts=True)
 mark(deck_todo_done, sb_acts=True)
 mark(deck_todo_rm, sb_acts=True)
+mark(deck_column, sb_acts=True)
+mark(deck_column_show, sb_acts=False)
+mark(deck_column_fold, sb_acts=True)
+mark(deck_column_pick, sb_acts=True)
+mark(deck_decide, sb_acts=True)
+mark(deck_decide_add, sb_acts=True)
+mark(deck_decide_done, sb_acts=True)
+mark(deck_decide_rm, sb_acts=True)
+mark(deck_decide_list, sb_acts=False)
 mark(deck_todo_list, sb_acts=False)

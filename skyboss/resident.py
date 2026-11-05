@@ -219,21 +219,31 @@ def repaint(console: Console, renderable) -> None:
 
     Lines are rendered padded to the full width, so each overwrites whatever the
     last frame left on that row, and they go out as one buffered write. Anything
-    below a frame that got shorter is erased after it.
+    below a frame that got shorter is erased after it. A frame as tall as the
+    screen ends without a newline, which would scroll its first line away (a
+    folded one-line pane is exactly that tall), and has nothing below to erase.
     """
+    lines = console.render_lines(renderable, pad=True)
+    full = len(lines) >= console.height
     segments: list[Segment] = []
-    for line in console.render_lines(renderable, pad=True):
+    for n, line in enumerate(lines):
         segments.extend(line)
-        segments.append(Segment.line())
+        if not (full and n == len(lines) - 1):
+            segments.append(Segment.line())
     with console:
         console.control(RichControl((ControlType.HOME,)))
         console.print(Segments(segments), end="")
-    console.file.write(ERASE_BELOW)
+    if not full:
+        console.file.write(ERASE_BELOW)
     console.file.flush()
 
 
 MOUSE_ON = "\x1b[?1000h\x1b[?1006h"
 MOUSE_OFF = "\x1b[?1006l\x1b[?1000l"
+
+
+class Leave(Exception):
+    """Raised by a `Control` to end its residency quietly, as q does: not a failure."""
 
 
 class Control:
@@ -254,6 +264,13 @@ class Control:
 
     def note(self) -> str:
         """Information for the footer band about the last `shape`; empty for none."""
+        return ""
+
+    def folded(self) -> bool:
+        """Draw only `summary`, one line, in place of the bands and the body."""
+        return False
+
+    def summary(self, result: Result | None) -> str:
         return ""
 
 
@@ -625,6 +642,10 @@ def reside(
             last = result
             body = drawn(result)
         shaped = control.shape(last) if control is not None and last is not None else last
+        if control is not None and control.folded():
+            line = Text(control.summary(shaped), style="sb.label", no_wrap=True, overflow="ellipsis")
+            line.truncate(max(1, out.width), overflow="ellipsis")
+            return Group(line)
         facts = state.chrome()
         if control is not None:
             facts = dataclasses.replace(facts, note=control.note())
@@ -679,7 +700,7 @@ def reside(
         else:
             with keys.reader() as wait_for:
                 run(wait_for)
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, Leave):
         # Still a way out, and still not a failure. Whatever owned the
         # terminal — the screen context, Live, the key reader — has already
         # put it back; leaving quietly is the whole contract.

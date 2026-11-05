@@ -22,5 +22,7 @@ a Claude Code agent for one repo, with a primary agent coordinating them.
    If you are the primary, do not broadcast; just tell the operator who is in
    the deck.
 4. If you have work in flight, record it with `sb deck todo add "<text>"` so it
-   shows in the deck's TODOS pane.
+   shows in the deck's TODOS pane. If you are waiting on the operator to rule on
+   something, record it with `sb deck decide add "<question>"` so it shows in
+   DECISIONS, and close it with `sb deck decide done <n> "<ruling>"` once ruled.
 5. Tell the operator, in two or three lines, who is in the deck and what you sent.

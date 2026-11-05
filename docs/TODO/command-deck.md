@@ -275,15 +275,15 @@ the tab boxes, asked for directly.
       a tint of the brand made in `theme.py`. A waiting tab is the warn block, and anything else is
       plain. The current tab's edge is drawn in its agent's hue. Every row carries the window's
       `range`, so a click anywhere on a box selects the tab.
-- [ ] **A DECISIONS pane**, grouped by agent, the same recency order. Agents declare their own
+- [x] **A DECISIONS pane**, grouped by agent, the same recency order. Agents declare their own
       decisions with `sb deck decide add` and `sb deck decide done <n> "<ruling>"`; nothing is
       inferred (ruled 2026-11-05).
-- [ ] **A chooser for which right-column panes show, and in what order.** A popup in the deck's key
+- [x] **A chooser for which right-column panes show, and in what order.** A popup in the deck's key
       table. The choice is machine state under `$SB_STATE`, because sky.boss never writes
       `deck.toml`. Applying it moves and resizes panes only.
-- [ ] **Each pane collapses to a thin row** drawing one consolidated line. In the stack layout it
+- [x] **Each pane collapses to a thin row** drawing one consolidated line. In the stack layout it
       is a thin column with the same line shortened to fit (ruled 2026-11-05).
-- [ ] Tests on `FakeTmux` and the pure renderers, plus a smoke on a throwaway socket.
+- [x] Tests on `FakeTmux` and the pure renderers, plus a smoke on a throwaway socket.
 
 ## Dropped, and why
 
@@ -594,3 +594,34 @@ kept the TODOS pane's pid.
   state draws its ground. **A real click is not yet measured.**
 - **Needs-you stays warn yellow.** It had been called orange in conversation. The only orange is
   stash.flow's hue, and stash-flow's own tab is drawn in it, so Jeston kept the warn colour.
+
+### 2026-11-05: round 5 built
+
+- **One store, two books.** `skyboss/todos.py` keeps each agent's list per *book*: `todos`, or
+  `decisions` under `$SB_STATE/deck/<session>/decisions/`. A closed decision carries its ruling,
+  drawn as `✓ question → ruling`. DECISIONS lists only agents that recorded one, since ten
+  `none recorded` rows would bury the one that did. When none has, it says so in a row rather than
+  drawing nothing.
+- **The column's choice is `skyboss/column.py`**: order, hidden and folded, saved per deck session
+  under `$SB_STATE`, with `panes = [...]` in `deck.toml` as the starting order. A role the file never
+  named joins at the end, so a pane added later still appears in an older deck. `M-s` opens
+  `sb deck column pick` in a popup, and `M-c` runs `sb deck column fold` on the focused pane's
+  role; anything that isn't a tool pane gets a message rather than nothing. Both keys were checked
+  free against Claude Code 2.1.318's Meta strings, the same list round 4 measured.
+- **A hidden pane closes itself; the deck still kills nothing.** Killing a tool pane would have been
+  safe, since it is a read, but it broke the source-wide rule that the deck never kills or respawns
+  a pane, and the rule is cheaper kept than excepted. So the hidden set is a session option, a pane
+  that finds its role there raises `resident.Leave` (ended as quietly as q), and `arrange` waits up
+  to `HIDE_WAIT` for it before laying out. Showing it again opens a fresh one.
+- **A folded pane draws one line**, its label and counts from `column.summary`, in place of both
+  bands and the body. In stack it is a `FOLDED_WIDTH` strip with the same line elided.
+- **Found by the smoke, invisible to the suite: `repaint` ended every frame with a newline.** A full
+  frame never noticed, because the fit always leaves a spare row. A one-row pane scrolled its only
+  line away and showed blank. A screen-tall frame now ends without one. The chooser had the same
+  fault, losing its title in a popup sized exactly to it.
+- **Smoked on an isolated tmux server** (`TMUX_TMPDIR`, a scratch `SB_HOME` and `SB_STATE`, a
+  200×50 client attached through a second server and captured). Fold, hide, show again, the stack
+  strip, `M-s` driven to a reorder and Enter, and `M-c` on a focused pane were all read back. **One
+  lesson for the next smoke from inside a deck: unset `TMUX`**, or `tmux` talks to the live deck
+  whatever `TMUX_TMPDIR` says. One read here went to the real server by that route; it changed
+  nothing.
