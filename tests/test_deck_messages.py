@@ -564,8 +564,9 @@ def test_a_segmented_cell_is_drawn_in_its_parts_roles(tmp_path):
 
     who = session("s1", "ws")
     write(tmp_path, who, [peer("jam", "hi", "m1", "2026-11-04T11:00:00Z")])
-    result = messages_.messages_result([Adapter([who])], tmp_path, NOW, place=lambda sessions: {"s1": ("ws", 2)})
-    assert result.data[0]["between_parts"][2] == ["ws", "sb.agent.2"]
+    place = lambda sessions: {"s1": ("sky-boss", 2)}  # noqa: E731
+    result = messages_.messages_result([Adapter([who])], tmp_path, NOW, place=place, paint=True)
+    assert result.data[0]["between_parts"][2] == ["ws", "sb.agent.sb"]
     with capture(width=80) as captured:
         render(result, as_json=False)
     assert "jam → ws" in _plain(captured.text)

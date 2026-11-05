@@ -152,7 +152,34 @@ CLI_REF_BG = "#103141"  # BRAND at 0.22 over BG  —  1.46 / 13.66 vs the two
 CLI_REF = BRAND  # undarkened: it sits on a ground this file chose
 
 # ============================================================================
-# Agent colours — steps along the brand
+# Product hues — the landing page's, vendored
+# ============================================================================
+#
+# From skyrowlabs.com's own `:root`, copied into
+# `docs/design/skyrowlabs-product-hues.css` and checked against it. The deck
+# draws an agent in its product's hue: the fifth-hue question, ruled by the
+# brand owner for the deck. `mh` is the landing page's, not the system's SIGNAL.
+PRODUCT_HUES: dict[str, str] = {
+    "js": "#38bdf8",  # jam.sense
+    "bb": "#4ade80",  # breeze.brain
+    "sf": "#fb923c",  # stash.flow
+    "mh": "#d4cb3a",  # mind.head
+    "sb": "#a78bfa",  # sky.boss
+    "sk": "#c3b391",  # skeletor
+}
+# Agent name (a repository slug) → its hue's key. The workspace is the company's, so the brand.
+SLUG_HUES: dict[str, str] = {
+    "jam-sense": "js",
+    "breeze-brain": "bb",
+    "mind-head": "mh",
+    "stash-flow": "sf",
+    "sky-boss": "sb",
+    "skeletor": "sk",
+    "skyrow-workspace": "brand",
+}
+
+# ============================================================================
+# Agent colours — steps along the brand, for an agent with no product hue
 # ============================================================================
 #
 # The canvas's project ramp (`.pl-s0`…`.pl-s5` in `sb.css`), recomputed here
@@ -170,10 +197,10 @@ AGENT_RECIPES: tuple[tuple[str | None, float], ...] = (
     (TEXT, 0.34),
     (OK, 0.55),
 )
-CLI_FLOOR = 3.5
-_WHITE = "#ffffff"
-# A white terminal and the void for the messages pane; the tab row's own two grounds.
-AGENT_GROUNDS = (_WHITE, BG, SURFACE, SURFACE_2)
+# Every ground a deck agent's name is drawn on, all painted by the deck: the tool
+# panes' void and the tab row's two surfaces. Painted grounds take the text floor.
+DECK_FLOOR = 4.5
+AGENT_GROUNDS = (BG, SURFACE, SURFACE_2)
 
 
 def _linear(channel: float) -> float:
@@ -247,7 +274,7 @@ def _legible(colour: str) -> str:
     """`colour`, moved in OKLab lightness by the least that clears the floor on every ground it meets."""
 
     def clears(candidate: str) -> bool:
-        return all(contrast(candidate, ground) >= CLI_FLOOR for ground in AGENT_GROUNDS)
+        return all(contrast(candidate, ground) >= DECK_FLOOR for ground in AGENT_GROUNDS)
 
     if clears(colour):
         return colour
@@ -260,17 +287,39 @@ def _legible(colour: str) -> str:
     return CLI_BRAND
 
 
-#: One colour per agent slot: the tab row and the messages pane both read these.
+#: The fallback ramp, one colour per tab slot, for an agent with no product hue.
 AGENT_COLOURS: tuple[str, ...] = tuple(_legible(_mix(partner, weight)) for partner, weight in AGENT_RECIPES)
 
 
-def agent_colour(slot: int) -> str:
-    """The colour of the agent in tab position `slot`, primary first."""
-    return AGENT_COLOURS[slot % len(AGENT_COLOURS)]
+def _hue_key(name: str, slot: int) -> str:
+    return SLUG_HUES.get(name) or f"step{slot % len(AGENT_COLOURS)}"
 
 
-def agent_role(slot: int) -> str:
-    return f"sb.agent.{slot % len(AGENT_COLOURS)}"
+def agent_colour(name: str, slot: int) -> str:
+    """An agent's colour: its product's hue at full strength, else its tab slot's step.
+
+    The one assignment the tab row and the messages pane both read.
+    """
+    key = _hue_key(name, slot)
+    if key == "brand":
+        return BRAND
+    if key in PRODUCT_HUES:
+        return PRODUCT_HUES[key]
+    return AGENT_COLOURS[int(key[4:])]
+
+
+def agent_role(name: str, slot: int) -> str:
+    """The Rich role for `agent_colour(name, slot)`. Drawn only on a ground the deck paints."""
+    return f"sb.agent.{_hue_key(name, slot)}"
+
+
+#: Roles drawn only inside a deck pane, whose ground the deck paints: exempt from the
+#: unknown-terminal floor and held to `DECK_FLOOR` on `AGENT_GROUNDS` instead.
+DECK_ROLES: dict[str, str] = {
+    **{f"sb.agent.{key}": hue for key, hue in PRODUCT_HUES.items()},
+    "sb.agent.brand": BRAND,
+    **{f"sb.agent.step{slot}": colour for slot, colour in enumerate(AGENT_COLOURS)},
+}
 
 
 # ============================================================================
@@ -294,8 +343,8 @@ STYLES: dict[str, str] = {
     "sb.url": CLI_PATH,
     # The one role that paints its own ground. See § Ground, not hue.
     "sb.ref": f"{CLI_REF} on {CLI_REF_BG}",
-    # One per deck agent, by tab order. See § Agent colours.
-    **{agent_role(slot): colour for slot, colour in enumerate(AGENT_COLOURS)},
+    # The deck's agents, on its own painted ground. See § Product hues.
+    **{role: f"bold {colour}" for role, colour in DECK_ROLES.items()},
 }
 
 # Roles that paint their own background, and are therefore exempt from the
@@ -369,4 +418,8 @@ def tmux_styles() -> dict[str, str]:
         "border": f"fg={TEXT_3}",
         "border-active": f"fg={BRAND}",
         "exit": f"fg={DANGER} bold",
+        # The deck's tool panes paint their own ground, so names may take full-strength hues.
+        "pane": f"bg={BG}",
+        # The active tab: the void on a block of its agent's hue, which the format supplies.
+        "on-hue": f"fg={BG} bold",
     }

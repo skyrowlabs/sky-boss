@@ -15,7 +15,7 @@ from narrowing import present
 
 from skyboss.helpers import PROJECT_ROOT
 from skyboss.output import THEME
-from skyboss.theme import BG, BRAND, DANGER, OK, PAINTED, STYLES, TEXT, TEXT_2, TEXT_3, WARN, css_variables
+from skyboss.theme import BG, BRAND, DANGER, DECK_ROLES, OK, PAINTED, STYLES, TEXT, TEXT_2, TEXT_3, WARN, css_variables
 
 #: Every test here is host-side and needs no services up.
 pytestmark = [pytest.mark.unit]
@@ -226,8 +226,8 @@ def test_every_cli_role_survives_an_unknown_terminal_background():
     """
     failures = {}
     for name in STYLES:
-        if name in PAINTED:
-            continue  # checked by the test below, on the right backgrounds
+        if name in PAINTED or name in DECK_ROLES:
+            continue  # checked by the tests below, on the grounds they are actually drawn on
         colour = present(THEME.styles[name].color, f"a colour on {name}").get_truecolor().hex
         for background in (WHITE, BG):
             ratio = _contrast(colour, background)
@@ -403,3 +403,35 @@ def test_the_structure_colour_is_never_used_as_text():
     assert not offenders, (
         f"rules painting text with the structure colour: {offenders} — " "use --sb-text-2 for text a reader reads"
     )
+
+
+def test_the_product_hues_still_match_the_landing_page():
+    """`theme.py` copied them from skyrowlabs.com's `:root`; the vendored copy is the proof."""
+    from skyboss import theme
+
+    source = (PROJECT_ROOT / "docs/design/skyrowlabs-product-hues.css").read_text()
+    declared = dict(re.findall(r"--([a-z]+):\s*(#[0-9a-fA-F]{6});", source))
+    assert {key: hue.lower() for key, hue in declared.items()} == theme.PRODUCT_HUES
+
+
+def test_every_deck_agent_colour_clears_the_painted_floor_on_every_deck_ground():
+    """Full strength is allowed because the deck paints these grounds, so the text floor is 4.5."""
+    from skyboss import theme
+
+    failures = {
+        f"{role} on {ground}": round(_contrast(colour, ground), 2)
+        for role, colour in DECK_ROLES.items()
+        for ground in theme.AGENT_GROUNDS
+        if _contrast(colour, ground) < theme.DECK_FLOOR
+    }
+    assert theme.DECK_FLOOR == 4.5 and not failures, failures
+
+
+def test_each_slug_takes_its_product_hue_and_any_other_name_the_ramp():
+    from skyboss import theme
+
+    assert theme.agent_colour("mind-head", 4) == theme.PRODUCT_HUES["mh"] != theme.SIGNAL
+    assert theme.agent_colour("skyrow-workspace", 0) == theme.BRAND
+    assert theme.agent_colour("sky-boss", 2) == theme.PRODUCT_HUES["sb"]
+    assert theme.agent_colour("my-scratch", 2) == theme.AGENT_COLOURS[2]
+    assert theme.agent_role("stash-flow", 0) == "sb.agent.sf" and theme.agent_role("x", 7) == "sb.agent.step1"

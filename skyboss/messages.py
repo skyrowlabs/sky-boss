@@ -160,14 +160,19 @@ def first_line(body: str) -> str:
     return lines[0].strip() if lines else ""
 
 
-def rows_of(messages: list[Message], now: datetime, agents: dict[str, tuple[str, int]] | None = None) -> list[dict]:
-    """One row per message. `agents` maps a session name to the deck agent it runs as, and its tab slot."""
+def rows_of(
+    messages: list[Message], now: datetime, agents: dict[str, tuple[str, int]] | None = None, paint: bool = False
+) -> list[dict]:
+    """One row per message. `agents` maps a session name to the deck agent it runs as, and its tab slot.
+
+    With `paint`, a deck agent's name carries its colour; that is only legible on
+    the ground a deck pane paints. Anyone outside the deck stays plain text.
+    """
     agents = agents or {}
 
     def part(name: str) -> list:
-        # An agent's name in its own colour; anyone outside the deck in the plain text colour.
         placed = agents.get(name)
-        return [name, theme.agent_role(placed[1]) if placed else None]
+        return [name, theme.agent_role(*placed) if placed and paint else None]
 
     return [
         {
@@ -205,6 +210,7 @@ def messages_result(
     projects: Path | None = None,
     now: datetime | None = None,
     place: Callable[[list], dict[str, tuple[str, int]]] | None = None,
+    paint: bool = False,
 ) -> Result:
     """The envelope. Every way it could not look is a warning, so empty is never ambiguous."""
     result = Result()
@@ -220,7 +226,7 @@ def messages_result(
     # By name, because a sender is named in the message and not by session id.
     placed = place(sessions) if place is not None else {}
     agents = {s.name: placed[s.id] for s in sessions if s.id in placed and s.name}
-    result.data = rows_of(messages, now or datetime.now(timezone.utc), agents)
+    result.data = rows_of(messages, now or datetime.now(timezone.utc), agents, paint)
     if not result.data:
         if sessions:
             result.warn(f"no messages — {len(sessions)} live session(s) read, none received one")

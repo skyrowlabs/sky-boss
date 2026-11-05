@@ -1279,39 +1279,62 @@ def test_slots_follow_tab_order_with_the_primary_first(fake):
 
 
 def test_tab_colours_are_written_once_and_read_by_the_tab_format(fake):
-    ws, _ = fake.add("sb-agents", "ws", agent="ws", role="agent")
-    jam, _ = fake.add("sb-agents", "jam", agent="jam", role="agent")
+    ws, _ = fake.add("sb-agents", "skyrow-workspace", agent="skyrow-workspace", role="agent")
+    mind, _ = fake.add("sb-agents", "mind-head", agent="mind-head", role="agent")
+    scratch, _ = fake.add("sb-agents", "scratch", agent="scratch", role="agent")
     from skyboss import theme
 
     written: dict[str, str] = {}
     deck_.write_colours("sb", parse_panes(fake.listing("sb-agents")), written)
-    assert fake.windows[ws]["opts"]["@sb-colour"] == theme.agent_colour(0)
-    assert fake.windows[jam]["opts"]["@sb-colour"] == theme.agent_colour(1)
+    assert fake.windows[ws]["opts"]["@sb-colour"] == theme.BRAND
+    assert fake.windows[mind]["opts"]["@sb-colour"] == theme.PRODUCT_HUES["mh"]
+    assert fake.windows[scratch]["opts"]["@sb-colour"] == theme.AGENT_COLOURS[2]
     fake.calls.clear()
     deck_.write_colours("sb", parse_panes(fake.listing("sb-agents")), written)
     assert fake.find("set-option") == []
-    assert "#[fg=#{@sb-colour}]" in deck_.tab_format(False)
+
+
+def test_a_tab_is_its_hue_and_the_active_tab_a_block_of_it():
+    from skyboss import theme
+
+    assert "#{?#{@sb-colour},#[fg=#{@sb-colour} bold],} #W " in deck_.tab_format(False)
+    block = f"#[{theme.tmux_styles()['on-hue']} bg=#{{@sb-colour}}]"
+    assert f"#{{?#{{@sb-colour}},{block},}} #W " in deck_.tab_format(True)
 
 
 def test_the_messages_pane_colours_a_name_exactly_as_its_tab_is_coloured():
     from skyboss import theme
     from skyboss.messages import Message, rows_of
 
-    message = Message(at=NOW, sender="jam", receiver="ws", body="hi", msg_id="m", session="s", key="m")
-    (row,) = rows_of([message], NOW, {"ws": ("ws", 0), "jam": ("jam", 3)})
-    assert row["between_parts"] == [["jam", "sb.agent.3"], [" → ", "sb.muted"], ["ws", "sb.agent.0"]]
-    assert theme.STYLES["sb.agent.3"] == theme.agent_colour(3)
-    (outside,) = rows_of([message], NOW, {})
-    assert outside["between_parts"][0] == ["jam", None] and outside["from_agent"] == ""
+    message = Message(at=NOW, sender="jam-sense", receiver="ws", body="hi", msg_id="m", session="s", key="m")
+    placed = {"ws": ("skyrow-workspace", 0), "jam-sense": ("jam-sense", 3)}
+    (row,) = rows_of([message], NOW, placed, paint=True)
+    assert row["between_parts"] == [["jam-sense", "sb.agent.js"], [" → ", "sb.muted"], ["ws", "sb.agent.brand"]]
+    assert theme.STYLES["sb.agent.js"] == f"bold {theme.agent_colour('jam-sense', 3)}"
+    (unpainted,) = rows_of([message], NOW, placed)
+    assert unpainted["between_parts"][0] == ["jam-sense", None] and unpainted["from_agent"] == "jam-sense"
+    (outside,) = rows_of([message], NOW, {}, paint=True)
+    assert outside["between_parts"][0] == ["jam-sense", None] and outside["from_agent"] == ""
 
 
-def test_every_agent_colour_clears_the_floor_on_every_deck_ground():
+def test_the_tool_panes_are_painted_and_the_tabs_are_not(fake, home):
     from skyboss import theme
 
-    for colour in theme.AGENT_COLOURS:
-        for ground in theme.AGENT_GROUNDS:
-            assert theme.contrast(colour, ground) >= theme.CLI_FLOOR, (colour, ground)
-    assert len(set(theme.AGENT_COLOURS)) == len(theme.AGENT_COLOURS)
+    invoke("deck")
+    painted = {c[4] for c in fake.find("set-option") if "window-style" in c or "window-active-style" in c}
+    roles = fake.roles()
+    assert painted == {roles["queue"], roles["messages"]}
+    assert all(c[-1] == theme.tmux_styles()["pane"] for c in fake.find("set-option") if "window-style" in c)
+    assert not any("-g" in c or "-w" in c for c in fake.find("set-option") if "window-style" in c)
+
+
+def test_messages_are_painted_only_in_the_pane(fake, home, monkeypatch):
+    seen = []
+    monkeypatch.setattr(deck_, "_resident", lambda source, once, *rest: seen.append(once.keywords["paint"]))
+    invoke("deck", "messages")
+    invoke("deck", "messages", "--refresh", "5")
+    invoke("deck", "messages", "--refresh", "5", "--screen")
+    assert seen == [False, False, True]
 
 
 def test_the_agent_ramp_is_the_canvas_project_ramp():

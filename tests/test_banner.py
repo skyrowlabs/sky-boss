@@ -97,8 +97,12 @@ def test_the_mark_is_not_a_style_role():
     it: the mark's hues fail in *opposite* directions — the light handle on
     white, the dark slate on black — so no single floor could admit both, and
     the panel removes the question by painting a background."""
+    from skyboss.theme import DECK_ROLES
+
+    # The deck's agent roles are exempt from that floor too, painting their ground as the mark does.
+    floored = {style.split()[-1] for name, style in STYLES.items() if name not in DECK_ROLES}
     for value in banner._INK.values():
-        assert value not in {style.split()[-1] for style in STYLES.values()}
+        assert value not in floored
 
 
 # ============================================================================

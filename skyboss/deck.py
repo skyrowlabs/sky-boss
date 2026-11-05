@@ -459,8 +459,10 @@ def tab_format(current: bool) -> str:
     for word, label, role in reversed((*labels, (UNREGISTERED, UNREGISTERED, "unregistered"))):
         mark = f"#{{?#{{==:{state},{word}}},#[{style[role]}]{label},{mark}}}"
     colour = "#{" + COLOUR_OPTION + "}"
-    name = f"#{{?{colour},#[fg={colour}],}}#W#[{base}]"
-    return f"#[{base}] {name}#{{?{state}, · ,}}{mark}#[{base}] "
+    # The whole name in its agent's hue; the active tab is the hue as a block, unmistakably.
+    lit = f"#[{style['on-hue']} bg={colour}]" if current else f"#[fg={colour} bold]"
+    name = f"#{{?{colour},{lit},}} #W #[{base}]"
+    return f"#[{base}]{name}#{{?{state},· ,}}{mark}#[{base}] "
 
 
 def window_options(tab: bool) -> tuple[tuple[str, str], ...]:
@@ -878,11 +880,30 @@ def ensure(config: Config, projects: list, profile: Profile | None = None) -> tu
     return created, problems
 
 
+#: The tool panes whose ground the deck paints, so a name may be drawn at full strength.
+PAINTED_ROLES = frozenset({QUEUE, MESSAGES})
+
+
+def paint(pane_id: str) -> list[str]:
+    """The theme's ground on one deck pane, focused or not. A pane option, so nothing else changes."""
+    ground = theme.tmux_styles()["pane"]
+    problems = []
+    for option in ("window-style", "window-active-style"):
+        answer = tmux("set-option", "-p", "-t", pane_id, option, ground)
+        if not answer.ok:
+            problems.append(f"could not paint a deck pane — {_said(answer)}")
+    return problems
+
+
 def dress_sessions(session: str) -> list[str]:
     """The bars and the key table, on both deck sessions. Re-applied on every `sb deck`, so an
     older deck picks them up; `mouse` is set only when a session is made, as it is the operator's."""
     problems = _session_options(session, bar_options(False))
     problems += _session_options(inner(session), bar_options(True))
+    outer, _ = panes(session)
+    for pane in outer:
+        if pane.role in PAINTED_ROLES:
+            problems += paint(pane.pane_id)
     problems += _session_options(session, ((AGENT_COUNT_OPTION, str(agent_count(session))),))
     listed, _ = panes(inner(session))
     problems += write_colours(session, listed, {})
@@ -1012,6 +1033,8 @@ def arrange(session: str, shape: str, *, force: bool, socket: str | None = None)
             problems.append(f"could not open the {role} pane — {_said(made)}")
             continue
         tmux("set-option", "-p", "-t", pane_id, ROLE_OPTION, role)
+        if role in PAINTED_ROLES:
+            problems += paint(pane_id)
         roles[role] = pane_id
         created.append(role)
 
@@ -1438,7 +1461,8 @@ def deck_messages(refresh: int | None, ticks: int | None, screen: bool) -> Resul
     """
     config, _ = load()
     pane = DeckPane(config.session, lambda row: bool(row.get("from_agent") or row.get("to_agent")), scroll=True)
-    once = functools.partial(messages_result, place=placement)
+    # Colour only where the deck paints the ground: in its pane, not in whatever terminal ran this.
+    once = functools.partial(messages_result, place=placement, paint=bool(refresh and screen))
     return _resident("deck messages", once, refresh, ticks, screen, keep_last("message(s)", pane), pane)
 
 
@@ -1689,8 +1713,9 @@ def agent_slots(listed: list[Pane]) -> dict[str, int]:
 def write_colours(session: str, listed: list[Pane], written: dict[str, str]) -> list[str]:
     """Each agent tab's colour as a window option, where it changed. The tab format reads it."""
     problems = []
+    labels = {p.window_id: p.agent or p.window for p in listed}
     for window_id, slot in agent_slots(listed).items():
-        colour = theme.agent_colour(slot)
+        colour = theme.agent_colour(labels[window_id], slot)
         if written.get(window_id) == colour:
             continue
         answer = tmux("set-option", "-w", "-t", window_id, COLOUR_OPTION, colour)
