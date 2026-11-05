@@ -435,6 +435,21 @@ def _filling() -> bool:
     return getattr(_FILL, "on", False)
 
 
+#: Set by `framed()`: the caller draws the bands, so a long result must not draw its own inside them.
+_FRAMED = threading.local()
+
+
+@contextlib.contextmanager
+def framed():
+    """Render without the result's own chrome bands, for a caller that frames it already."""
+    was = getattr(_FRAMED, "on", False)
+    _FRAMED.on = True
+    try:
+        yield
+    finally:
+        _FRAMED.on = was
+
+
 def _line_kwargs() -> dict:
     return {"no_wrap": True, "overflow": "ellipsis", "crop": True} if _filling() else {}
 
@@ -457,7 +472,7 @@ def _render_human(
     duration_s: float | None = None,
     source: str | None = None,
 ) -> None:
-    banded = _body_lines(result.data, result.view) >= BAND_MIN_LINES
+    banded = not getattr(_FRAMED, "on", False) and _body_lines(result.data, result.view) >= BAND_MIN_LINES
     facts = None
     if banded:
         import time as _time

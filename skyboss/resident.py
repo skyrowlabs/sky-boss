@@ -40,7 +40,7 @@ from rich.text import Text
 
 from skyboss import chrome as chrome_
 from skyboss import keys
-from skyboss.output import THEME, Result, band_text, capture, filled, render
+from skyboss.output import THEME, Result, band_text, capture, filled, framed, render
 
 # Room the inline rendering leaves around the body: the two chrome bands, the
 # prompt the frame is drawn under, and one line of slack so a redraw never
@@ -609,7 +609,8 @@ def reside(
     last: Result | None = None
 
     def drawn(result: Result) -> Text:
-        with capture(width=out.width) as captured, filled(fill):
+        # The residency draws the bands; the result's own would nest inside them.
+        with capture(width=out.width) as captured, filled(fill), framed():
             render(result, as_json=False)
         return Text.from_ansi(captured.text)
 
