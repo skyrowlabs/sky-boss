@@ -2180,7 +2180,12 @@ def test_a_theme_file_is_the_hue_on_both_accents_and_is_rewritten_only_on_change
     assert deck_.write_theme("ws", "#38bdf8", "dark-ansi") == []
     path = tmp_path / "themes" / "sb-ws.json"
     body = json.loads(path.read_text())
-    assert body["base"] == "dark-ansi" and body["overrides"] == {"claude": "#38bdf8", "promptBorder": "#38bdf8"}
+    assert body["base"] == "dark-ansi"
+    assert body["overrides"] == {
+        "claude": "#38bdf8",
+        "promptBorder": "#38bdf8",
+        "userMessageBackground": deck_.theme.HEAD_GROUND,
+    }
     stamp = path.stat().st_mtime_ns
     deck_.write_theme("ws", "#38bdf8", "dark-ansi")
     assert path.stat().st_mtime_ns == stamp
@@ -2195,6 +2200,10 @@ def test_the_base_is_the_operators_preset_unless_declared(tmp_path, monkeypatch)
     (tmp_path / "settings.json").write_text('{"theme": "custom:mine"}')
     assert deck_.theme_base(deck_.Config()) == "dark"  # a custom theme cannot be a base
     assert deck_.theme_base(deck_.Config(theme_base="dark-ansi")) == "dark-ansi"
+
+
+def test_a_light_base_keeps_its_own_sent_message_ground():
+    assert "userMessageBackground" not in deck_.theme_body("ws", "#38bdf8", "light-ansi")["overrides"]
 
 
 def test_a_themed_deck_writes_each_tabs_theme_before_launching_it(fake, home, tmp_path, monkeypatch):

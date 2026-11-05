@@ -796,3 +796,11 @@ kept the TODOS pane's pid.
 - **One key, both books.** The workspace measured TODOS already empty and five decided items under
   skyrow-workspace in DECISIONS, so the leftover rows were decisions. M-x now runs `todo clear`
   and `decide clear` and says both counts. A separate key and an age-out were offered; Jeston chose one key.
+
+### 2026-11-05: sent messages take the header ground
+
+- **A sent message is drawn on `HEAD_GROUND`**, the right column's label ground, on Jeston's ask: on
+  the `dark-ansi` base Claude Code paints it `ansi:blackBright`, too bright under white text. The
+  theme overrides `userMessageBackground`, on dark bases only, because that ground under a light
+  base's dark text would be unreadable. The token and its preset values were read from the installed
+  Claude Code binary (2.1.318), not from its docs.

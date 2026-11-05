@@ -1035,6 +1035,8 @@ def start(session: str, agent: Agent, *, new_session: bool = False, brief: str =
 THEME_BASES = ("dark", "light", "dark-daltonized", "light-daltonized", "dark-ansi", "light-ansi")
 #: The theme tokens that carry the accent: the spinner and assistant label, and the input box border.
 THEME_TOKENS = ("claude", "promptBorder")
+#: The ground under a sent message. Dark bases only: this ground under a light base's dark text is unreadable.
+MESSAGE_GROUND_TOKEN = "userMessageBackground"
 
 
 def claude_dir() -> Path:
@@ -1059,11 +1061,10 @@ def theme_base(config: Config) -> str:
 
 
 def theme_body(agent: str, colour: str, base: str) -> dict:
-    return {
-        "name": f"sky.boss · {agent}",
-        "base": base,
-        "overrides": {token: colour for token in THEME_TOKENS},
-    }
+    overrides = {token: colour for token in THEME_TOKENS}
+    if not base.startswith("light"):
+        overrides[MESSAGE_GROUND_TOKEN] = theme.HEAD_GROUND
+    return {"name": f"sky.boss · {agent}", "base": base, "overrides": overrides}
 
 
 def write_theme(agent: str, colour: str, base: str) -> list[str]:
