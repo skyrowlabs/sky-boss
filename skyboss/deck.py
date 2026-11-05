@@ -1707,6 +1707,48 @@ def deck_column_pick() -> Result:
     return _apply_column(config.session, picked)
 
 
+@deck.command(name="reload")
+@emit
+def deck_reload() -> Result:
+    """Re-apply the deck's settings and restart its tool panes on this sky.boss's code.
+
+        sb deck reload
+
+    **This acts**, and kills nothing: the bars, keys and colours are set again,
+    and each tool pane is asked to close itself and is then opened fresh. Agent
+    tabs are untouched. A pane from before round 5 of [[command-deck]] cannot be
+    asked, so it is named in the result: press q in it, then run this again.
+    """
+    result = Result()
+    config, problems = load()
+    for problem in problems:
+        result.warn(problem)
+    present = has_session(config.session)
+    if present is None:
+        result.ok = False
+        result.data = {"error": "tmux could not be run — is it installed?"}
+        return result
+    if not present:
+        raise click.UsageError(f"no deck session {config.session!r} — `sb deck` starts one")
+    chosen, more = column_.load(config.session, config.panes)
+    listed, _ = panes(config.session)
+    window_id = controller(listed) or ""
+    roles = {p.role: p.pane_id for p in listed if p.window_id == window_id and p.role in TOOL_ROLES}
+    cycling = [role for role in chosen.shown if role in roles]
+    more += _session_options(config.session, ((HIDDEN_OPTION, ",".join(TOOL_ROLES)),))
+    _, waited = _await_closed(config.session, window_id, dict(roles), cycling, [])
+    stuck = [role for role in cycling if any(role in line for line in waited)]
+    for role in stuck:
+        more.append(f"the {role} pane predates reload and kept running — press q in it, then `sb deck reload` again")
+    created, arranged = arrange(config.session, layout_of(config.session), force=True)
+    more += arranged + dress_sessions(config.session)
+    for problem in more:
+        result.warn(problem)
+    result.partial = bool(stuck or arranged)
+    result.data = {"session": config.session, "restarted": ", ".join(created), "kept": ", ".join(stuck)}
+    return result
+
+
 @deck.command(name="marks")
 @click.option(
     "--every",
@@ -2069,11 +2111,15 @@ def tree(root: int, parent_of: dict[int, int]) -> list[int]:
     return seen
 
 
-def _row(where: str, window: str, status: str, session, pid: int, now: datetime) -> dict:
+def _row(where: str, window: str, status: str, session, pid: int, now: datetime, colour: str = "") -> dict:
     started = session.started if session else None
+    state = STATES.get(status, status)
     return {
         "where": where,
         "window": window,
+        "window_parts": [[window, colour or None]],
+        "state": state,
+        "state_parts": [[state, "sb.warn" if status == WAITING else "sb.accent" if status == "busy" else None]],
         "status": status,
         "name": session.name if session else "",
         "up": ago((now - started).total_seconds()) if started else "",
@@ -2084,9 +2130,16 @@ def _row(where: str, window: str, status: str, session, pid: int, now: datetime)
     }
 
 
-def _waiting_first(rows: list[dict]) -> list[dict]:
-    """The provider's word, compared literally: sky.boss orders and does not judge."""
-    return sorted(rows, key=lambda row: row["status"] != WAITING)
+# The deck's word for each registry word, most active first: the order NEEDS YOU sorts in.
+# `shell` is Claude Code's own word for a session running a shell command; `unregistered`
+# is a deck window whose agent pane has no record at all, so it comes last.
+STATES = {WAITING: "needs you", "busy": "busy", "shell": "shell", "idle": "idle", UNREGISTERED: UNREGISTERED}
+
+
+def _by_activity(rows: list[dict]) -> list[dict]:
+    """Needs you, busy, shell, idle, unregistered, then any other word; compared literally."""
+    rank = {word: n for n, word in enumerate(STATES)}
+    return sorted(rows, key=lambda row: rank.get(row["status"], len(rank)))
 
 
 def deck_windows(listed: list[Pane], sessions: list, parent_of: dict[int, int]) -> tuple[list[tuple], set[str]]:
@@ -2167,16 +2220,29 @@ def claimed(sessions: list) -> tuple[set[str] | None, str]:
     return ids, ""
 
 
-def queue_rows(listed: list[Pane], sessions: list, parent_of: dict[int, int], now: datetime) -> list[dict]:
-    """One row per deck window, waiting first; then every live session outside the deck."""
+def queue_rows(
+    listed: list[Pane], sessions: list, parent_of: dict[int, int], now: datetime, paint: bool = False
+) -> list[dict]:
+    """One row per deck window, most active first; then every live session outside the deck, the same way.
+
+    Painted, a window's name takes its tab's colour, as MESSAGES and TODOS draw it.
+    """
     entries, claimed = deck_windows(listed, sessions, parent_of)
-    inside = [_row("deck", label, status, session, pid, now) for _, label, status, session, pid in entries]
+    slots = agent_slots(listed)
+
+    def colour(window_id: str, label: str) -> str:
+        return theme.agent_role(label, slots[window_id]) if paint and window_id in slots else ""
+
+    inside = [
+        _row("deck", label, status, session, pid, now, colour(window_id, label))
+        for window_id, label, status, session, pid in entries
+    ]
     outside = [_row("outside", "", s.status, s, s.pid, now) for s in sessions if s.id not in claimed]
-    return _waiting_first(inside) + _waiting_first(outside)
+    return _by_activity(inside) + _by_activity(outside)
 
 
-INLINE = ("where", "window", "status", "name", "up", "cwd")
-HIDDEN = ("pid", "id", "started")
+INLINE = ("where", "window", "state", "name", "up", "cwd")
+HIDDEN = ("window_parts", "state_parts", "status", "pid", "id", "started")
 
 
 def view_of(rows: list[dict]) -> dict:
@@ -2187,8 +2253,9 @@ def view_of(rows: list[dict]) -> dict:
     """
     columns = [describe(key, rows) for key in INLINE]
     for column in columns:
-        if column["key"] in ("status", "window"):
+        if column["key"] in ("state", "window"):
             column["min"] = column["max"]
+            column["segments"] = f"{column['key']}_parts"
     return {
         "columns": columns,
         "details": [],
@@ -2197,7 +2264,9 @@ def view_of(rows: list[dict]) -> dict:
     }
 
 
-def queue_result(adapters: list | None = None, proc: Path = Path("/proc"), scope: str = "all") -> Result:
+def queue_result(
+    adapters: list | None = None, proc: Path = Path("/proc"), scope: str = "all", paint: bool = False
+) -> Result:
     """The queue's envelope. Every way it could not look is a warning, so empty is never ambiguous."""
     result = Result()
     config, problems = load()
@@ -2227,7 +2296,7 @@ def queue_result(adapters: list | None = None, proc: Path = Path("/proc"), scope
             if not answer.ok:
                 result.degrade(f"could not list the deck's tabs — {_said(answer)}")
 
-    rows = queue_rows(listed, sessions, parents(proc), datetime.now(timezone.utc))
+    rows = queue_rows(listed, sessions, parents(proc), datetime.now(timezone.utc), paint)
     result.data = rows if scope == "all" else [r for r in rows if r["where"] == scope]
     if not result.data:
         result.warn(f"no sessions {agents_.PLACES[scope]}" if rows else agents_.empty_reason(tally, len(chosen)))
@@ -2274,7 +2343,7 @@ def deck_queue(refresh: int | None, ticks: int | None, screen: bool, scope: str)
     pid and the registry's `status` word, `waiting` first; a window with no
     record reads `unregistered`. Live sessions outside the deck follow.
     """
-    once = functools.partial(queue_result, scope=scope)
+    once = functools.partial(queue_result, scope=scope, paint=bool(refresh and screen))
     config, _ = load()
     pane = DeckPane(config.session, lambda row: row.get("where") == "deck", role=QUEUE)
     return _resident("deck queue", once, refresh, ticks, screen, keep_first("row(s)"), pane)
@@ -2630,6 +2699,7 @@ mark(deck_todo, sb_acts=True)
 mark(deck_todo_add, sb_acts=True)
 mark(deck_todo_done, sb_acts=True)
 mark(deck_todo_rm, sb_acts=True)
+mark(deck_reload, sb_acts=True)
 mark(deck_column, sb_acts=True)
 mark(deck_column_show, sb_acts=False)
 mark(deck_column_fold, sb_acts=True)

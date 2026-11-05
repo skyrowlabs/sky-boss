@@ -803,16 +803,29 @@ def pane(wid, index, name, pid, role="agent"):
     return Pane(wid, index, name, name, f"%{pid}", pid, role)
 
 
-def test_waiting_sorts_first_inside_the_deck_and_outside_follows():
-    listed = [pane("@1", 0, "a", 10), pane("@2", 1, "b", 20), pane("@3", 2, "c", 30)]
-    sessions = [a_session(10), a_session(20, "waiting"), a_session(30, "busy"), a_session(99, "waiting")]
-    rows = queue_rows(listed, sessions, {}, NOW)
-    assert [(r["where"], r["window"], r["status"]) for r in rows] == [
-        ("deck", "b", "waiting"),
-        ("deck", "a", "idle"),
+def test_rows_sort_needs_you_busy_shell_idle_inside_the_deck_and_outside_follows():
+    listed = [pane("@1", 0, "a", 10), pane("@2", 1, "b", 20), pane("@3", 2, "c", 30), pane("@4", 3, "d", 40)]
+    sessions = [a_session(10), a_session(20, "waiting"), a_session(30, "busy"), a_session(40, "shell")]
+    listed.append(pane("@5", 4, "e", 50))
+    rows = queue_rows(listed, [*sessions, a_session(99, "waiting")], {}, NOW)
+    assert [(r["where"], r["window"], r["state"]) for r in rows] == [
+        ("deck", "b", "needs you"),
         ("deck", "c", "busy"),
-        ("outside", "", "waiting"),
+        ("deck", "d", "shell"),
+        ("deck", "a", "idle"),
+        ("deck", "e", "unregistered"),
+        ("outside", "", "needs you"),
     ]
+    assert rows[0]["status"] == "waiting"  # the provider's word is kept beside the deck's
+
+
+def test_painted_a_window_name_takes_its_tabs_colour_and_only_then():
+    from skyboss import theme
+
+    listed = [pane("@1", 0, "jam-sense", 10)]
+    painted = queue_rows(listed, [a_session(10)], {}, NOW, paint=True)[0]
+    assert painted["window_parts"] == [["jam-sense", theme.agent_role("jam-sense", 0)]]
+    assert queue_rows(listed, [a_session(10)], {}, NOW)[0]["window_parts"] == [["jam-sense", None]]
 
 
 def test_a_deck_window_with_no_record_is_unregistered_not_hidden():
@@ -863,7 +876,7 @@ def test_the_envelope_carries_an_authored_view(fake, home, tmp_path):
     fake.add("sb", "jam", agent="jam", role="agent", pid=10)
     result = queue_result([Adapter([a_session(10, "waiting")])], proc=tmp_path / "absent")
     assert result.ok and result.view["authored"] is True
-    assert [c["key"] for c in result.view["columns"]] == ["where", "window", "status", "name", "up", "cwd"]
+    assert [c["key"] for c in result.view["columns"]] == ["where", "window", "state", "name", "up", "cwd"]
     assert result.data[0]["status"] == "waiting"
 
 
@@ -920,6 +933,7 @@ def test_the_queue_is_an_observe_and_the_rest_act():
         "todo": True,
         "decide": True,
         "column": True,
+        "reload": True,
     }
     assert {name: getattr(c, "sb_acts") for name, c in deck_.deck_column.commands.items()} == {
         "show": False,
@@ -1967,3 +1981,22 @@ def test_each_bars_label_is_given_room_for_its_whole_width():
     for tabs, label in ((False, "sky.boss deck"), (True, "tabs")):
         options = dict(deck_.bar_options(tabs))
         assert f" {label} " in options["status-left"] and options["status-left-length"] == str(len(label) + 3)
+
+
+def test_reload_restarts_every_tool_pane_that_closes_itself_and_kills_none(fake, home, sb_state, monkeypatch):
+    invoke("deck")
+    before = {role: pane for role, pane in fake.roles().items() if role in deck_.TOOL_ROLES}
+    monkeypatch.setattr(deck_, "_sleep", lambda s: [fake.panes.pop(p, None) for p in before.values()])
+    fake.calls.clear()
+    data = json.loads(invoke("--json", "deck", "reload").stdout)
+    after = {role: pane for role, pane in fake.roles().items() if role in deck_.TOOL_ROLES}
+    assert set(after) == set(before) and not set(after.values()) & set(before.values())
+    assert not {"kill-pane", "respawn-pane", "kill-window"} & set(fake.verbs()) and data["ok"]
+    assert fake.options[("=sb:", "@sb-hidden")] == ""
+
+
+def test_reload_names_a_pane_too_old_to_close_itself(fake, home, sb_state, monkeypatch):
+    invoke("deck")
+    monkeypatch.setattr(deck_, "_sleep", lambda s: None)
+    data = json.loads(invoke("--json", "deck", "reload").stdout)
+    assert data["partial"] and any("press q in it" in w for w in data["warnings"])

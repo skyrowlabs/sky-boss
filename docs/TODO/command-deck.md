@@ -257,8 +257,8 @@ clickable ✕ instead, kept agent colours on the brand-step rule, and asked for 
 
 ## Phase 7 (round 5): the right column
 
-Requested by Jeston on 2026-11-05: five items relayed by the skyrow-workspace session, and a sixth,
-the tab boxes, asked for directly.
+Requested by Jeston on 2026-11-05: items relayed by the skyrow-workspace session, and the tab boxes,
+asked for directly.
 
 - [x] **The outside count moves to the footer band.** NEEDS YOU and MESSAGES say
       `N outside hidden · M-h shows` in the bottom band, muted, with no ⚠️ and no warn colour: it
@@ -283,6 +283,14 @@ the tab boxes, asked for directly.
       `deck.toml`. Applying it moves and resizes panes only.
 - [x] **Each pane collapses to a thin row** drawing one consolidated line. In the stack layout it
       is a thin column with the same line shortened to fit (ruled 2026-11-05).
+- [x] **The bar's label is not cut.** tmux's default `status-left-length` of 10 drew
+      `sky.boo…`; each bar now sets it to its label's visible width.
+- [x] **NEEDS YOU sorts by activity**: needs you, busy, shell, idle, unregistered, deck rows before
+      outside ones. The pane draws the deck's word (`needs you` for `waiting`) in a `state` column;
+      the provider's word stays in `status`. The tab row keeps its fixed order (Jeston, 2026-11-05).
+- [x] **A window name in NEEDS YOU takes its tab's hue**, as MESSAGES and TODOS already draw an agent.
+- [x] **`sb deck reload`** re-dresses both sessions and restarts each tool pane through the
+      hide/show path, killing nothing.
 - [x] Tests on `FakeTmux` and the pure renderers, plus a smoke on a throwaway socket.
 
 ## Dropped, and why
@@ -625,3 +633,13 @@ kept the TODOS pane's pid.
   lesson for the next smoke from inside a deck: unset `TMUX`**, or `tmux` talks to the live deck
   whatever `TMUX_TMPDIR` says. One read here went to the real server by that route; it changed
   nothing.
+
+### 2026-11-05: the label, activity order, queue colours and reload
+
+- **`shell` is a registry word, not a description.** Claude Code reports it for a session running a
+  shell command, and that is the word in Jeston's "busy, then shell, then idle". The first build
+  mapped `unregistered` to `shell`, which a live read of the queue showed colliding with the real
+  word. `unregistered` keeps its own word and sorts last.
+- **`reload` cannot reach a pane from before this round**, because only the new code reads the
+  hidden set. It waits `HIDE_WAIT` for such a pane, names it, and says to press q in it. The first
+  upgrade of a running deck therefore needs q in each old tool pane, then `sb deck`.
