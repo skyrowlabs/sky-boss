@@ -112,9 +112,17 @@ def test_a_row_carries_the_first_line_and_sender_to_receiver(tmp_path):
     assert (row["when"], row["between"], row["message"]) == ("5m", "jam → ws", "first line")
 
 
-def test_a_missing_transcript_is_counted_not_skipped(tmp_path):
+def test_no_transcript_anywhere_is_counted_not_skipped(tmp_path):
     found, problems = messages_.collect([session("s1", "ws"), session("s2", "jam")], tmp_path)
     assert found == [] and problems == ["2 session(s) have no transcript where expected: ws, jam"]
+
+
+def test_a_fresh_session_without_a_transcript_is_not_a_problem(tmp_path):
+    """One transcript found proves the path rule; a tab with no first exchange has received nothing."""
+    talked = session("s1", "ws")
+    write(tmp_path, talked, [peer("jam", "hi", "m1", "2026-11-04T11:55:00Z")])
+    found, problems = messages_.collect([talked, session("s2", "fresh")], tmp_path)
+    assert [m.body for m in found] == ["hi"] and problems == []
 
 
 def test_an_unreadable_transcript_is_counted(tmp_path):

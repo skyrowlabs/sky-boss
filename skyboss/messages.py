@@ -166,7 +166,9 @@ def collect(
             continue
         found.extend(messages)
         torn += bad
-    if missing:
+    # Claude Code writes a transcript at a session's first exchange, so a fresh tab has none and has
+    # received nothing. Only when no live session's transcript is found is the path rule in doubt.
+    if missing and len(missing) == len(sessions):
         problems.append(f"{len(missing)} session(s) have no transcript where expected: {', '.join(missing)}")
     if unreadable:
         problems.append(f"{len(unreadable)} transcript(s) could not be read: {', '.join(unreadable)}")
