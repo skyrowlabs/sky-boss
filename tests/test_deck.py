@@ -364,7 +364,9 @@ def test_bare_deck_opens_the_pin_as_the_first_tab_and_attaches(fake, home, tmp_p
     # CliRunner has no terminal, so outside tmux it refuses to attach and says how.
     assert result.exit_code == 1 and "tmux attach -t =sb" in said(result)
     created = created_in(fake, "sb-agents")
-    assert created[created.index("--") + 1 :] == ["claude", "--model", "opus"]
+    argv = created[created.index("--") + 1 :]
+    assert argv[:3] == ["claude", "-n", "ws"] and argv[3] == "--append-system-prompt"
+    assert argv[5:] == ["--model", "opus"]
     assert created[created.index("-c") + 1] == str(tmp_path)
     assert fake.tabs() == ["ws"]
 
@@ -693,7 +695,8 @@ def test_open_starts_a_tab_in_the_inner_session(fake, home, tmp_path):
     assert result.exit_code == 0, result.output
     window = fake.find("new-window")[0]
     assert window[window.index("-t") + 1] == "=sb-agents:"
-    assert window[window.index("-n") + 1] == "jam" and window[-1] == "claude"
+    assert window[window.index("-n") + 1] == "jam"
+    assert window[window.index("--") + 1 : window.index("--") + 4] == ["claude", "-n", "jam"]
     tab = window_of(fake, "jam")
     assert ["tmux", "set-option", "-w", "-t", tab, "@sb-agent", "jam"] in fake.calls
     controller = fake.panes[fake.roles()["tabs"]]["window"]
@@ -1354,3 +1357,124 @@ def test_the_agent_ramp_is_the_canvas_project_ramp():
 def test_an_empty_option_as_tmux_prints_it_is_empty():
     parsed = deck_.session_options("@sb-hide-outside ''\n@sb-scroll older\n@sb-x \"a b\"\n")
     assert parsed == {"@sb-hide-outside": "", "@sb-scroll": "older", "@sb-x": "a b"}
+
+
+# ============================================================================
+# The brief: every agent the deck starts knows it is in a deck
+# ============================================================================
+
+
+CORE = """
+[profile.core]
+primary = "skyrow-workspace"
+tabs = ["stash-flow", "mind-head"]
+[agent.skyrow-workspace]
+cwd = "{d}/ws"
+[agent.stash-flow]
+cwd = "{d}/sf"
+[agent.mind-head]
+cwd = "{d}/mh"
+[agent.sky-boss]
+cwd = "{d}/sb"
+args = ["--name", "boss", "--model", "opus"]
+"""
+
+
+@pytest.fixture
+def core(fake, home, tmp_path):
+    for sub in ("ws", "sf", "mh", "sb"):
+        (tmp_path / sub).mkdir()
+    home(CORE.format(d=tmp_path))
+    return tmp_path
+
+
+def launched(fake, name):
+    """The argv tmux was asked to run for `name`'s tab."""
+    for call in fake.find("new-session") + fake.find("new-window"):
+        if "-n" in call and call[call.index("-n") + 1] == name and "--" in call:
+            return call[call.index("--") + 1 :]
+    raise AssertionError(f"no launch for {name}")
+
+
+def told(argv):
+    return argv[argv.index("--append-system-prompt") + 1]
+
+
+def test_the_primary_and_a_profile_tab_are_named_and_briefed(core, fake):
+    invoke("deck", "--profile", "core")
+    primary, tab = launched(fake, "skyrow-workspace"), launched(fake, "stash-flow")
+    assert primary[:3] == ["claude", "-n", "skyrow-workspace"] and tab[:3] == ["claude", "-n", "stash-flow"]
+    lines = told(primary).split("\n")
+    assert (
+        lines[0]
+        == 'You are "skyrow-workspace", started by the operator as an agent in a sky.boss deck (tmux session "sb").'
+    )
+    roster_ = [line for line in lines if line.startswith("- ")]
+    assert roster_ == [
+        f"- skyrow-workspace (primary) — {core}/ws",
+        f"- stash-flow — {core}/sf",
+        f"- mind-head — {core}/mh",
+    ]
+    assert lines[-1] == "You are the operator's coordinating agent; the others are the agents of their repos."
+    assert "coordinating agent" not in told(tab) and told(tab).count("- ") >= 3
+    assert len(lines) <= 15
+
+
+def test_a_tab_opened_later_gets_the_roster_as_it_stands(core, fake):
+    invoke("deck", "--profile", "core")
+    fake.options[("=sb-agents:", "@sb-primary")] = "skyrow-workspace"
+    invoke("--json", "deck", "open", "mind-head")  # already open: nothing launched
+    fake.calls.clear()
+    (core / "ex").mkdir()
+    home_text = (deck_.SB_HOME / "deck.toml").read_text() + f'[agent.extra]\ncwd = "{core}/ex"\n'
+    (deck_.SB_HOME / "deck.toml").write_text(home_text)
+    assert invoke("--json", "deck", "open", "extra").exit_code == 0
+    argv = launched(fake, "extra")
+    assert argv[:3] == ["claude", "-n", "extra"]
+    roster_ = [line for line in told(argv).split("\n") if line.startswith("- ")]
+    assert roster_[0].startswith("- skyrow-workspace (primary)") and roster_[-1] == f"- extra — {core}/ex"
+    assert "coordinating agent" not in told(argv)
+
+
+def test_the_operators_name_wins_and_is_not_doubled(core, fake):
+    invoke("--json", "deck", "open", "sky-boss")
+    argv = launched(fake, "sky-boss")
+    assert "-n" not in argv and argv.count("--name") == 1 and argv[argv.index("--name") + 1] == "boss"
+    assert "--append-system-prompt" in argv
+
+
+def test_the_operators_own_prompt_wins_too():
+    agent = deck_.Agent("x", "/x", args=["--append-system-prompt-file", "/fx/p.md"])
+    assert agent.launch("brief") == ["claude", "-n", "x", "--append-system-prompt-file", "/fx/p.md"]
+
+
+def test_nothing_in_the_brief_comes_from_a_transcript(core, fake, monkeypatch):
+    """Built from deck.toml and tmux alone: every transcript and registry read is made to fail."""
+    from skyboss import messages
+
+    def refuse(*args, **kwargs):
+        raise AssertionError("the brief read a transcript or the registry")
+
+    monkeypatch.setattr(messages, "received", refuse)
+    monkeypatch.setattr(messages, "collect", refuse)
+    monkeypatch.setattr(deck_.agents_, "fold", refuse)
+    invoke("deck", "--profile", "core")
+    assert "You are" in told(launched(fake, "mind-head"))
+
+
+def test_scope_deck_works_from_inside_a_deck_pane(fake, home, monkeypatch, tmp_path):
+    """An agent asking from its own tab: TMUX is set, and the same server is asked."""
+    monkeypatch.setenv("TMUX", "/tmp/fx-socket,1,1")
+    monkeypatch.setenv("TMUX_PANE", "%9")
+    monkeypatch.setattr(deck_, "parents", lambda proc=None: {})
+    fake.current = "sb-agents"
+    fake.add("sb", "deck", role="tabs", pid=1)
+    fake.add("sb-agents", "jam", agent="jam", role="agent", pid=10)
+    from skyboss import agents
+
+    monkeypatch.setattr(agents, "providers", lambda: [Adapter([a_session(10, name="jam"), a_session(11, name="away")])])
+    monkeypatch.setattr(agents, "claims", lambda sessions: ({}, 0))
+    result = invoke("--json", "agents", "--scope", "deck")
+    assert result.exit_code == 0, result.output
+    assert [row["name"] for row in json.loads(result.stdout)["data"]] == ["jam"]
+    assert {call[1] for call in fake.calls} <= {"has-session", "list-panes", "show-options"}

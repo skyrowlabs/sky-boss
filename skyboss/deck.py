@@ -114,6 +114,18 @@ class Agent:
     def argv(self) -> list[str]:
         return ["claude", *self.args]
 
+    def launch(self, brief: str = "") -> list[str]:
+        """What the deck runs: `claude` named after its tab and told it is in a deck.
+
+        The operator's own `-n`/`--name` or appended system prompt wins over the deck's.
+        """
+        named = any(a in ("-n", "--name") or a.startswith("--name=") for a in self.args)
+        prompted = any(a.startswith("--append-system-prompt") for a in self.args)
+        ours = ([] if named else ["-n", self.name]) + (
+            [] if prompted or not brief else ["--append-system-prompt", brief]
+        )
+        return ["claude", *ours, *self.args]
+
     @property
     def directory(self) -> str:
         return os.path.expandvars(os.path.expanduser(self.cwd))
@@ -740,19 +752,69 @@ def inner(session: str) -> str:
     return f"{session}{INNER_SUFFIX}"
 
 
-def start(session: str, agent: Agent, *, new_session: bool = False) -> tuple[str, list[str]]:
-    """A window running `claude` in the agent's directory. Its window id, and problems."""
+def start(session: str, agent: Agent, *, new_session: bool = False, brief: str = "") -> tuple[str, list[str]]:
+    """A window running `claude` in the agent's directory, briefed. Its window id, and problems."""
     directory = agent.directory
     if not Path(directory).is_dir():
         raise DeckError(f"{agent.name}: cwd {directory} is not a directory ({agent.source})")
     if shutil.which("claude", path=child_env().get("PATH")) is None:
         raise DeckError("claude is not on PATH")
     where = ["new-session", "-d", "-s", session] if new_session else ["new-window", "-d", "-t", f"={session}:"]
-    answer = tmux(*where, "-P", "-F", "#{window_id} #{pane_id}", "-n", agent.name, "-c", directory, "--", *agent.argv)
+    argv = agent.launch(brief)
+    answer = tmux(*where, "-P", "-F", "#{window_id} #{pane_id}", "-n", agent.name, "-c", directory, "--", *argv)
     window_id, pane_id = _ids(answer)
     tmux("set-option", "-w", "-t", window_id, AGENT_OPTION, agent.name)
     tmux("set-option", "-p", "-t", pane_id, ROLE_OPTION, AGENT)
     return window_id, dress(window_id, tab=True)
+
+
+# ============================================================================
+# The brief: what an agent the deck starts is told about the deck
+# ============================================================================
+
+# Session option on the tabs session: the agent the operator coordinates from.
+PRIMARY_OPTION = "@sb-primary"
+
+
+def roster(config: Config, projects: list, planned: list[Agent], primary: str) -> list[tuple[str, str]]:
+    """(name, directory) for each agent in the deck at a launch, primary first, then tab order.
+
+    Read from tmux and the declarations only; never from a transcript.
+    """
+    names = [primary] if primary else []
+    if has_session(inner(config.session)):
+        listed, _ = panes(inner(config.session))
+        tabs = {p.window_id: p.agent for p in listed if p.role == AGENT and p.agent}
+        names += [tabs[w] for w in _window_order([p for p in listed if p.window_id in tabs])]
+    names += [agent.name for agent in planned]
+    rows: list[tuple[str, str]] = []
+    for name in dict.fromkeys(names):
+        agent = next((a for a in planned if a.name == name), None) or resolve(name, config, projects)[0]
+        rows.append((name, agent.directory if agent else ""))
+    return rows
+
+
+def brief(name: str, session: str, rows: list[tuple[str, str]], primary: str) -> str:
+    """The system prompt appended at launch. Plain, short, and true at the moment it is built."""
+    lines = [
+        f'You are "{name}", started by the operator as an agent in a sky.boss deck (tmux session "{session}").',
+        "The deck's other agents are peer Claude Code sessions; message one by its name with SendMessage.",
+        "List them with `sb agents --scope deck` (the deck's own view: name, status, repo), or with",
+        "ListAgents (every session on this machine, the deck's and others).",
+        "Agents in the deck at your launch, primary first:",
+        *[f"- {who}{' (primary)' if who == primary else ''}{f' — {where}' if where else ''}" for who, where in rows],
+        "Tabs open and close, so check the live list before assuming a peer is there.",
+        "The operator sees every message between agents in the deck's MESSAGES pane, and answers",
+        "an agent's prompts by clicking its tab.",
+    ]
+    if name == primary:
+        lines.append("You are the operator's coordinating agent; the others are the agents of their repos.")
+    return "\n".join(lines)
+
+
+def deck_primary(session: str) -> str:
+    answer = tmux("show-options", "-v", "-t", scope(inner(session)), PRIMARY_OPTION)
+    return answer.out.strip() if answer.ok else ""
 
 
 def sb_argv(*words: str) -> list[str]:
@@ -798,7 +860,7 @@ def _session_options(session: str, options: tuple[tuple[str, str], ...]) -> list
     return problems
 
 
-def ensure_inner(session: str, first: Agent | None = None) -> tuple[bool, list[str]]:
+def ensure_inner(session: str, first: Agent | None = None, first_brief: str = "") -> tuple[bool, list[str]]:
     """Create the inner session if it is absent, with a tab row on top and the mouse on.
 
     Its first window is `first`'s `claude` when there is one, so a profile's
@@ -813,7 +875,7 @@ def ensure_inner(session: str, first: Agent | None = None) -> tuple[bool, list[s
     problems: list[str] = []
     if first is not None:
         try:
-            _, problems = start(name, first, new_session=True)
+            _, problems = start(name, first, new_session=True, brief=first_brief)
             return True, problems + _inner_options(name)
         except DeckError as exc:
             problems.append(str(exc))
@@ -848,8 +910,17 @@ def ensure(config: Config, projects: list, profile: Profile | None = None) -> tu
             continue
         agents.append(agent)
 
-    _, more = ensure_inner(config.session, agents[0] if agents else None)
+    primary = profile.primary if profile and profile.primary else deck_primary(config.session)
+    rows = roster(config, projects, agents, primary)
+
+    def told(agent: Agent) -> str:
+        return brief(agent.name, config.session, rows, primary)
+
+    first = agents[0] if agents else None
+    _, more = ensure_inner(config.session, first, told(first) if first else "")
     problems += more
+    if profile and profile.primary:
+        problems += _session_options(inner(config.session), ((PRIMARY_OPTION, profile.primary),))
     created = not present
     if present:
         _, more = arrange(config.session, layout_of(config.session), force=False)
@@ -875,7 +946,7 @@ def ensure(config: Config, projects: list, profile: Profile | None = None) -> tu
         problems += _session_options(config.session, (("mouse", "on"), *bar_options(False)))
         _, more = arrange(config.session, COLUMNS, force=True, socket=socket)
         problems += more
-    problems += open_tabs(config.session, agents)
+    problems += open_tabs(config.session, agents, told)
     problems += dress_sessions(config.session)
     return created, problems
 
@@ -915,8 +986,8 @@ def agent_count(session: str) -> int:
     return len({p.window_id for p in listed if p.role == AGENT})
 
 
-def open_tabs(session: str, agents: list[Agent]) -> list[str]:
-    """A tab for each agent that has none, then the profile's tabs moved to the front in its order.
+def open_tabs(session: str, agents: list[Agent], told: Callable[[Agent], str] = lambda agent: "") -> list[str]:
+    """A tab for each agent that has none, briefed, then the profile's tabs moved to the front in its order.
 
     Moving is `swap-window`, which moves a window and restarts nothing.
     """
@@ -926,7 +997,7 @@ def open_tabs(session: str, agents: list[Agent]) -> list[str]:
     for agent in agents:
         if find_window(agent.name, listed) is None:
             try:
-                _, more = start(name, agent)
+                _, more = start(name, agent, brief=told(agent))
                 problems += more
             except DeckError as exc:
                 problems.append(str(exc))
@@ -1205,7 +1276,8 @@ def deck_open(name: str) -> Result:
     **This acts.** NAME is an `[agent.NAME]` in `deck.toml`, or a project in
     `projects.toml` that declares a `cwd`. The tab is a window of the inner
     session, `<session>-agents`, drawn in the controller. Creates the deck first
-    if needed.
+    if needed. The new agent is briefed with the deck as it stands now; agents
+    already running are not told about it, so the brief says to check the live list.
     """
     result = Result()
     config, problems = load()
@@ -1222,7 +1294,11 @@ def deck_open(name: str) -> Result:
         window_id = locate(name, config.session)
         opened = window_id is None
         if window_id is None:
-            window_id, dressed = start(inner(config.session), agent)
+            # Briefed with the deck as it stands now; agents already running are not updated.
+            primary = deck_primary(config.session)
+            rows = roster(config, projects, [agent], primary)
+            told = brief(agent.name, config.session, rows, primary)
+            window_id, dressed = start(inner(config.session), agent, brief=told)
             more += dressed
         focus(config.session, window_id)
         attached = switch(config.session)

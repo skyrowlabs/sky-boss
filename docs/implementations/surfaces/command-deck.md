@@ -435,3 +435,23 @@ added later reaches the deck only on the next `sb deck`. Every behaviour was see
 sockets with fake `claude` scripts; none has been run against a real one yet. A side fix:
 `skyboss/keys.py` now reads unbuffered, so an arrow key in any resident view, `sb follow` included,
 is no longer taken for Esc.
+
+### 2026-11-04: every agent the deck starts is told it is in a deck
+
+Asked by Jeston after the workspace agent could not say what "the deck" was. Each `claude` the deck
+starts now runs as `claude -n <tab name> --append-system-prompt <brief> …args`. The brief names the
+agent and the tmux session, says the others are peers reached by name with SendMessage, points at
+`sb agents --scope deck` and ListAgents, lists the roster at launch (name and directory, primary
+first and marked), says tabs come and go so the live list wins, and says the operator reads MESSAGES
+and answers prompts by clicking a tab. The primary gets one more line saying it coordinates.
+- Built at launch from `deck.toml` and tmux only, never from a transcript; a test makes every
+  transcript and registry read fail and the brief is still built. The paths are the operator's,
+  computed at runtime and written nowhere.
+- The operator's own `-n`/`--name`, or appended system prompt, wins over the deck's.
+- The primary is recorded as `@sb-primary` on the tabs session, so a tab opened later is briefed
+  with the roster as it stands then, primary marked. **Agents already running are not updated**:
+  the only way would be typing into them, which stays banned, and the brief says to check the
+  live list instead.
+- Seen on a throwaway socket: a fake `claude` dumped its argv, and the brief arrived intact as one
+  argument through tmux. `sb agents --scope deck` run from inside a tab found the deck's server
+  through `TMUX` and listed all five agents. Not yet run against a real `claude`.
