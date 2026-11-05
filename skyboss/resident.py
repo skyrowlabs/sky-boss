@@ -301,6 +301,8 @@ def fitted(
     while keep + 1 < len(rows):
         more = draw(keep + 1)
         if _count(more, console) > limit:
+            # The fit may remember the last `keep` it saw (a pane's page size): leave it the one drawn.
+            fit(result, keep)
             break
         keep, shown = keep + 1, more
     return shown

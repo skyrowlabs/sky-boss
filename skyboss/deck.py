@@ -40,6 +40,7 @@ import rich_click as click
 from skyboss import agents as agents_
 from skyboss import resident as resident_
 from skyboss import theme
+from skyboss import todos as todos_
 from skyboss.chrome import ago, clock
 from skyboss.helpers import PROJECT_ROOT, SB_HOME, child_env, mark
 from skyboss.messages import messages_result
@@ -76,6 +77,7 @@ MARKS_PID_OPTION = "@sb-marks-pid"
 # Pane roles. `agent` runs claude; `tabs` is the nested client showing the inner
 # session; `shell` is the inner session's first window, so it is never empty.
 AGENT, TABS, QUEUE, MESSAGES, SHELL = "agent", "tabs", "queue", "messages", "shell"
+TODOS = "todos"
 
 # The inner session holding one window per project agent. Its status bar is the tab row.
 INNER_SUFFIX = "-agents"
@@ -86,8 +88,10 @@ LAYOUTS = (COLUMNS, STACK)
 TOOLS_WIDTH = "25%"
 TOOLS_HEIGHT = "30%"
 HALF = "50%"
+THIRD = "33%"
 QUEUE_REFRESH = 5
 MESSAGES_REFRESH = 10
+TODOS_REFRESH = 5
 MARKS_EVERY = 3
 
 # The registry's word for a session held at a permission prompt (measured on Claude
@@ -787,6 +791,8 @@ def start(session: str, agent: Agent, *, new_session: bool = False, brief: str =
 
 # Session option on the tabs session: the agent the operator coordinates from.
 PRIMARY_OPTION = "@sb-primary"
+# The profile the deck was last opened with, so a later tab gets its brief.
+PROFILE_OPTION = "@sb-profile"
 
 
 def roster(config: Config, projects: list, planned: list[Agent], primary: str) -> list[tuple[str, str, str]]:
@@ -832,9 +838,18 @@ def brief(name: str, session: str, rows: list[tuple[str, str, str]], primary: st
         "Tabs open and close, so check the live list before assuming a peer is there.",
         "The operator sees every message between agents in the deck's MESSAGES pane, and answers",
         "an agent's prompts by clicking its tab.",
+        'Keep your current todos with `sb deck todo add "<text>"` and `sb deck todo done <n>`; the',
+        "operator sees them in the TODOS pane.",
     ]
     text = "\n".join(lines)
     return f"{text}\n\n{extra.strip()}" if extra.strip() else text
+
+
+def deck_profile_brief(config: Config) -> str:
+    answer = tmux("show-options", "-v", "-t", scope(inner(config.session)), PROFILE_OPTION)
+    name = answer.out.strip() if answer.ok else ""
+    profile = config.profiles.get(name)
+    return profile.brief if profile else ""
 
 
 def deck_primary(session: str) -> str:
@@ -849,6 +864,10 @@ def sb_argv(*words: str) -> list[str]:
 
 def queue_argv() -> list[str]:
     return sb_argv("deck", "queue", "--refresh", str(QUEUE_REFRESH), "--screen")
+
+
+def todos_argv() -> list[str]:
+    return sb_argv("deck", "todo", "list", "--all", "--refresh", str(TODOS_REFRESH), "--screen")
 
 
 def messages_argv() -> list[str]:
@@ -946,6 +965,9 @@ def ensure(config: Config, projects: list, profile: Profile | None = None) -> tu
     problems += more
     if profile and profile.primary:
         problems += _session_options(inner(config.session), ((PRIMARY_OPTION, profile.primary),))
+    if profile and profile.name in config.profiles:
+        # Read back by `open`, so a tab opened later gets this profile's brief too.
+        problems += _session_options(inner(config.session), ((PROFILE_OPTION, profile.name),))
     created = not present
     if present:
         _, more = arrange(config.session, layout_of(config.session), force=False)
@@ -977,7 +999,7 @@ def ensure(config: Config, projects: list, profile: Profile | None = None) -> tu
 
 
 #: The tool panes whose ground the deck paints, so a name may be drawn at full strength.
-PAINTED_ROLES = frozenset({QUEUE, MESSAGES})
+PAINTED_ROLES = frozenset({QUEUE, MESSAGES, TODOS})
 
 
 def paint(pane_id: str) -> list[str]:
@@ -1058,22 +1080,24 @@ def layout_of(session: str) -> str:
 def controller(listed: list[Pane]) -> str | None:
     """The window holding the deck's tool panes, else the lowest-numbered window."""
     for pane in listed:
-        if pane.role in (TABS, QUEUE, MESSAGES):
+        if pane.role in (TABS, QUEUE, MESSAGES, TODOS):
             return pane.window_id
     ordered = sorted(listed, key=lambda p: p.window_index)
     return ordered[0].window_id if ordered else None
 
 
-def plan(shape: str, tabs: str | None, queue: str | None, messages: str | None) -> list[list[str]]:
-    """The tmux calls that put three panes in `shape`. Pure, and only ever moves or resizes.
+def plan(
+    shape: str, tabs: str | None, queue: str | None, messages: str | None, todos: str | None = None
+) -> list[list[str]]:
+    """The tmux calls that put the deck's panes in `shape`. Pure, and only ever moves or resizes.
 
-    columns: tabs | queue over messages.  stack: tabs over (queue | messages).
+    columns: tabs | queue over messages over todos.  stack: tabs over (queue | messages | todos).
     """
-    tools = [p for p in (queue, messages) if p]
+    tools = [p for p in (queue, messages, todos) if p]
     calls: list[list[str]] = []
 
-    def join(source: str, target: str, flag: str) -> None:
-        calls.append(["join-pane", "-d", flag, "-s", source, "-t", target])
+    def join(source: str, target: str, *flags: str) -> None:
+        calls.append(["join-pane", "-d", *flags, "-s", source, "-t", target])
 
     def resize(pane: str, axis: str, size: str) -> None:
         calls.append(["resize-pane", "-t", pane, axis, size])
@@ -1082,13 +1106,16 @@ def plan(shape: str, tabs: str | None, queue: str | None, messages: str | None) 
         return calls
     across, along = ("-h", "-v") if shape == COLUMNS else ("-v", "-h")
     if tabs:
-        join(tools[0], tabs, across)
-    if len(tools) == 2:
-        join(tools[1], tools[0], along)
+        # Full-window (-f): the tools' column must not inherit the tab pane's share of a stack,
+        # or a later join lands in a one-row pane and tmux refuses it.
+        join(tools[0], tabs, across, "-f")
+    for before, after in zip(tools, tools[1:]):
+        join(after, before, along)
     if tabs:
         resize(tools[0], "-x" if shape == COLUMNS else "-y", TOOLS_WIDTH if shape == COLUMNS else TOOLS_HEIGHT)
-    if len(tools) == 2:
-        resize(tools[0], "-y" if shape == COLUMNS else "-x", HALF)
+    share = HALF if len(tools) == 2 else THIRD
+    for pane in tools[:-1]:
+        resize(pane, "-y" if shape == COLUMNS else "-x", share)
     return calls
 
 
@@ -1119,6 +1146,7 @@ def arrange(session: str, shape: str, *, force: bool, socket: str | None = None)
         TABS: lambda: tabs_argv(session, socket if socket is not None else socket_path(inner(session))),
         QUEUE: queue_argv,
         MESSAGES: messages_argv,
+        TODOS: todos_argv,
     }
     for role, argv in wanted.items():
         if role in roles:
@@ -1137,7 +1165,7 @@ def arrange(session: str, shape: str, *, force: bool, socket: str | None = None)
     moved = any(p.role == AGENT for p in here)
     if not (force or created or moved):
         return created, problems
-    for call in plan(shape, roles.get(TABS), roles.get(QUEUE), roles.get(MESSAGES)):
+    for call in plan(shape, roles.get(TABS), roles.get(QUEUE), roles.get(MESSAGES), roles.get(TODOS)):
         answer = tmux(*call)
         if not answer.ok:
             problems.append(f"could not arrange the deck ({call[0]}) — {_said(answer)}")
@@ -1250,7 +1278,7 @@ def deck(ctx: click.Context, profile_name: str | None) -> None:
         sb deck layout stack
 
     **This acts.** Window 0 is the controller: a tab row of live `claude`s (an
-    inner session, `<session>-agents`) beside the queue over the messages. Each
+    inner session, `<session>-agents`) beside the queue, the messages and the todos. Each
     tab shows its session's state. Declared in `$SB_HOME/deck.toml`, which
     sky.boss reads and never writes: `[agent.NAME]` takes `cwd`, `args` and a
     one-line `role`; `[profile.NAME]` takes `primary`, `tabs` and a `brief`
@@ -1325,7 +1353,7 @@ def deck_open(name: str) -> Result:
             # Briefed with the deck as it stands now; agents already running are not updated.
             primary = deck_primary(config.session)
             rows = roster(config, projects, [agent], primary)
-            told = brief(agent.name, config.session, rows, primary)
+            told = brief(agent.name, config.session, rows, primary, deck_profile_brief(config))
             window_id, dressed = start(inner(config.session), agent, brief=told)
             more += dressed
         focus(config.session, window_id)
@@ -1595,11 +1623,13 @@ class DeckPane(resident_.Control):
     sets an option, and the pane adopts it. Its own keys move only its own offset.
     """
 
-    def __init__(self, session: str, keeps: Callable[[dict], bool], *, scroll: bool = False) -> None:
+    def __init__(self, session: str, keeps: Callable[[dict], bool], *, scroll: bool = False, top: bool = False) -> None:
         self.session = session
         self.keeps = keeps
         self.counted = scroll
         self.wheel = scroll
+        # A top-anchored pane scrolls by its own keys only; M-u and M-e belong to MESSAGES.
+        self.top = top
         self.offset = 0
         self.page = 10
         self.total = 10**6
@@ -1611,7 +1641,7 @@ class DeckPane(resident_.Control):
         options = session_options(answer.out) if answer.ok else {}
         self.hide = bool(options.get(HIDE_OPTION))
         seq = options.get(SCROLL_SEQ_OPTION, "")
-        if self.seq is not None and seq != self.seq:
+        if self.seq is not None and seq != self.seq and not self.top:
             self.move("pgup" if options.get(SCROLL_OPTION) == "older" else "end")
         self.seq = seq
 
@@ -1629,10 +1659,13 @@ class DeckPane(resident_.Control):
 
     def move(self, key: str) -> bool:
         steps = {"up": 1, "down": -1, "wheelup": 3, "wheeldown": -3, "pgup": self.page, "pgdn": -self.page}
+        if self.top:
+            # Counted from the top: down reveals later rows, Home returns.
+            steps = {name: -step for name, step in steps.items()}
         was = self.offset
-        if key == "end":
+        if key == ("home" if self.top else "end"):
             self.offset = 0
-        elif key == "home":
+        elif key == ("end" if self.top else "home"):
             self.offset = 10**6
         elif key in steps:
             self.offset = max(0, self.offset + steps[key])
@@ -1665,6 +1698,22 @@ def keep_first(noun: str) -> Callable[[Result, int], tuple[Result, str]]:
     def fit(result: Result, keep: int) -> tuple[Result, str]:
         rows = result.data
         return replace(result, data=rows[:keep]), f"{len(rows) - keep} more {noun} not shown — waiting comes first"
+
+    return fit
+
+
+def keep_from_top(noun: str, pane: DeckPane) -> Callable[[Result, int], tuple[Result, str]]:
+    """`keep` rows starting `pane.offset` down from the top, with a line saying where."""
+
+    def fit(result: Result, keep: int) -> tuple[Result, str]:
+        rows = result.data
+        start = pane.within(len(rows), keep)
+        below = max(0, len(rows) - start - keep)
+        shown = replace(result, data=rows[start : start + keep])
+        if start:
+            where = f"{below} {noun} below" if below else "the end"
+            return shown, f"↓ {start} down · {where} · Home: top"
+        return shown, f"top · {below} more {noun} below" if below else "top"
 
     return fit
 
@@ -1955,6 +2004,188 @@ def deck_queue(refresh: int | None, ticks: int | None, screen: bool, scope: str)
     return _resident("deck queue", once, refresh, ticks, screen, keep_first("row(s)"), pane)
 
 
+# ============================================================================
+# Todos — each agent's own list, written from its own tab
+# ============================================================================
+
+
+def caller_tab(session: str, pid: int | None = None, parent_of: dict[int, int] | None = None) -> str | None:
+    """The deck tab whose pane runs this process, by the process tree; None outside every tab.
+
+    Never by name: a session outside the deck may carry a tab's name, and it is
+    not that tab. The walk goes up the parent chain to an agent pane's pid.
+    """
+    listed, _ = panes(inner(session))
+    owners = {p.pid: p.agent for p in listed if p.role == AGENT and p.agent}
+    if not owners:
+        return None
+    parent_of = parents() if parent_of is None else parent_of
+    current, seen = os.getpid() if pid is None else pid, set()
+    while current and current not in seen:
+        if current in owners:
+            return owners[current]
+        seen.add(current)
+        current = parent_of.get(current, 0)
+    return None
+
+
+def tab_order(session: str) -> list[tuple[str, int]]:
+    """(agent, colour slot) in tab order with the primary first — the slot is the tab's own colour."""
+    listed, _ = panes(inner(session))
+    agents = [p for p in listed if p.role == AGENT and p.agent]
+    slots = agent_slots(listed)
+    order: list[tuple[str, int]] = []
+    for window_id in _window_order(agents):
+        name = next(p.agent for p in agents if p.window_id == window_id)
+        if name not in (n for n, _ in order):
+            order.append((name, slots.get(window_id, 0)))
+    primary = deck_primary(session)
+    return sorted(order, key=lambda pair: pair[0] != primary)
+
+
+def _todo_owner(session: str) -> tuple[str | None, str]:
+    """The calling tab's agent, or None and the sentence saying why it cannot be named."""
+    present = has_session(inner(session))
+    if present is None:
+        return None, "tmux could not be run — is it installed?"
+    if not present:
+        return None, f"no deck session {session!r} — a todo list belongs to a deck tab, and there is none"
+    agent = caller_tab(session)
+    if agent is None:
+        return None, (
+            f"not running inside a tab of deck {session!r} — a list belongs to the tab whose pane runs "
+            "the caller, so add, done and rm refuse anywhere else"
+        )
+    return agent, ""
+
+
+def _todo_change(change: Callable[[str, str], todos_.TodoList]) -> Result:
+    result = Result()
+    config, problems = load()
+    for problem in problems:
+        result.warn(problem)
+    agent, why = _todo_owner(config.session)
+    if agent is None:
+        result.ok = False
+        result.data = {"error": why}
+        return result
+    try:
+        todo = change(config.session, agent)
+    except (IndexError, ValueError) as exc:
+        result.ok = False
+        result.data = {"error": f"{agent}: {exc}"}
+        return result
+    result.data = {
+        "session": config.session,
+        "agent": agent,
+        "updated": todo.updated,
+        "open": todo.open,
+        "items": [{"n": n, "text": item.text, "done": item.done} for n, item in enumerate(todo.items, start=1)],
+    }
+    return result
+
+
+@deck.group(name="todo")
+def deck_todo() -> None:
+    """Each deck agent's own todo list, drawn in the deck's TODOS pane.
+
+        sb deck todo add "write the parser test"
+        sb deck todo done 1
+        sb deck todo list
+
+    `add`, `done` and `rm` act, on the list of the tab they run in — found
+    through the process tree, so they refuse outside a deck tab. `list` observes.
+    Lists live under `$SB_STATE`, never in a repo or `$SB_HOME`.
+    """
+
+
+@deck_todo.command(name="add")
+@click.argument("text")
+@emit
+def deck_todo_add(text: str) -> Result:
+    """Add TEXT to this tab's list.
+
+        sb deck todo add "write the parser test"
+
+    **This acts**, on the list of the tab it runs in, and refuses anywhere else.
+    """
+    if not todos_.clean(text):
+        raise click.UsageError("a todo needs some text")
+    return _todo_change(lambda session, agent: todos_.add(session, agent, text))
+
+
+@deck_todo.command(name="done")
+@click.argument("n", type=click.IntRange(min=1))
+@emit
+def deck_todo_done(n: int) -> Result:
+    """Mark item N of this tab's list done.
+
+        sb deck todo done 1
+
+    **This acts.** The item stays, dimmed and ticked, so the operator sees what moved.
+    """
+    return _todo_change(lambda session, agent: todos_.done(session, agent, n))
+
+
+@deck_todo.command(name="rm")
+@click.argument("n", type=click.IntRange(min=1))
+@emit
+def deck_todo_rm(n: int) -> Result:
+    """Remove item N from this tab's list.
+
+        sb deck todo rm 2
+
+    **This acts.** Later items renumber.
+    """
+    return _todo_change(lambda session, agent: todos_.remove(session, agent, n))
+
+
+@deck_todo.command(name="list")
+@click.option("--all", "every", is_flag=True, help="Every agent's list, even from inside a tab.")
+@click.option(
+    "--refresh",
+    type=click.IntRange(min=1),
+    default=None,
+    metavar="SECONDS",
+    help="Stay resident and re-read every N seconds. Off a terminal, one NDJSON envelope per tick.",
+)
+@click.option(
+    "--ticks",
+    type=click.IntRange(min=1),
+    default=None,
+    metavar="N",
+    help="With --refresh: stop after N refreshes and exit 0.",
+)
+@click.option(
+    "--screen",
+    is_flag=True,
+    help="With --refresh: redraw on the alternate screen, as the deck's own panes do.",
+)
+@emit
+def deck_todo_list(every: bool, refresh: int | None, ticks: int | None, screen: bool) -> Result:
+    """The todo lists, grouped by agent in tab order, primary first.
+
+        sb deck todo list
+        sb deck todo list --all
+
+    An observe. Inside a tab, that tab's list; elsewhere, or with `--all`, every
+    agent's. Each heading says when its list last changed; an agent that never
+    wrote one reads `no list kept`, and one with nothing left reads `nothing open`.
+    """
+    config, _ = load()
+    mine = None if every else caller_tab(config.session)
+
+    def once() -> Result:
+        order = tab_order(config.session)
+        if mine is not None:
+            order = [pair for pair in order if pair[0] == mine] or [(mine, 0)]
+        result = todos_.result_of(config.session, order, paint=bool(refresh and screen), only=mine)
+        return result
+
+    pane = DeckPane(config.session, lambda row: True, scroll=True, top=True)
+    return _resident("deck todo", once, refresh, ticks, screen, keep_from_top("row(s)", pane), pane)
+
+
 # **The act/observe bit, asserted on every subcommand** — a nested command that
 # never chose inherits observe, and an observe may be given a cadence. See
 # [[jobs]] round 1; `tests/test_deck.py` fails on a subcommand that did not choose.
@@ -1966,3 +2197,8 @@ mark(deck_marks, sb_acts=True)
 mark(deck_exit, sb_acts=True)
 mark(deck_queue, sb_acts=False)
 mark(deck_messages, sb_acts=False)
+mark(deck_todo, sb_acts=True)
+mark(deck_todo_add, sb_acts=True)
+mark(deck_todo_done, sb_acts=True)
+mark(deck_todo_rm, sb_acts=True)
+mark(deck_todo_list, sb_acts=False)

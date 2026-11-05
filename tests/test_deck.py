@@ -444,7 +444,7 @@ def test_an_unresolvable_pin_opens_the_deck_without_it(fake, home, said):
     result = invoke("deck")
     assert "pin 'ghost'" in said(result) and "no tab" in said(result)
     assert fake.tabs() == ["shell"]
-    assert set(fake.roles()) == {"tabs", "queue", "messages"}
+    assert set(fake.roles()) == {"tabs", "queue", "messages", "todos"}
 
 
 # ============================================================================
@@ -546,7 +546,7 @@ def test_window_zero_is_the_tabs_and_the_tools_only(fake, home, tmp_path):
     home(f'pin = "ws"\n[agent.ws]\ncwd = "{tmp_path}"\n')
     invoke("deck")
     roles = fake.roles()
-    assert set(roles) == {"tabs", "queue", "messages"}
+    assert set(roles) == {"tabs", "queue", "messages", "todos"}
     assert len({fake.panes[p]["window"] for p in roles.values()}) == 1
     assert set(fake.roles("sb-agents")) == {"agent"}
 
@@ -557,6 +557,7 @@ def test_every_tool_pane_runs_this_sb_by_absolute_path(fake, home):
     argv = {role: fake.panes[pane]["argv"] for role, pane in fake.roles().items()}
     assert argv["queue"] == [sb, "deck", "queue", "--refresh", "5", "--screen"]
     assert argv["messages"] == [sb, "deck", "messages", "--refresh", "10", "--screen"]
+    assert argv["todos"] == [sb, "deck", "todo", "list", "--all", "--refresh", "5", "--screen"]
 
 
 def test_the_tab_pane_nests_a_client_with_tmux_unset_on_the_same_server(fake, home):
@@ -567,7 +568,7 @@ def test_the_tab_pane_nests_a_client_with_tmux_unset_on_the_same_server(fake, ho
 
 def test_the_columns_plan():
     assert deck_.plan("columns", "%T", "%Q", "%M") == [
-        ["join-pane", "-d", "-h", "-s", "%Q", "-t", "%T"],
+        ["join-pane", "-d", "-h", "-f", "-s", "%Q", "-t", "%T"],
         ["join-pane", "-d", "-v", "-s", "%M", "-t", "%Q"],
         ["resize-pane", "-t", "%Q", "-x", "25%"],
         ["resize-pane", "-t", "%Q", "-y", "50%"],
@@ -576,7 +577,7 @@ def test_the_columns_plan():
 
 def test_the_stack_plan():
     assert deck_.plan("stack", "%T", "%Q", "%M") == [
-        ["join-pane", "-d", "-v", "-s", "%Q", "-t", "%T"],
+        ["join-pane", "-d", "-v", "-f", "-s", "%Q", "-t", "%T"],
         ["join-pane", "-d", "-h", "-s", "%M", "-t", "%Q"],
         ["resize-pane", "-t", "%Q", "-y", "30%"],
         ["resize-pane", "-t", "%Q", "-x", "50%"],
@@ -591,7 +592,7 @@ def test_bare_deck_lays_a_new_controller_out_in_columns(fake, home):
     invoke("deck")
     roles = fake.roles()
     moves = [call[1:] for call in fake.calls if call[1] in ("join-pane", "resize-pane")]
-    assert moves == deck_.plan("columns", roles["tabs"], roles["queue"], roles["messages"])
+    assert moves == deck_.plan("columns", roles["tabs"], roles["queue"], roles["messages"], roles["todos"])
     assert fake.options[("=sb:", "@sb-layout")] == "columns"
 
 
@@ -609,7 +610,7 @@ def test_layout_moves_panes_and_restarts_none(fake, home, tmp_path, shape):
     assert result.exit_code == 0, result.output
     roles = fake.roles()
     moves = [call[1:] for call in fake.calls if call[1] in ("join-pane", "resize-pane")]
-    assert moves == deck_.plan(shape, roles["tabs"], roles["queue"], roles["messages"])
+    assert moves == deck_.plan(shape, roles["tabs"], roles["queue"], roles["messages"], roles["todos"])
     assert fake.panes == before
     assert not {"kill-pane", "respawn-pane", "kill-window", "split-window", "new-window"} & set(fake.verbs())
     assert fake.options[("=sb:", "@sb-layout")] == shape
@@ -914,6 +915,14 @@ def test_the_queue_is_an_observe_and_the_rest_act():
         "exit": True,
         "queue": False,
         "messages": False,
+        "todo": True,
+    }
+    todo = deck_.deck_todo.commands
+    assert {name: getattr(command, "sb_acts") for name, command in todo.items()} == {
+        "add": True,
+        "done": True,
+        "rm": True,
+        "list": False,
     }
 
 
@@ -1328,7 +1337,7 @@ def test_the_tool_panes_are_painted_and_the_tabs_are_not(fake, home):
     invoke("deck")
     painted = {c[4] for c in fake.find("set-option") if "window-style" in c or "window-active-style" in c}
     roles = fake.roles()
-    assert painted == {roles["queue"], roles["messages"]}
+    assert painted == {roles["queue"], roles["messages"], roles["todos"]}
     assert all(c[-1] == theme.tmux_styles()["pane"] for c in fake.find("set-option") if "window-style" in c)
     assert not any("-g" in c or "-w" in c for c in fake.find("set-option") if "window-style" in c)
 
@@ -1501,13 +1510,13 @@ def test_queue_scope_and_marks_place_a_session_by_its_pane_never_its_name(fake, 
     assert set(deck_.placement([inside, outside])) == {"id-101"}
 
 
-def test_a_tab_opened_later_carries_no_profile_brief(core, fake):
+def test_a_tab_opened_later_carries_the_loaded_profiles_brief(core, fake):
     invoke("deck", "--profile", "core")
-    fake.options[("=sb-agents:", "@sb-primary")] = "skyrow-workspace"
+    assert fake.options[("=sb-agents:", "@sb-profile")] == "core"
     fake.calls.clear()
     assert invoke("--json", "deck", "open", "sky-boss").exit_code == 0
     later = told(launched(fake, "sky-boss"))
-    assert "Ask before pushing" not in later
+    assert "Ask before pushing" in later
     assert f"- skyrow-workspace (primary) — {core}/ws — coordinates the others" in later
 
 
@@ -1529,3 +1538,185 @@ def test_role_and_brief_are_known_keys():
         {"agent": {"x": {"cwd": "/x", "role": "r"}}, "profile": {"p": {"tabs": ["x"], "brief": "b"}}}
     )
     assert problems == [] and config.agents["x"].role == "r" and config.profiles["p"].brief == "b"
+
+
+# ============================================================================
+# Todos: each agent's own list, owned by the tab whose pane runs the caller
+# ============================================================================
+
+
+@pytest.fixture
+def sb_state(tmp_path, monkeypatch):
+    from skyboss import helpers
+
+    monkeypatch.setattr(helpers, "STATE_DIR", tmp_path / "state")
+    return tmp_path / "state"
+
+
+def caller_under(monkeypatch, pane_pid):
+    """This process's parent chain ends at `pane_pid`, through one shell between."""
+    import os
+
+    monkeypatch.setattr(deck_, "parents", lambda proc=None: {os.getpid(): 5000, 5000: pane_pid})
+
+
+def two_tabs(fake):
+    fake.add("sb", "deck", role="tabs", pid=1)
+    fake.add("sb-agents", "ws", agent="ws", role="agent", pid=10)
+    fake.add("sb-agents", "jam", agent="jam", role="agent", pid=20)
+    fake.options[("=sb-agents:", "@sb-primary")] = "ws"
+
+
+def test_a_same_named_session_outside_the_deck_cannot_write_a_tabs_list(fake, home, sb_state, monkeypatch, said):
+    two_tabs(fake)
+    caller_under(monkeypatch, 777)  # a `claude -n jam` running outside every deck pane
+    result = invoke("deck", "todo", "add", "pretend to be jam")
+    assert result.exit_code == 1 and "not running inside a tab of deck 'sb'" in said(result)
+    assert not (sb_state / "deck").exists()
+
+
+def test_add_refuses_with_no_deck_at_all(fake, home, sb_state, said):
+    result = invoke("deck", "todo", "add", "x")
+    assert result.exit_code == 1 and "no deck session 'sb'" in said(result)
+
+
+def test_add_done_and_list_round_trip_through_the_callers_tab(fake, home, sb_state, monkeypatch):
+    two_tabs(fake)
+    caller_under(monkeypatch, 20)
+    assert invoke("--json", "deck", "todo", "add", "write  the\nparser test").exit_code == 0
+    assert invoke("--json", "deck", "todo", "add", "ship it").exit_code == 0
+    done = json.loads(invoke("--json", "deck", "todo", "done", "1").stdout)["data"]
+    assert done["agent"] == "jam" and done["session"] == "sb" and done["open"] == 1 and done["updated"]
+    assert [(i["text"], i["done"]) for i in done["items"]] == [("write the parser test", True), ("ship it", False)]
+    stored = json.loads((sb_state / "deck" / "sb" / "todos" / "jam.json").read_text())
+    assert stored["updated"] == done["updated"] and stored["items"][0]["closed"]
+    mine = json.loads(invoke("--json", "deck", "todo", "list").stdout)["data"]
+    assert {row["agent"] for row in mine} == {"jam"}
+
+
+def test_done_past_the_end_names_the_length(fake, home, sb_state, monkeypatch, said):
+    two_tabs(fake)
+    caller_under(monkeypatch, 10)
+    invoke("deck", "todo", "add", "one")
+    result = invoke("deck", "todo", "done", "4")
+    assert result.exit_code == 1 and "no item 4 — the list has 1" in said(result)
+
+
+def test_rm_removes_and_renumbers(fake, home, sb_state, monkeypatch):
+    two_tabs(fake)
+    caller_under(monkeypatch, 10)
+    for text in ("a", "b", "c"):
+        invoke("deck", "todo", "add", text)
+    data = json.loads(invoke("--json", "deck", "todo", "rm", "2").stdout)["data"]
+    assert [(i["n"], i["text"]) for i in data["items"]] == [(1, "a"), (2, "c")]
+
+
+def test_lists_group_by_agent_in_tab_order_primary_first(fake, home, sb_state, monkeypatch):
+    from skyboss import todos
+
+    fake.add("sb", "deck", role="tabs", pid=1)
+    for pid, name in ((10, "jam"), (20, "ws"), (30, "mh")):
+        fake.add("sb-agents", name, agent=name, role="agent", pid=pid)
+    fake.options[("=sb-agents:", "@sb-primary")] = "ws"
+    todos.add("sb", "mh", "index")
+    todos.add("sb", "gone", "left over")
+    caller_under(monkeypatch, 999)
+    rows = json.loads(invoke("--json", "deck", "todo", "list").stdout)["data"]
+    headings = [row["agent"] for row in rows if row["kind"] == "agent"]
+    assert headings == ["ws", "jam", "mh", "gone"]
+    assert deck_.tab_order("sb") == [("ws", 1), ("jam", 0), ("mh", 2)]
+    assert [r["todos"] for r in rows if r["agent"] == "gone"][0].startswith("gone (no tab)")
+
+
+def test_no_list_kept_is_not_nothing_open(sb_state):
+    from skyboss import todos
+
+    todos.add("sb", "jam", "one")
+    todos.done("sb", "jam", 1)
+    rows, problems = todos.rows_of("sb", [("ws", 0), ("jam", 1)], NOW)
+    said_of = {r["agent"]: [x["todos"].strip() for x in rows if x["agent"] == r["agent"]] for r in rows}
+    assert problems == []
+    assert said_of["ws"] == ["ws", "no list kept"]
+    assert said_of["jam"][1:] == ["nothing open", "1. ✓ one"]
+
+
+def test_a_heading_takes_its_tabs_colour_only_when_painted(sb_state):
+    from skyboss import theme, todos
+
+    todos.add("sb", "jam-sense", "x")
+    (painted, *_), _ = todos.rows_of("sb", [("jam-sense", 0)], NOW, paint=True)
+    (plain, *_), _ = todos.rows_of("sb", [("jam-sense", 0)], NOW)
+    assert painted["parts"][0] == ["jam-sense", theme.agent_role("jam-sense", 0)]
+    assert plain["parts"][0] == ["jam-sense", "sb.accent"] and "updated" in plain["todos"]
+
+
+def test_an_unreadable_list_is_a_warning_and_reads_as_no_list(sb_state):
+    from skyboss import todos
+
+    todos.root("sb").mkdir(parents=True)
+    todos.path_for("sb", "jam").write_text("{not json")
+    rows, problems = todos.rows_of("sb", [("jam", 0)], NOW)
+    assert problems and "jam.json unreadable" in problems[0] and rows[1]["todos"].strip() == "no list kept"
+
+
+def test_the_three_tool_plans():
+    assert deck_.plan("columns", "%T", "%Q", "%M", "%D") == [
+        ["join-pane", "-d", "-h", "-f", "-s", "%Q", "-t", "%T"],
+        ["join-pane", "-d", "-v", "-s", "%M", "-t", "%Q"],
+        ["join-pane", "-d", "-v", "-s", "%D", "-t", "%M"],
+        ["resize-pane", "-t", "%Q", "-x", "25%"],
+        ["resize-pane", "-t", "%Q", "-y", "33%"],
+        ["resize-pane", "-t", "%M", "-y", "33%"],
+    ]
+    assert deck_.plan("stack", "%T", "%Q", "%M", "%D")[2] == ["join-pane", "-d", "-h", "-s", "%D", "-t", "%M"]
+
+
+@pytest.mark.parametrize("shape", ["stack", "columns"])
+def test_the_todos_pane_survives_a_layout_switch(fake, home, tmp_path, shape):
+    deck_built(fake, home, tmp_path)
+    todos_pane = fake.roles()["todos"]
+    before = dict(fake.panes[todos_pane])
+    assert invoke("--json", "deck", "layout", shape).exit_code == 0
+    assert fake.roles()["todos"] == todos_pane and fake.panes[todos_pane] == before
+
+
+def test_bare_deck_on_a_running_deck_adds_a_missing_todos_pane(fake, home, tmp_path):
+    deck_built(fake, home, tmp_path)
+    del fake.panes[fake.roles()["todos"]]
+    invoke("deck")
+    assert "todos" in fake.roles() and fake.find("split-window")
+
+
+def test_the_brief_tells_an_agent_to_keep_its_todos():
+    text = deck_.brief("jam", "sb", [("jam", "/fx/j", "")], "jam")
+    assert 'sb deck todo add "<text>"' in text and "TODOS pane" in text
+
+
+def test_the_todos_pane_scrolls_from_the_top():
+    pane = deck_.DeckPane("sb", lambda row: True, scroll=True, top=True)
+    fit = deck_.keep_from_top("row(s)", pane)
+    result = Result_(data=list(range(20)))
+    shown, line = fit(result, 5)
+    assert shown.data == [0, 1, 2, 3, 4] and line == "top · 15 more row(s) below"
+    assert pane.move("down") and fit(result, 5)[0].data == [1, 2, 3, 4, 5]
+    assert pane.move("end") and fit(result, 5)[0].data == [15, 16, 17, 18, 19]
+    assert pane.move("home") and pane.offset == 0
+
+
+def test_a_pane_can_scroll_to_its_last_row_after_the_fit_overshoots():
+    """The fit's last call is the `keep` it drew, so `end` clamps to a page that was drawn."""
+    from rich.text import Text
+
+    from skyboss.resident import fitted
+
+    pane = deck_.DeckPane("sb", lambda row: True, scroll=True, top=True)
+    fit = deck_.keep_from_top("row(s)", pane)
+    result = Result_(data=[f"row {i}" for i in range(20)])
+
+    def drawn(r):
+        return Text("\n".join(["HEADING", *r.data]))
+
+    fitted(result, drawn(result), 8, fit, drawn, always=True)
+    pane.move("end")
+    shown = fitted(result, drawn(result), 8, fit, drawn, always=True)
+    assert shown.plain.rstrip().endswith("row 19")

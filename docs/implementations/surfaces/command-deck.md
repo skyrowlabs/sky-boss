@@ -488,3 +488,38 @@ The primary's hardcoded "coordinating agent" line is gone: the roster still mark
 what it does comes from its `role`. The fifteen-line limit covers sky.boss's own lines only, never
 the operator's `brief`. A tab opened later with `sb deck open` is not launched under a profile, so
 it gets the roster and roles but no profile `brief`.
+
+### 2026-11-04: todo lists, the TODOS pane, and the profile brief on a later tab
+
+Claude Code's main sessions have no todo tool sky.boss can read, so each agent keeps its own
+list through the deck: `sb deck todo add "<text>"`, `done <n>` and `rm <n>` act, and `list`
+observes. A list is one JSON file per agent, `$SB_STATE/deck/<session>/todos/<agent>.json`: never
+in a repo or `$SB_HOME`, keyed by deck session and agent name, stamped with `updated` on every
+write, and written through a rename. The brief gains one line asking the agent to keep it; the
+generated part is still fifteen lines for a five-agent profile.
+
+- **The owner is the caller's tab, by the process tree.** `caller_tab` walks this process's
+  parents up to an agent pane's pid in `<session>-agents`. There is no name argument, so a
+  same-named session outside the deck reaches no tab and is refused with the sentence saying why.
+  `list` inside a tab shows that tab's list; elsewhere, or with `--all`, every list.
+- **The TODOS pane** is a third tool pane, role `todos`, below MESSAGES in columns and beside it in
+  stack. A switch moves it, and a bare `sb deck` on an older deck puts it back. It is grouped by
+  agent in tab order, primary first. Each heading is the agent's name in its tab colour, plus how
+  long ago the list changed. A list whose agent has no tab follows, marked `(no tab)`. An agent that
+  never wrote a list reads `no list kept`, and one with nothing left reads `nothing open`. Done items
+  stay **dimmed, with a ✓**, rather than hidden, so the operator sees what moved. It refreshes every
+  5s on the `--screen` repaint, and it scrolls from the **top** with its own keys (arrows, PgUp/PgDn,
+  wheel, Home/End) once focused. There is no global shortcut, so the bar hints are unchanged.
+- **Two fixes the third pane exposed.** On a new detached deck the first join landed the tool
+  column in the tab pane's share of the stack, and the third join then hit a one-row pane and was
+  refused. The first join is now full-window (`-f`). Separately, `fitted`'s grow-back left a pane
+  remembering a page one row larger than it drew, so End stopped one row short of the last row (in
+  MESSAGES too). The fit now sees the `keep` it drew last.
+- **A tab opened later gets the profile's brief.** `sb deck --profile NAME` records `@sb-profile`
+  on the inner session beside `@sb-primary`, and `sb deck open` reads it back. This reverses the
+  last line of the previous entry.
+
+Smoke-tested on a throwaway `-L` socket with a fake `claude` and scratch HOME, SB_HOME and SB_STATE.
+`add` and `done` from inside one tab wrote that tab's list and nothing else. The same command from a
+`claude -n sky-boss` outside the deck was refused and left the list untouched. Both layout switches
+kept the TODOS pane's pid.
