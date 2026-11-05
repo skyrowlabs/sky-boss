@@ -523,3 +523,18 @@ Smoke-tested on a throwaway `-L` socket with a fake `claude` and scratch HOME, S
 `add` and `done` from inside one tab wrote that tab's list and nothing else. The same command from a
 `claude -n sky-boss` outside the deck was refused and left the list untouched. Both layout switches
 kept the TODOS pane's pid.
+
+### 2026-11-04: `sb deck brief`, a way for a running agent to catch up
+
+- **A brief is fixed at launch.** An agent started before briefs existed, or before a peer opened,
+  has no way to learn the current deck, and the deck never types into a running agent. `sb deck
+  brief` is an observe that rebuilds the calling tab's brief now: the live roster, the roles and the
+  loaded profile's `brief`. The caller is found by the process tree, as for `todo`. A NAME previews
+  another agent's brief from anywhere, and outside a tab with no NAME it refuses with a sentence.
+  The `--json` data also carries `peers` as a list.
+- **The operator brings an agent in by typing, not by sky.boss typing.** A user-level skill that
+  runs `sb --json deck brief` and introduces the agent to the primary is the intended trigger. It
+  lives in the operator's own skills directory, not in this repo. The brief now names the command.
+- **The brief's cap counts fixed text only** (`BRIEF_LIMIT = 12`). The roster grows by one line
+  per declared agent and the profile's `brief` is the operator's own, so counting either would let
+  a sixth agent break a cap meant for sky.boss's own wording.

@@ -915,6 +915,7 @@ def test_the_queue_is_an_observe_and_the_rest_act():
         "exit": True,
         "queue": False,
         "messages": False,
+        "brief": False,
         "todo": True,
     }
     todo = deck_.deck_todo.commands
@@ -1721,3 +1722,31 @@ def test_a_pane_can_scroll_to_its_last_row_after_the_fit_overshoots():
     pane.move("end")
     shown = fitted(result, drawn(result), 8, fit, drawn, always=True)
     assert shown.plain.rstrip().endswith("row 19")
+
+
+def test_brief_rebuilds_the_calling_tabs_brief_with_the_live_roster(core, fake, monkeypatch):
+    invoke("deck", "--profile", "core")
+    fake.options[("=sb-agents:", "@sb-primary")] = "skyrow-workspace"
+    monkeypatch.setattr(deck_, "caller_tab", lambda session, **kw: "mind-head")
+    result = invoke("--json", "deck", "brief")
+    assert result.exit_code == 0, result.output
+    data = json.loads(result.stdout)["data"]
+    assert data["agent"] == "mind-head" and data["brief"].startswith('You are "mind-head"')
+    assert "Ask before pushing" in data["brief"]
+    assert [p["name"] for p in data["peers"]][0] == "skyrow-workspace"
+    assert "mind-head" not in [p["name"] for p in data["peers"]]
+
+
+def test_brief_outside_a_tab_asks_for_a_name_and_previews_one(core, fake, monkeypatch):
+    invoke("deck", "--profile", "core")
+    monkeypatch.setattr(deck_, "caller_tab", lambda session, **kw: None)
+    refused = invoke("--json", "deck", "brief")
+    assert refused.exit_code == 1 and "name an agent" in json.loads(refused.stdout)["data"]["error"]
+    preview = invoke("--json", "deck", "brief", "stash-flow")
+    assert json.loads(preview.stdout)["data"]["brief"].startswith('You are "stash-flow"')
+
+
+def test_brief_with_no_deck_says_so(fake, home):
+    home("")
+    result = invoke("--json", "deck", "brief", "x")
+    assert result.exit_code == 1 and "no deck session" in json.loads(result.stdout)["data"]["error"]

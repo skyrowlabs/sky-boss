@@ -836,7 +836,8 @@ def brief(name: str, session: str, rows: list[tuple[str, str, str]], primary: st
         "ListAgents (every session on this machine, the deck's and others).",
         "Agents in the deck at your launch, primary first:",
         *[entry(*row) for row in rows],
-        "Tabs open and close, so check the live list before assuming a peer is there.",
+        "Tabs open and close, so check the live list before assuming a peer is there;",
+        "`sb deck brief` reprints this with the deck as it stands now.",
         "The operator sees every message between agents in the deck's MESSAGES pane, and answers",
         "an agent's prompts by clicking its tab.",
         'Keep your current todos with `sb deck todo add "<text>"` and `sb deck todo done <n>`; the',
@@ -2010,6 +2011,50 @@ def deck_queue(refresh: int | None, ticks: int | None, screen: bool, scope: str)
 # ============================================================================
 
 
+@deck.command(name="brief")
+@click.argument("name", required=False)
+@emit
+def deck_brief(name: str | None) -> Result:
+    """The brief a deck agent is given, rebuilt now with the live roster.
+
+        sb deck brief
+        sb deck brief stash-flow
+
+    An observe. Inside a tab, that tab's brief; NAME previews another agent's.
+    An agent started before the deck briefed it, or before a peer opened, reads
+    this to catch up — the deck never types into a running agent.
+    """
+    result = Result()
+    config, problems = load()
+    for problem in problems:
+        result.warn(problem)
+    present = has_session(inner(config.session))
+    if not present:
+        result.ok = False
+        result.data = {"error": f"no deck session {config.session!r} — start one with `sb deck`"}
+        return result
+    who = name or caller_tab(config.session)
+    if who is None:
+        result.ok = False
+        result.data = {
+            "error": f"not running inside a tab of deck {config.session!r} — name an agent to preview its brief"
+        }
+        return result
+    projects = _projects()
+    primary = deck_primary(config.session)
+    rows = roster(config, projects, [], primary)
+    if who not in (row[0] for row in rows):
+        result.warn(f"{who!r} has no tab in deck {config.session!r}; this is the brief it would get if opened")
+    result.data = {
+        "agent": who,
+        "session": config.session,
+        "primary": primary,
+        "peers": [{"name": n, "cwd": d, "role": r} for n, d, r in rows if n != who],
+        "brief": brief(who, config.session, rows, primary, deck_profile_brief(config)),
+    }
+    return result
+
+
 def caller_tab(session: str, pid: int | None = None, parent_of: dict[int, int] | None = None) -> str | None:
     """The deck tab whose pane runs this process, by the process tree; None outside every tab.
 
@@ -2198,6 +2243,7 @@ mark(deck_marks, sb_acts=True)
 mark(deck_exit, sb_acts=True)
 mark(deck_queue, sb_acts=False)
 mark(deck_messages, sb_acts=False)
+mark(deck_brief, sb_acts=False)
 mark(deck_todo, sb_acts=True)
 mark(deck_todo_add, sb_acts=True)
 mark(deck_todo_done, sb_acts=True)
