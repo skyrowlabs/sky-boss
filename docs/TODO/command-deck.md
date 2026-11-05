@@ -804,3 +804,14 @@ kept the TODOS pane's pid.
   theme overrides `userMessageBackground`, on dark bases only, because that ground under a light
   base's dark text would be unreadable. The token and its preset values were read from the installed
   Claude Code binary (2.1.318), not from its docs.
+
+### 2026-11-05: one clock, in the footer
+
+- **The marks time moved to the footer, beside the countdown, on Jeston's ask.** `@sb-marked` is now
+  written on the deck session, because the outer bar reads it there; the tab rows end at their list,
+  so the tabs get that room and `unseen`, which only padded the off-name rows, is gone.
+- **A deck pane draws no timing of its own**: `shared` drops `· refresh Ns` and `· ran HH:MM:SS` as
+  it already dropped the countdown. A pane that stalls no longer shows a stale `ran`; the footer
+  speaks for the marks loop and the cadence, not for each pane.
+- **`sb deck reload` restarts the marks loop.** An old loop would have gone on writing the tabs
+  session, and the footer would have said `not running` over a live one.

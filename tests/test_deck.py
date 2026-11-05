@@ -977,7 +977,7 @@ def test_marks_write_each_tabs_registry_word_once(fake, home, monkeypatch):
     result = deck_.marks_once("sb", written, [Adapter([a_session(10, "busy")])])
     assert (state(fake, jam), state(fake, mind)) == ("busy", "unregistered")
     assert [r["state"] for r in result.data] == ["busy", "unregistered"]
-    assert ("=sb-agents:", "@sb-marked") in fake.options
+    assert ("=sb:", "@sb-marked") in fake.options
     fake.calls.clear()
     deck_.marks_once("sb", written, [Adapter([a_session(10, "busy")])])
     assert [c for c in fake.find("set-option") if "@sb-state" in c] == []
@@ -1984,7 +1984,7 @@ def test_fold_names_only_a_right_column_pane_and_saves_without_a_deck(fake, home
 def test_each_bars_label_is_given_room_for_its_whole_width():
     options = dict(deck_.bar_options(False))
     assert " sky.boss deck " in options["status-left"]
-    assert options["status-left-length"] == str(len(" sky.boss deck ") + 1 + len("⟳ next in 5s "))
+    assert options["status-left-length"] == str(len(" sky.boss deck ") + 1 + len("⟳ next in 5s marks not running "))
     tabs = dict(deck_.bar_options(True))
     _, width = deck_.tab_lefts()
     assert "skyrow" in tabs["status-left"] and tabs["status-left-length"] == str(width)
@@ -2099,12 +2099,16 @@ def test_the_scrollbar_lights_the_visible_share_of_its_track():
     assert bar == " " * 4 + "─" * 12 + "━" * 9 + "─" * 9
 
 
-def test_every_tab_row_keeps_the_same_right_end_so_the_three_scroll_together():
-    style = deck_.theme.tmux_styles()
+def test_the_tab_rows_end_at_their_list_so_the_three_scroll_together():
     rows = [deck_.tab_row(n, "") for n in range(3)]
     assert all("#[list=on]" in row and "#[list=focus]" in row for row in rows)
-    assert all(row.endswith(deck_.marks_text()) for row in rows)
-    assert f"#[{style['unseen']}]" in rows[0] and f"#[{style['quiet']}]" in rows[1]
+    assert all(row.endswith("#[nolist]") for row in rows)
+
+
+def test_the_marks_time_is_in_the_footer_and_not_the_tab_bar():
+    footer, tabs = dict(deck_.bar_options(False)), dict(deck_.bar_options(True))
+    assert deck_.marks_text() in footer["status-left"]
+    assert not any(deck_.MARKED_OPTION in value for value in tabs.values())
 
 
 def test_the_deck_rescrolls_on_a_resize_or_a_tab_change():
@@ -2125,6 +2129,27 @@ def test_reload_restarts_every_tool_pane_that_closes_itself_and_kills_none(fake,
     assert fake.options[("=sb:", "@sb-hidden")] == ""
 
 
+def test_reload_puts_the_marks_loop_on_this_code(fake, home, sb_state, monkeypatch):
+    invoke("deck")
+    owners = iter([41, 41, None, None])
+    stopped = []
+    monkeypatch.setattr(deck_, "_sleep", lambda s: None)
+    monkeypatch.setattr(deck_, "_marks_owner", lambda session: next(owners))
+    monkeypatch.setattr(deck_.os, "kill", lambda pid, sig: stopped.append(pid))
+    fake.calls.clear()
+    assert deck_.restart_marks("sb") == []
+    assert stopped == [41] and "run-shell" in fake.verbs()
+
+
+def test_reload_says_when_the_old_marks_loop_will_not_leave(fake, home, sb_state, monkeypatch):
+    monkeypatch.setattr(deck_, "_sleep", lambda s: None)
+    monkeypatch.setattr(deck_, "_marks_owner", lambda session: 41)
+    monkeypatch.setattr(deck_.os, "kill", lambda pid, sig: None)
+    fake.calls.clear()
+    assert "old code" in deck_.restart_marks("sb")[0]
+    assert "run-shell" not in fake.verbs()
+
+
 def test_reload_names_a_pane_too_old_to_close_itself(fake, home, sb_state, monkeypatch):
     invoke("deck")
     monkeypatch.setattr(deck_, "_sleep", lambda s: None)
@@ -2132,7 +2157,7 @@ def test_reload_names_a_pane_too_old_to_close_itself(fake, home, sb_state, monke
     assert data["partial"] and any("press q in it" in w for w in data["warnings"])
 
 
-def test_every_deck_pane_refreshes_on_the_clocks_multiples_and_draws_no_countdown():
+def test_every_deck_pane_refreshes_on_the_clocks_multiples_and_draws_no_clock_of_its_own():
     from skyboss import chrome
     from skyboss.resident import Residency
 
@@ -2143,8 +2168,16 @@ def test_every_deck_pane_refreshes_on_the_clocks_multiples_and_draws_no_countdow
     assert not state.due()
     clock[0] = 15.0
     assert state.due()  # 3 seconds after the first run, because 15 is the boundary
-    top, _ = chrome.status_bands(state.chrome(), 15.0, 80)
-    assert not any("next in" in text for text, _ in top)
+    state.finish(output.Result())
+    top, bottom = chrome.status_bands(state.chrome(), 15.0, 80)
+    drawn = "".join(text for text, _ in top + bottom)
+    assert not any(word in drawn for word in ("next in", "refresh", " ran "))
+    own = Residency("sb data", 5, lambda: clock[0])
+    own.begin()
+    own.finish(output.Result())
+    top, bottom = chrome.status_bands(own.chrome(), 15.0, 80)
+    drawn = "".join(text for text, _ in top + bottom)
+    assert all(word in drawn for word in ("next in", "refresh", " ran "))
     assert deck_.DeckPane("sb", lambda row: True).shared_clock()
 
 

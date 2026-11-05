@@ -73,8 +73,8 @@ NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 AGENT_OPTION = "@sb-agent"
 ROLE_OPTION = "@sb-deck"
 LAYOUT_OPTION = "@sb-layout"
-# Window: the registry's word for the tab's session. Session (tabs): when the
-# marks were last written, and the pid of the one loop that writes them.
+# Window: the registry's word for the tab's session. Session: when the marks were last
+# written (deck, for the footer), and the pid of the one loop that writes them (tabs).
 STATE_OPTION = "@sb-state"
 COLOUR_OPTION = "@sb-colour"
 MARKED_OPTION = "@sb-marked"
@@ -584,23 +584,20 @@ def tab_lefts() -> tuple[tuple[str, ...], int]:
 
 
 def marks_text() -> str:
-    """The tab row's right end: when the marks loop last wrote, as a tmux format."""
+    """The footer's word for when the marks loop last wrote, as a tmux format."""
     marked = "#{" + MARKED_OPTION + "}"
     return f"marks #{{?{marked},{marked},not running}} "
 
 
 def tab_row(row: int, left: str) -> str:
-    """`status-format[row]` for the tab bar: `left`, the tabs' boxes as a tmux list, and the marks.
+    """`status-format[row]` for the tab bar: `left`, then the tabs' boxes as a tmux list.
 
     A list that will not fit is scrolled by tmux to keep the current tab in view. Each row scrolls
-    alone, so every row carries the same right end (unseen off the name row) to give all three the
-    same room, and so the same scroll.
+    alone, so every `left` is one width to give all three the same room, and so the same scroll.
     """
-    style = theme.tmux_styles()
     current = f"#[list=focus]{tab_cell(row, True)}#[list=on]"
     cells = f"#[list=on]#{{W:{tab_cell(row, False)},{current}}}#[nolist]"
-    shown = style["quiet"] if row == 1 else style["unseen"]
-    return f"#[align=left]{left}{cells}#[align=right]#[{shown}]{marks_text()}"
+    return f"#[align=left]{left}{cells}"
 
 
 #: The row under the tabs, drawn only while they overflow; `@sb-scrollbar` holds it.
@@ -644,7 +641,6 @@ def scroll_once(session: str) -> list[str]:
     name = inner(session)
     clients = tmux("list-clients", "-t", f"={name}", "-F", "#{client_width}")
     windows = tmux("list-windows", "-t", f"={name}", "-F", "#{window_active}\t#{window_name}")
-    marked = tmux("show-options", "-v", "-t", scope(name), MARKED_OPTION)
     if not (clients.ok and windows.ok):
         return [f"could not measure the deck's tab row — {_said(clients if not clients.ok else windows)}"]
     widths = [int(w) for w in clients.out.split() if w.isdigit()]
@@ -653,8 +649,7 @@ def scroll_once(session: str) -> list[str]:
     rows = [line.split("\t", 1) for line in windows.out.splitlines() if "\t" in line]
     current = next((n for n, (active, _) in enumerate(rows) if active == "1"), 0)
     _, left = tab_lefts()
-    right = len(f"marks {(marked.out.strip() if marked.ok else '') or 'not running'} ")
-    room = min(widths) - left - right
+    room = min(widths) - left
     span = visible_span([tab_width(label) for _, label in rows], current, room)
     if span is None:
         return _session_options(name, (("status", str(TAB_ROWS)), (SCROLLBAR_OPTION, "")))
@@ -680,7 +675,7 @@ def shared_countdown(every: int = TOOLS_REFRESH) -> str:
 
 
 def bar_options(tabs: bool) -> tuple[tuple[str, str], ...]:
-    """Session options for a deck bar. The tab row also says when the marks were last written."""
+    """Session options for a deck bar. The footer also says when the marks were last written."""
     style = theme.tmux_styles()
     label = "sky.boss deck"
     lefts: tuple[str, ...] = ()
@@ -689,8 +684,11 @@ def bar_options(tabs: bool) -> tuple[tuple[str, str], ...]:
         left = lefts[1]
     else:
         tick = shared_countdown()
-        width = len(label) + 3 + len(f"⟳ next in {TOOLS_REFRESH}s ")
-        left = f"#[{style['label']}] {label} #[nobold {style['working']}]⟳ next in {tick}s #[{style['bar']}]"
+        width = len(label) + 3 + len(f"⟳ next in {TOOLS_REFRESH}s marks not running ")
+        left = (
+            f"#[{style['label']}] {label} #[nobold {style['working']}]⟳ next in {tick}s "
+            f"#[{style['quiet']}]{marks_text()}#[{style['bar']}]"
+        )
     options: tuple[tuple[str, str], ...] = (
         ("status-style", style["bar"]),
         ("status-left", left),
@@ -701,7 +699,6 @@ def bar_options(tabs: bool) -> tuple[tuple[str, str], ...]:
         # The countdown is tmux's own arithmetic on the clock, so it has to redraw every second.
         options += (("status-interval", "1"),)
     if tabs:
-        options += (("status-right", f"#[{style['quiet']}]{marks_text()}"),)
         options += (("status", str(TAB_ROWS)),)
         options += tuple((f"status-format[{row}]", tab_row(row, lefts[row])) for row in range(TAB_ROWS))
         options += ((f"status-format[{TAB_ROWS}]", "#{" + SCROLLBAR_OPTION + "}"),)
@@ -950,9 +947,7 @@ def marks_once(
     for problem in scroll_once(session):
         result.degrade(problem)
     count = str(len({p.window_id for p in listed if p.role == AGENT}))
-    for problem in _session_options(name, ((MARKED_OPTION, clock(time.time())),)) + _session_options(
-        session, ((AGENT_COUNT_OPTION, count),)
-    ):
+    for problem in _session_options(session, ((MARKED_OPTION, clock(time.time())), (AGENT_COUNT_OPTION, count))):
         result.degrade(problem)
     result.data = rows
     return result
@@ -1954,8 +1949,8 @@ def deck_reload() -> Result:
         sb deck reload
 
     **This acts**, and kills nothing: the bars, keys and colours are set again,
-    and each tool pane is asked to close itself and is then opened fresh. Agent
-    tabs are untouched. A pane from before round 5 of [[command-deck]] cannot be
+    and each tool pane and the marks loop is asked to close itself and is then
+    opened fresh. Agent tabs are untouched. A pane from before round 5 of [[command-deck]] cannot be
     asked, so it is named in the result: press q in it, then run this again.
     """
     result = Result()
@@ -1980,10 +1975,11 @@ def deck_reload() -> Result:
     for role in stuck:
         more.append(f"the {role} pane predates reload and kept running — press q in it, then `sb deck reload` again")
     created, arranged = arrange(config.session, layout_of(config.session), force=True)
-    more += arranged + dress_sessions(config.session)
+    marks = restart_marks(config.session)
+    more += arranged + dress_sessions(config.session) + marks
     for problem in more:
         result.warn(problem)
-    result.partial = bool(stuck or arranged)
+    result.partial = bool(stuck or arranged or marks)
     result.data = {"session": config.session, "restarted": ", ".join(created), "kept": ", ".join(stuck)}
     return result
 
@@ -2099,6 +2095,18 @@ def stop_marks(session: str) -> str:
     except OSError:
         return ""
     return str(pid)
+
+
+def restart_marks(session: str) -> list[str]:
+    """Put the marks loop on this sky.boss's code, waiting for the old one to leave."""
+    stop_marks(session)
+    waited = 0.0
+    while _marks_owner(session) is not None:
+        if waited >= HIDE_WAIT:
+            return ["the marks loop kept running on its old code — `sb deck reload` again"]
+        _sleep(HIDE_POLL)
+        waited += HIDE_POLL
+    return start_marks(session)
 
 
 def end_sessions(names: list[str]) -> tuple[list[str], list[tuple[str, str]]]:
@@ -2284,7 +2292,7 @@ class DeckPane(resident_.Control):
         return self.fold
 
     def shared_clock(self) -> bool:
-        # Every deck pane refreshes together; the outer bar's footer draws the one countdown.
+        # Every deck pane refreshes together; the outer bar's footer draws the one clock.
         return True
 
     def summary(self, result: Result | None) -> str:

@@ -283,7 +283,7 @@ class Control:
         return False
 
     def shared_clock(self) -> bool:
-        """Refresh on the clock's multiples of the interval, and leave the countdown to whoever shows it."""
+        """Refresh on the clock's multiples of the interval, and leave its timing to whoever shows it."""
         return False
 
     def summary(self, result: Result | None) -> str:

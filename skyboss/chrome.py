@@ -423,7 +423,7 @@ def _top_spans(chrome: Chrome, now: float) -> tuple[list[Span], list[Span]]:
     left: list[Span] = [(chrome.source, "bold")]
     if chrome.attention == "pending":
         left.append((" · pending", _FRAME))
-    elif chrome.shape == "resident" and chrome.interval:
+    elif chrome.shape == "resident" and chrome.interval and not chrome.shared:
         left.append((f" · refresh {chrome.interval}s", _FRAME))
     elif chrome.shape in ("stream", "cursor"):
         left.append((" · follow", _FRAME))
@@ -496,7 +496,7 @@ def _bottom_spans(chrome: Chrome, now: float) -> tuple[list[Span], list[Span]]:
         left.append((word, ROLE.get(word, "sb.label")))
         if chrome.duration_s is not None:
             left.append((f" · {chrome.duration_s:.1f}s", "sb.num"))
-        if chrome.ran_at is not None:
+        if chrome.ran_at is not None and not chrome.shared:
             left.append((f" · ran {clock(chrome.ran_at)}", "sb.label"))
         if chrome.warnings:
             plural = "" if chrome.warnings == 1 else "s"

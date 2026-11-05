@@ -492,8 +492,6 @@ def tmux_styles() -> dict[str, str]:
         # A working tab's lit ground: the brand tinted into the bar, under full-strength text.
         "tab-working": f"fg={TEXT} bg={WORKING_GROUND} bold",
         "tab-edge": f"fg={TEXT_3}",
-        # Text drawn in the bar's own ground: it takes room and shows nothing, so rows share a width.
-        "unseen": f"fg={SURFACE} bg={SURFACE}",
         # The tab row's scrollbar, shown only when the tabs overflow: the visible span on a structure track.
         "scroll-thumb": f"fg={BRAND} bg={SURFACE}",
         "scroll-track": f"fg={TEXT_3} bg={SURFACE}",
