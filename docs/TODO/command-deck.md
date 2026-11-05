@@ -321,6 +321,18 @@ Asked by Jeston on 2026-11-05, relayed by the workspace; he answered the two ope
 - [x] **Clicking a message opens it whole in a popup**, with a header of from, to and when it was
       sent (Jeston's choice of fields), the body drawn as Markdown, q to close.
 
+## Phase 10 (round 8): a centred mark, a smaller popup, a scrolling tab row
+
+Asked by Jeston on 2026-11-05, typed in skeletor's tab and relayed.
+
+- [x] **The mark centred in the bar and not stretched, the L as thick as the S.** Sextant glyphs,
+      2×3 pixels a cell, so a pixel is near square. Every stroke is one pixel, and a blank pixel
+      row above and below centres it.
+- [x] **A smaller message popup**: 60% by 50% of the client, from 80% by 80%.
+- [x] **The tab row scrolls when it overflows, with a thin scrollbar under it shown only then.**
+      tmux keeps the current tab in view, and a fourth bar row draws where the view sits.
+- [x] **A lighter ground on the pane label rows**: the brand at 28% over the void, from 20%.
+
 ## Dropped, and why
 
 - **Binding Ctrl-C for exit.** It is claude's interrupt, and forwarding it would put every
@@ -712,3 +724,25 @@ kept the TODOS pane's pid.
 - **M-x prints its count from the envelope.** It greps one `"cleared"` per list in `--json`, so it
   reads none of the human output. A list with nothing done is not rewritten, so its place in the
   newest-first TODOS order holds.
+
+### 2026-11-05: round 8 built
+
+- **Quadrants made the mark tall.** A quadrant pixel is half a cell wide and half a cell tall,
+  so twice as tall as it is wide. That made round 7's mark fill its rows with an L thinner than
+  the S's horizontals. A sextant pixel is a third of a cell tall, near square, which centres the
+  mark in nine pixel rows with one blank each side. The L's base sits in a cell row of its own,
+  behind a gap row, so no cell needs three colours. Konsole draws sextants, through Noto Sans
+  Symbols 2 if not natively; a font without them would show boxes.
+- **The scroll is tmux's, and only the scrollbar is ours.** `#[list=on]` / `#[list=focus]` let
+  tmux trim the tab list around the current tab with no latency. Each status row trims alone, so
+  rows 0 and 2 carry the name row's right end in the bar's own colour (`unseen`). All three then
+  get the same room and the same trim; without it the boxes would split. The scrollbar mirrors
+  tmux's rule from `format_draw_put_list` (centre the focus, clamp at either end).
+  `sb deck scroll` computes it and toggles `status` between 3 and 4. It runs on tmux hooks
+  (client-resized, session-window-changed, window-linked/unlinked) and on every marks tick as a
+  backstop. Smoked at 140 and 300 columns with eight tabs: the thumb followed the current tab
+  within 1.5s, and widening hid the row.
+- **`set-hook` refuses a bare `=name` target, like `set-option`.** The first smoke showed no
+  hooks and a thumb moved only by the marks loop. The hooks now target `scope()`.
+- **The lighter ground costs the band's muted text some contrast**: `sb.muted` on it measures
+  about 2.9 (3.4 at round 7's 20%). The label and its text hold above 11. Jeston asked for lighter.

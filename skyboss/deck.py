@@ -564,11 +564,82 @@ def tab_lefts() -> tuple[tuple[str, ...], int]:
     return lefts, width
 
 
+def marks_text() -> str:
+    """The tab row's right end: when the marks loop last wrote, as a tmux format."""
+    marked = "#{" + MARKED_OPTION + "}"
+    return f"marks #{{?{marked},{marked},not running}} "
+
+
 def tab_row(row: int, left: str) -> str:
-    """`status-format[row]` for the tab bar: `left`, the tabs' boxes, and the marks on the name row."""
-    cells = f"#{{W:{tab_cell(row, False)},{tab_cell(row, True)}}}"
-    right = "#[align=right]#{T:status-right}" if row == 1 else ""
-    return f"#[align=left]{left}{cells}{right}"
+    """`status-format[row]` for the tab bar: `left`, the tabs' boxes as a tmux list, and the marks.
+
+    A list that will not fit is scrolled by tmux to keep the current tab in view. Each row scrolls
+    alone, so every row carries the same right end (unseen off the name row) to give all three the
+    same room, and so the same scroll.
+    """
+    style = theme.tmux_styles()
+    current = f"#[list=focus]{tab_cell(row, True)}#[list=on]"
+    cells = f"#[list=on]#{{W:{tab_cell(row, False)},{current}}}#[nolist]"
+    shown = style["quiet"] if row == 1 else style["unseen"]
+    return f"#[align=left]{left}{cells}#[align=right]#[{shown}]{marks_text()}"
+
+
+#: The row under the tabs, drawn only while they overflow; `@sb-scrollbar` holds it.
+SCROLLBAR_OPTION = "@sb-scrollbar"
+
+
+def tab_width(name: str) -> int:
+    """A tab's visible width: its box (`│ name │`) and the space after it."""
+    return len(name) + 5
+
+
+def visible_span(widths: list[int], current: int, room: int) -> tuple[int, int, int] | None:
+    """What of the tab list tmux shows in `room` cells: (start, end, total), or None when all fit.
+
+    tmux's own rule (`format_draw_put_list`): centre the focused tab, clamped at either end.
+    """
+    total = sum(widths)
+    if total <= room or room <= 0:
+        return None
+    focus_start = sum(widths[:current])
+    centre = focus_start + widths[current] // 2 if widths else 0
+    start = 0 if centre < room // 2 else centre - room // 2
+    start = min(start, total - room)
+    return start, start + room, total
+
+
+def scrollbar(span: tuple[int, int, int], room: int, offset: int) -> str:
+    """A one-line scrollbar `room` cells long, after `offset` blank cells: the visible span lit."""
+    style = theme.tmux_styles()
+    start, end, total = span
+    lo = start * room // total
+    hi = max(lo + 1, -(-end * room // total))
+    return (
+        f"#[{style['bar']}]{' ' * offset}#[{style['scroll-track']}]{'─' * lo}"
+        f"#[{style['scroll-thumb']}]{'━' * (hi - lo)}#[{style['scroll-track']}]{'─' * (room - hi)}"
+    )
+
+
+def scroll_once(session: str) -> list[str]:
+    """Show the scrollbar row under the tabs if they overflow their client, and hide it if not."""
+    name = inner(session)
+    clients = tmux("list-clients", "-t", f"={name}", "-F", "#{client_width}")
+    windows = tmux("list-windows", "-t", f"={name}", "-F", "#{window_active}\t#{window_name}")
+    marked = tmux("show-options", "-v", "-t", scope(name), MARKED_OPTION)
+    if not (clients.ok and windows.ok):
+        return [f"could not measure the deck's tab row — {_said(clients if not clients.ok else windows)}"]
+    widths = [int(w) for w in clients.out.split() if w.isdigit()]
+    if not widths:
+        return []
+    rows = [line.split("\t", 1) for line in windows.out.splitlines() if "\t" in line]
+    current = next((n for n, (active, _) in enumerate(rows) if active == "1"), 0)
+    _, left = tab_lefts()
+    right = len(f"marks {(marked.out.strip() if marked.ok else '') or 'not running'} ")
+    room = min(widths) - left - right
+    span = visible_span([tab_width(label) for _, label in rows], current, room)
+    if span is None:
+        return _session_options(name, (("status", str(TAB_ROWS)), (SCROLLBAR_OPTION, "")))
+    return _session_options(name, ((SCROLLBAR_OPTION, scrollbar(span, room, left)), ("status", str(TAB_ROWS + 1))))
 
 
 def window_options(tab: bool) -> tuple[tuple[str, str], ...]:
@@ -611,10 +682,10 @@ def bar_options(tabs: bool) -> tuple[tuple[str, str], ...]:
         # The countdown is tmux's own arithmetic on the clock, so it has to redraw every second.
         options += (("status-interval", "1"),)
     if tabs:
-        marked = "#{" + MARKED_OPTION + "}"
-        options += (("status-right", f"#[{style['quiet']}]marks #{{?{marked},{marked},not running}} "),)
+        options += (("status-right", f"#[{style['quiet']}]{marks_text()}"),)
         options += (("status", str(TAB_ROWS)),)
         options += tuple((f"status-format[{row}]", tab_row(row, lefts[row])) for row in range(TAB_ROWS))
+        options += ((f"status-format[{TAB_ROWS}]", "#{" + SCROLLBAR_OPTION + "}"),)
     else:
         options += (("status-right", hints()), ("status-right-length", "120"))
     return options
@@ -855,6 +926,8 @@ def marks_once(
                 result.degrade(f"could not mark {labels.get(window_id, window_id)!r} — {_said(set_)}")
         rows.append({"window": labels.get(window_id, window_id), "state": word, "written": changed})
     for problem in write_colours(session, listed, colours if colours is not None else {}):
+        result.degrade(problem)
+    for problem in scroll_once(session):
         result.degrade(problem)
     count = str(len({p.window_id for p in listed if p.role == AGENT}))
     for problem in _session_options(name, ((MARKED_OPTION, clock(time.time())),)) + _session_options(
@@ -1169,7 +1242,27 @@ def dress_sessions(session: str) -> list[str]:
     problems += _session_options(session, ((AGENT_COUNT_OPTION, str(agent_count(session))),))
     listed, _ = panes(inner(session))
     problems += write_colours(session, listed, {})
-    return problems + install_keys(session)
+    return problems + install_keys(session) + install_hooks(session) + scroll_once(session)
+
+
+#: What changes the tab row's fit: its client's width, which tab is current, and how many there are.
+SCROLL_HOOKS = ("client-resized", "session-window-changed", "window-linked", "window-unlinked")
+
+
+def scroll_hooks(session: str) -> list[list[str]]:
+    """The `set-hook` argv that re-measure the tab row when its fit can change. Pure, for the suite."""
+    sb = shlex.quote(str(PROJECT_ROOT / "sb"))
+    run = f'run-shell -b "exec {sb} deck scroll >/dev/null 2>&1"'
+    return [["set-hook", "-t", scope(inner(session)), hook, run] for hook in SCROLL_HOOKS]
+
+
+def install_hooks(session: str) -> list[str]:
+    problems = []
+    for argv in scroll_hooks(session):
+        answer = tmux(*argv)
+        if not answer.ok:
+            problems.append(f"could not hook {argv[3]} — {_said(answer)}")
+    return problems
 
 
 def agent_count(session: str) -> int:
@@ -1850,6 +1943,32 @@ def deck_marks(every: int | None, ticks: int | None) -> Result:
     raise click.exceptions.Exit(0)
 
 
+@deck.command(name="scroll")
+@emit
+def deck_scroll() -> Result:
+    """Show the tab row's scrollbar if the tabs overflow, and hide it if not.
+
+        sb deck scroll
+
+    **This acts**, on the deck's own tab bar. tmux scrolls the tabs to keep the
+    current one in view; this draws where that view sits. The deck runs it on a
+    resize or a tab change, so it is rarely typed.
+    """
+    result = Result()
+    config, problems = load()
+    for problem in problems:
+        result.warn(problem)
+    if not has_session(inner(config.session)):
+        result.ok = False
+        result.data = {"error": f"no deck tabs {inner(config.session)!r} — `sb deck` starts them"}
+        return result
+    for problem in scroll_once(config.session):
+        result.degrade(problem)
+    shown = tmux("show-options", "-v", "-t", scope(inner(config.session)), "status")
+    result.data = {"overflowing": shown.ok and shown.out.strip() == str(TAB_ROWS + 1)}
+    return result
+
+
 @deck.command(name="exit")
 @emit
 def deck_exit() -> Result:
@@ -2143,8 +2262,8 @@ def clicked_row(lines: list[str], rows: list[dict], y: int) -> dict | None:
     return rows[index] if 0 <= index < len(rows) else None
 
 
-#: The message popup: most of the client, so a long message reads without scrolling sideways.
-POPUP_SIZE = ("80%", "80%")
+#: The message popup: room for a message to read, with the deck still in view around it.
+POPUP_SIZE = ("60%", "50%")
 
 
 def message_popup_argv(key: str) -> list[str]:
@@ -2889,6 +3008,7 @@ mark(deck_jump, sb_acts=True)
 mark(deck_layout, sb_acts=True)
 mark(deck_marks, sb_acts=True)
 mark(deck_exit, sb_acts=True)
+mark(deck_scroll, sb_acts=True)
 mark(deck_queue, sb_acts=False)
 mark(deck_messages, sb_acts=False)
 mark(deck_message, sb_acts=False)

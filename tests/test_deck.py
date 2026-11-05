@@ -935,6 +935,7 @@ def test_the_queue_is_an_observe_and_the_rest_act():
         "decide": True,
         "column": True,
         "reload": True,
+        "scroll": True,
     }
     assert {name: getattr(c, "sb_acts") for name, c in deck_.deck_column.commands.items()} == {
         "show": False,
@@ -1053,7 +1054,8 @@ def test_the_marks_owner_must_be_a_live_marks_process(fake, home, tmp_path):
 def test_the_tab_bar_is_three_rows_of_boxes_and_names_no_state_word(fake, home):
     invoke("deck")
     rows = {c[-2]: c[-1] for c in fake.find("set-option") if c[-2].startswith("status-format[")}
-    assert sorted(rows) == ["status-format[0]", "status-format[1]", "status-format[2]"]
+    assert sorted(rows) == [f"status-format[{n}]" for n in range(4)]
+    assert rows.pop("status-format[3]") == "#{@sb-scrollbar}"  # the scrollbar row, drawn only on overflow
     assert ("status", "3") in {(c[-2], c[-1]) for c in fake.find("set-option") if "=sb-agents:" in c}
     for row in rows.values():
         assert row.count("#[range=window|#{window_index}]") == 2  # every row clicks, current tab included
@@ -1997,26 +1999,37 @@ def test_the_mark_and_wordmark_lead_every_tab_row_at_one_width():
     assert "skyrow.labs" in visible[1] and "tabs" not in visible[1]
     assert all(v.rstrip().endswith(deck_.SEPARATOR) for v in visible)  # the separator spans all three rows
     assert len(theme.tmux_mark()) == 3 and all(len(row) == len(theme.MARK_PIXELS[0]) for row in theme.MARK_PIXELS)
-    assert theme.MARK_PIXELS[-1] == "B" * len(theme.MARK_PIXELS[0])  # the L's base runs under the whole S
+    base = theme.MARK_PIXELS[-2]
+    assert base.rstrip(".") == "B" * len(base.rstrip("."))  # the L's base runs under the whole S
+    assert set(theme.MARK_PIXELS[0]) == set(theme.MARK_PIXELS[-1]) == {"."}  # centred: a blank row each side
     rows = dict(deck_.bar_options(True))
     assert all(rows[f"status-format[{n}]"].startswith(f"#[align=left]{lefts[n]}") for n in range(3))
 
 
-def test_the_mark_is_four_cells_a_row_padded_each_side():
+def test_the_mark_is_five_cells_a_row_padded_each_side_with_strokes_one_pixel_thick():
     from skyboss import theme
 
     marks = [re.sub(r"#\[[^]]*\]", "", row) for row in theme.tmux_mark()]
-    assert [len(m) for m in marks] == [theme.MARK_WIDTH] * 3 == [4] * 3
+    assert [len(m) for m in marks] == [theme.MARK_WIDTH] * 3 == [5] * 3
     assert all(re.sub(r"#\[[^]]*\]", "", left).startswith(" " * deck_.MARK_PAD) for left in deck_.tab_lefts()[0])
+    stem = [row[0] for row in theme.MARK_PIXELS[1:-1]]
+    assert set(stem) == {"B"} and all(row[1] == "." for row in theme.MARK_PIXELS[1:-2])  # the L, one pixel
 
 
-def test_a_quadrant_cell_refuses_a_third_colour():
+def test_a_sextant_is_the_glyph_for_its_six_pixels():
     from skyboss import theme
 
-    assert theme._quadrant(("a", "b", "a", "b"), "g") == "#[fg=a bg=b]▌"
-    assert theme._quadrant(("a", None, None, None), "g") == "#[fg=a bg=g]▘"
+    assert theme._sextant((1, 0, 0, 0, 0, 0)) == "\U0001fb00"
+    assert theme._sextant((0, 1, 1, 1, 1, 1)) == "\U0001fb3b"
+    assert [theme._sextant(b) for b in ((1, 0, 1, 0, 1, 0), (0,) * 6, (1,) * 6)] == ["▌", " ", "█"]
+
+
+def test_a_cell_refuses_a_third_colour():
+    from skyboss import theme
+
+    assert theme._cell(("a", "b") * 3, "g") == "#[fg=a bg=b]▌"
     with pytest.raises(ValueError):
-        theme._quadrant(("a", "b", None, None), "g")
+        theme._cell(("a", "b", None, None, None, None), "g")
 
 
 def test_the_wordmark_is_white_then_brand_and_bold():
@@ -2051,6 +2064,32 @@ def test_the_clear_key_reports_how_many_lists_it_cleared():
     command = bound[deck_.SHORTCUTS["clear"]][-1]
     assert "deck todo clear" in command and "display-message" in command and "--json" in command
     assert f"{deck_.SHORTCUTS['clear']} clear done" in deck_.hints()
+
+
+def test_tabs_that_fit_need_no_scrollbar_and_tmux_centres_the_current_one_when_they_do_not():
+    assert deck_.visible_span([10, 10, 10], 2, 30) is None
+    assert deck_.visible_span([10] * 10, 0, 30) == (0, 30, 100)  # at the start, clamped
+    assert deck_.visible_span([10] * 10, 5, 30) == (40, 70, 100)  # centred on the current tab
+    assert deck_.visible_span([10] * 10, 9, 30) == (70, 100, 100)  # at the end, clamped
+
+
+def test_the_scrollbar_lights_the_visible_share_of_its_track():
+    bar = re.sub(r"#\[[^]]*\]", "", deck_.scrollbar((40, 70, 100), 30, 4))
+    assert bar == " " * 4 + "─" * 12 + "━" * 9 + "─" * 9
+
+
+def test_every_tab_row_keeps_the_same_right_end_so_the_three_scroll_together():
+    style = deck_.theme.tmux_styles()
+    rows = [deck_.tab_row(n, "") for n in range(3)]
+    assert all("#[list=on]" in row and "#[list=focus]" in row for row in rows)
+    assert all(row.endswith(deck_.marks_text()) for row in rows)
+    assert f"#[{style['unseen']}]" in rows[0] and f"#[{style['quiet']}]" in rows[1]
+
+
+def test_the_deck_rescrolls_on_a_resize_or_a_tab_change():
+    hooks = {argv[3]: argv for argv in deck_.scroll_hooks("sb")}
+    assert set(hooks) == {"client-resized", "session-window-changed", "window-linked", "window-unlinked"}
+    assert all(argv[2] == deck_.scope("sb-agents") and "deck scroll" in argv[-1] for argv in hooks.values())
 
 
 def test_reload_restarts_every_tool_pane_that_closes_itself_and_kills_none(fake, home, sb_state, monkeypatch):

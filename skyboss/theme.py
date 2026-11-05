@@ -323,7 +323,7 @@ DECK_ROLES: dict[str, str] = {
 
 
 #: A deck pane's label row: the brand tinted into the void the pane paints, clear of the working-tab ground.
-HEAD_GROUND = _mix(BG, 0.20)
+HEAD_GROUND = _mix(BG, 0.28)
 
 
 # ============================================================================
@@ -410,69 +410,69 @@ def css_root() -> str:
 # branch of a `#{?…}` conditional the tab format puts them in.
 
 
-#: The favicon (`skyrowlabs.com/favicon.svg`) as six rows of pixels: B the brand-blue L, W the white S in
-#: its corner, the L's base running the full width under it. Drawn four pixels to a cell with quadrant
-#: blocks, so it is four cells wide over the tab bar's three rows. A status bar cannot draw the SVG; this
-#: is its redraw. A cell takes two colours at most (its glyph's and its ground), which this layout keeps.
+#: The favicon (`skyrowlabs.com/favicon.svg`) as nine rows of pixels: B the brand-blue L, W the white S in
+#: its corner, the L's base running the full width under it. Drawn six pixels to a cell (2 wide, 3 tall)
+#: with sextant glyphs, so it is five cells wide over the tab bar's three rows, with a blank pixel row
+#: above and below to centre it. A sextant pixel is near square, and every stroke, the L's included, is
+#: one pixel thick. A cell takes two colours at most (its glyph's and its ground), which this keeps:
+#: the gap row puts the L's base in a cell row of its own. A status bar cannot draw the SVG; this is its redraw.
 MARK_PIXELS = (
-    "B.WWWWWW",
-    "B.W.....",
-    "B.WWWWWW",
-    "B......W",
-    "B.WWWWWW",
-    "BBBBBBBB",
+    "..........",
+    "B.WWWWWWW.",
+    "B.W.......",
+    "B.WWWWWWW.",
+    "B.......W.",
+    "B.WWWWWWW.",
+    "B.........",
+    "BBBBBBBBB.",
+    "..........",
 )
 
-#: Quadrant glyphs by which quarters are inked: top-left, top-right, bottom-left, bottom-right.
-_QUADRANTS = {
-    (0, 0, 0, 0): " ",
-    (1, 0, 0, 0): "▘",
-    (0, 1, 0, 0): "▝",
-    (0, 0, 1, 0): "▖",
-    (0, 0, 0, 1): "▗",
-    (1, 1, 0, 0): "▀",
-    (0, 0, 1, 1): "▄",
-    (1, 0, 1, 0): "▌",
-    (0, 1, 0, 1): "▐",
-    (1, 0, 0, 1): "▚",
-    (0, 1, 1, 0): "▞",
-    (1, 1, 1, 0): "▛",
-    (1, 1, 0, 1): "▜",
-    (1, 0, 1, 1): "▙",
-    (0, 1, 1, 1): "▟",
-    (1, 1, 1, 1): "█",
-}
+#: Pixels per glyph: columns, rows.
+CELL_PIXELS = (2, 3)
 
 
-def _quadrant(quarters: tuple[str | None, ...], ground: str) -> str:
-    """One cell: the quarters' inks as a glyph in the first ink over the second, or over `ground`."""
-    inks = list(dict.fromkeys(ink for ink in quarters if ink is not None))
-    if len(inks) > 2 or (len(inks) == 2 and None in quarters):
-        raise ValueError(f"a cell takes two colours at most, not {quarters}")
+def _sextant(bits: tuple[int, ...]) -> str:
+    """The glyph inking `bits`, six flags read across then down (top-left first).
+
+    U+1FB00 onwards holds the sixty patterns that are not a space, a full block or a half block.
+    """
+    mask = sum(bit << n for n, bit in enumerate(bits))
+    named = {0: " ", 63: "█", 21: "▌", 42: "▐"}
+    if mask in named:
+        return named[mask]
+    return chr(0x1FB00 + mask - 1 - (mask > 21) - (mask > 42))
+
+
+def _cell(pixels: tuple[str | None, ...], ground: str) -> str:
+    """One cell: its pixels' inks as a glyph in the first ink over the second, or over `ground`."""
+    inks = list(dict.fromkeys(ink for ink in pixels if ink is not None))
+    if len(inks) > 2 or (len(inks) == 2 and None in pixels):
+        raise ValueError(f"a cell takes two colours at most, not {pixels}")
     if not inks:
         return f"#[bg={ground}] "
     fg = inks[0]
     bg = inks[1] if len(inks) == 2 else ground
-    tl, tr, bl, br = (int(ink == fg) for ink in quarters)
-    glyph = _QUADRANTS[(tl, tr, bl, br)]
-    return f"#[fg={fg} bg={bg}]{glyph}"
+    return f"#[fg={fg} bg={bg}]" + _sextant(tuple(int(ink == fg) for ink in pixels))
 
 
 def tmux_mark(ground: str = SURFACE) -> tuple[str, ...]:
-    """The mark as one tmux format string per bar row, each cell a quadrant block over `ground`."""
+    """The mark as one tmux format string per bar row, each cell a sextant over `ground`."""
     ink = {"B": BRAND, "W": TEXT, ".": None}
+    across, down = CELL_PIXELS
     rows = []
-    for top_row, bottom_row in zip(MARK_PIXELS[::2], MARK_PIXELS[1::2]):
+    for top in range(0, len(MARK_PIXELS), down):
+        band = MARK_PIXELS[top : top + down]
         cells = [
-            _quadrant((ink[top_row[x]], ink[top_row[x + 1]], ink[bottom_row[x]], ink[bottom_row[x + 1]]), ground)
-            for x in range(0, len(top_row), 2)
+            _cell(tuple(ink[line[x + dx]] for line in band for dx in range(across)), ground)
+            for x in range(0, len(band[0]), across)
         ]
         rows.append("".join(cells))
     return tuple(rows)
 
 
 #: The mark's width in cells.
-MARK_WIDTH = len(MARK_PIXELS[0]) // 2
+MARK_WIDTH = len(MARK_PIXELS[0]) // CELL_PIXELS[0]
 
 
 #: A working tab's ground: the brand mixed into the bar's surface, a tint and never a fifth hue.
@@ -492,6 +492,11 @@ def tmux_styles() -> dict[str, str]:
         # A working tab's lit ground: the brand tinted into the bar, under full-strength text.
         "tab-working": f"fg={TEXT} bg={WORKING_GROUND} bold",
         "tab-edge": f"fg={TEXT_3}",
+        # Text drawn in the bar's own ground: it takes room and shows nothing, so rows share a width.
+        "unseen": f"fg={SURFACE} bg={SURFACE}",
+        # The tab row's scrollbar, shown only when the tabs overflow: the visible span on a structure track.
+        "scroll-thumb": f"fg={BRAND} bg={SURFACE}",
+        "scroll-track": f"fg={TEXT_3} bg={SURFACE}",
         "needs-you": f"fg={BG} bg={WARN} bold",
         "quiet": f"fg={TEXT_2}",
         "unregistered": f"fg={TEXT_2} italics",
