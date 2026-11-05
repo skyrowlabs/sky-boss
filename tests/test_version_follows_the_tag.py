@@ -70,22 +70,48 @@ def test_a_version_behind_a_tag_is_seen():
     assert numbers("1.2.3-rc.1") == (1, 2, 3)
 
 
+_STEP = re.compile(r"\.(\w+)|\[\s*'([^']*)'\s*\]|\[\s*\"([^\"]*)\"\s*\]")
+
+
+def jsonpath_keys(path: str) -> list[str] | None:
+    """`$.a['b'].c` as `["a", "b", "c"]`; None for any other jsonpath, which this cannot read."""
+    if not path.startswith("$"):
+        return None
+    keys, at = [], 1
+    while at < len(path):
+        step = _STEP.match(path, at)
+        if not step:
+            return None
+        keys.append(next(group for group in step.groups() if group is not None))
+        at = step.end()
+    return keys
+
+
 def versioned_extra_files() -> list[tuple[str, str]]:
-    """`(path, version)` for each json `extra-files` entry at `$.version` that holds one."""
+    """`(path at jsonpath, version)` for each json `extra-files` entry whose path holds one."""
     config = GITHUB_DIR / "release-please-config.json"
     if not config.exists():
         return []
     found = []
     for package in json.loads(config.read_text(encoding="utf-8")).get("packages", {}).values():
         for entry in package.get("extra-files") or []:
-            path = PROJECT_ROOT / entry.get("path", "") if isinstance(entry, dict) else None
-            if not path or entry.get("type") != "json" or entry.get("jsonpath") != "$.version":
+            if not isinstance(entry, dict) or entry.get("type") != "json":
                 continue
-            if path.is_file():
-                version = json.loads(path.read_text(encoding="utf-8")).get("version")
-                if isinstance(version, str):
-                    found.append((entry["path"], version))
+            keys, path = jsonpath_keys(entry.get("jsonpath", "")), PROJECT_ROOT / entry.get("path", "")
+            assert keys is not None, f"cannot read jsonpath {entry.get('jsonpath')!r}; unread is not agreeing"
+            if not path.is_file():
+                continue
+            value = json.loads(path.read_text(encoding="utf-8"))
+            for key in keys:
+                value = value.get(key) if isinstance(value, dict) else None
+            if isinstance(value, str):
+                found.append((f"{entry['path']} at {entry['jsonpath']}", value))
     return found
+
+
+def test_a_lockfile_jsonpath_is_read():
+    assert jsonpath_keys("$.packages[''].version") == ["packages", "", "version"]
+    assert jsonpath_keys("$.version") == ["version"] and jsonpath_keys("$..version") is None
 
 
 def test_every_versioned_extra_file_agrees_with_version():
