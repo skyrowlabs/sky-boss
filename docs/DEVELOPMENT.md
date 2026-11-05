@@ -113,7 +113,7 @@ reader inferring a cost model from a workflow that has none.
 | Ready PR → `develop`           | `CI Gate` + `pytest` + `eslint` + `All checks`   | ~2   |
 | Ready PR → `main`              | `CI Gate` + `pytest` + `eslint` + `All checks`   | ~2   |
 | Ready PR opened by Dependabot  | `CI Gate` + `pytest` + `eslint` + `All checks`   | ~2   |
-| Push to `develop` or `main`    | `CI Gate` + `pytest` + `eslint` + `All checks`   | ~2   |
+| Push to `develop` or `main`    | `CI Gate` + `pytest` + `eslint` + `All checks`, and Release Please on `main` | ~2   |
 
 **This table said something else until 2026-09-11, and it had never been true
 here.** It arrived as the template's placeholder and was never adapted: it named
@@ -185,15 +185,21 @@ bump to one of them could never merge. Bump those by hand, in both files.
 
 ## Releases
 
-Versioning is the annotated git tag and nothing else. There is no `VERSION`
-file and no `CHANGELOG.md`: a repository run from a checkout already has the
-answer in `git describe`, and a file would be a second home for it — kept in
-step by hand, wrong the first time somebody forgets.
+Versioning is Conventional Commits → Release Please. Commit types decide the
+bump; `CHANGELOG.md` and `VERSION` are generated. **Never hand-edit either.**
 
-Cut a release with `git tag -a vX.Y.Z -m "what moved"` and **push the tag** — an
-unpushed tag names a version only your machine can resolve, and `dev --version`
-reads exactly this. Conventional commit subjects are still the rule; they are
-what a reader of `git log` between two tags gets instead of a changelog.
+The release lands on `main`, so back-merge it. Until you do,
+`develop` does not contain the release commit, and `git describe` there
+names the release before this one (mind.head):
+
+```bash
+git switch develop && git merge --no-ff main && git push
+```
+
+**This tree versioned by annotated tag until 2026-11-04**, when Jeston moved every
+adopter to Release Please and accepted that versions restart at the template's
+`0.1.0` seed. `v0.1.0` is the one tag from the tag era, so the first release here
+is whatever the commits since it earn.
 
 A release closes the report window: in-flight reports under
 `docs/reports/regular/` freeze into `docs/reports/releases/<tag>/`. See

@@ -3118,3 +3118,19 @@ The new project-install gate skips any tree whose `pyproject.toml` has no
 returns `None` here, so round 54's decline does not hit the gate. `./dev test
 coverage --suite unit --suite ui` exits 0 now, at the 0.00% floor, so round 54's
 "exits 1" no longer holds.
+
+### 2026-11-04: v0.72.2, the tree moves to Release Please
+
+Jeston moved every adopter to Release Please and accepted that versions restart at the
+template's `0.1.0` seed. The run took `--set-arg versioning=release-please`. It added `VERSION`,
+the Release Please config and manifest, and the release skill, and `.skeletor.json` records the
+new value after the `--ported` run. Two conflicts were ported by hand. `README.md`'s badge row is
+ours, so the tag badge became a release badge there. `docs/DEVELOPMENT.md` took the template's
+Releases section, and its push row (ours since 2026-09-11) gained the Release Please clause.
+
+Round 39 said the job was not wanted back in a tag tree, and to take it pinned if the tree moved.
+It moved, and `ci.yml` now carries the template's job with `target-branch: main`. One difference
+is this fork's: it waits on `verdict` rather than on the template's leaf jobs, three of which this
+graph does not have. Without the job, `test_ci_pipeline_table` and `test_doctor`'s secrets check
+fail, as the workspace forecast. Its App token step also made `.github/actionlint.yaml`'s stated
+reason for diverging false ("this tree has no release job"), so that file is the template's again.

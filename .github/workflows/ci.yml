@@ -505,3 +505,35 @@ jobs:
             fi
           done
           echo "all green"
+
+  # Release Please, restored by the 2026-11-04 switch from `--versioning tag` (Jeston's ruling;
+  # the skeletor v0.72.2 round of [[skeletor-adoption]]). Taken from the template's job, with one difference that is
+  # this fork's: it waits on `verdict` rather than on the template's leaf jobs, since `verdict`
+  # already passes only when every job here succeeded. The token comment is the template's — read
+  # it there; three doors, the organisation's App first, and why GITHUB_TOKEN alone is refused.
+  release-please:
+    name: Release Please
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [verdict]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    # A step `if:` cannot read `secrets`, so whether an App is configured crosses in as an env value.
+    env:
+      HAS_RELEASE_APP: ${{ secrets.APP_ID != '' }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/create-github-app-token@v3
+        id: app-token
+        if: env.HAS_RELEASE_APP == 'true'
+        with:
+          client-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+      - uses: googleapis/release-please-action@v5
+        with:
+          config-file: .github/release-please-config.json
+          manifest-file: .github/.release-please-manifest.json
+          # Pinned: the default is the repository's default branch, which here is `develop`.
+          target-branch: main
+          token: ${{ steps.app-token.outputs.token || secrets.RELEASE_TOKEN || github.token }}

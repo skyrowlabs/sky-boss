@@ -433,23 +433,38 @@ def security_updates(repo: dict | None = None) -> Fact:
 
 
 def coverage_runners_enabled() -> Fact:
-    """Every workflow naming the coverage check is enabled; a disabled one is still on disk (stash.flow)."""
+    """Every workflow naming the coverage check is enabled, or held off on purpose (stash.flow).
+
+    A disabled workflow is still on disk, so only GitHub can say it is off, and
+    only `HELD_WORKFLOWS` can say somebody meant it.
+    """
+    from scripts import allowlist
     from scripts.check_coverage_budget import runners
 
     name = "the workflows that run the coverage floor are enabled"
     named = runners()
     if not named:
         return Fact(name, NOT_APPLICABLE, "no workflow names the coverage check")
-    off = []
+    held = allowlist.read(repo_settings.HELD_WORKFLOWS)
+    off: list[str] = []
+    kept: list[str] = []
+    stale: list[str] = []
     for workflow in named:
         try:
             state = (gh_api("repos/{owner}/{repo}/actions/workflows/" + workflow) or {}).get("state")
         except Unreadable as error:
             return Fact(name, UNKNOWN, str(error))
-        if state != "active":
-            off.append(f"{workflow} ({state})")
-    if off:
-        return Fact(name, PROBLEM, f"{', '.join(off)}: named, and GitHub runs none of it, so nothing holds the floor")
+        if state == "active" and workflow in held:
+            stale.append(f"{workflow}: held in {repo_settings.HELD_WORKFLOWS.name}, but GitHub runs it")
+        elif state != "active":
+            (kept if workflow in held else off).append(f"{workflow} ({state})")
+    if off or stale:
+        said = [f"{', '.join(off)}: GitHub runs none of it, so nothing holds the floor"] if off else []
+        tail = f" {allowlist.STALE_ADVICE}" if stale else ""
+        return Fact(name, PROBLEM, "; ".join(said + stale) + tail)
+    if kept:
+        reasons = "; ".join(f"{entry}: {held[entry.split(' ')[0]]}" for entry in kept)
+        return Fact(name, NOT_APPLICABLE, f"disabled on purpose, so the floor holds only by hand — {reasons}")
     return Fact(name, OK, ", ".join(named))
 
 

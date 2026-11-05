@@ -116,7 +116,7 @@ module.exports = async function decide({ github, context, core }) {
   //       needs: [lint, node, unit-tests, integration]
   //
   // puts the release job downstream of it. **This tree is
-  // `--versioning tag`.** Under `tag` the push releases nothing and
+  // `--versioning release-please`.** Under `tag` the push releases nothing and
   // the annotated tag comes later, which makes that push a real gate rather
   // than a formality.
   //

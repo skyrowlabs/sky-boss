@@ -273,4 +273,4 @@ Load on-demand only. Full mapping in `.github/DOCS_INDEX.md`.
 
 > `docs:` for hand-written prose wherever it lives — this file and `README.md`
 > included — never `feat:`. The path is the hint, not the test; `docs/rules/commits.md`
-> holds the rule. These subjects are the only changelog this repository has.
+> holds the rule. Release Please owns `CHANGELOG.md`.

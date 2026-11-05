@@ -126,16 +126,27 @@ def test_installed_tools_match_requirements():
     )
 
 
-def covers(entry: dict, directory: str) -> bool:
-    """Whether a Dependabot entry updates `directory`: named there, or at an ancestor.
+def covers(entry: dict, directory: str, file: str = "requirements.txt") -> bool:
+    """Whether a Dependabot entry updates `directory/file`: named there, or at an ancestor, and not excluded.
 
     An entry at `/` updates `scripts/requirements.txt` too (sky.boss, measured),
-    so matching the directory exactly passed vacuously there.
+    so matching the directory exactly passed vacuously there. Its `exclude-paths`
+    take it back out (mind-head), tried from the root and from the entry's own
+    directory, which agree at `/`.
     """
     named = [entry["directory"]] if "directory" in entry else list(entry.get("directories") or [])
+    path = f"{directory.strip('/')}/{file}"
     for spelled in named:
         root = "/" + str(spelled).strip("/")
-        if root == "/" or directory == root or directory.startswith(root + "/") or fnmatch(directory, root):
+        if not (root == "/" or directory == root or directory.startswith(root + "/") or fnmatch(directory, root)):
+            continue
+        inside = path[len(root.strip("/")) :].lstrip("/") if directory.startswith(root) else path
+        excluded = any(
+            fnmatch(candidate, str(pattern).strip("/")) or candidate.startswith(str(pattern).strip("/*") + "/")
+            for pattern in entry.get("exclude-paths") or []
+            for candidate in (path, inside)
+        )
+        if not excluded:
             return True
     return False
 
@@ -177,3 +188,9 @@ def test_an_entry_reaches_the_requirements_file_from_an_ancestor():
     )
     assert covers({"directories": ["/app", "/"]}, "/scripts")
     assert not covers({"directory": "/app"}, "/scripts")
+
+
+def test_an_excluded_path_is_not_reached():
+    assert not covers({"directory": "/", "exclude-paths": ["scripts/**"]}, "/scripts")
+    assert not covers({"directory": "/", "exclude-paths": ["scripts/requirements.txt"]}, "/scripts")
+    assert covers({"directory": "/", "exclude-paths": ["app/**"]}, "/scripts")

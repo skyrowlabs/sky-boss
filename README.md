@@ -4,7 +4,7 @@
 
 <p align="center">
   <a href="https://github.com/skyrowlabs/sky-boss/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/skyrowlabs/sky-boss/actions/workflows/ci.yml/badge.svg?branch=develop"></a>
-  <a href="https://github.com/skyrowlabs/sky-boss/tags"><img alt="Latest tag" src="https://img.shields.io/github/v/tag/skyrowlabs/sky-boss?label=version&labelColor=1c2633&color=38bdf8"></a>
+  <a href="https://github.com/skyrowlabs/sky-boss/releases"><img alt="Latest release" src="https://img.shields.io/github/v/release/skyrowlabs/sky-boss?sort=semver&label=version&labelColor=1c2633&color=38bdf8"></a>
   <a href="https://github.com/skyrowlabs/sky-boss/actions/workflows/ci.yml"><img alt="Python 3.12 to 3.14" src="https://img.shields.io/badge/python-3.12%E2%80%933.14-4ade80?labelColor=1c2633"></a>
   <a href="#the-commands"><img alt="Acts: only sb run" src="https://img.shields.io/badge/acts-only%20sb%20run-e6dc0e?labelColor=1c2633"></a>
   <a href="LICENSE"><img alt="MIT licence" src="https://img.shields.io/github/license/skyrowlabs/sky-boss?labelColor=1c2633&color=7a8fa8"></a>

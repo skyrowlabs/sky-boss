@@ -270,3 +270,28 @@ def test_a_disabled_coverage_workflow_is_a_problem(monkeypatch):
     assert doctor.coverage_runners_enabled().state == doctor.PROBLEM
     stub(monkeypatch, {path: {"state": "active"}})
     assert doctor.coverage_runners_enabled().state == doctor.OK
+
+
+def test_a_workflow_held_off_on_purpose_is_reported_with_its_reason(monkeypatch, tmp_path):
+    held = tmp_path / "held.yaml"
+    held.write_text('nightly.yml: "off while the suite is rebuilt"\n')
+    monkeypatch.setattr(doctor.repo_settings, "HELD_WORKFLOWS", held)
+    monkeypatch.setattr("scripts.check_coverage_budget.runners", lambda: ["nightly.yml"])
+    path = f"{REPO}/actions/workflows/nightly.yml"
+    stub(monkeypatch, {path: {"state": "disabled_manually"}})
+    fact = doctor.coverage_runners_enabled()
+    assert fact.state == doctor.NOT_APPLICABLE and "off while the suite is rebuilt" in fact.detail, fact
+    stub(monkeypatch, {path: {"state": "active"}})
+    assert doctor.coverage_runners_enabled().state == doctor.PROBLEM, "a hold on a running workflow is stale"
+
+
+def test_every_held_workflow_is_a_workflow_here():
+    """An entry whose file left could come back pre-exempted for something else."""
+    from scripts import allowlist
+
+    present = {path.name for path in (GITHUB_DIR / "workflows").glob("*.y*ml")}
+    gone = allowlist.stale(
+        allowlist.read(doctor.repo_settings.HELD_WORKFLOWS),
+        lambda name: None if name in present else "there is no such workflow in .github/workflows",
+    )
+    assert not gone, "\n".join(gone) + "\n" + allowlist.STALE_ADVICE

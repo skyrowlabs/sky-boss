@@ -49,6 +49,8 @@ PUBLIC_ONLY = (
 ALERTS_WHY = "a known-vulnerable dependency is reported here rather than found by somebody else"
 #: Security updates, likewise: their own endpoint, and they need alerts on first.
 SECURITY_UPDATES_WHY = "a fix for a vulnerable dependency arrives as a pull request, transitive ones included"
+#: Workflows disabled on GitHub on purpose, `file: reason`. See the file.
+HELD_WORKFLOWS = Path(__file__).with_name("disabled_workflows_allowlist.yaml")
 
 
 def dependabot_labels(config: Path) -> list[str]:
