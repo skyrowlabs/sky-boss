@@ -218,6 +218,9 @@ def rows_of(
         if todo is None and book == DECISIONS:
             # Most agents never record one; ten "none recorded" rows would bury the one that did.
             continue
+        if todo is not None and not todo.items and not only:
+            # Emptied, most often by a clear: the pane drops it rather than keep a heading over nothing.
+            continue
         colour = theme.agent_role(name, max(slot, 0)) if paint and slot >= 0 else None
         heading = [[name, colour or "sb.accent"]]
         if slot < 0:

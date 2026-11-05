@@ -832,7 +832,7 @@ def deck_bindings(session: str) -> list[list[str]]:
             f"{sb} deck column fold '#{{{ROLE_OPTION}}}' >/dev/null 2>&1 "
             f"|| tmux display-message '{keys['fold']} folds a right-column pane: focus one first'",
         ],
-        # Counted from the envelope (one `"cleared"` line per list), so a press with nothing done says 0.
+        # Both books, counted from the envelopes (one `"cleared"` line per list), so a press with nothing done says 0.
         [
             "bind-key",
             "-T",
@@ -840,8 +840,9 @@ def deck_bindings(session: str) -> list[list[str]]:
             keys["clear"],
             "run-shell",
             "-b",
-            f"n=$({sb} --json deck todo clear 2>/dev/null | grep -c '\"cleared\"'); "
-            'tmux display-message "cleared the done todos from $n list(s)"',
+            f"t=$({sb} --json deck todo clear 2>/dev/null | grep -c '\"cleared\"'); "
+            f"d=$({sb} --json deck decide clear 2>/dev/null | grep -c '\"cleared\"'); "
+            'tmux display-message "cleared done todos from $t list(s) and decided items from $d"',
         ],
     ]
 
@@ -2926,18 +2927,23 @@ def deck_todo_clear() -> Result:
         sb deck todo clear
 
     **This acts**, on all the deck's lists, from anywhere: it is the operator's
-    tidy-up, bound to M-x in the deck. Open items stay; a list with nothing done is untouched.
+    tidy-up, bound to M-x in the deck with `decide clear`. Open items stay; a list
+    with nothing done is untouched.
     """
+    return _book_clear(todos_.TODOS, "done item")
+
+
+def _book_clear(book: str, noun: str) -> Result:
     result = Result()
     config, problems = load()
     for problem in problems:
         result.warn(problem)
-    cleared, unreadable = todos_.clear_done(config.session)
+    cleared, unreadable = todos_.clear_done(config.session, book)
     for problem in unreadable:
         result.warn(problem)
     result.data = [{"agent": agent, "cleared": n} for agent, n in cleared.items()]
     if not cleared:
-        result.warn(f"nothing to clear — no list in deck {config.session!r} has a done item")
+        result.warn(f"nothing to clear — no {book} list in deck {config.session!r} has a {noun}")
     return result
 
 
@@ -3078,6 +3084,19 @@ def deck_decide_rm(n: int) -> Result:
     return _todo_change(lambda session, agent: todos_.remove(session, agent, n, book=todos_.DECISIONS))
 
 
+@deck_decide.command(name="clear")
+@emit
+def deck_decide_clear() -> Result:
+    """Remove every decided item from every agent's decisions in the deck.
+
+        sb deck decide clear
+
+    **This acts**, on all the deck's decision lists, from anywhere. Open questions
+    stay. M-x in the deck runs this with `todo clear`.
+    """
+    return _book_clear(todos_.DECISIONS, "decided item")
+
+
 @deck_decide.command(name="list")
 @_list_options
 @emit
@@ -3120,5 +3139,6 @@ mark(deck_decide, sb_acts=True)
 mark(deck_decide_add, sb_acts=True)
 mark(deck_decide_done, sb_acts=True)
 mark(deck_decide_rm, sb_acts=True)
+mark(deck_decide_clear, sb_acts=True)
 mark(deck_decide_list, sb_acts=False)
 mark(deck_todo_list, sb_acts=False)

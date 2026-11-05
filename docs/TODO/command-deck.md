@@ -351,6 +351,15 @@ themes = true             # optional; off unless set
 theme_base = "dark-ansi"  # optional; dark, light, dark-daltonized, light-daltonized, dark-ansi, light-ansi
 ```
 
+## Phase 12 (round 10): M-x clears decisions too, and an emptied list leaves the pane
+
+Reported by Jeston on 2026-11-05: skyrow-workspace's items stayed after a clear. They were its five
+decided items in DECISIONS, which M-x did not touch. He ruled on both fixes.
+
+- [x] **M-x clears decided items as well as done todos** (`sb deck decide clear`), in every agent's list.
+- [x] **A list emptied by a clear drops out of the pane** instead of keeping its heading over
+      "nothing open". An agent's own `todo list` still says "nothing open".
+
 ## Dropped, and why
 
 - **Binding Ctrl-C for exit.** It is claude's interrupt, and forwarding it would put every
@@ -781,3 +790,9 @@ kept the TODOS pane's pid.
 - **Not yet seen in a real console.** Verifying needs a theme file in the operator's real Claude Code
   directory, which this round would not write outside a deck Jeston starts. The file format and the
   `--settings` key come from Claude Code's docs (terminal-config, settings), read on 2026-11-05.
+
+### 2026-11-05: round 10 built
+
+- **One key, both books.** The workspace measured TODOS already empty and five decided items under
+  skyrow-workspace in DECISIONS, so the leftover rows were decisions. M-x now runs `todo clear`
+  and `decide clear` and says both counts. A separate key and an age-out were offered; Jeston chose one key.

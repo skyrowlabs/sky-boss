@@ -942,7 +942,7 @@ def test_the_queue_is_an_observe_and_the_rest_act():
         "fold": True,
         "pick": True,
     }
-    for group, more in ((deck_.deck_todo, {"clear": True}), (deck_.deck_decide, {})):
+    for group, more in ((deck_.deck_todo, {"clear": True}), (deck_.deck_decide, {"clear": True})):
         assert {name: getattr(command, "sb_acts") for name, command in group.commands.items()} == {
             "add": True,
             "done": True,
@@ -2053,6 +2053,26 @@ def test_clear_drops_every_agents_done_todos_and_leaves_the_rest(home, sb_state)
     assert two.updated == before.updated  # untouched, so its place in the pane holds
 
 
+def test_decide_clear_drops_decided_items_and_keeps_open_questions(home, sb_state):
+    todos.add("sb", "ws", "ruled", book=todos.DECISIONS)
+    todos.done("sb", "ws", 1, book=todos.DECISIONS, ruling="yes")
+    todos.add("sb", "ws", "still open", book=todos.DECISIONS)
+    result = invoke("--json", "deck", "decide", "clear")
+    assert json.loads(result.stdout)["data"] == [{"agent": "ws", "cleared": 1}]
+    kept = todos.load("sb", "ws", todos.DECISIONS)
+    assert kept and [i.text for i in kept.items] == ["still open"]
+
+
+def test_an_emptied_list_drops_out_of_the_pane_but_not_out_of_its_own_view(home, sb_state):
+    todos.add("sb", "ws", "done soon")
+    todos.done("sb", "ws", 1)
+    todos.clear_done("sb")
+    rows, _ = todos.rows_of("sb", [("ws", 0)], NOW)
+    assert not [r for r in rows if r["agent"] == "ws"]
+    alone, _ = todos.rows_of("sb", [("ws", 0)], NOW, only="ws")
+    assert [r["kind"] for r in alone] == ["agent", "empty"]
+
+
 def test_clear_with_nothing_done_says_so(home, sb_state, said):
     todos.add("sb", "one", "open")
     result = invoke("deck", "todo", "clear")
@@ -2062,7 +2082,8 @@ def test_clear_with_nothing_done_says_so(home, sb_state, said):
 def test_the_clear_key_reports_how_many_lists_it_cleared():
     bound = {argv[3]: argv for argv in deck_.deck_bindings("sb")}
     command = bound[deck_.SHORTCUTS["clear"]][-1]
-    assert "deck todo clear" in command and "display-message" in command and "--json" in command
+    assert "deck todo clear" in command and "deck decide clear" in command and "display-message" in command
+    assert command.count("--json") == 2
     assert f"{deck_.SHORTCUTS['clear']} clear done" in deck_.hints()
 
 
