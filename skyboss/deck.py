@@ -813,8 +813,9 @@ def roster(config: Config, projects: list, planned: list[Agent], primary: str) -
     return rows
 
 
-#: Lines of the brief sky.boss writes; a profile's own `brief` is appended after them and not counted.
-BRIEF_LIMIT = 15
+#: Fixed lines of the brief sky.boss writes. The roster (one line per agent) and a
+#: profile's own `brief` are not counted: both grow with what the operator declared.
+BRIEF_LIMIT = 12
 
 
 def brief(name: str, session: str, rows: list[tuple[str, str, str]], primary: str, extra: str = "") -> str:

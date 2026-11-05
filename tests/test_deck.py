@@ -1432,7 +1432,8 @@ def test_the_primary_and_a_profile_tab_are_named_and_briefed(core, fake):
     generated, _, extra = told(primary).partition("\n\n")
     assert extra == "Coordinate through the workspace.\nAsk before pushing."
     assert told(tab).endswith(extra) and "coordinating agent" not in told(primary)
-    assert len(generated.split("\n")) <= deck_.BRIEF_LIMIT
+    fixed = [line for line in generated.split("\n") if not line.startswith("- ")]
+    assert len(fixed) <= deck_.BRIEF_LIMIT
 
 
 def test_a_tab_opened_later_gets_the_roster_as_it_stands(core, fake):
