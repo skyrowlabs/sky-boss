@@ -17,7 +17,12 @@ flags to be checked against the script that receives them, which is why
 `test_forwarded_flags_are_accepted` exists and is the more valuable of the two.
 
 Enrolment is by discovery, never a list: the command tree is walked, so a new
-command is covered by existing. Commands that must not run here are named in
+command has its `--help` checked by existing. **Running it for real is opt-in, per
+module**: a module declaring `SMOKE_EXECUTES = True` has its argument-less
+commands executed, and every module skeletor ships declares it. The default was
+the other way, and on an operator CLI the first `check pre-push` ran `deploy`,
+`monitor up` and `agents restart` against a live host (breeze-brain). Commands
+inside an opted-in module that must not run are named in
 `tests/cli_smoke_allowlist.yaml` with a reason.
 """
 
@@ -108,7 +113,23 @@ def _exempt(path: tuple[str, ...]) -> str:
     return ""
 
 
-RUNNABLE = [p for p, c in COMMANDS if not _needs_arguments(c) and not _exempt(p)]
+def _opted_in(path: tuple[str, ...]) -> bool:
+    """Whether the module defining this command's top-level group declares `SMOKE_EXECUTES`."""
+    top = root.commands.get(path[0])
+    for name, loaded in list(sys.modules.items()):
+        if name.startswith(f"{SHELL_PACKAGE}.") and any(value is top for value in vars(loaded).values()):
+            return getattr(loaded, "SMOKE_EXECUTES", False) is True
+    return False
+
+
+def _reason(path: tuple[str, ...]) -> str:
+    """Why this command is not executed, or ''."""
+    if not _opted_in(path):
+        return "its module does not declare SMOKE_EXECUTES = True"
+    return _exempt(path)
+
+
+RUNNABLE = [p for p, c in COMMANDS if not _needs_arguments(c) and not _reason(p)]
 
 
 def _run(args: list[str], timeout: int = 90) -> subprocess.CompletedProcess:
@@ -141,9 +162,14 @@ def test_every_command_is_either_runnable_or_has_a_reason():
     unaccounted = [
         " ".join(p)
         for p, c in COMMANDS
-        if not _needs_arguments(c) and not _exempt(p) and " ".join(p) not in [" ".join(r) for r in RUNNABLE]
+        if not _needs_arguments(c) and not _reason(p) and " ".join(p) not in [" ".join(r) for r in RUNNABLE]
     ]
     assert not unaccounted, unaccounted
+
+
+def test_some_commands_run_for_real():
+    """Opt-in that found nobody would leave only `--help` proven, and look green."""
+    scanned(RUNNABLE, "commands executed for real")
 
 
 def test_the_allowlist_names_commands_that_exist():

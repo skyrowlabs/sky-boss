@@ -18,6 +18,9 @@ from scripts.yaml_text import read_uncommented
 
 from .helpers import PROJECT_ROOT, detail, fail, module, ok, run, script, summarize, warn
 
+#: tests/test_cli_smoke.py runs this module's argument-less commands for real.
+SMOKE_EXECUTES = True
+
 
 @click.group()
 def check() -> None:
@@ -92,6 +95,19 @@ def typecheck() -> tuple[str, int] | None:
     return ("pyright", script("scripts/lint_pyright_gate.py", "--project", "pyrightconfig.json"))
 
 
+def workflow_lint() -> tuple[str, int] | None:
+    """actionlint over `.github/workflows/`, as the commit hook runs it, or None without that hook.
+
+    Through pre-commit so the hook's `rev:` stays the one version. Only the hook ran
+    it before, so a workflow edited without a commit (a hand-merge, an upgrade)
+    passed this and pre-push and failed at the commit (sky.boss).
+    """
+    config = PROJECT_ROOT / ".pre-commit-config.yaml"
+    if not config.exists() or not re.search(r"^\s*-\s*id:\s*actionlint\s*$", read_uncommented(config), re.M):
+        return None
+    return ("actionlint", module("pre_commit", "run", "actionlint", "--all-files"))
+
+
 def _unlinted() -> list[str]:
     """Languages this tree holds source for that no configured linter reads."""
     gaps = []
@@ -120,6 +136,9 @@ def _lint() -> int:
     typed = typecheck()
     if typed:
         results.append(typed)
+    workflows = workflow_lint()
+    if workflows:
+        results.append(workflows)
     if (PROJECT_ROOT / "eslint.config.js").exists():
         results.append(("eslint", run(["npm", "run", "lint:check"]).returncode))
     if not results:

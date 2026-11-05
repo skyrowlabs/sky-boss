@@ -34,6 +34,7 @@ def test_a_declared_subtree_and_only_it_is_foreign(monkeypatch, rel, foreign):
     assert paths.is_foreign(rel) is foreign
 
 
-def test_every_declared_subtree_is_a_directory_here():
-    missing = [entry for entry in paths.FOREIGN if not (paths.PROJECT_ROOT / entry).is_dir()]
+def test_every_declared_subtree_is_here():
+    """A directory or a single file (a vendored installer, breeze-brain)."""
+    missing = [entry for entry in paths.FOREIGN if not (paths.PROJECT_ROOT / entry).exists()]
     assert not missing, f"FOREIGN names subtrees this tree does not have: {missing}. Delete the append."

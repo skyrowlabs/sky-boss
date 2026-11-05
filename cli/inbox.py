@@ -22,6 +22,9 @@ from scripts.lanes import LANES, SESSION, SOURCE_CAP, drain_note, source_line
 from ._capture import open_captures
 from .helpers import detail, emit, item, ok, step, warn
 
+#: tests/test_cli_smoke.py runs this module's argument-less commands for real.
+SMOKE_EXECUTES = True
+
 #: The attribution line as a pattern, derived from the line itself so the two cannot drift.
 _BEFORE, _AFTER = source_line("\0").split("\0")
 _SOURCE = re.compile(re.escape(_BEFORE) + "(.+?)" + re.escape(_AFTER))

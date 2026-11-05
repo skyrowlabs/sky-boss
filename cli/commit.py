@@ -23,6 +23,9 @@ from scripts.paths import TMP_DIR
 from .check import PYTHON_LINTERS, typecheck
 from .helpers import PROJECT_ROOT, current_branch, detail, fail, ok, run, step, summarize
 
+#: tests/test_cli_smoke.py runs this module's argument-less commands for real.
+SMOKE_EXECUTES = True
+
 
 def _staged_check(paths: list, message: str) -> int:
     """The pre-commit hook set, scoped to the given paths."""

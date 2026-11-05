@@ -29,6 +29,9 @@ from scripts.yaml_text import uncommented
 
 from .helpers import PROJECT_ROOT, detail, emit, fail, ok, skip, warn
 
+#: tests/test_cli_smoke.py runs this module's argument-less commands for real.
+SMOKE_EXECUTES = True
+
 OK, PROBLEM, UNKNOWN, NOT_APPLICABLE = "ok", "problem", "unknown", "not applicable"
 
 #: The branch work lands on, and the branch releases land on; the same branch in a one-branch tree.

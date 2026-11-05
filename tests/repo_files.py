@@ -32,6 +32,7 @@ it — see the reason written there.
 
 from __future__ import annotations
 
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -175,7 +176,33 @@ def python_sources(root: Path = PROJECT_ROOT) -> list:
 tracked = present
 
 
+def changelogs(root: Path = PROJECT_ROOT) -> set:
+    """Root-relative paths Release Please writes, read from its config; empty without one.
+
+    Generated history: it quotes commit subjects verbatim, so a prose scan meets
+    every past subject on the first release (sky.boss's bare command, #18 of the
+    v0.72.2 round). Still published, so the publication scan keeps reading it.
+    """
+    config = root / ".github" / "release-please-config.json"
+    if not config.is_file():
+        return set()
+    try:
+        data = json.loads(config.read_text(encoding="utf-8"))
+    except ValueError:
+        return set()
+    found = set()
+    for package, settings in (data.get("packages") or {}).items():
+        name = (settings or {}).get("changelog-path") or data.get("changelog-path") or "CHANGELOG.md"
+        found.add((Path(package) / name).as_posix())
+    return found
+
+
 def reference_docs(root: Path = PROJECT_ROOT) -> list:
     """Markdown in the tree that is meant to describe it as it is now."""
     narrative = tuple(str(directory.relative_to(PROJECT_ROOT)) for directory in NARRATIVE)
-    return [path for path in present("*.md", root=root) if not str(path.relative_to(root)).startswith(narrative)]
+    generated = changelogs(root)
+    return [
+        path
+        for path in present("*.md", root=root)
+        if not str(path.relative_to(root)).startswith(narrative) and path.relative_to(root).as_posix() not in generated
+    ]

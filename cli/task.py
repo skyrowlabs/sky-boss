@@ -22,6 +22,9 @@ from scripts.lanes import LANES_BY_KEY
 
 from ._capture import capture_command
 
+#: tests/test_cli_smoke.py runs this module's argument-less commands for real.
+SMOKE_EXECUTES = True
+
 task = capture_command(
     LANES_BY_KEY["task"],
     help_text="""Capture small work that is not a defect, for a task drainer to pick up.

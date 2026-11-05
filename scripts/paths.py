@@ -231,8 +231,9 @@ PRESENT_TENSE = {
 #: fails rather than waiting for somebody to paste it.
 
 
-#: Subtrees this tree carries but whose files are not its own source: a vendored
-#: tree, fixtures that are broken on purpose, a template rendered somewhere else.
+#: Subtrees (or single files) this tree carries but which are not its own source:
+#: a vendored tree or installer, fixtures broken on purpose, a template rendered
+#: somewhere else.
 #: The walking checks skip them (doc links, doc refs, cited paths, the suites'
 #: scans), and `tests/test_scratch_is_not_linted.py` requires every walking linter
 #: to skip them in its own config, since a config file cannot read this one.

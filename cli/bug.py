@@ -18,6 +18,9 @@ from scripts.lanes import LANES_BY_KEY
 
 from ._capture import capture_command
 
+#: tests/test_cli_smoke.py runs this module's argument-less commands for real.
+SMOKE_EXECUTES = True
+
 bug = capture_command(
     LANES_BY_KEY["bug"],
     help_text="""File a bug found outside the scope of what you were doing.

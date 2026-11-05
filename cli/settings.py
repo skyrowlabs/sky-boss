@@ -19,6 +19,9 @@ from scripts.repo_settings import DESCRIPTION, compare, labels_wanted, onoff, pa
 from .doctor import Unreadable, gh_api
 from .helpers import PROJECT_ROOT, detail, fail, ok, warn
 
+#: tests/test_cli_smoke.py runs this module's argument-less commands for real.
+SMOKE_EXECUTES = True
+
 
 def gh_write(method: str, path: str, body: dict | None = None) -> None:
     command = ["gh", "api", "-X", method, path] + (["--input", "-"] if body is not None else [])

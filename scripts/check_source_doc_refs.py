@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import argparse
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -54,9 +55,35 @@ def _ignored() -> set:
     return set(allowlist.read(ALLOWLIST))
 
 
+def _visible() -> set[str] | None:
+    """Root-relative paths git sees (tracked, or untracked and not ignored); None outside git.
+
+    The disk is the wrong population twice: a clone parked in a gitignored folder
+    was scanned as source, and a reference resolving only to an ignored file passes
+    here and fails in CI (breeze-brain).
+    """
+    listed = subprocess.run(
+        ["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard"],
+        cwd=PROJECT_ROOT,
+        capture_output=True,
+        text=True,
+    )
+    if listed.returncode != 0:
+        return None
+    return {name for name in listed.stdout.split("\0") if name}
+
+
+VISIBLE = _visible()
+
+
+def _exists(ref: str) -> bool:
+    return (PROJECT_ROOT / ref).exists() if VISIBLE is None else ref in VISIBLE
+
+
 def _sources() -> list[Path]:
     out = []
-    for path in PROJECT_ROOT.rglob("*"):
+    candidates = PROJECT_ROOT.rglob("*") if VISIBLE is None else (PROJECT_ROOT / name for name in sorted(VISIBLE))
+    for path in candidates:
         if not path.is_file() or path.suffix not in SOURCE_SUFFIXES:
             continue
         # Match against the path RELATIVE to the project root. Matching the
@@ -106,7 +133,7 @@ def main() -> int:
                 if ref in ignore:
                     continue
                 checked += 1
-                if not (PROJECT_ROOT / ref).exists():
+                if not _exists(ref):
                     dead.append(f"{source.relative_to(PROJECT_ROOT)}:{lineno}: {ref}{_successor(ref)}")
 
     if args.json:

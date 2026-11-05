@@ -24,6 +24,9 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from scripts import tree_lock  # noqa: E402
 from scripts.paths import REQUIREMENTS  # noqa: E402
 
+#: tests/test_cli_smoke.py runs this module's argument-less commands for real.
+SMOKE_EXECUTES = True
+
 
 def _venv_inputs(root: Path) -> dict:
     """`{repo-relative path: bytes}` for everything the host venv is built from.

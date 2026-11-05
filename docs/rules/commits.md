@@ -80,6 +80,10 @@ Commit after each **independent logical idea**, not after finishing everything:
 - **Base branch: `develop`.** New branches are cut from it and every PR targets it.
 - **Never commit directly to `main`** — that is the release branch, and
   Release Please owns it.
+- **Title a `develop` → `main` pull request `chore(release): …`.**
+  Its merge commit carries the title, and a changelog built from commit subjects
+  reads that as one more commit: a `fix(...)` title is listed beside the fixes it
+  merges (sky.boss's 0.2.0). `chore` is a hidden type.
 - **Force-push is permitted on your own unreviewed branch** — amending or squashing your own
   in-flight work is how four CI runs become one — but **never** on `develop` or
   `main`, and never from an unattended agent.

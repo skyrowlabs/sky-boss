@@ -353,6 +353,18 @@ jobs:
         if: matrix.python == '3.12'
         run: .venv/bin/python -m flake8 . --select=E9,F63,F7,F82,F401 --show-source --statistics
 
+      # The commit hook, run here too: a workflow edited without a commit through
+      # it (a hand-merge, an upgrade) otherwise reached CI unread. Through
+      # pre-commit so the hook's `rev:` stays the one version. This runner has
+      # shellcheck, so `run:` blocks are checked here and may not be locally.
+      # skeletor v0.73.0's lint-job step, on the leg flake8 is pinned to.
+      - name: actionlint
+        if: matrix.python == '3.12'
+        run: |
+          if grep -qE '^\s*-\s*id:\s*actionlint\s*$' .pre-commit-config.yaml; then
+            .venv/bin/pre-commit run actionlint --all-files
+          fi
+
       # The type check. A STEP for the reason the Gates step above is one — a
       # required check is *named* in branch protection, not discovered, so a job
       # would mean editing protection on `develop` and `main` in the same

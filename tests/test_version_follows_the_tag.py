@@ -1,4 +1,4 @@
-"""`VERSION` is never behind the newest release tag, and the manifest agrees with it.
+"""`VERSION` is never behind the newest release tag, and what Release Please bumps agrees with it.
 
 Release Please bumps from the manifest, so a tree switched from tag versioning
 arrives at the template's `0.1.0` while already tagged later, and its first
@@ -68,3 +68,30 @@ def test_version_is_not_behind_the_newest_tag():
 def test_a_version_behind_a_tag_is_seen():
     assert numbers("0.1.0") < numbers("v0.3.0") and numbers("0.4.0") >= numbers("v0.3.0")
     assert numbers("1.2.3-rc.1") == (1, 2, 3)
+
+
+def versioned_extra_files() -> list[tuple[str, str]]:
+    """`(path, version)` for each json `extra-files` entry at `$.version` that holds one."""
+    config = GITHUB_DIR / "release-please-config.json"
+    if not config.exists():
+        return []
+    found = []
+    for package in json.loads(config.read_text(encoding="utf-8")).get("packages", {}).values():
+        for entry in package.get("extra-files") or []:
+            path = PROJECT_ROOT / entry.get("path", "") if isinstance(entry, dict) else None
+            if not path or entry.get("type") != "json" or entry.get("jsonpath") != "$.version":
+                continue
+            if path.is_file():
+                version = json.loads(path.read_text(encoding="utf-8")).get("version")
+                if isinstance(version, str):
+                    found.append((entry["path"], version))
+    return found
+
+
+def test_every_versioned_extra_file_agrees_with_version():
+    """Release Please bumps these with VERSION, so they must start equal (dream-doll)."""
+    if not VERSION.exists():
+        return  # versioned by tag alone
+    version = VERSION.read_text(encoding="utf-8").strip()
+    behind = [f"{path} says {found}" for path, found in versioned_extra_files() if found != version]
+    assert not behind, f"VERSION is {version}, but " + "; ".join(behind) + ". Set each to VERSION's number."

@@ -17,6 +17,9 @@ from scripts.paths import TMP_DIR
 
 from .helpers import PROJECT_ROOT, run, shell, skip, step, summarize
 
+#: tests/test_cli_smoke.py runs this module's argument-less commands for real.
+SMOKE_EXECUTES = True
+
 #: pytest's exit code for "the marker you asked for selected nothing".
 NO_TESTS_COLLECTED = 5
 

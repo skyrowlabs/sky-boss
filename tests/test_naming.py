@@ -45,7 +45,6 @@ about the past, and they are already in backticks, where the rule leaves them.
 
 import ast
 import io
-import json
 import re
 import tokenize
 from pathlib import Path
@@ -137,14 +136,9 @@ def generated() -> set[Path]:
 
     A subject is a record of what was typed, and the changelog is a copy of
     subjects, so this rule cannot be met there without rewriting history.
+    The set is the template's `repo_files.changelogs` (skeletor v0.73.0).
     """
-    config = PROJECT_ROOT / ".github" / "release-please-config.json"
-    if not config.is_file():
-        return set()
-    packages = json.loads(config.read_text()).get("packages", {})
-    return {
-        (PROJECT_ROOT / name / body.get("changelog-path", "CHANGELOG.md")).resolve() for name, body in packages.items()
-    }
+    return {(PROJECT_ROOT / path).resolve() for path in repo_files.changelogs()}
 
 
 def in_tree(suffix: str) -> list[Path]:

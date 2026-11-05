@@ -10,7 +10,11 @@ The version is the `rev:` of the gitleaks hook in `.pre-commit-config.yaml`, its
 one home; `--pinned` prints it so CI installs that binary. A missing binary is a
 failure, never a pass: "could not scan" is not "nothing found". Locally the
 commit hook scans every staged change, which is why `check pre-push` does not
-run this. A false positive takes an inline `gitleaks:allow` comment on its line.
+run this. A false positive on a line you are adding takes an inline
+`gitleaks:allow` comment. One already in history cannot: that commit's patch is
+fixed, so its fingerprint (`<commit>:<file>:<rule>:<line>`, printed per finding)
+goes in `.gitleaksignore` at the root (stash.flow#280). Never quote the value in
+that file; gitleaks scans it too.
 """
 
 from __future__ import annotations
@@ -82,6 +86,7 @@ def main() -> int:
             "file": f.get("File"),
             "line": f.get("StartLine"),
             "commit": (f.get("Commit") or "")[:8],
+            "fingerprint": f.get("Fingerprint"),
         }
         for f in findings
     ]
@@ -94,7 +99,11 @@ def main() -> int:
         fail(f"{len(rows)} possible secret(s) in {commit_range}")
         for row in rows:
             item(f"{row['file']}:{row['line']} ({row['rule']}, commit {row['commit']})")
-        detail("Rotate a real credential; a false positive takes an inline `gitleaks:allow` comment.")
+            if row["fingerprint"]:
+                detail(f"fingerprint: {row['fingerprint']}")
+        detail("Rotate a real credential. A false positive on a line you are adding takes an inline")
+        detail("`gitleaks:allow` comment; one in a commit already made takes its fingerprint as a line")
+        detail("in .gitleaksignore. Never quote the value there: that file is scanned too.")
         return 1
     fail(f"gitleaks exited {code} without a report")
     detail(stderr.strip())

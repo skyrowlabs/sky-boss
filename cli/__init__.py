@@ -110,8 +110,10 @@ def cli() -> None:
 #: module (or the documented alias below) is registered by existing, which is the
 #: same rule the test suite uses for markers.
 #:
-#: The alias map is for the few modules whose Python name cannot be the command
-#: name (`test` shadows nothing useful; `test_cmds` avoids pytest collection).
+#: A module's underscores become hyphens in its command name (`smoke_test.py` is
+#: `smoke-test`), which is how click names a command from its function. The alias
+#: map is for the few whose Python name cannot be the command name at all
+#: (`test` shadows nothing useful; `test_cmds` avoids pytest collection).
 _ALIASES = {"test_cmds": "test", "pr_train": "train"}
 
 
@@ -143,7 +145,7 @@ def _discover() -> None:
         if name.startswith("_") or name == "helpers":
             continue
         module = importlib.import_module(f"{__name__}.{name}")
-        command_name = _ALIASES.get(name, name)
+        command_name = _ALIASES.get(name, name.replace("_", "-"))
         candidate = getattr(module, command_name, None) or getattr(module, name, None)
         if isinstance(candidate, click.Command):
             cli.add_command(candidate, name=command_name)

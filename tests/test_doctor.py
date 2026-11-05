@@ -21,6 +21,15 @@ from tests.shell import module  # noqa: E402
 doctor = module("doctor")
 REPO = "repos/{owner}/{repo}"
 
+#: The tree's own holds, captured before the fixture below hides them.
+HELD = doctor.repo_settings.HELD_WORKFLOWS
+
+
+@pytest.fixture(autouse=True)
+def no_holds(monkeypatch):
+    """Stubbed workflows meet no hold: a real one would read as stale against the stub."""
+    monkeypatch.setattr(doctor.repo_settings, "HELD_WORKFLOWS", GITHUB_DIR / "absent-held.yaml")
+
 
 def stub(monkeypatch, answers: dict) -> None:
     """`gh api` answering from `answers`; a path not in it is unreadable, an int is that HTTP status."""
@@ -291,7 +300,7 @@ def test_every_held_workflow_is_a_workflow_here():
 
     present = {path.name for path in (GITHUB_DIR / "workflows").glob("*.y*ml")}
     gone = allowlist.stale(
-        allowlist.read(doctor.repo_settings.HELD_WORKFLOWS),
+        allowlist.read(HELD),
         lambda name: None if name in present else "there is no such workflow in .github/workflows",
     )
     assert not gone, "\n".join(gone) + "\n" + allowlist.STALE_ADVICE
