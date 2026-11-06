@@ -14,7 +14,7 @@ from __future__ import annotations
 import json
 import os
 import tempfile
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Callable
 
@@ -40,10 +40,27 @@ class Column:
     order: list[str] = field(default_factory=lambda: list(TOOLS))
     hidden: set[str] = field(default_factory=set)
     collapsed: set[str] = field(default_factory=set)
+    # The grid's columns, left to right; empty until the operator moves a pane.
+    columns: list[list[str]] = field(default_factory=list)
 
     @property
     def shown(self) -> list[str]:
         return [role for role in self.order if role not in self.hidden]
+
+    def groups(self, declared: list[list[str]] | None = None) -> list[list[str]]:
+        """The shown panes by grid column: the saved columns, else `declared`, else two and two.
+
+        A hidden pane is left out, and one no column names joins the last.
+        """
+        shown = self.shown
+        chosen = self.columns or declared or [shown[0::2], shown[1::2]]
+        out = [[role for role in column if role in shown] for column in chosen]
+        out = [column for column in out if column]
+        placed = {role for column in out for role in column}
+        missing = [role for role in shown if role not in placed]
+        if missing and out:
+            out[-1] = [*out[-1], *missing]
+        return out or ([missing] if missing else [])
 
     def folded(self, role: str) -> bool:
         return role in self.collapsed and role not in self.hidden
@@ -72,9 +89,10 @@ def load(session: str, default: list[str] | None = None) -> tuple[Column, list[s
     except (OSError, ValueError) as exc:
         return Column(order=known(default or [])), [f"{path.name} unreadable, so the default column is drawn — {exc}"]
     order = known([str(role) for role in raw.get("order", [])])
+    columns = [[str(role) for role in column if role in TOOLS] for column in raw.get("columns", [])]
     hidden = {str(role) for role in raw.get("hidden", [])} & set(TOOLS)
     collapsed = {str(role) for role in raw.get("collapsed", [])} & set(TOOLS)
-    return Column(order=order, hidden=hidden, collapsed=collapsed), []
+    return Column(order=order, hidden=hidden, collapsed=collapsed, columns=columns), []
 
 
 def save(session: str, column: Column) -> None:
@@ -84,7 +102,12 @@ def save(session: str, column: Column) -> None:
     handle, temp = tempfile.mkstemp(dir=path.parent, prefix=".column.", suffix=".json")
     with os.fdopen(handle, "w") as out:
         json.dump(
-            {"order": column.order, "hidden": sorted(column.hidden), "collapsed": sorted(column.collapsed)},
+            {
+                "order": column.order,
+                "hidden": sorted(column.hidden),
+                "collapsed": sorted(column.collapsed),
+                "columns": column.columns,
+            },
             out,
             indent=1,
         )
@@ -105,7 +128,48 @@ def move(column: Column, at: int, step: int) -> tuple[Column, int]:
     order = list(column.order)
     to = max(0, min(len(order) - 1, at + step))
     order.insert(to, order.pop(at))
-    return Column(order=order, hidden=set(column.hidden), collapsed=set(column.collapsed)), to
+    return replace(column, order=order, hidden=set(column.hidden), collapsed=set(column.collapsed)), to
+
+
+def send(groups: list[list[str]], role: str, to: str) -> list[list[str]]:
+    """`role` moved ahead of `to`, in `to`'s column. Alone in its column, it swaps with `to` instead.
+
+    A column never empties here, as a click would have nowhere left to send a pane back to.
+    """
+    out = [list(column) for column in groups]
+    source = next((column for column in out if role in column), None)
+    target = next((column for column in out if to in column), None)
+    if source is None or target is None or source is target:
+        return out
+    at = target.index(to)
+    if len(source) == 1:
+        source[0], target[at] = to, role
+    else:
+        source.remove(role)
+        target.insert(at, role)
+    return out
+
+
+def place(groups: list[list[str]], role: str, number: int) -> list[list[str]]:
+    """`role` at the end of column `number`, counted from 1; one past the last is a new column.
+
+    Raises `ValueError` on a column that does not exist, or a move that would empty one.
+    """
+    if not 1 <= number <= len(groups) + 1:
+        raise ValueError(f"there are {len(groups)} columns, so {number} is not one, nor the next")
+    out = [list(column) for column in groups]
+    source = next((column for column in out if role in column), None)
+    if source is None:
+        raise ValueError(f"{role} is not showing")
+    if number <= len(out) and role in out[number - 1]:
+        return out
+    if len(source) == 1:
+        raise ValueError(f"{role} is alone in its column, and moving it would empty that")
+    source.remove(role)
+    if number > len(out):
+        out.append([])
+    out[number - 1].append(role)
+    return out
 
 
 def press(column: Column, at: int, key: str) -> tuple[Column, int, str | None]:
@@ -124,9 +188,9 @@ def press(column: Column, at: int, key: str) -> tuple[Column, int, str | None]:
         if not set(column.order) - hidden:
             # Hiding the last pane would leave nothing to draw the column with.
             return column, at, None
-        return Column(order=column.order, hidden=hidden, collapsed=column.collapsed), at, None
+        return replace(column, hidden=hidden), at, None
     if key == "c":
-        return Column(order=column.order, hidden=column.hidden, collapsed=toggle(column.collapsed, role)), at, None
+        return replace(column, collapsed=toggle(column.collapsed, role)), at, None
     if key in ("K", "["):
         moved, to = move(column, at, -1)
         return moved, to, None

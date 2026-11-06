@@ -25,12 +25,21 @@ class Tab:
     cwd: str = ""
 
 
+@dataclass(frozen=True)
+class Terminal:
+    """A terminal tab: its directory comes back, and its shell starts new."""
+
+    name: str
+    cwd: str = ""
+
+
 @dataclass
 class Saved:
     tabs: list[Tab] = field(default_factory=list)
     primary: str = ""
     profile: str = ""
     at: float = 0.0
+    terminals: list[Terminal] = field(default_factory=list)
 
 
 def path_for(session: str) -> Path:
@@ -43,12 +52,9 @@ def load(session: str) -> tuple[Saved, list[str]]:
     try:
         record = json.loads(path.read_text())
         tabs = [Tab(str(t["agent"]), str(t["id"]), str(t.get("cwd") or "")) for t in record["tabs"]]
-        return (
-            Saved(
-                tabs, str(record.get("primary") or ""), str(record.get("profile") or ""), float(record.get("at") or 0)
-            ),
-            [],
-        )
+        terminals = [Terminal(str(t["name"]), str(t.get("cwd") or "")) for t in record.get("terminals", [])]
+        primary, profile = str(record.get("primary") or ""), str(record.get("profile") or "")
+        return Saved(tabs, primary, profile, float(record.get("at") or 0), terminals), []
     except FileNotFoundError:
         return Saved(), []
     except (OSError, ValueError, KeyError, TypeError, AttributeError) as exc:
@@ -67,6 +73,7 @@ def save(session: str, saved: Saved) -> None:
                 "primary": saved.primary,
                 "profile": saved.profile,
                 "tabs": [{"agent": t.agent, "id": t.id, "cwd": t.cwd} for t in saved.tabs],
+                "terminals": [{"name": t.name, "cwd": t.cwd} for t in saved.terminals],
             },
             out,
             indent=1,
