@@ -454,6 +454,37 @@ window. Nothing writes `deck.toml`, and that is a stated rule.
 **Does not do:** edit or remove an agent or profile from the bar, change `projects.toml`, or type into
 a terminal tab. Running agents are not told about a new tab, as with `sb deck open` today.
 
+## Phase 18 (round 17): padding on the agent tabs, and new pane titles (not built)
+
+Requested by Jeston on 2026-11-06. **Bring him the shape before building.**
+
+- [ ] **Pad the agent tabs like the tool panes.** This reverses Phase 15's "the Claude tabs stay edge
+  to edge". The tool panes are padded by their own renderer (`inset()` in `resident.py`). A tab's
+  screen belongs to `claude`, and tmux has no pane padding, so the padding has to be blank space
+  around the pane. Measure spacer panes in the controller's layout first: they cover every tab at
+  once, but each costs a border cell, every `plan()` shape has to place them, and the Phase 17
+  terminal tab gets the same padding. If that looks wrong, stop and ask him.
+- [ ] **Title each pane's top band with its label.** The band now says `┌ deck queue ───`, built from
+  the command. It becomes the label alone, with no `┌`, in the deck's panes only: `chrome.py`'s band
+  also draws every other resident screen. The header-ground code near `deck.py:2636` tells the top
+  band by its `┌`, so it needs another test.
+- [ ] **Rename the labels** in `column.LABELS`, keeping Jeston's spelling:
+
+  | Now | New |
+  |---|---|
+  | NEEDS YOU | AGENT LIST |
+  | TODOS | AGENT TODOs |
+  | MESSAGES | AGENT COMMUNICATIONS |
+  | DECISIONS | HUMAN DECISIONS |
+
+  Role names and the `column` commands stay. So does `needs you` as a tab's state word.
+- [ ] **Make room for the longer labels.** The chooser pads to ten cells, and `FOLDED_WIDTH` is 16, so
+  `AGENT COMMUNICATIONS` (20) overflows both. Check the folded line in each layout.
+- [ ] **Sweep the old names:** `README.md`, its `readme-deck.png`, `CLAUDE.md`'s `sb deck` row, and the
+  tests.
+- [ ] **Ask him:** the panes for TODOS and DECISIONS print that word again under the band, which the new
+  title makes redundant. Recommended: drop that line.
+
 ## Dropped, and why
 
 - **Binding Ctrl-C for exit.** It is claude's interrupt, and forwarding it would put every
@@ -975,3 +1006,9 @@ kept the TODOS pane's pid.
   terminal and the start list share one question: what the deck may open, and from where.
 - **The cost to weigh:** the `+` as asked reverses "sky.boss never writes `deck.toml`". That reversal
   is his to make. If he makes it, Phase 7's line stays and this note records the change.
+
+### 2026-11-06: round 17 opened, tab padding and pane titles, nothing built
+
+- **Why:** Jeston's request, made directly. His "r" at the start of the bar is read as the band's `┌`,
+  and "the cli tabs" as the agent tabs. He wrote `TODOs` inside all caps, and it is kept as he wrote it.
+- **The reversal:** on 2026-11-05 he wanted the tabs edge to edge. That reasoning stays in Phase 15.

@@ -31,7 +31,7 @@
         "surfaces"
       ],
       "summary": "Adds `sb deck`, a tmux session holding one window per agent, plus a queue of sessions waiting on the operator, read by both surfaces. It is the first act surface beside the observe-only canvas.",
-      "open_tasks": 17,
+      "open_tasks": 23,
       "auto_generated": false
     },
     {
