@@ -291,12 +291,21 @@ def _legible(colour: str) -> str:
 AGENT_COLOURS: tuple[str, ...] = tuple(_legible(_mix(partner, weight)) for partner, weight in AGENT_RECIPES)
 
 
+#: Agent name → the hue its `[agent.NAME] colour` chose, set by the deck when it reads `deck.toml`.
+DECLARED_HUES: dict[str, str] = {}
+
+
+def hue_names() -> tuple[str, ...]:
+    """Every hue a deck agent may declare: the theme's own, so the deck's floor still holds."""
+    return ("brand", *PRODUCT_HUES, *(f"step{slot}" for slot in range(len(AGENT_COLOURS))))
+
+
 def _hue_key(name: str, slot: int) -> str:
-    return SLUG_HUES.get(name) or f"step{slot % len(AGENT_COLOURS)}"
+    return DECLARED_HUES.get(name) or SLUG_HUES.get(name) or f"step{slot % len(AGENT_COLOURS)}"
 
 
 def agent_colour(name: str, slot: int) -> str:
-    """An agent's colour: its product's hue at full strength, else its tab slot's step.
+    """An agent's colour: the hue it declared, else its product's at full strength, else its slot's step.
 
     The one assignment the tab row and the messages pane both read.
     """

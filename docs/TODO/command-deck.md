@@ -367,6 +367,16 @@ decided items in DECISIONS, which M-x did not touch. He ruled on both fixes.
 - [x] **The deck's name is its profile.** `sky.boss deck` is what a deck from no declared profile says.
 - [x] **No window list in the footer.** The outer session has one window, so `0:deck*` said nothing.
 
+## Phase 14 (round 13): colours by default, decisions by click, a grid
+
+- [x] **Colours are the standard.** Console themes are on unless `themes = false`, and the controller's
+  active border takes the current tab's colour. `colour = "<hue>"` on an `[agent.NAME]` overrides.
+- [x] **A clicked decision opens a popup** of its `--option` choices, or a typed ruling.
+- [x] **The ruling reaches the agent**, typed into its tab once idle, by the marks loop.
+- [x] **`grid`, a third layout**: the four panes two by two. M-l cycles it, and so does ▦ in the footer.
+- [x] **No deck job exits non-zero**, as tmux prints that over the current pane.
+- [x] **TODOS draws only agents with a list.**
+
 ## Dropped, and why
 
 - **Binding Ctrl-C for exit.** It is claude's interrupt, and forwarding it would put every
@@ -851,3 +861,17 @@ kept the TODOS pane's pid.
   the outer session replaces tmux's default, which is where the window list lived.
 - **Renaming a profile under a running deck:** `@sb-profile` and `saved.json` keep the old name, and
   a name no longer declared gives no brief to a new tab. Set the option, then `sb deck save`.
+
+### 2026-11-05: round 13 built, colours, decisions, grid
+
+- **Why:** Jeston's rulings, in the tab. A ruling typed into a tab can join a draft sky.boss cannot
+  see; he took that over an idle agent never hearing. This is the risk that held `sb deck compact`
+  back, accepted here because the operator has just clicked in the popup, not typed in the tab.
+- **`colour` names a theme hue, never a hex.** A hex would have no Rich role for the messages pane
+  and no floor. `hue_names` is the list.
+- **Why a job says `|| true`:** tmux prints a non-zero `run-shell` exit into view-mode on the current
+  pane, redirected output or not. Reproduced on a throwaway server after a tab was found stuck in
+  view-mode. Which job did it there is not known.
+- **`rule` is not a list command.** It needs a terminal and refuses inside a tab, so an agent cannot
+  rule on itself. A ruling not yet told survives M-x.
+- **Does not do:** tell an agent while its tab is busy or scrolled; the ruling waits, marked `untold`.

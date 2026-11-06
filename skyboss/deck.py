@@ -29,6 +29,7 @@ import shlex
 import shutil
 import subprocess
 import sys
+import textwrap
 import time
 import tomllib
 from dataclasses import dataclass, field, replace
@@ -58,7 +59,7 @@ DECK_FILE = "deck.toml"
 DEFAULT_SESSION = "sb"
 TOP_LEVEL_KEYS = frozenset({"session", "pin", "panes", "themes", "theme_base"})
 TOP_LEVEL_TABLES = frozenset({"agent", "profile"})
-AGENT_KEYS = frozenset({"cwd", "args", "role"})
+AGENT_KEYS = frozenset({"cwd", "args", "role", "colour"})
 PROFILE_KEYS = frozenset({"primary", "tabs", "brief"})
 
 # tmux rewrites `.` and `:` in a session name, so a name carrying either would
@@ -100,10 +101,13 @@ TOOL_ROLES = (QUEUE, MESSAGES, TODOS, DECISIONS)
 INNER_SUFFIX = "-agents"
 
 # The controller's two shapes, and its sizes. Constants until somebody needs to declare them.
-COLUMNS, STACK = "columns", "stack"
-LAYOUTS = (COLUMNS, STACK)
+COLUMNS, STACK, GRID = "columns", "stack", "grid"
+LAYOUTS = (COLUMNS, STACK, GRID)
 TOOLS_WIDTH = "25%"
 TOOLS_HEIGHT = "30%"
+#: Each of a grid's two columns, so two panes fit across: the tabs keep the rest.
+GRID_COLUMN = "20%"
+GRID_TABS = "60%"
 HALF = "50%"
 # One cadence for every tool pane, on the clock's multiples of it, so the footer's one countdown is true of all.
 TOOLS_REFRESH = 5
@@ -133,6 +137,8 @@ class Agent:
     source: str = DECK_FILE
     # One line the operator wrote about this agent, printed beside it in every roster.
     role: str = ""
+    # A hue from `theme.hue_names`, chosen over the one the theme would give it.
+    colour: str = ""
 
     @property
     def argv(self) -> list[str]:
@@ -200,7 +206,7 @@ class Config:
     profiles: dict[str, Profile] = field(default_factory=dict)
     panes: list[str] = field(default_factory=list)
     # Each tab's Claude Code takes a theme accented in its agent's deck hue, on `theme_base`.
-    themes: bool = False
+    themes: bool = True
     theme_base: str = ""
 
     def profile(self, name: str | None) -> Profile | None:
@@ -295,8 +301,16 @@ def parse(raw: dict) -> tuple[Config, list[str]]:
         for key in body:
             if key not in AGENT_KEYS:
                 problems.append(f"agent {name!r}: unknown key {key!r} — ignored")
+        colour = body.get("colour", "")
+        if colour and colour not in theme.hue_names():
+            problems.append(f"agent {name!r}: colour must be one of {', '.join(theme.hue_names())} — ignored")
+            colour = ""
         config.agents[name] = Agent(
-            name=name, cwd=body["cwd"], args=list(body.get("args", [])), role=body.get("role", "").strip()
+            name=name,
+            cwd=body["cwd"],
+            args=list(body.get("args", [])),
+            role=body.get("role", "").strip(),
+            colour=colour,
         )
 
     tables = raw.get("profile", {})
@@ -353,7 +367,11 @@ def _check(name: str, body) -> str | None:
 
 
 def load(home: Path | None = None) -> tuple[Config, list[str]]:
-    return parse(read(home))
+    config, problems = parse(read(home))
+    # Declared here and not in `parse`, which is pure: every reader of an agent's colour comes through this.
+    theme.DECLARED_HUES.clear()
+    theme.DECLARED_HUES.update({name: agent.colour for name, agent in config.agents.items() if agent.colour})
+    return config, problems
 
 
 def resolve(name: str, config: Config, projects: list) -> tuple[Agent | None, str]:
@@ -648,24 +666,35 @@ def scrollbar(span: tuple[int, int, int], room: int, offset: int) -> str:
     )
 
 
+def border_follows_tab(session: str) -> list[str]:
+    """The controller's active border in the current tab's colour, the brand before a tab has one."""
+    answer = tmux("display-message", "-p", "-t", f"={inner(session)}:", "#{" + COLOUR_OPTION + "}")
+    colour = answer.out.strip() if answer.ok else ""
+    style = f"fg={colour}" if colour.startswith("#") else theme.tmux_styles()["border-active"]
+    set_ = tmux("set-option", "-w", "-t", f"={session}:", "pane-active-border-style", style)
+    return [] if set_.ok else [f"could not colour the deck's border — {_said(set_)}"]
+
+
 def scroll_once(session: str) -> list[str]:
     """Show the scrollbar row under the tabs if they overflow their client, and hide it if not."""
     name = inner(session)
+    colouring = border_follows_tab(session)
     clients = tmux("list-clients", "-t", f"={name}", "-F", "#{client_width}")
     windows = tmux("list-windows", "-t", f"={name}", "-F", "#{window_active}\t#{window_name}")
     if not (clients.ok and windows.ok):
         return [f"could not measure the deck's tab row — {_said(clients if not clients.ok else windows)}"]
     widths = [int(w) for w in clients.out.split() if w.isdigit()]
     if not widths:
-        return []
+        return colouring
     rows = [line.split("\t", 1) for line in windows.out.splitlines() if "\t" in line]
     current = next((n for n, (active, _) in enumerate(rows) if active == "1"), 0)
     _, left = tab_lefts()
     room = min(widths) - left
     span = visible_span([tab_width(label) for _, label in rows], current, room)
     if span is None:
-        return _session_options(name, (("status", str(TAB_ROWS)), (SCROLLBAR_OPTION, "")))
-    return _session_options(name, ((SCROLLBAR_OPTION, scrollbar(span, room, left)), ("status", str(TAB_ROWS + 1))))
+        return colouring + _session_options(name, (("status", str(TAB_ROWS)), (SCROLLBAR_OPTION, "")))
+    bar = ((SCROLLBAR_OPTION, scrollbar(span, room, left)), ("status", str(TAB_ROWS + 1)))
+    return colouring + _session_options(name, bar)
 
 
 def window_options(tab: bool) -> tuple[tuple[str, str], ...]:
@@ -725,7 +754,7 @@ def bar_options(tabs: bool, profile: str = "") -> tuple[tuple[str, str], ...]:
         options += tuple((f"status-format[{row}]", tab_row(row, lefts[row])) for row in range(TAB_ROWS))
         options += ((f"status-format[{TAB_ROWS}]", "#{" + SCROLLBAR_OPTION + "}"),)
     else:
-        options += (("status-right", hints()), ("status-right-length", "120"), ("status-format[0]", FOOTER_FORMAT))
+        options += (("status-right", hints()), ("status-right-length", "140"), ("status-format[0]", FOOTER_FORMAT))
     return options
 
 
@@ -755,6 +784,7 @@ SCROLL_OPTION = "@sb-scroll"
 SCROLL_SEQ_OPTION = "@sb-scroll-seq"
 AGENT_COUNT_OPTION = "@sb-agent-count"
 EXIT_RANGE = "exit"
+LAYOUT_RANGE = "layout"
 
 
 def key_table(session: str) -> str:
@@ -775,14 +805,28 @@ def mirrored_root(listing: str, table: str) -> str:
     return "\n".join(out) + ("\n" if out else "")
 
 
+def quiet(*words: str) -> str:
+    """`sb WORDS` for a `run-shell`, exiting 0 always: tmux prints a non-zero exit over the current pane."""
+    return f"{shlex.quote(str(PROJECT_ROOT / 'sb'))} {' '.join(words)} >/dev/null 2>&1 || true"
+
+
+def job(*words: str) -> str:
+    return f'run-shell -b "{quiet(*words)}"'
+
+
+def next_layout() -> str:
+    """The layout after this one, as a tmux format: columns, stack, grid, and round."""
+    now = "#{" + LAYOUT_OPTION + "}"
+    return f"#{{?#{{==:{now},{STACK}}},{GRID},#{{?#{{==:{now},{GRID}}},{COLUMNS},{STACK}}}}}"
+
+
 def deck_bindings(session: str) -> list[list[str]]:
     """The deck's own bindings, as `bind-key` argv. Pure, so the suite reads exactly what is bound."""
     table = key_table(session)
     outer, tabs = scope(session), scope(inner(session))
     sb = shlex.quote(str(PROJECT_ROOT / "sb"))
-
-    def job(*words: str) -> str:
-        return f"run-shell -b \"exec {sb} {' '.join(words)} >/dev/null 2>&1\""
+    cycle = job("deck", "layout", next_layout())
+    clicked = "#{==:#{mouse_status_range}," + LAYOUT_RANGE + "}"
 
     count = "#{" + AGENT_COUNT_OPTION + "}"
     ask = (
@@ -790,7 +834,6 @@ def deck_bindings(session: str) -> list[list[str]]:
     )
     seq = "#{e|+:#{" + SCROLL_SEQ_OPTION + "},1}"
     hide = "#{" + HIDE_OPTION + "}"
-    layout = "#{" + LAYOUT_OPTION + "}"
 
     def scroll(word: str) -> list[str]:
         # `\;` rather than `;`: a bare one would end the bind-key and run the rest at once.
@@ -809,20 +852,10 @@ def deck_bindings(session: str) -> list[list[str]]:
             "-F",
             "#{==:#{mouse_status_range}," + EXIT_RANGE + "}",
             ask,
-            "switch-client -t =",
+            f"if-shell -F '{clicked}' '{cycle}' 'switch-client -t ='",
         ],
         ["bind-key", "-T", table, keys["outside"], "set-option", "-F", "-t", outer, HIDE_OPTION, f"#{{?{hide},,1}}"],
-        [
-            "bind-key",
-            "-T",
-            table,
-            keys["layout"],
-            "if-shell",
-            "-F",
-            f"#{{==:{layout},stack}}",
-            job("deck", "layout", COLUMNS),
-            job("deck", "layout", STACK),
-        ],
+        ["bind-key", "-T", table, keys["layout"], *shlex.split(cycle)],
         ["bind-key", "-T", table, keys["previous"], "previous-window", "-t", tabs],
         ["bind-key", "-T", table, keys["next"], "next-window", "-t", tabs],
         ["bind-key", "-T", table, keys["older"], *scroll("older")],
@@ -849,7 +882,7 @@ def deck_bindings(session: str) -> list[list[str]]:
             "run-shell",
             "-b",
             f"{sb} deck column fold '#{{{ROLE_OPTION}}}' >/dev/null 2>&1 "
-            f"|| tmux display-message '{keys['fold']} folds a right-column pane: focus one first'",
+            f"|| tmux display-message '{keys['fold']} folds a right-column pane: focus one first' || true",
         ],
         # Both books, counted from the envelopes (one `"cleared"` line per list), so a press with nothing done says 0.
         [
@@ -861,7 +894,7 @@ def deck_bindings(session: str) -> list[list[str]]:
             "-b",
             f"t=$({sb} --json deck todo clear 2>/dev/null | grep -c '\"cleared\"'); "
             f"d=$({sb} --json deck decide clear 2>/dev/null | grep -c '\"cleared\"'); "
-            'tmux display-message "cleared done todos from $t list(s) and decided items from $d"',
+            'tmux display-message "cleared done todos from $t list(s) and decided items from $d" || true',
         ],
     ]
 
@@ -906,7 +939,7 @@ def _source(text: str) -> list[str]:
 
 
 def hints() -> str:
-    """The outer bar's right end: each shortcut, then the ✕ that ends the deck."""
+    """The outer bar's right end: each shortcut, the ▦ that changes layout, the ✕ that ends the deck."""
     style = theme.tmux_styles()
     k = SHORTCUTS
     parts = [
@@ -921,6 +954,7 @@ def hints() -> str:
     ]
     return (
         f"#[{style['quiet']}]{'  '.join(parts)} "
+        f"#[range=user|{LAYOUT_RANGE}]#[{style['label']}] ▦ #[nobold norange]"
         f"#[range=user|{EXIT_RANGE}]#[{style['exit']}] ✕ #[norange]#[{style['bar']}]"
     )
 
@@ -987,6 +1021,36 @@ def live_tabs(listed: list[Pane], sessions: list, parent_of: dict[int, int]) -> 
         if window_id in agents and session is not None and window_id not in held:
             held[window_id] = decksave.Tab(agents[window_id], session.id, session.cwd)
     return list(held.values()), [name for window_id, name in agents.items() if window_id not in held]
+
+
+def ruling_line(n: int, item: todos_.Item) -> str:
+    """What an agent reads in its tab when the operator rules from the DECISIONS pane."""
+    return f'The operator ruled on your decision {n}, "{item.text}": {item.ruling}'
+
+
+def tell_rulings(session: str, listed: list[Pane], states: dict[str, str], labels: dict[str, str]) -> list[str]:
+    """Type one untold ruling into each idle agent's tab. Never into a busy tab or a scrolled pane."""
+    problems: list[str] = []
+    for pane in listed:
+        agent = labels.get(pane.window_id, "")
+        if pane.role != AGENT or states.get(pane.window_id) != "idle":
+            continue
+        try:
+            found = todos_.next_untold(session, agent)
+        except ValueError as exc:
+            problems.append(f"{agent}: {exc}")
+            continue
+        scrolled = tmux("display-message", "-p", "-t", pane.pane_id, "#{pane_in_mode}")
+        if found is None or not scrolled.ok or scrolled.out.strip() == "1":
+            continue
+        n, item = found
+        typed = tmux("send-keys", "-t", pane.pane_id, "-l", ruling_line(n, item))
+        sent = tmux("send-keys", "-t", pane.pane_id, "Enter") if typed.ok else typed
+        if sent.ok:
+            todos_.told(session, agent, n)
+        else:
+            problems.append(f"could not tell {agent!r} a ruling — {_said(sent)}")
+    return problems
 
 
 def write_save(session: str, tabs: list[decksave.Tab]) -> list[str]:
@@ -1058,6 +1122,8 @@ def marks_once(
         result.degrade(problem)
     for problem in scroll_once(session):
         result.degrade(problem)
+    for problem in tell_rulings(session, listed, states, labels):
+        result.degrade(problem)
     if answer.ok:
         for problem in autosave(session, live_tabs(listed, sessions, parent_of)[0]):
             result.degrade(problem)
@@ -1076,7 +1142,7 @@ def start_marks(session: str) -> list[str]:
     """Start the one marks loop for this deck unless it is running. A tmux background job, so it ends with the server."""
     if _marks_owner(session) is not None:
         return []
-    command = "exec " + shlex.join(marks_argv()) + " >/dev/null 2>&1"
+    command = shlex.join(marks_argv()) + " >/dev/null 2>&1 || true"
     answer = tmux("run-shell", "-b", command)
     return [] if answer.ok else [f"could not start the tab marks — {_said(answer)}"]
 
@@ -1138,7 +1204,7 @@ def start(
 # Console themes: each tab's Claude Code accented in its agent's hue
 # ============================================================================
 #
-# On with `themes = true` in deck.toml (Jeston's ruling, 2026-11-05). The one place
+# On unless `themes = false` in deck.toml (Jeston's ruling, 2026-11-05). The one place
 # sky.boss writes into Claude Code's configuration: `sb-<agent>.json` files in its
 # themes directory, and only those. A tab selects its theme for its own session with
 # `--settings`, so Claude Code outside the deck keeps the operator's theme.
@@ -1254,8 +1320,8 @@ def brief(name: str, session: str, rows: list[tuple[str, str, str]], primary: st
         "`sb deck brief` reprints this with the deck as it stands now.",
         "The operator sees every message between agents in the deck's MESSAGES pane, and answers",
         "an agent's prompts by clicking its tab.",
-        'Keep todos with `sb deck todo add "<text>"` / `done <n>` (TODOS pane), and each decision you need',
-        'from the operator with `sb deck decide add "<question>"` / `done <n> "<ruling>"` (DECISIONS pane).',
+        'Keep todos with `sb deck todo add "<text>"` / `done <n>` (TODOS pane). Each decision you need from the',
+        'operator: `sb deck decide add "<question>" --option "<choice>"` (DECISIONS pane); its ruling is typed into your tab.',
     ]
     text = "\n".join(lines)
     return f"{text}\n\n{extra.strip()}" if extra.strip() else text
@@ -1465,9 +1531,7 @@ SCROLL_HOOKS = ("client-resized", "session-window-changed", "window-linked", "wi
 
 def scroll_hooks(session: str) -> list[list[str]]:
     """The `set-hook` argv that re-measure the tab row when its fit can change. Pure, for the suite."""
-    sb = shlex.quote(str(PROJECT_ROOT / "sb"))
-    run = f'run-shell -b "exec {sb} deck scroll >/dev/null 2>&1"'
-    return [["set-hook", "-t", scope(inner(session)), hook, run] for hook in SCROLL_HOOKS]
+    return [["set-hook", "-t", scope(inner(session)), hook, job("deck", "scroll")] for hook in SCROLL_HOOKS]
 
 
 def install_hooks(session: str) -> list[str]:
@@ -1546,8 +1610,9 @@ def plan(shape: str, tabs: str | None, tools: list[str], folded: frozenset[str] 
     """The tmux calls that put the deck's panes in `shape`. Pure, and only ever moves or resizes.
 
     columns: tabs | the tools stacked.  stack: tabs over the tools side by side.
+    grid: tabs | two columns of two, read across; with fewer than four tools it is columns.
     `tools` are pane ids in the column's order; a pane in `folded` is drawn as one
-    line (columns) or a narrow strip (stack), and the others share the rest.
+    line (columns, grid) or a narrow strip (stack), and the others share the rest.
     """
     calls: list[list[str]] = []
 
@@ -1559,6 +1624,25 @@ def plan(shape: str, tabs: str | None, tools: list[str], folded: frozenset[str] 
 
     if not tools:
         return calls
+    if shape == GRID and len(tools) == len(TOOL_ROLES):
+        first, second, third, fourth = tools
+        if tabs:
+            join(first, tabs, "-h", "-f")
+        join(second, first, "-h")
+        join(third, first, "-v")
+        join(fourth, second, "-v")
+        if tabs:
+            resize(tabs, "-x", GRID_TABS)
+        resize(first, "-x", GRID_COLUMN)
+        for top, bottom in ((first, third), (second, fourth)):
+            if top not in folded and bottom not in folded:
+                resize(top, "-y", HALF)
+            for pane in (top, bottom):
+                if pane in folded:
+                    resize(pane, "-y", FOLDED_HEIGHT)
+        return calls
+    if shape == GRID:
+        shape = COLUMNS
     across, along = ("-h", "-v") if shape == COLUMNS else ("-v", "-h")
     if tabs:
         # Full-window (-f): the tools' column must not inherit the tab pane's share of a stack,
@@ -1937,14 +2021,14 @@ def deck_jump(name: str) -> Result:
 @click.argument("shape", type=click.Choice(LAYOUTS))
 @emit
 def deck_layout(shape: str) -> Result:
-    """Lay the controller window out as `columns` or `stack`.
+    """Lay the controller window out as `columns`, `stack` or `grid`.
 
         sb deck layout stack
 
     **This acts**, on panes and never on what runs in them: it moves and resizes
     panes, so every `claude` keeps its process. A tool pane that has gone is put
-    back first. columns: tabs | queue over messages. stack: tabs over queue |
-    messages.
+    back first. columns: tabs | the panes stacked. stack: tabs over the panes side
+    by side. grid: tabs | the four panes two by two, or columns with fewer showing.
     """
     result = Result()
     config, problems = load()
@@ -2420,8 +2504,8 @@ class DeckPane(resident_.Control):
         self.session = session
         self.role = role
         self.head = "sb.deck.head"
-        # MESSAGES opens a clicked row in a popup; `rows` and `lines` are what the last frame drew.
-        self.clicks = role == MESSAGES
+        # MESSAGES and DECISIONS open a clicked row in a popup; `rows` and `lines` are what the last frame drew.
+        self.clicks = role in (MESSAGES, DECISIONS)
         self.rows: list[dict] = []
         self.lines: list[str] = []
         self.fold = False
@@ -2481,6 +2565,8 @@ class DeckPane(resident_.Control):
             row = clicked_row(self.lines, self.rows, cell[1])
             if self.clicks and row is not None and row.get("key"):
                 open_message(row["key"])
+            elif self.clicks and row is not None and row.get("kind") == "item":
+                open_decision(str(row["agent"]), int(row["n"]))
             return False
         return self.wheel and self.move(key)
 
@@ -2540,9 +2626,20 @@ POPUP_SIZE = ("60%", "50%")
 
 
 def message_popup_argv(key: str) -> list[str]:
-    """`display-popup` reading one message, on the void the deck paints so agent hues stay legible."""
-    style = theme.tmux_styles()
+    """`display-popup` reading one message."""
     sb = shlex.quote(str(PROJECT_ROOT / "sb"))
+    return popup_argv(" message ", f"exec {sb} deck message --page {shlex.quote(key)}")
+
+
+def decision_popup_argv(agent: str, n: int) -> list[str]:
+    """`display-popup` offering one decision's choices."""
+    sb = shlex.quote(str(PROJECT_ROOT / "sb"))
+    return popup_argv(" decision ", f"exec {sb} deck decide rule {shlex.quote(agent)} {n}")
+
+
+def popup_argv(title: str, command: str) -> list[str]:
+    """`display-popup` on the void the deck paints, so agent hues stay legible."""
+    style = theme.tmux_styles()
     width, height = POPUP_SIZE
     return [
         "display-popup",
@@ -2556,16 +2653,24 @@ def message_popup_argv(key: str) -> list[str]:
         "-S",
         style["border-active"],
         "-T",
-        " message ",
-        f"exec {sb} deck message --page {shlex.quote(key)}",
+        title,
+        command,
     ]
 
 
 def open_message(key: str) -> None:
+    _open_popup(message_popup_argv(key))
+
+
+def open_decision(agent: str, n: int) -> None:
+    _open_popup(decision_popup_argv(agent, n))
+
+
+def _open_popup(argv: list[str]) -> None:
     """Open the popup and return at once: the pane keeps drawing while the operator reads."""
     try:
         subprocess.Popen(
-            ["tmux", *message_popup_argv(key)],
+            ["tmux", *argv],
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
@@ -2594,6 +2699,7 @@ def keep_from_top(noun: str, pane: DeckPane) -> Callable[[Result, int], tuple[Re
         start = pane.within(len(rows), keep)
         below = max(0, len(rows) - start - keep)
         shown = replace(result, data=rows[start : start + keep])
+        pane.rows = shown.data
         if start:
             where = f"{below} {noun} below" if below else "the end"
             return shown, f"↓ {start} down · {where} · Home: top"
@@ -3214,30 +3320,114 @@ def _list_options(command: Callable) -> Callable:
 def deck_decide() -> None:
     """Each deck agent's open decisions for the operator, drawn in the DECISIONS pane.
 
-        sb deck decide add "take the template's ci.yml step, or hold ours?"
+        sb deck decide add "take the template's ci.yml step, or hold ours?" \\
+            --option "take it" --option "hold ours"
         sb deck decide done 1 "take it"
         sb deck decide list
 
     Record one wherever you would otherwise write a question for the operator
     into a report. `add`, `done` and `rm` act, on the list of the tab they run
     in, and refuse anywhere else. `list` observes. Nothing is inferred: a
-    decision exists because an agent recorded it.
+    decision exists because an agent recorded it. The operator rules by clicking
+    one in the pane, which opens `rule`, and the marks loop types the ruling into
+    the agent's tab once it is idle.
     """
 
 
 @deck_decide.command(name="add")
 @click.argument("question")
+@click.option("--option", "options", multiple=True, metavar="CHOICE", help="A choice to offer. Give one per choice.")
 @emit
-def deck_decide_add(question: str) -> Result:
-    """Record QUESTION as open, on this tab's list.
+def deck_decide_add(question: str, options: tuple[str, ...]) -> Result:
+    """Record QUESTION as open, on this tab's list, with the choices to offer.
 
-        sb deck decide add "take the template's ci.yml step, or hold ours?"
+        sb deck decide add "take the template's ci.yml step, or hold ours?" \\
+            --option "take it" --option "hold ours"
 
     **This acts**, on the list of the tab it runs in, and refuses anywhere else.
+    With no `--option` the operator types the ruling.
     """
     if not todos_.clean(question):
         raise click.UsageError("a decision needs a question")
-    return _todo_change(lambda session, agent: todos_.add(session, agent, question, book=todos_.DECISIONS))
+    if not all(todos_.clean(option) for option in options):
+        raise click.UsageError("an --option needs words")
+    if len(options) > len(RULING_KEYS):
+        raise click.UsageError(f"a decision offers at most {len(RULING_KEYS)} choices")
+    return _todo_change(lambda session, agent: todos_.add(session, agent, question, todos_.DECISIONS, options))
+
+
+#: The keys that pick a choice; `t` types a ruling instead and `q` closes without one.
+RULING_KEYS = "123456789"
+
+
+def ruling_screen(agent: str, n: int, item: todos_.Item, width: int) -> list[tuple[str, str]]:
+    """The popup's lines, each with the key a click on it stands for, empty for none. Pure."""
+    room = max(10, width - 6)
+    lines: list[tuple[str, str]] = [(f"{agent} asks ({n}):", ""), ("", "")]
+    lines += [(line, "") for line in textwrap.wrap(item.text, room)]
+    lines.append(("", ""))
+    if item.done:
+        lines += [(line, "") for line in textwrap.wrap(f"ruled: {item.ruling or 'closed'}", room)]
+        return [*lines, ("", ""), ("[q] close", "q")]
+    for key, option in zip(RULING_KEYS, item.options):
+        wrapped = textwrap.wrap(option, room) or [""]
+        lines += [(f"[{key}] {wrapped[0]}", key), *((f"    {more}", key) for more in wrapped[1:])]
+    return [*lines, ("[t] type a ruling", "t"), ("[q] close without ruling", "q")]
+
+
+def chosen_key(key: str | None, lines: list[tuple[str, str]]) -> str:
+    """The action a keypress or a click stands for, empty if it stands for none."""
+    cell = keys_.clicked(key)
+    if cell is not None:
+        return lines[cell[1] - 1][1] if 1 <= cell[1] <= len(lines) else ""
+    offered = {action for _, action in lines if action}
+    if keys_.leaves(key):
+        return "q"
+    return key if key in offered else ""
+
+
+def _ask_ruling(agent: str, n: int, item: todos_.Item) -> str:
+    """The operator's ruling from the popup, empty if they closed it without one."""
+    lines = ruling_screen(agent, n, item, shutil.get_terminal_size().columns)
+    sys.stdout.write(resident_.MOUSE_ON + "\x1b[2J\x1b[H" + "\r\n".join(line for line, _ in lines))
+    sys.stdout.flush()
+    action = ""
+    try:
+        with keys_.reader() as wait_for:
+            while not action:
+                action = chosen_key(wait_for(60.0), lines)
+    finally:
+        sys.stdout.write(resident_.MOUSE_OFF)
+        sys.stdout.flush()
+    if action == "t":
+        return todos_.clean(click.prompt("\nruling", default="", show_default=False))
+    return item.options[RULING_KEYS.index(action)] if action in RULING_KEYS else ""
+
+
+@deck_decide.command(name="rule")
+@click.argument("agent")
+@click.argument("n", type=click.IntRange(min=1))
+def deck_decide_rule(agent: str, n: int) -> None:
+    """Rule on AGENT's decision N: what a click in the DECISIONS pane opens.
+
+        sb deck decide rule skeletor 2
+
+    **This acts**, and only for the operator: it needs a terminal, and refuses
+    inside a tab, as an agent does not rule. Offers the decision's choices, or a
+    typed ruling. The agent is told in its tab once it is idle.
+    """
+    config, problems = load()
+    warn_now(problems)
+    if not has_terminal():
+        raise click.ClickException("a ruling is the operator's, and there is no terminal here to ask on")
+    if caller_tab(config.session) is not None:
+        raise click.ClickException("a ruling is the operator's, so this refuses inside a deck tab")
+    todo = todos_.load(config.session, agent, todos_.DECISIONS)
+    if todo is None or not 1 <= n <= len(todo.items):
+        raise click.ClickException(f"{agent} has no decision {n}")
+    ruling = _ask_ruling(agent, n, todo.items[n - 1])
+    if ruling:
+        todos_.rule(config.session, agent, n, ruling)
 
 
 @deck_decide.command(name="done")
@@ -3303,6 +3493,7 @@ mark(deck_jump, sb_acts=True)
 mark(deck_layout, sb_acts=True)
 mark(deck_marks, sb_acts=True)
 mark(deck_exit, sb_acts=True)
+mark(deck_decide_rule, sb_acts=True)
 mark(deck_save, sb_acts=True)
 mark(deck_scroll, sb_acts=True)
 mark(deck_queue, sb_acts=False)
