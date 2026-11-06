@@ -393,10 +393,10 @@ as MESSAGES alone in one column and the other three stacked in the other, and sw
   live (ruled 2026-11-06).
 - [x] **"Switchable" means swapping a pane across columns,** not cycling saved arrangements (ruled
   2026-11-06).
-- [ ] **How a swap is reached:** open in DECISIONS. The chooser on M-s, a click on a title bar, a
-  dedicated key, or the chooser and the click.
-- [ ] **What becomes of `grid`:** open in DECISIONS. It becomes the free layout, or stays fixed beside a
-  fourth layout.
+- [x] **A swap is reached by mouse:** click a pane's title bar, then click the column to send it to
+  (ruled 2026-11-06). It needs a visible picked-up state and a way to cancel.
+- [x] **`grid` becomes the free layout:** same spot in M-l, starts two and two, and panes can move
+  (ruled 2026-11-06).
 
 ## Phase 17 (round 16): add tabs from the bar, a terminal tab, and where they can start (not built)
 
@@ -1040,4 +1040,4 @@ kept the TODOS pane's pid.
 - **Round 17:** the count at the right of the band stays, only while rows are hidden, and the tabs'
   sides stay edge to edge.
 - **Round 16:** all five questions settled, including the reversal of "never writes `deck.toml`".
-- **Round 15:** two settled, and two reasked in plainer terms after he asked for more information.
+- **Round 15:** all four settled. Two were reasked in plainer terms after he asked for more information.
