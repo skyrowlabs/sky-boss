@@ -394,6 +394,66 @@ as MESSAGES alone in one column and the other three stacked in the other, and sw
 - [ ] **How it is reached:** a key, the footer's ▦ button, a click on a pane header.
 - [ ] **What becomes of `grid`:** stays a named layout, or turns into one arrangement among several.
 
+## Phase 17 (round 16): add tabs from the bar, a terminal tab, and where they can start (not built)
+
+Requested by Jeston on 2026-11-06: a `+` in the tab row that adds an agent, prompted, and that joins
+the profile; a tab that is a plain terminal rather than a `claude`, listed after the agents; and a
+setup naming the repos and folders an agent can start from. **Bring him the shape before building.**
+
+**Today.** `sb deck open NAME` is the only way to add a tab, and NAME must already be an `[agent.NAME]`
+or a `projects.toml` project with a `cwd`. Every tab is a `claude`: `Agent.argv`, `start()` and
+`Agent.launch()` assume it. The tab row is one tmux window list, so it draws nothing that is not a
+window. Nothing writes `deck.toml`, and that is a stated rule.
+
+**Open, for him to rule on in DECISIONS:**
+
+- [ ] **Does the `+` write `deck.toml`?** Joining a profile so it lasts means reversing "sky.boss never
+  writes `deck.toml`", stated in Phase 7. `CLAUDE.md`'s table also lists the operator as its only author.
+  Recommended: yes, as `tools.toml` already works, with one splice and a backup first. The other
+  answer keeps the added tabs in `$SB_STATE`: the rule stands, but `deck.toml` stops being the whole
+  profile.
+- [ ] **What the prompt asks.** Recommended: a folder, a name (filled in from the folder), a role
+  (optional), and "add to this profile" or "this deck only".
+- [ ] **How the start list is declared.** Recommended: `roots = ["~/skyrow.labs"]` in `deck.toml`,
+  where every directory under a root is offered, plus the declared agents and `projects.toml`'s
+  `cwd`s. The other answer is an explicit list of folders with no scanning. A root over this
+  workspace also offers `jam-sense` worktrees, loose folders such as `scratch/`, and sky-vault.
+- [ ] **Is the terminal always there?** Either every deck has one, or the `+` offers it beside "agent"
+  and there can be several. Recommended: the `+` offers it, and a profile can declare one to open.
+- [ ] **What a terminal does on restore.** Recommended: it reopens in its saved directory with a fresh
+  shell. A shell's history and running jobs are not kept, so it does not resume the way a `claude` does.
+
+**Build order, each step committable and useful alone:**
+
+- [ ] **The start list.** The `roots` key, and `sb deck places`, an observe listing what can be opened
+  and where each entry came from. An absent `roots` leaves today's list. A folder whose name fails
+  `NAME` or collides with an agent says so rather than being dropped.
+- [ ] **The terminal tab.** A new pane role beside `AGENT`, running `$SHELL` in the chosen directory.
+  It is left out of `agent_slots`, rosters and briefs, NEEDS YOU, `tell_rulings` and `live_tabs`'
+  no-session report; otherwise `deck_windows` calls it `unregistered` forever. It stays last when an
+  agent is added, by moving the window, since `#{W:...}` draws in index order. `decksave.Tab` gains a
+  kind, as its `id` is a session id a terminal does not have.
+- [ ] **The `+` cell and prompt.** A `range=user` cell after the window list, read in the
+  `MouseDown1Status` chain beside exit and layout, plus a key in `SHORTCUTS`. It opens through
+  `_open_popup` as decisions do, and ends in the same path as `sb deck open`.
+- [ ] **The write to the profile.** Reuse `tools.py`'s `backup` and block splice, generalised off
+  `tools.toml`. A profile's `tabs` can span lines, as the operator's does, so `set_field`'s one-line
+  splice is not enough, and comments must survive. The file is reread before writing.
+
+**To measure before building, not assume:**
+
+- [ ] **The `+` stays on screen when the tabs overflow.** The list scrolls, and each of the three rows
+  scrolls alone. Check a real click, as tab clicks went unmeasured in round 5.
+- [ ] **A terminal's environment.** tmux gives a new window the server's environment, so check that
+  `PYTHONPATH` and `PYTHONSAFEPATH` from the wrapper do not reach the shell ([[subprocess-env]]).
+- [ ] **A "this deck only" agent survives restore.** `restored()` rebuilds tabs from names alone, so an
+  undeclared name finds nothing, even though `Tab` holds its `cwd`.
+- [ ] **A dotted folder name as a tab.** `NAME` allows `skyrowlabs.com`, and tmux reads `.` in a target
+  as a pane separator.
+
+**Does not do:** edit or remove an agent or profile from the bar, change `projects.toml`, or type into
+a terminal tab. Running agents are not told about a new tab, as with `sb deck open` today.
+
 ## Dropped, and why
 
 - **Binding Ctrl-C for exit.** It is claude's interrupt, and forwarding it would put every
@@ -908,3 +968,10 @@ kept the TODOS pane's pid.
 - **Why:** Jeston's request, relayed by skyrow-workspace; his words: "id like to be able to put as many
   or few as i want windows in a column".
 - **Status:** recorded only. How it is configured and switched is his to rule on, in Phase 16.
+
+### 2026-11-06: round 16 opened, add from the bar and a terminal tab, nothing built
+
+- **Why:** Jeston's request, made directly. It is one round rather than three because the `+`, the
+  terminal and the start list share one question: what the deck may open, and from where.
+- **The cost to weigh:** the `+` as asked reverses "sky.boss never writes `deck.toml`". That reversal
+  is his to make. If he makes it, Phase 7's line stays and this note records the change.
