@@ -100,6 +100,9 @@ class Chrome:
     # Whether the operator has scrolled away from the tail. Distinct from
     # having a position: a following view has one too, and says it.
     parked: bool = False
+    # A title in place of `source` and the corners, and what it says beside it; a deck pane's.
+    title: str = ""
+    place: str = ""
     last_run: float | None = None  # when the last run started
     running_since: float | None = None
     # Stream.
@@ -560,12 +563,17 @@ def _clip(spans: list[Span], room: int) -> list[Span]:
 
 
 def _assemble(left: list[Span], right: list[Span], width: int, corners: str) -> list[Span]:
-    """One box-drawing band as spans: `┌ left ───── right ┐`.
+    """One box-drawing band as spans: `┌ left ───── right ┐`, or `left ───── right` with no `corners`.
 
     Exactly `width` characters when width allows; the left side gives way
     first, because the right side is the live half (a countdown, a clock) and
     a clock you cannot see is the silent failure the chrome exists to avoid.
     """
+    if not corners:
+        tail_len = sum(len(text) for text, _ in right) + 1 if right else 0
+        left = _clip(left, width - 1 - _MIN_FILL - tail_len)
+        fill = max(_MIN_FILL, width - sum(len(text) for text, _ in left) - 1 - tail_len)
+        return [*left, (" " + "─" * fill, _FRAME), *([(" ", None), *right] if right else [])]
     open_c, close_c = corners
     right_len = sum(len(text) for text, _ in right)
     tail_len = (right_len + 3) if right else 1
@@ -592,8 +600,16 @@ def status_bands(chrome: Chrome, now: float, width: int) -> tuple[list[Span], li
     busy is decoration that reads as information."""
     top_left, top_right = _top_spans(chrome, now)
     bottom_left, bottom_right = _bottom_spans(chrome, now)
+    corners = "┌┐"
+    if chrome.title:
+        corners = ""
+        title: list[Span] = [(chrome.title, "bold")]
+        top_left = title
+        if chrome.place:
+            place: list[Span] = [(chrome.place, "sb.warn")]
+            top_right = place + [(" · ", _FRAME)] + top_right if top_right else place
     return (
-        _assemble(top_left, top_right, width, "┌┐"),
+        _assemble(top_left, top_right, width, corners),
         _assemble(bottom_left, bottom_right, width, "└┘"),
     )
 

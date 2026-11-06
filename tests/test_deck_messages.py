@@ -292,7 +292,7 @@ def test_the_queue_keeps_its_first_rows_because_waiting_sorts_first():
     from skyboss.output import Result
 
     trimmed, marker = keep_first("row(s)")(Result(data=[1, 2, 3, 4]), 3)
-    assert trimmed.data == [1, 2, 3] and marker == "1 more row(s) not shown — waiting comes first"
+    assert trimmed.data == [1, 2, 3] and marker == "1 more row(s)"
 
 
 def test_json_and_a_pipe_carry_all_fifty(tmp_path, monkeypatch, no_sleep):
@@ -557,7 +557,7 @@ def test_a_taken_key_redraws_at_once_and_the_wheel_is_reported_on_screen(tmp_pat
     assert written.index(MOUSE_ON) < written.rindex(MOUSE_OFF)
 
 
-def test_a_counted_view_says_newest_even_when_every_row_fits(tmp_path):
+def test_a_counted_view_says_nothing_when_every_row_fits(tmp_path):
     from rich.console import Console
     from rich.text import Text
 
@@ -572,7 +572,7 @@ def test_a_counted_view_says_newest_even_when_every_row_fits(tmp_path):
 
     console = Console(width=80)
     shown = fitted(result, drawn(result), 100, keep_last("message(s)", pane), drawn, console, always=True)
-    assert shown.plain.split("\n")[0] == "newest"
+    assert shown.plain.split("\n")[0] == result.data[0]["message"]
 
 
 def test_a_segmented_cell_is_drawn_in_its_parts_roles(tmp_path):

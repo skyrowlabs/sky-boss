@@ -477,9 +477,9 @@ sb deck --profile core
 
 A tmux controller for the Claude Code agents working in your repos. Each agent is a tab: a live
 `claude` in that repo's directory, its name in the repo's own colour and marked `working`,
-`needs you` or `quiet`. Down the right, three panes: **NEEDS YOU** (every agent session and its
-status, with the ones outside the deck hidden on a key), **MESSAGES** (what the agents told each
-other, sender and receiver in their tab colours) and **TODOS** (each agent's own list, grouped by
+`needs you` or `quiet`. Down the right, three panes: **AGENT LIST** (every agent session and its
+status, with the ones outside the deck hidden on a key), **AGENT COMMUNICATIONS** (what the agents told each
+other, sender and receiver in their tab colours) and **AGENT TODOs** (each agent's own list, grouped by
 agent).
 
 <p align="center">

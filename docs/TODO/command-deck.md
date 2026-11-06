@@ -5,7 +5,7 @@ priority: medium
 category: surfaces
 agent_value: 3
 shelf_status: in-progress
-updated: 2026-11-05
+updated: 2026-11-06
 tags: [agents, act, tmux, surfaces]
 summary: Adds `sb deck`, a tmux session holding one window per agent, plus a queue of sessions waiting on the operator, read by both surfaces. It is the first act surface beside the observe-only canvas.
 ---
@@ -14,7 +14,7 @@ summary: Adds `sb deck`, a tmux session holding one window per agent, plus a que
 
 > **Status**: 🟡 In progress
 > **Priority**: Medium. Round 5: the right column — a DECISIONS pane, a pane chooser, collapsing, the footer, and TODOS by recency.
-> **Updated**: 2026-11-05
+> **Updated**: 2026-11-06
 
 ## Problem
 
@@ -382,6 +382,112 @@ decided items in DECISIONS, which M-x did not touch. He ruled on both fixes.
 - [x] **The tool panes are padded**: a cell each side and a row above. tmux has no pane padding, so the
   Claude tabs stay edge to edge, as Jeston wanted. A folded pane stays one full line.
 - [x] **NEEDS YOU counts each session's sub-agents and shells** in `bg`, and a click unfolds them.
+
+## Phase 16 (round 15): free columns for the right-side panes (not built)
+
+Requested by Jeston on 2026-11-06, relayed by skyrow-workspace: any number of panes per column, such
+as MESSAGES alone in one column and the other three stacked in the other, and switchable. It builds on
+`sb deck layout grid`. **Bring him the shape before building.**
+
+- [x] **An arrangement is declared** as a profile setting in `deck.toml`, plus a command to change it
+  live (ruled 2026-11-06).
+- [x] **"Switchable" means swapping a pane across columns,** not cycling saved arrangements (ruled
+  2026-11-06).
+- [x] **A swap is reached by mouse:** click a pane's title bar, then click the column to send it to
+  (ruled 2026-11-06). It needs a visible picked-up state and a way to cancel.
+- [x] **`grid` becomes the free layout:** same spot in M-l, starts two and two, and panes can move
+  (ruled 2026-11-06).
+
+## Phase 17 (round 16): add tabs from the bar, a terminal tab, and where they can start (not built)
+
+Requested by Jeston on 2026-11-06: a `+` in the tab row that adds an agent, prompted, and that joins
+the profile; a tab that is a plain terminal rather than a `claude`, listed after the agents; and a
+setup naming the repos and folders an agent can start from. **Bring him the shape before building.**
+
+**Today.** `sb deck open NAME` is the only way to add a tab, and NAME must already be an `[agent.NAME]`
+or a `projects.toml` project with a `cwd`. Every tab is a `claude`: `Agent.argv`, `start()` and
+`Agent.launch()` assume it. The tab row is one tmux window list, so it draws nothing that is not a
+window. Nothing writes `deck.toml`, and that is a stated rule.
+
+**Ruled by Jeston on 2026-11-06, in DECISIONS:**
+
+- [x] **The `+` writes `deck.toml`,** as `tools.toml` already works: one small in-place edit, with a
+  backup first. This reverses "sky.boss never writes `deck.toml`", stated in Phase 7, and
+  `CLAUDE.md`'s table has to change with it.
+- [x] **The prompt asks** for a folder, a name (filled in from the folder), a role (optional), and "add
+  to this profile" or "this deck only".
+- [x] **The start list is** `roots = ["~/src"]` in `deck.toml`, where every directory under a root is
+  offered, plus the declared agents and `projects.toml`'s `cwd`s. A root over a whole workspace also
+  offers worktrees and loose folders.
+- [x] **The terminal is offered by the `+`,** a profile can declare one to open, and a deck can hold
+  several.
+- [x] **A terminal on restore** reopens in its saved directory with a fresh shell. A shell's history
+  and running jobs are not kept.
+
+**Build order, each step committable and useful alone:**
+
+- [ ] **The start list.** The `roots` key, and `sb deck places`, an observe listing what can be opened
+  and where each entry came from. An absent `roots` leaves today's list. A folder whose name fails
+  `NAME` or collides with an agent says so rather than being dropped.
+- [ ] **The terminal tab.** A new pane role beside `AGENT`, running `$SHELL` in the chosen directory.
+  It is left out of `agent_slots`, rosters and briefs, NEEDS YOU, `tell_rulings` and `live_tabs`'
+  no-session report; otherwise `deck_windows` calls it `unregistered` forever. It stays last when an
+  agent is added, by moving the window, since `#{W:...}` draws in index order. `decksave.Tab` gains a
+  kind, as its `id` is a session id a terminal does not have.
+- [ ] **The `+` cell and prompt.** A `range=user` cell after the window list, read in the
+  `MouseDown1Status` chain beside exit and layout, plus a key in `SHORTCUTS`. It opens through
+  `_open_popup` as decisions do, and ends in the same path as `sb deck open`.
+- [ ] **The write to the profile.** Reuse `tools.py`'s `backup` and block splice, generalised off
+  `tools.toml`. A profile's `tabs` can span lines, as the operator's does, so `set_field`'s one-line
+  splice is not enough, and comments must survive. The file is reread before writing.
+
+**To measure before building, not assume:**
+
+- [ ] **The `+` stays on screen when the tabs overflow.** The list scrolls, and each of the three rows
+  scrolls alone. Check a real click, as tab clicks went unmeasured in round 5.
+- [ ] **A terminal's environment.** tmux gives a new window the server's environment, so check that
+  `PYTHONPATH` and `PYTHONSAFEPATH` from the wrapper do not reach the shell ([[subprocess-env]]).
+- [ ] **A "this deck only" agent survives restore.** `restored()` rebuilds tabs from names alone, so an
+  undeclared name finds nothing, even though `Tab` holds its `cwd`.
+- [ ] **A dotted folder name as a tab.** `NAME` allows `skyrowlabs.com`, and tmux reads `.` in a target
+  as a pane separator.
+
+**Does not do:** edit or remove an agent or profile from the bar, change `projects.toml`, or type into
+a terminal tab. Running agents are not told about a new tab, as with `sb deck open` today.
+
+## Phase 18 (round 17): padding on the agent tabs, and new pane titles (not built)
+
+Requested by Jeston on 2026-11-06. **Bring him the shape before building.**
+
+- [x] **A blank row above every tab.** The bar always holds a fourth row, and the tab scrollbar uses
+  that row when the tabs overflow, so the row costs nothing more then.
+- [x] **A cell each side of the tabs:** dropped on Jeston's ruling, so the sides stay edge to edge and
+  Phase 15's line holds. See the note below for what was tried.
+- [x] **Title each pane's top band with its label.** The band now says `┌ deck queue ───`, built from
+  the command. It becomes the label alone, with no `┌`, in the deck's panes only: `chrome.py`'s band
+  also draws every other resident screen. `clicked_row` finds the first all-rule line, and a band
+  with a label is not one, so clicks hold while the label stays; a test should pin that.
+- [x] **Rename the labels** in `column.LABELS`, keeping Jeston's spelling:
+
+  | Now | New |
+  |---|---|
+  | NEEDS YOU | AGENT LIST |
+  | TODOS | AGENT TODOs |
+  | MESSAGES | AGENT COMMUNICATIONS |
+  | DECISIONS | HUMAN DECISIONS |
+
+  Role names and the `column` commands stay. So does `needs you` as a tab's state word.
+- [x] **Make room for the longer labels.** The chooser pads to the longest label, and `FOLDED_WIDTH`
+  is 24.
+- [x] **Sweep the old names:** `README.md`, `CLAUDE.md`'s `sb deck` row, the agents' brief, the plugin's
+  skill and the tests. `readme-deck.png` still shows the old names.
+- [x] **Remove the top line from the panes:** `top` in TODOS and DECISIONS (`deck.py:2727`) and `newest`
+  in MESSAGES (`deck.py:2484`). When rows are hidden that line also says how many (`top · 3 more
+  below`, `newest · 26 earlier message(s) not shown`), and removing it would hide them silently.
+  Recommended: draw only the count, in the band's right slot, and only while rows are hidden.
+- [x] **Remove the secondary titles** `TODOS` and `DECISIONS` under the band. Keep the rule beneath them:
+  `clicked_row` counts rows from it, so losing it breaks clicking a decision. Check the row count
+  after the lines above go, in a real click on each of the two panes.
 
 ## Dropped, and why
 
@@ -891,3 +997,47 @@ kept the TODOS pane's pid.
   a `user` entry, so the last entry is no signal either. So `up` says how long ago it wrote, it is
   never called running, and after ten quiet minutes it leaves.
 - **A foreground and a background shell look alike** in the process tree, so both are drawn.
+
+### 2026-11-06: round 15 opened, free columns, nothing built
+
+- **Why:** Jeston's request, relayed by skyrow-workspace; his words: "id like to be able to put as many
+  or few as i want windows in a column".
+- **Status:** recorded only. How it is configured and switched is his to rule on, in Phase 16.
+
+### 2026-11-06: round 16 opened, add from the bar and a terminal tab, nothing built
+
+- **Why:** Jeston's request, made directly. It is one round rather than three because the `+`, the
+  terminal and the start list share one question: what the deck may open, and from where.
+- **The cost to weigh:** the `+` as asked reverses "sky.boss never writes `deck.toml`". That reversal
+  is his to make. If he makes it, Phase 7's line stays and this note records the change.
+
+### 2026-11-06: round 17 opened, tab padding and pane titles, nothing built
+
+- **Why:** Jeston's request, made directly. His "r" at the start of the bar is read as the band's `┌`,
+  and "the cli tabs" as the agent tabs. He wrote `TODOs` inside all caps, and it is kept as he wrote it.
+- **The reversal:** on 2026-11-05 he wanted the tabs edge to edge. That reasoning stays in Phase 15.
+- **Same day, added:** remove the top text and the secondary titles. "Top text" is read as the scroll
+  line, so `newest` in MESSAGES goes with `top`; the count it carries is the one thing to keep.
+
+### 2026-11-06: round 17 built, all but the side padding
+
+- **Pane titles:** `Control.title` replaces the top band's text and corners, and `Control.place` takes
+  the fit's count into the band's right slot. A bare `top` or `newest` now draws nothing.
+- **The shortened counts drop their key hints,** such as `End or M-e: newest`, to fit beside the title.
+- **`fitted` had a stale-count path:** after the overshoot it reran `fit` without keeping the marker.
+  It now redraws the `keep` it settled on, so the count matches the rows on screen.
+- **Tried for the side padding, and failed on a real tab:** tmux's `pane-scrollbars` with a blank style
+  gives a clean one-cell gutter, and it measured right on a stand-in `claude`. tmux shows no scrollbar
+  on the alternate screen, and every real `claude` tab and the tab pane's `tmux attach` report
+  `alternate_on=1`. A smoke stand-in has to enter the alternate screen, or it proves nothing here.
+- **What is left is spacer panes,** two more per tab, with hidden borders. Each gap is two cells, a
+  click on one takes focus from `claude`, a spacer holds a closed tab's window open, and every pane
+  reader has to skip them. That cost is why it went to Jeston rather than being built.
+
+### 2026-11-06: rulings on rounds 15, 16 and 17
+
+- **Why:** Jeston ruled in DECISIONS. Each ruling is written into its phase above.
+- **Round 17:** the count at the right of the band stays, only while rows are hidden, and the tabs'
+  sides stay edge to edge.
+- **Round 16:** all five questions settled, including the reversal of "never writes `deck.toml`".
+- **Round 15:** all four settled. Two were reasked in plainer terms after he asked for more information.
