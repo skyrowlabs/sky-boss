@@ -8,7 +8,7 @@ carries its ruling.
 **Agents keep their own lists, through sky.boss.** Claude Code's main sessions
 have no todo tool to read on the version measured, so there is nothing of
 Claude's to show; each agent writes its list with `sb deck todo add/done`, and
-the deck's TODOS pane draws every list.
+the deck's AGENT TODOs pane draws every list.
 
 **Machine state, not operator config.** A list is a file under `$SB_STATE`, keyed
 by deck session and agent name so a restarted tab keeps its list, and it is

@@ -14,7 +14,7 @@ summary: Adds `sb deck`, a tmux session holding one window per agent, plus a que
 
 > **Status**: 🟡 In progress
 > **Priority**: Medium. Round 5: the right column — a DECISIONS pane, a pane chooser, collapsing, the footer, and TODOS by recency.
-> **Updated**: 2026-11-05
+> **Updated**: 2026-11-06
 
 ## Problem
 
@@ -414,7 +414,7 @@ window. Nothing writes `deck.toml`, and that is a stated rule.
   profile.
 - [ ] **What the prompt asks.** Recommended: a folder, a name (filled in from the folder), a role
   (optional), and "add to this profile" or "this deck only".
-- [ ] **How the start list is declared.** Recommended: `roots = ["~/skyrow.labs"]` in `deck.toml`,
+- [ ] **How the start list is declared.** Recommended: `roots = ["~/src"]` in `deck.toml`,
   where every directory under a root is offered, plus the declared agents and `projects.toml`'s
   `cwd`s. The other answer is an explicit list of folders with no scanning. A root over this
   workspace also offers `jam-sense` worktrees, loose folders such as `scratch/`, and sky-vault.
@@ -458,17 +458,15 @@ a terminal tab. Running agents are not told about a new tab, as with `sb deck op
 
 Requested by Jeston on 2026-11-06. **Bring him the shape before building.**
 
-- [ ] **Pad the agent tabs like the tool panes.** This reverses Phase 15's "the Claude tabs stay edge
-  to edge". The tool panes are padded by their own renderer (`inset()` in `resident.py`). A tab's
-  screen belongs to `claude`, and tmux has no pane padding, so the padding has to be blank space
-  around the pane. Measure spacer panes in the controller's layout first: they cover every tab at
-  once, but each costs a border cell, every `plan()` shape has to place them, and the Phase 17
-  terminal tab gets the same padding. If that looks wrong, stop and ask him.
-- [ ] **Title each pane's top band with its label.** The band now says `┌ deck queue ───`, built from
+- [x] **A blank row above every tab.** The bar always holds a fourth row, and the tab scrollbar uses
+  that row when the tabs overflow, so the row costs nothing more then.
+- [ ] **A cell each side of the tabs.** Not built, and waiting on Jeston's ruling in DECISIONS. This
+  reverses Phase 15's "the Claude tabs stay edge to edge". See the note below for what was tried.
+- [x] **Title each pane's top band with its label.** The band now says `┌ deck queue ───`, built from
   the command. It becomes the label alone, with no `┌`, in the deck's panes only: `chrome.py`'s band
   also draws every other resident screen. `clicked_row` finds the first all-rule line, and a band
   with a label is not one, so clicks hold while the label stays; a test should pin that.
-- [ ] **Rename the labels** in `column.LABELS`, keeping Jeston's spelling:
+- [x] **Rename the labels** in `column.LABELS`, keeping Jeston's spelling:
 
   | Now | New |
   |---|---|
@@ -478,15 +476,15 @@ Requested by Jeston on 2026-11-06. **Bring him the shape before building.**
   | DECISIONS | HUMAN DECISIONS |
 
   Role names and the `column` commands stay. So does `needs you` as a tab's state word.
-- [ ] **Make room for the longer labels.** The chooser pads to ten cells, and `FOLDED_WIDTH` is 16, so
-  `AGENT COMMUNICATIONS` (20) overflows both. Check the folded line in each layout.
-- [ ] **Sweep the old names:** `README.md`, its `readme-deck.png`, `CLAUDE.md`'s `sb deck` row, and the
-  tests.
-- [ ] **Remove the top line from the panes:** `top` in TODOS and DECISIONS (`deck.py:2727`) and `newest`
+- [x] **Make room for the longer labels.** The chooser pads to the longest label, and `FOLDED_WIDTH`
+  is 24.
+- [x] **Sweep the old names:** `README.md`, `CLAUDE.md`'s `sb deck` row, the agents' brief, the plugin's
+  skill and the tests. `readme-deck.png` still shows the old names.
+- [x] **Remove the top line from the panes:** `top` in TODOS and DECISIONS (`deck.py:2727`) and `newest`
   in MESSAGES (`deck.py:2484`). When rows are hidden that line also says how many (`top · 3 more
   below`, `newest · 26 earlier message(s) not shown`), and removing it would hide them silently.
   Recommended: draw only the count, in the band's right slot, and only while rows are hidden.
-- [ ] **Remove the secondary titles** `TODOS` and `DECISIONS` under the band. Keep the rule beneath them:
+- [x] **Remove the secondary titles** `TODOS` and `DECISIONS` under the band. Keep the rule beneath them:
   `clicked_row` counts rows from it, so losing it breaks clicking a decision. Check the row count
   after the lines above go, in a real click on each of the two panes.
 
@@ -1019,3 +1017,18 @@ kept the TODOS pane's pid.
 - **The reversal:** on 2026-11-05 he wanted the tabs edge to edge. That reasoning stays in Phase 15.
 - **Same day, added:** remove the top text and the secondary titles. "Top text" is read as the scroll
   line, so `newest` in MESSAGES goes with `top`; the count it carries is the one thing to keep.
+
+### 2026-11-06: round 17 built, all but the side padding
+
+- **Pane titles:** `Control.title` replaces the top band's text and corners, and `Control.place` takes
+  the fit's count into the band's right slot. A bare `top` or `newest` now draws nothing.
+- **The shortened counts drop their key hints,** such as `End or M-e: newest`, to fit beside the title.
+- **`fitted` had a stale-count path:** after the overshoot it reran `fit` without keeping the marker.
+  It now redraws the `keep` it settled on, so the count matches the rows on screen.
+- **Tried for the side padding, and failed on a real tab:** tmux's `pane-scrollbars` with a blank style
+  gives a clean one-cell gutter, and it measured right on a stand-in `claude`. tmux shows no scrollbar
+  on the alternate screen, and every real `claude` tab and the tab pane's `tmux attach` report
+  `alternate_on=1`. A smoke stand-in has to enter the alternate screen, or it proves nothing here.
+- **What is left is spacer panes,** two more per tab, with hidden borders. Each gap is two cells, a
+  click on one takes focus from `claude`, a spacer holds a closed tab's window open, and every pane
+  reader has to skip them. That cost is why it went to Jeston rather than being built.

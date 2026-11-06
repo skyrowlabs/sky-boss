@@ -114,7 +114,7 @@ HALF = "50%"
 TOOLS_REFRESH = 5
 # A folded pane's size: one line in columns, a narrow strip in stack.
 FOLDED_HEIGHT = "1"
-FOLDED_WIDTH = "16"
+FOLDED_WIDTH = "24"
 MARKS_EVERY = 3
 
 # The registry's word for a session held at a permission prompt (measured on Claude
@@ -554,6 +554,8 @@ def dress(window_id: str, *, tab: bool = False) -> list[str]:
 
 
 TAB_ROWS = 3
+#: The tab rows, and one under them: the blank row above `claude`, or the scrollbar on overflow.
+BAR_ROWS = TAB_ROWS + 1
 
 
 def tab_cell(row: int, current: bool) -> str:
@@ -693,9 +695,8 @@ def scroll_once(session: str) -> list[str]:
     room = min(widths) - left
     span = visible_span([tab_width(label) for _, label in rows], current, room)
     if span is None:
-        return colouring + _session_options(name, (("status", str(TAB_ROWS)), (SCROLLBAR_OPTION, "")))
-    bar = ((SCROLLBAR_OPTION, scrollbar(span, room, left)), ("status", str(TAB_ROWS + 1)))
-    return colouring + _session_options(name, bar)
+        return colouring + _session_options(name, ((SCROLLBAR_OPTION, ""),))
+    return colouring + _session_options(name, ((SCROLLBAR_OPTION, scrollbar(span, room, left)),))
 
 
 def window_options(tab: bool) -> tuple[tuple[str, str], ...]:
@@ -751,7 +752,7 @@ def bar_options(tabs: bool, profile: str = "") -> tuple[tuple[str, str], ...]:
         # The countdown is tmux's own arithmetic on the clock, so it has to redraw every second.
         options += (("status-interval", "1"),)
     if tabs:
-        options += (("status", str(TAB_ROWS)),)
+        options += (("status", str(BAR_ROWS)),)
         options += tuple((f"status-format[{row}]", tab_row(row, lefts[row])) for row in range(TAB_ROWS))
         options += ((f"status-format[{TAB_ROWS}]", "#{" + SCROLLBAR_OPTION + "}"),)
     else:
@@ -1025,7 +1026,7 @@ def live_tabs(listed: list[Pane], sessions: list, parent_of: dict[int, int]) -> 
 
 
 def ruling_line(n: int, item: todos_.Item) -> str:
-    """What an agent reads in its tab when the operator rules from the DECISIONS pane."""
+    """What an agent reads in its tab when the operator rules from the HUMAN DECISIONS pane."""
     return f'The operator ruled on your decision {n}, "{item.text}": {item.ruling}'
 
 
@@ -1319,10 +1320,10 @@ def brief(name: str, session: str, rows: list[tuple[str, str, str]], primary: st
         *[entry(*row) for row in rows],
         "Tabs open and close, so check the live list before assuming a peer is there;",
         "`sb deck brief` reprints this with the deck as it stands now.",
-        "The operator sees every message between agents in the deck's MESSAGES pane, and answers",
+        "The operator sees every message between agents in the deck's AGENT COMMUNICATIONS pane, and answers",
         "an agent's prompts by clicking its tab.",
-        'Keep todos with `sb deck todo add "<text>"` / `done <n>` (TODOS pane). Each decision you need from the',
-        'operator: `sb deck decide add "<question>" --option "<choice>"` (DECISIONS pane); its ruling is typed into your tab.',
+        'Keep todos with `sb deck todo add "<text>"` / `done <n>` (AGENT TODOs pane). Each decision you need from the',
+        'operator: `sb deck decide add "<question>" --option "<choice>"` (HUMAN DECISIONS pane); its ruling is typed into your tab.',
     ]
     text = "\n".join(lines)
     return f"{text}\n\n{extra.strip()}" if extra.strip() else text
@@ -2281,8 +2282,8 @@ def deck_scroll() -> Result:
         return result
     for problem in scroll_once(config.session):
         result.degrade(problem)
-    shown = tmux("show-options", "-v", "-t", scope(inner(config.session)), "status")
-    result.data = {"overflowing": shown.ok and shown.out.strip() == str(TAB_ROWS + 1)}
+    shown = tmux("show-options", "-v", "-t", scope(inner(config.session)), SCROLLBAR_OPTION)
+    result.data = {"overflowing": shown.ok and bool(shown.out.strip())}
     return result
 
 
@@ -2431,7 +2432,7 @@ def deck_message(key: str, page: bool) -> Result:
         sb deck message <key>
 
     An observe. KEY is the `key` a row of `sb --json deck messages` carries;
-    clicking a row in the MESSAGES pane opens this in a popup.
+    clicking a row in the AGENT COMMUNICATIONS pane opens this in a popup.
     """
     result = message_result(key, place=placement)
     if page and result.ok and has_terminal() and not _as_json():
@@ -2480,8 +2481,8 @@ def keep_last(noun: str, pane: DeckPane | None = None) -> Callable[[Result, int]
         if pane is None:
             return shown, f"{start} earlier {noun} not shown — the newest {keep} fit"
         if offset:
-            return shown, f"↑ {offset} back · {start} earlier · End or {SHORTCUTS['newest']}: newest"
-        return shown, f"newest · {start} earlier {noun} not shown" if start else "newest"
+            return shown, f"↑ {offset} back · {start} earlier"
+        return shown, f"{start} earlier" if start else ""
 
     return fit
 
@@ -2510,6 +2511,7 @@ class DeckPane(resident_.Control):
         self.clicks = role in (MESSAGES, DECISIONS, QUEUE)
         self.open: set[str] = set()
         self.pad = 1
+        self.title = column_.LABELS.get(role, "")
         self.rows: list[dict] = []
         self.lines: list[str] = []
         self.fold = False
@@ -2551,6 +2553,10 @@ class DeckPane(resident_.Control):
             rows = unfolded(shaped.data, self.open)
             self.rows = rows
             return replace(shaped, data=rows, view=view_of(rows) if rows else shaped.view)
+        if self.role in (TODOS, DECISIONS) and shaped.view:
+            # The band names the pane, so its one column needs no heading of its own.
+            columns = [{**column, "label": ""} for column in shaped.view["columns"]]
+            return replace(shaped, view={**shaped.view, "columns": columns})
         return shaped
 
     def note(self) -> str:
@@ -2707,7 +2713,7 @@ def keep_first(noun: str) -> Callable[[Result, int], tuple[Result, str]]:
 
     def fit(result: Result, keep: int) -> tuple[Result, str]:
         rows = result.data
-        return replace(result, data=rows[:keep]), f"{len(rows) - keep} more {noun} not shown — waiting comes first"
+        return replace(result, data=rows[:keep]), f"{len(rows) - keep} more {noun}"
 
     return fit
 
@@ -2722,9 +2728,8 @@ def keep_from_top(noun: str, pane: DeckPane) -> Callable[[Result, int], tuple[Re
         shown = replace(result, data=rows[start : start + keep])
         pane.rows = shown.data
         if start:
-            where = f"{below} {noun} below" if below else "the end"
-            return shown, f"↓ {start} down · {where} · Home: top"
-        return shown, f"top · {below} more {noun} below" if below else "top"
+            return shown, f"↓ {start} down · {below} below" if below else f"↓ {start} down"
+        return shown, f"{below} below" if below else ""
 
     return fit
 
@@ -2863,7 +2868,7 @@ def _job_row(job: dict) -> dict:
     }
 
 
-# The deck's word for each registry word, most active first: the order NEEDS YOU sorts in.
+# The deck's word for each registry word, most active first: the order AGENT LIST sorts in.
 # `shell` is Claude Code's own word for a session running a shell command; `unregistered`
 # is a deck window whose agent pane has no record at all, so it comes last.
 STATES = {WAITING: "needs you", "busy": "busy", "shell": "shell", "idle": "idle", UNREGISTERED: UNREGISTERED}
@@ -3222,7 +3227,7 @@ def _todo_change(change: Callable[[str, str], todos_.TodoList]) -> Result:
 
 @deck.group(name="todo")
 def deck_todo() -> None:
-    """Each deck agent's own todo list, drawn in the deck's TODOS pane.
+    """Each deck agent's own todo list, drawn in the deck's AGENT TODOs pane.
 
         sb deck todo add "write the parser test"
         sb deck todo done 1
@@ -3385,7 +3390,7 @@ def _list_options(command: Callable) -> Callable:
 
 @deck.group(name="decide")
 def deck_decide() -> None:
-    """Each deck agent's open decisions for the operator, drawn in the DECISIONS pane.
+    """Each deck agent's open decisions for the operator, drawn in the HUMAN DECISIONS pane.
 
         sb deck decide add "take the template's ci.yml step, or hold ours?" \\
             --option "take it" --option "hold ours"
@@ -3475,7 +3480,7 @@ def _ask_ruling(agent: str, n: int, item: todos_.Item) -> str:
 @click.argument("agent")
 @click.argument("n", type=click.IntRange(min=1))
 def deck_decide_rule(agent: str, n: int) -> None:
-    """Rule on AGENT's decision N: what a click in the DECISIONS pane opens.
+    """Rule on AGENT's decision N: what a click in the HUMAN DECISIONS pane opens.
 
         sb deck decide rule skeletor 2
 

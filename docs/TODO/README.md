@@ -30,7 +30,7 @@ _Actively being worked; partially shipped._
 
 | Plan | Priority | Updated | Summary |
 | ---- | -------- | ------- | ------- |
-| [The deck: a tmux command center for agent sessions](command-deck.md) | medium | 2026-11-05 | Adds `sb deck`, a tmux session holding one window per agent, plus a queue of sessions waiting on the operator, read by both surfaces. It is the first act surface beside the observe-only canvas. |
+| [The deck: a tmux command center for agent sessions](command-deck.md) | medium | 2026-11-06 | Adds `sb deck`, a tmux session holding one window per agent, plus a queue of sessions waiting on the operator, read by both surfaces. It is the first act surface beside the observe-only canvas. |
 
 ## 🔴 Planned
 

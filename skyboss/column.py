@@ -25,7 +25,13 @@ from skyboss import helpers, keys
 
 QUEUE, MESSAGES, TODOS, DECISIONS = "queue", "messages", "todos", "decisions"
 TOOLS = (QUEUE, MESSAGES, TODOS, DECISIONS)
-LABELS = {QUEUE: "NEEDS YOU", MESSAGES: "MESSAGES", TODOS: "TODOS", DECISIONS: "DECISIONS"}
+LABELS = {
+    QUEUE: "AGENT LIST",
+    MESSAGES: "AGENT COMMUNICATIONS",
+    TODOS: "AGENT TODOs",
+    DECISIONS: "HUMAN DECISIONS",
+}
+LABEL_WIDTH = max(len(label) for label in LABELS.values())
 FILE = "column.json"
 
 
@@ -165,7 +171,7 @@ def lines(column: Column, at: int) -> list[Text]:
         shown = role not in column.hidden
         row = Text("› " if n == at else "  ", style="sb.accent")
         row.append("[x] " if shown else "[ ] ", style="sb.label" if shown else "sb.muted")
-        row.append(f"{LABELS[role]:<10}", style="bold" if shown else "sb.muted")
+        row.append(f"{LABELS[role]:<{LABEL_WIDTH}}", style="bold" if shown else "sb.muted")
         if column.folded(role):
             row.append("  folded", style="sb.muted")
         out.append(row)

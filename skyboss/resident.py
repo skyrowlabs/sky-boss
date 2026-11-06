@@ -270,6 +270,9 @@ class Control:
     clicks = False
     #: Blank cells each side of an unfolded frame, and one row above it when set.
     pad = 0
+    #: The top band's whole text, with no corners; the fit's line then moves up beside it, as `place`.
+    title = ""
+    place = ""
 
     def shape(self, result: Result) -> Result:
         return result
@@ -310,20 +313,27 @@ def fitted(
     console: Console | None = None,
     *,
     always: bool = False,
+    place: Callable[[str], None] | None = None,
 ) -> Text:
     """`body`, or `result` re-drawn with fewer rows and a counting line, so it fits in `limit` lines.
 
     Rows go, never lines: a header clipped off a table is the chart rule's
     clamp, where a counted row is a sentence. A `data` that is not a list is
-    drawn as it is.
+    drawn as it is. `place` takes the counting line instead of the body, and hears "" when nothing is cut.
     """
     rows = result.data if isinstance(result.data, list) else None
     lines = _count(body, console)
+    if place is not None:
+        place("")
     if rows is None or (lines <= limit and not always):
         return body
 
     def draw(keep: int) -> Text:
         trimmed, marker = fit(result, keep)
+        if place is not None:
+            place(marker)
+        if place is not None or not marker:
+            return drawn(trimmed)
         # One line, like every row: the count comes first, so an ellipsis never eats it.
         out = Text(no_wrap=True, overflow="ellipsis")
         out.append(marker, style="sb.warn")
@@ -345,8 +355,9 @@ def fitted(
     while keep + 1 < len(rows):
         more = draw(keep + 1)
         if _count(more, console) > limit:
-            # The fit may remember the last `keep` it saw (a pane's page size): leave it the one drawn.
-            fit(result, keep)
+            # The fit may remember the last `keep` it saw (a pane's page size), and `place` the last
+            # count: leave both the one drawn.
+            draw(keep)
             break
         keep, shown = keep + 1, more
     return shown
@@ -678,19 +689,23 @@ def reside(
             return Group(line)
         facts = state.chrome()
         if control is not None:
-            facts = dataclasses.replace(facts, note=control.note())
+            facts = dataclasses.replace(facts, note=control.note(), title=control.title)
         top, bottom = chrome_.status_bands(facts, clock(), room_across())
         top_text, bottom_text = band_text(top), band_text(bottom)
-        if control is not None and control.head:
-            top_text.stylize_before(control.head)
         if fill and shaped is not None:
             body = drawn(shaped)
         if screen and fit is not None and shaped is not None:
             limit = out.height - height(top_text, out) - height(bottom_text, out) - 1 - min(1, inset())
             always = control is not None and control.counted
-            shown = fitted(shaped, body, limit, fit, drawn, out, always=always)
+            mark = (lambda text: setattr(control, "place", text)) if control is not None and control.title else None
+            shown = fitted(shaped, body, limit, fit, drawn, out, always=always, place=mark)
         else:
             shown = body if screen else clip(body, room(out))
+        if control is not None and control.title:
+            top, _ = chrome_.status_bands(dataclasses.replace(facts, place=control.place), clock(), room_across())
+            top_text = band_text(top)
+        if control is not None and control.head:
+            top_text.stylize_before(control.head)
         frame: Group | Padding = Group(top_text, shown, bottom_text)
         if inset():
             frame = Padding(frame, (1, inset(), 0, inset()))

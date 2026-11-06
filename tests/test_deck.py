@@ -16,6 +16,7 @@ from pathlib import Path
 import pytest
 from click.testing import CliRunner
 
+from skyboss import chrome as chrome_
 from skyboss import cli
 from skyboss import deck as deck_
 from skyboss import output, todos
@@ -425,7 +426,7 @@ def test_mouse_is_on_for_both_sessions_and_the_tab_row_is_on_top(fake, home):
     invoke("deck")
     assert fake.options[("=sb:", "mouse")] == "on"
     assert fake.options[("=sb-agents:", "mouse")] == "on"
-    assert fake.options[("=sb-agents:", "status")] == "3"
+    assert fake.options[("=sb-agents:", "status")] == "4"
     assert fake.options[("=sb-agents:", "status-position")] == "top"
     assert ("=sb:", "status") not in fake.options
 
@@ -1069,7 +1070,7 @@ def test_the_tab_bar_is_three_rows_of_boxes_and_names_no_state_word(fake, home):
     rows = {c[-2]: c[-1] for c in fake.find("set-option") if c[-2].startswith("status-format[")}
     assert sorted(rows) == [f"status-format[{n}]" for n in range(4)]
     assert rows.pop("status-format[3]") == "#{@sb-scrollbar}"  # the scrollbar row, drawn only on overflow
-    assert ("status", "3") in {(c[-2], c[-1]) for c in fake.find("set-option") if "=sb-agents:" in c}
+    assert ("status", "4") in {(c[-2], c[-1]) for c in fake.find("set-option") if "=sb-agents:" in c}
     for row in rows.values():
         assert row.count("#[range=window|#{window_index}]") == 2  # every row clicks, current tab included
         assert not any(word in row for word in ("working", "quiet", "needs you"))
@@ -1262,14 +1263,14 @@ def test_the_messages_fit_follows_the_offset_and_says_where_it_is():
     pane = deck_.DeckPane("sb", lambda row: True, scroll=True)
     fit = deck_.keep_last("message(s)", pane)
     shown, marker = fit(rows_of_n(30), 10)
-    assert [r["n"] for r in shown.data] == list(range(20, 30)) and marker == "newest · 20 earlier message(s) not shown"
+    assert [r["n"] for r in shown.data] == list(range(20, 30)) and marker == "20 earlier"
     pane.move("pgup")
     shown, marker = fit(rows_of_n(30), 10)
     assert [r["n"] for r in shown.data] == list(range(10, 20))
-    assert marker == "↑ 10 back · 10 earlier · End or M-e: newest"
+    assert marker == "↑ 10 back · 10 earlier"
     pane.move("home")
     assert [r["n"] for r in fit(rows_of_n(30), 10)[0].data] == list(range(0, 10)) and pane.offset == 20
-    assert pane.move("end") and fit(rows_of_n(30), 10)[1].startswith("newest")
+    assert pane.move("end") and fit(rows_of_n(30), 10)[1] == "20 earlier"
 
 
 def test_scroll_keys_move_by_line_page_and_wheel():
@@ -1812,7 +1813,7 @@ def test_bare_deck_on_a_running_deck_adds_a_missing_todos_pane(fake, home, tmp_p
 
 def test_the_brief_tells_an_agent_to_keep_its_todos():
     text = deck_.brief("jam", "sb", [("jam", "/fx/j", "")], "jam")
-    assert 'sb deck todo add "<text>"' in text and "TODOS pane" in text
+    assert 'sb deck todo add "<text>"' in text and "AGENT TODOs pane" in text
 
 
 def test_the_todos_pane_scrolls_from_the_top():
@@ -1820,7 +1821,7 @@ def test_the_todos_pane_scrolls_from_the_top():
     fit = deck_.keep_from_top("row(s)", pane)
     result = Result_(data=list(range(20)))
     shown, line = fit(result, 5)
-    assert shown.data == [0, 1, 2, 3, 4] and line == "top · 15 more row(s) below"
+    assert shown.data == [0, 1, 2, 3, 4] and line == "15 below"
     assert pane.move("down") and fit(result, 5)[0].data == [1, 2, 3, 4, 5]
     assert pane.move("end") and fit(result, 5)[0].data == [15, 16, 17, 18, 19]
     assert pane.move("home") and pane.offset == 0
@@ -1930,18 +1931,19 @@ def test_a_folded_summary_counts_what_the_pane_would_draw():
 
     queue = [{"where": "deck", "status": "waiting"}, {"where": "deck", "status": "idle"}, {"where": "outside"}]
     assert column.summary("queue", queue, note="1 outside hidden") == (
-        "NEEDS YOU · 1 waiting · 2 in deck · 1 outside hidden"
+        "AGENT LIST · 1 waiting · 2 in deck · 1 outside hidden"
     )
     items = [
         {"kind": "item", "agent": "ws", "done": False},
         {"kind": "item", "agent": "jam", "done": True},
         {"kind": "item", "agent": "jam", "done": False},
     ]
-    assert column.summary("decisions", items) == "DECISIONS · 2 open · 2 agents"
+    assert column.summary("decisions", items) == "HUMAN DECISIONS · 2 open · 2 agents"
     assert (
-        column.summary("messages", [{"when": "2m", "between": "ws → jam"}]) == "MESSAGES · 1 shown · last 2m ws → jam"
+        column.summary("messages", [{"when": "2m", "between": "ws → jam"}])
+        == "AGENT COMMUNICATIONS · 1 shown · last 2m ws → jam"
     )
-    assert column.summary("todos", [], ok=False).startswith("TODOS · ✗")
+    assert column.summary("todos", [], ok=False).startswith("AGENT TODOs · ✗")
 
 
 def test_a_pane_reads_its_fold_and_leaves_when_its_role_is_hidden(fake, home):
@@ -1951,7 +1953,7 @@ def test_a_pane_reads_its_fold_and_leaves_when_its_role_is_hidden(fake, home):
     pane = deck_.DeckPane("sb", lambda row: True, role="todos")
     fake.options[("=sb:", "@sb-folded")] = "queue,todos"
     pane.shape(Result_(data=[]))
-    assert pane.folded() and pane.summary(Result_(data=[])) == "TODOS · 0 open · 0 agents"
+    assert pane.folded() and pane.summary(Result_(data=[])) == "AGENT TODOs · 0 open · 0 agents"
     fake.options[("=sb:", "@sb-hidden")] = "todos"
     with pytest.raises(Leave):
         pane.shape(Result_(data=[]))
@@ -2597,3 +2599,58 @@ def test_clearing_keeps_a_ruling_its_agent_has_not_heard(sb_state):
     todos.done("sb", "jam", 2, todos.DECISIONS, "no")
     todos.clear_done("sb", todos.DECISIONS)
     assert [item.text for item in jam_decisions()] == ["a"]
+
+
+def test_a_titled_band_is_the_label_alone_with_no_corners():
+    facts = chrome_.Chrome(source="deck todo", shape="resident", title="AGENT TODOs")
+    top, bottom = chrome_.status_lines(facts, 0.0, 30)
+    assert top.startswith("AGENT TODOs ─") and top.endswith("─") and len(top) == 30
+    assert "┌" not in top and "deck todo" not in top and bottom.startswith("└")
+
+
+def test_a_titled_band_keeps_the_count_when_the_title_must_give_way():
+    facts = chrome_.Chrome(source="x", shape="resident", title="AGENT COMMUNICATIONS", place="26 earlier")
+    top, _ = chrome_.status_lines(facts, 0.0, 26)
+    assert top.endswith(" 26 earlier") and len(top) == 26
+
+
+def test_a_band_with_no_title_is_unchanged():
+    assert chrome_.status_lines(chrome_.Chrome(source="deck", shape="resident"), 0.0, 20)[0].startswith("┌ deck")
+
+
+def test_a_fit_with_a_place_keeps_its_count_out_of_the_body():
+    from rich.text import Text
+
+    from skyboss.resident import fitted
+
+    said: list[str] = []
+
+    def fit(result, keep):
+        return Result_(data=result.data[:keep]), f"{len(result.data) - keep} below"
+
+    def drawn(result):
+        return Text("\n".join(str(n) for n in result.data))
+
+    data = Result_(data=list(range(9)))
+    shown = fitted(data, drawn(data), 4, fit, drawn, place=said.append)
+    assert shown.plain.split("\n") == ["0", "1", "2", "3"] and said[-1] == "5 below"
+    assert fitted(data, drawn(data), 20, fit, drawn, place=said.append).plain.count("\n") == 8 and said[-1] == ""
+
+
+def test_the_book_panes_drop_their_column_heading_and_keep_the_rule(monkeypatch):
+    from skyboss import todos as todos_
+
+    rows = [{"kind": "item", "parts": [["a", ""]], "agent": "x", "n": 1}]
+    pane = deck_.DeckPane("sb", lambda row: True, top=True, role="decisions")
+    pane.poll = lambda: None
+    shaped = pane.shape(Result_(data=rows, view=todos_.view_of(rows, "decisions")))
+    assert [column["label"] for column in shaped.view["columns"]] == [""]
+    with output.capture(width=30) as captured:
+        output.render(shaped, as_json=False)
+    assert "decisions" not in captured.text.lower() and "─" * 5 in captured.text
+
+
+def test_a_click_finds_its_row_under_a_titled_band():
+    rows = [{"n": 1}, {"n": 2}]
+    lines = ["", " AGENT TODOs ──────── ", " ───────── ", " one", " two"]
+    assert deck_.clicked_row(lines, rows, 5) == {"n": 2}
