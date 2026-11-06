@@ -360,6 +360,13 @@ decided items in DECISIONS, which M-x did not touch. He ruled on both fixes.
 - [x] **A list emptied by a clear drops out of the pane** instead of keeping its heading over
       "nothing open". An agent's own `todo list` still says "nothing open".
 
+## Phase 13 (round 12): the footer carries the names
+
+- [x] **The wordmark moves to the footer's left corner.** The tab row keeps the mark and its separator.
+- [x] **A `│` between the wordmark and the deck's name.**
+- [x] **The deck's name is its profile.** `sky.boss deck` is what a deck from no declared profile says.
+- [x] **No window list in the footer.** The outer session has one window, so `0:deck*` said nothing.
+
 ## Dropped, and why
 
 - **Binding Ctrl-C for exit.** It is claude's interrupt, and forwarding it would put every
@@ -835,3 +842,12 @@ kept the TODOS pane's pid.
   id, same name, the word recalled, the brief still known.
 - **Does not do:** compact, or save a tab whose `claude` never registered. A session open elsewhere
   is not resumed twice: the tab starts new and says so.
+
+### 2026-11-05: round 12 built, the footer carries the names
+
+- **Why:** Jeston's ruling, relayed by skyrow-workspace.
+- **Shape:** the name is read from `@sb-profile` when the bars are dressed, so `sb deck reload` and
+  `--profile` both redraw it, and `status-left-length` stays the exact width. `status-format[0]` on
+  the outer session replaces tmux's default, which is where the window list lived.
+- **Renaming a profile under a running deck:** `@sb-profile` and `saved.json` keep the old name, and
+  a name no longer declared gives no brief to a new tab. Set the option, then `sb deck save`.

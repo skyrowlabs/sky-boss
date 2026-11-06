@@ -566,31 +566,33 @@ def tab_cell(row: int, current: bool) -> str:
 
 
 WORDMARK = ("skyrow", ".labs")
-#: Blank cells each side of the mark, and between the wordmark and the separator.
+#: What the footer calls a deck opened from no declared profile.
+DECK_LABEL = "sky.boss deck"
+#: Blank cells each side of the mark.
 MARK_PAD = 2
-#: Drawn on all three rows between the wordmark and the first tab.
+#: Drawn on all three rows between the mark and the first tab, and in the footer after the wordmark.
 SEPARATOR = "│"
 
 
 def tab_lefts() -> tuple[tuple[str, ...], int]:
     """The tab bar's left end, one format per row, and its visible width.
 
-    The SL mark padded each side, then on the middle row the wordmark (`skyrow` white,
-    `.labs` brand, both bold), then a separator on every row before the tabs.
+    The SL mark padded each side, then a separator on every row before the tabs.
     """
     style = theme.tmux_styles()
     bar = style["bar"]
     pad = " " * MARK_PAD
-    word = "".join(WORDMARK)
-    # `nobold`: a colour change does not end tmux's bold, which would run on into the separator and tabs.
-    middle = f"#[{style['wordmark']}]{WORDMARK[0]}#[{style['label']}]{WORDMARK[1]}#[nobold {bar}]"
-    separator = f"#[{bar}]{pad}#[{style['tab-edge']}]{SEPARATOR}#[{bar}] "
-    lefts = tuple(
-        f"#[{bar}]{pad}{mark}#[{bar}]{pad}" + (middle if row == 1 else " " * len(word)) + separator
-        for row, mark in enumerate(theme.tmux_mark())
-    )
-    width = MARK_PAD + theme.MARK_WIDTH + MARK_PAD + len(word) + MARK_PAD + len(SEPARATOR) + 1
+    separator = f"#[{style['tab-edge']}]{SEPARATOR}#[{bar}] "
+    lefts = tuple(f"#[{bar}]{pad}{mark}#[{bar}]{pad}{separator}" for mark in theme.tmux_mark())
+    width = MARK_PAD + theme.MARK_WIDTH + MARK_PAD + len(SEPARATOR) + 1
     return lefts, width
+
+
+def wordmark() -> str:
+    """`skyrow` white and `.labs` brand, both bold, as a tmux format."""
+    style = theme.tmux_styles()
+    # `nobold`: a colour change does not end tmux's bold, which would run on into what follows.
+    return f"#[{style['wordmark']}]{WORDMARK[0]}#[{style['label']}]{WORDMARK[1]}#[nobold {style['bar']}]"
 
 
 def marks_text() -> str:
@@ -684,18 +686,28 @@ def shared_countdown(every: int = TOOLS_REFRESH) -> str:
     return f"#{{e|-:{every},#{{e|%%:%s,{every}}}}}"
 
 
-def bar_options(tabs: bool) -> tuple[tuple[str, str], ...]:
-    """Session options for a deck bar. The footer also says when the marks were last written."""
+#: The footer's one row: tmux's default with the window list left out, as the deck has one window.
+FOOTER_FORMAT = (
+    "#[align=left]#{T;=/#{status-left-length}:status-left}#[norange default]"
+    "#[align=right]#{T;=/#{status-right-length}:status-right}"
+)
+
+
+def bar_options(tabs: bool, profile: str = "") -> tuple[tuple[str, str], ...]:
+    """Session options for a deck bar. The footer names the deck after `profile` and says when
+    the marks were last written."""
     style = theme.tmux_styles()
-    label = "sky.boss deck"
+    label = profile or DECK_LABEL
     lefts: tuple[str, ...] = ()
     if tabs:
         lefts, width = tab_lefts()
         left = lefts[1]
     else:
         tick = shared_countdown()
-        width = len(label) + 3 + len(f"⟳ next in {TOOLS_REFRESH}s marks not running ")
+        word = "".join(WORDMARK)
+        width = len(f" {word} {SEPARATOR} {label} ⟳ next in {TOOLS_REFRESH}s marks not running ") + 1
         left = (
+            f"#[{style['bar']}] {wordmark()} #[{style['tab-edge']}]{SEPARATOR}"
             f"#[{style['label']}] {label} #[nobold {style['working']}]⟳ next in {tick}s "
             f"#[{style['quiet']}]{marks_text()}#[{style['bar']}]"
         )
@@ -713,7 +725,7 @@ def bar_options(tabs: bool) -> tuple[tuple[str, str], ...]:
         options += tuple((f"status-format[{row}]", tab_row(row, lefts[row])) for row in range(TAB_ROWS))
         options += ((f"status-format[{TAB_ROWS}]", "#{" + SCROLLBAR_OPTION + "}"),)
     else:
-        options += (("status-right", hints()), ("status-right-length", "120"))
+        options += (("status-right", hints()), ("status-right-length", "120"), ("status-format[0]", FOOTER_FORMAT))
     return options
 
 
@@ -979,8 +991,7 @@ def live_tabs(listed: list[Pane], sessions: list, parent_of: dict[int, int]) -> 
 
 def write_save(session: str, tabs: list[decksave.Tab]) -> list[str]:
     """Save `tabs` with the deck's primary and profile. A problem if it could not be written."""
-    profile = tmux("show-options", "-v", "-t", scope(inner(session)), PROFILE_OPTION)
-    saved = decksave.Saved(tabs, deck_primary(session), profile.out.strip() if profile.ok else "")
+    saved = decksave.Saved(tabs, deck_primary(session), deck_profile(session))
     try:
         decksave.save(session, saved)
     except OSError as exc:
@@ -1250,10 +1261,14 @@ def brief(name: str, session: str, rows: list[tuple[str, str, str]], primary: st
     return f"{text}\n\n{extra.strip()}" if extra.strip() else text
 
 
+def deck_profile(session: str) -> str:
+    """The name of the declared profile this deck was opened from, empty if none."""
+    answer = tmux("show-options", "-v", "-t", scope(inner(session)), PROFILE_OPTION)
+    return answer.out.strip() if answer.ok else ""
+
+
 def deck_profile_brief(config: Config) -> str:
-    answer = tmux("show-options", "-v", "-t", scope(inner(config.session)), PROFILE_OPTION)
-    name = answer.out.strip() if answer.ok else ""
-    profile = config.profiles.get(name)
+    profile = config.profiles.get(deck_profile(config.session))
     return profile.brief if profile else ""
 
 
@@ -1432,7 +1447,7 @@ def paint(pane_id: str) -> list[str]:
 def dress_sessions(session: str) -> list[str]:
     """The bars and the key table, on both deck sessions. Re-applied on every `sb deck`, so an
     older deck picks them up; `mouse` is set only when a session is made, as it is the operator's."""
-    problems = _session_options(session, bar_options(False))
+    problems = _session_options(session, bar_options(False, deck_profile(session)))
     problems += _session_options(inner(session), bar_options(True))
     outer, _ = panes(session)
     for pane in outer:

@@ -1987,20 +1987,36 @@ def test_fold_names_only_a_right_column_pane_and_saves_without_a_deck(fake, home
 
 def test_each_bars_label_is_given_room_for_its_whole_width():
     options = dict(deck_.bar_options(False))
-    assert " sky.boss deck " in options["status-left"]
-    assert options["status-left-length"] == str(len(" sky.boss deck ") + 1 + len("⟳ next in 5s marks not running "))
+    drawn = re.sub(r"#\[[^]]*\]", "", options["status-left"])
+    assert drawn.startswith(" skyrow.labs │ sky.boss deck ⟳ next in ")
+    wanted = " skyrow.labs │ sky.boss deck ⟳ next in 5s marks not running "
+    assert options["status-left-length"] == str(len(wanted) + 1)
     tabs = dict(deck_.bar_options(True))
     _, width = deck_.tab_lefts()
-    assert "skyrow" in tabs["status-left"] and tabs["status-left-length"] == str(width)
+    assert tabs["status-left-length"] == str(width)
 
 
-def test_the_mark_and_wordmark_lead_every_tab_row_at_one_width():
+def test_the_footer_names_the_deck_after_its_profile_and_leaves_out_the_window_list():
+    options = dict(deck_.bar_options(False, "skyrow-workspace"))
+    assert " skyrow-workspace " in options["status-left"] and "sky.boss deck" not in options["status-left"]
+    assert int(options["status-left-length"]) > int(dict(deck_.bar_options(False))["status-left-length"])
+    assert "#{W:" not in options["status-format[0]"]
+    assert "status-left" in options["status-format[0]"] and "status-right" in options["status-format[0]"]
+
+
+def test_dressing_a_deck_names_its_footer_after_the_live_profile(fake):
+    fake.options[("=sb-agents:", "@sb-profile")] = "core"
+    deck_.dress_sessions("sb")
+    assert " core " in fake.options[("=sb:", "status-left")]
+
+
+def test_the_mark_leads_every_tab_row_at_one_width():
     from skyboss import theme
 
     lefts, width = deck_.tab_lefts()
     visible = [re.sub(r"#\[[^]]*\]", "", left) for left in lefts]
     assert [len(v) for v in visible] == [width] * 3  # so every row's boxes start in one column
-    assert "skyrow.labs" in visible[1] and "tabs" not in visible[1]
+    assert not any("skyrow" in row for row in visible)  # the wordmark is the footer's
     assert all(v.rstrip().endswith(deck_.SEPARATOR) for v in visible)  # the separator spans all three rows
     assert len(theme.tmux_mark()) == 3 and all(len(row) == len(theme.MARK_PIXELS[0]) for row in theme.MARK_PIXELS)
     base = theme.MARK_PIXELS[-2]
@@ -2038,8 +2054,7 @@ def test_a_cell_refuses_a_third_colour():
 
 def test_the_wordmark_is_white_then_brand_and_bold():
     style = deck_.theme.tmux_styles()
-    middle = deck_.tab_lefts()[0][1]
-    assert f"#[{style['wordmark']}]skyrow#[{style['label']}].labs" in middle
+    assert deck_.wordmark().startswith(f"#[{style['wordmark']}]skyrow#[{style['label']}].labs")
     assert "bold" in style["wordmark"] and "bold" in style["label"]
 
 
