@@ -59,6 +59,24 @@ def test_a_commit_status_counts_by_its_context_and_state():
     assert inbox.waiting_row({**pr(), "statusCheckRollup": [status]})["jobs"] == ["ci/external"]
 
 
+def test_a_superseded_run_never_outlives_the_run_that_replaced_it():
+    def run(started: str, conclusion: str) -> dict:
+        return {"workflowName": "CI", "name": "pytest", "startedAt": started, "conclusion": conclusion}
+
+    later_green = {**pr(), "statusCheckRollup": [run("2026-11-02", "SUCCESS"), run("2026-11-01", "FAILURE")]}
+    later_red = {**pr(), "statusCheckRollup": [run("2026-11-01", "SUCCESS"), run("2026-11-02", "FAILURE")]}
+    assert inbox.waiting_row(later_green) is None
+    assert inbox.waiting_row(later_red)["jobs"] == ["pytest"]
+
+
+def test_one_job_name_in_two_workflows_is_two_checks():
+    rollup = [
+        {"workflowName": "CI", "name": "lint", "startedAt": "2", "conclusion": "SUCCESS"},
+        {"workflowName": "Docs", "name": "lint", "startedAt": "1", "conclusion": "FAILURE"},
+    ]
+    assert inbox.waiting_row({**pr(), "statusCheckRollup": rollup})["state"] == "red"
+
+
 def test_cancelled_alone_never_reads_as_clean():
     row = inbox.waiting_row(pr("CANCELLED", "SUCCESS"))
     assert row["state"] == "cancelled" and row["jobs"] == []

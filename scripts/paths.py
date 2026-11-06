@@ -527,7 +527,9 @@ REQUIREMENTS = SCRIPTS_DIR / "requirements.txt"
 #: Never read it for anything an upgrade owns. Its contents are the
 #: **generator's** business — hashes, arguments, a ref — and a consumer in here
 #: that depended on their shape would be a second reader of a format this tree
-#: does not control. The one question asked of it is which paths it names.
+#: does not control. Two questions are asked of it, both through
+#: `scripts/manifest.py`: which paths it names, and whether a file still equals
+#: what skeletor wrote, which is how a divergence record's entry goes stale.
 SCAFFOLD_MANIFEST = PROJECT_ROOT / ".skeletor.json"
 
 #: Scratch, and gitignored. Tree locks, coverage XML, merge markers — everything

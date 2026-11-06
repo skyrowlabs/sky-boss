@@ -41,13 +41,14 @@ def count_skips(junit: Path) -> tuple:
     suites = [root] if root.tag == "testsuite" else list(root)
     skipped = sum(int(s.get("skipped", 0)) for s in suites)
     total = sum(int(s.get("tests", 0)) for s in suites)
+    errors = sum(int(s.get("errors", 0)) for s in suites)
     reasons = [
         (case.get("classname", ""), skip.get("message", ""))
         for suite in suites
         for case in suite.iter("testcase")
         for skip in case.iter("skipped")
     ]
-    return skipped, total, reasons
+    return skipped, total, errors, reasons
 
 
 def main() -> int:
@@ -84,9 +85,14 @@ def main() -> int:
         fail(f"suite '{args.suite}' has no entry in tests/skip_budget.json — add one")
         return done({"state": "unbudgeted"}, EXIT_REFUSED)
 
-    skipped, total, reasons = count_skips(args.junit)
+    skipped, total, errors, reasons = count_skips(args.junit)
     ceiling = int(entry["max_skipped"])
     measured = {"skipped": skipped, "total": total, "ceiling": ceiling}
+
+    if total and errors >= total:
+        # A crash or a failed collection writes a report too, and no test in it reached a verdict.
+        fail(f"{args.suite}: all {total} test(s) in the report errored, so the skip count measures nothing")
+        return done({"state": "no-verdict", **measured}, EXIT_REFUSED)
 
     if args.update:
         entry["max_skipped"] = skipped

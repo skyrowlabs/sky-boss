@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import sqlite3
 import sys
 from pathlib import Path
@@ -83,3 +84,25 @@ def test_the_run_says_which_binary_and_rev_it_used(cache, monkeypatch, capsys):
     assert leak_scan.main() == 0
     said = capsys.readouterr().err
     assert f"v{PIN}, by pre-commit" in said and "repoabc" in said
+
+
+def test_a_green_scan_counts_the_commits_it_read(cache, monkeypatch, capsys):
+    monkeypatch.setattr(leak_scan, "commits_in", lambda commit_range: 3)
+    monkeypatch.setattr(leak_scan, "scan", lambda binary, commit_range: (0, [], ""))
+    monkeypatch.setattr(sys, "argv", ["leak_scan.py", "--range", "a..b"])
+    assert leak_scan.main() == 0
+    assert "no secrets in 3 commit(s) of a..b" in capsys.readouterr().err
+
+
+def test_an_empty_range_scans_nothing_and_says_so(monkeypatch, capsys):
+    monkeypatch.setattr(leak_scan.shutil, "which", lambda name: None)
+    monkeypatch.setattr(leak_scan, "prebuilt_binary", lambda version: None)
+    monkeypatch.setattr(sys, "argv", ["leak_scan.py", "--range", "HEAD..HEAD", "--json"])
+    assert leak_scan.main() == 0
+    captured = capsys.readouterr()
+    assert "no subject" in captured.err and json.loads(captured.out)["scanned"] is False
+
+
+def test_a_range_git_cannot_resolve_is_refused(monkeypatch):
+    monkeypatch.setattr(sys, "argv", ["leak_scan.py", "--range", "no-such-ref..HEAD"])
+    assert leak_scan.main() == EXIT_REFUSED

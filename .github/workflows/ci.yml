@@ -419,10 +419,12 @@ jobs:
   # `docs/DEVELOPMENT.md` says the same to a reader deciding what to require.
   # It passes only when the matrix passed. The suite has no condition of its
   # own, so a skip means the gate failed, and a skip is never a pass.
+  # `!cancelled()` rather than `always()`: a failed gate still runs this and goes red, and a
+  # cancelled run reports `cancelled`, never `skipped`, where `always()` reported a failure.
   unit-tests-result:
     name: pytest
     needs: [gate, unit-tests]
-    if: always()
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     steps:
       - name: The matrix passed

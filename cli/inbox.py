@@ -102,9 +102,17 @@ def _conclusion(check: dict) -> str:
     return (check.get("conclusion") or check.get("state") or "").upper()
 
 
+def latest_checks(rollup: list[dict]) -> list[dict]:
+    """Each check's newest run, since a rollup also holds the runs a later one superseded."""
+    newest: dict[tuple, dict] = {}
+    for check in sorted(rollup, key=lambda c: c.get("startedAt") or ""):
+        newest[check.get("workflowName"), check.get("name") or check.get("context")] = check
+    return list(newest.values())
+
+
 def waiting_row(pr: dict) -> dict | None:
     """The row for a pull request waiting on a person, or `None` if it is not."""
-    checks = pr.get("statusCheckRollup") or []
+    checks = latest_checks(pr.get("statusCheckRollup") or [])
     jobs = sorted({c.get("name") or c.get("context") or "?" for c in checks if _conclusion(c) in FAILURE_CLASS})
     held = HELD_LABEL in {label.get("name") for label in pr.get("labels") or []}
     if jobs:

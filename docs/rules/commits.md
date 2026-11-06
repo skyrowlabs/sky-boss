@@ -21,6 +21,9 @@ Release Please cannot parse either form and skips the commit: no changelog entry
 bump, and a reverted change that was never released stays in the next changelog. When the revert
 should show in the release, follow it with a `fix:` commit that says so.
 
+**A merge in progress passes the hook**, so git's own `Merge ...` subject goes through. The hook
+asks git whether a merge is under way, and CI's gate skips merges.
+
 ## Rules
 
 1. **ONE subject line** for the entire commit — never repeat the type prefix per file.

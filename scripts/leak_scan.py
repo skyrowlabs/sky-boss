@@ -37,7 +37,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts.check_commit_subjects import default_range  # noqa: E402
-from scripts.output import EXIT_REFUSED, detail, emit, fail, item, line, ok, step  # noqa: E402
+from scripts.output import EXIT_REFUSED, detail, emit, fail, item, line, no_subject, ok, step  # noqa: E402
 from scripts.paths import PROJECT_ROOT  # noqa: E402
 
 PRE_COMMIT_CONFIG = PROJECT_ROOT / ".pre-commit-config.yaml"
@@ -89,6 +89,14 @@ def scan(binary: str, commit_range: str) -> tuple[int, list[dict], str]:
     return proc.returncode, findings, proc.stderr
 
 
+def commits_in(commit_range: str) -> int | None:
+    """How many commits the range holds; `None` if git cannot resolve it."""
+    done = subprocess.run(
+        ["git", "-C", str(PROJECT_ROOT), "log", "--format=%h", commit_range], capture_output=True, text=True
+    )
+    return len(done.stdout.split()) if done.returncode == 0 else None
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--range", dest="commit_range", help="git range (default: what a push would send)")
@@ -105,6 +113,15 @@ def main() -> int:
         return 0
 
     commit_range = args.commit_range or default_range()
+    commits = commits_in(commit_range)
+    if not commits:
+        if args.json:
+            emit({"range": commit_range, "scanned": False, "findings": []})
+        if commits is None:
+            fail(f"git cannot resolve {commit_range}, so nothing was scanned")
+            return EXIT_REFUSED
+        no_subject(f"{commit_range} holds no commits, so there is nothing to scan")
+        return 0
     prebuilt = prebuilt_binary(version)
     binary = prebuilt or shutil.which("gitleaks")
     if not binary:
@@ -128,7 +145,7 @@ def main() -> int:
     if args.json:
         emit({"range": commit_range, "scanned": code in (0, 1), "findings": rows})
     if code == 0:
-        ok(f"no secrets in {commit_range}")
+        ok(f"no secrets in {commits} commit(s) of {commit_range}")
         return 0
     if code == 1 and rows:
         fail(f"{len(rows)} possible secret(s) in {commit_range}")

@@ -142,7 +142,7 @@ class Job:
     #: Jobs this one `needs:`. A required check that needs an unrequired job is
     #: skipped when that job fails, and protection accepts a skip as a pass.
     needs: tuple[str, ...] = ()
-    #: `if: always()` — runs whatever its needs did, so the skip above cannot happen.
+    #: `always()` or `!cancelled()` — runs whatever its needs did, so the skip above cannot happen.
     runs_regardless: bool = False
 
 
@@ -173,7 +173,7 @@ def workflow_jobs(texts: list[str]) -> list[Job]:
                     name,
                     bool(re.search(r"^\s+matrix:", job, re.MULTILINE)),
                     tuple(_needs(job)),
-                    bool(condition and "always()" in condition.group(1)),
+                    bool(condition and re.search(r"always\(\)|!cancelled\(\)", condition.group(1))),
                 )
             )
     return jobs
