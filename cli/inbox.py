@@ -170,7 +170,7 @@ def inbox(as_json: bool) -> None:
     for pr in waiting or []:
         age = "?" if pr["age_days"] is None else f"{pr['age_days']}d"
         failed = f": {', '.join(pr['jobs'])}" if pr["jobs"] else ""
-        item(f"#{pr['number']} {pr['title']}  ({pr['state']}, {age}) {pr['reason']}{failed}")
+        item(f"#{pr['number']} {pr['title']}  ({pr['state']}{failed}, {age}) {pr['reason']}")
     detail()
     for source, count in sorted(at_cap.items()):
         warn(f"{source} is at its cap ({count} of {SOURCE_CAP}): it files nothing more until these are closed")

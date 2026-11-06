@@ -218,3 +218,13 @@ def test_the_probe_reports_a_missing_module_rather_than_raising():
 
     sound, why = gate.probe(Path(sys.executable), "json")
     assert sound is True, why
+
+
+@pytest.mark.parametrize(("exited", "expected"), [(0, 0), (1, 1), (2, 2), (3, 2), (4, 2)])
+def test_only_a_verdict_passes_through(exited, expected, tmp_path, monkeypatch):
+    config = tmp_path / "pyrightconfig.json"
+    config.write_text("{}\n", encoding="utf-8")
+    monkeypatch.setattr(gate, "preflight", lambda _config: (Path(sys.executable), []))
+    monkeypatch.setattr(gate.shutil, "which", lambda _name: "pyright")
+    monkeypatch.setattr(gate.subprocess, "run", lambda *a, **k: gate.subprocess.CompletedProcess(a, exited))
+    assert gate.main(["--project", str(config)]) == expected

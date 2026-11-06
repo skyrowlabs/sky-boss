@@ -245,10 +245,15 @@ def main(argv: list[str] | None = None) -> int:
     #
     # No `--pythonversion`, ever — the CLI flag overrides the config, and
     # `pyrightconfig.json`'s `pythonVersion` is the single source for it.
-    return subprocess.run(
+    code = subprocess.run(
         [pyright, "--project", str(config), "--pythonpath", str(interpreter)],
         cwd=os.fspath(config.parent),
     ).returncode
+    if code in (0, 1):
+        return code
+    # 2 and up is pyright failing to run, and its 3 must not read as this contract's.
+    fail(f"pyright exited {code}, so nothing was type-checked")
+    return EXIT_REFUSED
 
 
 if __name__ == "__main__":

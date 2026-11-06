@@ -78,7 +78,7 @@ def test_what_auto_merge_will_handle_is_not_waiting_on_a_person(conclusions):
 def test_a_waiting_pull_request_is_listed_and_stops_the_all_clear(quiet_gh, monkeypatch):
     monkeypatch.setattr(inbox, "open_dependabot_prs", lambda: [pr("FAILURE"), pr("SUCCESS", number=8)])
     output = CliRunner().invoke(inbox.inbox, []).output
-    assert "#7 bump" in output and "job-failure" in output and "#8" not in output
+    assert "#7 bump  (red: job-failure, ?)" in output and "#8" not in output
     assert "nothing is open" not in output
     payload = json.loads(CliRunner().invoke(inbox.inbox, ["--json"]).output)
     assert [row["number"] for row in payload["waiting"]] == [7]

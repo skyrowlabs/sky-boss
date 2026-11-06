@@ -10,6 +10,10 @@ docs` whole. `PRE_PUSH_GATES` run in `check pre-push` alone. An entry names a
 script and its arguments, run the way `check.py` runs its own: from the project
 root, with this tree's interpreter.
 
+A gate that can legitimately find nothing to measure exits 3 and sets `no_subject`,
+which is what makes `check` pass it. Without that a 3 is red, because pytest and
+pyright exit 3 when they crash. `docs/rules/output.md` has the contract.
+
 `tests/test_pre_push_covers_ci.py` reads both lists, so a CI-blocking gate listed
 here counts as one `check pre-push` runs. `tests/test_ci_job_settings.py` reads
 them too, so a history-reading script here makes a job running `check docs` need
@@ -22,11 +26,12 @@ from typing import NamedTuple
 
 
 class Gate(NamedTuple):
-    """One gate: the label `check` prints, the script it runs, and that script's arguments."""
+    """One gate: the label `check` prints, its script and arguments, and whether exit 3 is no subject."""
 
     label: str
     script: str
     args: tuple[str, ...] = ()
+    no_subject: bool = False
 
 
 DOCS_GATES: list[Gate] = []

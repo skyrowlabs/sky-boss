@@ -1,7 +1,7 @@
 """A test that needs full history must run in a job that fetches it.
 
 `tests/test_docs_name_live_code.py` asks git whether a name was ever defined
-here. `git log --all` answers "no" for everything in a shallow clone, so the
+here. `git log` answers "no" for everything past a shallow clone's graft, so the
 check would pass by *seeing* nothing rather than by *finding* nothing — and it
 refuses instead, asserting the clone is not shallow. `ci.yml` sets
 `fetch-depth: 0` on the job that runs it, which is what makes that assertion

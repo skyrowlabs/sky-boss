@@ -29,7 +29,7 @@ from pathlib import Path
 # owns every path below — can be imported. See scripts/paths.py.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts.output import EXIT_REFUSED, detail, emit, fail, item, ok  # noqa: E402
+from scripts.output import EXIT_REFUSED, detail, emit, fail, item, no_subject, ok  # noqa: E402
 from scripts.paths import TESTS_DIR, TMP_DIR  # noqa: E402
 
 BUDGET = TESTS_DIR / "skip_budget.json"
@@ -93,6 +93,11 @@ def main() -> int:
         BUDGET.write_text(json.dumps(budget, indent=2) + "\n", encoding="utf-8")
         ok(f"{args.suite} budget set to {skipped}")
         return done({"state": "updated", **measured}, 0)
+
+    if not total and not args.update:
+        # An empty suite is legitimate and the nightly runs one, so this is not a refusal.
+        no_subject(f"{args.suite}: the report holds 0 tests, so there is no skip to count")
+        return done({"state": "no-subject", **measured}, 0)
 
     if skipped > ceiling:
         fail(f"{args.suite}: {skipped} skipped, budget {ceiling} ({total} tests)")
