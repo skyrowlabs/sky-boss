@@ -458,6 +458,84 @@ window. Nothing writes `deck.toml`, and that is a stated rule.
 **Does not do:** edit or remove an agent or profile from the bar, change `projects.toml`, or type into
 a terminal tab. Running agents are not told about a new tab, as with `sb deck open` today.
 
+## Phase 18 (round 18): every ask of the operator in one queue
+
+Planned, nothing built. Jeston asked whether the deck needs a commit, push and actions window, or
+whether DECISIONS can hold it all. The workspace counted how agents ask over three days, across 11
+repos, in `deck-requests/operator-asks-20261106.md` in its own state directory, and recommended one
+queue. Its counts are its own, and its prose counts are an upper bound.
+
+**The problem.** Of ten ways agents ask, only `sb deck decide` has a state. The rest are text in a
+tab or a file. A question at the end of a prose turn is the largest channel, at up to 540, and
+`decide` the smallest but one, at about 37. Worse, a ruling can close while its work stays open:
+"Jeston pushes it by hand" closed a decision and left a push nothing tracks.
+
+**The shape: one queue, no second window.** A separate window would split the same attention and
+give the operator two places to check. HUMAN DECISIONS stays the one place, and each row has a kind.
+
+| Kind | What it is | How it closes |
+|---|---|---|
+| `choice` | Today's decision: the operator picks and the agent acts | A ruling, told in the tab |
+| `action` | An exact command only the operator may run | Observed, or marked done by a click |
+| `asked` | A tab blocked on a prompt, mirrored in by a hook | When the tab answers or moves on |
+| `notice` | Worth knowing, with nothing to do | A click dismisses it |
+| *held* | Computed and never written by an agent | When the state stops being true |
+
+Rows sort `choice`, `action`, `asked`, then `notice`, so a notice can never push a choice out of
+view. Held state is one folded line at the foot, `HELD 4`, which a click unfolds, for the same reason.
+
+**What exists to build on, read from the code:**
+
+- A ruling typed for a busy tab waits safely. `tell_rulings` types only into an idle tab that is not
+  scrolled, `untold` stays set until then, and `clear` keeps an untold item. Action rows reuse this
+  to tell their agent the work happened, so it needs nothing new. An operator part-way through
+  typing in that idle tab is the one gap, and it exists today.
+- A click is first-hand, and an agent cannot forge one: `sb deck decide rule` refuses inside a tab.
+  The action row's click needs the same guard.
+- Hooks need no write to `~/.claude`. Every tab already loads `--plugin-dir`, so hooks shipped in
+  `plugin/` reach deck tabs only, and the rule that the operator owns the install still holds.
+- The registry says `waiting` and nothing about why, on 2.1.319. Saying what a tab waits on needs a
+  hook's `message`.
+
+**Does not do:** parse a prompt to judge it, answer a prompt from the pane, or let an agent close an
+action on its own word when the state can be observed. The largest channel stays a matter of
+discipline unless the question below rules otherwise.
+
+### Questions for Jeston
+
+- [ ] **May a click run an action, or only show it?** A command an agent wrote would run with the
+      operator's authority, which is how a permission denial could come back as one click. Suggested:
+      a click shows the exact command and folder and asks once, then runs it in a visible popup. The
+      command is stored as an argv, never a shell string, and there is no batch run.
+- [ ] **Should a tab that ends its turn on a question be flagged?** Prose is the largest channel and
+      the hooks cannot see intent. The `Stop` hook has the last message, so a turn ending in `?` could
+      raise an `asked` row. Suggested: yes, as a mark on the tab and a low row, knowing it will
+      sometimes be wrong. The alternative is the brief alone.
+
+### Phase work
+
+- [ ] **Measure first, on a probe session.** Which hook events fire for `AskUserQuestion`, a
+      permission prompt, and an auto-mode denial, and whether each says when it ended. The rows below
+      depend on it, so nothing is built on a guess. Report anything a hook cannot see as a gap.
+- [ ] **Kinds in the store.** `Item` gains a kind, defaulting to `choice`, so files on disk still read.
+- [ ] **Action rows.** `sb deck decide add "<what>" --run <argv> --cwd <dir> --until <test>`. A ruling
+      can leave an action row behind, so "pushes it by hand" stays open.
+- [ ] **Closing by observation.** `--until` names one of a closed set: a PR merged, a SHA on a branch,
+      a branch gone. A pinned command whose head has moved reads `stale`, and an action with no test
+      closes by a click and says that nothing checked it.
+- [ ] **Hook mirrors.** A hidden `sb deck ask` reads the hook's JSON, as the Approach above requires,
+      and writes `asked` rows, including what a `waiting` tab waits on. Permission denials land as
+      `action` rows with the denied command, for the operator to rule on.
+- [ ] **Notices.** `sb deck decide note "<text>"`, drawn below the rest.
+- [ ] **Held state.** Unpushed commits and local branches from git, and green unmerged PRs and open
+      alerts from `gh`, for each deck repo. On a slow cadence and off the draw path, and a repo it could
+      not read says so, because *could not see* must not read as *clear*.
+- [ ] **The brief.** "Anything you need from the operator goes through `sb deck decide`; a question
+      in prose is not an ask." Round reports' FOR-JESTON items become rows, in the workspace's skills,
+      which the workspace has offered to change.
+- [ ] **Proof on a real deck:** each kind drawn, sorted and closed with real clicks, a pane short
+      enough to overflow, and a busy tab receiving a ruling once it goes idle.
+
 ## Dropped, and why
 
 - **Binding Ctrl-C for exit.** It is claude's interrupt, and forwarding it would put every
@@ -1030,3 +1108,12 @@ kept the TODOS pane's pid.
   because it records what was ruled on 2026-11-04.
 - **Nothing in the deck changed.** It stays the place agents are driven from until a later round
   says otherwise.
+
+### 2026-11-06: round 18 opened, one queue for every ask, nothing built
+
+- **Why:** Jeston reported asks getting lost and asked whether an actions window was needed. The
+  workspace collected the channels and recommended one queue, leaving the shape to this repo.
+- **The answer to the window question is no.** Phase 18 agrees with the workspace on one queue. It
+  adds the `asked` kind, folds held state so it cannot crowd choices, and uses `--plugin-dir` for the
+  hooks, which keeps "the install is the operator's" intact.
+- **Two questions went to DECISIONS,** and nothing is built until Jeston has seen the plan.
