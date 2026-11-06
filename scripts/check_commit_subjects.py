@@ -61,7 +61,7 @@ from pathlib import Path
 # owns every path below — can be imported. See scripts/paths.py.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts.output import detail, emit, fail, item, ok, warn  # noqa: E402
+from scripts.output import EXIT_REFUSED, detail, emit, fail, item, no_subject, ok, skip, warn  # noqa: E402
 from scripts.paths import GITHUB_DIR, PROJECT_ROOT, SCRIPTS_DIR  # noqa: E402
 
 #: SCAFFOLD-OPTIONAL .github/release-please-config.json
@@ -74,6 +74,10 @@ RELEASE_CONFIG = GITHUB_DIR / "release-please-config.json"
 #: Please's parser reads it. The scope is optional, the `!` breaking marker is
 #: optional, the space after the colon is not.
 SUBJECT = re.compile(r"^(?P<type>[a-z]+)(?:\((?P<scope>[^)]*)\))?(?P<breaking>!)?: (?P<description>.+)$")
+
+#: What `git revert` writes, which no commit-msg hook sees. A wrapper around a
+#: valid subject passes here and in the hook, and Release Please skips it.
+REVERT = re.compile(r'^(?:Revert|Reapply) "(?P<inner>.*)"$')
 
 
 #: The commit-msg hook, and the one line in it that holds the types it falls
@@ -108,6 +112,13 @@ def configured_types() -> set:
     for package in (config.get("packages") or {}).values():
         sections += package.get("changelog-sections") or []
     return {section["type"] for section in sections if "type" in section}
+
+
+def reverted(subject: str) -> str:
+    """The subject inside any `Revert "..."` or `Reapply "..."` wrappers."""
+    while match := REVERT.match(subject):
+        subject = match.group("inner")
+    return subject
 
 
 def subjects(commit_range: str):
@@ -193,7 +204,7 @@ def unreadable(inspected: list, types: set) -> list:
     findings = []
     hook_applies = not RELEASE_CONFIG.exists() and HOOK.exists()
     for sha, subject in inspected:
-        match = SUBJECT.match(subject)
+        match = SUBJECT.match(reverted(subject))
         if not match:
             findings.append((sha, subject, "does not parse as `type(scope): description`"))
             continue
@@ -325,7 +336,7 @@ def main() -> int:
         detail("    reach — check HEAD alone, or name a range that exists.")
         detail("An unresolvable range is an error and never a pass: reporting it as zero")
         detail("subjects is a green tick over nothing.")
-        return 1
+        return EXIT_REFUSED
 
     findings = unreadable(inspected, types) if types else []
 
@@ -336,6 +347,7 @@ def main() -> int:
                 "inspected": len(inspected),
                 "release_please_configured": RELEASE_CONFIG.exists(),
                 "configured_types": sorted(types),
+                "reverts": [subject for _, subject in inspected if reverted(subject) != subject],
                 "unreadable": [{"sha": s, "subject": t, "why": w} for s, t, w in findings],
             }
         )
@@ -349,7 +361,7 @@ def main() -> int:
         if not RELEASE_CONFIG.exists():
             fail(f"no {RELEASE_CONFIG.name}, and the commit hook's FALLBACK_TYPES could not be read")
             detail(f"The contract under tag versioning is {HOOK.relative_to(PROJECT_ROOT)}'s own type list.")
-            return 1
+            return EXIT_REFUSED
         warn(f"no changelog-sections in {RELEASE_CONFIG.relative_to(PROJECT_ROOT)} — nothing to check against")
         detail("Release Please is configured here and gives no commit type a changelog")
         detail("section, so every subject is silently ignored by the release automation.")
@@ -381,10 +393,16 @@ def main() -> int:
     # merge commits contains no subject this asks about. That is a different
     # fact from an unresolvable range above, and the two must not print alike.
     if not inspected:
-        ok(f"no non-merge commits in {described(commit_range, chosen)} — nothing to check")
+        no_subject(f"no non-merge commits in {described(commit_range, chosen)}")
         return 0
     if RELEASE_CONFIG.exists():
-        ok(f"{len(inspected)} subject(s) in {described(commit_range, chosen)} are readable by Release Please")
+        reverts = sum(1 for _, subject in inspected if reverted(subject) != subject)
+        readable = len(inspected) - reverts
+        ok(f"{readable} subject(s) in {described(commit_range, chosen)} are readable by Release Please")
+        if reverts:
+            # Measured on release-please 17.11.2: the parser drops these. See docs/rules/commits.md.
+            skip(f"{reverts} revert subject(s) pass here, and Release Please skips them")
+            detail("They get no changelog entry and no version bump; the reverted change stays listed if unreleased.")
     else:
         ok(f"{len(inspected)} commit(s) in {described(commit_range, chosen)} pass the commit-msg hook")
     return 0

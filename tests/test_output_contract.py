@@ -59,6 +59,9 @@ pytestmark = [pytest.mark.unit]
 # owns every path below — can be imported. See scripts/paths.py.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from scripts import check_doc_links as links  # noqa: E402
+from scripts import output  # noqa: E402
+from scripts import rehearse_scheduled as rehearsal  # noqa: E402
 from scripts.output import STATE_SYMBOLS  # noqa: E402
 from scripts.paths import PROJECT_ROOT, SCRIPTS_DIR  # noqa: E402
 
@@ -143,6 +146,64 @@ def test_status_lines_stay_off_stdout(script: Path):
             f"{script.name} wrote '{symbol.strip()}' to stdout — status lines belong on stderr. "
             "See docs/rules/output.md."
         )
+
+
+@pytest.mark.parametrize("script", _host_runnable(), ids=lambda p: p.name)
+def test_every_exit_is_in_the_contract_and_every_green_line_carries_a_count(script: Path):
+    result = _run(script, "--json")
+    assert result.returncode in (0, 1, 2, 3), f"{script.name} exited {result.returncode}, outside docs/rules/output.md"
+    uncounted = [
+        line
+        for line in result.stderr.splitlines()
+        if line.startswith(STATE_SYMBOLS["ok"]) and not re.search(r"\d", line)
+    ]
+    assert not uncounted, f"{script.name} said green without saying how much it read: {uncounted}"
+
+
+def test_the_exit_codes_are_the_documented_four():
+    assert (output.EXIT_GREEN, output.EXIT_RED, output.EXIT_REFUSED, output.EXIT_NO_SUBJECT) == (0, 1, 2, 3)
+
+
+@pytest.mark.parametrize(("codes", "expected"), [((0, 3), 0), ((3,), 0), ((0, 1), 1), ((0, 2), 1), ((3, 2), 1)])
+def test_an_aggregate_passes_no_subject_with_a_note_and_fails_a_refusal(codes, expected, capsys):
+    assert output.summarize((f"gate-{code}", code) for code in codes) == expected
+    if expected == 0:
+        assert "no subject: gate-3" in capsys.readouterr().err
+
+
+@pytest.fixture
+def document_tree(tmp_path, monkeypatch):
+    """A tree `check_doc_links.py` reads in place of this one."""
+    monkeypatch.setattr(links, "PROJECT_ROOT", tmp_path)
+    monkeypatch.setattr(links, "SCAN_ROOTS", [])
+    monkeypatch.setattr(links, "BASELINE", tmp_path / "absent.json")
+    monkeypatch.setattr(sys, "argv", ["check_doc_links.py"])
+    return tmp_path
+
+
+def test_doc_links_refuses_a_tree_with_no_documents(document_tree):
+    assert links.main() == output.EXIT_REFUSED
+
+
+def test_doc_links_is_green_with_a_note_when_no_document_holds_a_fragment(document_tree, capsys):
+    (document_tree / "a.md").write_text("# A\n\nno links\n", encoding="utf-8")
+    assert links.main() == output.EXIT_GREEN
+    said = capsys.readouterr().err
+    assert "no subject: dead anchors: 1 document(s) read" in said and STATE_SYMBOLS["ok"] not in said
+
+
+def test_doc_links_counts_what_it_read(document_tree, capsys):
+    (document_tree / "b.md").write_text("# B\n", encoding="utf-8")
+    (document_tree / "a.md").write_text("# A\n\n[x](b.md#b) [y](#a)\n", encoding="utf-8")
+    assert links.main() == output.EXIT_GREEN
+    said = capsys.readouterr().err
+    assert "0 of 1 relative link(s)" in said and "0 of 2 fragment link(s)" in said and "no subject" not in said
+
+
+def test_a_rehearsal_with_nothing_to_rehearse_has_no_subject(monkeypatch):
+    monkeypatch.setattr(rehearsal, "scheduled_workflows", lambda: [])
+    monkeypatch.setattr(rehearsal, "snapshot", lambda: ("ref", "tree"))
+    assert rehearsal.main([]) == output.EXIT_NO_SUBJECT
 
 
 def test_the_human_half_still_happens():

@@ -74,3 +74,43 @@ def test_a_dead_holder_does_not_wedge_the_tree(tmp_path):
     _write_hold(tmp_path, pid=999_999, owner="crashed-job", age_s=7200)
 
     assert tree_lock.holders(root=tmp_path) == []
+
+
+def _git(cwd: Path, *args: str) -> str:
+    import subprocess
+
+    return subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True, text=True).stdout
+
+
+def _repo(tmp_path: Path) -> Path:
+    main = tmp_path / "main"
+    main.mkdir()
+    _git(main, "init", "-q", "-b", "develop")
+    for key, value in (("user.name", "t"), ("user.email", "t@example.invalid"), ("commit.gpgsign", "false")):
+        _git(main, "config", key, value)
+    _git(main, "commit", "-q", "--allow-empty", "-m", "chore: root")
+    return main
+
+
+def test_another_trees_unpushed_branch_does_not_block_a_drop(tmp_path):
+    """Branches are shared by every worktree, and a branch survives removal (sky.boss)."""
+    from tests.shell import module
+
+    main = _repo(tmp_path)
+    _git(main, "switch", "-q", "-c", "feat/elsewhere")
+    _git(main, "commit", "-q", "--allow-empty", "-m", "feat: unpushed, in the main tree")
+    _git(main, "worktree", "add", "-q", "-b", "feat/here", str(tmp_path / "wt"))
+    _git(tmp_path / "wt", "commit", "-q", "--allow-empty", "-m", "feat: unpushed, on this tree's branch")
+
+    assert module("worktree").stranded(tmp_path / "wt") == []
+
+
+def test_a_detached_heads_own_commit_blocks_a_drop(tmp_path):
+    from tests.shell import module
+
+    main = _repo(tmp_path)
+    _git(main, "worktree", "add", "-q", "--detach", str(tmp_path / "wt"))
+    _git(tmp_path / "wt", "commit", "-q", "--allow-empty", "-m", "feat: on no branch")
+
+    lost = module("worktree").stranded(tmp_path / "wt")
+    assert len(lost) == 1 and "on no branch" in lost[0]

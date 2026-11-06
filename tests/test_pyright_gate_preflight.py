@@ -207,7 +207,7 @@ def test_a_failed_probe_never_reaches_pyright(tmp_path, monkeypatch):
     (pinned / "python").symlink_to(sys.executable)
     config.write_text('{\n  "venvPath": ".",\n  "venv": ".venv"\n}\n', encoding="utf-8")
 
-    assert gate.main(["--project", str(config)]) == 1
+    assert gate.main(["--project", str(config)]) == 2
 
 
 def test_the_probe_reports_a_missing_module_rather_than_raising():

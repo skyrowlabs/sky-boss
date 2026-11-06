@@ -84,6 +84,14 @@ if [ -z "$SUBJECT" ]; then
     exit 1
 fi
 
+# `git revert` writes `Revert "<subject>"`, or `Reapply "<subject>"` for a revert
+# of a revert, and runs no commit-msg hook. So the first refusal would come from
+# CI, on a commit that cannot be squashed away. Every rule below reads the subject
+# being reverted; `scripts/check_commit_subjects.py` strips the same two wrappers.
+while [[ "$SUBJECT" =~ ^(Revert|Reapply)\ \"(.*)\"$ ]]; do
+    SUBJECT="${BASH_REMATCH[2]}"
+done
+
 if ! printf '%s' "$SUBJECT" | grep -qE "$PATTERN"; then
     cat >&2 <<MSG
 ❌ Not a conventional commit subject:

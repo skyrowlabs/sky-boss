@@ -8,8 +8,10 @@ length cap alone.
 
 from __future__ import annotations
 
+import json
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -61,3 +63,27 @@ def test_a_bot_is_exempt_from_the_length_cap_only(repo, monkeypatch):
     assert found(repo, long, PERSON)
     monkeypatch.setattr(gate, "BOTS_EXEMPT_FROM_LENGTH", False)
     assert found(repo, long, BOT)
+
+
+def test_a_revert_of_a_valid_subject_passes_and_of_an_invalid_one_does_not(repo):
+    assert not found(repo, 'Revert "feat(x): one change"\n\nThis reverts commit 0123456.')
+    assert not found(repo, 'Reapply "feat(x): one change"')
+    assert not found(repo, 'Revert "Reapply "feat(x): one change""')
+    assert found(repo, 'Revert "not a conventional subject"')
+    assert found(repo, 'Revert "feat(x): Capital summary"'), "the rules must read the subject inside"
+    assert found(repo, 'Revert "feat(x): ' + "a" * 72 + '"'), "the cap applies to the subject inside"
+
+
+def test_release_please_arm_passes_a_revert_and_counts_it_as_skipped(repo, monkeypatch, capsys):
+    config = repo / "release-please-config.json"
+    sections = [{"type": "feat", "section": "Features"}]
+    config.write_text(json.dumps({"packages": {".": {"changelog-sections": sections}}}), encoding="utf-8")
+    monkeypatch.setattr(gate, "RELEASE_CONFIG", config)
+    inspected = [commit(repo, "feat(x): one change", PERSON), commit(repo, 'Revert "feat(x): one change"', PERSON)]
+    assert not gate.unreadable(inspected, gate.configured_types())
+    assert gate.unreadable([commit(repo, 'Revert "docs: no section"', PERSON)], gate.configured_types())
+    monkeypatch.setattr(gate, "subjects", lambda commit_range: inspected)
+    monkeypatch.setattr(sys, "argv", ["check_commit_subjects.py", "--range", "HEAD"])
+    assert gate.main() == 0
+    said = capsys.readouterr().err
+    assert "1 subject(s) in HEAD are readable" in said and "1 revert subject(s)" in said

@@ -40,6 +40,7 @@ from scripts.output import detail, emit, fail, item, line, ok, skip, step, warn
 | `fail(msg)`            | stderr | a gate failed                                         |
 | `warn(msg)`            | stderr | something is off, nothing is blocked                  |
 | `skip(msg)`            | stderr | executed and **deliberately did not act** — with why  |
+| `no_subject(msg)`      | stderr | read its source, and nothing there was its to judge   |
 | `step(msg)`            | stderr | narration: what is running now                        |
 | `shell(cmd)`           | stderr | echo a command about to be spawned                    |
 | `detail(msg)`          | stderr | a continuation line under the status line above it    |
@@ -56,6 +57,23 @@ is working. Reporting it as a warning means every legitimate decline reads as a
 problem, and a channel that cries wolf stops being read. This is the same
 distinction the run ledger draws — in the tiers that ship one — between
 `declined` and a cron that never fired.
+
+## The Exit Contract
+
+Each `scripts/check_*.py` and each `dev check` command answers with one of four codes,
+named in `scripts/output.py` and pinned by `tests/test_output_contract.py`:
+
+| Code | Name       | Means                                                              |
+| ---- | ---------- | ------------------------------------------------------------------ |
+| 0    | green      | it measured, and what it measured passed; the line carries a count |
+| 1    | red        | it measured, and something failed                                  |
+| 2    | refused    | the instrument could not measure                                   |
+| 3    | no subject | it ran, and there was nothing for it to measure                    |
+
+Aggregating commands such as `dev check pre-push` treat 3 as a pass and name the gate.
+One line of a command can say `no subject` while the command exits 0: `check_doc_links.py`
+read its documents, so a tree with no fragment links is green with that line noted. `--json`
+carries the per-line state. A CI step running a script directly fails on any non-zero code.
 
 ## Why a Module and Not a Convention
 

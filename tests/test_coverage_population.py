@@ -267,7 +267,7 @@ def test_a_report_older_than_the_data_it_came_from_is_refused(tree, tmp_path, ca
     later = time.time() + 60
     os.utime(data, (later, later))
     code, _ = tree(OURS)
-    assert code == 1 and '"state": "stale-report"' in capsys.readouterr().out
+    assert code == 2 and '"state": "stale-report"' in capsys.readouterr().out
 
 
 def test_a_floor_no_workflow_runs_says_so(tree, tmp_path, monkeypatch, capsys):

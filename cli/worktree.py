@@ -163,13 +163,33 @@ def new(path: str, branch: str, base: str) -> None:
     detail(f"When you are done:  dev worktree drop {target}")
 
 
+def stranded(target: Path) -> list[str]:
+    """Commits that removing `target` would lose: those only its detached HEAD reaches.
+
+    A worktree on a branch loses nothing, because the branch outlives `git
+    worktree remove`; branches are shared by every worktree of a repository, so
+    counting unpushed branches blocked a clean tree for work in another
+    (sky.boss). Only a detached HEAD can strand commits.
+    """
+    on_branch = subprocess.run(["git", "symbolic-ref", "-q", "HEAD"], cwd=str(target), capture_output=True)
+    if on_branch.returncode == 0:
+        return []
+    found = subprocess.run(
+        ["git", "log", "HEAD", "--not", "--branches", "--tags", "--remotes", "--oneline"],
+        cwd=str(target),
+        capture_output=True,
+        text=True,
+    )
+    return found.stdout.splitlines()
+
+
 @worktree.command()
 @click.argument("path")
-@click.option("--force", is_flag=True, help="remove even with uncommitted or unpushed work")
+@click.option("--force", is_flag=True, help="remove even with uncommitted work or stranded commits")
 def drop(path: str, force: bool) -> None:
     """Remove a worktree, refusing if it still holds work.
 
-    The refusal on unpushed commits is the important half: a detached
+    The refusal on stranded commits is the important half: a detached
     worktree's commits are reachable from nothing but its own HEAD, so that
     refusal is the only thing between them and silent deletion.
     """
@@ -186,7 +206,7 @@ def drop(path: str, force: bool) -> None:
         detail("That work belongs to somebody. Commit it, or pass --force if you are sure.")
         sys.exit(1)
 
-    # The third guard, and the one that was missing. `git status` and unpushed
+    # The third guard, and the one that was missing. `git status` and stranded
     # commits both describe the tree's *contents*; neither says whether somebody
     # is using it right now. A suite run does not dirty a tree and does not
     # create commits, so a checkout with a live `suite` hold is clean, pushed,
@@ -204,14 +224,12 @@ def drop(path: str, force: bool) -> None:
         detail("Something is working in there now. Wait for it, or pass --force if you are sure.")
         sys.exit(1)
 
-    unpushed = subprocess.run(
-        ["git", "log", "--branches", "--not", "--remotes", "--oneline"], cwd=str(target), capture_output=True, text=True
-    ).stdout.strip()
-    if unpushed and not force:
-        fail(f"{target} holds {len(unpushed.splitlines())} commit(s) on no remote:")
-        for commit_line in unpushed.splitlines()[:5]:
+    lost = stranded(target)
+    if lost and not force:
+        fail(f"{target} has a detached HEAD holding {len(lost)} commit(s) on no branch, tag or remote:")
+        for commit_line in lost[:5]:
             item(commit_line)
-        detail("These are reachable from nothing but this tree's HEAD. Push them, or --force.")
+        detail("Removing the worktree loses them. Put a branch on HEAD and push it, or --force.")
         sys.exit(1)
 
     run(["git", "worktree", "remove", *(["--force"] if force else []), str(target)])
