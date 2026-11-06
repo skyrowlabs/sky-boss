@@ -87,3 +87,23 @@ def test_release_please_arm_passes_a_revert_and_counts_it_as_skipped(repo, monke
     assert gate.main() == 0
     said = capsys.readouterr().err
     assert "1 subject(s) in HEAD are readable" in said and "1 revert subject(s)" in said
+
+
+def test_the_hook_passes_a_merge_in_progress_and_still_reads_its_own_subject(repo):
+    env = {**os.environ, "GIT_AUTHOR_NAME": "a", "GIT_AUTHOR_EMAIL": "a@example.com"}
+    env |= {"GIT_COMMITTER_NAME": "c", "GIT_COMMITTER_EMAIL": "c@example.com"}
+
+    def git(*args: str) -> subprocess.CompletedProcess:
+        return subprocess.run(["git", *args], cwd=str(repo), capture_output=True, text=True, env=env)
+
+    hook = repo / ".git" / "hooks" / "commit-msg"
+    hook.write_text(f'#!/bin/bash\nexec bash "{gate.HOOK}" "$1"\n', encoding="utf-8")
+    hook.chmod(0o755)
+    assert git("commit", "--allow-empty", "-m", "chore: the first commit").returncode == 0
+    assert git("checkout", "-b", "side").returncode == 0
+    assert git("commit", "--allow-empty", "-m", "fix(x): on the side").returncode == 0
+    assert git("checkout", "-").returncode == 0
+    assert git("commit", "--allow-empty", "-m", "not a conventional subject").returncode != 0
+    merged = git("merge", "--no-ff", "--no-edit", "side")
+    assert merged.returncode == 0, merged.stderr
+    assert git("log", "-1", "--format=%s").stdout.startswith("Merge branch")

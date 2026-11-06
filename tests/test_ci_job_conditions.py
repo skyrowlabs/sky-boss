@@ -169,7 +169,7 @@ def test_no_reason_outlives_its_job():
 _JOB_IF = re.compile(r"^    if:", re.MULTILINE)
 _JOB_NAME = re.compile(r"^    name:\s*(?P<name>.+)$", re.MULTILINE)
 _JOB_NEEDS = re.compile(r"^    needs:\s*(?P<needs>.+)$", re.MULTILINE)
-_ALWAYS = re.compile(r"^    if:\s*always\(\)\s*$", re.MULTILINE)
+_ALWAYS = re.compile(r"^    if:\s*(?:always\(\)|\$\{\{\s*!cancelled\(\)\s*\}\})\s*$", re.MULTILINE)
 
 
 def _job_name(body: str) -> str:
@@ -179,11 +179,11 @@ def _job_name(body: str) -> str:
 
 def unsummarised_matrices(blocks: dict) -> list:
     """Jobs that interpolate the matrix into `name:`, can be skipped by their own
-    `if:`, and have no job that `needs:` them, runs `if: always()` and carries a
-    static name. Taking the blocks as an argument is what lets the predicate be
+    `if:`, and have no job that `needs:` them, runs `always()` or `!cancelled()` and
+    carries a static name. Taking the blocks as an argument is what lets the predicate be
     proved on a tree built to exercise it, rather than on whichever tree this is.
     """
-    # `if: always()` is a job-level `if:` that cannot skip, so it does not enrol.
+    # `always()` and `!cancelled()` are job-level `if:`s that cannot skip, so they do not enrol.
     matrices = [
         job
         for job, body in blocks.items()
@@ -210,7 +210,7 @@ def test_a_skippable_matrix_has_one_name_to_require():
     unexpanded `${{ matrix.* }}` expression and none of its per-leg names. A
     protection requiring a leg's name then waits forever on a docs-only pull
     request with every check green — stash.flow's were blocked exactly so. The
-    remedy is a job that `needs:` the matrix, runs `if: always()`, and carries a
+    remedy is a job that `needs:` the matrix, runs `if: ${{ !cancelled() }}`, and carries a
     name with no expression in it; that name is what protection requires.
 
     Discovered rather than listed: any job whose `name:` interpolates the
@@ -238,7 +238,7 @@ def test_a_skippable_matrix_has_one_name_to_require():
     unsummarised = unsummarised_matrices(job_blocks())
     assert not unsummarised, (
         f"{unsummarised} can be skipped by its own `if:` and has no job that `needs:` it, runs "
-        "`if: always()` and has a static `name:`. Skipped, a matrix reports only its unexpanded "
+        "`if: ${{ !cancelled() }}` and has a static `name:`. Skipped, a matrix reports only its unexpanded "
         "name, so a branch protection requiring any leg blocks every docs-only pull request. "
         "Add that job and require its name — `unit-tests-result` is the worked example. Or, if "
         "nothing should ever skip it, remove the job-level `if:`."
@@ -253,6 +253,8 @@ def test_the_matrix_predicate_sees_every_shape():
         "bare": "  bare:\n    name: py ${{ matrix.python }}\n    if: needs.gate.outputs.docs_only != 'true'\n",
         "held": "  held:\n    name: ty ${{ matrix.python }}\n    if: needs.gate.outputs.docs_only != 'true'\n",
         "held-sum": "  held-sum:\n    name: ty\n    needs: [gate, held]\n    if: always()\n",
+        "kept": "  kept:\n    name: mk ${{ matrix.python }}\n    if: needs.gate.outputs.docs_only != 'true'\n",
+        "kept-sum": "  kept-sum:\n    name: mk\n    needs: [gate, kept]\n    if: ${{ !cancelled() }}\n",
         "unskippable": "  unskippable:\n    name: lint ${{ matrix.python }}\n    needs: gate\n",
         "wrong-sum": "  wrong-sum:\n    name: py ${{ matrix.python }} all\n    needs: bare\n    if: always()\n",
     }

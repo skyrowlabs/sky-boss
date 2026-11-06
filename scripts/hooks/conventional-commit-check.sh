@@ -8,6 +8,13 @@
 set -euo pipefail
 
 MSG_FILE="$1"
+
+# A merge in progress is git's own commit: CI's gate skips merges with `--no-merges`,
+# and asked of git rather than of the subject, which a branch name can defeat.
+if git rev-parse -q --verify MERGE_HEAD >/dev/null; then
+    exit 0
+fi
+
 # SCAFFOLD-OPTIONAL .github/release-please-config.json
 # Absent in a tree scaffolded with `--versioning tag`, which is the whole
 # reason the branch below exists — asked of the FILE and not of a flag,

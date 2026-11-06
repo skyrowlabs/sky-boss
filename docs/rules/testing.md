@@ -142,7 +142,8 @@ commit to lock the gain in. A ratchet is not a target: never chase the number.
 
 Both read a report pytest writes, so **both fail when that report is missing** rather than
 warning and passing. A ratchet with nothing to read has not passed, it has not run, and the
-two are indistinguishable from a green step. Run them the way CI does:
+two are indistinguishable from a green step. The skip budget also refuses a report where
+every test errored, which is what a crash or a failed collection writes. Run them the way CI does:
 
 ```bash
 python -m pytest tests/ -m unit -q --junitxml=tmp/junit.xml

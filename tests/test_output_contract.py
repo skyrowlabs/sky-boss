@@ -173,6 +173,21 @@ def test_a_junit_holding_no_tests_has_no_subject(tmp_path):
     assert result.returncode == 0 and "no subject" in result.stderr and STATE_SYMBOLS["ok"] not in result.stderr
 
 
+@pytest.mark.parametrize("counts", ['tests="1" errors="1"', 'tests="2" errors="2"'])
+def test_a_junit_where_no_test_reached_a_verdict_is_refused(tmp_path, counts):
+    report = tmp_path / "junit.xml"
+    report.write_text(f'<testsuite {counts} skipped="0"></testsuite>', encoding="utf-8")
+    result = _run(SCRIPTS_DIR / "check_skip_budget.py", "--suite", "unit", "--junit", str(report))
+    assert result.returncode == output.EXIT_REFUSED and STATE_SYMBOLS["ok"] not in result.stderr
+
+
+def test_a_junit_with_one_test_left_still_counts_its_skips(tmp_path):
+    report = tmp_path / "junit.xml"
+    report.write_text('<testsuite tests="2" errors="1" skipped="0"></testsuite>', encoding="utf-8")
+    result = _run(SCRIPTS_DIR / "check_skip_budget.py", "--suite", "unit", "--junit", str(report))
+    assert result.returncode == 0 and STATE_SYMBOLS["ok"] in result.stderr
+
+
 def test_the_exit_codes_are_the_documented_four():
     assert (output.EXIT_GREEN, output.EXIT_RED, output.EXIT_REFUSED, output.EXIT_NO_SUBJECT) == (0, 1, 2, 3)
 

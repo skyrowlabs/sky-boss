@@ -25,13 +25,19 @@ _UNREADABLE = (OSError, ValueError)
 
 def scaffolded_paths(path: Path = SCAFFOLD_MANIFEST) -> frozenset[str] | None:
     """Every repo-relative path the manifest at `path` names, or `None` without a readable one."""
+    files = recorded_hashes(path)
+    return None if files is None else frozenset(files)
+
+
+def recorded_hashes(path: Path = SCAFFOLD_MANIFEST) -> dict[str, str] | None:
+    """`{repo-relative path: hash of what skeletor wrote}`, or `None` without a readable manifest."""
     if not path.exists():
         return None
     try:
-        files = json.loads(path.read_text(encoding="utf-8")).get("files", {})
+        files: dict[str, str] = json.loads(path.read_text(encoding="utf-8")).get("files", {})
     except _UNREADABLE:
         return None
-    return frozenset(files)
+    return files
 
 
 def skeletor_wrote(path: Path | str, manifest: Path = SCAFFOLD_MANIFEST) -> bool | None:

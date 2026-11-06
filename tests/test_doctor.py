@@ -154,6 +154,9 @@ def test_a_required_check_needing_an_unrequired_job_is_a_problem_unless_it_alway
     regardless = WORKFLOW.replace("    if: needs.gate.outputs.full == 'true'\n", "    if: always()\n")
     stub(monkeypatch, on_branch("main", ["Lint"], regardless))
     assert doctor.required_checks("main").state == doctor.OK, "a job that always runs cannot be skipped"
+    uncancelled = regardless.replace("if: always()", "if: ${{ !cancelled() }}")
+    stub(monkeypatch, on_branch("main", ["Lint"], uncancelled))
+    assert doctor.required_checks("main").state == doctor.OK, "`!cancelled()` runs whatever its needs did"
     by_id = {job.id: job for job in doctor.workflow_jobs([WORKFLOW])}
     assert by_id["unit-result"].needs == ("gate", "unit") and by_id["unit-result"].runs_regardless
     assert by_id["lint"].needs == ("gate",) and not by_id["lint"].runs_regardless

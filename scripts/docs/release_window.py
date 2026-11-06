@@ -37,7 +37,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from scripts.docs import frontmatter  # noqa: E402
-from scripts.output import die, emit, fail, item, ok  # noqa: E402
+from scripts.output import die, emit, fail, item, no_subject, ok  # noqa: E402
 from scripts.paths import PROJECT_ROOT, REGULAR_DIR, RELEASES_DIR  # noqa: E402
 
 #: Enrolment is the directory: every report in ``docs/reports/regular/`` other
@@ -209,7 +209,11 @@ def check() -> int:
             item(failure)
         return 1
     frozen = [p for p in RELEASES_DIR.glob("*/*.md") if p.name != "WINDOW.md"]
-    ok(f"report anchors: {len(anchored_reports())} in-flight, {len(frozen)} frozen")
+    anchored = len(anchored_reports())
+    if anchored or frozen:
+        ok(f"report anchors: {anchored} in-flight, {len(frozen)} frozen")
+    else:
+        no_subject("report anchors: no in-flight or frozen report to read")
     for name in seeded:
         item(f"{name}: seeded, never produced — its job's first run stamps it")
     return 0
