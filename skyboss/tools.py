@@ -881,23 +881,27 @@ def backup(home: Path | None = None, stamp: str | None = None) -> Path | None:
     Kept in `$SB_HOME/backups/` rather than beside the file, so `ls ~/.sky-boss`
     still shows three config files and not a drift of dated ones.
     """
-    path = home_file(home)
+    return keep_copy(home_file(home), "tools", stamp)
+
+
+def keep_copy(path: Path, stem: str, stamp: str | None = None) -> Path | None:
+    """Copy `path` into `backups/` beside it as `STEM.<stamp>.toml`, keeping the newest few."""
     if not path.exists() or not path.stat().st_size:
         return None
     when = stamp or datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     into = path.parent / "backups"
     into.mkdir(parents=True, exist_ok=True)
-    kept = into / f"tools.{when}.toml"
+    kept = into / f"{stem}.{when}.toml"
     # A second is not fine-grained enough: editing a tool and deleting another
     # inside the same second would leave one backup where the operator was
     # promised two, and the one it left would be the wrong one.
     bump = 1
     while kept.exists():
-        kept = into / f"tools.{when}-{bump}.toml"
+        kept = into / f"{stem}.{when}-{bump}.toml"
         bump += 1
     kept.write_bytes(path.read_bytes())
     # Oldest first by name, which is why the stamp is sortable.
-    existing = sorted(into.glob("tools.*.toml"))
+    existing = sorted(into.glob(f"{stem}.*.toml"))
     for stale in existing[:-BACKUPS_KEPT]:
         stale.unlink()
     return kept

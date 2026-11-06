@@ -42,7 +42,7 @@ import rich_click as click
 from skyboss import agents as agents_
 from skyboss import background
 from skyboss import column as column_
-from skyboss import decksave
+from skyboss import deckplus, decksave
 from skyboss import keys as keys_
 from skyboss import resident as resident_
 from skyboss import theme
@@ -58,10 +58,10 @@ from skyboss.view import describe
 
 DECK_FILE = "deck.toml"
 DEFAULT_SESSION = "sb"
-TOP_LEVEL_KEYS = frozenset({"session", "pin", "panes", "themes", "theme_base"})
+TOP_LEVEL_KEYS = frozenset({"session", "pin", "panes", "themes", "theme_base", "roots"})
 TOP_LEVEL_TABLES = frozenset({"agent", "profile"})
 AGENT_KEYS = frozenset({"cwd", "args", "role", "colour"})
-PROFILE_KEYS = frozenset({"primary", "tabs", "brief"})
+PROFILE_KEYS = frozenset({"primary", "tabs", "brief", "terminals"})
 
 # tmux rewrites `.` and `:` in a session name, so a name carrying either would
 # be a session the deck could create and then never find again.
@@ -93,6 +93,8 @@ HIDE_POLL = 0.2
 # Pane roles. `agent` runs claude; `tabs` is the nested client showing the inner
 # session; `shell` is the inner session's first window, so it is never empty.
 AGENT, TABS, QUEUE, MESSAGES, SHELL = "agent", "tabs", "queue", "messages", "shell"
+#: A tab running the operator's shell, kept after the agents; see [[command-deck]] round 16.
+TERMINAL = "terminal"
 TODOS = "todos"
 DECISIONS = "decisions"
 # The right column's panes, in their default order; `skyboss/column.py` holds the operator's choice.
@@ -186,6 +188,8 @@ class Profile:
     tabs: list[str] = field(default_factory=list)
     # The operator's own text, appended to the brief of every agent this profile launches.
     brief: str = ""
+    # A directory per terminal tab to open when the deck starts.
+    terminals: list[str] = field(default_factory=list)
 
     def order(self) -> tuple[list[str], list[str]]:
         """Each name once, primary first, and a problem per repeat."""
@@ -209,6 +213,8 @@ class Config:
     # Each tab's Claude Code takes a theme accented in its agent's deck hue, on `theme_base`.
     themes: bool = True
     theme_base: str = ""
+    # Directories whose folders the `+` offers.
+    roots: list[str] = field(default_factory=list)
 
     def profile(self, name: str | None) -> Profile | None:
         """The named profile, or `pin` as a profile with a primary and no tabs, or none.
@@ -290,6 +296,13 @@ def parse(raw: dict) -> tuple[Config, list[str]]:
         else:
             problems.append(f"theme_base must be one of {', '.join(THEME_BASES)} — ignored")
 
+    if "roots" in raw:
+        roots = raw["roots"]
+        if isinstance(roots, list) and all(isinstance(root, str) for root in roots):
+            config.roots = roots
+        else:
+            problems.append("roots must be a list of directories — ignored")
+
     tables = raw.get("agent", {})
     if not isinstance(tables, dict):
         problems.append("agent must be a table of [agent.NAME] tables — ignored")
@@ -327,7 +340,11 @@ def parse(raw: dict) -> tuple[Config, list[str]]:
             if key not in PROFILE_KEYS:
                 problems.append(f"profile {name!r}: unknown key {key!r} — ignored")
         config.profiles[name] = Profile(
-            name=name, primary=body.get("primary", ""), tabs=list(body.get("tabs", [])), brief=body.get("brief", "")
+            name=name,
+            primary=body.get("primary", ""),
+            tabs=list(body.get("tabs", [])),
+            brief=body.get("brief", ""),
+            terminals=list(body.get("terminals", [])),
         )
     return config, problems
 
@@ -338,6 +355,9 @@ def _check_profile(body) -> str | None:
     primary = body.get("primary", "")
     if not isinstance(primary, str):
         return "primary must be an agent name"
+    terminals = body.get("terminals", [])
+    if not isinstance(terminals, list) or not all(isinstance(t, str) for t in terminals):
+        return "terminals must be a list of directories"
     tabs = body.get("tabs", [])
     if not isinstance(tabs, list) or not all(isinstance(t, str) and t for t in tabs):
         return "tabs must be a list of agent names"
@@ -554,6 +574,8 @@ def dress(window_id: str, *, tab: bool = False) -> list[str]:
 
 
 TAB_ROWS = 3
+#: The `+` box after the tabs.
+ADD_WIDTH = 5
 #: The tab rows, and one under them: the blank row above `claude`, or the scrollbar on overflow.
 BAR_ROWS = TAB_ROWS + 1
 
@@ -622,6 +644,14 @@ def marks_text() -> str:
     return f"marks #{{?{marked},{marked},not running}} "
 
 
+def add_cell(row: int) -> str:
+    """One row of the `+` box after the tabs. Outside the window list, so it never scrolls away."""
+    style = theme.tmux_styles()
+    bar = style["bar"]
+    body = ("╭───╮", f"│#[{style['label']}] + #[nobold {style['tab-edge']}]│", "╰───╯")[row]
+    return f"#[range=user|{ADD_RANGE}]#[{style['tab-edge']}]{body}#[norange nobold {bar}]"
+
+
 def tab_row(row: int, left: str) -> str:
     """`status-format[row]` for the tab bar: `left`, then the tabs' boxes as a tmux list.
 
@@ -630,7 +660,7 @@ def tab_row(row: int, left: str) -> str:
     """
     current = f"#[list=focus]{tab_cell(row, True)}#[list=on]"
     cells = f"#[list=on]#{{W:{tab_cell(row, False)},{current}}}#[nolist]"
-    return f"#[align=left]{left}{cells}"
+    return f"#[align=left]{left}{cells}{add_cell(row)}"
 
 
 #: The row under the tabs, drawn only while they overflow; `@sb-scrollbar` holds it.
@@ -692,7 +722,7 @@ def scroll_once(session: str) -> list[str]:
     rows = [line.split("\t", 1) for line in windows.out.splitlines() if "\t" in line]
     current = next((n for n, (active, _) in enumerate(rows) if active == "1"), 0)
     _, left = tab_lefts()
-    room = min(widths) - left
+    room = min(widths) - left - ADD_WIDTH
     span = visible_span([tab_width(label) for _, label in rows], current, room)
     if span is None:
         return colouring + _session_options(name, ((SCROLLBAR_OPTION, ""),))
@@ -778,6 +808,7 @@ SHORTCUTS = {
     "column": "M-s",
     "fold": "M-c",
     "clear": "M-x",
+    "add": "M-n",
 }
 NEVER_BOUND = frozenset({"C-c"})
 # Session options the panes read each frame, and the marks loop keeps the agent count in.
@@ -787,6 +818,7 @@ SCROLL_SEQ_OPTION = "@sb-scroll-seq"
 AGENT_COUNT_OPTION = "@sb-agent-count"
 EXIT_RANGE = "exit"
 LAYOUT_RANGE = "layout"
+ADD_RANGE = "add"
 
 
 def key_table(session: str) -> str:
@@ -829,6 +861,8 @@ def deck_bindings(session: str) -> list[list[str]]:
     sb = shlex.quote(str(PROJECT_ROOT / "sb"))
     cycle = job("deck", "layout", next_layout())
     clicked = "#{==:#{mouse_status_range}," + LAYOUT_RANGE + "}"
+    added = "#{==:#{mouse_status_range}," + ADD_RANGE + "}"
+    plus = ["display-popup", "-E", "-w", "96", "-h", "24", f"exec {sb} deck plus"]
 
     count = "#{" + AGENT_COUNT_OPTION + "}"
     ask = (
@@ -854,8 +888,10 @@ def deck_bindings(session: str) -> list[list[str]]:
             "-F",
             "#{==:#{mouse_status_range}," + EXIT_RANGE + "}",
             ask,
-            f"if-shell -F '{clicked}' '{cycle}' 'switch-client -t ='",
+            f"if-shell -F '{added}' {{ {shlex.join(plus)} }} "
+            f"{{ if-shell -F '{clicked}' '{cycle}' 'switch-client -t =' }}",
         ],
+        ["bind-key", "-T", table, keys["add"], *plus],
         ["bind-key", "-T", table, keys["outside"], "set-option", "-F", "-t", outer, HIDE_OPTION, f"#{{?{hide},,1}}"],
         ["bind-key", "-T", table, keys["layout"], *shlex.split(cycle)],
         ["bind-key", "-T", table, keys["previous"], "previous-window", "-t", tabs],
@@ -949,6 +985,7 @@ def hints() -> str:
         f"{k['layout']} layout",
         f"{k['previous']} {k['next']} tab",
         f"{k['older']} {k['newest']} messages",
+        f"{k['add']} add",
         f"{k['column']} panes",
         f"{k['fold']} fold",
         f"{k['clear']} clear done",
@@ -1006,6 +1043,10 @@ def restored(config: Config, problems: list[str]) -> Profile | None:
     problems += more
     if not saved.tabs:
         return None
+    for tab in saved.tabs:
+        # A "this deck only" tab has no declaration, so its save is what knows where it lives.
+        if tab.cwd and tab.agent not in config.agents:
+            config.agents[tab.agent] = Agent(tab.agent, tab.cwd, source=decksave.FILE)
     declared = config.profiles.get(saved.profile)
     return Profile(
         name=saved.profile or "saved",
@@ -1055,9 +1096,18 @@ def tell_rulings(session: str, listed: list[Pane], states: dict[str, str], label
     return problems
 
 
-def write_save(session: str, tabs: list[decksave.Tab]) -> list[str]:
+def live_terminals(session: str) -> list[decksave.Terminal]:
+    """Each terminal tab, with the directory its shell is in now."""
+    fields = "\t".join(("#{" + ROLE_OPTION + "}", "#{window_name}", "#{pane_current_path}"))
+    answer = tmux("list-panes", "-s", "-t", scope(inner(session)), "-F", fields)
+    rows = [line.split("\t") for line in answer.out.splitlines()] if answer.ok else []
+    return [decksave.Terminal(row[1], row[2]) for row in rows if len(row) == 3 and row[0] == TERMINAL]
+
+
+def write_save(session: str, tabs: list[decksave.Tab], terminals: list[decksave.Terminal] | None = None) -> list[str]:
     """Save `tabs` with the deck's primary and profile. A problem if it could not be written."""
-    saved = decksave.Saved(tabs, deck_primary(session), deck_profile(session))
+    open_now = live_terminals(session) if terminals is None else terminals
+    saved = decksave.Saved(tabs, deck_primary(session), deck_profile(session), terminals=open_now)
     try:
         decksave.save(session, saved)
     except OSError as exc:
@@ -1069,9 +1119,11 @@ def autosave(session: str, tabs: list[decksave.Tab]) -> list[str]:
     """Fold the live tabs into the save when they changed it, so a reboot finds them."""
     saved, problems = decksave.load(session)
     kept = decksave.merged(saved.tabs, tabs)
-    if problems or kept == saved.tabs:
+    live = live_terminals(session)
+    terminals = [*live, *(t for t in saved.terminals if t.name not in {held.name for held in live})]
+    if problems or (kept == saved.tabs and terminals == saved.terminals):
         return []
-    return write_save(session, kept)
+    return write_save(session, kept, terminals)
 
 
 def save_now(session: str, adapters: list | None = None) -> tuple[list[decksave.Tab], list[str]]:
@@ -1586,6 +1638,55 @@ def open_tabs(
     return problems
 
 
+def terminal_name(listed: list[Pane]) -> str:
+    """`term`, or `term-2` and on: the first a tab does not hold."""
+    taken = {pane.window for pane in listed}
+    return next(name for name in ("term", *(f"term-{n}" for n in range(2, 10**4))) if name not in taken)
+
+
+def open_terminal(session: str, directory: str, name: str = "") -> tuple[str, list[str]]:
+    """A tab running the operator's shell in `directory`, kept last. Its window id, and problems."""
+    if not Path(directory).is_dir():
+        raise DeckError(f"terminal: {directory} is not a directory")
+    tabs = inner(session)
+    listed, _ = panes(tabs)
+    label = name if name and find_window(name, listed) is None else terminal_name(listed)
+    where = ["new-window", "-d", "-t", f"={tabs}:", "-P", "-F", "#{window_id} #{pane_id}"]
+    window_id, pane_id = _ids(tmux(*where, "-n", label, "-c", directory))
+    tmux("set-option", "-p", "-t", pane_id, ROLE_OPTION, TERMINAL)
+    return window_id, dress(window_id, tab=True) + terminals_last(session)
+
+
+def open_terminals(session: str, wanted: list[decksave.Terminal]) -> list[str]:
+    """A terminal tab for each of `wanted`. A directory that has gone is named, not skipped quietly."""
+    problems: list[str] = []
+    for terminal in wanted:
+        directory = os.path.expandvars(os.path.expanduser(terminal.cwd)) or str(Path.home())
+        try:
+            problems += open_terminal(session, directory, terminal.name)[1]
+        except DeckError as exc:
+            problems.append(str(exc))
+    return problems
+
+
+def terminals_last(session: str) -> list[str]:
+    """Move the terminal tabs after the agents with `swap-window`, which restarts nothing."""
+    name = inner(session)
+    listed, _ = panes(name)
+    shells = {pane.window_id for pane in listed if pane.role == TERMINAL}
+    order = _window_order(listed)
+    wanted = [w for w in order if w not in shells] + [w for w in order if w in shells]
+    for position, window_id in enumerate(wanted):
+        if order[position] == window_id:
+            continue
+        answer = tmux("swap-window", "-d", "-s", window_id, "-t", order[position])
+        if not answer.ok:
+            return [f"could not keep the terminal tabs last — {_said(answer)}"]
+        at = order.index(window_id)
+        order[position], order[at] = order[at], order[position]
+    return []
+
+
 def _window_order(listed: list[Pane]) -> list[str]:
     seen: dict[str, int] = {}
     for pane in listed:
@@ -1871,7 +1972,7 @@ def deck(ctx: click.Context, profile_name: str | None, fresh: bool) -> None:
     **This acts.** Window 0 is the controller: a tab row of live `claude`s (an
     inner session, `<session>-agents`) beside the queue, the messages and the todos. Each
     tab shows its session's state. Declared in `$SB_HOME/deck.toml`, which
-    sky.boss reads and never writes: `[agent.NAME]` takes `cwd`, `args` and a
+    sky.boss reads, and writes only through `sb deck add --keep`: `[agent.NAME]` takes `cwd`, `args` and a
     one-line `role`; `[profile.NAME]` takes `primary`, `tabs` and a `brief`
     appended to every agent it launches. Each agent is told the roster, roles
     included, at launch. A deck that is not running comes back as it was saved:
@@ -1892,14 +1993,20 @@ def deck(ctx: click.Context, profile_name: str | None, fresh: bool) -> None:
         known = ", ".join(sorted(config.profiles)) or "none declared"
         raise click.UsageError(f"no profile {profile_name!r} in {DECK_FILE} (profiles: {known})") from None
     starting = has_session(inner(config.session)) is False
+    terminals = [decksave.Terminal("", cwd) for cwd in profile.terminals] if profile else []
     if starting and fresh:
         decksave.clear(config.session)
     elif starting and not profile_name:
-        profile = restored(config, problems) or profile
+        back = restored(config, problems)
+        saved_shells = decksave.load(config.session)[0].terminals
+        profile = back or profile
+        terminals = saved_shells if back or saved_shells else terminals
     try:
         _, more = ensure(config, _projects(), profile, fresh)
     except DeckError as exc:
         raise click.ClickException(str(exc)) from exc
+    if starting:
+        more += open_terminals(config.session, terminals)
     more += start_marks(config.session)
     note = extended_keys_note()
     warn_now(problems + more + ([note] if note else []))
@@ -1935,15 +2042,20 @@ def deck_open(name: str, fresh: bool) -> Result:
     already running are not told about it, so the brief says to check the live list.
     A saved session is resumed, and keeps the brief it started with.
     """
-    result = Result()
     config, problems = load()
-    for problem in problems:
-        result.warn(problem)
     projects = _projects()
     agent, why = resolve(name, config, projects)
     if agent is None:
         raise click.UsageError(f"no agent {name!r}: {why}")
+    return open_agent(config, projects, agent, fresh, problems)
 
+
+def open_agent(config: Config, projects: list, agent: Agent, fresh: bool, problems: list[str]) -> Result:
+    """`agent`'s tab, opened if it has none and then focused, with the terminal tabs kept last."""
+    result = Result()
+    name = agent.name
+    for problem in problems:
+        result.warn(problem)
     try:
         created, more = ensure(config, projects)
         more += start_marks(config.session)
@@ -1956,7 +2068,7 @@ def deck_open(name: str, fresh: bool) -> Result:
             told = brief(agent.name, config.session, rows, primary, deck_profile_brief(config))
             resume = resume_lookup(config.session, more, fresh)(agent)
             window_id, dressed = start(inner(config.session), agent, brief=told, resume=resume)
-            more += dressed
+            more += dressed + terminals_last(config.session)
         focus(config.session, window_id)
         attached = switch(config.session)
     except DeckError as exc:
@@ -1980,6 +2092,235 @@ def deck_open(name: str, fresh: bool) -> Result:
         "from": agent.source,
     }
     return result
+
+
+def declared_places(config: Config, projects: list) -> list[deckplus.Place]:
+    """What the `+` can open: the declared agents, the projects with a `cwd`, and the roots' folders."""
+    declared = [(a.name, a.directory, a.source) for a in config.agents.values()]
+    declared += [
+        (p.name, os.path.expanduser(p.cwd), "projects.toml")
+        for p in projects
+        if p.cwd and p.name not in config.agents and NAME.match(p.name)
+    ]
+    roots = [os.path.expandvars(os.path.expanduser(root)) for root in config.roots]
+    return deckplus.places(declared, roots, NAME)
+
+
+@deck.command(name="places")
+@emit
+def deck_places() -> Result:
+    """Where a new tab can start: what the `+` in the tab row offers.
+
+        sb deck places
+
+    An observe. Lists the declared agents, the `projects.toml` projects with a
+    `cwd`, and each folder under `roots = [...]` in `deck.toml`. A folder that
+    cannot be a tab says why.
+    """
+    result = Result()
+    config, problems = load()
+    for problem in problems:
+        result.warn(problem)
+    found = declared_places(config, _projects())
+    result.data = [
+        {"name": p.name, "cwd": p.cwd, "from": p.source, "declared": p.declared, "problem": p.problem} for p in found
+    ]
+    return result
+
+
+def keep_agent(config: Config, name: str, cwd: str, role: str, profile: str) -> tuple[Config, list[str]]:
+    """Write the agent and its place in `profile` into `deck.toml`, and read the file back.
+
+    `cwd` empty means the agent is already declared. Raises `DeckError` when the edit is refused.
+    """
+    path = home_file()
+    text = path.read_text() if path.exists() else ""
+    try:
+        deckplus.write(path, deckplus.edited(text, name, cwd, role, profile))
+    except (OSError, ValueError) as exc:
+        raise DeckError(str(exc)) from exc
+    return load()
+
+
+def add_tab(name: str, cwd: str, role: str, keep: bool, fresh: bool = False) -> Result:
+    """An agent's tab, declared and in the deck's profile when `keep`, else for this deck only."""
+    config, problems = load()
+    projects = _projects()
+    agent, _ = resolve(name, config, projects)
+    if agent is None and not cwd:
+        raise click.UsageError(f"no agent {name!r}: give it a directory with --cwd")
+    if agent is not None and cwd and os.path.realpath(agent.directory) != os.path.realpath(cwd):
+        raise click.UsageError(f"{name!r} is already {agent.directory} — pick another name")
+    profile = deck_profile(config.session)
+    if keep and profile not in config.profiles:
+        raise click.UsageError("this deck has no declared profile to keep the tab in — add it without --keep")
+    listed = config.profiles[profile].order()[0] if keep else []
+    declare = cwd if name not in config.agents and keep else ""
+    if keep and (declare or name not in listed):
+        try:
+            config, more = keep_agent(config, name, declare, role, "" if name in listed else profile)
+        except DeckError as exc:
+            raise click.ClickException(str(exc)) from exc
+        problems += more
+        agent = resolve(name, config, projects)[0]
+    if agent is None:
+        agent = Agent(name=name, cwd=cwd, source="this deck", role=role)
+    return open_agent(config, projects, agent, fresh, problems)
+
+
+@deck.command(name="add")
+@click.argument("name")
+@click.option("--cwd", default="", metavar="DIR", help="Where the agent runs. Not needed for a declared agent.")
+@click.option("--role", default="", metavar="TEXT", help="One line about this agent, for the roster.")
+@click.option("--keep", is_flag=True, help="Write it into deck.toml and the deck's profile, after a backup.")
+@emit
+def deck_add(name: str, cwd: str, role: str, keep: bool) -> Result:
+    """A new agent tab called NAME, for this deck or kept in its profile.
+
+        sb deck add scratch --cwd ~/src/scratch
+        sb deck add scratch --cwd ~/src/scratch --role "throwaway work" --keep
+
+    **This acts.** With `--keep` it edits `deck.toml`: an `[agent.NAME]` block and
+    one more name in the profile's `tabs`. The file is copied to
+    `$SB_HOME/backups/` first and every other line is left alone. Without it the
+    tab lasts as long as the deck's save does.
+    """
+    if not NAME.match(name):
+        raise click.UsageError(f"{name!r} cannot be a tab's name")
+    return add_tab(name, os.path.expandvars(os.path.expanduser(cwd)) if cwd else "", role, keep)
+
+
+@deck.command(name="terminal")
+@click.option("--cwd", default="", metavar="DIR", help="Where the shell starts. Home if not given.")
+@emit
+def deck_terminal(cwd: str) -> Result:
+    """A tab running your shell rather than `claude`, listed after the agents.
+
+        sb deck terminal
+        sb deck terminal --cwd ~/src/scratch
+
+    **This acts.** Agents are not told of it and it joins no roster. When the deck
+    comes back the tab reopens in its last directory with a fresh shell.
+    """
+    result = Result()
+    config, problems = load()
+    for problem in problems:
+        result.warn(problem)
+    directory = os.path.expandvars(os.path.expanduser(cwd)) if cwd else str(Path.home())
+    try:
+        _, more = ensure(config, _projects())
+        window_id, dressed = open_terminal(config.session, directory)
+        focus(config.session, window_id)
+    except DeckError as exc:
+        result.ok = False
+        result.data = {"error": str(exc)}
+        return result
+    for problem in more + dressed:
+        result.warn(problem)
+    result.data = {"session": inner(config.session), "window": window_id, "cwd": directory}
+    return result
+
+
+def _pick(title: str, rows: list[str], wait_for: Callable[[float], str | None]) -> int | None:
+    """The row chosen by arrows and Enter, or a click; None on q or Esc."""
+    size = shutil.get_terminal_size()
+    room = max(1, size.lines - 3)
+    at = 0
+    while True:
+        first = deckplus.window(len(rows), at, room)
+        drawn = [title, ""] + [
+            f"{'>' if n == at else ' '} {row}"[: size.columns - 1]
+            for n, row in enumerate(rows[first : first + room], first)
+        ]
+        sys.stdout.write(resident_.MOUSE_ON + "\x1b[2J\x1b[H" + "\r\n".join(drawn))
+        sys.stdout.flush()
+        key = wait_for(60.0)
+        cell = keys_.clicked(key)
+        if cell is not None:
+            row = first + cell[1] - 3
+            if cell[1] >= 3 and row < min(len(rows), first + room):
+                return row
+        elif key in ("\r", "\n"):
+            return at
+        elif keys_.leaves(key):
+            return None
+        elif key in ("up", "down", "pgup", "pgdn"):
+            step = {"up": -1, "down": 1, "pgup": -room, "pgdn": room}[key]
+            at = max(0, min(len(rows) - 1, at + step))
+
+
+def _picked(title: str, rows: list[str]) -> int | None:
+    try:
+        with keys_.reader() as wait_for:
+            return _pick(title, rows, wait_for)
+    finally:
+        sys.stdout.write(resident_.MOUSE_OFF + "\x1b[2J\x1b[H")
+        sys.stdout.flush()
+
+
+@deck.command(name="plus")
+def deck_plus() -> None:
+    """The prompt behind the `+`: a new agent or terminal tab.
+
+        sb deck plus
+
+    **This acts**, and needs a terminal; the deck opens it in a popup on the `+`
+    and on M-n. It asks what to open and where, then a name, a role and whether to
+    keep it in the profile. `sb deck add` and `sb deck terminal` do the same by hand.
+    """
+    if not has_terminal():
+        raise click.UsageError("the prompt needs a terminal — use `sb deck add` or `sb deck terminal`")
+    config, problems = load()
+    warn_now(problems)
+    kind = _picked("Open a new tab", ["agent", "terminal"])
+    if kind is None:
+        return
+    found = [place for place in declared_places(config, _projects()) if kind == 1 or not place.problem]
+    if not found:
+        click.echo("nothing to open — add roots = [...] to deck.toml")
+        time.sleep(2)
+        return
+    width = max(len(place.name) for place in found)
+    chosen = _picked("Which folder?", [f"{p.name:<{width}}  {p.cwd}" for p in found])
+    if chosen is None:
+        return
+    place = found[chosen]
+    try:
+        result = _plus_terminal(config, place) if kind == 1 else _plus_agent(config, place)
+    except click.ClickException as exc:
+        click.echo(exc.format_message())
+        time.sleep(3)
+        return
+    if not result.ok or result.warnings:
+        click.echo("\n".join([*result.warnings, str(result.data.get("error", ""))]))
+        time.sleep(3)
+
+
+def _plus_terminal(config: Config, place: deckplus.Place) -> Result:
+    window_id, problems = open_terminal(config.session, place.cwd)
+    focus(config.session, window_id)
+    result = Result()
+    for problem in problems:
+        result.warn(problem)
+    result.data = {}
+    return result
+
+
+def _plus_agent(config: Config, place: deckplus.Place) -> Result:
+    name, role = place.name, ""
+    if not place.declared:
+        name = click.prompt("name", default=place.name)
+        role = click.prompt("role (optional)", default="", show_default=False)
+        if not NAME.match(name):
+            raise click.ClickException(f"{name!r} cannot be a tab's name")
+    profile = deck_profile(config.session)
+    keep = False
+    if profile in config.profiles and name not in config.profiles[profile].order()[0]:
+        answer = _picked("Keep this tab?", [f"add to profile {profile}", "this deck only"])
+        if answer is None:
+            return Result(data={})
+        keep = answer == 0
+    return add_tab(name, "" if place.declared else place.cwd, role, keep)
 
 
 @deck.command(name="jump")
@@ -3561,6 +3902,10 @@ def deck_decide_list(every: bool, refresh: int | None, ticks: int | None, screen
 # [[jobs]] round 1; `tests/test_deck.py` fails on a subcommand that did not choose.
 mark(deck, sb_acts=True)
 mark(deck_open, sb_acts=True)
+mark(deck_add, sb_acts=True)
+mark(deck_terminal, sb_acts=True)
+mark(deck_plus, sb_acts=True)
+mark(deck_places, sb_acts=False)
 mark(deck_jump, sb_acts=True)
 mark(deck_layout, sb_acts=True)
 mark(deck_marks, sb_acts=True)

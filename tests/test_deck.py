@@ -936,6 +936,10 @@ def test_the_queue_is_an_observe_and_the_rest_act():
     acts = {name: getattr(command, "sb_acts") for name, command in deck_.deck.commands.items()}
     assert acts == {
         "open": True,
+        "add": True,
+        "terminal": True,
+        "plus": True,
+        "places": False,
         "jump": True,
         "layout": True,
         "marks": True,
@@ -1194,8 +1198,8 @@ def test_the_close_box_asks_and_any_other_status_click_still_selects():
     (click_,) = [argv for argv in deck_.deck_bindings("sb") if argv[3] == "MouseDown1Status"]
     assert click_[4:7] == ["if-shell", "-F", "#{==:#{mouse_status_range},exit}"]
     assert click_[7].startswith("confirm-before")
-    assert click_[8].startswith("if-shell -F '#{==:#{mouse_status_range},layout}'")
-    assert click_[8].endswith("'switch-client -t ='")
+    assert click_[8].startswith("if-shell -F '#{==:#{mouse_status_range},add}'") and "deck plus" in click_[8]
+    assert "#{==:#{mouse_status_range},layout}" in click_[8] and "'switch-client -t ='" in click_[8]
 
 
 def test_the_bar_shows_every_shortcut_and_the_close_box():
@@ -2135,7 +2139,7 @@ def test_the_scrollbar_lights_the_visible_share_of_its_track():
 def test_the_tab_rows_end_at_their_list_so_the_three_scroll_together():
     rows = [deck_.tab_row(n, "") for n in range(3)]
     assert all("#[list=on]" in row and "#[list=focus]" in row for row in rows)
-    assert all(row.endswith("#[nolist]") for row in rows)
+    assert all(row.count("#[nolist]") == 1 and row.index("#[nolist]") < row.index("range=user|add") for row in rows)
 
 
 def test_the_marks_time_is_in_the_footer_and_not_the_tab_bar():

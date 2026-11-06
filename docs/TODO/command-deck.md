@@ -398,7 +398,7 @@ as MESSAGES alone in one column and the other three stacked in the other, and sw
 - [x] **`grid` becomes the free layout:** same spot in M-l, starts two and two, and panes can move
   (ruled 2026-11-06).
 
-## Phase 17 (round 16): add tabs from the bar, a terminal tab, and where they can start (not built)
+## Phase 17 (round 16): add tabs from the bar, a terminal tab, and where they can start
 
 Requested by Jeston on 2026-11-06: a `+` in the tab row that adds an agent, prompted, and that joins
 the profile; a tab that is a plain terminal rather than a `claude`, listed after the agents; and a
@@ -424,70 +424,30 @@ window. Nothing writes `deck.toml`, and that is a stated rule.
 - [x] **A terminal on restore** reopens in its saved directory with a fresh shell. A shell's history
   and running jobs are not kept.
 
-**Build order, each step committable and useful alone:**
+**Built:**
 
-- [ ] **The start list.** The `roots` key, and `sb deck places`, an observe listing what can be opened
-  and where each entry came from. An absent `roots` leaves today's list. A folder whose name fails
-  `NAME` or collides with an agent says so rather than being dropped.
-- [ ] **The terminal tab.** A new pane role beside `AGENT`, running `$SHELL` in the chosen directory.
-  It is left out of `agent_slots`, rosters and briefs, NEEDS YOU, `tell_rulings` and `live_tabs`'
-  no-session report; otherwise `deck_windows` calls it `unregistered` forever. It stays last when an
-  agent is added, by moving the window, since `#{W:...}` draws in index order. `decksave.Tab` gains a
-  kind, as its `id` is a session id a terminal does not have.
-- [ ] **The `+` cell and prompt.** A `range=user` cell after the window list, read in the
-  `MouseDown1Status` chain beside exit and layout, plus a key in `SHORTCUTS`. It opens through
-  `_open_popup` as decisions do, and ends in the same path as `sb deck open`.
-- [ ] **The write to the profile.** Reuse `tools.py`'s `backup` and block splice, generalised off
-  `tools.toml`. A profile's `tabs` can span lines, as the operator's does, so `set_field`'s one-line
-  splice is not enough, and comments must survive. The file is reread before writing.
+- [x] **The start list.** `roots` in `deck.toml`, and `sb deck places`, an observe saying where each
+  entry came from. A folder that cannot be a tab says why.
+- [x] **The terminal tab.** `sb deck terminal`, a `terminal` pane role running the operator's shell,
+  named `term`, `term-2` and on. It stays last by `swap-window` and joins no roster. `terminals` on a
+  profile opens some at the start.
+- [x] **The `+` cell and prompt.** A box after the window list, a click or M-n opening `sb deck plus` in a
+  popup. `sb deck add` does the same by hand.
+- [x] **The write to the profile.** `skyboss/deckplus.py` splices the file, parses the result to prove
+  it changed only what it should, and backs up through `tools.keep_copy`. A list it cannot read
+  safely, such as one ending on a comment, is refused.
 
-**To measure before building, not assume:**
+**Measured on a throwaway deck, real clicks through a viewer client:**
 
-- [ ] **The `+` stays on screen when the tabs overflow.** The list scrolls, and each of the three rows
-  scrolls alone. Check a real click, as tab clicks went unmeasured in round 5.
-- [ ] **A terminal's environment.** tmux gives a new window the server's environment, so check that
-  `PYTHONPATH` and `PYTHONSAFEPATH` from the wrapper do not reach the shell ([[subprocess-env]]).
-- [ ] **A "this deck only" agent survives restore.** `restored()` rebuilds tabs from names alone, so an
-  undeclared name finds nothing, even though `Tab` holds its `cwd`.
-- [ ] **A dotted folder name as a tab.** `NAME` allows `skyrowlabs.com`, and tmux reads `.` in a target
-  as a pane separator.
+- [x] **The `+` opens the popup on a real click,** and a tab click selects. Round 5 left that unmeasured.
+  Overflow was not smoked: the list scrolls within the room left by `ADD_WIDTH`.
+- [x] **A terminal's environment** holds no `PYTHON*` variable.
+- [x] **A "this deck only" agent** comes back from `Tab.cwd` through `restored()`. Unit tested only,
+  because a stand-in `claude` registers no session to save.
+- [x] **A dotted folder name as a tab.** Tmux targets here are window ids, so a `.` in the name is safe.
 
 **Does not do:** edit or remove an agent or profile from the bar, change `projects.toml`, or type into
 a terminal tab. Running agents are not told about a new tab, as with `sb deck open` today.
-
-## Phase 18 (round 17): padding on the agent tabs, and new pane titles (not built)
-
-Requested by Jeston on 2026-11-06. **Bring him the shape before building.**
-
-- [x] **A blank row above every tab.** The bar always holds a fourth row, and the tab scrollbar uses
-  that row when the tabs overflow, so the row costs nothing more then.
-- [x] **A cell each side of the tabs:** dropped on Jeston's ruling, so the sides stay edge to edge and
-  Phase 15's line holds. See the note below for what was tried.
-- [x] **Title each pane's top band with its label.** The band now says `┌ deck queue ───`, built from
-  the command. It becomes the label alone, with no `┌`, in the deck's panes only: `chrome.py`'s band
-  also draws every other resident screen. `clicked_row` finds the first all-rule line, and a band
-  with a label is not one, so clicks hold while the label stays; a test should pin that.
-- [x] **Rename the labels** in `column.LABELS`, keeping Jeston's spelling:
-
-  | Now | New |
-  |---|---|
-  | NEEDS YOU | AGENT LIST |
-  | TODOS | AGENT TODOs |
-  | MESSAGES | AGENT COMMUNICATIONS |
-  | DECISIONS | HUMAN DECISIONS |
-
-  Role names and the `column` commands stay. So does `needs you` as a tab's state word.
-- [x] **Make room for the longer labels.** The chooser pads to the longest label, and `FOLDED_WIDTH`
-  is 24.
-- [x] **Sweep the old names:** `README.md`, `CLAUDE.md`'s `sb deck` row, the agents' brief, the plugin's
-  skill and the tests. `readme-deck.png` still shows the old names.
-- [x] **Remove the top line from the panes:** `top` in TODOS and DECISIONS (`deck.py:2727`) and `newest`
-  in MESSAGES (`deck.py:2484`). When rows are hidden that line also says how many (`top · 3 more
-  below`, `newest · 26 earlier message(s) not shown`), and removing it would hide them silently.
-  Recommended: draw only the count, in the band's right slot, and only while rows are hidden.
-- [x] **Remove the secondary titles** `TODOS` and `DECISIONS` under the band. Keep the rule beneath them:
-  `clicked_row` counts rows from it, so losing it breaks clicking a decision. Check the row count
-  after the lines above go, in a real click on each of the two panes.
 
 ## Dropped, and why
 
