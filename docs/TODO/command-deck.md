@@ -5,7 +5,7 @@ priority: medium
 category: surfaces
 agent_value: 3
 shelf_status: in-progress
-updated: 2026-11-05
+updated: 2026-11-06
 tags: [agents, act, tmux, surfaces]
 summary: Adds `sb deck`, a tmux session holding one window per agent, plus a queue of sessions waiting on the operator, read by both surfaces. It is the first act surface beside the observe-only canvas.
 ---
@@ -382,6 +382,17 @@ decided items in DECISIONS, which M-x did not touch. He ruled on both fixes.
 - [x] **The tool panes are padded**: a cell each side and a row above. tmux has no pane padding, so the
   Claude tabs stay edge to edge, as Jeston wanted. A folded pane stays one full line.
 - [x] **NEEDS YOU counts each session's sub-agents and shells** in `bg`, and a click unfolds them.
+
+## Phase 16 (round 15): free columns for the right-side panes (not built)
+
+Requested by Jeston on 2026-11-06, relayed by skyrow-workspace: any number of panes per column, such
+as MESSAGES alone in one column and the other three stacked in the other, and switchable. It builds on
+`sb deck layout grid`. **Bring him the shape before building.** Open, for him to rule on in DECISIONS:
+
+- [ ] **Where an arrangement is declared:** a profile setting in `deck.toml`, a command, or both.
+- [ ] **What "switchable" does:** cycle saved arrangements, swap a pane across columns, or both.
+- [ ] **How it is reached:** a key, the footer's ▦ button, a click on a pane header.
+- [ ] **What becomes of `grid`:** stays a named layout, or turns into one arrangement among several.
 
 ## Dropped, and why
 
@@ -891,3 +902,9 @@ kept the TODOS pane's pid.
   a `user` entry, so the last entry is no signal either. So `up` says how long ago it wrote, it is
   never called running, and after ten quiet minutes it leaves.
 - **A foreground and a background shell look alike** in the process tree, so both are drawn.
+
+### 2026-11-06: round 15 opened, free columns, nothing built
+
+- **Why:** Jeston's request, relayed by skyrow-workspace; his words: "id like to be able to put as many
+  or few as i want windows in a column".
+- **Status:** recorded only. How it is configured and switched is his to rule on, in Phase 16.
