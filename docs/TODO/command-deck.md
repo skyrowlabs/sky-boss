@@ -387,12 +387,16 @@ decided items in DECISIONS, which M-x did not touch. He ruled on both fixes.
 
 Requested by Jeston on 2026-11-06, relayed by skyrow-workspace: any number of panes per column, such
 as MESSAGES alone in one column and the other three stacked in the other, and switchable. It builds on
-`sb deck layout grid`. **Bring him the shape before building.** Open, for him to rule on in DECISIONS:
+`sb deck layout grid`. **Bring him the shape before building.**
 
-- [ ] **Where an arrangement is declared:** a profile setting in `deck.toml`, a command, or both.
-- [ ] **What "switchable" does:** cycle saved arrangements, swap a pane across columns, or both.
-- [ ] **How it is reached:** a key, the footer's ▦ button, a click on a pane header.
-- [ ] **What becomes of `grid`:** stays a named layout, or turns into one arrangement among several.
+- [x] **An arrangement is declared** as a profile setting in `deck.toml`, plus a command to change it
+  live (ruled 2026-11-06).
+- [x] **"Switchable" means swapping a pane across columns,** not cycling saved arrangements (ruled
+  2026-11-06).
+- [ ] **How a swap is reached:** open in DECISIONS. The chooser on M-s, a click on a title bar, a
+  dedicated key, or the chooser and the click.
+- [ ] **What becomes of `grid`:** open in DECISIONS. It becomes the free layout, or stays fixed beside a
+  fourth layout.
 
 ## Phase 17 (round 16): add tabs from the bar, a terminal tab, and where they can start (not built)
 
@@ -405,23 +409,20 @@ or a `projects.toml` project with a `cwd`. Every tab is a `claude`: `Agent.argv`
 `Agent.launch()` assume it. The tab row is one tmux window list, so it draws nothing that is not a
 window. Nothing writes `deck.toml`, and that is a stated rule.
 
-**Open, for him to rule on in DECISIONS:**
+**Ruled by Jeston on 2026-11-06, in DECISIONS:**
 
-- [ ] **Does the `+` write `deck.toml`?** Joining a profile so it lasts means reversing "sky.boss never
-  writes `deck.toml`", stated in Phase 7. `CLAUDE.md`'s table also lists the operator as its only author.
-  Recommended: yes, as `tools.toml` already works, with one splice and a backup first. The other
-  answer keeps the added tabs in `$SB_STATE`: the rule stands, but `deck.toml` stops being the whole
-  profile.
-- [ ] **What the prompt asks.** Recommended: a folder, a name (filled in from the folder), a role
-  (optional), and "add to this profile" or "this deck only".
-- [ ] **How the start list is declared.** Recommended: `roots = ["~/src"]` in `deck.toml`,
-  where every directory under a root is offered, plus the declared agents and `projects.toml`'s
-  `cwd`s. The other answer is an explicit list of folders with no scanning. A root over this
-  workspace also offers `jam-sense` worktrees, loose folders such as `scratch/`, and sky-vault.
-- [ ] **Is the terminal always there?** Either every deck has one, or the `+` offers it beside "agent"
-  and there can be several. Recommended: the `+` offers it, and a profile can declare one to open.
-- [ ] **What a terminal does on restore.** Recommended: it reopens in its saved directory with a fresh
-  shell. A shell's history and running jobs are not kept, so it does not resume the way a `claude` does.
+- [x] **The `+` writes `deck.toml`,** as `tools.toml` already works: one small in-place edit, with a
+  backup first. This reverses "sky.boss never writes `deck.toml`", stated in Phase 7, and
+  `CLAUDE.md`'s table has to change with it.
+- [x] **The prompt asks** for a folder, a name (filled in from the folder), a role (optional), and "add
+  to this profile" or "this deck only".
+- [x] **The start list is** `roots = ["~/src"]` in `deck.toml`, where every directory under a root is
+  offered, plus the declared agents and `projects.toml`'s `cwd`s. A root over a whole workspace also
+  offers worktrees and loose folders.
+- [x] **The terminal is offered by the `+`,** a profile can declare one to open, and a deck can hold
+  several.
+- [x] **A terminal on restore** reopens in its saved directory with a fresh shell. A shell's history
+  and running jobs are not kept.
 
 **Build order, each step committable and useful alone:**
 
@@ -460,8 +461,8 @@ Requested by Jeston on 2026-11-06. **Bring him the shape before building.**
 
 - [x] **A blank row above every tab.** The bar always holds a fourth row, and the tab scrollbar uses
   that row when the tabs overflow, so the row costs nothing more then.
-- [ ] **A cell each side of the tabs.** Not built, and waiting on Jeston's ruling in DECISIONS. This
-  reverses Phase 15's "the Claude tabs stay edge to edge". See the note below for what was tried.
+- [x] **A cell each side of the tabs:** dropped on Jeston's ruling, so the sides stay edge to edge and
+  Phase 15's line holds. See the note below for what was tried.
 - [x] **Title each pane's top band with its label.** The band now says `┌ deck queue ───`, built from
   the command. It becomes the label alone, with no `┌`, in the deck's panes only: `chrome.py`'s band
   also draws every other resident screen. `clicked_row` finds the first all-rule line, and a band
@@ -1032,3 +1033,11 @@ kept the TODOS pane's pid.
 - **What is left is spacer panes,** two more per tab, with hidden borders. Each gap is two cells, a
   click on one takes focus from `claude`, a spacer holds a closed tab's window open, and every pane
   reader has to skip them. That cost is why it went to Jeston rather than being built.
+
+### 2026-11-06: rulings on rounds 15, 16 and 17
+
+- **Why:** Jeston ruled in DECISIONS. Each ruling is written into its phase above.
+- **Round 17:** the count at the right of the band stays, only while rows are hidden, and the tabs'
+  sides stay edge to edge.
+- **Round 16:** all five questions settled, including the reversal of "never writes `deck.toml`".
+- **Round 15:** two settled, and two reasked in plainer terms after he asked for more information.
