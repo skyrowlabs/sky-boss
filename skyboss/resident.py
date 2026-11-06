@@ -36,6 +36,7 @@ from typing import Callable, Iterable
 from rich.console import Console, Group
 from rich.control import Control as RichControl
 from rich.live import Live
+from rich.padding import Padding
 from rich.segment import ControlType, Segment, Segments
 from rich.text import Text
 
@@ -267,6 +268,8 @@ class Control:
     head = ""
     #: Hand `framed` each frame's lines, so a click (`keys.clicked`) can be read against them.
     clicks = False
+    #: Blank cells each side of an unfolded frame, and one row above it when set.
+    pad = 0
 
     def shape(self, result: Result) -> Result:
         return result
@@ -649,13 +652,19 @@ def reside(
     body = Text("")
     last: Result | None = None
 
+    def inset() -> int:
+        return control.pad if control is not None else 0
+
+    def room_across() -> int:
+        return max(1, out.width - 2 * inset())
+
     def drawn(result: Result) -> Text:
         # The residency draws the bands; the result's own would nest inside them.
-        with capture(width=out.width) as captured, filled(fill), framed():
+        with capture(width=room_across()) as captured, filled(fill), framed():
             render(result, as_json=False)
         return Text.from_ansi(captured.text)
 
-    def frame_for(result: Result | None) -> Group:
+    def frame_for(result: Result | None) -> Group | Padding:
         nonlocal body, last
         if result is not None:
             last = result
@@ -670,19 +679,21 @@ def reside(
         facts = state.chrome()
         if control is not None:
             facts = dataclasses.replace(facts, note=control.note())
-        top, bottom = chrome_.status_bands(facts, clock(), out.width)
+        top, bottom = chrome_.status_bands(facts, clock(), room_across())
         top_text, bottom_text = band_text(top), band_text(bottom)
         if control is not None and control.head:
             top_text.stylize_before(control.head)
         if fill and shaped is not None:
             body = drawn(shaped)
         if screen and fit is not None and shaped is not None:
-            limit = out.height - height(top_text, out) - height(bottom_text, out) - 1
+            limit = out.height - height(top_text, out) - height(bottom_text, out) - 1 - min(1, inset())
             always = control is not None and control.counted
             shown = fitted(shaped, body, limit, fit, drawn, out, always=always)
         else:
             shown = body if screen else clip(body, room(out))
-        frame = Group(top_text, shown, bottom_text)
+        frame: Group | Padding = Group(top_text, shown, bottom_text)
+        if inset():
+            frame = Padding(frame, (1, inset(), 0, inset()))
         if control is not None and control.clicks:
             control.framed(["".join(seg.text for seg in line) for line in out.render_lines(frame, pad=False)])
         return frame
@@ -694,7 +705,7 @@ def reside(
                 repaint(out, frame_for(result))
 
             on_key = control.on_key if control is not None else None
-            mouse = control is not None and control.wheel
+            mouse = control is not None and (control.wheel or control.clicks)
             with out.screen():
                 if mouse:
                     out.file.write(MOUSE_ON)

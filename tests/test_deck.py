@@ -150,8 +150,11 @@ class FakeTmux:
                 self.panes[args[2]]["role"] = args[4]
             elif args[:1] == ["-w"] and args[3] == "@sb-agent":
                 self.windows[args[2]]["agent"] = args[4]
-            elif args[:1] == ["-w"]:
+            elif args[:1] == ["-w"] and args[2] in self.windows:
                 self.windows[args[2]].setdefault("opts", {})[args[3]] = args[4]
+            elif args[:1] == ["-w"]:
+                # `=name:` is that session's current window.
+                self.options[(args[2], args[3])] = args[4]
             elif args[0] == "-t":
                 if not args[1].endswith(":"):
                     # Real tmux reads a pane target here and refuses a bare `=name`.
@@ -219,6 +222,8 @@ def fake(monkeypatch, tmp_path):
     monkeypatch.setattr(deck_.decksave.helpers, "STATE_DIR", tmp_path / "state")
     monkeypatch.setattr(deck_.agents_, "providers", lambda: [])
     monkeypatch.delenv("TMUX", raising=False)
+    # Console themes are on by default, so a tab started here must not write to the real themes folder.
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path / "claude"))
     monkeypatch.setattr(deck_.shutil, "which", lambda name, path=None: f"/usr/bin/{name}")
     return server
 
@@ -369,7 +374,8 @@ def test_bare_deck_opens_the_pin_as_the_first_tab_and_attaches(fake, home, tmp_p
     created = created_in(fake, "sb-agents")
     argv = created[created.index("--") + 1 :]
     assert argv[:3] == ["claude", "-n", "ws"] and argv[3] == "--append-system-prompt"
-    assert argv[5:] == ["--plugin-dir", str(deck_.PLUGIN_DIR), "--model", "opus"]
+    settings = ["--settings", json.dumps({"theme": "custom:sb-ws"})]
+    assert argv[5:] == ["--plugin-dir", str(deck_.PLUGIN_DIR), *settings, "--model", "opus"]
     assert created[created.index("-c") + 1] == str(tmp_path)
     assert fake.tabs() == ["ws"]
 
@@ -665,7 +671,7 @@ def test_layout_without_a_deck_says_how_to_start_one(fake, home, said):
 
 
 def test_layout_refuses_a_shape_it_does_not_have(fake, home):
-    assert invoke("deck", "layout", "grid").exit_code == 2 and fake.calls == []
+    assert invoke("deck", "layout", "hexagon").exit_code == 2 and fake.calls == []
 
 
 def test_bare_deck_on_an_existing_deck_keeps_the_operators_sizes(fake, home, tmp_path):
@@ -745,10 +751,13 @@ def test_open_refuses_a_cwd_that_is_not_there(fake, home, tmp_path, said):
 # ============================================================================
 
 
-def test_the_deck_never_types_into_a_pane():
-    """No key injection: a deck that could answer a prompt is a second permission path."""
+def test_the_deck_types_into_a_pane_only_to_tell_an_idle_agent_a_ruling():
+    """A deck that could answer a prompt is a second permission path, so one idle-only function may type."""
     source = Path(deck_.__file__).read_text()
-    assert not re.search(r"send-keys|send_keys|send-prefix|paste-buffer", source)
+    start = source.index("def tell_rulings(")
+    end = source.index("\ndef ", start + 1)
+    assert not re.search(r"send-keys|send_keys|send-prefix|paste-buffer", source[:start] + source[end:])
+    assert 'states.get(pane.window_id) != "idle"' in source[start:end]
 
 
 def test_every_deck_subcommand_chooses_its_act_bit():
@@ -879,7 +888,7 @@ def test_the_envelope_carries_an_authored_view(fake, home, tmp_path):
     fake.add("sb", "jam", agent="jam", role="agent", pid=10)
     result = queue_result([Adapter([a_session(10, "waiting")])], proc=tmp_path / "absent")
     assert result.ok and result.view["authored"] is True
-    assert [c["key"] for c in result.view["columns"]] == ["where", "window", "state", "name", "up", "cwd"]
+    assert [c["key"] for c in result.view["columns"]] == ["where", "window", "state", "bg", "name", "up", "cwd"]
     assert result.data[0]["status"] == "waiting"
 
 
@@ -946,7 +955,7 @@ def test_the_queue_is_an_observe_and_the_rest_act():
         "fold": True,
         "pick": True,
     }
-    for group, more in ((deck_.deck_todo, {"clear": True}), (deck_.deck_decide, {"clear": True})):
+    for group, more in ((deck_.deck_todo, {"clear": True}), (deck_.deck_decide, {"clear": True, "rule": True})):
         assert {name: getattr(command, "sb_acts") for name, command in group.commands.items()} == {
             "add": True,
             "done": True,
@@ -1035,7 +1044,7 @@ def test_the_deck_starts_one_marks_job_on_its_own_server(fake, home):
     invoke("deck")
     (job,) = fake.find("run-shell")
     sb = str(deck_.PROJECT_ROOT / "sb")
-    assert job[2] == "-b" and job[3] == f"exec {shlex.quote(sb)} deck marks --every 3 >/dev/null 2>&1"
+    assert job[2] == "-b" and job[3] == f"{shlex.quote(sb)} deck marks --every 3 >/dev/null 2>&1 || true"
 
 
 def test_a_live_marks_loop_is_not_started_twice(fake, home, monkeypatch):
@@ -1104,7 +1113,7 @@ def test_the_theme_lands_on_the_decks_own_sessions_and_windows_only(fake, home):
     styled = {(c[c.index("-t") + 1], c[-2]) for c in calls if "status-style" in c or "pane-active-border-style" in c}
     assert ("=sb:", "status-style") in styled and ("=sb-agents:", "status-style") in styled
     window_targets = {target for target, option in styled if option == "pane-active-border-style"}
-    assert window_targets == set(fake.windows)
+    assert window_targets == {*fake.windows, "=sb:"}  # the current window: the border follows the tab
 
 
 @pytest.mark.parametrize(
@@ -1183,7 +1192,9 @@ def test_exit_asks_first_and_names_what_ends():
 def test_the_close_box_asks_and_any_other_status_click_still_selects():
     (click_,) = [argv for argv in deck_.deck_bindings("sb") if argv[3] == "MouseDown1Status"]
     assert click_[4:7] == ["if-shell", "-F", "#{==:#{mouse_status_range},exit}"]
-    assert click_[7].startswith("confirm-before") and click_[8] == "switch-client -t ="
+    assert click_[7].startswith("confirm-before")
+    assert click_[8].startswith("if-shell -F '#{==:#{mouse_status_range},layout}'")
+    assert click_[8].endswith("'switch-client -t ='")
 
 
 def test_the_bar_shows_every_shortcut_and_the_close_box():
@@ -1690,7 +1701,7 @@ def test_kept_lists_lead_newest_first_then_agents_without_one_in_tab_order(fake,
     caller_under(monkeypatch, 999)
     rows = json.loads(invoke("--json", "deck", "todo", "list").stdout)["data"]
     headings = [row["agent"] for row in rows if row["kind"] == "agent"]
-    assert headings == ["gone", "mh", "ws", "jam"]
+    assert headings == ["gone", "mh"]  # an agent with nothing on its list is not drawn
     assert deck_.tab_order("sb") == [("ws", 1), ("jam", 0), ("mh", 2)]
     assert [r["todos"] for r in rows if r["agent"] == "gone"][0].startswith("gone (no tab)")
 
@@ -1734,9 +1745,10 @@ def test_no_list_kept_is_not_nothing_open(sb_state):
     todos.done("sb", "jam", 1)
     rows, problems = todos.rows_of("sb", [("ws", 0), ("jam", 1)], NOW)
     said_of = {r["agent"]: [x["todos"].strip() for x in rows if x["agent"] == r["agent"]] for r in rows}
-    assert problems == []
-    assert said_of["ws"] == ["ws", "no list kept"]
+    assert problems == [] and "ws" not in said_of
     assert said_of["jam"][1:] == ["nothing open", "1. ✓ one"]
+    alone, _ = todos.rows_of("sb", [("ws", 0)], NOW, only="ws")
+    assert [r["todos"].strip() for r in alone] == ["ws", "no list kept"]  # a tab asking for its own list is told
 
 
 def test_a_heading_takes_its_tabs_colour_only_when_painted(sb_state):
@@ -1754,7 +1766,7 @@ def test_an_unreadable_list_is_a_warning_and_reads_as_no_list(sb_state):
 
     todos.root("sb").mkdir(parents=True)
     todos.path_for("sb", "jam").write_text("{not json")
-    rows, problems = todos.rows_of("sb", [("jam", 0)], NOW)
+    rows, problems = todos.rows_of("sb", [("jam", 0)], NOW, only="jam")
     assert problems and "jam.json unreadable" in problems[0] and rows[1]["todos"].strip() == "no list kept"
 
 
@@ -2216,7 +2228,8 @@ def test_themes_and_their_base_are_declared_in_deck_toml():
     config, problems = deck_.parse({"themes": True, "theme_base": "dark-ansi"})
     assert (config.themes, config.theme_base, problems) == (True, "dark-ansi", [])
     config, problems = deck_.parse({"themes": "yes", "theme_base": "neon"})
-    assert not config.themes and not config.theme_base and len(problems) == 2
+    assert config.themes and not config.theme_base and len(problems) == 2  # on is the default
+    assert not deck_.parse({"themes": False})[0].themes
 
 
 def test_a_themed_launch_selects_the_agents_theme_and_the_operators_settings_win():
@@ -2270,7 +2283,7 @@ def test_a_themed_deck_writes_each_tabs_theme_before_launching_it(fake, home, tm
 
 def test_an_unthemed_deck_writes_no_theme(fake, home, tmp_path, monkeypatch):
     monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path / "claude"))
-    home(f'pin = "ws"\n[agent.ws]\ncwd = "{tmp_path}"\n')
+    home(f'pin = "ws"\nthemes = false\n[agent.ws]\ncwd = "{tmp_path}"\n')
     invoke("deck")
     assert not (tmp_path / "claude").exists()
 
@@ -2425,3 +2438,162 @@ def test_exit_saves_the_tabs_it_ends(fake, home, monkeypatch):
     monkeypatch.setattr(deck_.agents_, "providers", lambda: [Adapter([a_session(10), a_session(20)])])
     data = json.loads(invoke("--json", "deck", "exit").stdout)["data"]
     assert data["saved"] == 2 and len(deck_.decksave.load("sb")[0].tabs) == 2
+
+
+# Colours by default, decisions by click, the grid, quiet jobs
+
+
+def jam_decisions() -> list:
+    from skyboss import todos
+
+    book = todos.load("sb", "jam", todos.DECISIONS)
+    assert book is not None
+    return book.items
+
+
+def test_an_agent_may_declare_a_theme_hue_and_nothing_else(home, tmp_path):
+    from skyboss import theme
+
+    home(f'[agent.ws]\ncwd = "{tmp_path}"\ncolour = "mh"\n[agent.jam]\ncwd = "{tmp_path}"\ncolour = "#ff0000"\n')
+    config, problems = deck_.load(tmp_path)
+    assert config.agents["ws"].colour == "mh" and not config.agents["jam"].colour
+    assert len(problems) == 1 and "colour must be one of" in problems[0]
+    assert theme.agent_colour("ws", 3) == theme.PRODUCT_HUES["mh"] and theme.agent_role("ws", 3) == "sb.agent.mh"
+    (tmp_path / "deck.toml").unlink()
+    deck_.load(tmp_path)
+    assert not theme.DECLARED_HUES
+
+
+def test_every_declarable_hue_has_a_role_in_the_deck():
+    from skyboss import theme
+
+    assert {f"sb.agent.{hue}" for hue in theme.hue_names()} == set(theme.DECK_ROLES)
+
+
+def test_the_border_takes_the_current_tabs_colour_and_the_brand_before_it_has_one(fake):
+    fake.current = "#a78bfa"
+    deck_.border_follows_tab("sb")
+    assert fake.options[("=sb:", "pane-active-border-style")] == "fg=#a78bfa"
+    fake.current = ""
+    deck_.border_follows_tab("sb")
+    assert fake.options[("=sb:", "pane-active-border-style")] == deck_.theme.tmux_styles()["border-active"]
+
+
+def test_every_job_the_deck_hands_tmux_exits_zero(fake):
+    """tmux prints a job's non-zero exit over the current pane, in view-mode."""
+    commands = [argv for argv in deck_.deck_bindings("sb") if "run-shell" in argv]
+    commands += deck_.scroll_hooks("sb")
+    assert len(commands) >= 6
+    assert all("|| true" in " ".join(argv) and "exec " not in " ".join(argv) for argv in commands)
+
+
+def test_the_layout_cycles_through_all_three_and_the_footer_button_with_it():
+    assert deck_.next_layout() == "#{?#{==:#{@sb-layout},stack},grid,#{?#{==:#{@sb-layout},grid},columns,stack}}"
+    (key,) = [argv for argv in deck_.deck_bindings("sb") if argv[3] == deck_.SHORTCUTS["layout"]]
+    assert key[4:6] == ["run-shell", "-b"] and deck_.next_layout() in key[6]
+    assert "#[range=user|layout]" in deck_.hints()
+
+
+def test_a_grid_is_two_columns_of_two_read_across():
+    calls = deck_.plan("grid", "%0", ["%1", "%2", "%3", "%4"])
+    joins = [(c[c.index("-s") + 1], c[c.index("-t") + 1], c[2]) for c in calls if c[0] == "join-pane"]
+    assert joins == [("%1", "%0", "-h"), ("%2", "%1", "-h"), ("%3", "%1", "-v"), ("%4", "%2", "-v")]
+
+
+def test_a_grid_with_fewer_than_four_panes_is_columns():
+    assert deck_.plan("grid", "%0", ["%1", "%2"]) == deck_.plan("columns", "%0", ["%1", "%2"])
+
+
+def test_a_folded_grid_pane_is_one_line_and_its_column_mate_takes_the_room():
+    calls = deck_.plan("grid", "%0", ["%1", "%2", "%3", "%4"], frozenset({"%3"}))
+    assert ["resize-pane", "-t", "%3", "-y", "1"] in calls
+    assert ["resize-pane", "-t", "%1", "-y", "50%"] not in calls
+    assert ["resize-pane", "-t", "%2", "-y", "50%"] in calls
+
+
+def test_a_decision_keeps_its_options_and_a_click_or_a_key_picks_one(sb_state):
+    from skyboss import todos
+
+    todos.add("sb", "jam", "take it?", todos.DECISIONS, ("take it", "hold ours"))
+    item = jam_decisions()[0]
+    lines = deck_.ruling_screen("jam", 1, item, 60)
+    row = next(y for y, (text, _) in enumerate(lines, start=1) if text == "[2] hold ours")
+    assert deck_.chosen_key(f"click:3:{row}", lines) == "2" and deck_.chosen_key("1", lines) == "1"
+    assert deck_.chosen_key("3", lines) == "" and deck_.chosen_key("click:1:1", lines) == ""
+    assert deck_.chosen_key("t", lines) == "t" and deck_.chosen_key(None, lines) == ""
+
+
+def test_a_decision_with_no_options_offers_typing_and_a_ruled_one_only_closes(sb_state):
+    from skyboss import todos
+
+    todos.add("sb", "jam", "what now?", todos.DECISIONS)
+    item = jam_decisions()[0]
+    assert [action for _, action in deck_.ruling_screen("jam", 1, item, 60) if action] == ["t", "q"]
+    todos.rule("sb", "jam", 1, "ship it")
+    item = jam_decisions()[0]
+    screen = deck_.ruling_screen("jam", 1, item, 60)
+    assert [action for _, action in screen if action] == ["q"] and any("ship it" in text for text, _ in screen)
+
+
+def test_a_click_in_the_decisions_pane_opens_that_decision(monkeypatch):
+    opened = []
+    monkeypatch.setattr(deck_, "open_decision", lambda agent, n: opened.append((agent, n)))
+    pane = deck_.DeckPane("sb", lambda row: True, top=True, role=deck_.DECISIONS)
+    pane.lines = ["DECISIONS", "──────", "jam", "  1. take it?"]
+    pane.rows = [{"kind": "agent", "agent": "jam", "n": ""}, {"kind": "item", "agent": "jam", "n": 1}]
+    pane.on_key("click:4:3")
+    assert not opened
+    pane.on_key("click:4:4")
+    assert opened == [("jam", 1)]
+
+
+def test_a_ruling_is_refused_inside_a_tab_and_off_a_terminal(fake, home, sb_state, monkeypatch):
+    from skyboss import todos
+
+    todos.add("sb", "jam", "take it?", todos.DECISIONS)
+    assert invoke("deck", "decide", "rule", "jam", "1").exit_code == 1  # CliRunner has no terminal
+    monkeypatch.setattr(deck_, "has_terminal", lambda: True)
+    monkeypatch.setattr(deck_, "caller_tab", lambda session: "jam")
+    assert "inside a deck tab" in invoke("deck", "decide", "rule", "jam", "1").output
+    assert not jam_decisions()[0].done
+
+
+def test_an_untold_ruling_is_typed_once_into_an_idle_tab_and_never_a_busy_one(fake, sb_state):
+    from skyboss import todos
+
+    fake.add("sb-agents", "jam", agent="jam", role="agent", pid=10)
+    listed, _ = deck_.panes("sb-agents")
+    window, labels = listed[0].window_id, {listed[0].window_id: "jam"}
+    todos.add("sb", "jam", "take it?", todos.DECISIONS)
+    todos.rule("sb", "jam", 1, "hold ours")
+    fake.current = "0"
+    assert deck_.tell_rulings("sb", listed, {window: "busy"}, labels) == [] and not fake.find("send-keys")
+    deck_.tell_rulings("sb", listed, {window: "idle"}, labels)
+    typed = fake.find("send-keys")
+    assert typed[0][-2:] == ["-l", 'The operator ruled on your decision 1, "take it?": hold ours']
+    assert typed[1][-1] == "Enter" and not jam_decisions()[0].untold
+    deck_.tell_rulings("sb", listed, {window: "idle"}, labels)
+    assert len(fake.find("send-keys")) == 2
+
+
+def test_a_scrolled_tab_waits_for_its_ruling(fake, sb_state):
+    from skyboss import todos
+
+    fake.add("sb-agents", "jam", agent="jam", role="agent", pid=10)
+    listed, _ = deck_.panes("sb-agents")
+    todos.add("sb", "jam", "take it?", todos.DECISIONS)
+    todos.rule("sb", "jam", 1, "hold ours")
+    fake.current = "1"
+    deck_.tell_rulings("sb", listed, {listed[0].window_id: "idle"}, {listed[0].window_id: "jam"})
+    assert not fake.find("send-keys") and jam_decisions()[0].untold
+
+
+def test_clearing_keeps_a_ruling_its_agent_has_not_heard(sb_state):
+    from skyboss import todos
+
+    todos.add("sb", "jam", "a", todos.DECISIONS)
+    todos.add("sb", "jam", "b", todos.DECISIONS)
+    todos.rule("sb", "jam", 1, "yes")
+    todos.done("sb", "jam", 2, todos.DECISIONS, "no")
+    todos.clear_done("sb", todos.DECISIONS)
+    assert [item.text for item in jam_decisions()] == ["a"]

@@ -45,6 +45,9 @@ class Item:
     added: str = ""
     closed: str = ""
     ruling: str = ""
+    # The choices a decision offers the operator, and whether its agent is still to be told a ruling.
+    options: list[str] = field(default_factory=list)
+    untold: bool = False
 
 
 @dataclass
@@ -113,9 +116,9 @@ def clean(text: str) -> str:
     return " ".join(text.split())
 
 
-def add(session: str, agent: str, text: str, book: str = TODOS) -> TodoList:
+def add(session: str, agent: str, text: str, book: str = TODOS, options: tuple[str, ...] = ()) -> TodoList:
     todo = load(session, agent, book) or TodoList(agent=agent, session=session, book=book)
-    todo.items.append(Item(text=clean(text), added=now_iso()))
+    todo.items.append(Item(text=clean(text), added=now_iso(), options=[clean(option) for option in options]))
     return save(todo)
 
 
@@ -132,6 +135,34 @@ def done(session: str, agent: str, n: int, book: str = TODOS, ruling: str = "") 
     item.done, item.closed, item.ruling = True, now_iso(), clean(ruling)
     assert todo is not None
     return save(todo)
+
+
+def rule(session: str, agent: str, n: int, ruling: str) -> TodoList:
+    """The operator's ruling on open decision `n`, marked for telling its agent."""
+    todo = load(session, agent, DECISIONS)
+    item = _item(todo, n)
+    if item.done:
+        raise ValueError(f"decision {n} is already ruled")
+    item.done, item.closed, item.ruling, item.untold = True, now_iso(), clean(ruling), True
+    assert todo is not None
+    return save(todo)
+
+
+def told(session: str, agent: str, n: int) -> TodoList:
+    """Decision `n`'s ruling has reached its agent."""
+    todo = load(session, agent, DECISIONS)
+    _item(todo, n).untold = False
+    assert todo is not None
+    return save(todo)
+
+
+def next_untold(session: str, agent: str) -> tuple[int, Item] | None:
+    """The first ruling `agent` has not been told, numbered as its list numbers it."""
+    todo = load(session, agent, DECISIONS)
+    for n, item in enumerate(todo.items if todo else [], start=1):
+        if item.untold:
+            return n, item
+    return None
 
 
 def remove(session: str, agent: str, n: int, book: str = TODOS) -> TodoList:
@@ -157,7 +188,8 @@ def clear_done(session: str, book: str = TODOS) -> tuple[dict[str, int], list[st
             continue
         if todo is None:
             continue
-        kept = [item for item in todo.items if not item.done]
+        # An untold ruling stays: clearing it would leave its agent waiting on a question already answered.
+        kept = [item for item in todo.items if not item.done or item.untold]
         if len(kept) == len(todo.items):
             continue
         cleared[agent] = len(todo.items) - len(kept)
@@ -215,8 +247,8 @@ def rows_of(
             problems.append(f"{name}: {exc}")
             entries.append((name, slot, None))
     for name, slot, todo in sorted(entries, key=lambda entry: _recency(entry[2])):
-        if todo is None and book == DECISIONS:
-            # Most agents never record one; ten "none recorded" rows would bury the one that did.
+        if todo is None and (book == DECISIONS or not only):
+            # Most agents keep none; ten empty rows would bury the one that did. Asked alone, a tab is told.
             continue
         if todo is not None and not todo.items and not only:
             # Emptied, most often by a clear: the pane drops it rather than keep a heading over nothing.
@@ -236,13 +268,16 @@ def rows_of(
             rows.append(_row(book, name, "empty", [[f"  {NOTHING_OPEN}", "sb.muted"]], todo, None, None))
         for n, item in enumerate(todo.items, start=1):
             # Done items stay, dimmed and ticked, so the operator sees what moved.
-            closed = "✓ " + item.text + (f" → {item.ruling}" if item.ruling else "")
+            closed = (
+                "✓ " + item.text + (f" → {item.ruling}" if item.ruling else "") + (" · untold" if item.untold else "")
+            )
             parts = (
                 [[f"  {n}. ", "sb.muted"], [closed, "sb.muted"]]
                 if item.done
                 else [
                     [f"  {n}. ", "sb.muted"],
                     [item.text, None],
+                    *([[f"  · {len(item.options)} choices", "sb.muted"]] if item.options else []),
                 ]
             )
             rows.append(_row(book, name, "item", parts, todo, n, item))
@@ -283,12 +318,10 @@ def result_of(
     rows, problems = rows_of(session, order, datetime.now(timezone.utc), paint, only, book)
     for problem in problems:
         result.warn(problem)
-    if not rows and book == DECISIONS:
-        parts = [[f"no agent in deck {session!r} has recorded a decision", "sb.muted"]]
+    if not rows:
+        noun = "a decision" if book == DECISIONS else "a todo"
+        parts = [[f"no agent in deck {session!r} has recorded {noun}", "sb.muted"]]
         rows = [_row(book, "", "empty", parts, None, None, None)]
     result.data = rows
-    if not rows:
-        result.warn(f"no deck agents and no lists kept in deck {session!r}")
-        return result
     result.view = view_of(rows, book)
     return result
