@@ -498,8 +498,8 @@ view. Held state is one folded line at the foot, `HELD 4`, which a click unfolds
   hook's `message`.
 
 **Does not do:** parse a prompt to judge it, answer a prompt from the pane, or let an agent close an
-action on its own word when the state can be observed. The largest channel stays a matter of
-discipline unless the question below rules otherwise.
+action on its own word when the state can be observed. The largest channel is only flagged, by a
+turn's last character, so a question asked mid-turn still depends on discipline.
 
 ### Questions for Jeston
 
@@ -509,10 +509,10 @@ discipline unless the question below rules otherwise.
       shows the exact command and folder. The command is stored as an argv, never a shell string,
       there is no batch run, and it refuses inside a tab, as a ruling does. A relay had reported the
       opposite an hour earlier, and the click is what stands.
-- [ ] **Should a tab that ends its turn on a question be flagged?** Prose is the largest channel and
-      the hooks cannot see intent. The `Stop` hook has the last message, so a turn ending in `?` could
-      raise an `asked` row. Suggested: yes, as a mark on the tab and a low row, knowing it will
-      sometimes be wrong. The alternative is the brief alone.
+- [x] **Should a tab that ends its turn on a question be flagged?** Prose is the largest channel and
+      the hooks cannot see intent. **Ruled by Jeston's click, 2026-11-06: yes, as a mark on the tab
+      and a low, dismissable row,** raised by the `Stop` hook when the last message ends in `?`. It
+      will sometimes be wrong, and the brief still says to use `decide`.
 
 ### Phase work
 
@@ -529,6 +529,8 @@ discipline unless the question below rules otherwise.
 - [ ] **Hook mirrors.** A hidden `sb deck ask` reads the hook's JSON, as the Approach above requires,
       and writes `asked` rows, including what a `waiting` tab waits on. Permission denials land as
       `action` rows with the denied command, for the operator to rule on.
+- [ ] **Prose questions.** The `Stop` hook marks the tab and adds a low `asked` row when a turn ends
+      in `?`. A click dismisses it, and the tab's next turn clears it.
 - [ ] **Notices.** `sb deck decide note "<text>"`, drawn below the rest.
 - [ ] **Held state.** Unpushed commits and local branches from git, and green unmerged PRs and open
       alerts from `gh`, for each deck repo. On a slow cadence and off the draw path, and a repo it could
@@ -1119,4 +1121,5 @@ kept the TODOS pane's pid.
 - **The answer to the window question is no.** Phase 18 agrees with the workspace on one queue. It
   adds the `asked` kind, folds held state so it cannot crowd choices, and uses `--plugin-dir` for the
   hooks, which keeps "the install is the operator's" intact.
-- **Two questions went to DECISIONS,** and nothing is built until Jeston has seen the plan.
+- **Two questions went to DECISIONS,** and nothing is built until Jeston says so. Both are ruled:
+  a click runs an action after asking once, and a turn ending on a question raises a low row.
