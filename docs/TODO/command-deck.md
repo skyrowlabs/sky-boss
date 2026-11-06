@@ -503,10 +503,12 @@ discipline unless the question below rules otherwise.
 
 ### Questions for Jeston
 
-- [ ] **May a click run an action, or only show it?** A command an agent wrote would run with the
-      operator's authority, which is how a permission denial could come back as one click. Suggested:
-      a click shows the exact command and folder and asks once, then runs it in a visible popup. The
-      command is stored as an argv, never a shell string, and there is no batch run.
+- [x] **May a click run an action, or only show it?** A command an agent wrote would run with the
+      operator's authority, which is how a permission denial could come back as one click. **Ruled
+      by Jeston's click, 2026-11-06: a click asks once, then runs it in a visible popup.** The ask
+      shows the exact command and folder. The command is stored as an argv, never a shell string,
+      there is no batch run, and it refuses inside a tab, as a ruling does. A relay had reported the
+      opposite an hour earlier, and the click is what stands.
 - [ ] **Should a tab that ends its turn on a question be flagged?** Prose is the largest channel and
       the hooks cannot see intent. The `Stop` hook has the last message, so a turn ending in `?` could
       raise an `asked` row. Suggested: yes, as a mark on the tab and a low row, knowing it will
@@ -519,7 +521,8 @@ discipline unless the question below rules otherwise.
       depend on it, so nothing is built on a guess. Report anything a hook cannot see as a gap.
 - [ ] **Kinds in the store.** `Item` gains a kind, defaulting to `choice`, so files on disk still read.
 - [ ] **Action rows.** `sb deck decide add "<what>" --run <argv> --cwd <dir> --until <test>`. A ruling
-      can leave an action row behind, so "pushes it by hand" stays open.
+      can leave an action row behind, so "pushes it by hand" stays open. A click asks once and runs
+      the command in a popup that stays open on its output, and a stale row refuses to run.
 - [ ] **Closing by observation.** `--until` names one of a closed set: a PR merged, a SHA on a branch,
       a branch gone. A pinned command whose head has moved reads `stale`, and an action with no test
       closes by a click and says that nothing checked it.
