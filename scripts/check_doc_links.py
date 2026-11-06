@@ -39,6 +39,7 @@ import json
 import os
 import re
 import sys
+from collections import Counter
 from collections.abc import Iterator, Sequence
 from pathlib import Path
 
@@ -47,7 +48,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts import allowlist  # noqa: E402
-from scripts.output import detail, emit, fail, item, ok, skip  # noqa: E402
+from scripts.output import EXIT_REFUSED, detail, emit, fail, item, no_subject, ok, skip  # noqa: E402
 from scripts.paths import DOCS_DIR, PROJECT_ROOT, SCRIPTS_DIR, is_foreign  # noqa: E402
 
 BASELINE = SCRIPTS_DIR / "doc_links_baseline.json"
@@ -334,7 +335,9 @@ def _successor(anchor: str, available: Sequence[str]) -> str | None:
     return sorted(hits)[0] if len(hits) == 1 else None
 
 
-def scan() -> tuple[list[str], list[str], list[str]]:
+def scan(read: Counter | None = None) -> tuple[list[str], list[str], list[str]]:
+    """Dead paths, dead anchors, links leaving the repo; `read` counts what was checked."""
+    read = Counter() if read is None else read
     ignore = _ignored()
     dead_paths: list[str] = []
     dead_anchors: list[str] = []
@@ -349,6 +352,7 @@ def scan() -> tuple[list[str], list[str], list[str]]:
                 anchor = href[1:]
                 if f"{rel_source}{href}" in ignore:
                     continue
+                read["fragments"] += bool(anchor)
                 if anchor and anchor not in heading_cache.setdefault(source, headings(source)):
                     dead_anchors.append(f"{rel_source}: '{href}' matches no heading here")
             continue
@@ -362,10 +366,12 @@ def scan() -> tuple[list[str], list[str], list[str]]:
         if _leaves_repo(target):
             outside.append(f"{rel_source}: '{href}'")
             continue
+        read["links"] += 1
         if not target.exists():
             dead_paths.append(f"{rel_source}: '{path_part}' does not exist{_suggest(Path(path_part))}")
             continue
         if anchor and target.suffix == ".md":
+            read["fragments"] += 1
             if anchor not in heading_cache.setdefault(target, headings(target)):
                 dead_anchors.append(f"{rel_source}: '{href}' — no such heading in {target.relative_to(PROJECT_ROOT)}")
 
@@ -479,9 +485,11 @@ def main() -> int:
         fail("no documents to check — this gate would pass having read nothing")
         detail("Every scan root is empty or filtered away. A ratchet at 0 cannot")
         detail("distinguish that from a clean tree, so it is refused rather than reported.")
-        return 1
+        return EXIT_REFUSED
 
-    dead_paths, dead_anchors, outside = scan()
+    read: Counter = Counter()
+    dead_paths, dead_anchors, outside = scan(read)
+    documents = len(markdown_files())
     if outside:
         skip(f"{len(outside)} link(s) leave this repository — not checked")
         detail("Whether they resolve depends on what is checked out beside this tree.")
@@ -530,13 +538,14 @@ def main() -> int:
                 "outside": outside,
                 "repointed": repointed,
                 "baseline": baseline,
+                "read": {"documents": documents, "links": read["links"], "fragments": read["fragments"]},
             }
         )
 
     status = 0
-    for label, found, ceiling in (
-        ("broken links", dead_paths, baseline.get("max_broken", 0)),
-        ("dead anchors", dead_anchors, baseline.get("max_dead_anchors", 0)),
+    for label, found, ceiling, noun, subjects in (
+        ("broken links", dead_paths, baseline.get("max_broken", 0), "relative link", read["links"]),
+        ("dead anchors", dead_anchors, baseline.get("max_dead_anchors", 0), "fragment link", read["fragments"]),
     ):
         if len(found) > ceiling:
             fail(f"{len(found)} {label} (ceiling {ceiling}) — repoint them, never delete:")
@@ -557,7 +566,11 @@ def main() -> int:
             ok(f"{len(found)} {label} — below the {ceiling} ceiling. Lower it in this commit:")
             detail("  python scripts/check_doc_links.py --update-baseline")
         else:
-            ok(f"{label}: {len(found)} (at the ceiling)")
+            # A healthy tree can hold no fragment links at all, so this is not a refusal.
+            if subjects:
+                ok(f"{label}: {len(found)} of {subjects} {noun}(s) in {documents} document(s) (at the ceiling)")
+            else:
+                no_subject(f"{label}: {documents} document(s) read, and none holds a {noun}")
     return status
 
 

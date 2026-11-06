@@ -265,8 +265,8 @@ the night after the merge. Run it here first:
 ```
 
 It rehearses the working tree as `git add -A` would commit it, so run it straight
-after an upgrade, before committing. It exits 2 when no job could be rehearsed in
-full: nothing was checked, and that is not a pass.
+after an upgrade, before committing. It exits 3, no subject, when no job could be
+rehearsed in full: nothing was checked, and it still names where each job stopped.
 
 A clean venv is the point. A dependency only that job needs is missing there
 and present in your `.venv`, so the rehearsal fails and your own suite passes.

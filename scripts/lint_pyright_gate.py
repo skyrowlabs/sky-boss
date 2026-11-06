@@ -69,7 +69,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts.output import detail, fail  # noqa: E402
+from scripts.output import EXIT_REFUSED, detail, fail  # noqa: E402
 from scripts.paths import PROJECT_ROOT  # noqa: E402
 
 DEFAULT_CONFIG = PROJECT_ROOT / "pyrightconfig.json"
@@ -223,7 +223,7 @@ def main(argv: list[str] | None = None) -> int:
         fail(message[0])
         for extra in message[1:]:
             detail(extra)
-        return 1
+        return EXIT_REFUSED
 
     if args.preflight_only:
         # stdout, because this is the one thing here a caller consumes.
@@ -236,7 +236,7 @@ def main(argv: list[str] | None = None) -> int:
         detail("This gate blocks CI, so it fails rather than pass a commit it never checked.")
         detail("The pre-commit hook supplies it from its own node environment; running this")
         detail("script by hand needs the pinned version on PATH (see .pre-commit-config.yaml).")
-        return 1
+        return EXIT_REFUSED
 
     # `--pythonpath` is what makes the probe binding: the interpreter proven
     # above is the interpreter checked below, rather than one resolved a second

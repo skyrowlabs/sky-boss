@@ -134,7 +134,7 @@ from typing import NamedTuple
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts import manifest  # noqa: E402
-from scripts.output import detail, emit, fail, ok, warn  # noqa: E402
+from scripts.output import EXIT_REFUSED, detail, emit, fail, ok, warn  # noqa: E402
 from scripts.paths import GITHUB_DIR, PROJECT_ROOT, SCAFFOLD_MANIFEST, TESTS_DIR, TMP_DIR  # noqa: E402
 from scripts.yaml_text import read_uncommented  # noqa: E402
 
@@ -399,12 +399,12 @@ def main() -> int:
         # edited workflow away from it.
         fail(f"no coverage report at {args.xml} — run pytest with --cov-report=xml:{args.xml} first")
         detail("Nothing was measured, so nothing is being ratcheted. See docs/rules/testing.md.")
-        return done({"state": "no-report", "xml": str(args.xml)}, 1)
+        return done({"state": "no-report", "xml": str(args.xml)}, EXIT_REFUSED)
 
     if DATA_FILE.exists() and DATA_FILE.stat().st_mtime > args.xml.stat().st_mtime:
         fail(f"{args.xml} is older than {DATA_FILE.name}, so it reports an earlier run than the last one measured")
         detail(f"Regenerate it: python -m coverage xml -o {args.xml}")
-        return done({"state": "stale-report", "xml": str(args.xml)}, 1)
+        return done({"state": "stale-report", "xml": str(args.xml)}, EXIT_REFUSED)
 
     budget = json.loads(BUDGET.read_text(encoding="utf-8"))
     entry = budget["suites"].get(args.suite)

@@ -74,6 +74,13 @@ OUTCOME_SYMBOLS = {
     "skipped": "bypass",
 }
 
+#: The exit contract, per command. Refused means the instrument could not measure;
+#: no subject means it could and there was nothing for it to measure.
+EXIT_GREEN = 0
+EXIT_RED = 1
+EXIT_REFUSED = 2
+EXIT_NO_SUBJECT = 3
+
 #: How wide `summarize` draws its rules.
 _RULE_WIDTH = 60
 
@@ -108,6 +115,11 @@ def skip(message: str) -> None:
     channel that cries wolf stops being read.
     """
     _say(SYMBOLS["skip"], message)
+
+
+def no_subject(message: str) -> None:
+    """A check that read its source and found nothing of the kind it judges."""
+    skip(f"no subject: {message}")
 
 
 def step(message: str) -> None:
@@ -180,16 +192,22 @@ def summarize(results: Iterable[tuple[str, int]]) -> int:
 
     Every gate runs even when an earlier one failed. A pre-push check that stops
     at the first red gives you one fix per round trip; the whole point is to
-    learn everything that is wrong in a single run.
+    learn everything that is wrong in a single run. A gate with no subject passes
+    and is named, because it judged nothing; a refusal fails like a red.
     """
     rows: Sequence[tuple[str, int]] = list(results)
+    glyphs = {EXIT_GREEN: SYMBOLS["ok"], EXIT_NO_SUBJECT: SYMBOLS["skip"]}
     print("\n" + "─" * _RULE_WIDTH, file=sys.stderr)
     for name, code in rows:
-        _say(SYMBOLS["ok"] if code == 0 else SYMBOLS["fail"], f" {name}")
+        _say(glyphs.get(code, SYMBOLS["fail"]), f" {name}")
     print("─" * _RULE_WIDTH, file=sys.stderr)
-    failed = [name for name, code in rows if code != 0]
+    failed = [name for name, code in rows if code not in glyphs]
     if failed:
         fail(f"{len(failed)} gate(s) failed: {', '.join(failed)}")
-        return 1
+        return EXIT_RED
+    empty = [name for name, code in rows if code == EXIT_NO_SUBJECT]
+    if empty:
+        ok(f"{len(rows) - len(empty)} of {len(rows)} gates passed, and {len(empty)} had no subject: {', '.join(empty)}")
+        return EXIT_GREEN
     ok(f"all {len(rows)} gates passed")
-    return 0
+    return EXIT_GREEN

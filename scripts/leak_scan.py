@@ -33,7 +33,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts.check_commit_subjects import default_range  # noqa: E402
-from scripts.output import detail, emit, fail, item, line, ok  # noqa: E402
+from scripts.output import EXIT_REFUSED, detail, emit, fail, item, line, ok  # noqa: E402
 from scripts.paths import PROJECT_ROOT  # noqa: E402
 
 PRE_COMMIT_CONFIG = PROJECT_ROOT / ".pre-commit-config.yaml"
@@ -67,7 +67,7 @@ def main() -> int:
     if args.pinned:
         if not version:
             fail(f"no gitleaks hook with a `rev:` in {PRE_COMMIT_CONFIG.name}")
-            return 1
+            return EXIT_REFUSED
         line(version)
         return 0
 
@@ -78,7 +78,7 @@ def main() -> int:
             emit({"range": commit_range, "scanned": False, "findings": []})
         fail("gitleaks is not on PATH, so nothing was scanned")
         detail(f"CI installs the pinned binary ({version}); locally the commit hook scans staged changes.")
-        return 2
+        return EXIT_REFUSED
     code, findings, stderr = scan(binary, commit_range)
     rows = [
         {
@@ -107,7 +107,7 @@ def main() -> int:
         return 1
     fail(f"gitleaks exited {code} without a report")
     detail(stderr.strip())
-    return 2
+    return EXIT_REFUSED
 
 
 if __name__ == "__main__":

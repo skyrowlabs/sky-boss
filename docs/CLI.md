@@ -18,7 +18,7 @@ and the second person to need it writes it again.
 | `dev task`   | Capture small work that is not a defect              |
 | `dev doctor` | Account facts no file can state (release PRs, required checks) |
 | `dev settings` | Set GitHub settings to `scripts/repo_settings.py`; previews unless `--apply` |
-| `dev inbox`  | Every open capture per lane, and every job at its cap |
+| `dev inbox`  | Every open capture per lane, every job at its cap, and every Dependabot PR waiting on a person |
 
 Run `./dev <group> --help` for the current commands — the help is generated
 from the code, so it cannot go stale the way this table can.

@@ -29,7 +29,7 @@ from pathlib import Path
 # owns every path below — can be imported. See scripts/paths.py.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts.output import detail, emit, fail, item, ok  # noqa: E402
+from scripts.output import EXIT_REFUSED, detail, emit, fail, item, ok  # noqa: E402
 from scripts.paths import TESTS_DIR, TMP_DIR  # noqa: E402
 
 BUDGET = TESTS_DIR / "skip_budget.json"
@@ -76,13 +76,13 @@ def main() -> int:
         # "the budget is respected", so there is no warn-and-pass path here.
         fail(f"no junit report at {args.junit} — run pytest with --junitxml={args.junit} first")
         detail("Nothing was measured, so nothing is being ratcheted. See docs/rules/testing.md.")
-        return done({"state": "no-report", "junit": str(args.junit)}, 1)
+        return done({"state": "no-report", "junit": str(args.junit)}, EXIT_REFUSED)
 
     budget = json.loads(BUDGET.read_text(encoding="utf-8"))
     entry = budget["suites"].get(args.suite)
     if entry is None:
         fail(f"suite '{args.suite}' has no entry in tests/skip_budget.json — add one")
-        return done({"state": "unbudgeted"}, 1)
+        return done({"state": "unbudgeted"}, EXIT_REFUSED)
 
     skipped, total, reasons = count_skips(args.junit)
     ceiling = int(entry["max_skipped"])

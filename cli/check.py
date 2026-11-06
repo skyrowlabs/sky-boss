@@ -77,7 +77,8 @@ LANGUAGE_CONFIGS = (
 
 #: The python lint gates, as (label, argv) with the paths to check appended.
 #: A command that lints a subset of paths runs this same list over them, so a
-#: tree that changes its linters here (ruff, say) changes them everywhere.
+#: tree that changes its linters here (ruff, say) changes the commands that read
+#: this list. `.pre-commit-config.yaml` and `ci.yml` name their own and stay as they were.
 PYTHON_LINTERS = (
     ("flake8 (errors)", ("flake8", "--select=E9,F63,F7,F82,F401", "--show-source")),
     ("isort", ("isort", "--check-only", "--diff")),
@@ -228,7 +229,7 @@ def scheduled(plan: bool, workflows: tuple, keep: bool) -> None:
     """Rehearse each scheduled workflow here: the working tree, a clean venv.
 
     No pull request runs a scheduled job, so this is the only way to see one
-    pass before its first night. Exits 2 when nothing could be rehearsed.
+    pass before its first night. Exits 3, no subject, when nothing could be rehearsed.
     scripts/rehearse_scheduled.py says what it can and cannot stand in for.
     """
     args = ["--plan"] * plan + ["--keep"] * keep
