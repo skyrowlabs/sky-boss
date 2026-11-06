@@ -466,8 +466,8 @@ Requested by Jeston on 2026-11-06. **Bring him the shape before building.**
   terminal tab gets the same padding. If that looks wrong, stop and ask him.
 - [ ] **Title each pane's top band with its label.** The band now says `┌ deck queue ───`, built from
   the command. It becomes the label alone, with no `┌`, in the deck's panes only: `chrome.py`'s band
-  also draws every other resident screen. The header-ground code near `deck.py:2636` tells the top
-  band by its `┌`, so it needs another test.
+  also draws every other resident screen. `clicked_row` finds the first all-rule line, and a band
+  with a label is not one, so clicks hold while the label stays; a test should pin that.
 - [ ] **Rename the labels** in `column.LABELS`, keeping Jeston's spelling:
 
   | Now | New |
@@ -482,8 +482,13 @@ Requested by Jeston on 2026-11-06. **Bring him the shape before building.**
   `AGENT COMMUNICATIONS` (20) overflows both. Check the folded line in each layout.
 - [ ] **Sweep the old names:** `README.md`, its `readme-deck.png`, `CLAUDE.md`'s `sb deck` row, and the
   tests.
-- [ ] **Ask him:** the panes for TODOS and DECISIONS print that word again under the band, which the new
-  title makes redundant. Recommended: drop that line.
+- [ ] **Remove the top line from the panes:** `top` in TODOS and DECISIONS (`deck.py:2727`) and `newest`
+  in MESSAGES (`deck.py:2484`). When rows are hidden that line also says how many (`top · 3 more
+  below`, `newest · 26 earlier message(s) not shown`), and removing it would hide them silently.
+  Recommended: draw only the count, in the band's right slot, and only while rows are hidden.
+- [ ] **Remove the secondary titles** `TODOS` and `DECISIONS` under the band. Keep the rule beneath them:
+  `clicked_row` counts rows from it, so losing it breaks clicking a decision. Check the row count
+  after the lines above go, in a real click on each of the two panes.
 
 ## Dropped, and why
 
@@ -1012,3 +1017,5 @@ kept the TODOS pane's pid.
 - **Why:** Jeston's request, made directly. His "r" at the start of the bar is read as the band's `┌`,
   and "the cli tabs" as the agent tabs. He wrote `TODOs` inside all caps, and it is kept as he wrote it.
 - **The reversal:** on 2026-11-05 he wanted the tabs edge to edge. That reasoning stays in Phase 15.
+- **Same day, added:** remove the top text and the secondary titles. "Top text" is read as the scroll
+  line, so `newest` in MESSAGES goes with `top`; the count it carries is the one thing to keep.
