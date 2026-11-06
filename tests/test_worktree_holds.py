@@ -71,7 +71,12 @@ def test_holders_reads_the_tree_it_is_given(tmp_path):
 
 def test_a_dead_holder_does_not_wedge_the_tree(tmp_path):
     """A pid that is gone holds nothing, however recently it said otherwise."""
-    _write_hold(tmp_path, pid=999_999, owner="crashed-job", age_s=7200)
+    import subprocess
+
+    # A reaped child rather than a literal: any fixed number can be a live pid here.
+    child = subprocess.Popen([sys.executable, "-c", ""])
+    child.wait()
+    _write_hold(tmp_path, pid=child.pid, owner="crashed-job", age_s=7200)
 
     assert tree_lock.holders(root=tmp_path) == []
 
@@ -114,3 +119,28 @@ def test_a_detached_heads_own_commit_blocks_a_drop(tmp_path):
 
     lost = module("worktree").stranded(tmp_path / "wt")
     assert len(lost) == 1 and "on no branch" in lost[0]
+
+
+def test_a_linked_environment_is_ignored(tmp_path):
+    """`worktree new` makes these symlinks, and `.venv/` matches only a directory."""
+    repo = _repo(tmp_path)
+    shipped = Path(__file__).resolve().parents[1] / ".gitignore"
+    (repo / ".gitignore").write_text(shipped.read_text(encoding="utf-8"), encoding="utf-8")
+    for name in (".venv", "node_modules"):
+        (repo / name).symlink_to(tmp_path)
+    assert _git(repo, "status", "--porcelain").split() == ["??", ".gitignore"]
+
+
+@pytest.mark.parametrize(("theirs", "linked"), [("same", True), ("other", False)])
+def test_node_modules_is_borrowed_only_while_the_lockfiles_agree(tmp_path, monkeypatch, theirs, linked):
+    from tests.shell import module
+
+    worktree = module("worktree")
+    primary, target = tmp_path / "primary", tmp_path / "target"
+    (primary / "node_modules").mkdir(parents=True)
+    target.mkdir()
+    (primary / "package-lock.json").write_text("same", encoding="utf-8")
+    (target / "package-lock.json").write_text(theirs, encoding="utf-8")
+    monkeypatch.setattr(worktree, "PROJECT_ROOT", primary)
+    worktree._link_node_modules(target)
+    assert (target / "node_modules").is_symlink() is linked

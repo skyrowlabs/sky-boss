@@ -88,6 +88,26 @@ def _requirements_agree(target: Path) -> bool:
     return _venv_inputs(PROJECT_ROOT) == _venv_inputs(target)
 
 
+def _link_node_modules(target: Path) -> None:
+    """Borrow the primary's `node_modules` when the lockfiles agree, as `.venv` is borrowed.
+
+    `check pre-push` runs eslint out of it, so a worktree without one fails on
+    `command not found` (sky.boss).
+    """
+    modules = PROJECT_ROOT / "node_modules"
+    if not modules.is_dir() or (target / "node_modules").exists():
+        return
+    locks = [root / "package-lock.json" for root in (PROJECT_ROOT, target)]
+    if [lock.read_bytes() if lock.exists() else None for lock in locks] == [None, None] or (
+        all(lock.exists() for lock in locks) and locks[0].read_bytes() == locks[1].read_bytes()
+    ):
+        (target / "node_modules").symlink_to(modules.resolve())
+        item("linked node_modules (the primary's)")
+    else:
+        item("did NOT link node_modules — this branch's package-lock.json differs from the primary's")
+        detail("  npm ci")
+
+
 @click.group()
 def worktree() -> None:
     """Linked worktrees — one checkout per branch."""
@@ -152,6 +172,8 @@ def new(path: str, branch: str, base: str) -> None:
         else:
             item("did NOT link .venv — this branch's requirements differ from the primary's")
             detail("  python3.12 -m venv .venv && .venv/bin/pip install -r scripts/requirements.txt")
+
+    _link_node_modules(target)
 
     (target / "tmp").mkdir(exist_ok=True)
 

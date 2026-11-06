@@ -81,6 +81,15 @@ EXIT_RED = 1
 EXIT_REFUSED = 2
 EXIT_NO_SUBJECT = 3
 
+
+class Declared(int):
+    """An exit code from a gate that signed the contract, which alone may mean no subject.
+
+    pytest exits 3 on an internal error and pyright on a bad config, so a bare 3 is a
+    crash until somebody says otherwise. `scripts/gates.py`'s `no_subject` says so.
+    """
+
+
 #: How wide `summarize` draws its rules.
 _RULE_WIDTH = 60
 
@@ -192,20 +201,20 @@ def summarize(results: Iterable[tuple[str, int]]) -> int:
 
     Every gate runs even when an earlier one failed. A pre-push check that stops
     at the first red gives you one fix per round trip; the whole point is to
-    learn everything that is wrong in a single run. A gate with no subject passes
-    and is named, because it judged nothing; a refusal fails like a red.
+    learn everything that is wrong in a single run. A gate that declared the contract
+    and has no subject passes and is named, because it judged nothing. Every other
+    non-zero code fails, a bare 3 included, since nothing says that tool meant it.
     """
     rows: Sequence[tuple[str, int]] = list(results)
-    glyphs = {EXIT_GREEN: SYMBOLS["ok"], EXIT_NO_SUBJECT: SYMBOLS["skip"]}
+    empty = [name for name, code in rows if isinstance(code, Declared) and code == EXIT_NO_SUBJECT]
     print("\n" + "─" * _RULE_WIDTH, file=sys.stderr)
     for name, code in rows:
-        _say(glyphs.get(code, SYMBOLS["fail"]), f" {name}")
+        _say(SYMBOLS["skip" if name in empty else "ok" if code == EXIT_GREEN else "fail"], f" {name}")
     print("─" * _RULE_WIDTH, file=sys.stderr)
-    failed = [name for name, code in rows if code not in glyphs]
+    failed = [name for name, code in rows if code != EXIT_GREEN and name not in empty]
     if failed:
         fail(f"{len(failed)} gate(s) failed: {', '.join(failed)}")
         return EXIT_RED
-    empty = [name for name, code in rows if code == EXIT_NO_SUBJECT]
     if empty:
         ok(f"{len(rows) - len(empty)} of {len(rows)} gates passed, and {len(empty)} had no subject: {', '.join(empty)}")
         return EXIT_GREEN

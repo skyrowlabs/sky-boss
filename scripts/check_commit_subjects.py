@@ -305,6 +305,19 @@ def described(commit_range: str, chosen: bool) -> str:
     }.get(commit_range, commit_range)
 
 
+def say_green(inspected: list, where: str) -> None:
+    """The green line, which counts a revert apart from what Release Please can read."""
+    if not RELEASE_CONFIG.exists():
+        ok(f"{len(inspected)} commit(s) in {where} pass the commit-msg hook")
+        return
+    reverts = sum(1 for _, subject in inspected if reverted(subject) != subject)
+    ok(f"{len(inspected) - reverts} subject(s) in {where} are readable by Release Please")
+    if reverts:
+        # Measured on release-please 17.11.2: the parser drops these. See docs/rules/commits.md.
+        skip(f"{reverts} revert subject(s) pass here, and Release Please skips them")
+        detail("They get no changelog entry and no version bump; the reverted change stays listed if unreleased.")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -395,16 +408,7 @@ def main() -> int:
     if not inspected:
         no_subject(f"no non-merge commits in {described(commit_range, chosen)}")
         return 0
-    if RELEASE_CONFIG.exists():
-        reverts = sum(1 for _, subject in inspected if reverted(subject) != subject)
-        readable = len(inspected) - reverts
-        ok(f"{readable} subject(s) in {described(commit_range, chosen)} are readable by Release Please")
-        if reverts:
-            # Measured on release-please 17.11.2: the parser drops these. See docs/rules/commits.md.
-            skip(f"{reverts} revert subject(s) pass here, and Release Please skips them")
-            detail("They get no changelog entry and no version bump; the reverted change stays listed if unreleased.")
-    else:
-        ok(f"{len(inspected)} commit(s) in {described(commit_range, chosen)} pass the commit-msg hook")
+    say_green(inspected, described(commit_range, chosen))
     return 0
 
 

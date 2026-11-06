@@ -78,9 +78,9 @@ def main() -> int:
             fail("`.gitmessage` is tracked but `commit.template` is unset in this clone")
             detail("python scripts/git/install_merge_drivers.py")
             return 1
-        drivers = ", ".join(sorted(declared_drivers())) or "none"
+        declared = sorted(declared_drivers())
         template = ", commit.template" if MESSAGE_TEMPLATE.exists() else ""
-        ok(f"clone-local config present: merge driver(s) {drivers}{template}")
+        ok(f"clone-local config present: {len(declared)} merge driver(s) {', '.join(declared) or 'none'}{template}")
         if MARKER.exists():
             # Asked rather than assumed: the merge that left the marker may have
             # changed nothing a generator reads, and `regen.py` clears it when so.

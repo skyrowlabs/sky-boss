@@ -160,15 +160,33 @@ def test_every_exit_is_in_the_contract_and_every_green_line_carries_a_count(scri
     assert not uncounted, f"{script.name} said green without saying how much it read: {uncounted}"
 
 
+def test_the_clone_config_check_counts_on_green():
+    result = _run(SCRIPTS_DIR / "git" / "install_merge_drivers.py", "--check")
+    green = [line for line in result.stderr.splitlines() if line.startswith(STATE_SYMBOLS["ok"])]
+    assert all(re.search(r"\d", line) for line in green), green
+
+
+def test_a_junit_holding_no_tests_has_no_subject(tmp_path):
+    report = tmp_path / "junit.xml"
+    report.write_text('<testsuite tests="0" skipped="0"></testsuite>', encoding="utf-8")
+    result = _run(SCRIPTS_DIR / "check_skip_budget.py", "--suite", "unit", "--junit", str(report))
+    assert result.returncode == 0 and "no subject" in result.stderr and STATE_SYMBOLS["ok"] not in result.stderr
+
+
 def test_the_exit_codes_are_the_documented_four():
     assert (output.EXIT_GREEN, output.EXIT_RED, output.EXIT_REFUSED, output.EXIT_NO_SUBJECT) == (0, 1, 2, 3)
 
 
 @pytest.mark.parametrize(("codes", "expected"), [((0, 3), 0), ((3,), 0), ((0, 1), 1), ((0, 2), 1), ((3, 2), 1)])
-def test_an_aggregate_passes_no_subject_with_a_note_and_fails_a_refusal(codes, expected, capsys):
-    assert output.summarize((f"gate-{code}", code) for code in codes) == expected
+def test_an_aggregate_passes_a_declared_no_subject_and_fails_a_refusal(codes, expected, capsys):
+    assert output.summarize((f"gate-{code}", output.Declared(code)) for code in codes) == expected
     if expected == 0:
         assert "no subject: gate-3" in capsys.readouterr().err
+
+
+def test_a_bare_3_is_a_crash_until_a_gate_declares_it():
+    assert output.summarize([("pytest", 3)]) == output.EXIT_RED
+    assert output.summarize([("pyright", 3), ("lint", 0)]) == output.EXIT_RED
 
 
 @pytest.fixture

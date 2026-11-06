@@ -68,12 +68,16 @@ named in `scripts/output.py` and pinned by `tests/test_output_contract.py`:
 | 0    | green      | it measured, and what it measured passed; the line carries a count |
 | 1    | red        | it measured, and something failed                                  |
 | 2    | refused    | the instrument could not measure                                   |
-| 3    | no subject | it ran, and there was nothing for it to measure                    |
+| 3    | no subject | it ran, there was nothing to measure, and nothing unattended runs it |
 
-Aggregating commands such as `dev check pre-push` treat 3 as a pass and name the gate.
-One line of a command can say `no subject` while the command exits 0: `check_doc_links.py`
-read its documents, so a tree with no fragment links is green with that line noted. `--json`
-carries the per-line state. A CI step running a script directly fails on any non-zero code.
+An aggregating command such as `dev check pre-push` passes a 3 and names the gate only
+when the gate declared it, with `no_subject=True` in `scripts/gates.py`. Any other 3 is red:
+pytest exits 3 on an internal error and pyright on a bad config, and neither means no subject.
+A CI step running a script directly fails on any non-zero code, so a script CI runs says
+`no subject` on its line and exits 0: `check_doc_links.py` on a tree with no fragment links,
+`check_commit_subjects.py` on an empty range, `check_skip_budget.py` on a report with no tests.
+An aggregate cannot name those gates, because the code does not reach it; the line above its
+table does. Exit 3 is for commands nothing runs unattended. `--json` carries the per-line state.
 
 ## Why a Module and Not a Convention
 

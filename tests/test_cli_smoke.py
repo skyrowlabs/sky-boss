@@ -219,7 +219,9 @@ def test_the_allowlist_names_commands_that_exist():
 def test_read_only_commands_succeed(path: tuple[str, ...]):
     """Run it for real. `--help` proves a command parses; this proves it works."""
     result = _run(list(path))
-    assert result.returncode == 0, (
+    # A 3 is the contract's no subject, and it has to say so: a crash can exit 3 too.
+    measured_nothing = result.returncode == 3 and "no subject" in result.stderr
+    assert result.returncode == 0 or measured_nothing, (
         f"`{' '.join(path)}` exited {result.returncode}\n"
         f"--- stdout ---\n{result.stdout[-2000:]}\n--- stderr ---\n{result.stderr[-2000:]}"
     )
