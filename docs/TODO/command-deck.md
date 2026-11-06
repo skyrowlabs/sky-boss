@@ -383,20 +383,28 @@ decided items in DECISIONS, which M-x did not touch. He ruled on both fixes.
   Claude tabs stay edge to edge, as Jeston wanted. A folded pane stays one full line.
 - [x] **NEEDS YOU counts each session's sub-agents and shells** in `bg`, and a click unfolds them.
 
-## Phase 16 (round 15): free columns for the right-side panes (not built)
+## Phase 16 (round 15): free columns for the right-side panes
 
 Requested by Jeston on 2026-11-06, relayed by skyrow-workspace: any number of panes per column, such
 as MESSAGES alone in one column and the other three stacked in the other, and switchable. It builds on
-`sb deck layout grid`. **Bring him the shape before building.**
+`sb deck layout grid`.
 
 - [x] **An arrangement is declared** as a profile setting in `deck.toml`, plus a command to change it
   live (ruled 2026-11-06).
 - [x] **"Switchable" means swapping a pane across columns,** not cycling saved arrangements (ruled
   2026-11-06).
-- [x] **A swap is reached by mouse:** click a pane's title bar, then click the column to send it to
-  (ruled 2026-11-06). It needs a visible picked-up state and a way to cancel.
+- [x] **A swap is reached by mouse:** click a pane's title bar, then click any pane in the column to
+  send it to (ruled 2026-11-06). The picked-up pane says `moving`, the others `click to send here`
+  at their next refresh, and a click on the picked-up pane puts it down.
 - [x] **`grid` becomes the free layout:** same spot in M-l, starts two and two, and panes can move
   (ruled 2026-11-06).
+- [x] **Built:** `columns = [[...], [...]]` on a profile, `sb deck column move PANE N`, and the saved
+  columns in `column.json`, which win over the profile's. Panes land ahead of the one clicked.
+- [x] **A column never empties by mouse:** a pane alone in its column swaps with the pane clicked
+  instead, or a click could leave no column to send a pane back to.
+- [x] **Outside the grid a title click says so,** as `M-l to grid to move`, rather than doing nothing.
+- **Does not do:** reorder within a column by click. The chooser's J/K sets the starting order only
+  until a pane has been moved.
 
 ## Phase 17 (round 16): add tabs from the bar, a terminal tab, and where they can start
 
@@ -1001,3 +1009,13 @@ kept the TODOS pane's pid.
   sides stay edge to edge.
 - **Round 16:** all five questions settled, including the reversal of "never writes `deck.toml`".
 - **Round 15:** all four settled. Two were reasked in plainer terms after he asked for more information.
+
+### 2026-11-06: rounds 15 and 16 built
+
+- **Why:** Jeston's word to build both, once every question was ruled.
+- **Measured with real clicks** on a throwaway deck through a viewer client: `tmux send-keys -H` with
+  the SGR bytes reaches the deck's mouse bindings, where `send-keys -l` does not.
+- **`deck.toml` is written now,** so Phase 7's "never writes" is history. Only `sb deck add --keep` and
+  the `+` do it. The file's other readers are unchanged.
+- **A hand-run restore showed a gap:** a save holding terminals and no agent tabs reopened no terminal,
+  because `restored()` returns nothing without tabs. The terminals are now read on their own.

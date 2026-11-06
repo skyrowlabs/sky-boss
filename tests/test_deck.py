@@ -144,6 +144,9 @@ class FakeTmux:
             self.panes[pane]["window"] = wid
             return Answer(asked=True, out=f"{wid}\n")
         if verb == "set-option":
+            if args[:2] == ["-u", "-t"] and args[2].endswith(":"):
+                self.options.pop((args[2], args[3]), None)
+                return Answer(asked=True)
             if "-u" in args:
                 self.windows[args[args.index("-t") + 1]]["agent"] = ""
                 return Answer(asked=True)
@@ -959,6 +962,7 @@ def test_the_queue_is_an_observe_and_the_rest_act():
         "show": False,
         "fold": True,
         "pick": True,
+        "move": True,
     }
     for group, more in ((deck_.deck_todo, {"clear": True}), (deck_.deck_decide, {"clear": True, "rule": True})):
         assert {name: getattr(command, "sb_acts") for name, command in group.commands.items()} == {
@@ -2658,3 +2662,115 @@ def test_a_click_finds_its_row_under_a_titled_band():
     rows = [{"n": 1}, {"n": 2}]
     lines = ["", " AGENT TODOs ──────── ", " ───────── ", " one", " two"]
     assert deck_.clicked_row(lines, rows, 5) == {"n": 2}
+
+
+def test_a_grid_lays_out_any_split_of_columns():
+    calls = deck_.plan("grid", "%0", ["%1", "%2", "%3", "%4"], groups=[["%1"], ["%2", "%3", "%4"]])
+    joins = [call[call.index("-s") + 1 : call.index("-s") + 4 : 2] for call in calls if call[0] == "join-pane"]
+    assert joins == [["%1", "%0"], ["%2", "%1"], ["%3", "%2"], ["%4", "%3"]]
+    assert ["resize-pane", "-t", "%1", "-x", "20%"] in calls
+    assert ["resize-pane", "-t", "%2", "-y", "33%"] in calls
+
+
+def test_three_columns_share_the_room_the_grid_gives_them():
+    calls = deck_.plan("grid", "%0", ["%1", "%2", "%3"], groups=[["%1"], ["%2"], ["%3"]])
+    assert ["resize-pane", "-t", "%1", "-x", "13%"] in calls and ["resize-pane", "-t", "%2", "-x", "13%"] in calls
+
+
+def test_a_grid_of_one_column_is_columns():
+    assert deck_.plan("grid", "%0", ["%1", "%2"], groups=[["%1", "%2"]]) == deck_.plan("columns", "%0", ["%1", "%2"])
+
+
+def test_a_profiles_columns_are_read_and_an_unknown_pane_is_named():
+    body = {"primary": "a", "columns": [["messages"], ["queue", "todos", "decisions"]]}
+    config, problems = deck_.parse({"profile": {"p": body}})
+    assert config.profiles["p"].columns == body["columns"] and not problems
+    assert any("columns must" in p for p in deck_.parse({"profile": {"p": {"primary": "a", "columns": [["x"]]}}})[1])
+
+
+def test_the_columns_default_to_two_and_two_read_across():
+    assert deck_.column_.Column().groups() == [["queue", "todos"], ["messages", "decisions"]]
+
+
+def test_a_saved_column_beats_a_declared_one_and_a_hidden_pane_drops_out():
+    chosen = deck_.column_.Column(columns=[["todos"], ["queue", "messages", "decisions"]], hidden={"messages"})
+    assert chosen.groups([["queue"]]) == [["todos"], ["queue", "decisions"]]
+
+
+def test_a_pane_no_column_names_joins_the_last():
+    assert deck_.column_.Column().groups([["messages"], ["queue"]]) == [["messages"], ["queue", "todos", "decisions"]]
+
+
+def test_sending_a_pane_puts_it_ahead_of_the_one_clicked():
+    groups = [["queue", "todos"], ["messages", "decisions"]]
+    assert deck_.column_.send(groups, "todos", "decisions") == [["queue"], ["messages", "todos", "decisions"]]
+
+
+def test_a_pane_alone_in_its_column_swaps_so_no_column_empties():
+    groups = [["messages"], ["queue", "todos", "decisions"]]
+    assert deck_.column_.send(groups, "messages", "todos") == [["todos"], ["queue", "messages", "decisions"]]
+
+
+def test_sending_a_pane_within_its_own_column_changes_nothing():
+    groups = [["queue", "todos"], ["messages"]]
+    assert deck_.column_.send(groups, "queue", "todos") == groups
+
+
+def test_the_command_makes_a_new_column_and_refuses_to_empty_one():
+    groups = [["queue", "todos"], ["messages"]]
+    assert deck_.column_.place(groups, "todos", 3) == [["queue"], ["messages"], ["todos"]]
+    with pytest.raises(ValueError, match="alone"):
+        deck_.column_.place(groups, "messages", 1)
+    with pytest.raises(ValueError, match="not one"):
+        deck_.column_.place(groups, "queue", 4)
+
+
+def test_a_fold_and_a_show_keep_the_columns():
+    chosen = deck_.column_.Column(columns=[["queue"], ["messages", "todos", "decisions"]])
+    assert deck_.column_.press(chosen, 0, "c")[0].columns == chosen.columns
+    assert deck_.column_.press(chosen, 0, " ")[0].columns == chosen.columns
+    assert deck_.column_.move(chosen, 0, 1)[0].columns == chosen.columns
+
+
+def test_columns_survive_a_save():
+    chosen = deck_.column_.Column(columns=[["queue"], ["messages", "todos", "decisions"]])
+    deck_.column_.save("sb", chosen)
+    assert deck_.column_.load("sb")[0].columns == chosen.columns
+
+
+def clicked_pane(fake, role: str, layout: str = "grid") -> deck_.DeckPane:
+    fake.session("sb")
+    fake.options[("=sb:", deck_.LAYOUT_OPTION)] = layout
+    pane = deck_.DeckPane("sb", lambda row: True, role=role)
+    pane.lines = ["", f" {pane.title} ──────── ", " ──────── "]
+    return pane
+
+
+def test_a_title_click_picks_a_pane_up_and_a_second_puts_it_down(fake, home):
+    pane = clicked_pane(fake, "todos")
+    assert pane.on_key("click:3:2") and fake.options[("=sb:", deck_.MOVING_OPTION)] == "todos"
+    assert pane.band_place() == "moving · click a column"
+    assert pane.on_key("click:3:2") and pane.moving == "" and pane.band_place() == ""
+
+
+def test_a_title_click_outside_the_grid_says_where_moving_works(fake, home):
+    pane = clicked_pane(fake, "todos", "columns")
+    assert pane.on_key("click:3:2") and "grid" in pane.band_place()
+    assert ("=sb:", deck_.MOVING_OPTION) not in fake.options
+
+
+def test_a_click_in_another_pane_sends_the_picked_up_one_there(fake, home, monkeypatch):
+    sent: list[tuple[str, str, str]] = []
+    monkeypatch.setattr(deck_, "send_pane", lambda *args: sent.append(args) or [])
+    pane = clicked_pane(fake, "decisions")
+    fake.options[("=sb:", deck_.MOVING_OPTION)] = "todos"
+    assert pane.on_key("click:3:9") and sent == [("sb", "todos", "decisions")]
+
+
+def test_a_todo_row_click_opens_nothing(fake, home, monkeypatch):
+    opened: list[tuple] = []
+    monkeypatch.setattr(deck_, "open_decision", lambda *args: opened.append(args))
+    pane = clicked_pane(fake, "todos")
+    pane.lines += [" one"]
+    pane.rows = [{"kind": "item", "agent": "a", "n": 1}]
+    assert not pane.on_key("click:3:4") and not opened

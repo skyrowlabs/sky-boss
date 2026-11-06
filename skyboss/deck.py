@@ -61,7 +61,7 @@ DEFAULT_SESSION = "sb"
 TOP_LEVEL_KEYS = frozenset({"session", "pin", "panes", "themes", "theme_base", "roots"})
 TOP_LEVEL_TABLES = frozenset({"agent", "profile"})
 AGENT_KEYS = frozenset({"cwd", "args", "role", "colour"})
-PROFILE_KEYS = frozenset({"primary", "tabs", "brief", "terminals"})
+PROFILE_KEYS = frozenset({"primary", "tabs", "brief", "terminals", "columns"})
 
 # tmux rewrites `.` and `:` in a session name, so a name carrying either would
 # be a session the deck could create and then never find again.
@@ -108,8 +108,8 @@ COLUMNS, STACK, GRID = "columns", "stack", "grid"
 LAYOUTS = (COLUMNS, STACK, GRID)
 TOOLS_WIDTH = "25%"
 TOOLS_HEIGHT = "30%"
-#: Each of a grid's two columns, so two panes fit across: the tabs keep the rest.
-GRID_COLUMN = "20%"
+#: What a grid's columns share, as a percentage of the window: the tabs keep the rest.
+GRID_SHARE = 40
 GRID_TABS = "60%"
 HALF = "50%"
 # One cadence for every tool pane, on the clock's multiples of it, so the footer's one countdown is true of all.
@@ -190,6 +190,8 @@ class Profile:
     brief: str = ""
     # A directory per terminal tab to open when the deck starts.
     terminals: list[str] = field(default_factory=list)
+    # The grid's columns, as pane names, until the operator moves one.
+    columns: list[list[str]] = field(default_factory=list)
 
     def order(self) -> tuple[list[str], list[str]]:
         """Each name once, primary first, and a problem per repeat."""
@@ -345,6 +347,7 @@ def parse(raw: dict) -> tuple[Config, list[str]]:
             tabs=list(body.get("tabs", [])),
             brief=body.get("brief", ""),
             terminals=list(body.get("terminals", [])),
+            columns=[list(column) for column in body.get("columns", [])],
         )
     return config, problems
 
@@ -363,6 +366,11 @@ def _check_profile(body) -> str | None:
         return "tabs must be a list of agent names"
     if not primary and not tabs:
         return "names no primary and no tabs"
+    columns = body.get("columns", [])
+    if not isinstance(columns, list) or not all(
+        isinstance(column, list) and all(role in TOOL_ROLES for role in column) for column in columns
+    ):
+        return f"columns must be lists of pane names — the panes are {', '.join(TOOL_ROLES)}"
     if not isinstance(body.get("brief", ""), str):
         return "brief must be text"
     return None
@@ -813,6 +821,8 @@ SHORTCUTS = {
 NEVER_BOUND = frozenset({"C-c"})
 # Session options the panes read each frame, and the marks loop keeps the agent count in.
 HIDE_OPTION = "@sb-hide-outside"
+#: The pane picked up by a click on its title bar, on its way to another grid column.
+MOVING_OPTION = "@sb-moving"
 SCROLL_OPTION = "@sb-scroll"
 SCROLL_SEQ_OPTION = "@sb-scroll-seq"
 AGENT_COUNT_OPTION = "@sb-agent-count"
@@ -1709,11 +1719,18 @@ def controller(listed: list[Pane]) -> str | None:
     return ordered[0].window_id if ordered else None
 
 
-def plan(shape: str, tabs: str | None, tools: list[str], folded: frozenset[str] = frozenset()) -> list[list[str]]:
+def plan(
+    shape: str,
+    tabs: str | None,
+    tools: list[str],
+    folded: frozenset[str] = frozenset(),
+    groups: list[list[str]] | None = None,
+) -> list[list[str]]:
     """The tmux calls that put the deck's panes in `shape`. Pure, and only ever moves or resizes.
 
     columns: tabs | the tools stacked.  stack: tabs over the tools side by side.
-    grid: tabs | two columns of two, read across; with fewer than four tools it is columns.
+    grid: tabs | `groups`, each a column of pane ids; with none, four tools go two and two, read
+    across, and fewer is columns. One group is columns too.
     `tools` are pane ids in the column's order; a pane in `folded` is drawn as one
     line (columns, grid) or a narrow strip (stack), and the others share the rest.
     """
@@ -1727,20 +1744,25 @@ def plan(shape: str, tabs: str | None, tools: list[str], folded: frozenset[str] 
 
     if not tools:
         return calls
-    if shape == GRID and len(tools) == len(TOOL_ROLES):
-        first, second, third, fourth = tools
+    laid = groups or ([tools[0::2], tools[1::2]] if len(tools) == len(TOOL_ROLES) else [])
+    if shape == GRID and len(laid) > 1:
+        heads = [column[0] for column in laid]
         if tabs:
-            join(first, tabs, "-h", "-f")
-        join(second, first, "-h")
-        join(third, first, "-v")
-        join(fourth, second, "-v")
+            join(heads[0], tabs, "-h", "-f")
+        for before, after in zip(heads, heads[1:]):
+            join(after, before, "-h")
+        for column in laid:
+            for before, after in zip(column, column[1:]):
+                join(after, before, "-v")
         if tabs:
             resize(tabs, "-x", GRID_TABS)
-        resize(first, "-x", GRID_COLUMN)
-        for top, bottom in ((first, third), (second, fourth)):
-            if top not in folded and bottom not in folded:
-                resize(top, "-y", HALF)
-            for pane in (top, bottom):
+        for head in heads[:-1]:
+            resize(head, "-x", f"{GRID_SHARE // len(laid)}%")
+        for column in laid:
+            open_ = [pane for pane in column if pane not in folded]
+            for pane in open_[:-1]:
+                resize(pane, "-y", f"{100 // len(open_)}%")
+            for pane in column:
                 if pane in folded:
                     resize(pane, "-y", FOLDED_HEIGHT)
         return calls
@@ -1765,6 +1787,22 @@ def plan(shape: str, tabs: str | None, tools: list[str], folded: frozenset[str] 
         if pane in folded:
             resize(pane, axis, FOLDED_HEIGHT if shape == COLUMNS else FOLDED_WIDTH)
     return calls
+
+
+def grid_of(session: str, config: Config, chosen: column_.Column) -> list[list[str]]:
+    """The grid's columns: the operator's moves, else the deck's profile's `columns`, else two and two."""
+    profile = config.profiles.get(deck_profile(session))
+    return chosen.groups(profile.columns if profile else None)
+
+
+def send_pane(session: str, role: str, to: str) -> list[str]:
+    """Send `role` to `to`'s column and lay the deck out again. Problems."""
+    config, _ = load()
+    chosen, problems = column_.load(session, config.panes)
+    chosen.columns = column_.send(grid_of(session, config, chosen), role, to)
+    column_.save(session, chosen)
+    tmux("set-option", "-u", "-t", scope(session), MOVING_OPTION)
+    return problems + arrange(session, layout_of(session), force=True)[1]
 
 
 def arrange(session: str, shape: str, *, force: bool, socket: str | None = None) -> tuple[list[str], list[str]]:
@@ -1828,7 +1866,9 @@ def arrange(session: str, shape: str, *, force: bool, socket: str | None = None)
     if not (force or created or closed or moved):
         return created, problems
     tools = [roles[role] for role in chosen.shown if role in roles]
-    for call in plan(shape, roles.get(TABS), tools, frozenset(roles[role] for role in folded if role in roles)):
+    groups = [[roles[role] for role in column if role in roles] for column in grid_of(session, config, chosen)]
+    plain = frozenset(roles[role] for role in folded if role in roles)
+    for call in plan(shape, roles.get(TABS), tools, plain, [column for column in groups if column]):
         answer = tmux(*call)
         if not answer.ok:
             problems.append(f"could not arrange the deck ({call[0]}) — {_said(answer)}")
@@ -2371,7 +2411,8 @@ def deck_layout(shape: str) -> Result:
     **This acts**, on panes and never on what runs in them: it moves and resizes
     panes, so every `claude` keeps its process. A tool pane that has gone is put
     back first. columns: tabs | the panes stacked. stack: tabs over the panes side
-    by side. grid: tabs | the four panes two by two, or columns with fewer showing.
+    by side. grid: tabs | the panes in columns, two and two until a pane is moved:
+    click a title bar, then a pane in the column to send it to.
     """
     result = Result()
     config, problems = load()
@@ -2481,6 +2522,30 @@ def deck_column_fold(pane: str) -> Result:
     config, _ = load()
     chosen, _ = column_.load(config.session, config.panes)
     chosen.collapsed = column_.toggle(chosen.collapsed, pane)
+    return _apply_column(config.session, chosen)
+
+
+@deck_column.command(name="move")
+@click.argument("pane")
+@click.argument("number", type=click.IntRange(min=1))
+@emit
+def deck_column_move(pane: str, number: int) -> Result:
+    """Move PANE to the end of grid column NUMBER, counted from the left.
+
+        sb deck column move messages 2
+
+    **This acts.** One past the last column makes a new one. The choice is saved
+    and overrides the profile's `columns`. Clicking a title bar in the deck does
+    the same with the mouse.
+    """
+    if pane not in column_.TOOLS:
+        raise click.UsageError(f"{pane!r} is not a right-column pane — the panes are {', '.join(column_.TOOLS)}")
+    config, _ = load()
+    chosen, _ = column_.load(config.session, config.panes)
+    try:
+        chosen.columns = column_.place(grid_of(config.session, config, chosen), pane, number)
+    except ValueError as exc:
+        raise click.UsageError(str(exc)) from exc
     return _apply_column(config.session, chosen)
 
 
@@ -2849,7 +2914,9 @@ class DeckPane(resident_.Control):
         self.head = "sb.deck.head"
         # MESSAGES and DECISIONS open a clicked row in a popup, and QUEUE unfolds one; `rows` and
         # `lines` are what the last frame drew, and `open` is the sessions QUEUE has unfolded.
-        self.clicks = role in (MESSAGES, DECISIONS, QUEUE)
+        self.clicks = bool(role)
+        self.moving = ""
+        self.hint = ""
         self.open: set[str] = set()
         self.pad = 1
         self.title = column_.LABELS.get(role, "")
@@ -2872,6 +2939,7 @@ class DeckPane(resident_.Control):
         answer = tmux("show-options", "-t", scope(self.session))
         options = session_options(answer.out) if answer.ok else {}
         self.hide = bool(options.get(HIDE_OPTION))
+        self.moving = options.get(MOVING_OPTION, "")
         self.fold = bool(self.role) and self.role in options.get(FOLDED_OPTION, "").split(",")
         if self.role and self.role in options.get(HIDDEN_OPTION, "").split(","):
             raise resident_.Leave
@@ -2917,15 +2985,48 @@ class DeckPane(resident_.Control):
         rows = result.data if isinstance(result.data, list) else []
         return column_.summary(self.role, rows, ok=result.ok, note=self.note())
 
+    def band_place(self) -> str:
+        if self.moving:
+            return "moving · click a column" if self.moving == self.role else "click to send here"
+        return self.hint or self.place
+
+    def on_title(self, y: int) -> bool:
+        """Whether screen line `y` (one-based) is this pane's title bar."""
+        if self.fold:
+            return y == 1
+        return 1 <= y <= len(self.lines) and self.lines[y - 1].strip().startswith(self.title)
+
+    def picked_up(self) -> bool:
+        """Pick this pane up, or put it down if it is up. Outside the grid, say where it works."""
+        if layout_of(self.session) != GRID:
+            self.hint = f"{SHORTCUTS['layout']} to grid to move"
+            return True
+        target = ("-t", scope(self.session))
+        if self.moving == self.role:
+            tmux("set-option", "-u", *target, MOVING_OPTION)
+            self.moving = ""
+        else:
+            tmux("set-option", *target, MOVING_OPTION, self.role)
+            self.moving = self.role
+        return True
+
     def on_key(self, key: str) -> bool:
         cell = keys_.clicked(key)
         if cell is not None:
+            self.poll()
+            self.hint = ""
+            if self.moving and self.moving != self.role:
+                send_pane(self.session, self.moving, self.role)
+                self.moving = ""
+                return True
+            if self.role and self.title and (self.moving == self.role or self.on_title(cell[1])):
+                return self.picked_up()
             row = clicked_row(self.lines, self.rows, cell[1])
             if self.role == QUEUE:
                 return row is not None and self.toggle(row)
             if self.clicks and row is not None and row.get("key"):
                 open_message(row["key"])
-            elif self.clicks and row is not None and row.get("kind") == "item":
+            elif self.role == DECISIONS and row is not None and row.get("kind") == "item":
                 open_decision(str(row["agent"]), int(row["n"]))
             return False
         return self.wheel and self.move(key)
@@ -3902,6 +4003,7 @@ def deck_decide_list(every: bool, refresh: int | None, ticks: int | None, screen
 # [[jobs]] round 1; `tests/test_deck.py` fails on a subcommand that did not choose.
 mark(deck, sb_acts=True)
 mark(deck_open, sb_acts=True)
+mark(deck_column_move, sb_acts=True)
 mark(deck_add, sb_acts=True)
 mark(deck_terminal, sb_acts=True)
 mark(deck_plus, sb_acts=True)

@@ -295,6 +295,10 @@ class Control:
     def summary(self, result: Result | None) -> str:
         return ""
 
+    def band_place(self) -> str:
+        """What the top band says at its right end when `title` is set."""
+        return self.place
+
     def framed(self, lines: list[str]) -> None:
         """The frame just drawn, one plain string per screen line. Called only when `clicks`."""
 
@@ -702,7 +706,9 @@ def reside(
         else:
             shown = body if screen else clip(body, room(out))
         if control is not None and control.title:
-            top, _ = chrome_.status_bands(dataclasses.replace(facts, place=control.place), clock(), room_across())
+            top, _ = chrome_.status_bands(
+                dataclasses.replace(facts, place=control.band_place()), clock(), room_across()
+            )
             top_text = band_text(top)
         if control is not None and control.head:
             top_text.stylize_before(control.head)
