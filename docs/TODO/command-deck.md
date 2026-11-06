@@ -7,7 +7,7 @@ agent_value: 3
 shelf_status: in-progress
 updated: 2026-11-06
 tags: [agents, act, tmux, surfaces]
-summary: Adds `sb deck`, a tmux session holding one window per agent, plus a queue of sessions waiting on the operator, read by both surfaces. It is the first act surface beside the observe-only canvas.
+summary: Adds `sb deck`, a tmux session holding one window per agent, plus a queue of sessions waiting on the operator, read by both surfaces. It is the first surface built to act, and the long-term goal is that it fuses with the canvas.
 ---
 
 # The deck: a tmux command center for agent sessions
@@ -90,8 +90,9 @@ exists and has been read.
 ### The canvas gets the queue read-only
 
 The queue is `sb deck queue`, an observe returning an envelope, so the canvas can pin it like any
-read. `sb agents` already shows the same `waiting` word there today. Jumping to a window stays on the deck, because the
-canvas is observe-only.
+read. `sb agents` already shows the same `waiting` word there today. Jumping to a window stays on the
+deck for now. The reason given here until 2026-11-06, that the canvas is observe-only, no longer
+stands: see the Notes entry of that date.
 
 ## Phase 1: measure
 
@@ -1019,3 +1020,13 @@ kept the TODOS pane's pid.
   the `+` do it. The file's other readers are unchanged.
 - **A hand-run restore showed a gap:** a save holding terminals and no agent tabs reopened no terminal,
   because `restored()` returns nothing without tabs. The terminals are now read on their own.
+
+### 2026-11-06: the canvas stops being a monitoring surface
+
+- **Why:** Jeston set a long-term goal that this deck and the canvas fuse into one surface, and
+  dropped the monitoring declaration to allow it. [[fundamentals]] has the decision, and [[open]]
+  item 25 has what it adds and rebuilds.
+- **Superseded here:** "`sb ui` stays observe-only" in the opening ruling. It is left as written,
+  because it records what was ruled on 2026-11-04.
+- **Nothing in the deck changed.** It stays the place agents are driven from until a later round
+  says otherwise.

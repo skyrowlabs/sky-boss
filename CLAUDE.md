@@ -115,13 +115,15 @@ document, and correct the document when it has fallen behind.
 
 ## Scope
 
-There is no taxonomy to defend yet. **Act versus observe is a property of the surface, and every
-command still says which it is.** On 2026-11-04 Jeston dropped the rule that `sb run` is the only
-top-level command that acts. The canvas (`sb ui`) is a monitoring surface and stays one, unchanged:
-it reads each command's `acts` bit, refuses an act a cadence, and asks before running one. The deck
-([[command-deck]]) is an act surface. What survives is the per-command split: a command asserts
-whether it acts, nested ones included, and a command that wants to both read and write is still two
-commands.
+There is no taxonomy to defend yet. **Act versus observe is a property of the command, and no
+surface is limited to one of them.** On 2026-11-04 Jeston dropped the rule that `sb run` is the only
+top-level command that acts, and on 2026-11-06 dropped the declaration that the canvas is a
+monitoring surface. The long-term goal is that the canvas (`sb ui`) and the deck ([[command-deck]])
+fuse into one surface; [[open]] item 25 lists what that adds and rebuilds. Neither surface's
+behaviour changed with the declaration: the canvas still reads each command's `acts` bit, refuses an
+act a cadence, and asks before running one. What survives is the per-command split: a command
+asserts whether it acts, nested ones included, and a command that wants to both read and write is
+still two commands.
 
 **`sb job` is the group that returned, on 2026-09-01, and it splits exactly that way**: `list`
 observes, while `run`, `install` and `uninstall` act and say so. What matters is that the split

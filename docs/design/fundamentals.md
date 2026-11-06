@@ -412,6 +412,22 @@ cadence is a scheduler nobody asked for. Both still hold, per command: each comm
 and the canvas still refuses an act a cadence. What changed is only the claim that the set of
 acting commands has one member.
 
+### 2026-11-06 — the canvas stops being a monitoring surface
+
+**Reversed: "the canvas stays a monitoring surface", two days after it was written.** Jeston set a
+long-term goal instead: the canvas and the deck fuse into one surface. It came from asking whether
+the deck could be a tab in the canvas. A terminal tab cannot ask before each keystroke, so the
+declaration would have had to bend for even the smallest version of that.
+
+**The declaration was already narrower than the surface.** The canvas runs acts behind a
+confirmation and writes `tools.toml`, so *monitoring* described what it was for, not what it did.
+
+**So act versus observe goes back to being a property of the command.** The 2026-11-04 entry moved
+it to the surface, and one surface doing both cannot hold it there. Every rule that protects a
+command stands: `acts` is asserted per command, an act is refused a cadence, and an act from the
+palette or the rail is confirmed. Nothing was built with this decision and neither surface's
+behaviour changed. `docs/open.md` item 25 holds the inventory and the questions left to rule.
+
 ## Open questions
 
 One held deliberately; the concept is otherwise closed and further detail belongs in feature
