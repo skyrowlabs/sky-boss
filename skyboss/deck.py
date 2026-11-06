@@ -40,6 +40,7 @@ from typing import Callable
 import rich_click as click
 
 from skyboss import agents as agents_
+from skyboss import background
 from skyboss import column as column_
 from skyboss import decksave
 from skyboss import keys as keys_
@@ -2504,8 +2505,11 @@ class DeckPane(resident_.Control):
         self.session = session
         self.role = role
         self.head = "sb.deck.head"
-        # MESSAGES and DECISIONS open a clicked row in a popup; `rows` and `lines` are what the last frame drew.
-        self.clicks = role in (MESSAGES, DECISIONS)
+        # MESSAGES and DECISIONS open a clicked row in a popup, and QUEUE unfolds one; `rows` and
+        # `lines` are what the last frame drew, and `open` is the sessions QUEUE has unfolded.
+        self.clicks = role in (MESSAGES, DECISIONS, QUEUE)
+        self.open: set[str] = set()
+        self.pad = 1
         self.rows: list[dict] = []
         self.lines: list[str] = []
         self.fold = False
@@ -2536,11 +2540,18 @@ class DeckPane(resident_.Control):
     def shape(self, result: Result) -> Result:
         self.poll()
         self.hidden = 0
-        if not self.hide or not isinstance(result.data, list):
+        if not isinstance(result.data, list):
             return result
-        kept = [row for row in result.data if self.keeps(row)]
-        self.hidden = len(result.data) - len(kept)
-        return replace(result, data=kept)
+        shaped = result
+        if self.hide:
+            kept = [row for row in result.data if self.keeps(row)]
+            self.hidden = len(result.data) - len(kept)
+            shaped = replace(result, data=kept)
+        if self.role == QUEUE:
+            rows = unfolded(shaped.data, self.open)
+            self.rows = rows
+            return replace(shaped, data=rows, view=view_of(rows) if rows else shaped.view)
+        return shaped
 
     def note(self) -> str:
         # Information, so the footer and not a warning; the count stays so hidden never reads as none.
@@ -2563,12 +2574,22 @@ class DeckPane(resident_.Control):
         cell = keys_.clicked(key)
         if cell is not None:
             row = clicked_row(self.lines, self.rows, cell[1])
+            if self.role == QUEUE:
+                return row is not None and self.toggle(row)
             if self.clicks and row is not None and row.get("key"):
                 open_message(row["key"])
             elif self.clicks and row is not None and row.get("kind") == "item":
                 open_decision(str(row["agent"]), int(row["n"]))
             return False
         return self.wheel and self.move(key)
+
+    def toggle(self, row: dict) -> bool:
+        """Unfold a queue row's background jobs, or fold them. Whether anything changed."""
+        ident = str(row.get("id") or "")
+        if not ident or not row.get("jobs"):
+            return False
+        self.open ^= {ident}
+        return True
 
     def framed(self, lines: list[str]) -> None:
         self.lines = lines
@@ -2799,6 +2820,46 @@ def _row(where: str, window: str, status: str, session, pid: int, now: datetime,
         "pid": pid,
         "id": session.id if session else "",
         "started": started.isoformat() if started else "",
+        "bg": "",
+        "jobs": [],
+    }
+
+
+def with_jobs(row: dict, parent_of: dict[int, int], proc: Path, now: datetime) -> dict:
+    """`row` with what its session has running beside it, which a click on it unfolds."""
+    if not row["id"]:
+        return row
+    from skyboss import messages as messages_
+
+    found = background.subagents(row["cwd"], row["id"], messages_.projects_dir(), now.timestamp())
+    found += background.shells(row["pid"], parent_of, proc)
+    count = background.counted(found)
+    return {**row, "bg": f"▸ {count}" if count else "", "jobs": [job.to_dict() for job in found]}
+
+
+def unfolded(rows: list[dict], opened: set[str]) -> list[dict]:
+    """The queue's rows, each session in `opened` followed by a row per background job."""
+    out: list[dict] = []
+    for row in rows:
+        if row["id"] not in opened or not row["jobs"]:
+            out.append(row)
+            continue
+        out.append({**row, "bg": row["bg"].replace("▸", "▾")})
+        out += [_job_row(job) for job in row["jobs"]]
+    return out
+
+
+def _job_row(job: dict) -> dict:
+    window = f"  ↳ {job['kind']}"
+    blank = {key: "" for key in (*INLINE, *HIDDEN)}
+    return {
+        **blank,
+        "window": window,
+        "window_parts": [[window, "sb.muted"]],
+        "state_parts": [["", None]],
+        "name": job["label"],
+        "up": job["age"],
+        "jobs": [],
     }
 
 
@@ -2897,7 +2958,12 @@ def claimed(sessions: list) -> tuple[set[str] | None, str]:
 
 
 def queue_rows(
-    listed: list[Pane], sessions: list, parent_of: dict[int, int], now: datetime, paint: bool = False
+    listed: list[Pane],
+    sessions: list,
+    parent_of: dict[int, int],
+    now: datetime,
+    paint: bool = False,
+    proc: Path = Path("/proc"),
 ) -> list[dict]:
     """One row per deck window, most active first; then every live session outside the deck, the same way.
 
@@ -2914,11 +2980,11 @@ def queue_rows(
         for window_id, label, status, session, pid in entries
     ]
     outside = [_row("outside", "", s.status, s, s.pid, now) for s in sessions if s.id not in claimed]
-    return _by_activity(inside) + _by_activity(outside)
+    return [with_jobs(row, parent_of, proc, now) for row in _by_activity(inside) + _by_activity(outside)]
 
 
-INLINE = ("where", "window", "state", "name", "up", "cwd")
-HIDDEN = ("window_parts", "state_parts", "status", "pid", "id", "started")
+INLINE = ("where", "window", "state", "bg", "name", "up", "cwd")
+HIDDEN = ("window_parts", "state_parts", "status", "pid", "id", "started", "jobs")
 
 
 def view_of(rows: list[dict]) -> dict:
@@ -2972,7 +3038,7 @@ def queue_result(
             if not answer.ok:
                 result.degrade(f"could not list the deck's tabs — {_said(answer)}")
 
-    rows = queue_rows(listed, sessions, parents(proc), datetime.now(timezone.utc), paint)
+    rows = queue_rows(listed, sessions, parents(proc), datetime.now(timezone.utc), paint, proc)
     result.data = rows if scope == "all" else [r for r in rows if r["where"] == scope]
     if not result.data:
         result.warn(f"no sessions {agents_.PLACES[scope]}" if rows else agents_.empty_reason(tally, len(chosen)))
@@ -3017,7 +3083,8 @@ def deck_queue(refresh: int | None, ticks: int | None, screen: bool, scope: str)
 
     An observe — a window may pin it. One row per deck window with its `claude`
     pid and the registry's `status` word, `waiting` first; a window with no
-    record reads `unregistered`. Live sessions outside the deck follow.
+    record reads `unregistered`. Live sessions outside the deck follow. `bg`
+    counts a session's sub-agents and shells (`2a 1s`); click a row to unfold them.
     """
     once = functools.partial(queue_result, scope=scope, paint=bool(refresh and screen))
     config, _ = load()

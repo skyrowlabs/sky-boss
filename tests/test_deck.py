@@ -888,7 +888,7 @@ def test_the_envelope_carries_an_authored_view(fake, home, tmp_path):
     fake.add("sb", "jam", agent="jam", role="agent", pid=10)
     result = queue_result([Adapter([a_session(10, "waiting")])], proc=tmp_path / "absent")
     assert result.ok and result.view["authored"] is True
-    assert [c["key"] for c in result.view["columns"]] == ["where", "window", "state", "name", "up", "cwd"]
+    assert [c["key"] for c in result.view["columns"]] == ["where", "window", "state", "bg", "name", "up", "cwd"]
     assert result.data[0]["status"] == "waiting"
 
 

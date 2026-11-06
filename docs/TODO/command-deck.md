@@ -377,6 +377,12 @@ decided items in DECISIONS, which M-x did not touch. He ruled on both fixes.
 - [x] **No deck job exits non-zero**, as tmux prints that over the current pane.
 - [x] **TODOS draws only agents with a list.**
 
+## Phase 15 (round 14): padding, and what a session has running
+
+- [x] **The tool panes are padded**: a cell each side and a row above. tmux has no pane padding, so the
+  Claude tabs stay edge to edge, as Jeston wanted. A folded pane stays one full line.
+- [x] **NEEDS YOU counts each session's sub-agents and shells** in `bg`, and a click unfolds them.
+
 ## Dropped, and why
 
 - **Binding Ctrl-C for exit.** It is claude's interrupt, and forwarding it would put every
@@ -875,3 +881,13 @@ kept the TODOS pane's pid.
 - **`rule` is not a list command.** It needs a terminal and refuses inside a tab, so an agent cannot
   rule on itself. A ruling not yet told survives M-x.
 - **Does not do:** tell an agent while its tab is busy or scrolled; the ruling waits, marked `untold`.
+
+### 2026-11-05: round 14 built, padding and background jobs
+
+- **Why:** Jeston's rulings, in the tab.
+- **`skyboss/background.py` is a second reader under `~/.claude/projects`, beside MESSAGES, on his
+  ruling.** It reads `meta.json` and `stat`s the transcript, and never opens a conversation.
+- **Measured on Claude Code 2.1.318:** no field says a sub-agent finished, and finished ones ended on
+  a `user` entry, so the last entry is no signal either. So `up` says how long ago it wrote, it is
+  never called running, and after ten quiet minutes it leaves.
+- **A foreground and a background shell look alike** in the process tree, so both are drawn.
