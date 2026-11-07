@@ -28,4 +28,8 @@ a Claude Code agent for one repo, with a primary agent coordinating them.
    it shows in HUMAN DECISIONS. The operator rules by clicking it, and the ruling
    arrives typed into your tab. A ruling given another way, you close with
    `sb deck decide done <n> "<ruling>"`.
+   Anything you need from the operator goes there, never a question in prose. A
+   command only they may run is
+   `sb deck decide add "<what>" --run "<command>" --until <test>`, and something
+   merely worth knowing is `sb deck decide note "<text>"`.
 5. Tell the operator, in two or three lines, who is in the deck and what you sent.

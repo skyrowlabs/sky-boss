@@ -1,0 +1,9 @@
+{
+  "description": "Mirror what a deck tab asks the operator into HUMAN DECISIONS.",
+  "hooks": {
+    "PermissionRequest": [{"matcher": "*", "hooks": [{"type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/../sb\" deck ask", "timeout": 10}]}],
+    "PermissionDenied": [{"matcher": "*", "hooks": [{"type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/../sb\" deck ask", "timeout": 10}]}],
+    "UserPromptSubmit": [{"hooks": [{"type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/../sb\" deck ask", "timeout": 10}]}],
+    "Stop": [{"hooks": [{"type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/../sb\" deck ask", "timeout": 10}]}]
+  }
+}

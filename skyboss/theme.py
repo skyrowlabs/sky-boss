@@ -505,6 +505,7 @@ def tmux_styles() -> dict[str, str]:
         "scroll-thumb": f"fg={BRAND} bg={SURFACE}",
         "scroll-track": f"fg={TEXT_3} bg={SURFACE}",
         "needs-you": f"fg={BG} bg={WARN} bold",
+        "tab-asked": f"fg={WARN}",
         "quiet": f"fg={TEXT_2}",
         "unregistered": f"fg={TEXT_2} italics",
         "border": f"fg={TEXT_3}",

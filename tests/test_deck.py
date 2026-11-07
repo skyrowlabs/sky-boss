@@ -938,6 +938,7 @@ def test_queue_refresh_off_a_terminal_is_ndjson(fake, home, monkeypatch):
 def test_the_queue_is_an_observe_and_the_rest_act():
     acts = {name: getattr(command, "sb_acts") for name, command in deck_.deck.commands.items()}
     assert acts == {
+        "ask": True,
         "open": True,
         "add": True,
         "terminal": True,
@@ -964,7 +965,10 @@ def test_the_queue_is_an_observe_and_the_rest_act():
         "pick": True,
         "move": True,
     }
-    for group, more in ((deck_.deck_todo, {"clear": True}), (deck_.deck_decide, {"clear": True, "rule": True})):
+    for group, more in (
+        (deck_.deck_todo, {"clear": True}),
+        (deck_.deck_decide, {"clear": True, "rule": True, "act": True, "note": True, "sweep": True}),
+    ):
         assert {name: getattr(command, "sb_acts") for name, command in group.commands.items()} == {
             "add": True,
             "done": True,
