@@ -1,0 +1,14 @@
+# Commands of a `[project.scripts]` entry that `tests/test_product_scripts.py` may
+# not hold to its rules, and why. `<script> <path>: reason`. A key covers what sits
+# under it, so `<script>: reason` covers the whole entry.
+#
+# Legitimate: a command built from data at run time, so a doc can name a word no
+# walk finds; a renamed command kept to say so, which exits 2 on `--help`; an entry
+# CI cannot import. NOT legitimate: a doc naming a command that went away. Fix the doc.
+#
+# An entry that no longer excuses anything is stale and fails that test.
+
+# ── Your entries go below this line ──────────────────────────────────────────
+#
+# skeletor renders nothing below this block, so a release's lines and yours are
+# never adjacent and merge cleanly.

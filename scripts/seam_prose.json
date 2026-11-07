@@ -98,6 +98,17 @@
       "f469994eceaa",
       "34d198abab30",
       "fded1532c392"
+    ],
+    "tests/product_scripts_allowlist.yaml": [
+      "8b5dab90d9ef",
+      "877294592c29",
+      "9f6eee6445fd",
+      "334359b90efe",
+      "9cdcb49ae4a9",
+      "0d40ef3bb76c",
+      "53b351a26c75",
+      "334359b90efe",
+      "fd79f6ea80fb"
     ]
   },
   "seams": {

@@ -108,6 +108,21 @@ def _link_node_modules(target: Path) -> None:
         detail("  npm ci")
 
 
+def start_point(base: str) -> str:
+    """What `worktree new` cuts from: origin's branch, or the local one if origin says it has none.
+
+    Only that answer falls back. An unreachable origin keeps failing, because a
+    stale local branch would be cut from without a word.
+    """
+    asked = ["git", "ls-remote", "--exit-code", "origin", f"refs/heads/{base}"]
+    local = ["git", "rev-parse", "-q", "--verify", f"refs/heads/{base}"]
+    absent = subprocess.run(asked, cwd=str(PROJECT_ROOT), capture_output=True).returncode == 2
+    if absent and subprocess.run(local, cwd=str(PROJECT_ROOT), capture_output=True).returncode == 0:
+        return base
+    run(["git", "fetch", "origin", base])
+    return f"origin/{base}"
+
+
 @click.group()
 def worktree() -> None:
     """Linked worktrees — one checkout per branch."""
@@ -116,7 +131,12 @@ def worktree() -> None:
 @worktree.command()
 @click.argument("path")
 @click.option("-b", "--branch", help="branch to create (defaults to the directory name)")
-@click.option("--base", default="develop", show_default=True)
+@click.option(
+    "--base",
+    default="develop",
+    show_default=True,
+    help="branch to cut from: origin's, or the local one when origin has no such branch",
+)
 def new(path: str, branch: str, base: str) -> None:
     """Create a worktree with its own branch, .env and scratch space."""
     target = Path(path).expanduser().resolve()
@@ -126,10 +146,11 @@ def new(path: str, branch: str, base: str) -> None:
         fail(f"{target} already exists")
         sys.exit(1)
 
-    run(["git", "fetch", "origin", base])
-    if run(["git", "worktree", "add", "-b", branch, str(target), f"origin/{base}"]).returncode != 0:
+    start = start_point(base)
+    if run(["git", "worktree", "add", "-b", branch, str(target), start]).returncode != 0:
         fail("git worktree add failed")
         sys.exit(1)
+    item(f"cut from {start}")
 
     # The .env is untracked, so a new tree has none — and a tree that cannot
     # boot is a tree whose suite silently skips everything.

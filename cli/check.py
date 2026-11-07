@@ -8,13 +8,15 @@ the code is.
 
 from __future__ import annotations
 
+import json
 import re
 import sys
 
 import click
 
 from scripts.gates import DOCS_GATES, PRE_PUSH_GATES, Gate
-from scripts.output import EXIT_NO_SUBJECT
+from scripts.git.green_stamp import clean_tree, record
+from scripts.output import EXIT_NO_SUBJECT, EXIT_REFUSED
 from scripts.paths import TMP_DIR
 from scripts.yaml_text import read_uncommented
 
@@ -175,6 +177,43 @@ def _docs() -> int:
     )
 
 
+#: The product scripts a node tree is gated on by name. The template ships none of
+#: them, because it does not pick a test runner.
+NODE_PRODUCT_SCRIPTS = ("typecheck", "test", "build")
+
+
+def _node_products() -> list:
+    """`package.json`'s product scripts, plus prettier, which CI runs and this did not.
+
+    A script present runs. One declared in `skeletor.requiredScripts` and missing is
+    refused, because deleting a gate must not pass; undeclared and missing has no
+    subject. `.github/scripts/node-gate.cjs` is the same rule in the job with no python.
+    """
+    manifest = PROJECT_ROOT / "package.json"
+    if not manifest.exists():
+        return []
+    try:
+        data = json.loads(manifest.read_text(encoding="utf-8"))
+    except ValueError as error:
+        fail(f"package.json cannot be read: {error}")
+        return [("package.json", EXIT_REFUSED)]
+    scripts = data.get("scripts") or {}
+    required = (data.get("skeletor") or {}).get("requiredScripts") or []
+    rows: list = []
+    if "format:check" in scripts:
+        rows.append(("prettier", run(["npm", "run", "format:check"]).returncode))
+    for name in NODE_PRODUCT_SCRIPTS:
+        if name in scripts:
+            rows.append((f"npm {name}", run(["npm", "run", name]).returncode))
+        elif name in required:
+            fail(f"package.json requires the `{name}` script and has none: a deleted gate does not pass")
+            rows.append((f"npm {name}", EXIT_REFUSED))
+        else:
+            no_subject(f"npm {name}: no such script in package.json")
+            rows.append((f"npm {name}", Declared(EXIT_NO_SUBJECT)))
+    return rows
+
+
 def _product(gates: list[Gate]) -> list:
     """Your gates from `scripts/gates.py`, run after the template's own."""
     results = [(gate, script(gate.script, *gate.args)) for gate in gates]
@@ -241,7 +280,7 @@ def scheduled(plan: bool, workflows: tuple, keep: bool) -> None:
 
 
 @check.command(name="pre-push")
-@click.option("--quick", is_flag=True, help="lint and docs only — skip the test suites")
+@click.option("--quick", is_flag=True, help="lint and docs only — skip the test suites, and write no green stamp")
 def pre_push(quick: bool) -> None:
     """Every gate CI blocks on that can run on this host, in fail-fastest order.
 
@@ -269,6 +308,7 @@ def pre_push(quick: bool) -> None:
     `ci.yml` and from this function, and fails when a gate is in neither.
     """
     _say_if_interpreter_differs()
+    tree = clean_tree()
     results = [
         ("lint", _lint()),
         ("output discipline", script("scripts/check_output_discipline.py")),
@@ -294,7 +334,12 @@ def pre_push(quick: bool) -> None:
         results.append(
             ("skip budget", script("scripts/check_skip_budget.py", "--suite", "unit", "--junit", str(junit)))
         )
-    sys.exit(summarize(results))
+        results += _node_products()
+    code = summarize(results)
+    # What scripts/hooks/pre-push reads: a push to a protected branch needs this.
+    if code == 0 and not quick:
+        record(tree)
+    sys.exit(code)
 
 
 #: The python this project was rendered for — what `ci.yml`'s single-version

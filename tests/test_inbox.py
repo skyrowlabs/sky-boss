@@ -69,6 +69,30 @@ def test_a_superseded_run_never_outlives_the_run_that_replaced_it():
     assert inbox.waiting_row(later_red)["jobs"] == ["pytest"]
 
 
+def in_run(run, name, conclusion):
+    url = f"https://github.com/o/r/actions/runs/{run}/job/1"
+    return {"workflowName": "CI", "name": name, "conclusion": conclusion, "detailsUrl": url}
+
+
+def test_a_matrix_placeholder_from_a_cancelled_run_never_outlives_it():
+    placeholder = "pytest ${{ matrix.python }}"
+    checks = [in_run(7, placeholder, "CANCELLED"), in_run(9, "pytest 3.14", "SUCCESS")]
+    assert inbox.latest_checks(checks) == [checks[1]]
+    assert inbox.waiting_row({**pr(), "statusCheckRollup": checks}) is None
+
+
+def test_a_job_only_the_older_run_had_goes_with_that_run():
+    checks = [in_run(7, "only-then", "FAILURE"), in_run(9, "pytest", "SUCCESS")]
+    assert inbox.latest_checks(checks) == [checks[1]]
+
+
+def test_runs_of_two_workflows_and_a_commit_status_do_not_retire_each_other():
+    other = {**in_run(3, "docs", "SUCCESS"), "workflowName": "Docs"}
+    status = {"context": "ci/external", "state": "SUCCESS"}
+    checks = [other, in_run(9, "pytest", "SUCCESS"), status]
+    assert len(inbox.latest_checks(checks)) == 3
+
+
 def test_one_job_name_in_two_workflows_is_two_checks():
     rollup = [
         {"workflowName": "CI", "name": "lint", "startedAt": "2", "conclusion": "SUCCESS"},
