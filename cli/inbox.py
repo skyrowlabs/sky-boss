@@ -102,10 +102,27 @@ def _conclusion(check: dict) -> str:
     return (check.get("conclusion") or check.get("state") or "").upper()
 
 
+def _run_id(check: dict) -> int | None:
+    """The Actions run a check belongs to; `None` for a commit status, which has no run."""
+    found = re.search(r"/actions/runs/(\d+)", check.get("detailsUrl") or "")
+    return int(found.group(1)) if found else None
+
+
 def latest_checks(rollup: list[dict]) -> list[dict]:
-    """Each check's newest run, since a rollup also holds the runs a later one superseded."""
+    """Each check's newest run, since a rollup also holds the runs a later one superseded.
+
+    Two steps, because a name does not survive a run: one cancelled before its matrix
+    expands reports `pytest ${{ matrix.python }}`, which no later name replaces. So a
+    workflow's older runs go first, then a re-run within one run is settled by name.
+    """
+    runs: dict[str | None, int] = {}
+    for check in rollup:
+        run = _run_id(check)
+        if run is not None:
+            runs[check.get("workflowName")] = max(run, runs.get(check.get("workflowName"), run))
+    current = [c for c in rollup if _run_id(c) in (None, runs.get(c.get("workflowName")))]
     newest: dict[tuple, dict] = {}
-    for check in sorted(rollup, key=lambda c: c.get("startedAt") or ""):
+    for check in sorted(current, key=lambda c: c.get("startedAt") or ""):
         newest[check.get("workflowName"), check.get("name") or check.get("context")] = check
     return list(newest.values())
 

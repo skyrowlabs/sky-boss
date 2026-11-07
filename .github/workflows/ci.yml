@@ -465,7 +465,16 @@ jobs:
       # built into node 22, so this costs no dependency. It does not replace the
       # headless render CLAUDE.md calls an obligation: a runner cannot see an
       # unpainted mark or a control off the edge of the screen.
-      - run: npm test
+      # `--if-present` would let a deleted script pass, so `package.json`'s
+      # `skeletor.requiredScripts` names the ones that must exist.
+      - name: typecheck
+        run: node .github/scripts/node-gate.cjs typecheck
+
+      - name: test
+        run: node .github/scripts/node-gate.cjs test
+
+      - name: build
+        run: node .github/scripts/node-gate.cjs build
 
   # A single context meaning "everything above passed". It exists for two
   # reasons and neither is decoration.

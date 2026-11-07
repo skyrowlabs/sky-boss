@@ -37,3 +37,9 @@ the loser is whoever runs them in the wrong order.
 - No default exports from shared modules — a renamed default import is invisible in review.
 - No side effects at import time in a module that anything else imports. Export a function.
 - `console.log` is for debugging, never for shipped code paths. Use the project logger.
+
+## Product gates
+
+`check pre-push` and the `node` job run `typecheck`, `test` and `build` when `package.json` has them, so a suite you add is gated without wiring. The template ships none, because it does not pick a test runner, and a tree without them prints `no subject`.
+
+Once a script exists, name it in `skeletor.requiredScripts` in `package.json`. Without that, deleting the script turns a red into `no subject`; with it, the run is refused.

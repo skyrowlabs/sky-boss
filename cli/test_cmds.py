@@ -7,15 +7,17 @@ list, no CI step per feature, nothing to forget to update.
 
 from __future__ import annotations
 
+import importlib.util
 import os
 import sys
 from typing import NamedTuple
 
 import click
 
-from scripts.paths import TMP_DIR
+from scripts.output import EXIT_NO_SUBJECT
+from scripts.paths import TESTS_DIR, TMP_DIR
 
-from .helpers import PROJECT_ROOT, run, shell, skip, step, summarize
+from .helpers import PROJECT_ROOT, detail, no_subject, run, script, shell, skip, step, summarize
 
 #: tests/test_cli_smoke.py runs this module's argument-less commands for real.
 SMOKE_EXECUTES = True
@@ -191,6 +193,38 @@ def all(ci: bool) -> None:
     """
     results = [(m, _pytest(m, (), ci)) for m, suite in SUITES.items() if suite.scheduled]
     sys.exit(summarize(results))
+
+
+@test.command()
+@click.argument("patch", type=click.Path(dir_okay=False))
+@click.option("--expect-red", metavar="TEST_ID", help="the test that must go red")
+@click.option("--expect-red-cmd", metavar="COMMAND", help="the command that must exit 1; 2 and 3 prove nothing")
+def plant(patch: str, expect_red: str | None, expect_red_cmd: str | None) -> None:
+    """Prove a gate catches PATCH, in a throwaway copy: green before it, red after."""
+    named = ["--expect-red", expect_red] if expect_red else []
+    named += ["--expect-red-cmd", expect_red_cmd] if expect_red_cmd else []
+    sys.exit(script("scripts/plant.py", str(patch), *named))
+
+
+def spawning_test_files() -> int:
+    """Test files importing `subprocess`, whose children keep the real clock."""
+    return sum("subprocess" in path.read_text(encoding="utf-8") for path in TESTS_DIR.rglob("test_*.py"))
+
+
+@test.command(name="clock-ahead")
+@click.argument("days", type=click.IntRange(min=1))
+@click.option("--suite", type=click.Choice(sorted(SUITES)), default="unit", show_default=True)
+def clock_ahead(days: int, suite: str) -> None:
+    """Run a suite with the clock DAYS ahead, to find what a date will break before it does."""
+    if importlib.util.find_spec("time_machine") is None:
+        no_subject("time-machine is not installed, so no clock can move")
+        detail(f"{sys.executable} -m pip install time-machine")
+        sys.exit(EXIT_NO_SUBJECT)
+    step(f"{suite} suite, {days} day(s) ahead")
+    children = spawning_test_files()
+    detail(f"only this process shifted: {children} test file(s) use subprocess, and children keep the real clock")
+    os.environ["CLOCK_AHEAD_DAYS"] = str(days)
+    sys.exit(run([sys.executable, "-m", "pytest", "tests/", "-m", suite, "-q", "-p", "scripts.clock_shift"]).returncode)
 
 
 @test.command(name="suites")

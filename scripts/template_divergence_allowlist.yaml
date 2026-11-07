@@ -4,7 +4,9 @@
 #
 # `path: reason`, or `path:label: reason` for several holds on one file, each of
 # which prints alone and can be deleted alone. A reason is required:
-# `scripts/allowlist.py` drops an entry without one.
+# `scripts/allowlist.py` drops an entry without one. The commit hook also parses
+# this file as YAML, so put double quotes round a reason that opens with a
+# backtick or holds a colon and a space; the reader takes them off.
 #
 # An entry records. It never changes a merge, a classification or an exit code,
 # and a reason that reads like a recipe is still only read by a person: a hunk
@@ -14,7 +16,8 @@
 # Three kinds of file need no entry, because an upgrade already sorts them: the
 # release version files and `tests/coverage_budget.json` are state, a file whose
 # whole template text survives with yours after it is appended, and a change
-# between a seam's two rules is not listed at all. A file that differs and has
+# between a seam's two rules is not listed at all. `tests/skip_budget.json` is not
+# state: raising it is a decision, so it takes a reason. A file that differs and has
 # neither an entry nor one of those shapes is undecided, and undecided is the
 # count an upgrade leads with.
 #
@@ -32,11 +35,13 @@
 # explanation above IS ordinary prose and does get rewritten, which is why the
 # rule sits at the bottom of it rather than at the top.
 
+.github/workflows/ci.yml:node-job: The node job stays id lint, name eslint, because eslint is a required context. It has no present guard, since package.json is always here.
 .github/actions/unit-setup/action.yml: Installs into a real .venv, because tests/test_readme.py runs ./sb with PATH pinned and the wrapper must find .venv/bin/python on a runner.
 .pre-commit-config.yaml: Excludes docs/design/sky-boss-demo.html from two whitespace hooks. It is a render with no generator here, so --all-files must not rewrite it.
 CLAUDE.md: The product's own guide. The template renders only a stub.
 README.md: The product's own README, with its badge row held diverged.
 cli/check.py: A comment only. It says the Python roots here differ from pyrightconfig.json, since the product is in skyboss/ and bin/skeletor-verify parses this literal.
+eslint.config.js: Declares each directory's world apart, browser, Node or both, and has no formatter, because a tool that reflows htm templates mangles the DOM. A new JS location needs its own block.
 pyproject.toml: Carries -p no:platformdirs, because .venv sees system site-packages for gi, plus pythonpath and asyncio_mode for the canvas's async session loop.
 pyrightconfig.json: Includes skyboss, the product, as well as the scaffolded cli. Without it the type checker never reads the product.
 scripts/check_commit_subjects.py: BOTS_EXEMPT_FROM_LENGTH held False by the 2026-09-26 ruling, so bot subjects keep the length cap. The line conflicts whenever an upgrade edits it, so port it.

@@ -1,0 +1,46 @@
+#!/bin/sh
+# Written by scripts/git/install_merge_drivers.py, from the tracked scripts/hooks/pre-push.
+# Change that file and run the installer again: `check pre-push` compares this copy to it.
+#
+# A push to develop or main needs evidence the pushed tree was checked. The tree
+# passes if a full `dev check pre-push` stamped it (scripts/git/green_stamp.py), or if it
+# equals the fetched tip of either branch, because CI has already seen that tree.
+#
+# A plain hook, not a pre-commit stage: that stage returns on the first ref with commits,
+# so `git push origin feature develop` would be judged on `feature` alone. Every line is read
+# here, and each is judged by the sha being pushed, never by HEAD.
+#
+# `git push --no-verify` skips this.
+
+remote=$1
+stamps="$(git rev-parse --git-common-dir)/green-stamps"
+refused=0
+
+while read -r _local_ref local_sha remote_ref _remote_sha; do
+    case "$remote_ref" in
+    "refs/heads/develop" | "refs/heads/main") ;;
+    *) continue ;;
+    esac
+    # A delete pushes the all-zero sha, and there is no tree to judge.
+    case "$local_sha" in
+    *[!0]*) ;;
+    *) continue ;;
+    esac
+
+    tree=$(git rev-parse --verify --quiet "$local_sha^{tree}")
+    [ -n "$tree" ] && [ -e "$stamps/$tree" ] && continue
+
+    seen=0
+    for branch in "develop" "main"; do
+        tip=$(git rev-parse --verify --quiet "refs/remotes/$remote/$branch^{tree}")
+        [ -n "$tree" ] && [ "$tip" = "$tree" ] && seen=1
+    done
+    [ "$seen" = 1 ] && continue
+
+    echo "❌ push refused: $remote_ref at $local_sha has no green stamp" >&2
+    echo "   Check out that commit with nothing uncommitted, run ./dev check pre-push, and push again." >&2
+    echo "   --quick never stamps, and neither does a run with uncommitted changes." >&2
+    refused=1
+done
+
+exit "$refused"
