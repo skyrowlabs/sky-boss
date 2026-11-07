@@ -218,7 +218,7 @@ def remove(session: str, agent: str, n: int, book: str = TODOS) -> TodoList:
 
 
 def clear_done(session: str, book: str = TODOS) -> tuple[dict[str, int], list[str]]:
-    """Drop every done item from every agent's list: agent → items removed, and unreadable lists.
+    """Drop every done item and every notice from every agent's list: agent → items removed, and unreadable lists.
 
     A list with nothing done is not rewritten, so its `updated` (the pane's order) holds still.
     """
@@ -233,7 +233,8 @@ def clear_done(session: str, book: str = TODOS) -> tuple[dict[str, int], list[st
         if todo is None:
             continue
         # An untold ruling stays: clearing it would leave its agent waiting on a question already answered.
-        kept = [item for item in todo.items if not item.done or item.untold]
+        # A notice needs no ruling, so a clear takes it as read.
+        kept = [item for item in todo.items if (not item.done and item.kind != NOTICE) or item.untold]
         if len(kept) == len(todo.items):
             continue
         cleared[agent] = len(todo.items) - len(kept)

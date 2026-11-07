@@ -1235,3 +1235,12 @@ kept the TODOS pane's pid.
 - **Reach:** a tab loads the plugin's hooks when it starts, so tabs already running get the
   `SessionStart` hook only at their next start. Until then, `/deck-connect` or `sb deck brief` hands
   them today's brief.
+
+### 2026-11-07: a clear takes a notice as read
+
+- **Reported:** the operator found that clearing left skyrow-workspace's items while it cleared the
+  other tabs'. The workspace found the row that stayed: a notice. A notice needs no ruling, so it is
+  never decided, and `decide clear` kept it until a click dismissed it.
+- `todos.clear_done` now drops a notice as well as a done item, so M-x takes it as read. Open
+  questions and actions stay, and so does a ruling not yet told. So does an open todo, which is the
+  agent's own work in flight.

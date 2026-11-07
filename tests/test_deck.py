@@ -2832,6 +2832,16 @@ def test_clearing_keeps_a_ruling_its_agent_has_not_heard(sb_state):
     assert [item.text for item in jam_decisions()] == ["a"]
 
 
+def test_a_clear_takes_an_open_notice_as_read_and_keeps_open_asks(sb_state):
+    from skyboss import todos
+
+    todos.add("sb", "jam", "news", todos.DECISIONS, kind=todos.NOTICE)
+    todos.add("sb", "jam", "take it?", todos.DECISIONS, ("yes",))
+    todos.add("sb", "jam", "merge", todos.DECISIONS, kind=todos.ACTION, run=["gh"])
+    todos.clear_done("sb", todos.DECISIONS)
+    assert [item.text for item in jam_decisions()] == ["take it?", "merge"]
+
+
 def test_a_titled_band_is_the_label_alone_with_no_corners():
     facts = chrome_.Chrome(source="deck todo", shape="resident", title="AGENT TODOs")
     top, bottom = chrome_.status_lines(facts, 0.0, 30)

@@ -4560,12 +4560,13 @@ def deck_decide_rm(n: int) -> Result:
 @deck_decide.command(name="clear")
 @emit
 def deck_decide_clear() -> Result:
-    """Remove every decided item from every agent's decisions in the deck.
+    """Remove every decided item and every notice from every agent's decisions in the deck.
 
         sb deck decide clear
 
     **This acts**, on all the deck's decision lists, from anywhere. Open questions
-    stay. M-x in the deck runs this with `todo clear`.
+    and actions stay; a notice needs no ruling, so a clear takes it as read. M-x
+    in the deck runs this with `todo clear`.
     """
     return _book_clear(todos_.DECISIONS, "decided item")
 
