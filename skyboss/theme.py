@@ -222,6 +222,12 @@ def _hex(rgb: tuple[float, float, float]) -> str:
     return "#" + "".join(f"{round(_gamma(c) * 255):02x}" for c in rgb)
 
 
+def fade(colour: str, keep: float, ground: str = SURFACE) -> str:
+    """`colour` keeping `keep` of itself over `ground`, mixed in linear light."""
+    r, g, b = (keep * _linear(a) + (1 - keep) * _linear(z) for a, z in zip(_rgb(colour), _rgb(ground)))
+    return _hex((r, g, b))
+
+
 def _to_oklab(colour: str) -> tuple[float, float, float]:
     r, g, b = (_linear(c) for c in _rgb(colour))
     lms = (

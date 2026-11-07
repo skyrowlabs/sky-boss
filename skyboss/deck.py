@@ -30,6 +30,7 @@ import shutil
 import subprocess
 import sys
 import textwrap
+import threading
 import time
 import tomllib
 from dataclasses import dataclass, field, replace
@@ -42,7 +43,7 @@ import rich_click as click
 from skyboss import agents as agents_
 from skyboss import background
 from skyboss import column as column_
-from skyboss import deckasks, deckplus, decksave
+from skyboss import deckasks, deckplus, decksave, deckwire
 from skyboss import keys as keys_
 from skyboss import resident as resident_
 from skyboss import theme
@@ -678,6 +679,10 @@ def tab_row(row: int, left: str) -> str:
 SCROLLBAR_OPTION = "@sb-scrollbar"
 
 
+#: The same row while a line runs between two tabs; `@sb-wire` holds the frame, and wins over the scrollbar.
+WIRE_OPTION = "@sb-wire"
+
+
 def tab_width(name: str) -> int:
     """A tab's visible width: its box (`│ name │`) and the space after it."""
     return len(name) + 5
@@ -740,6 +745,91 @@ def scroll_once(session: str) -> list[str]:
     return colouring + _session_options(name, ((SCROLLBAR_OPTION, scrollbar(span, room, left)),))
 
 
+def tab_centres(session: str, labels: dict[str, str]) -> dict[str, int]:
+    """Agent → the column under the middle of its tab, for the tabs tmux is showing now."""
+    name = inner(session)
+    clients = tmux("list-clients", "-t", f"={name}", "-F", "#{client_width}")
+    windows = tmux("list-windows", "-t", f"={name}", "-F", "#{window_active}\t#{window_id}\t#{window_name}")
+    widths = [int(w) for w in clients.out.split() if w.isdigit()] if clients.ok else []
+    rows = [line.split("\t", 2) for line in windows.out.splitlines() if line.count("\t") >= 2] if windows.ok else []
+    if not widths or not rows:
+        return {}
+    tabs = [tab_width(row[2]) for row in rows]
+    current = next((n for n, row in enumerate(rows) if row[0] == "1"), 0)
+    _, left = tab_lefts()
+    room = min(widths) - left - ADD_WIDTH
+    span = visible_span(tabs, current, room)
+    start, end = (span[0], span[1]) if span else (0, sum(tabs))
+    centres: dict[str, int] = {}
+    edge = 0
+    for row, width in zip(rows, tabs):
+        middle = edge + (width - 1) // 2
+        if start <= middle < end:
+            centres[labels.get(row[1], row[2])] = left + middle - start
+        edge += width
+    return centres
+
+
+def play_wire(session: str, frames: list[str]) -> None:
+    """Write each frame to the row under the tabs; tmux redraws on the write. Always ends blank."""
+    name = inner(session)
+    try:
+        for frame in frames:
+            _session_options(name, ((WIRE_OPTION, frame),))
+            SLEEP(deckwire.FRAME)
+    finally:
+        _session_options(name, ((WIRE_OPTION, ""),))
+
+
+def wire_of(fresh: list, placed: dict[str, str], names: set[str]) -> tuple[str, list[str]] | None:
+    """The newest sender among `fresh` messages between two tabs, and everyone it just told."""
+    pairs = []
+    for message in fresh:
+        sender = placed.get(message.sender_id) or (message.sender if message.sender in names else "")
+        receiver = placed.get(message.session, "")
+        if sender and receiver and sender != receiver:
+            pairs.append((sender, receiver))
+    if not pairs:
+        return None
+    sender = pairs[-1][0]
+    return sender, sorted({receiver for who, receiver in pairs if who == sender})
+
+
+@dataclass
+class Wires:
+    """What the marks loop has already drawn. Nothing before its first look is news."""
+
+    seen: set[str] | None = None
+    playing: threading.Thread | None = None
+
+    def look(self, session: str, listed: list[Pane], sessions: list, parent_of: dict[int, int]) -> None:
+        """Start a line for what arrived since the last look. One at a time: a burst keeps the newest."""
+        from skyboss import messages as messages_
+
+        claude = [s for s in sessions if s.provider == messages_.PROVIDER]
+        found, _ = messages_.collect(claude, messages_.projects_dir(), agents_.peer_index())
+        keys = {message.key for message in found}
+        fresh = [message for message in found if self.seen is not None and message.key not in self.seen]
+        self.seen = keys | (self.seen or set())
+        if not fresh or (self.playing is not None and self.playing.is_alive()):
+            return
+        entries, _ = deck_windows(listed, sessions, parent_of)
+        placed = {entry[3].id: entry[1] for entry in entries if entry[3] is not None}
+        labels = {p.window_id: p.agent or p.window for p in listed}
+        chosen = wire_of(fresh, placed, set(labels.values()))
+        centres = tab_centres(session, labels) if chosen else {}
+        if chosen is None or chosen[0] not in centres:
+            return
+        sender, receivers = chosen
+        targets = [centres[who] for who in receivers if who in centres]
+        if targets:
+            slot = agent_slots(listed).get(next(w for w, label in labels.items() if label == sender), 0)
+            hue = theme.agent_colour(sender, slot)
+            frames = deckwire.frames(centres[sender], targets, hue, theme.tmux_styles()["bar"])
+            self.playing = threading.Thread(target=play_wire, args=(session, frames), daemon=True)
+            self.playing.start()
+
+
 def window_options(tab: bool) -> tuple[tuple[str, str], ...]:
     style = theme.tmux_styles()
     common = (
@@ -795,7 +885,8 @@ def bar_options(tabs: bool, profile: str = "") -> tuple[tuple[str, str], ...]:
     if tabs:
         options += (("status", str(BAR_ROWS)),)
         options += tuple((f"status-format[{row}]", tab_row(row, lefts[row])) for row in range(TAB_ROWS))
-        options += ((f"status-format[{TAB_ROWS}]", "#{" + SCROLLBAR_OPTION + "}"),)
+        wire, bar_row = "#{" + WIRE_OPTION + "}", "#{" + SCROLLBAR_OPTION + "}"
+        options += ((f"status-format[{TAB_ROWS}]", f"#{{?{wire},{wire},{bar_row}}}"),)
     else:
         options += (("status-right", hints()), ("status-right-length", "140"), ("status-format[0]", FOOTER_FORMAT))
     return options
@@ -1191,7 +1282,11 @@ def save_now(session: str, adapters: list | None = None) -> tuple[list[decksave.
 
 
 def marks_once(
-    session: str, written: dict[str, str], adapters: list | None = None, colours: dict[str, str] | None = None
+    session: str,
+    written: dict[str, str],
+    adapters: list | None = None,
+    colours: dict[str, str] | None = None,
+    wires: Wires | None = None,
 ) -> Result:
     """Write each tab's state where it changed, and the time it was written. Acts on tmux only."""
     result = Result()
@@ -1226,6 +1321,8 @@ def marks_once(
         result.degrade(problem)
     for problem in tell_rulings(session, listed, states, labels):
         result.degrade(problem)
+    if wires is not None:
+        wires.look(session, listed, sessions, parent_of)
     if answer.ok:
         for problem in autosave(session, live_tabs(listed, sessions, parent_of)[0]):
             result.degrade(problem)
@@ -2734,7 +2831,9 @@ def deck_marks(every: int | None, ticks: int | None) -> Result:
 
     coloured: dict[str, str] = {}
     own = str(os.getpid())
-    _session_options(inner(config.session), ((MARKS_PID_OPTION, own),))
+    # A loop killed mid-line leaves its last frame behind.
+    _session_options(inner(config.session), ((MARKS_PID_OPTION, own), (WIRE_OPTION, "")))
+    wires = Wires()
     count = 0
     swept = time.monotonic()
     sweep: subprocess.Popen | None = None
@@ -2746,7 +2845,7 @@ def deck_marks(every: int | None, ticks: int | None) -> Result:
         owner = _marks_owner(config.session)
         if not has_session(inner(config.session)) or (owner is not None and str(owner) != own):
             break
-        marks_once(config.session, written, colours=coloured)
+        marks_once(config.session, written, colours=coloured, wires=wires)
         if ticks is not None and count >= ticks:
             break
         SLEEP(every)

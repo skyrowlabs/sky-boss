@@ -1169,3 +1169,16 @@ kept the TODOS pane's pid.
   short run does not flash and vanish.
 - **`sb agents` stays flat.** It reports the registry; only AGENT LIST nests. A busy child still
   reads as its tab's state, as it did.
+
+### 2026-11-07: a line between two tabs
+
+- **Why:** Jeston asked for a small aesthetic: a line that leaves the sender's tab downward, runs
+  along, enters the receiver's tab upward, and fades.
+- **It costs no height.** It uses the row under the tabs, blank unless they overflow, and wins over
+  the scrollbar for its second. `@sb-wire` holds the frame.
+- **Setting the option is the redraw.** Measured on tmux 3.8: about 2ms a write and on screen within
+  50ms, so no `refresh-client`. `deckwire.frames` is pure and a thread plays them, because a frame
+  rate cannot ride a three second tick.
+- **The marks loop notices, so a line trails its message by up to a tick.** One plays at a time. A
+  burst keeps its newest sender, with every receiver that sender just told tapped on one line.
+- **Sub-agents and sessions outside the deck draw nothing,** and neither does a tab scrolled off.
