@@ -770,64 +770,108 @@ def tab_centres(session: str, labels: dict[str, str]) -> dict[str, int]:
     return centres
 
 
-def play_wire(session: str, frames: list[str]) -> None:
-    """Write each frame to the row under the tabs; tmux redraws on the write. Always ends blank."""
-    name = inner(session)
-    try:
-        for frame in frames:
-            _session_options(name, ((WIRE_OPTION, frame),))
-            SLEEP(deckwire.FRAME)
-    finally:
-        _session_options(name, ((WIRE_OPTION, ""),))
-
-
-def wire_of(fresh: list, placed: dict[str, str], names: set[str]) -> tuple[str, list[str]] | None:
-    """The newest sender among `fresh` messages between two tabs, and everyone it just told."""
-    pairs = []
-    for message in fresh:
-        sender = placed.get(message.sender_id) or (message.sender if message.sender in names else "")
-        receiver = placed.get(message.session, "")
-        if sender and receiver and sender != receiver:
-            pairs.append((sender, receiver))
-    if not pairs:
-        return None
-    sender = pairs[-1][0]
-    return sender, sorted({receiver for who, receiver in pairs if who == sender})
-
-
 @dataclass
+class WireTabs:
+    """The deck as the marks loop last read it, for the wire's thread to draw from."""
+
+    placed: dict[str, str]
+    paths: dict[str, Path]
+    centres: dict[str, int]
+    hues: dict[str, str]
+    index: dict[tuple, str]
+
+
 class Wires:
-    """What the marks loop has already drawn. Nothing before its first look is news."""
+    """Lines between tabs. The marks loop reads the deck; a thread follows transcripts and draws."""
 
-    seen: set[str] | None = None
-    playing: threading.Thread | None = None
+    def __init__(self, session: str) -> None:
+        self.session = session
+        self.tabs: WireTabs | None = None
+        self.flights: dict[str, deckwire.Flight] = {}
+        self.tail = deckwire.Tail()
+        self.asked: dict[str, str] = {}
+        self.shown = ""
+        self.halt = threading.Event()
+        self.thread: threading.Thread | None = None
 
-    def look(self, session: str, listed: list[Pane], sessions: list, parent_of: dict[int, int]) -> None:
-        """Start a line for what arrived since the last look. One at a time: a burst keeps the newest."""
+    def update(self, listed: list[Pane], sessions: list, parent_of: dict[int, int]) -> None:
+        """Take in the deck as it stands, and start the thread on the first look."""
         from skyboss import messages as messages_
 
-        claude = [s for s in sessions if s.provider == messages_.PROVIDER]
-        found, _ = messages_.collect(claude, messages_.projects_dir(), agents_.peer_index())
-        keys = {message.key for message in found}
-        fresh = [message for message in found if self.seen is not None and message.key not in self.seen]
-        self.seen = keys | (self.seen or set())
-        if not fresh or (self.playing is not None and self.playing.is_alive()):
-            return
-        entries, _ = deck_windows(listed, sessions, parent_of)
-        placed = {entry[3].id: entry[1] for entry in entries if entry[3] is not None}
         labels = {p.window_id: p.agent or p.window for p in listed}
-        chosen = wire_of(fresh, placed, set(labels.values()))
-        centres = tab_centres(session, labels) if chosen else {}
-        if chosen is None or chosen[0] not in centres:
+        slots = agent_slots(listed)
+        placed: dict[str, str] = {}
+        paths: dict[str, Path] = {}
+        for _, label, _, found, _ in deck_windows(listed, sessions, parent_of)[0]:
+            if found is not None:
+                placed[found.id] = label
+                # A tab's own session comes first; one it spawned does not speak for the tab.
+                if found.provider == messages_.PROVIDER and label not in paths:
+                    paths[label] = messages_.transcript(found, messages_.projects_dir())
+        hues = {label: theme.agent_colour(label, slots.get(window, 0)) for window, label in labels.items()}
+        self.tabs = WireTabs(placed, paths, tab_centres(self.session, labels), hues, agents_.peer_index())
+        if self.thread is None:
+            self.thread = threading.Thread(target=self.run, daemon=True)
+            self.thread.start()
+
+    def run(self) -> None:
+        while not self.halt.is_set():
+            now = time.monotonic()
+            self.step(now)
+            moving = any(flight.moving(now) for flight in self.flights.values())
+            self.halt.wait(deckwire.FRAME if moving else deckwire.POLL)
+
+    def stop(self) -> None:
+        self.halt.set()
+        if self.thread is not None:
+            self.thread.join(timeout=2)
+        self.write("")
+
+    def receiver_of(self, to: str, tabs: WireTabs) -> str:
+        """The tab a SendMessage's `to` names: a `uds:` socket, or a name with an optional ` [ref]`."""
+        if to.startswith("uds:"):
+            return tabs.placed.get(tabs.index.get(("socket", to[4:]), ""), "")
+        name = to.split(" [")[0]
+        return name if name in tabs.hues else ""
+
+    def sender_of(self, origin: dict, tabs: WireTabs) -> str:
+        from skyboss import messages as messages_
+
+        known = messages_.sender_of(origin, tabs.index, set(tabs.placed))
+        name = str(origin.get("name") or "")
+        return tabs.placed.get(known) or (name if name in tabs.hues else "")
+
+    def hear(self, owner: str, entry: deckwire.Sent | dict, tabs: WireTabs, now: float) -> None:
+        """One transcript entry from `owner`'s tab. A receipt with no line seen leaving still draws one."""
+        if isinstance(entry, deckwire.Sent):
+            receiver = self.receiver_of(entry.to, tabs)
+            if entry.msg_id and receiver and receiver != owner:
+                self.flights.setdefault(entry.msg_id, deckwire.Flight(owner, receiver, now))
             return
-        sender, receivers = chosen
-        targets = [centres[who] for who in receivers if who in centres]
-        if targets:
-            slot = agent_slots(listed).get(next(w for w, label in labels.items() if label == sender), 0)
-            hue = theme.agent_colour(sender, slot)
-            frames = deckwire.frames(centres[sender], targets, hue, theme.tmux_styles()["bar"])
-            self.playing = threading.Thread(target=play_wire, args=(session, frames), daemon=True)
-            self.playing.start()
+        msg_id = str(entry.get("msg_id") or "")
+        sender = self.sender_of(entry, tabs)
+        if msg_id and sender and sender != owner:
+            flight = self.flights.setdefault(msg_id, deckwire.Flight(sender, owner, now))
+            flight.landed = now if flight.landed is None else flight.landed
+
+    def step(self, now: float) -> None:
+        tabs = self.tabs
+        if tabs is None:
+            return
+        for owner, path in tabs.paths.items():
+            for line in self.tail.read(path):
+                entry = deckwire.read_entry(line, self.asked)
+                if entry is not None:
+                    self.hear(owner, entry, tabs, now)
+        self.flights = {key: flight for key, flight in self.flights.items() if not flight.over(now)}
+        live = [f for f in self.flights.values() if f.sender in tabs.hues and f.receiver in tabs.hues]
+        self.write(deckwire.compose(live, tabs.centres, tabs.hues, now, theme.tmux_styles()["bar"]))
+
+    def write(self, frame: str) -> None:
+        """Set the row; tmux redraws on the write, so an unchanged row is not written."""
+        if frame != self.shown:
+            self.shown = frame
+            _session_options(inner(self.session), ((WIRE_OPTION, frame),))
 
 
 def window_options(tab: bool) -> tuple[tuple[str, str], ...]:
@@ -1322,7 +1366,7 @@ def marks_once(
     for problem in tell_rulings(session, listed, states, labels):
         result.degrade(problem)
     if wires is not None:
-        wires.look(session, listed, sessions, parent_of)
+        wires.update(listed, sessions, parent_of)
     if answer.ok:
         for problem in autosave(session, live_tabs(listed, sessions, parent_of)[0]):
             result.degrade(problem)
@@ -2833,22 +2877,25 @@ def deck_marks(every: int | None, ticks: int | None) -> Result:
     own = str(os.getpid())
     # A loop killed mid-line leaves its last frame behind.
     _session_options(inner(config.session), ((MARKS_PID_OPTION, own), (WIRE_OPTION, "")))
-    wires = Wires()
+    wires = Wires(config.session)
     count = 0
-    swept = time.monotonic()
-    sweep: subprocess.Popen | None = None
-    while ticks is None or count < ticks:
-        count += 1
-        if time.monotonic() - swept >= SWEEP_EVERY:
-            swept = time.monotonic()
-            sweep = start_sweep(sweep)
-        owner = _marks_owner(config.session)
-        if not has_session(inner(config.session)) or (owner is not None and str(owner) != own):
-            break
-        marks_once(config.session, written, colours=coloured, wires=wires)
-        if ticks is not None and count >= ticks:
-            break
-        SLEEP(every)
+    try:
+        swept = time.monotonic()
+        sweep: subprocess.Popen | None = None
+        while ticks is None or count < ticks:
+            count += 1
+            if time.monotonic() - swept >= SWEEP_EVERY:
+                swept = time.monotonic()
+                sweep = start_sweep(sweep)
+            owner = _marks_owner(config.session)
+            if not has_session(inner(config.session)) or (owner is not None and str(owner) != own):
+                break
+            marks_once(config.session, written, colours=coloured, wires=wires)
+            if ticks is not None and count >= ticks:
+                break
+            SLEEP(every)
+    finally:
+        wires.stop()
     raise click.exceptions.Exit(0)
 
 

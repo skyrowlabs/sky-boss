@@ -1182,3 +1182,18 @@ kept the TODOS pane's pid.
 - **The marks loop notices, so a line trails its message by up to a tick.** One plays at a time. A
   burst keeps its newest sender, with every receiver that sender just told tapped on one line.
 - **Sub-agents and sessions outside the deck draw nothing,** and neither does a tab scrolled off.
+
+### 2026-11-07: the line follows the message in flight
+
+- **Why:** the first live run showed a line waiting on a busy receiver, and Jeston asked for it to
+  draw when the message fires, in the sender's hue, and to take the receiver's hue and fade only
+  once received.
+- **`msg_id` ties the two ends.** A SendMessage's result carries it in the sender's transcript, and
+  the peer entry carries it in the receiver's. A receipt with no send seen, as from a sub-agent's
+  transcript, still draws a line.
+- **A thread follows the transcripts' tails** every half second, as a three second tick was too
+  slow for "when it fires". The marks loop only hands it the deck as it stands.
+- **Lines can overlap now, and join where they do.** A cell's shape is the union of what crosses it,
+  so one sender's fan-out reads as one tapped line, and the newest colours a shared cell. This
+  retires "one plays at a time".
+- **A receiver that never reads** loses its line after fifteen minutes.
