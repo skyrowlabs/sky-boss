@@ -1147,3 +1147,14 @@ kept the TODOS pane's pid.
 - **The rule is generic and the heading is not.** An ask in a report or a message also goes in as a
   row, from the tab that acts on it. A report heading is one workspace's convention, and this repo
   is public, so a deck that wants its heading named says so in the profile's `brief`.
+
+### 2026-11-07: a ruling no longer waits on the word `idle`
+
+- **Why:** a clicked ruling sat unsent on proto-pilot and skeletor. `tell_rulings` typed only at
+  `idle`, and a tab with background work reads `shell` or `busy` at its prompt, for as long as the
+  work runs. Nothing was lost and the order held, but the wait had no bound.
+- **`shell` takes a ruling at once.** The turn is over.
+- **`busy` takes one after two minutes,** by Jeston's ruling, reversing "a ruling typed for a busy
+  tab waits safely". Probed on a real tab first: the line queued and arrived as the next turn.
+- **`waiting` never does,** which keeps a prompt out of the deck's reach. The state is read once a
+  tick, so a prompt opening in that gap on a busy tab is the remaining exposure.

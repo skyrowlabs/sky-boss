@@ -1079,6 +1079,12 @@ def live_tabs(listed: list[Pane], sessions: list, parent_of: dict[int, int]) -> 
     return list(held.values()), [name for window_id, name in agents.items() if window_id not in held]
 
 
+#: Registry words whose turn is over, so a ruling types straight in.
+TELL_AT_ONCE = ("idle", "shell")
+#: Seconds a ruling waits on a tab reading `busy` before it is typed in anyway.
+BUSY_TELL_AFTER = 120.0
+
+
 def ruling_line(n: int, item: todos_.Item) -> str:
     """What an agent reads in its tab when the operator rules from the HUMAN DECISIONS pane."""
     if item.kind == todos_.ACTION:
@@ -1086,20 +1092,47 @@ def ruling_line(n: int, item: todos_.Item) -> str:
     return f'The operator ruled on your decision {n}, "{item.text}": {item.ruling}'
 
 
-def tell_rulings(session: str, listed: list[Pane], states: dict[str, str], labels: dict[str, str]) -> list[str]:
-    """Type one untold ruling into each idle agent's tab. Never into a busy tab or a scrolled pane."""
+def may_tell(state: str, closed: str, now: datetime) -> bool:
+    """Whether a tab in `state` takes a ruling closed at `closed`. A prompt is never typed into.
+
+    `shell` is a finished turn with a background job. `busy` also reads through a background
+    agent with the tab at its prompt, so it takes a ruling once `BUSY_TELL_AFTER` has passed:
+    Claude Code queues the line for its next turn.
+    """
+    if state in TELL_AT_ONCE:
+        return True
+    if state != "busy":
+        return False
+    try:
+        return (now - datetime.fromisoformat(closed)).total_seconds() >= BUSY_TELL_AFTER
+    except ValueError:
+        return True
+
+
+def tell_rulings(
+    session: str,
+    listed: list[Pane],
+    states: dict[str, str],
+    labels: dict[str, str],
+    now: datetime | None = None,
+) -> list[str]:
+    """Type one untold ruling into each agent's tab `may_tell` allows. Never into a scrolled pane."""
     problems: list[str] = []
+    moment = now or datetime.now(timezone.utc)
     for pane in listed:
         agent = labels.get(pane.window_id, "")
-        if pane.role != AGENT or states.get(pane.window_id) != "idle":
+        state = states.get(pane.window_id, "")
+        if pane.role != AGENT or state not in (*TELL_AT_ONCE, "busy"):
             continue
         try:
             found = todos_.next_untold(session, agent)
         except ValueError as exc:
             problems.append(f"{agent}: {exc}")
             continue
+        if found is None or not may_tell(state, found[1].closed, moment):
+            continue
         scrolled = tmux("display-message", "-p", "-t", pane.pane_id, "#{pane_in_mode}")
-        if found is None or not scrolled.ok or scrolled.out.strip() == "1":
+        if not scrolled.ok or scrolled.out.strip() == "1":
             continue
         n, item = found
         typed = tmux("send-keys", "-t", pane.pane_id, "-l", ruling_line(n, item))
@@ -4067,7 +4100,8 @@ def deck_decide_rule(agent: str, n: int) -> None:
 
     **This acts**, and only for the operator: it needs a terminal, and refuses
     inside a tab, as an agent does not rule. Offers the decision's choices, or a
-    typed ruling. The agent is told in its tab once it is idle.
+    typed ruling. The agent is told in its tab once its turn is over, or after
+    two minutes of reading busy, and never at a prompt.
     """
     config, problems = load()
     warn_now(problems)
