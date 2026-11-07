@@ -36,7 +36,6 @@ from skyboss.deck import (
     resolve,
     tree,
 )
-from skyboss.messages import Message
 
 #: Host-side; nothing here needs a service or a tmux binary.
 pytestmark = [pytest.mark.unit]
@@ -806,22 +805,77 @@ def test_a_spawned_session_that_ended_stays_for_a_while_then_goes(tmp_path):
     assert background.ended({SCRATCH}, set(), tmp_path, wrote + background.RECENT + 1) == {}
 
 
-def wired(sender="", sender_id="", session=""):
-    return Message(None, sender, "", "", "", session, sender + session, sender_id)
+def wire_tabs(tmp_path):
+    paths = {name: tmp_path / f"{name}.jsonl" for name in ("api", "web")}
+    for path in paths.values():
+        path.write_text("")
+    hues = {"api": "#112233", "web": "#445566"}
+    index = {("socket", "/run/web.sock"): "w"}
+    return deck_.WireTabs({"a": "api", "w": "web"}, paths, {"api": 5, "web": 20}, hues, index)
 
 
-def test_a_line_runs_only_between_two_tabs_and_keeps_the_newest_sender():
-    placed = {"a": "api", "w": "web", "d": "docs"}
-    names = {"api", "web", "docs"}
-    outside = wired("stranger", "", "w")
-    to_itself = wired("api", "a", "a")
-    assert deck_.wire_of([outside, to_itself], placed, names) is None
-    older, one, two = wired("web", "w", "a"), wired("api", "a", "w"), wired("api", "a", "d")
-    assert deck_.wire_of([older, one, two], placed, names) == ("api", ["docs", "web"])
+def sent_lines(to, msg_id):
+    call = {"type": "tool_use", "id": "t1", "name": "SendMessage", "input": {"to": to}}
+    result = {"type": "tool_result", "tool_use_id": "t1"}
+    answer = {"type": "user", "message": {"content": [result]}, "toolUseResult": {"success": True, "msg_id": msg_id}}
+    return json.dumps({"type": "assistant", "message": {"content": [call]}}) + "\n" + json.dumps(answer) + "\n"
 
 
-def test_a_line_finds_its_sender_by_name_when_the_id_is_unverified():
-    assert deck_.wire_of([wired("api", "", "w")], {"w": "web"}, {"api", "web"}) == ("api", ["web"])
+def received_line(msg_id, name="api"):
+    return json.dumps({"type": "user", "origin": {"kind": "peer", "msg_id": msg_id, "name": name}}) + "\n"
+
+
+def wire_for(tabs):
+    wires = deck_.Wires("sb")
+    wires.tabs = tabs
+    for path in tabs.paths.values():
+        wires.tail.read(path)
+    wires.write = lambda frame: None
+    return wires
+
+
+def append(path, text):
+    with path.open("a") as handle:
+        handle.write(text)
+
+
+def test_a_line_starts_when_sent_and_waits_for_the_receiver(tmp_path):
+    tabs = wire_tabs(tmp_path)
+    wires = wire_for(tabs)
+    append(tabs.paths["api"], sent_lines("web", "m1"))
+    wires.step(1.0)
+    wires.step(100.0)
+    assert wires.flights["m1"].landed is None
+    append(tabs.paths["web"], received_line("m1"))
+    wires.step(101.0)
+    assert wires.flights["m1"].landed == 101.0
+    wires.step(103.0)
+    assert not wires.flights
+
+
+def test_a_sent_message_finds_its_receiver_by_socket_and_by_ref(tmp_path):
+    tabs = wire_tabs(tmp_path)
+    wires = wire_for(tabs)
+    assert wires.receiver_of("uds:/run/web.sock", tabs) == "web" and wires.receiver_of("web [3fa9c1]", tabs) == "web"
+    assert wires.receiver_of("stranger", tabs) == ""
+
+
+def test_a_receipt_with_no_line_seen_leaving_still_draws_one(tmp_path):
+    tabs = wire_tabs(tmp_path)
+    wires = wire_for(tabs)
+    append(tabs.paths["web"], received_line("m2"))
+    wires.step(1.0)
+    flight = wires.flights["m2"]
+    assert (flight.sender, flight.receiver, flight.landed) == ("api", "web", 1.0)
+
+
+def test_a_message_to_or_from_outside_the_tabs_draws_nothing(tmp_path):
+    tabs = wire_tabs(tmp_path)
+    wires = wire_for(tabs)
+    append(tabs.paths["api"], sent_lines("stranger", "m3"))
+    append(tabs.paths["web"], received_line("m4", name="stranger"))
+    wires.step(1.0)
+    assert not wires.flights
 
 
 def measured(monkeypatch, client_width, names):
