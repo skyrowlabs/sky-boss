@@ -1206,7 +1206,7 @@ kept the TODOS pane's pid.
 - **Measured over a day of tabs:** 229 `user` entries and 25 attachments, all with a `msg_id`.
 - `messages.peer_origin` now reads both, and the pane and the line share it.
 
-### 2026-11-07, popup format
+### 2026-11-07: a smaller, titled popup
 
 - **Asked:** the operator found the decision popup too large and flat, and asked for a smaller box,
   blank rows between sections, section titles and a light border.
@@ -1218,7 +1218,7 @@ kept the TODOS pane's pid.
   (`theme.popup_heading`), then its lines behind a two-cell margin. The sections are the question,
   the choices and the other keys for a decision, and the ask, the command, a note and the keys for
   an action. Clicks still map one line to one row.
-### 2026-11-07, waiting on the operator, and a brief that keeps up
+### 2026-11-07: waiting on the operator, and a brief that keeps up
 
 - **Asked:** the operator found tabs still not putting what they wait on him for into HUMAN
   DECISIONS. Every tab had started the day before, so it ran on that day's brief.
