@@ -1,4 +1,4 @@
-"""What a Claude Code session has running beside it: sub-agents and shells. See [[command-deck]].
+"""What a Claude Code session has running beside it: sub-agents, shells and spawned sessions. See [[command-deck]].
 
 **A sub-agent is read from its record, never its conversation.** `meta.json` names
 its type and task; the transcript beside it is only `stat`ed. No field says one
@@ -8,6 +8,9 @@ Code 2.1.318), so a sub-agent is drawn with how long ago it wrote, never as
 
 **A shell is a child process in Claude Code's shell wrapper.** Its MCP servers are
 children too, so a child counts only if it sourced a shell snapshot.
+
+**A spawned session is a full session a tab started.** Its registry record goes when it
+exits, so one that ended is read from its transcript's `stat`, for `RECENT` seconds.
 """
 
 from __future__ import annotations
@@ -22,10 +25,14 @@ from pathlib import Path
 from skyboss import agents as agents_
 from skyboss.chrome import ago
 
-AGENT, SHELL = "agent", "shell"
+AGENT, SHELL, SESSION = "agent", "shell", "session"
+#: A session id. Claude Code keeps a session's scratch folder under one, so a path can name its owner.
+IDENT = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
 #: Seconds since a sub-agent last wrote, after which it is not drawn.
 RECENT = 600
 SNAPSHOT = "shell-snapshots"
+#: Each kind and the letter `counted` gives it.
+KINDS = ((AGENT, "a"), (SESSION, "c"), (SHELL, "s"))
 #: The operator's command inside the wrapper Claude Code builds around it.
 WRAPPED = re.compile(r"eval (?P<word>'(?:[^']|'\"'\"')*')", re.DOTALL)
 
@@ -96,8 +103,29 @@ def shells(pid: int, parent_of: dict[int, int], proc: Path) -> list[Job]:
     return out
 
 
+def ended(owners: set[str], live: set[str], projects: Path, now: float) -> dict[str, list[Job]]:
+    """Owner id → sessions run from its scratch folder that wrote within `RECENT` seconds and have gone."""
+    found: dict[str, list[Job]] = {}
+    try:
+        folders = list(projects.iterdir())
+    except OSError:
+        return found
+    for folder in folders:
+        owner = next((ident for ident in IDENT.findall(folder.name) if ident in owners), "")
+        if not owner:
+            continue
+        where = folder.name.split(owner, 1)[1].strip("-")
+        for transcript in folder.glob("*.jsonl"):
+            try:
+                quiet = now - transcript.stat().st_mtime
+            except OSError:
+                continue
+            if quiet <= RECENT and transcript.stem not in live:
+                found.setdefault(owner, []).append(Job(SESSION, f"{where} · ended", ago(max(0.0, quiet))))
+    return found
+
+
 def counted(jobs: list[Job]) -> str:
-    """`2a 1s`: sub-agents and shells, each left out at zero."""
-    agents = sum(1 for job in jobs if job.kind == AGENT)
-    held = len(jobs) - agents
-    return " ".join(part for part in (f"{agents}a" if agents else "", f"{held}s" if held else "") if part)
+    """`2a 1c 1s`: sub-agents, spawned sessions and shells, each left out at zero."""
+    tally = [(sum(1 for job in jobs if job.kind == kind), letter) for kind, letter in KINDS]
+    return " ".join(f"{count}{letter}" for count, letter in tally if count)

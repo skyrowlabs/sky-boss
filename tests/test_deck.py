@@ -16,6 +16,7 @@ from pathlib import Path
 import pytest
 from click.testing import CliRunner
 
+from skyboss import background
 from skyboss import chrome as chrome_
 from skyboss import cli
 from skyboss import deck as deck_
@@ -763,6 +764,45 @@ def test_the_deck_types_into_a_pane_only_to_tell_an_agent_a_ruling():
     assert not re.search(r"send-keys|send_keys|send-prefix|paste-buffer", source[:start] + source[end:])
     assert "may_tell(state" in source[start:end]
     assert deck_.WAITING not in deck_.TELL_AT_ONCE and not deck_.may_tell(deck_.WAITING, "", datetime.now(timezone.utc))
+
+
+SCRATCH = "00000000-1111-2222-3333-444444444444"
+
+
+def ident_session(pid, ident, cwd="/fx/j", name=""):
+    return Session("claude", ident, name=name, cwd=cwd, status="busy", pid=pid)
+
+
+def test_a_session_the_tab_started_sits_under_it_by_process_tree():
+    tab, child = ident_session(11, SCRATCH), ident_session(12, "kid", name="live-3a")
+    rows = queue_rows([pane("@1", 0, "jam", 10)], [tab, child], {11: 10, 12: 11}, NOW, proc=Path("/nonexistent"))
+    assert [row["id"] for row in rows] == [SCRATCH]
+    assert rows[0]["bg"] == "▸ 1c" and rows[0]["jobs"][0]["label"] == "live-3a · busy"
+
+
+def test_a_session_in_a_tabs_scratch_folder_sits_under_it_with_no_process_link():
+    tab = ident_session(11, SCRATCH)
+    child = ident_session(99, "kid", cwd=f"/tmp/x/{SCRATCH}/scratchpad/probe", name="w-52")
+    rows = queue_rows([pane("@1", 0, "jam", 10)], [tab, child], {11: 10}, NOW, proc=Path("/nonexistent"))
+    assert [row["id"] for row in rows] == [SCRATCH] and rows[0]["jobs"][0]["label"] == "w-52 · busy"
+
+
+def test_a_session_with_no_link_to_a_tab_stays_outside():
+    tab, other = ident_session(11, SCRATCH), ident_session(99, "cron", cwd="/fx/pool", name="jam-pool")
+    rows = queue_rows([pane("@1", 0, "jam", 10)], [tab, other], {11: 10, 99: 1}, NOW, proc=Path("/nonexistent"))
+    assert [(row["where"], row["id"]) for row in rows] == [("deck", SCRATCH), ("outside", "cron")]
+
+
+def test_a_spawned_session_that_ended_stays_for_a_while_then_goes(tmp_path):
+    folder = tmp_path / f"-tmp-x-{SCRATCH}-scratchpad-probe"
+    folder.mkdir()
+    transcript = folder / "kid.jsonl"
+    transcript.write_text("{}")
+    wrote = transcript.stat().st_mtime
+    found = background.ended({SCRATCH}, set(), tmp_path, wrote + 5)
+    assert found[SCRATCH][0].label == "scratchpad-probe · ended" and found[SCRATCH][0].kind == background.SESSION
+    assert background.ended({SCRATCH}, {"kid"}, tmp_path, wrote + 5) == {}
+    assert background.ended({SCRATCH}, set(), tmp_path, wrote + background.RECENT + 1) == {}
 
 
 def test_every_deck_subcommand_chooses_its_act_bit():
