@@ -1,5 +1,73 @@
 # Changelog
 
+## [0.3.0](https://github.com/skyrowlabs/sky-boss/compare/v0.2.0...v0.3.0) (2026-11-07)
+
+
+### Added
+
+* **deck:** a + for new tabs, a terminal tab, and free columns ([c0afece](https://github.com/skyrowlabs/sky-boss/commit/c0afecefb08b45e60bbe74301c9920ae719e48a2))
+* **deck:** a centred sextant mark and a scrolling tab row ([e208683](https://github.com/skyrowlabs/sky-boss/commit/e2086833b35f03e7eedaaffcca08128d03140e22))
+* **deck:** a DECISIONS pane, and a right column to choose and fold ([d5e0a8d](https://github.com/skyrowlabs/sky-boss/commit/d5e0a8d6ff1291852ba3c7bb2cf38bdfa499a607))
+* **deck:** a smaller mark, header grounds, M-x clear, message popup ([823d2aa](https://github.com/skyrowlabs/sky-boss/commit/823d2aa4ceafbc69b2d6ca4ab53f3b1a0c0c7f2a))
+* **deck:** add tabs from a + in the bar, and a terminal tab ([3b4fe61](https://github.com/skyrowlabs/sky-boss/commit/3b4fe61695c34082533097966540805766374747))
+* **deck:** box each tab and light its ground while the agent works ([dd6ae1a](https://github.com/skyrowlabs/sky-boss/commit/dd6ae1ade15e6de7337c106f9661bc223c258a9f))
+* **deck:** colours by default, click to rule, a 2x2 layout ([5c9475a](https://github.com/skyrowlabs/sky-boss/commit/5c9475ae3edaeac1d659f3bc4bcfd063242d2231))
+* **deck:** draw a line between two tabs as they message ([adf2b09](https://github.com/skyrowlabs/sky-boss/commit/adf2b09693e2e6eb95251b9d524e324eb663548c))
+* **deck:** draw a line between two tabs as they message ([c4c9352](https://github.com/skyrowlabs/sky-boss/commit/c4c9352dcf85fcd86536225706b41d319e0b5d4c))
+* **deck:** draw the line when a message fires, land it when received ([b08506d](https://github.com/skyrowlabs/sky-boss/commit/b08506dc5447b467fdeaf0f3cb25da25e1d85d1d))
+* **deck:** draw the line when a message fires, land it when received ([dfc23f5](https://github.com/skyrowlabs/sky-boss/commit/dfc23f5f92a3e41d72f2180fbe9542d268160f46))
+* **deck:** draw the SL mark and wordmark at the tab bar's left ([02c5096](https://github.com/skyrowlabs/sky-boss/commit/02c50964570d984e1a81527f04a6a267d0fc4fb4))
+* **deck:** every ask of the operator in one queue ([ca579b5](https://github.com/skyrowlabs/sky-boss/commit/ca579b5b866a99dd8c996f5017236e88bc9dbadd))
+* **deck:** every ask of the operator in one queue ([bc86757](https://github.com/skyrowlabs/sky-boss/commit/bc86757b2a7ff7a8fc27813bf96915177b1f4a9b))
+* **deck:** free columns in the grid, moved by clicking a title bar ([4efc9a9](https://github.com/skyrowlabs/sky-boss/commit/4efc9a9183f029f0c0ef8d98fd661b784f037704))
+* **deck:** give each tab's console its agent's colour ([a2ae6d8](https://github.com/skyrowlabs/sky-boss/commit/a2ae6d83a53b30c33b0f8d82368d1b5e7a59e0d7))
+* **deck:** name the footer after the profile, beside the wordmark ([8087c42](https://github.com/skyrowlabs/sky-boss/commit/8087c42daf8bc913fb5f324e584b4a357f54b6b7))
+* **deck:** nest a session a tab started under that tab ([9072f00](https://github.com/skyrowlabs/sky-boss/commit/9072f007dfee79fd688771da846e5d07f00b7be0))
+* **deck:** nest a session a tab started under that tab ([fdf4150](https://github.com/skyrowlabs/sky-boss/commit/fdf41504d23f5fb2ee4d934e7d5416d344043b09))
+* **deck:** one clock in the footer, none on the panes ([1c29169](https://github.com/skyrowlabs/sky-boss/commit/1c291690bc1d47fcff6ed5cb45bed8d75cd9db01))
+* **deck:** one shared refresh, counted down once in the footer ([7f41244](https://github.com/skyrowlabs/sky-boss/commit/7f41244f2140b01ebdb1c98d5d9fce86a511e39b))
+* **deck:** order TODOS by recency; the outside count goes to the footer ([f93f35f](https://github.com/skyrowlabs/sky-boss/commit/f93f35fcd0d01ddbff18347f33474f2ed3b3494b))
+* **deck:** pad the tool panes, and unfold a session's background jobs ([34fe083](https://github.com/skyrowlabs/sky-boss/commit/34fe0836b670c4748054f7f00919bae9bbfffd14))
+* **deck:** retitle the right panes, and a blank row above the tabs ([7bd6bc9](https://github.com/skyrowlabs/sky-boss/commit/7bd6bc9263290ada7a9cc3a0819ecabe44f8aaad))
+* **deck:** retitle the right panes, and a blank row above the tabs ([0fd27f3](https://github.com/skyrowlabs/sky-boss/commit/0fd27f3e9d4ce1dc1f6b8b026a488fa63f8e51e2))
+* **deck:** save the tabs' sessions and resume them ([cebab3e](https://github.com/skyrowlabs/sky-boss/commit/cebab3e4362c6bd16e7565387dd9e0d4502f8ceb))
+* **deck:** sort NEEDS YOU by activity, colour its agents, add reload ([c289f96](https://github.com/skyrowlabs/sky-boss/commit/c289f9644dc47db5f25a08f0a2b121cf590bd769))
+* **deck:** teach every tab how to tag an operator ask ([7f0d3c5](https://github.com/skyrowlabs/sky-boss/commit/7f0d3c5322b18b5b7735985c678675045b21102e))
+* **deck:** teach every tab how to tag an operator ask ([28f4d95](https://github.com/skyrowlabs/sky-boss/commit/28f4d95da4bbfd198b2674da9f70df67c9790768))
+
+
+### Fixed
+
+* **deck:** draw a sent message on the header ground ([8976796](https://github.com/skyrowlabs/sky-boss/commit/897679678e7e2acc5f718da28bf7b39eed0deb8d))
+* **deck:** give the bar label room, so it is not cut to "sky.boo…" ([d4cab4a](https://github.com/skyrowlabs/sky-boss/commit/d4cab4aae117cb6c0cc3d1cc3a35be4d47f7d044))
+* **deck:** read a message absorbed mid-turn as received ([000c133](https://github.com/skyrowlabs/sky-boss/commit/000c133d7b1c0992be2b2465c2885a8007e11e66))
+* **deck:** read a message absorbed mid-turn as received ([3bdc521](https://github.com/skyrowlabs/sky-boss/commit/3bdc5210de75ba1afc8512280e6ea84ad93b641b))
+* **deck:** stop a ruling waiting on the word idle ([11e5b08](https://github.com/skyrowlabs/sky-boss/commit/11e5b080af344ed77b0cbd91c57f69c104a9cad7))
+* **deck:** stop a ruling waiting on the word idle ([370cf37](https://github.com/skyrowlabs/sky-boss/commit/370cf37a65f8e8a922fe96310207c4a4affe360d))
+* **deck:** the clear key takes decided items, and empty lists leave ([c9e0c74](https://github.com/skyrowlabs/sky-boss/commit/c9e0c747aab6b1b2251a0910500e756705fca26f))
+
+
+### Documentation
+
+* **command-deck:** add the top line and sub-titles to round 17 ([d889fd4](https://github.com/skyrowlabs/sky-boss/commit/d889fd4e7f0391c177bba83ef1aa703b91d840d9))
+* **command-deck:** plan one queue for every ask of the operator ([cfabd7b](https://github.com/skyrowlabs/sky-boss/commit/cfabd7b0e65b3dbe605b94f89bf739d83a3f8f8a))
+* **command-deck:** record free columns as round 15, not built ([b972845](https://github.com/skyrowlabs/sky-boss/commit/b97284512f2c41834f33d218c9c820e4ef993b9d))
+* **command-deck:** record the last two round 15 rulings ([f0e6944](https://github.com/skyrowlabs/sky-boss/commit/f0e6944abb01f46b0b90801c631f518ad0c99d17))
+* **command-deck:** record the ruling on questions at a turn's end ([aae5f4d](https://github.com/skyrowlabs/sky-boss/commit/aae5f4dc0bcd4f1761ce22dbf90b6f596205e344))
+* **command-deck:** record the ruling that a click runs an action ([34a1c98](https://github.com/skyrowlabs/sky-boss/commit/34a1c981a844b24ff69959696deb1de79f4a162c))
+* **command-deck:** record the rulings on rounds 15 to 17 ([d5aa2e4](https://github.com/skyrowlabs/sky-boss/commit/d5aa2e435d47f7dd6182488f8aadd4df1ef55441))
+* **command-deck:** scope round 16, add tabs from the bar ([c8af3f7](https://github.com/skyrowlabs/sky-boss/commit/c8af3f7c65fe5a2fc0fd06ab3b1940ad808328ee))
+* **command-deck:** scope round 17, tab padding and pane titles ([0f25b74](https://github.com/skyrowlabs/sky-boss/commit/0f25b7453df19ae1f59fa7f53e07d38380fccb44))
+* **deck:** a merge the operator must run is a --run row ([016dfbc](https://github.com/skyrowlabs/sky-boss/commit/016dfbcfbc7342d0bfadac92b13757e519527a6c))
+* **deck:** a merge the operator must run is a --run row ([5074b05](https://github.com/skyrowlabs/sky-boss/commit/5074b05312b6c1d7e6a90fedc3f81cac50531c9c))
+* **deck:** plan round 6, the SL mark and one shared countdown ([1b3948f](https://github.com/skyrowlabs/sky-boss/commit/1b3948fd1efcf37c41e77cdcf9eb030d99338b65))
+* **deck:** plan the deck tab and drop the monitoring declaration ([15a39b1](https://github.com/skyrowlabs/sky-boss/commit/15a39b1fa61d54312c67d5b48636b4fe9e9f28b8))
+* **deck:** plan the deck tab and drop the monitoring declaration ([faf993c](https://github.com/skyrowlabs/sky-boss/commit/faf993cbc4cb376e30c467e54e736c4284fd835e))
+* **readme:** lead with the deck ([54cfdba](https://github.com/skyrowlabs/sky-boss/commit/54cfdba208d36769c895d9d2b297eabd6a72f189))
+* **readme:** lead with the deck ([7193aae](https://github.com/skyrowlabs/sky-boss/commit/7193aaeaa6c039a5ce11caf91bc917f9753eb98f))
+* **reports:** close the v0.2.0..HEAD window as v0.3.0 ([f292864](https://github.com/skyrowlabs/sky-boss/commit/f292864e983014a39f47ac7b3e67335beca1679e))
+* **reports:** freeze the v0.2.0 window ([d464fb4](https://github.com/skyrowlabs/sky-boss/commit/d464fb4ef5c53c3bb506d5ed92f56f8ea70cac7b))
+
 ## [0.2.0](https://github.com/skyrowlabs/sky-boss/compare/v0.1.0...v0.2.0) (2026-11-05)
 
 
