@@ -245,4 +245,15 @@ def test_the_hooks_stay_off_the_per_tool_events():
     import json
 
     hooks = json.loads((deck_.PLUGIN_DIR / "hooks" / "hooks.json").read_text())["hooks"]
-    assert set(hooks) == {"PermissionRequest", "PermissionDenied", "UserPromptSubmit", "Stop"}
+    assert set(hooks) == {"PermissionRequest", "PermissionDenied", "UserPromptSubmit", "Stop", "SessionStart"}
+
+
+def test_a_resumed_cleared_or_compacted_tab_gets_todays_brief_and_a_fresh_one_does_not(monkeypatch):
+    import json
+
+    monkeypatch.setattr(deck_, "current_brief", lambda config, who: ("ws", [], f"brief for {who}"))
+    for source in ("resume", "clear", "compact"):
+        reply = json.loads(deck_.rebrief(deck_.Config(), "a", {"hook_event_name": "SessionStart", "source": source}))
+        assert reply["hookSpecificOutput"]["additionalContext"].endswith("brief for a")
+    assert deck_.rebrief(deck_.Config(), "a", {"hook_event_name": "SessionStart", "source": "startup"}) == ""
+    assert deck_.rebrief(deck_.Config(), "a", {"hook_event_name": "Stop", "source": "clear"}) == ""

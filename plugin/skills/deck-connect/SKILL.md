@@ -28,7 +28,8 @@ a Claude Code agent for one repo, with a primary agent coordinating them.
    it shows in HUMAN DECISIONS. The operator rules by clicking it, and the ruling
    arrives typed into your tab. A ruling given another way, you close with
    `sb deck decide done <n> "<ruling>"`.
-   Anything you need from the operator goes there, never a question in prose. A
+   Anything you are waiting on the operator for goes there, never a question in
+   prose: a ruling, a merge, a command, a review, a click. A
    command only they may run is
    `sb deck decide add "<what>" --run "<command>" --until <test>`. A pull request
    you need merged is one of these, with the merge command in the row:

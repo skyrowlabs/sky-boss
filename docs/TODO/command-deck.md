@@ -1206,7 +1206,7 @@ kept the TODOS pane's pid.
 - **Measured over a day of tabs:** 229 `user` entries and 25 attachments, all with a `msg_id`.
 - `messages.peer_origin` now reads both, and the pane and the line share it.
 
-### 2026-11-07, popup format
+### 2026-11-07: a smaller, titled popup
 
 - **Asked:** the operator found the decision popup too large and flat, and asked for a smaller box,
   blank rows between sections, section titles and a light border.
@@ -1218,3 +1218,20 @@ kept the TODOS pane's pid.
   (`theme.popup_heading`), then its lines behind a two-cell margin. The sections are the question,
   the choices and the other keys for a decision, and the ask, the command, a note and the keys for
   an action. Clicks still map one line to one row.
+### 2026-11-07: waiting on the operator, and a brief that keeps up
+
+- **Asked:** the operator found tabs still not putting what they wait on him for into HUMAN
+  DECISIONS. Every tab had started the day before, so it ran on that day's brief.
+- The brief and deck-connect now state the general rule: anything a tab waits on the operator for
+  goes in as a row, a ruling, a merge, a command, a review or a click. Merges and commands are the
+  examples, not the whole rule.
+- The brief rides `--append-system-prompt`, so a `/clear` or a compaction keeps it. What goes stale
+  is its content. The plugin now hooks `SessionStart`, and after a resume, a clear or a compaction
+  `sb deck ask` replies with today's brief as context, saying it wins where the two differ. A fresh
+  start gets nothing, as its launch brief is already today's.
+- **Does not do:** flag a tab whose reply printed a command for the operator. That would mean
+  reading the agent's prose. A turn that ends on a question already becomes a row through the
+  `Stop` hook.
+- **Reach:** a tab loads the plugin's hooks when it starts, so tabs already running get the
+  `SessionStart` hook only at their next start. Until then, `/deck-connect` or `sb deck brief` hands
+  them today's brief.
