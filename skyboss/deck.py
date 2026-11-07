@@ -1606,8 +1606,8 @@ def brief(name: str, session: str, rows: list[tuple[str, str, str]], primary: st
         "The operator sees every message between agents in the deck's AGENT COMMUNICATIONS pane, and answers",
         "an agent's prompts by clicking its tab.",
         'Keep todos with `sb deck todo add "<text>"` / `done <n>` (AGENT TODOs pane). Anything you need from the operator goes',
-        'through `sb deck decide` (HUMAN DECISIONS pane), never a question in prose: a ruling is `add "<question>" --option "<choice>"`, a command only they may run is `add "<what>" --run "<command>" --until <test>` (pin a merge: `--until pr:<n>@<sha>`), something only they can do with no command is `add "<what>" --action`, and news is `note "<text>"`.',
-        "A ruling is typed into your tab. An ask in a report or a message is not enough: each one is also a row, added by the tab that acts on it.",
+        'through `sb deck decide` (HUMAN DECISIONS pane), never a question in prose: a ruling is `add "<question>" --option "<choice>"`, a command only they may run is `add "<what>" --run "<command>" --until <test>` (a merge: `add "Merge <repo> PR #<n>" --run "gh pr merge <n> --repo <owner/repo> --merge --match-head-commit <sha>" --until pr:<n>@<sha>`), something only they can do with no command is `add "<what>" --action`, and news is `note "<text>"`.',
+        "A ruling is typed into your tab. An ask in a report or a message is not enough: each one is also a row, added by the tab that acts on it, and a command they must run is never left only in prose.",
     ]
     text = "\n".join(lines)
     return f"{text}\n\n{extra.strip()}" if extra.strip() else text

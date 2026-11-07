@@ -30,10 +30,13 @@ a Claude Code agent for one repo, with a primary agent coordinating them.
    `sb deck decide done <n> "<ruling>"`.
    Anything you need from the operator goes there, never a question in prose. A
    command only they may run is
-   `sb deck decide add "<what>" --run "<command>" --until <test>`; pin a merge to
-   its head with `--until pr:<n>@<sha>`, so the row reads stale if the head moves.
+   `sb deck decide add "<what>" --run "<command>" --until <test>`. A pull request
+   you need merged is one of these, with the merge command in the row:
+   `sb deck decide add "Merge <repo> PR #<n>" --run "gh pr merge <n> --repo <owner/repo> --merge --match-head-commit <sha>" --until pr:<n>@<sha>`.
+   The pin makes the row read stale if the head moves.
    Something only they can do, with no command, is
    `sb deck decide add "<what>" --action`, and something merely worth knowing is
    `sb deck decide note "<text>"`. An ask written in a report or a message is not
    enough on its own: each one also goes in as a row, from the tab that acts on it.
+   A command the operator must run is never left only in prose for them to copy.
 5. Tell the operator, in two or three lines, who is in the deck and what you sent.

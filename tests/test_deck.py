@@ -1975,6 +1975,7 @@ def test_the_brief_and_the_skill_teach_every_kind_of_ask():
         for form in ("--option", "--run", "--until pr:<n>@<sha>", "--action", 'note "<text>"'):
             assert form in text
         assert "tab that acts on it" in " ".join(text.split())
+        assert '--run "gh pr merge <n>' in text and "never left only in prose" in " ".join(text.split())
 
 
 def test_the_todos_pane_scrolls_from_the_top():
