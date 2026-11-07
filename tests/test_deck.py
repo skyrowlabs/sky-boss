@@ -1828,6 +1828,15 @@ def test_the_brief_tells_an_agent_to_keep_its_todos():
     assert 'sb deck todo add "<text>"' in text and "AGENT TODOs pane" in text
 
 
+def test_the_brief_and_the_skill_teach_every_kind_of_ask():
+    brief = deck_.brief("jam", "sb", [("jam", "/fx/j", "")], "jam")
+    skill = (deck_.PLUGIN_DIR / "skills" / "deck-connect" / "SKILL.md").read_text()
+    for text in (brief, skill):
+        for form in ("--option", "--run", "--until pr:<n>@<sha>", "--action", 'note "<text>"'):
+            assert form in text
+        assert "tab that acts on it" in " ".join(text.split())
+
+
 def test_the_todos_pane_scrolls_from_the_top():
     pane = deck_.DeckPane("sb", lambda row: True, scroll=True, top=True)
     fit = deck_.keep_from_top("row(s)", pane)
