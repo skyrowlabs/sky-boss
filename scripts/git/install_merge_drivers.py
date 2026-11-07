@@ -54,6 +54,7 @@ MESSAGE_TEMPLATE = PROJECT_ROOT / ".gitmessage"
 HOOK_SOURCE = PROJECT_ROOT / "scripts" / "hooks" / "pre-push"
 #: The first line of the hook's comment, and how a copy of ours is told from anybody else's.
 HOOK_MARK = "Written by scripts/git/install_merge_drivers.py"
+FOREIGN_SOURCE = "`scripts/hooks/pre-push` is this tree's own hook, not the green stamp's, so it was not installed"
 
 
 def declared_drivers() -> set:
@@ -87,6 +88,8 @@ def hook_problem() -> str | None:
     """Why this clone's push is not protected, or `None` when it is, or the tree declined the hook."""
     if not HOOK_SOURCE.exists():
         return None
+    if not _ours(HOOK_SOURCE):
+        return FOREIGN_SOURCE
     hook = hook_path()
     if not hook.exists() and not hook.is_symlink():
         return "`scripts/hooks/pre-push` is tracked and not installed in this clone"
@@ -100,6 +103,10 @@ def hook_problem() -> str | None:
 def install_hook() -> bool:
     if not HOOK_SOURCE.exists():
         return True
+    if not _ours(HOOK_SOURCE):
+        fail(FOREIGN_SOURCE)
+        detail("Replace it with skeletor's, or rename it to decline the green stamp.")
+        return False
     hook = hook_path()
     if (hook.exists() or hook.is_symlink()) and not _ours(hook):
         fail(f"{hook} already exists and this script did not write it, so it was left alone")

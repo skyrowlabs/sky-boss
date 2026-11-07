@@ -4,7 +4,9 @@
 #
 # Legitimate: a command built from data at run time, so a doc can name a word no
 # walk finds; a renamed command kept to say so, which exits 2 on `--help`; an entry
-# CI cannot import. NOT legitimate: a doc naming a command that went away. Fix the doc.
+# CI cannot import; a command a design doc names for a phase not built yet, which goes
+# stale when the phase lands. NOT legitimate: a doc naming a command that went away.
+# Fix the doc.
 #
 # An entry that no longer excuses anything is stale and fails that test.
 

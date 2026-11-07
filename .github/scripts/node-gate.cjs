@@ -4,6 +4,10 @@
 // be asked. No subject exits 0, the code CI reads as anything but red.
 'use strict';
 
+// Required rather than global, so this file passes a tree's eslint config whatever
+// that config declares for `.github/`.
+const console = require('node:console');
+const process = require('node:process');
 const { spawnSync } = require('node:child_process');
 const { readFileSync } = require('node:fs');
 
