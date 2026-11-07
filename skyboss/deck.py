@@ -1432,7 +1432,8 @@ def brief(name: str, session: str, rows: list[tuple[str, str, str]], primary: st
         "The operator sees every message between agents in the deck's AGENT COMMUNICATIONS pane, and answers",
         "an agent's prompts by clicking its tab.",
         'Keep todos with `sb deck todo add "<text>"` / `done <n>` (AGENT TODOs pane). Anything you need from the operator goes',
-        'through `sb deck decide`, never a question in prose: `add "<question>" --option "<choice>"`, `add "<what>" --run "<command>" --until <test>`, or `note "<text>"` (HUMAN DECISIONS pane); a ruling is typed into your tab.',
+        'through `sb deck decide` (HUMAN DECISIONS pane), never a question in prose: a ruling is `add "<question>" --option "<choice>"`, a command only they may run is `add "<what>" --run "<command>" --until <test>` (pin a merge: `--until pr:<n>@<sha>`), something only they can do with no command is `add "<what>" --action`, and news is `note "<text>"`.',
+        "A ruling is typed into your tab. An ask in a report or a message is not enough: each one is also a row, added by the tab that acts on it.",
     ]
     text = "\n".join(lines)
     return f"{text}\n\n{extra.strip()}" if extra.strip() else text
@@ -3974,13 +3975,16 @@ def deck_decide_add(
         sb deck decide add "take the template's ci.yml step, or hold ours?" \\
             --option "take it" --option "hold ours"
 
-        sb deck decide add "merge the round" --run "gh pr merge 49 --merge" --until pr:49
+        sb deck decide add "merge the round" --run "gh pr merge 49 --merge" --until pr:49@a1b2c3d
+
+        sb deck decide add "renew the signing certificate" --action
 
     **This acts**, on the list of the tab it runs in, and refuses anywhere else.
     With no `--option` the operator types the ruling. `--run`, `--action` and
     `--until` make it an action: the operator clicks it, sees the exact command
     and folder, and runs it once they say so. `--run` is one command with no
-    shell. An action with `--until` closes when that state is observed.
+    shell. An action with `--until` closes when that state is observed. Pin a
+    merge to its head with `pr:<n>@<sha>`, so a moved head reads as stale.
     """
     if not todos_.clean(question):
         raise click.UsageError("a decision needs a question")

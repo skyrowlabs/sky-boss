@@ -1139,3 +1139,11 @@ kept the TODOS pane's pid.
 - **The kinds grew by one:** `prose` is apart from `asked`, so a guess at a question sorts below a
   tab that is really blocked.
 - **Held state lives in `held.json` under the deck's state,** written only by the sweep.
+
+### 2026-11-06: the brief and deck-connect teach every kind of ask
+
+- **Why:** Jeston asked that the deck know how to tag decisions from its opening prompt, relayed by
+  the workspace. Both now carry `--action` and the `pr:<n>@<sha>` pin.
+- **The rule is generic and the heading is not.** An ask in a report or a message also goes in as a
+  row, from the tab that acts on it. A report heading is one workspace's convention, and this repo
+  is public, so a deck that wants its heading named says so in the profile's `brief`.
