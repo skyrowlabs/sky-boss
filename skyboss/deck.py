@@ -42,7 +42,7 @@ import rich_click as click
 from skyboss import agents as agents_
 from skyboss import background
 from skyboss import column as column_
-from skyboss import deckplus, decksave
+from skyboss import deckasks, deckplus, decksave
 from skyboss import keys as keys_
 from skyboss import resident as resident_
 from skyboss import theme
@@ -122,6 +122,8 @@ MARKS_EVERY = 3
 # The registry's word for a session held at a permission prompt (measured on Claude
 # Code 2.1.318), and sky.boss's word for a deck window whose process has no record.
 WAITING = "waiting"
+#: A tab's word when its turn ended on a question: idle, with something still to answer.
+ASKED_STATE = "asked"
 UNREGISTERED = "unregistered"
 
 
@@ -593,7 +595,7 @@ def tab_cell(row: int, current: bool) -> str:
 
     A box is the name's width plus a space each side, so its edges are the name
     with every character replaced. The ground says what the agent is doing:
-    `busy` is lit, `waiting` is the warn block, anything else is plain. The
+    `busy` is lit, `waiting` is the warn block, `asked` is warn text, anything else is plain. The
     current tab's edge is drawn in its agent's hue. Every row carries the
     window's range, so a click anywhere on a box selects that tab.
     """
@@ -604,7 +606,8 @@ def tab_cell(row: int, current: bool) -> str:
     edge = f"#{{?{colour},#[fg={colour} bold],#[{style['label']}]}}" if current else f"#[{style['tab-edge']}]"
     plain = f"#{{?{colour},#[fg={colour}],#[{style['tab']}]}}"
     if row == 1:
-        idle = f"#{{?#{{==:{state},{UNREGISTERED}}},#[{style['unregistered']}],{plain}}}"
+        quiet = f"#{{?#{{==:{state},{ASKED_STATE}}},#[{style['tab-asked']}],{plain}}}"
+        idle = f"#{{?#{{==:{state},{UNREGISTERED}}},#[{style['unregistered']}],{quiet}}}"
         ground = (
             f"#{{?#{{==:{state},busy}},#[{style['tab-working']}],"
             f"#{{?#{{==:{state},{WAITING}}},#[{style['needs-you']}],{idle}}}}}"
@@ -1078,6 +1081,8 @@ def live_tabs(listed: list[Pane], sessions: list, parent_of: dict[int, int]) -> 
 
 def ruling_line(n: int, item: todos_.Item) -> str:
     """What an agent reads in its tab when the operator rules from the HUMAN DECISIONS pane."""
+    if item.kind == todos_.ACTION:
+        return f'Your action {n}, "{item.text}", is closed: {item.ruling}'
     return f'The operator ruled on your decision {n}, "{item.text}": {item.ruling}'
 
 
@@ -1173,7 +1178,7 @@ def marks_once(
     states = windows_states(listed, sessions, parent_of)
     labels = {p.window_id: p.agent or p.window for p in listed}
     rows = []
-    for window_id, word in states.items():
+    for window_id, word in shown_states(session, states, labels).items():
         changed = written.get(window_id) != word
         if changed:
             set_ = tmux("set-option", "-w", "-t", window_id, STATE_OPTION, word)
@@ -1196,6 +1201,48 @@ def marks_once(
         result.degrade(problem)
     result.data = rows
     return result
+
+
+def shown_states(session: str, states: dict[str, str], labels: dict[str, str]) -> dict[str, str]:
+    """Each tab's word for the tab row: settles its hook rows, and marks an idle tab that asked."""
+    now = datetime.now(timezone.utc)
+    shown = dict(states)
+    for window_id, word in states.items():
+        agent = labels.get(window_id, "")
+        try:
+            deckasks.settle(session, agent, word, WAITING, now)
+            asks = todos_.load(session, agent, todos_.ASKS)
+        except ValueError:
+            continue
+        if word == "idle" and asks and any(item.kind == todos_.PROSE for item in asks.items):
+            shown[window_id] = ASKED_STATE
+    return shown
+
+
+#: How often the deck reads action tests, and how often it reads held state, in seconds.
+SWEEP_EVERY = 60.0
+HELD_EVERY = 300.0
+
+
+def sweep_argv() -> list[str]:
+    return sb_argv("deck", "decide", "sweep")
+
+
+def start_sweep(running: subprocess.Popen | None) -> subprocess.Popen | None:
+    """Start a sweep off the marks loop, as `gh` must not hold the tab row. One at a time."""
+    if running is not None and running.poll() is None:
+        return running
+    try:
+        return subprocess.Popen(
+            sweep_argv(),
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            env=child_env(),
+            start_new_session=True,
+        )
+    except OSError:
+        return None
 
 
 def marks_argv() -> list[str]:
@@ -1384,8 +1431,8 @@ def brief(name: str, session: str, rows: list[tuple[str, str, str]], primary: st
         "`sb deck brief` reprints this with the deck as it stands now.",
         "The operator sees every message between agents in the deck's AGENT COMMUNICATIONS pane, and answers",
         "an agent's prompts by clicking its tab.",
-        'Keep todos with `sb deck todo add "<text>"` / `done <n>` (AGENT TODOs pane). Each decision you need from the',
-        'operator: `sb deck decide add "<question>" --option "<choice>"` (HUMAN DECISIONS pane); its ruling is typed into your tab.',
+        'Keep todos with `sb deck todo add "<text>"` / `done <n>` (AGENT TODOs pane). Anything you need from the operator goes',
+        'through `sb deck decide`, never a question in prose: `add "<question>" --option "<choice>"`, `add "<what>" --run "<command>" --until <test>`, or `note "<text>"` (HUMAN DECISIONS pane); a ruling is typed into your tab.',
     ]
     text = "\n".join(lines)
     return f"{text}\n\n{extra.strip()}" if extra.strip() else text
@@ -2655,8 +2702,13 @@ def deck_marks(every: int | None, ticks: int | None) -> Result:
     own = str(os.getpid())
     _session_options(inner(config.session), ((MARKS_PID_OPTION, own),))
     count = 0
+    swept = time.monotonic()
+    sweep: subprocess.Popen | None = None
     while ticks is None or count < ticks:
         count += 1
+        if time.monotonic() - swept >= SWEEP_EVERY:
+            swept = time.monotonic()
+            sweep = start_sweep(sweep)
         owner = _marks_owner(config.session)
         if not has_session(inner(config.session)) or (owner is not None and str(owner) != own):
             break
@@ -2962,6 +3014,8 @@ class DeckPane(resident_.Control):
             rows = unfolded(shaped.data, self.open)
             self.rows = rows
             return replace(shaped, data=rows, view=view_of(rows) if rows else shaped.view)
+        if self.role == DECISIONS:
+            shaped = replace(shaped, data=held_placed(shaped.data, HELD_FOLD in self.open))
         if self.role in (TODOS, DECISIONS) and shaped.view:
             # The band names the pane, so its one column needs no heading of its own.
             columns = [{**column, "label": ""} for column in shaped.view["columns"]]
@@ -3026,10 +3080,33 @@ class DeckPane(resident_.Control):
                 return row is not None and self.toggle(row)
             if self.clicks and row is not None and row.get("key"):
                 open_message(row["key"])
-            elif self.role == DECISIONS and row is not None and row.get("kind") == "item":
-                open_decision(str(row["agent"]), int(row["n"]))
+            elif self.role == DECISIONS and row is not None:
+                return self.decision_click(row)
             return False
         return self.wheel and self.move(key)
+
+    def decision_click(self, row: dict) -> bool:
+        """What a click on a HUMAN DECISIONS row does, by the row's kind. Whether to redraw."""
+        kind, ask, agent = row.get("kind"), row.get("ask"), str(row.get("agent") or "")
+        if kind == todos_.HELD:
+            self.open ^= {HELD_FOLD}
+            return True
+        if kind == "ask" and ask == todos_.PROSE:
+            deckasks.drop(self.session, agent, (todos_.PROSE,))
+            return True
+        if kind == "ask":
+            window_id = locate(agent, self.session)
+            if window_id is not None:
+                focus(self.session, window_id)
+            return False
+        if kind != "item":
+            return False
+        if ask == todos_.NOTICE and not row.get("done"):
+            todos_.close_action(self.session, agent, int(row["n"]), "dismissed")
+            return True
+        opens = open_action if ask == todos_.ACTION and not row.get("done") else open_decision
+        opens(agent, int(row["n"]))
+        return False
 
     def toggle(self, row: dict) -> bool:
         """Unfold a queue row's background jobs, or fold them. Whether anything changed."""
@@ -3092,6 +3169,8 @@ def clicked_row(lines: list[str], rows: list[dict], y: int) -> dict | None:
 
 #: The message popup: room for a message to read, with the deck still in view around it.
 POPUP_SIZE = ("60%", "50%")
+#: What a DeckPane's `open` holds while HUMAN DECISIONS shows its held rows.
+HELD_FOLD = "held"
 
 
 def message_popup_argv(key: str) -> list[str]:
@@ -3104,6 +3183,21 @@ def decision_popup_argv(agent: str, n: int) -> list[str]:
     """`display-popup` offering one decision's choices."""
     sb = shlex.quote(str(PROJECT_ROOT / "sb"))
     return popup_argv(" decision ", f"exec {sb} deck decide rule {shlex.quote(agent)} {n}")
+
+
+def held_placed(rows: list[dict], unfolded_: bool) -> list[dict]:
+    """HUMAN DECISIONS' rows: held folds to its one foot line, and unfolded it leads, in reach of a click."""
+    rest = [row for row in rows if row.get("kind") not in (todos_.HELD, "held-row")]
+    head = [row for row in rows if row.get("kind") == todos_.HELD]
+    if not unfolded_:
+        return [*rest, *head]
+    return [*head, *(row for row in rows if row.get("kind") == "held-row"), *rest]
+
+
+def action_popup_argv(agent: str, n: int) -> list[str]:
+    """`display-popup` showing one action's exact command."""
+    sb = shlex.quote(str(PROJECT_ROOT / "sb"))
+    return popup_argv(" action ", f"exec {sb} deck decide act {shlex.quote(agent)} {n}")
 
 
 def popup_argv(title: str, command: str) -> list[str]:
@@ -3133,6 +3227,10 @@ def open_message(key: str) -> None:
 
 def open_decision(agent: str, n: int) -> None:
     _open_popup(decision_popup_argv(agent, n))
+
+
+def open_action(agent: str, n: int) -> None:
+    _open_popup(action_popup_argv(agent, n))
 
 
 def _open_popup(argv: list[str]) -> None:
@@ -3168,6 +3266,9 @@ def keep_from_top(noun: str, pane: DeckPane) -> Callable[[Result, int], tuple[Re
         start = pane.within(len(rows), keep)
         below = max(0, len(rows) - start - keep)
         shown = replace(result, data=rows[start : start + keep])
+        # The held line stays at the foot however far the rows run, or a short pane would hide it.
+        if below and keep > 1 and isinstance(rows[-1], dict) and rows[-1].get("kind") == todos_.HELD:
+            shown = replace(result, data=[*rows[start : start + keep - 1], rows[-1]])
         pane.rows = shown.data
         if start:
             return shown, f"↓ {start} down · {below} below" if below else f"↓ {start} down"
@@ -3794,7 +3895,8 @@ def _book_list(book: str, source: str, every: bool, refresh: int | None, ticks: 
         order = tab_order(config.session)
         if mine is not None:
             order = [pair for pair in order if pair[0] == mine] or [(mine, 0)]
-        return todos_.result_of(config.session, order, paint=bool(refresh and screen), only=mine, book=book)
+        held = (deckasks.read_held(config.session) or {}) if book == todos_.DECISIONS else None
+        return todos_.result_of(config.session, order, paint=bool(refresh and screen), only=mine, book=book, held=held)
 
     pane = DeckPane(config.session, lambda row: True, scroll=True, top=True, role=book)
     return _resident(source, once, refresh, ticks, screen, keep_from_top("row(s)", pane), pane)
@@ -3851,18 +3953,51 @@ def deck_decide() -> None:
 @deck_decide.command(name="add")
 @click.argument("question")
 @click.option("--option", "options", multiple=True, metavar="CHOICE", help="A choice to offer. Give one per choice.")
+@click.option("--action", "action", is_flag=True, help="Something only the operator can do, with no command to run.")
+@click.option(
+    "--run", "command", default="", metavar="COMMAND", help="The exact command, for the operator to run with a click."
+)
+@click.option("--cwd", "folder", default="", metavar="DIR", help="Where --run runs. Defaults to this tab's folder.")
+@click.option(
+    "--until",
+    "until",
+    default="",
+    metavar="TEST",
+    help="What closes it: pr:<n>, pr:<n>@<sha>, pushed:<sha> or gone:<branch>.",
+)
 @emit
-def deck_decide_add(question: str, options: tuple[str, ...]) -> Result:
+def deck_decide_add(
+    question: str, options: tuple[str, ...], action: bool, command: str, folder: str, until: str
+) -> Result:
     """Record QUESTION as open, on this tab's list, with the choices to offer.
 
         sb deck decide add "take the template's ci.yml step, or hold ours?" \\
             --option "take it" --option "hold ours"
 
+        sb deck decide add "merge the round" --run "gh pr merge 49 --merge" --until pr:49
+
     **This acts**, on the list of the tab it runs in, and refuses anywhere else.
-    With no `--option` the operator types the ruling.
+    With no `--option` the operator types the ruling. `--run`, `--action` and
+    `--until` make it an action: the operator clicks it, sees the exact command
+    and folder, and runs it once they say so. `--run` is one command with no
+    shell. An action with `--until` closes when that state is observed.
     """
     if not todos_.clean(question):
         raise click.UsageError("a decision needs a question")
+    if action or command or until or folder:
+        if options:
+            raise click.UsageError("an action has no choices, so --option cannot go with it")
+        try:
+            argv = deckasks.parse_run(command) if command else []
+            test = deckasks.check_until(until) if until else ""
+        except ValueError as exc:
+            raise click.UsageError(str(exc)) from exc
+        where = str(Path(folder).expanduser().resolve()) if folder else os.getcwd()
+        return _todo_change(
+            lambda session, agent: todos_.add(
+                session, agent, question, todos_.DECISIONS, kind=todos_.ACTION, run=argv, cwd=where, until=test
+            )
+        )
     if not all(todos_.clean(option) for option in options):
         raise click.UsageError("an --option needs words")
     if len(options) > len(RULING_KEYS):
@@ -3942,6 +4077,166 @@ def deck_decide_rule(agent: str, n: int) -> None:
     ruling = _ask_ruling(agent, n, todo.items[n - 1])
     if ruling:
         todos_.rule(config.session, agent, n, ruling)
+
+
+def action_screen(agent: str, n: int, item: todos_.Item, seen: deckasks.Seen, width: int) -> list[tuple[str, str]]:
+    """The action popup's lines, each with the key a click on it stands for. Pure."""
+    room = max(10, width - 6)
+    lines: list[tuple[str, str]] = [(f"{agent} needs ({n}):", ""), ("", "")]
+    lines += [(line, "") for line in textwrap.wrap(item.text, room)]
+    command = shlex.join(item.run)
+    runnable = bool(item.run) and not seen.stale and all(deckasks.printable(word) for word in item.run)
+    if item.run:
+        lines += [("", ""), ("runs, with no shell:", "")]
+        lines += [(f"  {line}", "") for line in textwrap.wrap(command.encode("unicode_escape").decode(), room)]
+        lines.append((f"in {item.cwd or '?'}", ""))
+    if seen.note:
+        lines += [("", ""), *((line, "") for line in textwrap.wrap(seen.note, room))]
+    lines.append(("", ""))
+    if runnable:
+        lines.append(("[r] run it", "r"))
+    lines.append(("[d] mark it done, nothing checked", "d"))
+    return [*lines, ("[q] close", "q")]
+
+
+def _ask_action(lines: list[tuple[str, str]]) -> str:
+    sys.stdout.write(resident_.MOUSE_ON + "\x1b[2J\x1b[H" + "\r\n".join(line for line, _ in lines))
+    sys.stdout.flush()
+    action = ""
+    try:
+        with keys_.reader() as wait_for:
+            while not action:
+                action = chosen_key(wait_for(60.0), lines)
+    finally:
+        sys.stdout.write(resident_.MOUSE_OFF + "\r\n")
+        sys.stdout.flush()
+    return action
+
+
+def run_action(item: todos_.Item) -> tuple[int, str]:
+    """Run the command in this popup, on its own terminal. Its exit code, and how it ended in words."""
+    try:
+        code = subprocess.run(item.run, cwd=item.cwd or None, env=child_env(), check=False).returncode
+    except OSError as exc:
+        return 127, str(exc)
+    return code, f"exit {code}"
+
+
+@deck_decide.command(name="act", hidden=True)
+@click.argument("agent")
+@click.argument("n", type=click.IntRange(min=1))
+def deck_decide_act(agent: str, n: int) -> None:
+    """Show AGENT's action N and run it if the operator says so: what a click on the row opens.
+
+        sb deck decide act skeletor 2
+
+    **This acts**, and only for the operator: it needs a terminal, and refuses
+    inside a tab, as an agent's command must not reach the operator's authority
+    without the operator. It runs the command it showed, and a stale row cannot run.
+    """
+    config, problems = load()
+    warn_now(problems)
+    if not has_terminal():
+        raise click.ClickException("an action is the operator's, and there is no terminal here to ask on")
+    if caller_tab(config.session) is not None:
+        raise click.ClickException("an action is the operator's, so this refuses inside a deck tab")
+    todo = todos_.load(config.session, agent, todos_.DECISIONS)
+    if todo is None or not 1 <= n <= len(todo.items):
+        raise click.ClickException(f"{agent} has no action {n}")
+    item = todo.items[n - 1]
+    if item.done or item.kind != todos_.ACTION:
+        raise click.ClickException(f"{agent}'s item {n} is not an open action")
+    seen = deckasks.observe(item.until, item.cwd) if item.until else deckasks.Seen()
+    if seen.closed:
+        deckasks.sweep_actions(config.session, agent)
+        click.echo(f"already done: {seen.closed}")
+        return
+    choice = _ask_action(action_screen(agent, n, item, seen, shutil.get_terminal_size().columns))
+    if choice == "d":
+        todos_.close_action(config.session, agent, n, "marked done by the operator, nothing checked it")
+    if choice != "r":
+        return
+    code, ended = run_action(item)
+    after = deckasks.observe(item.until, item.cwd) if item.until else deckasks.Seen()
+    if after.closed or (code == 0 and not item.until):
+        how = after.closed or f"ran, {ended}, nothing checked it"
+        todos_.close_action(config.session, agent, n, how)
+    click.echo(f"\n{ended}. Press a key to close.")
+    with keys_.reader() as wait_for:
+        wait_for(600.0)
+
+
+@deck_decide.command(name="note")
+@click.argument("text")
+@emit
+def deck_decide_note(text: str) -> Result:
+    """Record TEXT as worth knowing, with nothing to do. A click dismisses it.
+
+        sb deck decide note "dependabot alert #36 is open on this repo"
+
+    **This acts**, on the list of the tab it runs in. A notice sorts below every
+    choice and action.
+    """
+    if not todos_.clean(text):
+        raise click.UsageError("a notice needs words")
+    return _todo_change(lambda session, agent: todos_.add(session, agent, text, todos_.DECISIONS, kind=todos_.NOTICE))
+
+
+def deck_repos(session: str) -> list[str]:
+    """Each deck agent's repository, once, by the folder its tab runs in."""
+    fields = "\t".join(("#{" + ROLE_OPTION + "}", "#{pane_current_path}"))
+    answer = tmux("list-panes", "-s", "-t", scope(inner(session)), "-F", fields)
+    repos: list[str] = []
+    for line in answer.out.splitlines() if answer.ok else []:
+        role, _, path = line.partition("\t")
+        if role != AGENT:
+            continue
+        top = deckasks.read(["git", "rev-parse", "--show-toplevel"], path)
+        if top.returncode == 0 and top.stdout.strip() not in repos:
+            repos.append(top.stdout.strip())
+    return repos
+
+
+@deck_decide.command(name="sweep", hidden=True)
+def deck_decide_sweep() -> None:
+    """Read each open action's test, and held state when it is due. Started by the marks loop.
+
+        sb deck decide sweep
+
+    **This acts**, on the deck's own lists: an observed action closes here.
+    """
+    config, _ = load()
+    for agent in todos_.stored(config.session, todos_.DECISIONS):
+        try:
+            deckasks.sweep_actions(config.session, agent)
+        except ValueError:
+            continue
+    held = deckasks.read_held(config.session) or {}
+    try:
+        age = (datetime.now(timezone.utc) - datetime.fromisoformat(str(held.get("checked")))).total_seconds()
+    except ValueError:
+        age = HELD_EVERY
+    if age >= HELD_EVERY:
+        deckasks.write_held(config.session, [deckasks.held_of(repo) for repo in deck_repos(config.session)])
+
+
+@deck.command(name="ask", hidden=True)
+def deck_ask() -> None:
+    """Take one Claude Code hook event on stdin into the queue. What the deck's plugin hooks run.
+
+        sb deck ask
+
+    **This acts**, on the calling tab's rows. It never fails the hook: an agent's
+    turn must not stop because a row could not be written.
+    """
+    try:
+        payload = json.loads(sys.stdin.read() or "{}")
+        config, _ = load()
+        agent = caller_tab(config.session)
+        if agent is not None and isinstance(payload, dict):
+            deckasks.on_hook(config.session, agent, payload)
+    except (OSError, ValueError, DeckError):
+        pass
 
 
 @deck_decide.command(name="done")
@@ -4032,6 +4327,10 @@ mark(deck_column_pick, sb_acts=True)
 mark(deck_decide, sb_acts=True)
 mark(deck_decide_add, sb_acts=True)
 mark(deck_decide_done, sb_acts=True)
+mark(deck_decide_act, sb_acts=True)
+mark(deck_decide_note, sb_acts=True)
+mark(deck_decide_sweep, sb_acts=True)
+mark(deck_ask, sb_acts=True)
 mark(deck_decide_rm, sb_acts=True)
 mark(deck_decide_clear, sb_acts=True)
 mark(deck_decide_list, sb_acts=False)
