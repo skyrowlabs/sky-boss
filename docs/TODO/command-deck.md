@@ -1197,3 +1197,11 @@ kept the TODOS pane's pid.
   so one sender's fan-out reads as one tapped line, and the newest colours a shared cell. This
   retires "one plays at a time".
 - **A receiver that never reads** loses its line after fifteen minutes.
+
+### 2026-11-07: a message absorbed mid-turn is received too
+
+- **Why:** the first live hold test left a line up after its message arrived. A message taken in
+  between turns is a `user` entry, and one absorbed mid-turn is a `queued_command` attachment, which
+  nothing read. AGENT COMMUNICATIONS had been dropping those too, about one message in ten.
+- **Measured over a day of tabs:** 229 `user` entries and 25 attachments, all with a `msg_id`.
+- `messages.peer_origin` now reads both, and the pane and the line share it.

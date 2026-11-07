@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from skyboss import theme
+from skyboss.messages import peer_origin
 
 #: Seconds to draw a line out, to show the receiver's hue, and to fade it.
 DRAW, HOLD, FADE = 0.4, 0.3, 0.6
@@ -128,8 +129,8 @@ def read_entry(line: str, asked: dict[str, str]) -> Sent | dict | None:
         return None
     if not isinstance(entry, dict):
         return None
-    origin = entry.get("origin")
-    if entry.get("type") == "user" and isinstance(origin, dict) and origin.get("kind") == "peer":
+    origin = peer_origin(entry)
+    if origin is not None:
         return origin
     body = (entry.get("message") or {}).get("content")
     for part in body if isinstance(body, list) else []:
