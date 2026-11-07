@@ -226,8 +226,10 @@ def item(**kwargs) -> todos_.Item:
 
 
 def test_the_popup_shows_the_exact_command_and_folder():
-    lines = [line for line, _ in deck_.action_screen("a", 1, item(run=["gh", "x y"], cwd="/w"), deckasks.Seen(), 80)]
-    assert "  gh 'x y'" in lines and "in /w" in lines and "[r] run it" in lines
+    lines = [
+        line.strip() for line, _ in deck_.action_screen("a", 1, item(run=["gh", "x y"], cwd="/w"), deckasks.Seen(), 80)
+    ]
+    assert "gh 'x y'" in lines and "in /w" in lines and "[r] run it" in lines
 
 
 def test_a_stale_row_offers_no_run():
