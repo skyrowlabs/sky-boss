@@ -1,14 +1,16 @@
 ---
-commit_range: v0.2.0..HEAD
-generated: "2026-11-07T21:26:52Z"
-previous_release: v0.2.0
+commit_range: v0.3.0..HEAD
+generated: "2026-11-07T21:57:07Z"
+previous_release: v0.3.0
 release: unreleased
 status: in-flight
 ---
 
 # Repository Report
 
-> **Window:** unreleased (since v0.2.0) — `v0.2.0..HEAD` (69 commits, at `016dfbc`)
+> **Window:** unreleased (since v0.3.0) — `v0.3.0..HEAD` (1 commits, at `64d3154`)
+
+
 
 
 
