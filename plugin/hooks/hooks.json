@@ -1,9 +1,10 @@
 {
-  "description": "Mirror what a deck tab asks the operator into HUMAN DECISIONS.",
+  "description": "Mirror what a deck tab asks the operator into HUMAN DECISIONS, and hand a resumed, cleared or compacted tab today's brief.",
   "hooks": {
     "PermissionRequest": [{"matcher": "*", "hooks": [{"type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/../sb\" deck ask", "timeout": 10}]}],
     "PermissionDenied": [{"matcher": "*", "hooks": [{"type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/../sb\" deck ask", "timeout": 10}]}],
     "UserPromptSubmit": [{"hooks": [{"type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/../sb\" deck ask", "timeout": 10}]}],
-    "Stop": [{"hooks": [{"type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/../sb\" deck ask", "timeout": 10}]}]
+    "Stop": [{"hooks": [{"type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/../sb\" deck ask", "timeout": 10}]}],
+    "SessionStart": [{"hooks": [{"type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/../sb\" deck ask", "timeout": 10}]}]
   }
 }

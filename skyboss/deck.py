@@ -1605,7 +1605,7 @@ def brief(name: str, session: str, rows: list[tuple[str, str, str]], primary: st
         "`sb deck brief` reprints this with the deck as it stands now.",
         "The operator sees every message between agents in the deck's AGENT COMMUNICATIONS pane, and answers",
         "an agent's prompts by clicking its tab.",
-        'Keep todos with `sb deck todo add "<text>"` / `done <n>` (AGENT TODOs pane). Anything you need from the operator goes',
+        'Keep todos with `sb deck todo add "<text>"` / `done <n>` (AGENT TODOs pane). Anything you wait on the operator for goes',
         'through `sb deck decide` (HUMAN DECISIONS pane), never a question in prose: a ruling is `add "<question>" --option "<choice>"`, a command only they may run is `add "<what>" --run "<command>" --until <test>` (a merge: `add "Merge <repo> PR #<n>" --run "gh pr merge <n> --repo <owner/repo> --merge --match-head-commit <sha>" --until pr:<n>@<sha>`), something only they can do with no command is `add "<what>" --action`, and news is `note "<text>"`.',
         "A ruling is typed into your tab. An ask in a report or a message is not enough: each one is also a row, added by the tab that acts on it, and a command they must run is never left only in prose.",
     ]
@@ -3904,9 +3904,7 @@ def deck_brief(name: str | None) -> Result:
             "error": f"not running inside a tab of deck {config.session!r} — name an agent to preview its brief"
         }
         return result
-    projects = _projects()
-    primary = deck_primary(config.session)
-    rows = roster(config, projects, [], primary)
+    primary, rows, text = current_brief(config, who)
     if who not in (row[0] for row in rows):
         result.warn(f"{who!r} has no tab in deck {config.session!r}; this is the brief it would get if opened")
     result.data = {
@@ -3914,9 +3912,29 @@ def deck_brief(name: str | None) -> Result:
         "session": config.session,
         "primary": primary,
         "peers": [{"name": n, "cwd": d, "role": r} for n, d, r in rows if n != who],
-        "brief": brief(who, config.session, rows, primary, deck_profile_brief(config)),
+        "brief": text,
     }
     return result
+
+
+def current_brief(config: Config, who: str) -> tuple[str, list[tuple[str, str, str]], str]:
+    """The primary, the live roster, and `who`'s brief rebuilt from them now."""
+    primary = deck_primary(config.session)
+    rows = roster(config, _projects(), [], primary)
+    return primary, rows, brief(who, config.session, rows, primary, deck_profile_brief(config))
+
+
+#: SessionStart sources after which a tab is handed the brief again: its launch brief is a day old by then.
+REBRIEF_SOURCES = ("resume", "clear", "compact")
+
+
+def rebrief(config: Config, agent: str, payload: dict) -> str:
+    """The hook's reply to a tab resuming, cleared or compacted: today's brief as context, else nothing."""
+    if payload.get("hook_event_name") != "SessionStart" or payload.get("source") not in REBRIEF_SOURCES:
+        return ""
+    _, _, text = current_brief(config, agent)
+    note = "The sky.boss deck's brief as it stands now. Where it differs from the one you were started with, this wins.\n\n"
+    return json.dumps({"hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext": note + text}})
 
 
 def caller_tab(session: str, pid: int | None = None, parent_of: dict[int, int] | None = None) -> str | None:
@@ -4461,7 +4479,8 @@ def deck_ask() -> None:
         sb deck ask
 
     **This acts**, on the calling tab's rows. It never fails the hook: an agent's
-    turn must not stop because a row could not be written.
+    turn must not stop because a row could not be written. On a SessionStart
+    after a resume, a /clear or a compaction it prints today's brief as context.
     """
     try:
         payload = json.loads(sys.stdin.read() or "{}")
@@ -4469,6 +4488,9 @@ def deck_ask() -> None:
         agent = caller_tab(config.session)
         if agent is not None and isinstance(payload, dict):
             deckasks.on_hook(config.session, agent, payload)
+            reply = rebrief(config, agent, payload)
+            if reply:
+                click.echo(reply)
     except (OSError, ValueError, DeckError):
         pass
 
