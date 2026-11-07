@@ -3407,13 +3407,59 @@ def _row(where: str, window: str, status: str, session, pid: int, now: datetime,
     }
 
 
-def with_jobs(row: dict, parent_of: dict[int, int], proc: Path, now: datetime) -> dict:
+def spawned_by(rows: list[dict], parent_of: dict[int, int]) -> dict[str, str]:
+    """Session id → the deck tab's session that started it: by process tree, else by a scratch path.
+
+    A new tmux server cuts the process chain, so the path is what links those. A session
+    with neither, a scheduler's for one, has no owner and stays where it was.
+    """
+    tabs = {row["pid"]: row["id"] for row in rows if row["where"] == "deck" and row["id"]}
+
+    def top_tab(pid: int) -> str:
+        found, seen = "", {pid}
+        while (pid := parent_of.get(pid, 0)) > 1 and pid not in seen:
+            seen.add(pid)
+            found = tabs.get(pid, found)
+        return found
+
+    owners = {ident for pid, ident in tabs.items() if not top_tab(pid)}
+    out: dict[str, str] = {}
+    for row in rows:
+        if row["id"] and row["id"] not in owners:
+            named = [ident for ident in background.IDENT.findall(row["cwd"]) if ident in owners]
+            owner = top_tab(row["pid"]) or next(iter(named), "")
+            if owner:
+                out[row["id"]] = owner
+    return out
+
+
+def spawned_jobs(rows: list[dict], spawned: dict[str, str], now: datetime) -> dict[str, list[background.Job]]:
+    """Owner id → the sessions it spawned, live first, then those that ended a moment ago."""
+    from skyboss import messages as messages_
+
+    jobs: dict[str, list[background.Job]] = {}
+    for row in rows:
+        if row["id"] in spawned:
+            label = f"{row['name'] or row['id'][:8]} · {row['state']}"
+            jobs.setdefault(spawned[row["id"]], []).append(background.Job(background.SESSION, label, row["up"]))
+    owners = {row["id"] for row in rows if row["where"] == "deck" and row["id"] and row["id"] not in spawned}
+    live = {row["id"] for row in rows}
+    gone = background.ended(owners, live, messages_.projects_dir(), now.timestamp())
+    for owner, found in gone.items():
+        jobs.setdefault(owner, []).extend(found)
+    return jobs
+
+
+def with_jobs(
+    row: dict, parent_of: dict[int, int], proc: Path, now: datetime, spawned: list[background.Job] | None = None
+) -> dict:
     """`row` with what its session has running beside it, which a click on it unfolds."""
     if not row["id"]:
         return row
     from skyboss import messages as messages_
 
     found = background.subagents(row["cwd"], row["id"], messages_.projects_dir(), now.timestamp())
+    found += spawned or []
     found += background.shells(row["pid"], parent_of, proc)
     count = background.counted(found)
     return {**row, "bg": f"▸ {count}" if count else "", "jobs": [job.to_dict() for job in found]}
@@ -3562,7 +3608,10 @@ def queue_rows(
         for window_id, label, status, session, pid in entries
     ]
     outside = [_row("outside", "", s.status, s, s.pid, now) for s in sessions if s.id not in claimed]
-    return [with_jobs(row, parent_of, proc, now) for row in _by_activity(inside) + _by_activity(outside)]
+    rows = _by_activity(inside) + _by_activity(outside)
+    spawned = spawned_by(rows, parent_of)
+    jobs = spawned_jobs(rows, spawned, now)
+    return [with_jobs(row, parent_of, proc, now, jobs.get(row["id"])) for row in rows if row["id"] not in spawned]
 
 
 INLINE = ("where", "window", "state", "bg", "name", "up", "cwd")
@@ -3666,7 +3715,8 @@ def deck_queue(refresh: int | None, ticks: int | None, screen: bool, scope: str)
     An observe — a window may pin it. One row per deck window with its `claude`
     pid and the registry's `status` word, `waiting` first; a window with no
     record reads `unregistered`. Live sessions outside the deck follow. `bg`
-    counts a session's sub-agents and shells (`2a 1s`); click a row to unfold them.
+    counts a session's sub-agents, the sessions it spawned and its shells
+    (`2a 1c 1s`); click a row to unfold them.
     """
     once = functools.partial(queue_result, scope=scope, paint=bool(refresh and screen))
     config, _ = load()

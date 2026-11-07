@@ -1158,3 +1158,14 @@ kept the TODOS pane's pid.
   tab waits safely". Probed on a real tab first: the line queued and arrived as the next turn.
 - **`waiting` never does,** which keeps a prompt out of the deck's reach. The state is read once a
   tick, so a prompt opening in that gap on a busy tab is the remaining exposure.
+
+### 2026-11-07: a session a tab started sits under that tab
+
+- **Why:** Jeston saw a probe session appear under outside and could not tell whose it was.
+- **Two links, process tree first.** A new tmux server cuts the chain, so a session id in the path
+  is the other link: Claude Code keeps a session's scratch folder under its id. A session with
+  neither stays outside, which is where a scheduler's belongs.
+- **One that ended stays for `RECENT`,** read from its transcript's `stat` as a sub-agent is, so a
+  short run does not flash and vanish.
+- **`sb agents` stays flat.** It reports the registry; only AGENT LIST nests. A busy child still
+  reads as its tab's state, as it did.
