@@ -10,7 +10,7 @@ import functools
 import json
 import re
 import shlex
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -755,13 +755,14 @@ def test_open_refuses_a_cwd_that_is_not_there(fake, home, tmp_path, said):
 # ============================================================================
 
 
-def test_the_deck_types_into_a_pane_only_to_tell_an_idle_agent_a_ruling():
-    """A deck that could answer a prompt is a second permission path, so one idle-only function may type."""
+def test_the_deck_types_into_a_pane_only_to_tell_an_agent_a_ruling():
+    """A deck that could answer a prompt is a second permission path, so one function may type, and never at one."""
     source = Path(deck_.__file__).read_text()
     start = source.index("def tell_rulings(")
     end = source.index("\ndef ", start + 1)
     assert not re.search(r"send-keys|send_keys|send-prefix|paste-buffer", source[:start] + source[end:])
-    assert 'states.get(pane.window_id) != "idle"' in source[start:end]
+    assert "may_tell(state" in source[start:end]
+    assert deck_.WAITING not in deck_.TELL_AT_ONCE and not deck_.may_tell(deck_.WAITING, "", datetime.now(timezone.utc))
 
 
 def test_every_deck_subcommand_chooses_its_act_bit():
@@ -2581,7 +2582,7 @@ def test_a_ruling_is_refused_inside_a_tab_and_off_a_terminal(fake, home, sb_stat
     assert not jam_decisions()[0].done
 
 
-def test_an_untold_ruling_is_typed_once_into_an_idle_tab_and_never_a_busy_one(fake, sb_state):
+def test_an_untold_ruling_is_typed_once_into_an_idle_tab_and_not_at_once_into_a_busy_one(fake, sb_state):
     from skyboss import todos
 
     fake.add("sb-agents", "jam", agent="jam", role="agent", pid=10)
@@ -2597,6 +2598,49 @@ def test_an_untold_ruling_is_typed_once_into_an_idle_tab_and_never_a_busy_one(fa
     assert typed[1][-1] == "Enter" and not jam_decisions()[0].untold
     deck_.tell_rulings("sb", listed, {window: "idle"}, labels)
     assert len(fake.find("send-keys")) == 2
+
+
+def test_a_finished_turn_with_a_background_job_takes_a_ruling_at_once(fake, sb_state):
+    from skyboss import todos
+
+    fake.add("sb-agents", "jam", agent="jam", role="agent", pid=10)
+    listed, _ = deck_.panes("sb-agents")
+    todos.add("sb", "jam", "take it?", todos.DECISIONS)
+    todos.rule("sb", "jam", 1, "hold ours")
+    fake.current = "0"
+    deck_.tell_rulings("sb", listed, {listed[0].window_id: "shell"}, {listed[0].window_id: "jam"})
+    assert fake.find("send-keys") and not jam_decisions()[0].untold
+
+
+def test_a_busy_tab_takes_a_ruling_only_once_it_has_waited(fake, sb_state):
+    from skyboss import todos
+
+    fake.add("sb-agents", "jam", agent="jam", role="agent", pid=10)
+    listed, _ = deck_.panes("sb-agents")
+    window, labels = listed[0].window_id, {listed[0].window_id: "jam"}
+    todos.add("sb", "jam", "take it?", todos.DECISIONS)
+    todos.rule("sb", "jam", 1, "hold ours")
+    fake.current = "0"
+    closed = datetime.fromisoformat(jam_decisions()[0].closed)
+    early = closed + timedelta(seconds=deck_.BUSY_TELL_AFTER - 1)
+    late = closed + timedelta(seconds=deck_.BUSY_TELL_AFTER)
+    deck_.tell_rulings("sb", listed, {window: "busy"}, labels, now=early)
+    assert not fake.find("send-keys") and jam_decisions()[0].untold
+    deck_.tell_rulings("sb", listed, {window: "busy"}, labels, now=late)
+    assert fake.find("send-keys") and not jam_decisions()[0].untold
+
+
+def test_a_tab_at_a_prompt_never_takes_a_ruling_however_long_it_waited(fake, sb_state):
+    from skyboss import todos
+
+    fake.add("sb-agents", "jam", agent="jam", role="agent", pid=10)
+    listed, _ = deck_.panes("sb-agents")
+    todos.add("sb", "jam", "take it?", todos.DECISIONS)
+    todos.rule("sb", "jam", 1, "hold ours")
+    fake.current = "0"
+    later = datetime.now(timezone.utc) + timedelta(days=1)
+    deck_.tell_rulings("sb", listed, {listed[0].window_id: deck_.WAITING}, {listed[0].window_id: "jam"}, now=later)
+    assert not fake.find("send-keys") and jam_decisions()[0].untold
 
 
 def test_a_scrolled_tab_waits_for_its_ruling(fake, sb_state):
