@@ -12,7 +12,7 @@ commit it, with a clean venv on the `python-version` the job asks for.
 composite action is expanded, `$GITHUB_PATH` and `$GITHUB_ENV` carry to later
 steps, and each `run:` step runs under `bash -eo pipefail` with the job's env.
 Anything else stops the job and is reported as not rehearsed. A job that stopped
-is never reported as passing, and a run that rehearsed nothing exits 2.
+is never reported as passing, and a run that rehearsed nothing exits 3, no subject.
 
 Usage:  python scripts/rehearse_scheduled.py [--plan] [--workflow FILE] [--keep]
 """
@@ -35,7 +35,7 @@ import yaml
 # owns every path below — can be imported. See scripts/paths.py.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts.output import detail, fail, item, ok, skip, step, warn  # noqa: E402
+from scripts.output import EXIT_NO_SUBJECT, EXIT_REFUSED, detail, fail, item, no_subject, ok, step, warn  # noqa: E402
 from scripts.paths import PROJECT_ROOT  # noqa: E402
 
 WORKFLOWS = PROJECT_ROOT / ".github" / "workflows"
@@ -49,9 +49,6 @@ SETUP_PYTHON = "actions/setup-python"
 
 #: Lines of a failing step's output to show.
 TAIL = 40
-
-#: The exit when no job could be rehearsed in full: nothing was checked, which is not a pass.
-NOTHING_REHEARSED = 2
 
 #: The files a runner gives each step, as the env name a step writes through.
 RUNNER_FILES = ("GITHUB_PATH", "GITHUB_ENV", "GITHUB_OUTPUT", "GITHUB_STEP_SUMMARY")
@@ -373,7 +370,7 @@ def main(argv: list | None = None) -> int:
         missing = sorted(set(args.workflow) - {p.name for p in paths})
         if missing:
             fail(f"no scheduled workflow named {', '.join(missing)} in {WORKFLOWS.relative_to(PROJECT_ROOT)}")
-            return 1
+            return EXIT_REFUSED
     jobs = [job for path in paths for job in plan(path)]
     if args.plan:
         for job in jobs:
@@ -407,8 +404,8 @@ def main(argv: list | None = None) -> int:
         fail(f"{len(failed)} scheduled job(s) failed here, so they will fail on the schedule")
         return 1
     if not passed:
-        skip("no scheduled job here could be rehearsed in full, so this checked nothing")
-        return NOTHING_REHEARSED
+        no_subject("no scheduled job here could be rehearsed in full, so this checked nothing")
+        return EXIT_NO_SUBJECT
     ok(f"{len(passed)} scheduled job(s) rehearsed green: " + ", ".join(f"{j.workflow} › {j.id}" for j in passed))
     return 0
 

@@ -8,15 +8,22 @@ the code is.
 
 from __future__ import annotations
 
+import json
 import re
 import sys
 
 import click
 
+from scripts.gates import DOCS_GATES, PRE_PUSH_GATES, Gate
+from scripts.git.green_stamp import clean_tree, record
+from scripts.output import EXIT_NO_SUBJECT, EXIT_REFUSED
 from scripts.paths import TMP_DIR
 from scripts.yaml_text import read_uncommented
 
-from .helpers import PROJECT_ROOT, detail, fail, module, ok, run, script, summarize, warn
+from .helpers import PROJECT_ROOT, Declared, detail, fail, module, no_subject, run, script, summarize, warn
+
+#: tests/test_cli_smoke.py runs this module's argument-less commands for real.
+SMOKE_EXECUTES = True
 
 
 @click.group()
@@ -73,7 +80,8 @@ LANGUAGE_CONFIGS = (
 
 #: The python lint gates, as (label, argv) with the paths to check appended.
 #: A command that lints a subset of paths runs this same list over them, so a
-#: tree that changes its linters here (ruff, say) changes them everywhere.
+#: tree that changes its linters here (ruff, say) changes the commands that read
+#: this list. `.pre-commit-config.yaml` and `ci.yml` name their own and stay as they were.
 PYTHON_LINTERS = (
     ("flake8 (errors)", ("flake8", "--select=E9,F63,F7,F82,F401", "--show-source")),
     ("isort", ("isort", "--check-only", "--diff")),
@@ -90,6 +98,19 @@ def typecheck() -> tuple[str, int] | None:
     # bare one reports an environment fault as errors in files this run never
     # touched (`reportMissingImports` is `none`). scripts/lint_pyright_gate.py.
     return ("pyright", script("scripts/lint_pyright_gate.py", "--project", "pyrightconfig.json"))
+
+
+def workflow_lint() -> tuple[str, int] | None:
+    """actionlint over `.github/workflows/`, as the commit hook runs it, or None without that hook.
+
+    Through pre-commit so the hook's `rev:` stays the one version. Only the hook ran
+    it before, so a workflow edited without a commit (a hand-merge, an upgrade)
+    passed this and pre-push and failed at the commit (sky.boss).
+    """
+    config = PROJECT_ROOT / ".pre-commit-config.yaml"
+    if not config.exists() or not re.search(r"^\s*-\s*id:\s*actionlint\s*$", read_uncommented(config), re.M):
+        return None
+    return ("actionlint", module("pre_commit", "run", "actionlint", "--all-files"))
 
 
 def _unlinted() -> list[str]:
@@ -120,6 +141,9 @@ def _lint() -> int:
     typed = typecheck()
     if typed:
         results.append(typed)
+    workflows = workflow_lint()
+    if workflows:
+        results.append(workflows)
     if (PROJECT_ROOT / "eslint.config.js").exists():
         results.append(("eslint", run(["npm", "run", "lint:check"]).returncode))
     if not results:
@@ -148,8 +172,52 @@ def _docs() -> int:
             ("doc links", script("scripts/check_doc_links.py")),
             ("source → doc refs", script("scripts/check_source_doc_refs.py")),
             ("report anchors", script("scripts/docs/release_window.py", "--check")),
+            *_product(DOCS_GATES),
         ]
     )
+
+
+#: The product scripts a node tree is gated on by name. The template ships none of
+#: them, because it does not pick a test runner.
+NODE_PRODUCT_SCRIPTS = ("typecheck", "test", "build")
+
+
+def _node_products() -> list:
+    """`package.json`'s product scripts, plus prettier, which CI runs and this did not.
+
+    A script present runs. One declared in `skeletor.requiredScripts` and missing is
+    refused, because deleting a gate must not pass; undeclared and missing has no
+    subject. `.github/scripts/node-gate.cjs` is the same rule in the job with no python.
+    """
+    manifest = PROJECT_ROOT / "package.json"
+    if not manifest.exists():
+        return []
+    try:
+        data = json.loads(manifest.read_text(encoding="utf-8"))
+    except ValueError as error:
+        fail(f"package.json cannot be read: {error}")
+        return [("package.json", EXIT_REFUSED)]
+    scripts = data.get("scripts") or {}
+    required = (data.get("skeletor") or {}).get("requiredScripts") or []
+    rows: list = []
+    if "format:check" in scripts:
+        rows.append(("prettier", run(["npm", "run", "format:check"]).returncode))
+    for name in NODE_PRODUCT_SCRIPTS:
+        if name in scripts:
+            rows.append((f"npm {name}", run(["npm", "run", name]).returncode))
+        elif name in required:
+            fail(f"package.json requires the `{name}` script and has none: a deleted gate does not pass")
+            rows.append((f"npm {name}", EXIT_REFUSED))
+        else:
+            no_subject(f"npm {name}: no such script in package.json")
+            rows.append((f"npm {name}", Declared(EXIT_NO_SUBJECT)))
+    return rows
+
+
+def _product(gates: list[Gate]) -> list:
+    """Your gates from `scripts/gates.py`, run after the template's own."""
+    results = [(gate, script(gate.script, *gate.args)) for gate in gates]
+    return [(gate.label, Declared(code) if gate.no_subject else code) for gate, code in results]
 
 
 @check.command(name="doc-links")
@@ -202,7 +270,7 @@ def scheduled(plan: bool, workflows: tuple, keep: bool) -> None:
     """Rehearse each scheduled workflow here: the working tree, a clean venv.
 
     No pull request runs a scheduled job, so this is the only way to see one
-    pass before its first night. Exits 2 when nothing could be rehearsed.
+    pass before its first night. Exits 3, no subject, when nothing could be rehearsed.
     scripts/rehearse_scheduled.py says what it can and cannot stand in for.
     """
     args = ["--plan"] * plan + ["--keep"] * keep
@@ -212,7 +280,7 @@ def scheduled(plan: bool, workflows: tuple, keep: bool) -> None:
 
 
 @check.command(name="pre-push")
-@click.option("--quick", is_flag=True, help="lint and docs only — skip the test suites")
+@click.option("--quick", is_flag=True, help="lint and docs only — skip the test suites, and write no green stamp")
 def pre_push(quick: bool) -> None:
     """Every gate CI blocks on that can run on this host, in fail-fastest order.
 
@@ -240,6 +308,7 @@ def pre_push(quick: bool) -> None:
     `ci.yml` and from this function, and fails when a gate is in neither.
     """
     _say_if_interpreter_differs()
+    tree = clean_tree()
     results = [
         ("lint", _lint()),
         ("output discipline", script("scripts/check_output_discipline.py")),
@@ -256,6 +325,7 @@ def pre_push(quick: bool) -> None:
         # cannot require it: the merge driver and commit template live in
         # .git/config, which every second clone starts without.
         ("clone-local config", script("scripts/git/install_merge_drivers.py", "--check")),
+        *_product(PRE_PUSH_GATES),
     ]
     if not quick:
         junit = TMP_DIR / "junit-unit.xml"
@@ -264,7 +334,12 @@ def pre_push(quick: bool) -> None:
         results.append(
             ("skip budget", script("scripts/check_skip_budget.py", "--suite", "unit", "--junit", str(junit)))
         )
-    sys.exit(summarize(results))
+        results += _node_products()
+    code = summarize(results)
+    # What scripts/hooks/pre-push reads: a push to a protected branch needs this.
+    if code == 0 and not quick:
+        record(tree)
+    sys.exit(code)
 
 
 #: The python this project was rendered for — what `ci.yml`'s single-version
@@ -333,4 +408,5 @@ def _say_if_interpreter_differs() -> None:
 def health() -> None:
     """Is the local stack up and answering?"""
     # SCAFFOLD: replace with this project's real health probes.
-    ok("nothing to probe yet — wire this to the project's services")
+    no_subject("nothing to probe yet — wire this to the project's services")
+    sys.exit(EXIT_NO_SUBJECT)

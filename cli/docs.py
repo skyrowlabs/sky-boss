@@ -18,6 +18,9 @@ from scripts.paths import IMPL_DIR, TODO_DIR  # noqa: E402
 
 from .helpers import PROJECT_ROOT, detail, fail, git, item, line, ok, run, script, step, warn
 
+#: tests/test_cli_smoke.py runs this module's argument-less commands for real.
+SMOKE_EXECUTES = True
+
 
 @click.group()
 def docs() -> None:

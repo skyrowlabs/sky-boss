@@ -79,7 +79,7 @@ replaced by a browser one the same day. What exists:
 | `sb follow <path>` | Follows a file with a native stat cursor, so quiet and dead are different words. `--due 15m` makes late a word too |
 | `sb roll-call` | Asks every declared project how it is and folds the answers. An observe. See [[roll-call]] |
 | `sb agents` | Which agent sessions are running right now, across every provider. `--scope deck\|outside` splits them by the deck. An observe. See [[agent-sessions]] |
-| `sb deck` | The controller: a tmux window of agent tabs, each a live `claude` marked working, needs you or quiet, beside NEEDS YOU and MESSAGES panes. `--profile NAME` opens a declared set of tabs, primary first; declared in `$SB_HOME/deck.toml`. Its keys live in a key table only the deck's sessions use, shown in the bar; Ctrl-Q or ✕ asks, then `exit` ends both sessions. Ctrl-C is never bound. **Acts**, as do `open`, `jump`, `layout`, `marks`, `exit` and `todo add`/`done`/`rm`; `queue`, `messages`, `brief` and `todo list` observe. See [[command-deck]] |
+| `sb deck` | The controller: a tmux window of agent tabs, each a live `claude` boxed in a tab whose ground is lit while working and warn while it needs you, a line drawn under the tabs between two agents as they message, beside a right column of AGENT LIST, AGENT COMMUNICATIONS, AGENT TODOs and HUMAN DECISIONS panes, chosen, ordered and folded with `column` (M-s, M-c), and in the `grid` layout moved between columns by clicking a title bar and then a pane in the target column; a clicked message opens whole in a popup, a clicked decision offers its choices and types the ruling into the agent's tab, never at a prompt, a clicked action shows its exact command and runs it once asked, hook rows say what a tab is waiting on, a folded HELD line reads unpushed commits, green PRs and alerts, a clicked AGENT LIST row unfolds that session's sub-agents, spawned sessions and shells, and M-x clears every done todo and decided item. `--profile NAME` opens a declared set of tabs, primary first; declared in `$SB_HOME/deck.toml`. Its keys live in a key table only the deck's sessions use, shown in the bar; Ctrl-Q or ✕ asks, then `exit` ends both sessions. Ctrl-C is never bound. A deck that is not running comes back as saved, each tab resuming its session; `--fresh` starts over. A `+` after the tabs (M-n) opens a new agent or terminal tab from `roots` in `deck.toml`, and can keep it in the profile. **Acts**, as do `open`, `add`, `terminal`, `plus`, `jump`, `layout`, `reload`, `marks`, `save`, `exit`, `column fold`/`pick`/`move`, `add`/`done`/`rm`/`clear` under `todo` and `decide`, and `decide rule`; `queue`, `messages`, `message`, `brief`, `places`, `column show` and both `list`s observe. See [[command-deck]] |
 | `sb history <project>` | A project's own run ledger, newest first. An observe, and the only one that looks backwards. See [[history]] |
 | `sb job` | Jobs sky.boss **issues**. `list` observes; `run`, `install` and `uninstall` act. systemd is the daemon. See [[jobs]] |
 | `sb schedule` | What fires next, across projects **and sky.boss's own jobs**, ordered by the parsed instant. `clock` says which fires it. An observe; it schedules nothing. See [[schedule]] |
@@ -115,13 +115,15 @@ document, and correct the document when it has fallen behind.
 
 ## Scope
 
-There is no taxonomy to defend yet. **Act versus observe is a property of the surface, and every
-command still says which it is.** On 2026-11-04 Jeston dropped the rule that `sb run` is the only
-top-level command that acts. The canvas (`sb ui`) is a monitoring surface and stays one, unchanged:
-it reads each command's `acts` bit, refuses an act a cadence, and asks before running one. The deck
-([[command-deck]]) is an act surface. What survives is the per-command split: a command asserts
-whether it acts, nested ones included, and a command that wants to both read and write is still two
-commands.
+There is no taxonomy to defend yet. **Act versus observe is a property of the command, and no
+surface is limited to one of them.** On 2026-11-04 Jeston dropped the rule that `sb run` is the only
+top-level command that acts, and on 2026-11-06 dropped the declaration that the canvas is a
+monitoring surface. The long-term goal is that the canvas (`sb ui`) and the deck ([[command-deck]])
+fuse into one surface; [[open]] item 25 lists what that adds and rebuilds. Neither surface's
+behaviour changed with the declaration: the canvas still reads each command's `acts` bit, refuses an
+act a cadence, and asks before running one. What survives is the per-command split: a command
+asserts whether it acts, nested ones included, and a command that wants to both read and write is
+still two commands.
 
 **`sb job` is the group that returned, on 2026-09-01, and it splits exactly that way**: `list`
 observes, while `run`, `install` and `uninstall` act and say so. What matters is that the split
@@ -604,8 +606,9 @@ check there first.
 | Saved commands (`tools.toml`) | `~/.sky-boss/` (`$SB_HOME`) | the operator, `--save`, and the surface | never |
 | Capture formats and highlight rules (`formats.toml`) | `~/.sky-boss/` (`$SB_HOME`) | the operator | never |
 | Declared projects and the agent-state root (`projects.toml`) | `~/.sky-boss/` (`$SB_HOME`) | the operator | never |
-| The deck's agents (`deck.toml`) | `~/.sky-boss/` (`$SB_HOME`) | the operator | never |
-| Backups of `tools.toml` | `~/.sky-boss/backups/` | sky.boss, before every write | never |
+| The deck's agents (`deck.toml`) | `~/.sky-boss/` (`$SB_HOME`) | the operator, and `sb deck add --keep` | never |
+| The deck's console themes (`sb-<agent>.json`), unless `themes = false` | `~/.claude/themes/` (`$CLAUDE_CONFIG_DIR`) | sky.boss, on `sb deck` | never |
+| Backups of `tools.toml` and `deck.toml` | `~/.sky-boss/backups/` | sky.boss, before every write | never |
 | Browser profile for the canvas | `~/.local/state/sb/` (`$SB_STATE`) | the machine | never |
 | What the surface remembers about itself (`prefs.json`) | `~/.local/state/sb/` (`$SB_STATE`) | the surface | never |
 

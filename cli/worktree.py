@@ -24,6 +24,9 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from scripts import tree_lock  # noqa: E402
 from scripts.paths import REQUIREMENTS  # noqa: E402
 
+#: tests/test_cli_smoke.py runs this module's argument-less commands for real.
+SMOKE_EXECUTES = True
+
 
 def _venv_inputs(root: Path) -> dict:
     """`{repo-relative path: bytes}` for everything the host venv is built from.
@@ -85,6 +88,41 @@ def _requirements_agree(target: Path) -> bool:
     return _venv_inputs(PROJECT_ROOT) == _venv_inputs(target)
 
 
+def _link_node_modules(target: Path) -> None:
+    """Borrow the primary's `node_modules` when the lockfiles agree, as `.venv` is borrowed.
+
+    `check pre-push` runs eslint out of it, so a worktree without one fails on
+    `command not found` (sky.boss).
+    """
+    modules = PROJECT_ROOT / "node_modules"
+    if not modules.is_dir() or (target / "node_modules").exists():
+        return
+    locks = [root / "package-lock.json" for root in (PROJECT_ROOT, target)]
+    if [lock.read_bytes() if lock.exists() else None for lock in locks] == [None, None] or (
+        all(lock.exists() for lock in locks) and locks[0].read_bytes() == locks[1].read_bytes()
+    ):
+        (target / "node_modules").symlink_to(modules.resolve())
+        item("linked node_modules (the primary's)")
+    else:
+        item("did NOT link node_modules — this branch's package-lock.json differs from the primary's")
+        detail("  npm ci")
+
+
+def start_point(base: str) -> str:
+    """What `worktree new` cuts from: origin's branch, or the local one if origin says it has none.
+
+    Only that answer falls back. An unreachable origin keeps failing, because a
+    stale local branch would be cut from without a word.
+    """
+    asked = ["git", "ls-remote", "--exit-code", "origin", f"refs/heads/{base}"]
+    local = ["git", "rev-parse", "-q", "--verify", f"refs/heads/{base}"]
+    absent = subprocess.run(asked, cwd=str(PROJECT_ROOT), capture_output=True).returncode == 2
+    if absent and subprocess.run(local, cwd=str(PROJECT_ROOT), capture_output=True).returncode == 0:
+        return base
+    run(["git", "fetch", "origin", base])
+    return f"origin/{base}"
+
+
 @click.group()
 def worktree() -> None:
     """Linked worktrees — one checkout per branch."""
@@ -93,7 +131,12 @@ def worktree() -> None:
 @worktree.command()
 @click.argument("path")
 @click.option("-b", "--branch", help="branch to create (defaults to the directory name)")
-@click.option("--base", default="develop", show_default=True)
+@click.option(
+    "--base",
+    default="develop",
+    show_default=True,
+    help="branch to cut from: origin's, or the local one when origin has no such branch",
+)
 def new(path: str, branch: str, base: str) -> None:
     """Create a worktree with its own branch, .env and scratch space."""
     target = Path(path).expanduser().resolve()
@@ -103,10 +146,11 @@ def new(path: str, branch: str, base: str) -> None:
         fail(f"{target} already exists")
         sys.exit(1)
 
-    run(["git", "fetch", "origin", base])
-    if run(["git", "worktree", "add", "-b", branch, str(target), f"origin/{base}"]).returncode != 0:
+    start = start_point(base)
+    if run(["git", "worktree", "add", "-b", branch, str(target), start]).returncode != 0:
         fail("git worktree add failed")
         sys.exit(1)
+    item(f"cut from {start}")
 
     # The .env is untracked, so a new tree has none — and a tree that cannot
     # boot is a tree whose suite silently skips everything.
@@ -150,6 +194,8 @@ def new(path: str, branch: str, base: str) -> None:
             item("did NOT link .venv — this branch's requirements differ from the primary's")
             detail("  python3.12 -m venv .venv && .venv/bin/pip install -r scripts/requirements.txt")
 
+    _link_node_modules(target)
+
     (target / "tmp").mkdir(exist_ok=True)
 
     ok(f"worktree at {target} on branch '{branch}'")
@@ -160,13 +206,33 @@ def new(path: str, branch: str, base: str) -> None:
     detail(f"When you are done:  dev worktree drop {target}")
 
 
+def stranded(target: Path) -> list[str]:
+    """Commits that removing `target` would lose: those only its detached HEAD reaches.
+
+    A worktree on a branch loses nothing, because the branch outlives `git
+    worktree remove`; branches are shared by every worktree of a repository, so
+    counting unpushed branches blocked a clean tree for work in another
+    (sky.boss). Only a detached HEAD can strand commits.
+    """
+    on_branch = subprocess.run(["git", "symbolic-ref", "-q", "HEAD"], cwd=str(target), capture_output=True)
+    if on_branch.returncode == 0:
+        return []
+    found = subprocess.run(
+        ["git", "log", "HEAD", "--not", "--branches", "--tags", "--remotes", "--oneline"],
+        cwd=str(target),
+        capture_output=True,
+        text=True,
+    )
+    return found.stdout.splitlines()
+
+
 @worktree.command()
 @click.argument("path")
-@click.option("--force", is_flag=True, help="remove even with uncommitted or unpushed work")
+@click.option("--force", is_flag=True, help="remove even with uncommitted work or stranded commits")
 def drop(path: str, force: bool) -> None:
     """Remove a worktree, refusing if it still holds work.
 
-    The refusal on unpushed commits is the important half: a detached
+    The refusal on stranded commits is the important half: a detached
     worktree's commits are reachable from nothing but its own HEAD, so that
     refusal is the only thing between them and silent deletion.
     """
@@ -183,7 +249,7 @@ def drop(path: str, force: bool) -> None:
         detail("That work belongs to somebody. Commit it, or pass --force if you are sure.")
         sys.exit(1)
 
-    # The third guard, and the one that was missing. `git status` and unpushed
+    # The third guard, and the one that was missing. `git status` and stranded
     # commits both describe the tree's *contents*; neither says whether somebody
     # is using it right now. A suite run does not dirty a tree and does not
     # create commits, so a checkout with a live `suite` hold is clean, pushed,
@@ -201,14 +267,12 @@ def drop(path: str, force: bool) -> None:
         detail("Something is working in there now. Wait for it, or pass --force if you are sure.")
         sys.exit(1)
 
-    unpushed = subprocess.run(
-        ["git", "log", "--branches", "--not", "--remotes", "--oneline"], cwd=str(target), capture_output=True, text=True
-    ).stdout.strip()
-    if unpushed and not force:
-        fail(f"{target} holds {len(unpushed.splitlines())} commit(s) on no remote:")
-        for commit_line in unpushed.splitlines()[:5]:
+    lost = stranded(target)
+    if lost and not force:
+        fail(f"{target} has a detached HEAD holding {len(lost)} commit(s) on no branch, tag or remote:")
+        for commit_line in lost[:5]:
             item(commit_line)
-        detail("These are reachable from nothing but this tree's HEAD. Push them, or --force.")
+        detail("Removing the worktree loses them. Put a branch on HEAD and push it, or --force.")
         sys.exit(1)
 
     run(["git", "worktree", "remove", *(["--force"] if force else []), str(target)])

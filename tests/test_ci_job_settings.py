@@ -1,7 +1,7 @@
 """A test that needs full history must run in a job that fetches it.
 
 `tests/test_docs_name_live_code.py` asks git whether a name was ever defined
-here. `git log --all` answers "no" for everything in a shallow clone, so the
+here. `git log` answers "no" for everything past a shallow clone's graft, so the
 check would pass by *seeing* nothing rather than by *finding* nothing — and it
 refuses instead, asserting the clone is not shallow. `ci.yml` sets
 `fetch-depth: 0` on the job that runs it, which is what makes that assertion
@@ -44,6 +44,12 @@ So the second route reads **scripts**: a script under `scripts/` that shells
 out to `git log` or `rev-list` is history-dependent, and every job invoking it
 by path must fetch history. Same shape, one instrument wider.
 
+The third route is this tree's own CLI: a job running `./dev <group>
+<command>` reaches whatever `script()` paths that command's function calls,
+following calls into its own module, and those are matched like a path. A
+history reader behind a command used to be invisible here (breeze.brain's
+`corpus check`).
+
 Every workflow is scanned, not just `ci.yml`, because that is where the second
 route was hiding.
 
@@ -57,16 +63,16 @@ with the template's.
 
 ## What it still cannot see
 
-A history reader invoked some way other than by its path — through a shell
-helper, a `make` target, a wrapper. sky.boss's own scoping is the honest one:
-the general discriminator is *does this job run anything that shells out to
-git history*, and that has no clean structural handle. Neither of us has a
-better proposal than the two routes below and the counterexample that produced
-the second.
+A history reader reached some other way — a shell helper, a `make` target, a
+command calling into another module of the shell. (A gate appended to
+`scripts/gates.py` is followed, since `check` runs those lists.) The general
+discriminator is *does this job run anything that shells out to git history*,
+and that has no clean structural handle.
 """
 
 from __future__ import annotations
 
+import ast
 import re
 import sys
 from pathlib import Path
@@ -81,11 +87,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from repo_files import python_sources  # noqa: E402
 from scanning import scanned  # noqa: E402
+from scripts.gates import DOCS_GATES, PRE_PUSH_GATES  # noqa: E402
 from scripts.paths import GITHUB_DIR, PROJECT_ROOT, TESTS_DIR, is_foreign  # noqa: E402
 from scripts.yaml_text import read_uncommented  # noqa: E402
+from tests.shell import SHELL_PACKAGE, group  # noqa: E402
 
 CI = GITHUB_DIR / "workflows" / "ci.yml"
 WORKFLOWS = GITHUB_DIR / "workflows"
+CLI_NAME = "dev"
 
 #: The tell that a test refuses to run against a shallow clone: it *tests for*
 #: the path git writes, on one line. Matched on the path rather than on a helper
@@ -185,8 +194,62 @@ def history_dependent_scripts() -> set:
     }
 
 
+#: `scripts/gates.py`'s lists, which a command runs as data rather than as `script()` literals.
+_PRODUCT_GATES = {"DOCS_GATES": DOCS_GATES, "PRE_PUSH_GATES": PRE_PUSH_GATES}
+
+
+def _reached_scripts(function) -> set:
+    """Every `script("<path>")` literal `function` reaches, following calls within its module."""
+    tree = ast.parse(Path(sys.modules[function.__module__].__file__ or "").read_text(encoding="utf-8"))
+    defs = {node.name: node for node in tree.body if isinstance(node, ast.FunctionDef)}
+    found, seen, todo = set(), set(), [function.__name__]
+    while todo:
+        name = todo.pop()
+        if name in seen or name not in defs:
+            continue
+        seen.add(name)
+        for node in ast.walk(defs[name]):
+            if isinstance(node, ast.Name) and node.id in _PRODUCT_GATES:
+                found |= {gate.script for gate in _PRODUCT_GATES[node.id]}
+            if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)):
+                continue
+            first = node.args[0] if node.args else None
+            if node.func.id == "script" and isinstance(first, ast.Constant) and isinstance(first.value, str):
+                found.add(first.value)
+            else:
+                todo.append(node.func.id)
+    return found
+
+
+def cli_routes() -> dict:
+    """`{"<group> <command>": the script paths it runs}`, from click's own registry."""
+    routes = {}
+
+    def walk(command, prefix: tuple) -> None:
+        for name, child in getattr(command, "commands", {}).items():
+            if child.callback is not None:
+                routes[" ".join(prefix + (name,))] = _reached_scripts(child.callback)
+            walk(child, prefix + (name,))
+
+    walk(group(), ())
+    return routes
+
+
+def _invokes(body: str, route: str) -> bool:
+    """Whether a job's text runs `route` through the wrapper or `python -m`."""
+    words = r"\s+".join(re.escape(word) for word in route.split())
+    launcher = rf"(?:\./{re.escape(CLI_NAME)}|python3?\s+-m\s+{re.escape(SHELL_PACKAGE)})"
+    return re.search(rf"{launcher}\s+{words}(?![\w-])", body) is not None
+
+
+def history_routes(scripts: set) -> set:
+    """Every CLI command whose function reaches a history-reading script."""
+    return {route for route, reached in cli_routes().items() if reached & scripts}
+
+
 def jobs_needing_history(markers: set, scripts: set) -> dict:
-    """`{"<workflow>:<job>": its body}` for every job reaching either route."""
+    """`{"<workflow>:<job>": its body}` for every job reaching any of the three routes."""
+    routes = history_routes(scripts)
     needing = {}
     for workflow in sorted(WORKFLOWS.glob("*.yml")):
         text = read_uncommented(workflow)
@@ -195,7 +258,9 @@ def jobs_needing_history(markers: set, scripts: set) -> dict:
             end = bounds[index + 1][1] if index + 1 < len(bounds) else len(text)
             body = text[start:end]
             inline = _RUN_READS_HISTORY.search(body)
-            if markers & set(_DASH_M.findall(body)) or any(script in body for script in scripts) or inline:
+            by_path = any(script in body for script in scripts)
+            by_command = any(_invokes(body, route) for route in routes)
+            if markers & set(_DASH_M.findall(body)) or by_path or by_command or inline:
                 needing[f"{workflow.name}:{job}"] = body
     return needing
 
@@ -204,7 +269,15 @@ def test_the_scan_finds_every_side():
     """Any side coming back empty would make the assertion below vacuous."""
     markers = scanned(sorted(history_dependent_markers()), "suites that refuse a shallow clone")
     scripts = scanned(sorted(history_dependent_scripts()), "scripts that read whole git history")
+    scanned(sorted(history_routes(set(scripts))), "CLI commands reaching one of those scripts")
     scanned(jobs_needing_history(set(markers), set(scripts)), "jobs running either")
+
+
+def test_a_command_is_resolved_to_the_scripts_it_runs():
+    """`check docs` runs the release window's `--check`, two calls deep."""
+    assert "scripts/docs/release_window.py" in cli_routes().get("check docs", set())
+    assert _invokes("run: ./dev check docs\n", "check docs")
+    assert not _invokes("run: ./dev check docs-extra\n", "check docs")
 
 
 def jobs_with_full_history() -> set:
@@ -268,10 +341,10 @@ def test_every_job_that_reads_history_fetches_it():
     )
     assert not shallow, (
         f"these jobs read whole git history and check out shallow: {shallow}. Add `fetch-depth: 0` "
-        f"to their `actions/checkout` step. The suites are {sorted(markers)} and the scripts are "
-        f"{sorted(scripts)}. `git log --all` and `rev-list` answer for a graft boundary in a shallow "
-        "clone rather than failing — a name that was always here reads as never defined, and a "
-        "release window comes back well-formed and describing nothing. Both refuse rather than "
-        "answering wrongly, so without the depth those jobs go red; this test is what turns that "
-        "into a red `check pre-push` instead."
+        f"to their `actions/checkout` step. The suites are {sorted(markers)}, the scripts are "
+        f"{sorted(scripts)} and the commands are {sorted(history_routes(scripts))}. `git log --all` "
+        "and `rev-list` answer for a graft boundary in a shallow clone rather than failing — a name "
+        "that was always here reads as never defined, and a release window comes back well-formed "
+        "and describing nothing. Both refuse rather than answering wrongly, so without the depth "
+        "those jobs go red; this test is what turns that into a red `check pre-push` instead."
     )

@@ -827,7 +827,8 @@ def _render_view(rows: list[dict], view: dict, indent: int = 0) -> None:
             header.append(pad)
         last = i == len(columns) - 1
         header.append(_fit(column["label"], width, column.get("align"), last), style="sb.label")
-    emit(header)
+    if any(column["label"] for column in columns):
+        emit(header)
     emit(Text("─" * total, style="sb.muted"))
 
     for index, row in enumerate(rows[:MAX_TABLE_ROWS]):

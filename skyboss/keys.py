@@ -40,6 +40,9 @@ MOVES = ("up", "down", "pgup", "pgdn", "home", "end")
 # turned mouse reporting on receives these; any other report is nothing.
 _WHEEL = {64: "wheelup", 65: "wheeldown"}
 
+# A left press (`ESC [ < 0 ; x ; y M`) arrives as `click:<x>:<y>`, one-based cells within the pane.
+CLICK = "click"
+
 # Final bytes of the sequences that matter, by their two introducers. `[` is
 # the common form and `O` is application-cursor mode, which some terminals put
 # the arrow keys into — a reader that knew only `[` would work everywhere until
@@ -187,11 +190,29 @@ def _sequence(stream, ready=_ready) -> str | None:
             break
 
     if body.startswith("<"):
-        button = body[1:].split(";", 1)[0]
-        return _WHEEL.get(int(button)) if button.isdigit() and body[-1:] == "M" else None
+        return _mouse(body)
     if body.endswith("~"):
         return _TILDE.get(body[:-1])
     return _FINAL.get(body)
+
+
+def _mouse(body: str) -> str | None:
+    """An SGR report (`<button;x;y` and `M` press or `m` release): the wheel, a left press, or nothing."""
+    parts = body[1:-1].split(";")
+    if body[-1:] != "M" or len(parts) != 3 or not all(part.isdigit() for part in parts):
+        return None
+    button, x, y = (int(part) for part in parts)
+    if button == 0:
+        return f"{CLICK}:{x}:{y}"
+    return _WHEEL.get(button)
+
+
+def clicked(key: str | None) -> tuple[int, int] | None:
+    """The cell of a `click:<x>:<y>` key, or None for any other key."""
+    if not key or not key.startswith(CLICK + ":"):
+        return None
+    _, x, y = key.split(":")
+    return int(x), int(y)
 
 
 def _drain(stream, ready=_ready) -> None:

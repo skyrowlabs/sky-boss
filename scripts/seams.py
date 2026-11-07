@@ -52,6 +52,7 @@ import argparse
 import difflib
 import hashlib
 import json
+import subprocess
 import sys
 from collections.abc import Iterable
 from pathlib import Path
@@ -76,9 +77,8 @@ INVITATION = (" ".join(("**Add", "your own")), " ".join(("as an", "append")))
 #: `tests/conftest.py`): its start and its end, assembled for the same reason.
 OPEN_RULE = ("# ── " + "Your ", " ".join(("go below", "this line")))
 
-#: Directories a walk must not enter. Only the scaffolder walks — at that moment
-#: the tree is a fresh render with no `.git`, so git cannot be asked — and the
-#: test enumerates through git instead.
+#: Directories a walk must not enter. Only the scaffolder walks, and the test
+#: enumerates through git instead.
 _SKIP = {"__pycache__", "node_modules", "tmp"}
 
 
@@ -161,8 +161,29 @@ def _unaccounted(recorded: list[str], present: list[tuple[int, str]]) -> list[in
     return extra
 
 
+def _candidates(root: Path, pattern: str) -> list[Path]:
+    """Files under `root` matching `pattern`, without what git ignores when there is a git to ask.
+
+    A fresh render has no `.git`. A `--force` adoption does, and an ignored directory
+    there is nobody else's: breeze-brain's tracked record named an ignored clone.
+    """
+    if not (root / ".git").exists():
+        return sorted(root.rglob(pattern))
+    listed = subprocess.run(
+        ["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard"],
+        cwd=str(root),
+        capture_output=True,
+        text=True,
+    )
+    if listed.returncode != 0:
+        return sorted(root.rglob(pattern))
+    return sorted(root / name for name in listed.stdout.split("\0") if name and Path(name).match(pattern))
+
+
 def _walk(root: Path, pattern: str = "*.py") -> Iterable[Path]:
-    for path in sorted(root.rglob(pattern)):
+    for path in _candidates(root, pattern):
+        if not path.is_file():
+            continue
         parts = path.relative_to(root).parts
         if any(part.startswith(".") or part in _SKIP for part in parts[:-1]):
             continue

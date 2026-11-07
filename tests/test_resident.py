@@ -740,6 +740,19 @@ def test_a_screen_frame_is_repainted_in_place_never_cleared():
     assert "first line" in written and "second" + " " * 34 in written
 
 
+def test_a_frame_as_tall_as_the_screen_ends_without_the_newline_that_would_scroll_it():
+    import io
+
+    from rich.console import Console
+
+    from skyboss.resident import ERASE_BELOW, repaint
+
+    buffer = io.StringIO()
+    repaint(Console(file=buffer, force_terminal=True, width=20, height=1, highlight=False), "TODOS · 3 open")
+    written = buffer.getvalue()
+    assert "TODOS · 3 open" in written and "\n" not in written and ERASE_BELOW not in written
+
+
 def test_a_long_result_draws_no_band_inside_the_residencys_own():
     """Past BAND_MIN_LINES a result bands itself; resident, the residency's frame is the only one."""
     from rich.console import Console

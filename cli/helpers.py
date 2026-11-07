@@ -22,6 +22,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts.output import (  # noqa: E402
     SYMBOLS,
+    Declared,
     badge,
     detail,
     die,
@@ -29,6 +30,7 @@ from scripts.output import (  # noqa: E402
     fail,
     item,
     line,
+    no_subject,
     ok,
     shell,
     skip,
@@ -41,6 +43,7 @@ from scripts.paths import PROJECT_ROOT  # noqa: E402
 #: Re-exported on purpose — listed so flake8 does not read them as unused, and
 #: so `from .helpers import ok` keeps working from every command module.
 __all__ = [
+    "Declared",
     "PROJECT_ROOT",
     "SYMBOLS",
     "absolutize_path_env",
@@ -54,6 +57,7 @@ __all__ = [
     "item",
     "line",
     "module",
+    "no_subject",
     "ok",
     "run",
     "script",

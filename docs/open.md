@@ -1046,6 +1046,67 @@ for any of the above.
 
 ---
 
+## One surface: the canvas and the deck
+
+**25. Fusing the canvas and the deck.** Opened 2026-11-06 as a long-term goal, on Jeston's word, and
+the [[fundamentals]] entry of that date drops the monitoring declaration to allow it. What exists
+today is two surfaces: the canvas is a browser page, and the deck ([[command-deck]]) is tmux. None
+of this is built. The estimates below were read from the code, not tried.
+
+**What stays.** tmux keeps hosting the agents, because that is why they outlive a closed page.
+Every deck command stays a command, so the fused surface calls them rather than reimplementing them.
+The server's guard stays the whole defence.
+
+**What has to be added to the canvas:**
+
+- A terminal: xterm.js under `static/vendor`, with its colours taken from the injected variables.
+- A pty on the server running `tmux attach`, with resizing.
+- A transport for it. The required header is what stops a hostile page, and a WebSocket cannot
+  carry one, so a WebSocket route would sit outside it and would need a dependency uvicorn lacks
+  here. [[deck-tab]] uses a guarded streaming route and guarded POSTs instead.
+- Key handling: a browser keeps some keys for itself, so `--browser` may never match the native and
+  Electron windows. Shift+Enter, the deck's Alt keys and Ctrl-Q all need checking in each shell.
+- The clipboard, which needs xterm's addon, and wide characters, which need its unicode addon.
+
+**What has to be rebuilt as web UI, once the deck's panes stop being terminal panes:**
+
+- AGENT LIST, with its sub-agent unfold. The `agents` screen covers part of this already.
+- AGENT COMMUNICATIONS, AGENT TODOs and HUMAN DECISIONS, each over the commands that feed them.
+- The deck's popups as dialogs: reading a message, ruling a decision, the column picker and the `+`
+  prompt, plus the exit question, which is a tmux prompt rather than a popup.
+- The tab row: agent hues, the working and waiting grounds, the `+` and the layout control.
+- The layouts, `column` choices and the free grid, which become the canvas's own arrangement.
+
+**Rules that have to be reconciled:**
+
+- *An act is confirmed before it runs.* It cannot apply per keystroke, so a terminal is a declared
+  exception. Clicked deck acts, such as ruling a decision, should keep it or say why not.
+- *A project's colour is a step along the brand.* The deck's product hues are an exception to that
+  rule, and "the canvas keeps the rule above" cannot hold once they share a page. The makeover ruled
+  below is where this gets settled.
+- *`window-size latest`.* A terminal client and a browser client on one deck resize each other. The
+  way around it is to attach the browser with `tmux attach -f ignore-size`. Measured 2026-11-06 on
+  a plain tmux 3.8 session, not yet a real deck: a 200x60 ignore-size client left a 120x40 terminal
+  client's window alone, even while typing, and the window took 200x60 once the terminal left. So
+  the terminal leads when it is attached, the browser leads when it is alone, and nothing has to
+  switch. The page has to draw the deck at the window's size while it follows, not at its own.
+
+**Ruled by Jeston, 2026-11-06:**
+
+- **tmux does not retire, at least initially.** Both ways in stay, so the resizing has to be solved
+  rather than avoided, and the two interfaces have to be kept in step.
+- **Remote agents are out of the initial plan.** The surface stays on loopback and the guard stays
+  as designed.
+- **The whole deck embeds first,** as a tab. The rebuild list above comes after that, a pane at a
+  time, and is not part of the first step.
+- **The whole sky.boss theme gets a colour makeover.** `theme.py` copies the design system verbatim,
+  and the palette is the brand's, so the first question is whether the makeover changes the design
+  system or only how sky.boss spends it. That decides which repositories it touches, and it reopens
+  the four-hue limit and both colour rules in `CLAUDE.md`.
+
+*The embed graduated to [[deck-tab]] on 2026-11-06. The rebuild and the makeover stay here until
+somebody decides how.*
+
 ## Known defects
 
 **A hole the three lists left, and the smallest thing that fills it.** A defect that is known, not

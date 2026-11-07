@@ -100,6 +100,9 @@ class Chrome:
     # Whether the operator has scrolled away from the tail. Distinct from
     # having a position: a following view has one too, and says it.
     parked: bool = False
+    # A title in place of `source` and the corners, and what it says beside it; a deck pane's.
+    title: str = ""
+    place: str = ""
     last_run: float | None = None  # when the last run started
     running_since: float | None = None
     # Stream.
@@ -112,6 +115,10 @@ class Chrome:
     # Bounded ring, stream and cursor.
     ring_shown: int | None = None
     ring_limit: int | None = None
+    # A view's own information for the footer, muted: never a warning and never counted as one.
+    note: str = ""
+    # The refresh rides a clock shown elsewhere (the deck's footer), so this band draws no countdown.
+    shared: bool = False
 
     def to_dict(self) -> dict:
         """The same facts for the canvas renderer, keys omitted when unset —
@@ -240,6 +247,7 @@ def resident(
     interval: int,
     last_run: float | None = None,
     running_since: float | None = None,
+    shared: bool = False,
 ) -> Chrome:
     """A snapshot with a cadence: `--refresh` in the terminal, a pinned window
     on the canvas. While a run is in flight the attention is `running` —
@@ -254,6 +262,7 @@ def resident(
         interval=interval,
         last_run=last_run,
         running_since=running_since,
+        shared=shared,
     )
 
 
@@ -417,7 +426,7 @@ def _top_spans(chrome: Chrome, now: float) -> tuple[list[Span], list[Span]]:
     left: list[Span] = [(chrome.source, "bold")]
     if chrome.attention == "pending":
         left.append((" · pending", _FRAME))
-    elif chrome.shape == "resident" and chrome.interval:
+    elif chrome.shape == "resident" and chrome.interval and not chrome.shared:
         left.append((f" · refresh {chrome.interval}s", _FRAME))
     elif chrome.shape in ("stream", "cursor"):
         left.append((" · follow", _FRAME))
@@ -434,7 +443,7 @@ def _top_spans(chrome: Chrome, now: float) -> tuple[list[Span], list[Span]]:
         # window swaps its countdown for it, and an accruing one has no
         # countdown to swap. See [[follow]] round 4.
         right = [(f"running {ago(now - chrome.running_since)}", "sb.accent")]
-    elif chrome.shape == "resident":
+    elif chrome.shape == "resident" and not chrome.shared:
         remaining = countdown(chrome, now)
         if remaining is not None:
             right = [(f"⟳ next in {remaining}s", "sb.accent")]
@@ -490,11 +499,13 @@ def _bottom_spans(chrome: Chrome, now: float) -> tuple[list[Span], list[Span]]:
         left.append((word, ROLE.get(word, "sb.label")))
         if chrome.duration_s is not None:
             left.append((f" · {chrome.duration_s:.1f}s", "sb.num"))
-        if chrome.ran_at is not None:
+        if chrome.ran_at is not None and not chrome.shared:
             left.append((f" · ran {clock(chrome.ran_at)}", "sb.label"))
         if chrome.warnings:
             plural = "" if chrome.warnings == 1 else "s"
             left.append((f" · {chrome.warnings} warning{plural}", "sb.warn"))
+        if chrome.note:
+            left.append((f" · {chrome.note}", "sb.muted"))
     else:
         lead = ""
         if chrome.size_bytes is not None:
@@ -552,12 +563,17 @@ def _clip(spans: list[Span], room: int) -> list[Span]:
 
 
 def _assemble(left: list[Span], right: list[Span], width: int, corners: str) -> list[Span]:
-    """One box-drawing band as spans: `┌ left ───── right ┐`.
+    """One box-drawing band as spans: `┌ left ───── right ┐`, or `left ───── right` with no `corners`.
 
     Exactly `width` characters when width allows; the left side gives way
     first, because the right side is the live half (a countdown, a clock) and
     a clock you cannot see is the silent failure the chrome exists to avoid.
     """
+    if not corners:
+        tail_len = sum(len(text) for text, _ in right) + 1 if right else 0
+        left = _clip(left, width - 1 - _MIN_FILL - tail_len)
+        fill = max(_MIN_FILL, width - sum(len(text) for text, _ in left) - 1 - tail_len)
+        return [*left, (" " + "─" * fill, _FRAME), *([(" ", None), *right] if right else [])]
     open_c, close_c = corners
     right_len = sum(len(text) for text, _ in right)
     tail_len = (right_len + 3) if right else 1
@@ -584,8 +600,16 @@ def status_bands(chrome: Chrome, now: float, width: int) -> tuple[list[Span], li
     busy is decoration that reads as information."""
     top_left, top_right = _top_spans(chrome, now)
     bottom_left, bottom_right = _bottom_spans(chrome, now)
+    corners = "┌┐"
+    if chrome.title:
+        corners = ""
+        title: list[Span] = [(chrome.title, "bold")]
+        top_left = title
+        if chrome.place:
+            place: list[Span] = [(chrome.place, "sb.warn")]
+            top_right = place + [(" · ", _FRAME)] + top_right if top_right else place
     return (
-        _assemble(top_left, top_right, width, "┌┐"),
+        _assemble(top_left, top_right, width, corners),
         _assemble(bottom_left, bottom_right, width, "└┘"),
     )
 

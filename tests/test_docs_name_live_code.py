@@ -131,11 +131,15 @@ def was_ever_ours(symbol: str, root: Path = PROJECT_ROOT) -> bool:
     took — only history the tree has can be asked. Dream Doll read that off the
     predicate and judged it the right trade: the alternative is asking about
     somebody else's history, which is the false-positive problem again.
+
+    **HEAD, not `--all`.** The question is "removed from the line I am on". A `def`
+    on an unmerged branch is not gone from anywhere, and `--all` read it as gone, so
+    one open branch turned a sibling pull request red in CI (mind.head).
     """
     # A foreign subtree's history is not this tree's either (scripts/paths.py FOREIGN).
     outside = [f":(exclude){entry}/**" for entry in FOREIGN]
     for pattern in (f"def {symbol}\\(", f"class {symbol}[(:]"):
-        if _git("log", "--all", "-G", pattern, "--oneline", "--", "*.py", *outside, root=root).strip():
+        if _git("log", "HEAD", "-G", pattern, "--oneline", "--", "*.py", *outside, root=root).strip():
             return True
     return False
 
@@ -176,7 +180,7 @@ def dead_comment_references(root: Path = PROJECT_ROOT) -> list[tuple[str, str]]:
 def test_history_is_available():
     """Worthless against a shallow clone, and silently so.
 
-    `git log --all` finds nothing in one, so every reference would look like it
+    `git log` finds nothing past the graft in one, so every reference would look like it
     was never ours and this file would pass by *seeing* nothing rather than by
     *finding* nothing. That is the "green because it never ran" shape, so it is
     asserted rather than assumed — and ci.yml checks the unit job out with
@@ -203,6 +207,25 @@ def test_no_source_comment_names_a_callable_we_removed():
         + "\n\nRepoint them at what replaced it, or name the FILE rather than the function — a "
         "test module outlives the names inside it. Deleting the comment loses the reason it recorded."
     )
+
+
+def test_a_def_on_another_branch_was_never_ours_here(tmp_path):
+    def git(*args: str) -> None:
+        identity = ("-c", "user.name=t", "-c", "user.email=t@example.invalid")
+        subprocess.run(["git", *identity, *args], cwd=tmp_path, check=True, capture_output=True)
+
+    git("init", "-q", "-b", "main")
+    (tmp_path / "a.py").write_text("def removed_here():\n    pass\n", encoding="utf-8")
+    git("add", "-A")
+    git("commit", "-qm", "base")
+    git("switch", "-qc", "side")
+    (tmp_path / "a.py").write_text("def only_on_side():\n    pass\n", encoding="utf-8")
+    git("commit", "-qam", "side")
+    git("switch", "-q", "main")
+    (tmp_path / "a.py").write_text("x = 1\n", encoding="utf-8")
+    git("commit", "-qam", "remove")
+    assert was_ever_ours("removed_here", root=tmp_path)
+    assert not was_ever_ours("only_on_side", root=tmp_path)
 
 
 def test_the_check_would_actually_catch_one(tmp_path):

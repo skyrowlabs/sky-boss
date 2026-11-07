@@ -17,6 +17,11 @@
         { "type": "chore", "section": "Chores", "hidden": true }
       ],
       "changelog-path": "CHANGELOG.md",
+      "extra-files": [
+        { "type": "json", "path": "package.json", "jsonpath": "$.version" },
+        { "type": "json", "path": "package-lock.json", "jsonpath": "$.version" },
+        { "type": "json", "path": "package-lock.json", "jsonpath": "$.packages[''].version" }
+      ],
       "version-file": "VERSION"
     }
   }

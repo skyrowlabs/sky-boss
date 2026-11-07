@@ -21,6 +21,15 @@ from tests.shell import module  # noqa: E402
 doctor = module("doctor")
 REPO = "repos/{owner}/{repo}"
 
+#: The tree's own holds, captured before the fixture below hides them.
+HELD = doctor.repo_settings.HELD_WORKFLOWS
+
+
+@pytest.fixture(autouse=True)
+def no_holds(monkeypatch):
+    """Stubbed workflows meet no hold: a real one would read as stale against the stub."""
+    monkeypatch.setattr(doctor.repo_settings, "HELD_WORKFLOWS", GITHUB_DIR / "absent-held.yaml")
+
 
 def stub(monkeypatch, answers: dict) -> None:
     """`gh api` answering from `answers`; a path not in it is unreadable, an int is that HTTP status."""
@@ -145,6 +154,9 @@ def test_a_required_check_needing_an_unrequired_job_is_a_problem_unless_it_alway
     regardless = WORKFLOW.replace("    if: needs.gate.outputs.full == 'true'\n", "    if: always()\n")
     stub(monkeypatch, on_branch("main", ["Lint"], regardless))
     assert doctor.required_checks("main").state == doctor.OK, "a job that always runs cannot be skipped"
+    uncancelled = regardless.replace("if: always()", "if: ${{ !cancelled() }}")
+    stub(monkeypatch, on_branch("main", ["Lint"], uncancelled))
+    assert doctor.required_checks("main").state == doctor.OK, "`!cancelled()` runs whatever its needs did"
     by_id = {job.id: job for job in doctor.workflow_jobs([WORKFLOW])}
     assert by_id["unit-result"].needs == ("gate", "unit") and by_id["unit-result"].runs_regardless
     assert by_id["lint"].needs == ("gate",) and not by_id["lint"].runs_regardless
@@ -291,7 +303,7 @@ def test_every_held_workflow_is_a_workflow_here():
 
     present = {path.name for path in (GITHUB_DIR / "workflows").glob("*.y*ml")}
     gone = allowlist.stale(
-        allowlist.read(doctor.repo_settings.HELD_WORKFLOWS),
+        allowlist.read(HELD),
         lambda name: None if name in present else "there is no such workflow in .github/workflows",
     )
     assert not gone, "\n".join(gone) + "\n" + allowlist.STALE_ADVICE

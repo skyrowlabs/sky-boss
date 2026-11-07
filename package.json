@@ -10,6 +10,9 @@
     "//test": "node --test, built into node 22 \u2014 no dependency. It covers the PURE half only; it cannot see an unpainted mark, an htm comment eating an element's children, or a dialog off the edge at scale 2.4. The headless pass in CLAUDE.md is not retired by this.",
     "test": "node --test \"tests/js/*.test.js\""
   },
+  "skeletor": {
+    "requiredScripts": ["test"]
+  },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "eslint": "^10.14.0",

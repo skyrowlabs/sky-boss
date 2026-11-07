@@ -27,11 +27,13 @@ has to say which kind it is, and it expires when it stops being true.
 
 ## Scope, stated because it is narrower than the docstring it guards
 
-Two dimensions, both robust to how a command is spelled:
+Three dimensions, all robust to how a command is spelled:
 
 * **scripts** — `scripts/*.py` named in the workflows against those reachable
   from `pre_push`.
 * **suites** — pytest markers CI selects against those `pre_push` selects.
+* **npm scripts** — `npm run` and `node-gate.cjs` in the workflows against what
+  `pre_push` runs.
 
 Lint tools are deliberately absent: `tests/test_lint_tool_parity.py` already
 holds `.pre-commit-config.yaml` and `scripts/requirements.txt` to each other,
@@ -56,6 +58,7 @@ pytestmark = [pytest.mark.unit]
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scanning import scanned  # noqa: E402
+from scripts.gates import DOCS_GATES, PRE_PUSH_GATES  # noqa: E402
 from scripts.paths import CLI_DIR, GITHUB_DIR, TESTS_DIR  # noqa: E402
 from scripts.yaml_text import read_uncommented  # noqa: E402
 
@@ -68,6 +71,8 @@ _SCRIPT = re.compile(r"scripts/(?!install_)[a-z0-9_]+\.py")
 _DASH_M = re.compile(r"-m\s+([a-z_]+)")
 _JOB = re.compile(r"^  (?P<id>[A-Za-z_][A-Za-z0-9_-]*):\s*$", re.MULTILINE)
 _NEEDS = re.compile(r"^\s+needs:\s*(?P<value>\S.*)$", re.MULTILINE)
+#: An npm script a job runs, directly or through the gate that may refuse a missing one.
+_NPM = re.compile(r"(?:npm run (?:--if-present )?|node-gate\.cjs )([\w:]+)")
 
 
 @functools.lru_cache(maxsize=1)
@@ -144,6 +149,23 @@ def _blocking_checks() -> dict:
         body = text[body_start : bounds[index + 1][1] if index + 1 < len(bounds) else len(text)]
         found.update({f"script:{name}": job for name in _SCRIPT.findall(body)})
         found.update({f"pytest:{m}": job for m in _DASH_M.findall(body) if m in markers})
+        found.update({f"npm:{name}": job for name in _NPM.findall(body)})
+    return found
+
+
+def _npm_scripts(tree: ast.Module, seen: set) -> set:
+    """Scripts named in an `["npm", "run", <name>]` list, and the product set if its helper is reached."""
+    found = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef) and node.name in seen:
+            for inner in ast.walk(node):
+                if isinstance(inner, ast.List):
+                    parts = [e.value for e in inner.elts if isinstance(e, ast.Constant)]
+                    if parts[:2] == ["npm", "run"] and len(parts) == 3:
+                        found.add(parts[2])
+        if isinstance(node, ast.Assign) and "_node_products" in seen:
+            if any(isinstance(target, ast.Name) and target.id == "NODE_PRODUCT_SCRIPTS" for target in node.targets):
+                found.update(ast.literal_eval(node.value))
     return found
 
 
@@ -179,6 +201,9 @@ def _pre_push_reaches() -> set:
             reached.update(
                 f"pytest:{args[i + 1]}" for i, a in enumerate(args[:-1]) if a == "-m" and args[i + 1] in _markers()
             )
+    reached.update(f"npm:{name}" for name in _npm_scripts(tree, seen))
+    # Your gates are data in `scripts/gates.py`, not calls, and `pre_push` runs both lists.
+    reached.update(f"script:{gate.script}" for gate in (*DOCS_GATES, *PRE_PUSH_GATES))
     return reached
 
 
@@ -194,7 +219,7 @@ def test_every_blocking_check_is_run_or_declared():
     orphans = sorted(set(blocking) - reached - set(UNREACHABLE))
     assert not orphans, (
         f"CI blocks on these and `check pre-push` neither runs them nor declares them: {orphans}.\n"
-        "Add them to the shell's check.py::pre_push, or add an entry to UNREACHABLE saying why this host "
+        "Append them to scripts/gates.py's PRE_PUSH_GATES, or add an entry to UNREACHABLE saying why this host "
         "cannot. A gate in neither set is one somebody finds out about from a red CI run."
     )
 

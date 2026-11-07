@@ -17,6 +17,9 @@ import click
 
 from .helpers import PROJECT_ROOT, badge, detail, fail, line, ok, skip, warn
 
+#: tests/test_cli_smoke.py runs this module's argument-less commands for real.
+SMOKE_EXECUTES = True
+
 sys.path.insert(0, str(PROJECT_ROOT))
 
 

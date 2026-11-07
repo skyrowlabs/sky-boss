@@ -15,6 +15,15 @@ The `conventional-commit-check` hook (commit-msg stage) **rejects any message wi
 one subject line**. That is deliberate: a message with three `feat:` lines in it is three
 commits wearing one hat, and the changelog generator will take only the first.
 
+**`git revert` runs no commit-msg hook**, so its `Revert "<subject>"`, and `Reapply "<subject>"`
+for a revert of a revert, are accepted here and in CI when the subject inside is valid.
+Release Please cannot parse either form and skips the commit: no changelog entry and no version
+bump, and a reverted change that was never released stays in the next changelog. When the revert
+should show in the release, follow it with a `fix:` commit that says so.
+
+**A merge in progress passes the hook**, so git's own `Merge ...` subject goes through. The hook
+asks git whether a merge is under way, and CI's gate skips merges.
+
 ## Rules
 
 1. **ONE subject line** for the entire commit — never repeat the type prefix per file.
@@ -80,6 +89,13 @@ Commit after each **independent logical idea**, not after finishing everything:
 - **Base branch: `develop`.** New branches are cut from it and every PR targets it.
 - **Never commit directly to `main`** — that is the release branch, and
   Release Please owns it.
+- **Title a `develop` → `main` pull request `chore(release): …`.**
+  Its merge commit carries the title, and a changelog built from commit subjects
+  reads that as one more commit: a `fix(...)` title is listed beside the fixes it
+  merges (sky.boss's 0.2.0). `chore` is a hidden type.
+- **A release made only of hidden types publishes nothing.** Release Please skips
+  it (`No user facing commits found`). To ship one anyway, add an empty commit
+  whose body is `Release-As: X.Y.Z`.
 - **Force-push is permitted on your own unreviewed branch** — amending or squashing your own
   in-flight work is how four CI runs become one — but **never** on `develop` or
   `main`, and never from an unattended agent.

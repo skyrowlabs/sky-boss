@@ -29,7 +29,7 @@ from pathlib import Path
 # owns every path below — can be imported. See scripts/paths.py.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts.output import detail, emit, fail, item, ok  # noqa: E402
+from scripts.output import EXIT_REFUSED, detail, emit, fail, item, no_subject, ok  # noqa: E402
 from scripts.paths import TESTS_DIR, TMP_DIR  # noqa: E402
 
 BUDGET = TESTS_DIR / "skip_budget.json"
@@ -41,13 +41,14 @@ def count_skips(junit: Path) -> tuple:
     suites = [root] if root.tag == "testsuite" else list(root)
     skipped = sum(int(s.get("skipped", 0)) for s in suites)
     total = sum(int(s.get("tests", 0)) for s in suites)
+    errors = sum(int(s.get("errors", 0)) for s in suites)
     reasons = [
         (case.get("classname", ""), skip.get("message", ""))
         for suite in suites
         for case in suite.iter("testcase")
         for skip in case.iter("skipped")
     ]
-    return skipped, total, reasons
+    return skipped, total, errors, reasons
 
 
 def main() -> int:
@@ -76,23 +77,33 @@ def main() -> int:
         # "the budget is respected", so there is no warn-and-pass path here.
         fail(f"no junit report at {args.junit} — run pytest with --junitxml={args.junit} first")
         detail("Nothing was measured, so nothing is being ratcheted. See docs/rules/testing.md.")
-        return done({"state": "no-report", "junit": str(args.junit)}, 1)
+        return done({"state": "no-report", "junit": str(args.junit)}, EXIT_REFUSED)
 
     budget = json.loads(BUDGET.read_text(encoding="utf-8"))
     entry = budget["suites"].get(args.suite)
     if entry is None:
         fail(f"suite '{args.suite}' has no entry in tests/skip_budget.json — add one")
-        return done({"state": "unbudgeted"}, 1)
+        return done({"state": "unbudgeted"}, EXIT_REFUSED)
 
-    skipped, total, reasons = count_skips(args.junit)
+    skipped, total, errors, reasons = count_skips(args.junit)
     ceiling = int(entry["max_skipped"])
     measured = {"skipped": skipped, "total": total, "ceiling": ceiling}
+
+    if total and errors >= total:
+        # A crash or a failed collection writes a report too, and no test in it reached a verdict.
+        fail(f"{args.suite}: all {total} test(s) in the report errored, so the skip count measures nothing")
+        return done({"state": "no-verdict", **measured}, EXIT_REFUSED)
 
     if args.update:
         entry["max_skipped"] = skipped
         BUDGET.write_text(json.dumps(budget, indent=2) + "\n", encoding="utf-8")
         ok(f"{args.suite} budget set to {skipped}")
         return done({"state": "updated", **measured}, 0)
+
+    if not total and not args.update:
+        # An empty suite is legitimate and the nightly runs one, so this is not a refusal.
+        no_subject(f"{args.suite}: the report holds 0 tests, so there is no skip to count")
+        return done({"state": "no-subject", **measured}, 0)
 
     if skipped > ceiling:
         fail(f"{args.suite}: {skipped} skipped, budget {ceiling} ({total} tests)")

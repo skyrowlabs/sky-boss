@@ -38,7 +38,8 @@ that, and they were the predicate's error rather than the tree's.
 
 ## What it enumerates, and what it refuses to
 
-Tracked files, never a walk of the disk. `rglob` reads `.venv/` and
+Files git sees, never a walk of the disk — for the documents read and for the
+paths they cite. `rglob` reads `.venv/` and
 `.pytest_cache/` — six documents from other people's packages in stash.flow's
 tree — and the verdict is then **machine-dependent**, which is worse than a
 false positive because the second person to hit it cannot reproduce the first
@@ -65,6 +66,8 @@ ships, runs in every adopting tree, and reports from all of them.
 
 from __future__ import annotations
 
+import functools
+import os
 import re
 import sys
 from pathlib import Path
@@ -77,7 +80,7 @@ pytestmark = [pytest.mark.unit]
 # owns every path below — can be imported. See scripts/paths.py.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from repo_files import reference_docs  # noqa: E402
+from repo_files import present, reference_docs  # noqa: E402
 from scanning import scanned  # noqa: E402
 from scripts.paths import PROJECT_ROOT  # noqa: E402
 
@@ -111,6 +114,22 @@ def cited_paths() -> dict:
     return found
 
 
+def in_this_tree(path: Path) -> bool:
+    """Whether git sees `path` here: tracked, or untracked and not ignored.
+
+    Never the disk. A sibling checkout (`../sky-vault/...`) and a gitignored file
+    (`.claude/settings.local.json`) both exist on the author's machine and in no
+    clone, so the disk passed locally and CI failed (breeze-brain#6).
+    """
+    rel = os.path.relpath(os.path.normpath(path), PROJECT_ROOT)
+    return not rel.startswith("..") and Path(rel).as_posix() in _present()
+
+
+@functools.cache
+def _present() -> frozenset:
+    return frozenset(p.relative_to(PROJECT_ROOT).as_posix() for p in present("*", foreign=True))
+
+
 def test_the_scan_finds_the_citations():
     """`least` is above 1 because the scan feeds a filter.
 
@@ -141,7 +160,7 @@ def test_every_cited_path_exists():
     """
     dangling = []
     for token, citing in sorted(cited_paths().items(), key=lambda item: item[0]):
-        if (PROJECT_ROOT / token).exists() or any((doc.parent / token).exists() for doc in citing):
+        if in_this_tree(PROJECT_ROOT / token) or any(in_this_tree(doc.parent / token) for doc in citing):
             continue
         where = ", ".join(sorted(str(doc.relative_to(PROJECT_ROOT)) for doc in citing))
         dangling.append(f"`{token}` — cited by {where}")

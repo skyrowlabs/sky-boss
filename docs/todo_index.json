@@ -1,17 +1,59 @@
 {
   "_generated_by": "scripts/docs/gen_todo_index.py",
   "_note": "Generated — never hand-edit. Edit the plan's frontmatter or header lines and rerun.",
-  "count": 2,
+  "count": 4,
   "by_status": {
+    "in-progress": [
+      "command-deck"
+    ],
     "in-review": [
       "highlight"
     ],
     "planned": [
+      "deck-tab",
       "grid-observability"
     ]
   },
   "ready_queue": [],
   "plans": [
+    {
+      "slug": "command-deck",
+      "title": "The deck: a tmux command center for agent sessions",
+      "path": "docs/TODO/command-deck.md",
+      "shelf_status": "in-progress",
+      "priority": "medium",
+      "queue_order": null,
+      "blocked_on": null,
+      "updated": "2026-11-06",
+      "tags": [
+        "agents",
+        "act",
+        "tmux",
+        "surfaces"
+      ],
+      "summary": "Adds `sb deck`, a tmux session holding one window per agent, plus a queue of sessions waiting on the operator, read by both surfaces. It is the first surface built to act, and the long-term goal is that it fuses with the canvas.",
+      "open_tasks": 0,
+      "auto_generated": false
+    },
+    {
+      "slug": "deck-tab",
+      "title": "The deck as a tab in the canvas",
+      "path": "docs/TODO/deck-tab.md",
+      "shelf_status": "planned",
+      "priority": "medium",
+      "queue_order": null,
+      "blocked_on": null,
+      "updated": "2026-11-06",
+      "tags": [
+        "deck",
+        "canvas",
+        "surfaces",
+        "tmux"
+      ],
+      "summary": "Embeds the whole running deck in the canvas as a nav tab, a second tmux client that follows the terminal's size. It is the first step of fusing the two surfaces.",
+      "open_tasks": 24,
+      "auto_generated": false
+    },
     {
       "slug": "grid-observability",
       "title": "Grid observability",

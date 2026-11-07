@@ -12,7 +12,7 @@ checking whether a capability already exists (parked) before rebuilding it.
 
 **Machine-readable index**: [`../todo_index.json`](../todo_index.json).
 
-**2 open plans** · **0 agent-managed**
+**4 open plans** · **0 agent-managed**
 
 ---
 
@@ -24,12 +24,21 @@ _Implemented and out for review — read the PR, then file the plan (or send it 
 | ---- | --------- | ------- | ------- |
 | [Highlight — lexical tint for followed lines](highlight.md) | pushed to develop | 2026-09-16 | Tints a followed line by shape rather than by severity, and lets the operator declare their own vocabulary without repainting sky.boss's. Round 8 is open — the sample that makes such a declaration writable against what a log actually contains. |
 
+## 🟡 In Progress
+
+_Actively being worked; partially shipped._
+
+| Plan | Priority | Updated | Summary |
+| ---- | -------- | ------- | ------- |
+| [The deck: a tmux command center for agent sessions](command-deck.md) | medium | 2026-11-06 | Adds `sb deck`, a tmux session holding one window per agent, plus a queue of sessions waiting on the operator, read by both surfaces. It is the first surface built to act, and the long-term goal is that it fuses with the canvas. |
+
 ## 🔴 Planned
 
 _Not started — intended future work._
 
 | Plan | Priority | Updated | Summary |
 | ---- | -------- | ------- | ------- |
+| [The deck as a tab in the canvas](deck-tab.md) | medium | 2026-11-06 | Embeds the whole running deck in the canvas as a nav tab, a second tmux client that follows the terminal's size. It is the first step of fusing the two surfaces. |
 | [Grid observability](grid-observability.md) | medium | 2026-11-03 | What sky.boss misses about skeletor's agentic grid: off jobs drawn as if they fire, no agent-hours rollup, no stagger view, no category grouping. Each gap has a ruling. |
 
 ---

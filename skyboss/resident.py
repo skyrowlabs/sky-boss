@@ -29,12 +29,14 @@ screen, and is the only part that touches real time by default.
 
 from __future__ import annotations
 
+import dataclasses
 import time
 from typing import Callable, Iterable
 
 from rich.console import Console, Group
 from rich.control import Control as RichControl
 from rich.live import Live
+from rich.padding import Padding
 from rich.segment import ControlType, Segment, Segments
 from rich.text import Text
 
@@ -56,10 +58,13 @@ class Residency:
     wherever the countdown is drawn. See [[chrome]].
     """
 
-    def __init__(self, source: str, interval: int, clock: Callable[[], float] = time.time):
+    def __init__(self, source: str, interval: int, clock: Callable[[], float] = time.time, aligned: bool = False):
         self.source = source
         self.interval = interval
         self._clock = clock
+        # Aligned: due at each multiple of `interval` on the clock, so every aligned
+        # residency with one interval refreshes together and one countdown is true of all.
+        self.aligned = aligned
         self.last_run: float | None = None
         self.running_since: float | None = None
         self.ran_at: float | None = None
@@ -69,7 +74,11 @@ class Residency:
         self.warnings = 0
 
     def due(self) -> bool:
-        return self.last_run is None or self._clock() - self.last_run >= self.interval
+        if self.last_run is None:
+            return True
+        if self.aligned:
+            return self._clock() // self.interval > self.last_run // self.interval
+        return self._clock() - self.last_run >= self.interval
 
     def begin(self) -> None:
         now = self._clock()
@@ -97,6 +106,7 @@ class Residency:
             interval=self.interval,
             last_run=self.last_run,
             running_since=self.running_since,
+            shared=self.aligned,
         )
 
 
@@ -218,21 +228,31 @@ def repaint(console: Console, renderable) -> None:
 
     Lines are rendered padded to the full width, so each overwrites whatever the
     last frame left on that row, and they go out as one buffered write. Anything
-    below a frame that got shorter is erased after it.
+    below a frame that got shorter is erased after it. A frame as tall as the
+    screen ends without a newline, which would scroll its first line away (a
+    folded one-line pane is exactly that tall), and has nothing below to erase.
     """
+    lines = console.render_lines(renderable, pad=True)
+    full = len(lines) >= console.height
     segments: list[Segment] = []
-    for line in console.render_lines(renderable, pad=True):
+    for n, line in enumerate(lines):
         segments.extend(line)
-        segments.append(Segment.line())
+        if not (full and n == len(lines) - 1):
+            segments.append(Segment.line())
     with console:
         console.control(RichControl((ControlType.HOME,)))
         console.print(Segments(segments), end="")
-    console.file.write(ERASE_BELOW)
+    if not full:
+        console.file.write(ERASE_BELOW)
     console.file.flush()
 
 
 MOUSE_ON = "\x1b[?1000h\x1b[?1006h"
 MOUSE_OFF = "\x1b[?1006l\x1b[?1000l"
+
+
+class Leave(Exception):
+    """Raised by a `Control` to end its residency quietly, as q does: not a failure."""
 
 
 class Control:
@@ -244,12 +264,43 @@ class Control:
 
     counted = False
     wheel = False
+    #: A role laid under the top band (and a folded summary), full width; empty for none.
+    head = ""
+    #: Hand `framed` each frame's lines, so a click (`keys.clicked`) can be read against them.
+    clicks = False
+    #: Blank cells each side of an unfolded frame, and one row above it when set.
+    pad = 0
+    #: The top band's whole text, with no corners; the fit's line then moves up beside it, as `place`.
+    title = ""
+    place = ""
 
     def shape(self, result: Result) -> Result:
         return result
 
     def on_key(self, key: str) -> bool:
         return False
+
+    def note(self) -> str:
+        """Information for the footer band about the last `shape`; empty for none."""
+        return ""
+
+    def folded(self) -> bool:
+        """Draw only `summary`, one line, in place of the bands and the body."""
+        return False
+
+    def shared_clock(self) -> bool:
+        """Refresh on the clock's multiples of the interval, and leave its timing to whoever shows it."""
+        return False
+
+    def summary(self, result: Result | None) -> str:
+        return ""
+
+    def band_place(self) -> str:
+        """What the top band says at its right end when `title` is set."""
+        return self.place
+
+    def framed(self, lines: list[str]) -> None:
+        """The frame just drawn, one plain string per screen line. Called only when `clicks`."""
 
 
 def height(text: Text, console: Console) -> int:
@@ -266,20 +317,27 @@ def fitted(
     console: Console | None = None,
     *,
     always: bool = False,
+    place: Callable[[str], None] | None = None,
 ) -> Text:
     """`body`, or `result` re-drawn with fewer rows and a counting line, so it fits in `limit` lines.
 
     Rows go, never lines: a header clipped off a table is the chart rule's
     clamp, where a counted row is a sentence. A `data` that is not a list is
-    drawn as it is.
+    drawn as it is. `place` takes the counting line instead of the body, and hears "" when nothing is cut.
     """
     rows = result.data if isinstance(result.data, list) else None
     lines = _count(body, console)
+    if place is not None:
+        place("")
     if rows is None or (lines <= limit and not always):
         return body
 
     def draw(keep: int) -> Text:
         trimmed, marker = fit(result, keep)
+        if place is not None:
+            place(marker)
+        if place is not None or not marker:
+            return drawn(trimmed)
         # One line, like every row: the count comes first, so an ellipsis never eats it.
         out = Text(no_wrap=True, overflow="ellipsis")
         out.append(marker, style="sb.warn")
@@ -301,8 +359,9 @@ def fitted(
     while keep + 1 < len(rows):
         more = draw(keep + 1)
         if _count(more, console) > limit:
-            # The fit may remember the last `keep` it saw (a pane's page size): leave it the one drawn.
-            fit(result, keep)
+            # The fit may remember the last `keep` it saw (a pane's page size), and `place` the last
+            # count: leave both the one drawn.
+            draw(keep)
             break
         keep, shown = keep + 1, more
     return shown
@@ -604,34 +663,61 @@ def reside(
     `control` lets a caller reshape each frame and take keys and the wheel.
     """
     out = console or Console(theme=THEME, highlight=False)
-    state = Residency(source, interval, clock)
+    state = Residency(source, interval, clock, aligned=control is not None and control.shared_clock())
     body = Text("")
     last: Result | None = None
 
+    def inset() -> int:
+        return control.pad if control is not None else 0
+
+    def room_across() -> int:
+        return max(1, out.width - 2 * inset())
+
     def drawn(result: Result) -> Text:
         # The residency draws the bands; the result's own would nest inside them.
-        with capture(width=out.width) as captured, filled(fill), framed():
+        with capture(width=room_across()) as captured, filled(fill), framed():
             render(result, as_json=False)
         return Text.from_ansi(captured.text)
 
-    def frame_for(result: Result | None) -> Group:
+    def frame_for(result: Result | None) -> Group | Padding:
         nonlocal body, last
         if result is not None:
             last = result
             body = drawn(result)
-        facts = state.chrome()
-        top, bottom = chrome_.status_bands(facts, clock(), out.width)
-        top_text, bottom_text = band_text(top), band_text(bottom)
         shaped = control.shape(last) if control is not None and last is not None else last
+        if control is not None and control.folded():
+            line = Text(control.summary(shaped), style="sb.label", no_wrap=True, overflow="ellipsis")
+            line.truncate(max(1, out.width), overflow="ellipsis", pad=bool(control.head))
+            if control.head:
+                line.stylize_before(control.head)
+            return Group(line)
+        facts = state.chrome()
+        if control is not None:
+            facts = dataclasses.replace(facts, note=control.note(), title=control.title)
+        top, bottom = chrome_.status_bands(facts, clock(), room_across())
+        top_text, bottom_text = band_text(top), band_text(bottom)
         if fill and shaped is not None:
             body = drawn(shaped)
         if screen and fit is not None and shaped is not None:
-            limit = out.height - height(top_text, out) - height(bottom_text, out) - 1
+            limit = out.height - height(top_text, out) - height(bottom_text, out) - 1 - min(1, inset())
             always = control is not None and control.counted
-            shown = fitted(shaped, body, limit, fit, drawn, out, always=always)
+            mark = (lambda text: setattr(control, "place", text)) if control is not None and control.title else None
+            shown = fitted(shaped, body, limit, fit, drawn, out, always=always, place=mark)
         else:
             shown = body if screen else clip(body, room(out))
-        return Group(top_text, shown, bottom_text)
+        if control is not None and control.title:
+            top, _ = chrome_.status_bands(
+                dataclasses.replace(facts, place=control.band_place()), clock(), room_across()
+            )
+            top_text = band_text(top)
+        if control is not None and control.head:
+            top_text.stylize_before(control.head)
+        frame: Group | Padding = Group(top_text, shown, bottom_text)
+        if inset():
+            frame = Padding(frame, (1, inset(), 0, inset()))
+        if control is not None and control.clicks:
+            control.framed(["".join(seg.text for seg in line) for line in out.render_lines(frame, pad=False)])
+        return frame
 
     def run(wait_for: Callable[[float], str | None]) -> None:
         if screen:
@@ -640,7 +726,7 @@ def reside(
                 repaint(out, frame_for(result))
 
             on_key = control.on_key if control is not None else None
-            mouse = control is not None and control.wheel
+            mouse = control is not None and (control.wheel or control.clicks)
             with out.screen():
                 if mouse:
                     out.file.write(MOUSE_ON)
@@ -672,7 +758,7 @@ def reside(
         else:
             with keys.reader() as wait_for:
                 run(wait_for)
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, Leave):
         # Still a way out, and still not a failure. Whatever owned the
         # terminal — the screen context, Live, the key reader — has already
         # put it back; leaving quietly is the whole contract.

@@ -47,6 +47,36 @@ Two things it installs are easy to miss, because they live outside version contr
   `.gitattributes` naming a driver that does not exist and a `check pre-push` that
   is red until it runs. Verify with `dev check merge-drivers`, which checks and
   never installs.
+- **The pre-push hook** (`scripts/hooks/pre-push`, installed by that same script) —
+  see [Pushing](#pushing). Git runs a copy under `.git/hooks`, so a changed hook needs
+  the installer again, and `check pre-push` is red until it has run.
+
+## Pushing
+
+A push to `develop` or `main` needs evidence that the pushed tree was
+checked. Commit first, then run the gates, then push:
+
+```bash
+./dev check pre-push
+git push
+```
+
+A full run on a checkout with nothing uncommitted stamps `HEAD^{tree}` under the git
+common dir. The hook reads every ref in the push, and a protected one passes if the
+pushed commit's tree is stamped or equals the fetched tip of either branch, which CI has
+already seen. Otherwise it refuses and names the command. Other branches, tags and
+deletes are not judged.
+
+- **The stamp is per tree.** Rewording a commit keeps it. A merge or a pull that
+  produces a new tree needs a fresh run, so every direct push pays for a full
+  `check pre-push`.
+- **`--quick` never stamps,** and a run with uncommitted changes says it did not.
+- **`git push --no-verify` skips the hook.** Nothing records that it did.
+- **An unattended job pushing to a protected branch is refused** until it runs the gates
+  first.
+- **The installer leaves a pre-push hook it did not write alone,** and `check pre-push`
+  stays red until you remove it. To decline the hook, delete `scripts/hooks/pre-push` and
+  `tests/test_green_stamp.py`.
 
 ## Configuration
 
@@ -75,6 +105,11 @@ version of this sentence said "everything" and was wrong about three gates.
 
 Every gate runs even after one fails. One fix per round trip is the thing this
 exists to avoid.
+
+Your own gates go in `scripts/gates.py`, as an append to `DOCS_GATES` (run by
+`check docs` and `check pre-push`) or `PRE_PUSH_GATES` (`check pre-push` alone).
+Editing a list in `cli/check.py` instead conflicts with every
+release that adds a gate there.
 
 ## Testing
 
@@ -260,8 +295,8 @@ the night after the merge. Run it here first:
 ```
 
 It rehearses the working tree as `git add -A` would commit it, so run it straight
-after an upgrade, before committing. It exits 2 when no job could be rehearsed in
-full: nothing was checked, and that is not a pass.
+after an upgrade, before committing. It exits 3, no subject, when no job could be
+rehearsed in full: nothing was checked, and it still names where each job stopped.
 
 A clean venv is the point. A dependency only that job needs is missing there
 and present in your `.venv`, so the rehearsal fails and your own suite passes.

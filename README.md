@@ -6,25 +6,181 @@
   <a href="https://github.com/skyrowlabs/sky-boss/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/skyrowlabs/sky-boss/actions/workflows/ci.yml/badge.svg?branch=develop"></a>
   <a href="https://github.com/skyrowlabs/sky-boss/releases"><img alt="Latest release" src="https://img.shields.io/github/v/release/skyrowlabs/sky-boss?sort=semver&label=version&labelColor=1c2633&color=38bdf8"></a>
   <a href="https://github.com/skyrowlabs/sky-boss/actions/workflows/ci.yml"><img alt="Python 3.12 to 3.14" src="https://img.shields.io/badge/python-3.12%E2%80%933.14-4ade80?labelColor=1c2633"></a>
-  <a href="#the-commands"><img alt="Acts: only sb run" src="https://img.shields.io/badge/acts-only%20sb%20run-e6dc0e?labelColor=1c2633"></a>
   <a href="LICENSE"><img alt="MIT licence" src="https://img.shields.io/github/license/skyrowlabs/sky-boss?labelColor=1c2633&color=7a8fa8"></a>
 </p>
 
 <p align="center">
-  <a href="#what-it-looks-like"><b>What it looks like</b></a> ·
-  <a href="#install"><b>Install</b></a> ·
+  <a href="#start-a-deck"><b>Start a deck</b></a> ·
+  <a href="#inside-the-deck"><b>Inside the deck</b></a> ·
+  <a href="#human-decisions"><b>Human decisions</b></a> ·
+  <a href="#beyond-the-deck"><b>Beyond the deck</b></a> ·
   <a href="#the-commands"><b>Commands</b></a> ·
-  <a href="#many-projects-at-once"><b>Many projects</b></a> ·
-  <a href="#the-canvas"><b>The canvas</b></a> ·
-  <a href="#the-deck"><b>The deck</b></a> ·
-  <a href="#offering-it-to-an-agent"><b>Agents</b></a>
+  <a href="#the-canvas"><b>The canvas</b></a>
 </p>
+
+**Run a Claude Code agent in every repo, and work them from one tmux window.** The sky.boss deck
+gives each agent a tab and keeps four things in view beside them: which agents are working, what
+they told each other, what each has left to do, and what they need from you.
 
 <p align="center">
-  <img src="docs/design/ideas.svg" alt="Four ideas. One command acts: sb run is the only one, and everything else reads. Data, never print: one envelope, drawn by whoever consumes it. Never guesses: sb data takes JSON and sb read shows output verbatim. Not in the credential path: external CLIs keep their own authentication." width="100%">
+  <a href="docs/design/readme-deck.png"><img src="docs/design/readme-deck.png" alt="The sky.boss deck: a row of coloured agent tabs over one agent's live Claude Code session, beside the AGENT LIST, HUMAN DECISIONS, AGENT TODOs and AGENT COMMUNICATIONS panes" width="100%"></a>
 </p>
 
-Four ideas, and everything else follows from them:
+This is one real session, ten agents across ten repos, with the operator's directories and a few
+private lines blanked out. Click it for full size.
+
+## Start a deck
+
+You need Python 3.12+, tmux, and [Claude Code](https://claude.com/claude-code) on your `PATH`.
+
+```bash
+git clone https://github.com/skyrowlabs/sky-boss
+cd sky-boss
+python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+ln -s "$PWD/sb" ~/.local/bin/sb          # or run ./sb from the repo
+```
+
+Declare your agents in `~/.sky-boss/deck.toml`. A profile is a set of tabs, primary first:
+
+```toml
+[agent.workspace]
+cwd  = "~/src/workspace"
+role = "coordinates the other repos"
+
+[agent.api]
+cwd  = "~/src/api"
+role = "the public API"
+
+[profile.core]
+primary = "workspace"
+tabs    = ["api"]
+brief   = "Route cross-repo changes through workspace before committing."
+```
+
+Then open it:
+
+```bash
+sb deck --profile core
+```
+
+Each tab starts a live `claude` in that repo. The first time Claude Code sees a folder it asks
+whether you trust it, and the tab reads `unregistered` until you answer.
+
+- **Coming back:** `sb deck` with no profile reopens the saved tabs, each resuming its session.
+  `--fresh` starts them over.
+- **Leaving:** Ctrl-Q, or the ✕ in the corner, asks first, then saves and ends the deck and every
+  agent in it. `sb deck exit` does the same without asking.
+- **No config yet?** `sb deck` alone opens a deck with a shell tab, and the `+` in the tab row opens
+  more. `roots = ["~/src"]` in `deck.toml` offers every folder under it.
+
+An agent that is a project in `projects.toml` with a `cwd` needs no `[agent]` entry unless it wants
+a `role`. `args` passes flags to its `claude`, and your own `-n` or `--append-system-prompt` wins
+over the deck's.
+
+## Inside the deck
+
+**Each agent is a tab,** in its repo's colour, whose ground lights while the agent works and warns
+when it needs you. Beside the tabs sit the panes. Choose which show with Alt-s, and fold one with
+Alt-c:
+
+| Pane | Shows | A click |
+|---|---|---|
+| **AGENT LIST** | Every session and its state: `needs you`, `busy`, `shell`, `idle` | Unfolds what it has running beside it |
+| **HUMAN DECISIONS** | Everything the agents need from you | Rules on it |
+| **AGENT TODOs** | Each agent's own list, grouped by agent | |
+| **AGENT COMMUNICATIONS** | What the agents told each other | Opens the message whole |
+
+<p align="center">
+  <img src="docs/design/readme-deck-agents.png" alt="The AGENT LIST pane: ten deck agents and one outside session, each with its state, background jobs and uptime" width="700">
+</p>
+
+**The keys are listed in the bar.** They live in a key table only the deck's sessions use, so your
+own tmux bindings are untouched:
+
+| Key | Does |
+|---|---|
+| Alt-, and Alt-. | Previous and next tab |
+| Alt-n | A new agent or terminal tab |
+| Alt-l | Switches between the `columns`, `stack` and `grid` layouts |
+| Alt-h | Shows or hides sessions outside the deck |
+| Alt-s, Alt-c | Chooses the panes, folds the focused one |
+| Alt-u, Alt-e | Scrolls messages back, returns to the newest |
+| Alt-x | Clears every done todo and decided item |
+| Ctrl-Q | Asks, then ends the deck |
+
+Panes drag to resize. In the `grid` layout, click a title bar and then a pane in another column to
+move it. Ctrl-C is never bound: it belongs to the agent.
+
+## Human decisions
+
+**Every ask of you lands in one queue.** Agents add rows instead of leaving a question in a report,
+and you rule by clicking. The ruling is typed into the agent's tab, so the work carries on without
+you going to find it.
+
+<p align="center">
+  <img src="docs/design/readme-deck-decisions.png" alt="The HUMAN DECISIONS pane: each agent's decisions grouped under its name, with ruled items ticked" width="700">
+</p>
+
+| An agent runs | You see |
+|---|---|
+| `sb deck decide add "<question>" --option "<choice>"` | The choices, on a click |
+| `sb deck decide add "<what>" --run "<command>" --until <test>` | The exact command and folder. A click asks once, then runs it in a popup |
+| `sb deck decide add "<what>" --action` | Something only you can do, with no command |
+| `sb deck decide note "<text>"` | Something worth knowing, dismissed by a click |
+
+- **An action closes on what is observed.** `--until` takes `pr:<n>`, `pushed:<sha>` or
+  `gone:<branch>`. Pin a merge with `pr:<n>@<sha>`, so a row reads stale if the head moves.
+- **A blocked tab raises its own row** saying what it is waiting on, and a turn that ends on a
+  question marks the tab and adds a low row.
+- **HELD, at the foot,** counts unpushed commits, green unmerged pull requests and open alerts
+  across the deck's repos. Click to unfold it.
+
+## Agents know they are in a deck
+
+Each tab's `claude` is started with `-n <tab name>`, so the name you see is the name its peers
+message. A short brief is appended to its system prompt: the deck it is in, every agent at launch
+with its directory and role, and how to reach them and you. `sb deck brief` rebuilds it with the
+deck as it stands now.
+
+**`/deck-connect` brings an agent in on your word.** Type it in any tab: the agent reads its brief
+afresh, checks who is live, and introduces itself to the primary. It ships in [`plugin/`](plugin),
+a Claude Code plugin every tab loads with `--plugin-dir`, so nothing is installed into your Claude
+Code configuration.
+
+**An agent keeps its own todo list** with `sb deck todo add "<text>"` and `sb deck todo done <n>`.
+A list belongs to the tab whose pane runs the command, found by process rather than by name, so a
+session outside the deck cannot write a tab's list even if it shares the name.
+
+<details>
+<summary><strong>Every deck subcommand</strong></summary>
+
+| Command | | Does |
+|---|---|---|
+| `sb deck` | **acts** | Creates or attaches the deck; `--profile NAME` opens a declared set of tabs |
+| `sb deck open <name>` | **acts** | A tab for one agent, or that tab if it is open |
+| `sb deck add <name>` | **acts** | A new agent tab, for this deck or kept in its profile |
+| `sb deck terminal` | **acts** | A tab running your shell rather than `claude` |
+| `sb deck jump <name>` | **acts** | Focuses an agent's tab |
+| `sb deck layout columns\|stack\|grid` | **acts** | Moves the panes between layouts; nothing is killed |
+| `sb deck column fold\|pick\|move` | **acts** | Folds, chooses and moves the panes |
+| `sb deck reload` | **acts** | Re-applies the deck's settings and restarts its panes on this sky.boss's code |
+| `sb deck save` | **acts** | Saves each open tab's session, so a later `sb deck` resumes it |
+| `sb deck exit` | **acts** | Saves the tabs, then ends the deck and every agent in it |
+| `sb deck todo add\|done\|rm\|clear` | **acts** | Edits a todo list |
+| `sb deck decide add\|note\|done\|rm\|clear` | **acts** | Edits a list of decisions |
+| `sb deck decide rule` | **acts** | Rules on a decision; for you, never an agent |
+| `sb deck queue` | reads | Every agent session and its status, the deck's first |
+| `sb deck messages`, `sb deck message` | reads | What agents told each other, newest last, and one message whole |
+| `sb deck todo list`, `sb deck decide list` | reads | The lists, grouped by agent |
+| `sb deck brief [name]` | reads | An agent's brief, rebuilt with the live roster |
+| `sb deck places` | reads | Where a new tab can start |
+
+</details>
+
+## Beyond the deck
+
+sky.boss began as one CLI for watching what other tools do, and the deck is built on it. It is worth
+having on its own. Four ideas hold it together:
 
 - **Every command says whether it acts.** `sb run` acts; `read`, `data` and `follow` observe. That
   line is load-bearing: a window may re-run a read on a cadence, because re-running a read is a
@@ -35,8 +191,6 @@ Four ideas, and everything else follows from them:
   printed, verbatim, and says that is what it is doing. There is no `--pretty` that guesses.
 - **sky.boss is never in the credential path.** External CLIs keep their own authentication.
 
-## What it looks like
-
 In a terminal, every command draws the same envelope — the band under a `run`, and a file of
 records shaped into a table:
 
@@ -44,26 +198,13 @@ records shaped into a table:
   <img src="docs/design/readme-session.png" alt="A terminal session: sb run -- echo hello, then sb data --from jsonl over a file of records" width="800">
 </p>
 
-Two surfaces sit on top of that: [the canvas](#the-canvas), a window of commands for watching, and
-[the deck](#the-deck), a tmux controller for the agents working in your repos.
+[The canvas](#the-canvas) is the other surface on top of that: a window of commands for watching.
 
 The mark, this terminal session and the canvas are *rendered*, never drawn by hand:
 `docs/design/render-mark.py` writes the mark from `ART` in `skyboss/banner.py` and captures the
 terminal through a pty, and `docs/design/render-canvas.mjs` drives a real `sb ui` over the DevTools
-protocol. Re-run them after changing anything they show. The deck's picture is a screenshot of a
-live deck, with the operator's directories blanked out.
-
-## Install
-
-```bash
-git clone https://github.com/skyrowlabs/sky-boss
-cd sky-boss
-python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
-ln -s "$PWD/sb" ~/.local/bin/sb          # or run ./sb from the repo
-```
-
-Needs Python 3.12+. Shell completion for fish:
-`_SB_COMPLETE=fish_source sb > ~/.config/fish/completions/sb.fish`
+protocol. Re-run them after changing anything they show. The deck's pictures are screenshots of a
+live deck, with the operator's directories and private lines blanked out.
 
 ## The commands
 
@@ -77,7 +218,7 @@ Needs Python 3.12+. Shell completion for fish:
 | `sb roll-call` | reads | Asks every declared project how it is, and folds the answers |
 | `sb schedule` | reads | What fires next, across every project that declares a schedule |
 | `sb agents` | reads | Which agent sessions are running right now, across every provider |
-| `sb deck` | **acts** | A tmux controller: a tab per agent, each a live `claude` marked as working or needing you, beside panes for who is waiting on you and what agents told each other. `--profile` opens a declared set of tabs, each agent in its own colour; shortcuts are listed in the bar, and Ctrl-Q asks before ending everything — `open`, `jump`, `layout`, `marks`, `exit` and `todo add`/`done`/`rm` act; `queue`, `messages`, `brief` and `todo list` read. See [the deck](#the-deck) |
+| `sb deck` | **acts** | A tmux controller: a tab per agent, each a live `claude` marked as working or needing you, beside panes for who is waiting on you and what agents told each other. `--profile` opens a declared set of tabs, each agent in its own colour; shortcuts are listed in the bar, and Ctrl-Q asks before ending everything — `open`, `jump`, `layout`, `marks`, `save`, `exit` and `todo add`/`done`/`rm` act; `queue`, `messages`, `brief` and `todo list` read. See [the deck](#start-a-deck) |
 | `sb history <project>` | reads | A project's own run ledger, newest first |
 | `sb job` | both | Jobs sky.boss issues — `list` reads; `run`, `install` and `uninstall` act |
 | `sb tools` | reads | The commands you saved |
@@ -466,84 +607,6 @@ bench exists for: one you get wrong by typing and right by looking.
 ```bash
 sb ui --no-browser --port 8765     # develop against it in a browser
 ```
-
-</details>
-
-## The deck
-
-```bash
-sb deck --profile core
-```
-
-A tmux controller for the Claude Code agents working in your repos. Each agent is a tab: a live
-`claude` in that repo's directory, its name in the repo's own colour and marked `working`,
-`needs you` or `quiet`. Down the right, three panes: **NEEDS YOU** (every agent session and its
-status, with the ones outside the deck hidden on a key), **MESSAGES** (what the agents told each
-other, sender and receiver in their tab colours) and **TODOS** (each agent's own list, grouped by
-agent).
-
-<p align="center">
-  <img src="docs/design/readme-deck.png" alt="The sky.boss deck: a row of agent tabs, the primary agent's Claude Code session on the left, and NEEDS YOU, MESSAGES and TODOS panes on the right" width="900">
-</p>
-
-**Agents know they are in a deck.** Each tab's `claude` is started with `-n <tab name>`, so the
-name you see is the name its peers message, and with a short brief appended to its system prompt:
-the deck it is in, every agent at launch with its directory and role, and how to list and message
-them. The deck never types into a running agent, so one started before a peer opened catches up
-with `sb deck brief`, which rebuilds its brief with the deck as it stands now.
-
-**`/deck-connect` brings an agent in on your word.** Type it in any tab: the agent reads its brief
-afresh, checks who is live, and introduces itself to the primary. It ships in [`plugin/`](plugin),
-a Claude Code plugin every tab loads with `--plugin-dir`, so it comes with this sky.boss and nothing
-is installed into your Claude Code configuration.
-
-**A profile is a declared set of tabs**, primary first, in `~/.sky-boss/deck.toml`:
-
-```toml
-[agent.workspace]
-cwd  = "~/src/workspace"
-role = "coordinates the other repos"
-
-[agent.api]
-cwd  = "~/src/api"
-role = "the public API"
-
-[profile.core]
-primary = "workspace"
-tabs    = ["api"]
-brief   = "Route cross-repo changes through workspace before committing."
-```
-
-An agent that is a project in `projects.toml` with a `cwd` needs no `[agent]` entry unless it wants
-a `role`. `args` passes flags to its `claude`; your own `-n` or `--append-system-prompt` wins over
-the deck's.
-
-**The keys are listed in the bar**, and live in a key table only the deck's sessions use, so your
-own tmux bindings are untouched: Alt-h shows or hides outside agents, Alt-l switches between three
-columns and a stacked layout, Alt-, and Alt-. move between tabs, Alt-u scrolls MESSAGES back
-and Alt-e returns it to the newest. Panes are dragged to resize. Ctrl-Q, or the ✕ in the corner, asks before ending the deck
-and every agent in it. Ctrl-C is never bound: it belongs to the agent.
-
-**An agent keeps its own todo list** with `sb deck todo add "<text>"` and `sb deck todo done <n>`.
-A list belongs to the tab whose pane runs the command, found by process rather than by name, so a
-session outside the deck cannot write a tab's list even if it shares the name.
-
-<details>
-<summary><strong>Every deck subcommand</strong></summary>
-
-| Command | | Does |
-|---|---|---|
-| `sb deck` | **acts** | Creates or attaches the deck; `--profile NAME` opens a declared set of tabs |
-| `sb deck open <name>` | **acts** | A tab for one agent, or that tab if it is open |
-| `sb deck jump <name>` | **acts** | Focuses an agent's tab |
-| `sb deck layout columns\|stack` | **acts** | Moves the panes between layouts; nothing is killed |
-| `sb deck marks` | **acts** | The loop that marks each tab working, needs you or quiet; the deck starts it |
-| `sb deck exit` | **acts** | Ends the deck and every agent in it |
-| `sb deck todo add\|done\|rm` | **acts** | Edits the calling tab's todo list |
-| `sb deck queue` | reads | Every agent session and its status, the deck's first |
-| `sb deck messages` | reads | What agents told each other, newest first |
-| `sb deck todo list` | reads | The todo lists, grouped by agent |
-| `sb deck brief [name]` | reads | An agent's brief, rebuilt with the live roster |
 
 </details>
 

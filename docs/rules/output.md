@@ -40,6 +40,7 @@ from scripts.output import detail, emit, fail, item, line, ok, skip, step, warn
 | `fail(msg)`            | stderr | a gate failed                                         |
 | `warn(msg)`            | stderr | something is off, nothing is blocked                  |
 | `skip(msg)`            | stderr | executed and **deliberately did not act** — with why  |
+| `no_subject(msg)`      | stderr | read its source, and nothing there was its to judge   |
 | `step(msg)`            | stderr | narration: what is running now                        |
 | `shell(cmd)`           | stderr | echo a command about to be spawned                    |
 | `detail(msg)`          | stderr | a continuation line under the status line above it    |
@@ -56,6 +57,27 @@ is working. Reporting it as a warning means every legitimate decline reads as a
 problem, and a channel that cries wolf stops being read. This is the same
 distinction the run ledger draws — in the tiers that ship one — between
 `declined` and a cron that never fired.
+
+## The Exit Contract
+
+Each `scripts/check_*.py` and each `dev check` command answers with one of four codes,
+named in `scripts/output.py` and pinned by `tests/test_output_contract.py`:
+
+| Code | Name       | Means                                                              |
+| ---- | ---------- | ------------------------------------------------------------------ |
+| 0    | green      | it measured, and what it measured passed; the line carries a count |
+| 1    | red        | it measured, and something failed                                  |
+| 2    | refused    | the instrument could not measure                                   |
+| 3    | no subject | it ran, there was nothing to measure, and nothing unattended runs it |
+
+An aggregating command such as `dev check pre-push` passes a 3 and names the gate only
+when the gate declared it, with `no_subject=True` in `scripts/gates.py`. Any other 3 is red:
+pytest exits 3 on an internal error and pyright on a bad config, and neither means no subject.
+A CI step running a script directly fails on any non-zero code, so a script CI runs says
+`no subject` on its line and exits 0: `check_doc_links.py` on a tree with no fragment links,
+`check_commit_subjects.py` on an empty range, `check_skip_budget.py` on a report with no tests.
+An aggregate cannot name those gates, because the code does not reach it; the line above its
+table does. Exit 3 is for commands nothing runs unattended. `--json` carries the per-line state.
 
 ## Why a Module and Not a Convention
 

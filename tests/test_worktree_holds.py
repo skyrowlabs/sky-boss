@@ -71,6 +71,76 @@ def test_holders_reads_the_tree_it_is_given(tmp_path):
 
 def test_a_dead_holder_does_not_wedge_the_tree(tmp_path):
     """A pid that is gone holds nothing, however recently it said otherwise."""
-    _write_hold(tmp_path, pid=999_999, owner="crashed-job", age_s=7200)
+    import subprocess
+
+    # A reaped child rather than a literal: any fixed number can be a live pid here.
+    child = subprocess.Popen([sys.executable, "-c", ""])
+    child.wait()
+    _write_hold(tmp_path, pid=child.pid, owner="crashed-job", age_s=7200)
 
     assert tree_lock.holders(root=tmp_path) == []
+
+
+def _git(cwd: Path, *args: str) -> str:
+    import subprocess
+
+    return subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True, text=True).stdout
+
+
+def _repo(tmp_path: Path) -> Path:
+    main = tmp_path / "main"
+    main.mkdir()
+    _git(main, "init", "-q", "-b", "develop")
+    for key, value in (("user.name", "t"), ("user.email", "t@example.invalid"), ("commit.gpgsign", "false")):
+        _git(main, "config", key, value)
+    _git(main, "commit", "-q", "--allow-empty", "-m", "chore: root")
+    return main
+
+
+def test_another_trees_unpushed_branch_does_not_block_a_drop(tmp_path):
+    """Branches are shared by every worktree, and a branch survives removal (sky.boss)."""
+    from tests.shell import module
+
+    main = _repo(tmp_path)
+    _git(main, "switch", "-q", "-c", "feat/elsewhere")
+    _git(main, "commit", "-q", "--allow-empty", "-m", "feat: unpushed, in the main tree")
+    _git(main, "worktree", "add", "-q", "-b", "feat/here", str(tmp_path / "wt"))
+    _git(tmp_path / "wt", "commit", "-q", "--allow-empty", "-m", "feat: unpushed, on this tree's branch")
+
+    assert module("worktree").stranded(tmp_path / "wt") == []
+
+
+def test_a_detached_heads_own_commit_blocks_a_drop(tmp_path):
+    from tests.shell import module
+
+    main = _repo(tmp_path)
+    _git(main, "worktree", "add", "-q", "--detach", str(tmp_path / "wt"))
+    _git(tmp_path / "wt", "commit", "-q", "--allow-empty", "-m", "feat: on no branch")
+
+    lost = module("worktree").stranded(tmp_path / "wt")
+    assert len(lost) == 1 and "on no branch" in lost[0]
+
+
+def test_a_linked_environment_is_ignored(tmp_path):
+    """`worktree new` makes these symlinks, and `.venv/` matches only a directory."""
+    repo = _repo(tmp_path)
+    shipped = Path(__file__).resolve().parents[1] / ".gitignore"
+    (repo / ".gitignore").write_text(shipped.read_text(encoding="utf-8"), encoding="utf-8")
+    for name in (".venv", "node_modules"):
+        (repo / name).symlink_to(tmp_path)
+    assert _git(repo, "status", "--porcelain").split() == ["??", ".gitignore"]
+
+
+@pytest.mark.parametrize(("theirs", "linked"), [("same", True), ("other", False)])
+def test_node_modules_is_borrowed_only_while_the_lockfiles_agree(tmp_path, monkeypatch, theirs, linked):
+    from tests.shell import module
+
+    worktree = module("worktree")
+    primary, target = tmp_path / "primary", tmp_path / "target"
+    (primary / "node_modules").mkdir(parents=True)
+    target.mkdir()
+    (primary / "package-lock.json").write_text("same", encoding="utf-8")
+    (target / "package-lock.json").write_text(theirs, encoding="utf-8")
+    monkeypatch.setattr(worktree, "PROJECT_ROOT", primary)
+    worktree._link_node_modules(target)
+    assert (target / "node_modules").is_symlink() is linked

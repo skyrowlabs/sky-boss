@@ -353,6 +353,18 @@ jobs:
         if: matrix.python == '3.12'
         run: .venv/bin/python -m flake8 . --select=E9,F63,F7,F82,F401 --show-source --statistics
 
+      # The commit hook, run here too: a workflow edited without a commit through
+      # it (a hand-merge, an upgrade) otherwise reached CI unread. Through
+      # pre-commit so the hook's `rev:` stays the one version. This runner has
+      # shellcheck, so `run:` blocks are checked here and may not be locally.
+      # skeletor v0.73.0's lint-job step, on the leg flake8 is pinned to.
+      - name: actionlint
+        if: matrix.python == '3.12'
+        run: |
+          if grep -qE '^\s*-\s*id:\s*actionlint\s*$' .pre-commit-config.yaml; then
+            .venv/bin/pre-commit run actionlint --all-files
+          fi
+
       # The type check. A STEP for the reason the Gates step above is one — a
       # required check is *named* in branch protection, not discovered, so a job
       # would mean editing protection on `develop` and `main` in the same
@@ -407,10 +419,12 @@ jobs:
   # `docs/DEVELOPMENT.md` says the same to a reader deciding what to require.
   # It passes only when the matrix passed. The suite has no condition of its
   # own, so a skip means the gate failed, and a skip is never a pass.
+  # `!cancelled()` rather than `always()`: a failed gate still runs this and goes red, and a
+  # cancelled run reports `cancelled`, never `skipped`, where `always()` reported a failure.
   unit-tests-result:
     name: pytest
     needs: [gate, unit-tests]
-    if: always()
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     steps:
       - name: The matrix passed
@@ -451,7 +465,16 @@ jobs:
       # built into node 22, so this costs no dependency. It does not replace the
       # headless render CLAUDE.md calls an obligation: a runner cannot see an
       # unpainted mark or a control off the edge of the screen.
-      - run: npm test
+      # `--if-present` would let a deleted script pass, so `package.json`'s
+      # `skeletor.requiredScripts` names the ones that must exist.
+      - name: typecheck
+        run: node .github/scripts/node-gate.cjs typecheck
+
+      - name: test
+        run: node .github/scripts/node-gate.cjs test
+
+      - name: build
+        run: node .github/scripts/node-gate.cjs build
 
   # A single context meaning "everything above passed". It exists for two
   # reasons and neither is decoration.

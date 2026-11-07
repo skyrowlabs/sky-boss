@@ -21,6 +21,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
+from rich.console import Group
+from rich.markdown import Markdown
+from rich.rule import Rule
+from rich.table import Table
+from rich.text import Text
+
 from skyboss import agents as agents_
 from skyboss import theme
 from skyboss.chrome import ago
@@ -45,6 +51,7 @@ HIDDEN = (
     "between_parts",
     "msg_id",
     "session",
+    "key",
 )
 
 
@@ -102,6 +109,22 @@ def sender_of(origin: dict, index: dict[tuple, str], live: set[str]) -> str:
     return found if found in live else ""
 
 
+def peer_origin(entry) -> dict | None:
+    """A received peer message's `origin` in a transcript entry, or None.
+
+    A message taken in between turns is a `user` entry. One absorbed mid-turn is a
+    `queued_command` attachment, written when it is absorbed.
+    """
+    if not isinstance(entry, dict):
+        return None
+    held = entry.get("attachment") if entry.get("type") == "attachment" else None
+    if isinstance(held, dict) and held.get("type") == "queued_command":
+        origin = held.get("origin")
+    else:
+        origin = entry.get("origin") if entry.get("type") == "user" else None
+    return origin if isinstance(origin, dict) and origin.get("kind") == PEER else None
+
+
 def received(
     path: Path, session: agents_.Session, index: dict[tuple, str] | None = None, live: set[str] | None = None
 ) -> tuple[list[Message], int]:
@@ -123,8 +146,8 @@ def received(
             except ValueError:
                 torn += 1
                 continue
-            origin = entry.get("origin") if isinstance(entry, dict) else None
-            if entry.get("type") != "user" or not isinstance(origin, dict) or origin.get("kind") != PEER:
+            origin = peer_origin(entry)
+            if origin is None:
                 continue
             msg_id = str(origin.get("msg_id") or "")
             # A subagent's handback carries no msg_id; its entry uuid is the next-best identity.
@@ -145,9 +168,12 @@ def received(
 
 
 def collect(
-    sessions: list[agents_.Session], projects: Path, index: dict[tuple, str] | None = None
+    sessions: list[agents_.Session],
+    projects: Path,
+    index: dict[tuple, str] | None = None,
+    limit: int | None = LIMIT,
 ) -> tuple[list[Message], list[str]]:
-    """Every live session's received messages: deduplicated, oldest first, the last `LIMIT`."""
+    """Every live session's received messages: deduplicated, oldest first, the last `limit` (None: all)."""
     live = {s.id for s in sessions}
     found: list[Message] = []
     problems: list[str] = []
@@ -181,7 +207,7 @@ def collect(
         if held is None or _sort_key(message) < _sort_key(held):
             unique[message.key] = message
     ordered = sorted(unique.values(), key=_sort_key)
-    return ordered[-LIMIT:], problems
+    return (ordered[-limit:] if limit else ordered), problems
 
 
 def _sort_key(message: Message) -> tuple:
@@ -260,6 +286,7 @@ def rows_of(
                 "between_parts": [sender, [" → ", "sb.muted"], receiver],
                 "msg_id": m.msg_id,
                 "session": m.session,
+                "key": m.key,
             }
         )
     return rows
@@ -311,3 +338,66 @@ def messages_result(
         return result
     result.view = view_of(result.data)
     return result
+
+
+def message_result(
+    key: str,
+    adapters: list | None = None,
+    projects: Path | None = None,
+    now: datetime | None = None,
+    place: Callable[[list], dict[str, tuple[str, int]]] | None = None,
+    index: dict[tuple, str] | None = None,
+) -> Result:
+    """One message whole, found by the `key` its row carries: from, to, when it was sent, and its body."""
+    result = Result()
+    chosen = adapters if adapters is not None else agents_.providers()
+    sessions, problems, _ = agents_.fold(chosen)
+    for problem in problems:
+        result.warn(problem)
+    sessions = [s for s in sessions if s.provider == PROVIDER]
+    if index is None:
+        index = agents_.peer_index() if adapters is None else {}
+    found, more = collect(sessions, projects or projects_dir(), index, limit=None)
+    for problem in more:
+        result.warn(problem)
+    match = next((m for m in found if m.key == key), None)
+    if match is None:
+        result.ok = False
+        result.data = {"error": f"no message {key!r} in any live session's transcript"}
+        return result
+    placed = place(sessions) if place is not None else {}
+    names = {s.id: s.name or s.id[:8] for s in sessions}
+    row = rows_of([match], now or datetime.now(timezone.utc), placed, True, names)[0]
+    result.data = {
+        "from": row["from"],
+        "to": row["to"],
+        "at": row["at"],
+        "when": row["when"],
+        "from_session": row["from_session"],
+        "to_session": row["to_session"],
+        "key": key,
+        "body": match.body,
+        "between_parts": row["between_parts"],
+    }
+    return result
+
+
+def sent(data: dict) -> str:
+    """When a message was sent, local time and how long ago: `2026-11-05 14:02:11 · 3m ago`."""
+    at = _instant(data.get("at"))
+    if at is None:
+        return "not recorded"
+    stamp = at.astimezone().strftime("%Y-%m-%d %H:%M:%S")
+    return f"{stamp} · {data['when']} ago" if data.get("when") else stamp
+
+
+def page(data: dict) -> Group:
+    """A message to read: a header of from, to and sent, a rule, then the body as Markdown."""
+    sender, _, receiver = data["between_parts"]
+    header = Table.grid(padding=(0, 2))
+    header.add_column(style="sb.label")
+    header.add_column()
+    header.add_row("from", Text(sender[0], style=sender[1] or "sb.accent"))
+    header.add_row("to", Text(receiver[0], style=receiver[1] or "sb.accent"))
+    header.add_row("sent", Text(sent(data), style="sb.muted"))
+    return Group(header, Rule(style="sb.muted"), Markdown(data["body"] or "(empty)"))

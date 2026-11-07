@@ -76,6 +76,21 @@ def test_only_peer_entries_are_read(tmp_path):
     assert [(m.sender, m.receiver, m.body) for m in found] == [("jam", "ws", "hello")] and problems == []
 
 
+def test_a_message_absorbed_mid_turn_is_read_like_any_other(tmp_path):
+    who = session("s1", "api")
+    held = peer("web", "mid-turn", "m1", "2026-11-04T10:00:00.000Z")
+    absorbed = {
+        "type": "attachment",
+        "timestamp": held["timestamp"],
+        "uuid": "u1",
+        "attachment": {"type": "queued_command", "origin": held["origin"]},
+    }
+    other = {"type": "attachment", "attachment": {"type": "file", "origin": held["origin"]}}
+    write(tmp_path, who, [absorbed, other])
+    found, _ = messages_.collect([who], tmp_path)
+    assert [(m.sender, m.body, m.msg_id) for m in found] == [("web", "mid-turn", "m1")]
+
+
 def test_messages_are_deduplicated_by_msg_id_newest_last(tmp_path):
     a, b = session("s1", "ws"), session("s2", "jam")
     write(
@@ -292,7 +307,7 @@ def test_the_queue_keeps_its_first_rows_because_waiting_sorts_first():
     from skyboss.output import Result
 
     trimmed, marker = keep_first("row(s)")(Result(data=[1, 2, 3, 4]), 3)
-    assert trimmed.data == [1, 2, 3] and marker == "1 more row(s) not shown — waiting comes first"
+    assert trimmed.data == [1, 2, 3] and marker == "1 more row(s)"
 
 
 def test_json_and_a_pipe_carry_all_fifty(tmp_path, monkeypatch, no_sleep):
@@ -483,9 +498,17 @@ class Stream:
 
 @pytest.mark.parametrize(
     ("raw", "key"),
-    [("[<64;10;5M", "wheelup"), ("[<65;1;1M", "wheeldown"), ("[<0;3;4M", None), ("[<64;10;5m", None), ("[A", "up")],
+    [
+        ("[<64;10;5M", "wheelup"),
+        ("[<65;1;1M", "wheeldown"),
+        ("[<0;3;4M", "click:3:4"),
+        ("[<0;3;4m", None),
+        ("[<2;3;4M", None),
+        ("[<64;10;5m", None),
+        ("[A", "up"),
+    ],
 )
-def test_an_sgr_wheel_report_is_a_key_and_any_other_report_is_nothing(raw, key):
+def test_an_sgr_report_is_the_wheel_a_left_press_or_nothing(raw, key):
     from skyboss import keys
 
     stream = Stream(raw)
@@ -549,7 +572,7 @@ def test_a_taken_key_redraws_at_once_and_the_wheel_is_reported_on_screen(tmp_pat
     assert written.index(MOUSE_ON) < written.rindex(MOUSE_OFF)
 
 
-def test_a_counted_view_says_newest_even_when_every_row_fits(tmp_path):
+def test_a_counted_view_says_nothing_when_every_row_fits(tmp_path):
     from rich.console import Console
     from rich.text import Text
 
@@ -564,7 +587,7 @@ def test_a_counted_view_says_newest_even_when_every_row_fits(tmp_path):
 
     console = Console(width=80)
     shown = fitted(result, drawn(result), 100, keep_last("message(s)", pane), drawn, console, always=True)
-    assert shown.plain.split("\n")[0] == "newest"
+    assert shown.plain.split("\n")[0] == result.data[0]["message"]
 
 
 def test_a_segmented_cell_is_drawn_in_its_parts_roles(tmp_path):
@@ -697,3 +720,92 @@ def test_the_registry_index_keys_a_session_by_pid_start_and_socket(tmp_path):
     )
     assert index == {("pid", 7, "70"): "s1", ("socket", "/fx/7.sock"): "s1"}
     assert messages_.agents_.peer_index(tmp_path / "absent") == {}
+
+
+def test_a_row_carries_the_key_a_popup_finds_it_by(tmp_path):
+    who = fifty(tmp_path)
+    rows = messages_.messages_result([Adapter([who])], tmp_path, NOW).data
+    assert rows[-1]["key"] == "m49"
+
+
+def test_one_message_is_found_whole_by_its_key_even_past_the_last_fifty(tmp_path):
+    who = fifty(tmp_path)
+    write(
+        tmp_path,
+        who,
+        [peer("jam", "# Heading\n\nline two", "old", "2026-11-04T10:00:00Z")]
+        + [peer("jam", f"note {i:02d}", f"m{i}", f"2026-11-04T11:{i:02d}:00Z") for i in range(50)],
+    )
+    result = messages_.message_result("old", [Adapter([who])], tmp_path, NOW)
+    assert result.ok and result.data["body"] == "# Heading\n\nline two"
+    assert (result.data["from"], result.data["to"], result.data["when"]) == ("jam", "ws", "2h")
+
+
+def test_an_unknown_key_is_a_failure_that_says_where_it_looked(tmp_path):
+    result = messages_.message_result("nope", [Adapter([fifty(tmp_path)])], tmp_path, NOW)
+    assert not result.ok and "no message 'nope'" in result.data["error"]
+
+
+def test_the_page_heads_the_body_with_from_to_and_sent(tmp_path):
+    from rich.console import Console
+
+    who = fifty(tmp_path)
+    data = messages_.message_result("m3", [Adapter([who])], tmp_path, NOW).data
+    console = Console(record=True, width=80, theme=output.THEME)
+    console.print(messages_.page(data))
+    lines = [line.strip() for line in console.export_text().splitlines()]
+    assert lines[0].split() == ["from", "jam"] and lines[1].split() == ["to", "ws"]
+    assert lines[2].startswith("sent") and lines[2].endswith("ago") and "note 03" in lines[4]
+
+
+def test_the_popup_reads_one_message_on_the_painted_void():
+    from skyboss import deck as deck_
+
+    argv = deck_.message_popup_argv("a b")
+    assert argv[:2] == ["display-popup", "-E"] and argv[argv.index("-s") + 1] == deck_.theme.tmux_styles()["pane"]
+    assert argv[-1].endswith("deck message --page 'a b'")
+
+
+def test_a_click_maps_to_the_row_under_it_and_nothing_else():
+    from skyboss.deck import clicked_row
+
+    lines = ["┌ deck messages ─────", "newest", "WHEN  MESSAGE", "────────────", "1h  first", "1h  second"]
+    rows = [{"key": "a"}, {"key": "b"}]
+    assert [clicked_row(lines, rows, y) for y in (5, 6)] == rows
+    assert [clicked_row(lines, rows, y) for y in (1, 3, 4, 7)] == [None] * 4
+
+
+def test_clicking_a_message_row_opens_that_message_and_the_band_is_grounded(tmp_path, monkeypatch):
+    import io
+
+    from rich.console import Console
+
+    from skyboss import deck as deck_
+    from skyboss.resident import reside
+
+    monkeypatch.setattr(deck_.DeckPane, "poll", lambda self: None)
+    opened = []
+    monkeypatch.setattr(deck_, "open_message", opened.append)
+    pane = deck_.DeckPane("sb", lambda row: True, scroll=True, role=deck_.MESSAGES)
+    clock = Clock()
+    sent = []
+
+    def wait(seconds):
+        clock.sleep(seconds)
+        if sent or not pane.lines:
+            return None
+        sent.append(next(i for i, line in enumerate(pane.lines) if "note 47" in line) + 1)
+        return f"click:2:{sent[0]}"
+
+    sink = io.StringIO()
+    console = Console(
+        width=100, height=14, force_terminal=True, color_system="truecolor", file=sink, theme=output.THEME
+    )
+    once = functools.partial(messages_.messages_result, [Adapter([fifty(tmp_path)])], tmp_path, NOW)
+    reside(
+        "deck messages", 10, once, clock=clock, wait=wait, console=console, screen=True, ticks=2,
+        fit=deck_.keep_last("message(s)", pane), fill=True, control=pane,
+    )  # fmt: skip
+    assert opened == ["m47"]
+    red, green, blue = (int(deck_.theme.HEAD_GROUND[i : i + 2], 16) for i in (1, 3, 5))
+    assert f"48;2;{red};{green};{blue}" in sink.getvalue()

@@ -64,6 +64,26 @@ from scripts.paths import FOREIGN, PROJECT_ROOT, SHELL_PACKAGE, TMP_DIR  # noqa:
 
 SCRATCH = TMP_DIR.relative_to(PROJECT_ROOT).as_posix()
 PROBE_DIR = TMP_DIR / "_scratch_lint_probe"
+#: Set while a single-file `FOREIGN` entry is probed: the probe is written AT that
+#: path, with a python shebang, because isort reads a suffixless python script.
+PROBE_FILE: Path | None = None
+
+
+def _plant(name: str, source: str) -> Path:
+    """Write a probe: into `PROBE_DIR`, or over `PROBE_FILE` when one is set."""
+    if PROBE_FILE is not None:
+        PROBE_FILE.write_text("#!/usr/bin/env python3\n" + source, encoding="utf-8")
+        return PROBE_FILE
+    path = PROBE_DIR / name
+    path.write_text(source, encoding="utf-8")
+    return path
+
+
+def _named(output: str) -> bool:
+    """Whether a tool's output names the planted probe."""
+    return (PROBE_FILE.relative_to(PROJECT_ROOT).as_posix() if PROBE_FILE else PROBE_DIR.name) in output
+
+
 CHECK = PROJECT_ROOT / SHELL_PACKAGE / "check.py"
 PACKAGE = PROJECT_ROOT / "package.json"
 
@@ -107,7 +127,7 @@ def _python_tool(module: str, args: list[str], source: str) -> Callable[[], tupl
     """A probe that plants `source` under scratch and runs `python -m <module> <args>`."""
 
     def probe() -> tuple[bool | None, str]:
-        (PROBE_DIR / "probe.py").write_text(source, encoding="utf-8")
+        _plant("probe.py", source)
         done = subprocess.run(
             [sys.executable, "-m", module, *args], cwd=str(PROJECT_ROOT), capture_output=True, text=True
         )
@@ -117,7 +137,7 @@ def _python_tool(module: str, args: list[str], source: str) -> Callable[[], tupl
         # "the budget is respected", the one answer these checks must never give.
         if f"No module named {module}" in done.stderr:
             return None, f"could not run `{module}` — it is not installed in {sys.executable}"
-        return PROBE_DIR.name in done.stdout + done.stderr, f"ran `{module} {' '.join(args)}`"
+        return _named(done.stdout + done.stderr), f"ran `{module} {' '.join(args)}`"
 
     return probe
 
@@ -141,7 +161,7 @@ def _names_scratch(pattern: str) -> bool:
 
 def _pyright() -> tuple[bool | None, str]:
     """Ask pyright which files it analysed; read `pyrightconfig.json` if it cannot answer, and say so."""
-    (PROBE_DIR / "probe.py").write_text("x: int = 'not an int'\n", encoding="utf-8")
+    _plant("probe.py", "x: int = 'not an int'\n")
     done = subprocess.run(
         [sys.executable, "-m", "pyright", "--outputjson", "--project", "pyrightconfig.json"],
         cwd=str(PROJECT_ROOT),
@@ -149,7 +169,7 @@ def _pyright() -> tuple[bool | None, str]:
         text=True,
     )
     if done.stdout.lstrip().startswith("{"):
-        return PROBE_DIR.name in done.stdout, "ran `pyright --outputjson --project pyrightconfig.json`"
+        return _named(done.stdout), "ran `pyright --outputjson --project pyrightconfig.json`"
     # JSONC: the template's own config explains itself in `//` comments, which
     # `json.loads` refuses. Whole-line comments only, which is what it carries.
     text = (PROJECT_ROOT / "pyrightconfig.json").read_text(encoding="utf-8")
@@ -163,12 +183,12 @@ def _pyright() -> tuple[bool | None, str]:
 def _eslint() -> tuple[bool | None, str]:
     """Ask eslint when it is installed; otherwise read the config, and say so."""
     if shutil.which("node") and (PROJECT_ROOT / "node_modules" / "eslint").is_dir():
+        planted = _plant("probe.js", "var unused = 1;\n").relative_to(PROJECT_ROOT).as_posix()
         script = (
             "const {ESLint}=require('eslint');"
-            f"new ESLint().isPathIgnored('{SCRATCH}/{PROBE_DIR.name}/probe.js')"
+            f"new ESLint().isPathIgnored('{planted}')"
             ".then(i=>{process.stdout.write(i?'ignored':'linted')})"
         )
-        (PROBE_DIR / "probe.js").write_text("var unused = 1;\n", encoding="utf-8")
         done = subprocess.run(["node", "-e", script], cwd=str(PROJECT_ROOT), capture_output=True, text=True)
         if done.stdout in ("ignored", "linted"):
             return done.stdout == "linted", "asked eslint (isPathIgnored)"
@@ -245,12 +265,17 @@ def test_every_walker_has_a_probe_and_every_probe_a_walker():
 
 
 def _walked(walkers: list[str]) -> dict:
-    """Each walker's verdict on a probe planted in `PROBE_DIR`, removed afterwards."""
-    PROBE_DIR.mkdir(parents=True, exist_ok=True)
+    """Each walker's verdict on a probe planted in `PROBE_DIR` (or over `PROBE_FILE`), undone afterwards."""
+    kept = PROBE_FILE.read_bytes() if PROBE_FILE is not None else None
+    if PROBE_FILE is None:
+        PROBE_DIR.mkdir(parents=True, exist_ok=True)
     try:
         verdicts = {tool: PROBES[tool]() for tool in walkers}
     finally:
-        shutil.rmtree(PROBE_DIR, ignore_errors=True)
+        if PROBE_FILE is not None and kept is not None:
+            PROBE_FILE.write_bytes(kept)
+        else:
+            shutil.rmtree(PROBE_DIR, ignore_errors=True)
     unasked = {tool: how for tool, (walked, how) in verdicts.items() if walked is None}
     assert not unasked, (
         "these walkers could not be asked, so whether they lint scratch is unknown — which is not a pass:\n"
@@ -273,13 +298,17 @@ def test_every_walking_linter_skips_scratch():
 
 
 def test_every_walking_linter_skips_each_foreign_subtree(monkeypatch):
-    """The same probes, planted in each subtree `scripts/paths.py::FOREIGN` names."""
+    """The same probes, planted in each subtree `scripts/paths.py::FOREIGN` names, or over a named file."""
     walkers = [tool for tool in _walkers() if tool in PROBES]
     module = sys.modules[__name__]
     for subtree in FOREIGN:
-        assert (PROJECT_ROOT / subtree).is_dir(), f"FOREIGN names `{subtree}`, which is not a directory here"
+        assert (PROJECT_ROOT / subtree).exists(), f"FOREIGN names `{subtree}`, which is not here"
         monkeypatch.setattr(module, "SCRATCH", subtree)
-        monkeypatch.setattr(module, "PROBE_DIR", PROJECT_ROOT / subtree / "_foreign_lint_probe")
+        if (PROJECT_ROOT / subtree).is_file():
+            monkeypatch.setattr(module, "PROBE_FILE", PROJECT_ROOT / subtree)
+        else:
+            monkeypatch.setattr(module, "PROBE_FILE", None)
+            monkeypatch.setattr(module, "PROBE_DIR", PROJECT_ROOT / subtree / "_foreign_lint_probe")
         linted = _walked(walkers)
         assert not linted, (
             f"FOREIGN names `{subtree}`, and these linters still read it:\n"

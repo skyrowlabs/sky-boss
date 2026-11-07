@@ -222,6 +222,12 @@ def _hex(rgb: tuple[float, float, float]) -> str:
     return "#" + "".join(f"{round(_gamma(c) * 255):02x}" for c in rgb)
 
 
+def fade(colour: str, keep: float, ground: str = SURFACE) -> str:
+    """`colour` keeping `keep` of itself over `ground`, mixed in linear light."""
+    r, g, b = (keep * _linear(a) + (1 - keep) * _linear(z) for a, z in zip(_rgb(colour), _rgb(ground)))
+    return _hex((r, g, b))
+
+
 def _to_oklab(colour: str) -> tuple[float, float, float]:
     r, g, b = (_linear(c) for c in _rgb(colour))
     lms = (
@@ -291,12 +297,21 @@ def _legible(colour: str) -> str:
 AGENT_COLOURS: tuple[str, ...] = tuple(_legible(_mix(partner, weight)) for partner, weight in AGENT_RECIPES)
 
 
+#: Agent name → the hue its `[agent.NAME] colour` chose, set by the deck when it reads `deck.toml`.
+DECLARED_HUES: dict[str, str] = {}
+
+
+def hue_names() -> tuple[str, ...]:
+    """Every hue a deck agent may declare: the theme's own, so the deck's floor still holds."""
+    return ("brand", *PRODUCT_HUES, *(f"step{slot}" for slot in range(len(AGENT_COLOURS))))
+
+
 def _hue_key(name: str, slot: int) -> str:
-    return SLUG_HUES.get(name) or f"step{slot % len(AGENT_COLOURS)}"
+    return DECLARED_HUES.get(name) or SLUG_HUES.get(name) or f"step{slot % len(AGENT_COLOURS)}"
 
 
 def agent_colour(name: str, slot: int) -> str:
-    """An agent's colour: its product's hue at full strength, else its tab slot's step.
+    """An agent's colour: the hue it declared, else its product's at full strength, else its slot's step.
 
     The one assignment the tab row and the messages pane both read.
     """
@@ -322,6 +337,10 @@ DECK_ROLES: dict[str, str] = {
 }
 
 
+#: A deck pane's label row: the brand tinted into the void the pane paints, clear of the working-tab ground.
+HEAD_GROUND = _mix(BG, 0.28)
+
+
 # ============================================================================
 # Style roles
 # ============================================================================
@@ -343,6 +362,8 @@ STYLES: dict[str, str] = {
     "sb.url": CLI_PATH,
     # The one role that paints its own ground. See § Ground, not hue.
     "sb.ref": f"{CLI_REF} on {CLI_REF_BG}",
+    # A deck pane's label row, under its band's own spans: where each right-column table starts.
+    "sb.deck.head": f"{TEXT} on {HEAD_GROUND}",
     # The deck's agents, on its own painted ground. See § Product hues.
     **{role: f"bold {colour}" for role, colour in DECK_ROLES.items()},
 }
@@ -352,7 +373,7 @@ STYLES: dict[str, str] = {
 # already has, stated as data so the contrast test can check the right thing
 # rather than skip them. What a painted role owes instead is a *ground* that
 # clears the floor and a foreground legible on that ground; both are asserted.
-PAINTED: frozenset[str] = frozenset({"sb.ref"})
+PAINTED: frozenset[str] = frozenset({"sb.ref", "sb.deck.head"})
 
 
 # ============================================================================
@@ -404,15 +425,93 @@ def css_root() -> str:
 # branch of a `#{?…}` conditional the tab format puts them in.
 
 
+#: The favicon (`skyrowlabs.com/favicon.svg`) as nine rows of pixels: B the brand-blue L, W the white S in
+#: its corner, the L's base running the full width under it. Drawn six pixels to a cell (2 wide, 3 tall)
+#: with sextant glyphs, so it is five cells wide over the tab bar's three rows, with a blank pixel row
+#: above and below to centre it. A sextant pixel is near square, and every stroke, the L's included, is
+#: one pixel thick. A cell takes two colours at most (its glyph's and its ground), which this keeps:
+#: the gap row puts the L's base in a cell row of its own. A status bar cannot draw the SVG; this is its redraw.
+MARK_PIXELS = (
+    "..........",
+    "B.WWWWWWW.",
+    "B.W.......",
+    "B.WWWWWWW.",
+    "B.......W.",
+    "B.WWWWWWW.",
+    "B.........",
+    "BBBBBBBBB.",
+    "..........",
+)
+
+#: Pixels per glyph: columns, rows.
+CELL_PIXELS = (2, 3)
+
+
+def _sextant(bits: tuple[int, ...]) -> str:
+    """The glyph inking `bits`, six flags read across then down (top-left first).
+
+    U+1FB00 onwards holds the sixty patterns that are not a space, a full block or a half block.
+    """
+    mask = sum(bit << n for n, bit in enumerate(bits))
+    named = {0: " ", 63: "█", 21: "▌", 42: "▐"}
+    if mask in named:
+        return named[mask]
+    return chr(0x1FB00 + mask - 1 - (mask > 21) - (mask > 42))
+
+
+def _cell(pixels: tuple[str | None, ...], ground: str) -> str:
+    """One cell: its pixels' inks as a glyph in the first ink over the second, or over `ground`."""
+    inks = list(dict.fromkeys(ink for ink in pixels if ink is not None))
+    if len(inks) > 2 or (len(inks) == 2 and None in pixels):
+        raise ValueError(f"a cell takes two colours at most, not {pixels}")
+    if not inks:
+        return f"#[bg={ground}] "
+    fg = inks[0]
+    bg = inks[1] if len(inks) == 2 else ground
+    return f"#[fg={fg} bg={bg}]" + _sextant(tuple(int(ink == fg) for ink in pixels))
+
+
+def tmux_mark(ground: str = SURFACE) -> tuple[str, ...]:
+    """The mark as one tmux format string per bar row, each cell a sextant over `ground`."""
+    ink = {"B": BRAND, "W": TEXT, ".": None}
+    across, down = CELL_PIXELS
+    rows = []
+    for top in range(0, len(MARK_PIXELS), down):
+        band = MARK_PIXELS[top : top + down]
+        cells = [
+            _cell(tuple(ink[line[x + dx]] for line in band for dx in range(across)), ground)
+            for x in range(0, len(band[0]), across)
+        ]
+        rows.append("".join(cells))
+    return tuple(rows)
+
+
+#: The mark's width in cells.
+MARK_WIDTH = len(MARK_PIXELS[0]) // CELL_PIXELS[0]
+
+
+#: A working tab's ground: the brand mixed into the bar's surface, a tint and never a fifth hue.
+WORKING_GROUND = _mix(SURFACE, 0.35)
+
+
 def tmux_styles() -> dict[str, str]:
     """Role → tmux style string, for the deck's two status bars and its borders."""
     return {
         "bar": f"bg={SURFACE} fg={TEXT_2}",
         "label": f"fg={BRAND} bold",
+        # The wordmark's `skyrow`; its `.labs` is `label`.
+        "wordmark": f"fg={TEXT} bold",
         "tab": f"fg={TEXT_2} bg={SURFACE}",
         "tab-current": f"fg={TEXT} bg={SURFACE_2} bold",
         "working": f"fg={BRAND}",
+        # A working tab's lit ground: the brand tinted into the bar, under full-strength text.
+        "tab-working": f"fg={TEXT} bg={WORKING_GROUND} bold",
+        "tab-edge": f"fg={TEXT_3}",
+        # The tab row's scrollbar, shown only when the tabs overflow: the visible span on a structure track.
+        "scroll-thumb": f"fg={BRAND} bg={SURFACE}",
+        "scroll-track": f"fg={TEXT_3} bg={SURFACE}",
         "needs-you": f"fg={BG} bg={WARN} bold",
+        "tab-asked": f"fg={WARN}",
         "quiet": f"fg={TEXT_2}",
         "unregistered": f"fg={TEXT_2} italics",
         "border": f"fg={TEXT_3}",

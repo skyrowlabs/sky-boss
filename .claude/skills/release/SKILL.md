@@ -32,6 +32,20 @@ is the direction that ships something broken.
 
 Report the gate table. Red → stop; name the gate and what is failing.
 
+**Then check that this release will publish anything.** Release Please opens no
+release pull request when every commit since the last release is a hidden type —
+the sections marked `"hidden": true` in `.github/release-please-config.json`. Its
+log says `No user facing commits found` and nothing else happens. List them:
+
+```bash
+git log --format=%s "$(git describe --tags --abbrev=0)"..origin/develop
+```
+
+A breaking change (`type!:` or a `BREAKING CHANGE:` footer) always counts. If
+every subject is hidden, report that and let the human choose: stop here, or force
+a version with an empty commit on `develop` whose body is
+`Release-As: X.Y.Z`. Do not pick for them.
+
 ## Phase B — Docs and reports for the closing window
 
 The window that is about to close is `<previous tag>..HEAD`. Get it from one
@@ -52,8 +66,12 @@ dev docs release-window
 
 ```bash
 gh pr create --base main --head develop \
-  --title "release: <version>" --body "<the changelog Release Please will generate>"
+  --title "chore(release): <version>" --body "<the changelog Release Please will generate>"
 ```
+
+The title becomes the merge commit's message, and Release Please reads it as one
+more commit. `chore` is a hidden section, so it adds nothing to the changelog; a
+`fix(...)` title appeared in sky.boss's 0.2.0 changelog a second time.
 
 A PR into the release branch runs **everything**. Watch it; fix what breaks; push
 fixes to `develop`. Report when every check is green.
@@ -100,6 +118,9 @@ open.
 1. **One phase per turn.** Each ends at a checkpoint you report; the user
    decides whether to continue.
 2. **Never merge any release pull request.** Phase D says how many there are.
+   If Release Please's pull request does not appear, read the release job's log
+   before waiting longer: `No user facing commits found` is Phase A's hidden-only
+   case, and no pull request is coming.
 3. **Never hand-edit `CHANGELOG.md` or `VERSION`.** Release Please owns both.
 4. **Never edit a frozen report edition.** Corrections go in an `## Errata`
    block on the current in-flight edition.

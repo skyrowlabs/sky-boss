@@ -8,6 +8,13 @@
 set -euo pipefail
 
 MSG_FILE="$1"
+
+# A merge in progress is git's own commit: CI's gate skips merges with `--no-merges`,
+# and asked of git rather than of the subject, which a branch name can defeat.
+if git rev-parse -q --verify MERGE_HEAD >/dev/null; then
+    exit 0
+fi
+
 # SCAFFOLD-OPTIONAL .github/release-please-config.json
 # Absent in a tree scaffolded with `--versioning tag`, which is the whole
 # reason the branch below exists — asked of the FILE and not of a flag,
@@ -83,6 +90,14 @@ if [ -z "$SUBJECT" ]; then
     echo "❌ empty commit message" >&2
     exit 1
 fi
+
+# `git revert` writes `Revert "<subject>"`, or `Reapply "<subject>"` for a revert
+# of a revert, and runs no commit-msg hook. So the first refusal would come from
+# CI, on a commit that cannot be squashed away. Every rule below reads the subject
+# being reverted; `scripts/check_commit_subjects.py` strips the same two wrappers.
+while [[ "$SUBJECT" =~ ^(Revert|Reapply)\ \"(.*)\"$ ]]; do
+    SUBJECT="${BASH_REMATCH[2]}"
+done
 
 if ! printf '%s' "$SUBJECT" | grep -qE "$PATTERN"; then
     cat >&2 <<MSG
