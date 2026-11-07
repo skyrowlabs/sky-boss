@@ -2681,7 +2681,7 @@ def test_a_decision_keeps_its_options_and_a_click_or_a_key_picks_one(sb_state):
     todos.add("sb", "jam", "take it?", todos.DECISIONS, ("take it", "hold ours"))
     item = jam_decisions()[0]
     lines = deck_.ruling_screen("jam", 1, item, 60)
-    row = next(y for y, (text, _) in enumerate(lines, start=1) if text == "[2] hold ours")
+    row = next(y for y, (text, _) in enumerate(lines, start=1) if text.strip() == "[2] hold ours")
     assert deck_.chosen_key(f"click:3:{row}", lines) == "2" and deck_.chosen_key("1", lines) == "1"
     assert deck_.chosen_key("3", lines) == "" and deck_.chosen_key("click:1:1", lines) == ""
     assert deck_.chosen_key("t", lines) == "t" and deck_.chosen_key(None, lines) == ""
@@ -2699,9 +2699,35 @@ def test_a_decision_with_no_options_offers_typing_and_a_ruled_one_only_closes(sb
     assert [action for _, action in screen if action] == ["q"] and any("ship it" in text for text, _ in screen)
 
 
+def test_a_decision_popup_titles_each_section_after_a_blank_row(sb_state):
+    from skyboss import todos
+
+    todos.add("sb", "jam", "take it?", todos.DECISIONS, ("take it", "hold ours"))
+    lines = [text for text, _ in deck_.ruling_screen("jam", 1, jam_decisions()[0], 62)]
+    heads = [i for i, text in enumerate(lines) if "─" in text]
+    assert [plain(lines[i]).split()[0] for i in heads] == ["jam", "Choose", "Or"]
+    assert all(lines[i - 1] == "" for i in heads) and all(len(plain(text)) <= 62 for text in lines)
+
+
+def test_a_decision_popup_is_small_rounded_and_lightly_bordered(sb_state):
+    from skyboss import todos
+
+    todos.add("sb", "jam", "take it?", todos.DECISIONS, ("take it", "hold ours"))
+    argv = deck_.decision_popup_argv("jam", 1, jam_decisions()[0])
+    shown = deck_.ruling_screen("jam", 1, jam_decisions()[0], deck_.ASK_POPUP_WIDTH - 2)
+    assert argv[argv.index("-b") + 1] == "rounded" and argv[argv.index("-S") + 1] == deck_.theme.tmux_styles()["border"]
+    assert argv[argv.index("-w") + 1] == str(deck_.ASK_POPUP_WIDTH) and argv[argv.index("-h") + 1] == str(
+        len(shown) + 3
+    )
+
+
+def plain(text: str) -> str:
+    return re.sub(r"\x1b\[[0-9;]*m", "", text)
+
+
 def test_a_click_in_the_decisions_pane_opens_that_decision(monkeypatch):
     opened = []
-    monkeypatch.setattr(deck_, "open_decision", lambda agent, n: opened.append((agent, n)))
+    monkeypatch.setattr(deck_, "open_decision", lambda agent, n, session: opened.append((agent, n)))
     pane = deck_.DeckPane("sb", lambda row: True, top=True, role=deck_.DECISIONS)
     pane.lines = ["DECISIONS", "──────", "jam", "  1. take it?"]
     pane.rows = [{"kind": "agent", "agent": "jam", "n": ""}, {"kind": "item", "agent": "jam", "n": 1}]

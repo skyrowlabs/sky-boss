@@ -228,6 +228,22 @@ def fade(colour: str, keep: float, ground: str = SURFACE) -> str:
     return _hex((r, g, b))
 
 
+def ansi(colour: str, bold: bool = False) -> str:
+    """The escape that draws text in `colour`, for a screen the deck writes itself rather than through Rich."""
+    r, g, b = (int(colour[i : i + 2], 16) for i in (1, 3, 5))
+    return f"\x1b[{'1;' if bold else ''}38;2;{r};{g};{b}m"
+
+
+#: The escape that ends what `ansi` began.
+ANSI_RESET = "\x1b[0m"
+
+
+def popup_heading(title: str, width: int) -> str:
+    """A section title in the deck's popups: the title in full-strength text, then a structure rule to `width`."""
+    rule = "─" * max(2, width - len(title) - 1)
+    return f"{ansi(TEXT, bold=True)}{title}{ANSI_RESET} {ansi(TEXT_3)}{rule}{ANSI_RESET}"
+
+
 def _to_oklab(colour: str) -> tuple[float, float, float]:
     r, g, b = (_linear(c) for c in _rgb(colour))
     lms = (
@@ -516,6 +532,8 @@ def tmux_styles() -> dict[str, str]:
         "unregistered": f"fg={TEXT_2} italics",
         "border": f"fg={TEXT_3}",
         "border-active": f"fg={BRAND}",
+        # A popup's title on its light border: full-strength text, so the border stays structure.
+        "popup-title": f"fg={TEXT} bold",
         "exit": f"fg={DANGER} bold",
         # The deck's tool panes paint their own ground, so names may take full-strength hues.
         "pane": f"bg={BG}",
