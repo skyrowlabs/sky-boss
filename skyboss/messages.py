@@ -109,6 +109,22 @@ def sender_of(origin: dict, index: dict[tuple, str], live: set[str]) -> str:
     return found if found in live else ""
 
 
+def peer_origin(entry) -> dict | None:
+    """A received peer message's `origin` in a transcript entry, or None.
+
+    A message taken in between turns is a `user` entry. One absorbed mid-turn is a
+    `queued_command` attachment, written when it is absorbed.
+    """
+    if not isinstance(entry, dict):
+        return None
+    held = entry.get("attachment") if entry.get("type") == "attachment" else None
+    if isinstance(held, dict) and held.get("type") == "queued_command":
+        origin = held.get("origin")
+    else:
+        origin = entry.get("origin") if entry.get("type") == "user" else None
+    return origin if isinstance(origin, dict) and origin.get("kind") == PEER else None
+
+
 def received(
     path: Path, session: agents_.Session, index: dict[tuple, str] | None = None, live: set[str] | None = None
 ) -> tuple[list[Message], int]:
@@ -130,8 +146,8 @@ def received(
             except ValueError:
                 torn += 1
                 continue
-            origin = entry.get("origin") if isinstance(entry, dict) else None
-            if entry.get("type") != "user" or not isinstance(origin, dict) or origin.get("kind") != PEER:
+            origin = peer_origin(entry)
+            if origin is None:
                 continue
             msg_id = str(origin.get("msg_id") or "")
             # A subagent's handback carries no msg_id; its entry uuid is the next-best identity.

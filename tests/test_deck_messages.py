@@ -76,6 +76,21 @@ def test_only_peer_entries_are_read(tmp_path):
     assert [(m.sender, m.receiver, m.body) for m in found] == [("jam", "ws", "hello")] and problems == []
 
 
+def test_a_message_absorbed_mid_turn_is_read_like_any_other(tmp_path):
+    who = session("s1", "api")
+    held = peer("web", "mid-turn", "m1", "2026-11-04T10:00:00.000Z")
+    absorbed = {
+        "type": "attachment",
+        "timestamp": held["timestamp"],
+        "uuid": "u1",
+        "attachment": {"type": "queued_command", "origin": held["origin"]},
+    }
+    other = {"type": "attachment", "attachment": {"type": "file", "origin": held["origin"]}}
+    write(tmp_path, who, [absorbed, other])
+    found, _ = messages_.collect([who], tmp_path)
+    assert [(m.sender, m.body, m.msg_id) for m in found] == [("web", "mid-turn", "m1")]
+
+
 def test_messages_are_deduplicated_by_msg_id_newest_last(tmp_path):
     a, b = session("s1", "ws"), session("s2", "jam")
     write(

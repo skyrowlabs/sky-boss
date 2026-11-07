@@ -98,3 +98,9 @@ def test_a_send_pairs_its_call_with_its_result():
         '"toolUseResult":{"success":true,"msg_id":"m"}}'
     )
     assert read_entry(call, asked) is None and read_entry(result, asked) == Sent("web", "m")
+
+
+def test_a_message_absorbed_mid_turn_is_received_too():
+    origin = '{"kind":"peer","msg_id":"m","name":"api"}'
+    line = '{"type":"attachment","attachment":{"type":"queued_command","origin":' + origin + "}}"
+    assert read_entry(line, {}) == {"kind": "peer", "msg_id": "m", "name": "api"}
