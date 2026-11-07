@@ -36,6 +36,7 @@ from skyboss.deck import (
     resolve,
     tree,
 )
+from skyboss.messages import Message
 
 #: Host-side; nothing here needs a service or a tmux binary.
 pytestmark = [pytest.mark.unit]
@@ -805,6 +806,49 @@ def test_a_spawned_session_that_ended_stays_for_a_while_then_goes(tmp_path):
     assert background.ended({SCRATCH}, set(), tmp_path, wrote + background.RECENT + 1) == {}
 
 
+def wired(sender="", sender_id="", session=""):
+    return Message(None, sender, "", "", "", session, sender + session, sender_id)
+
+
+def test_a_line_runs_only_between_two_tabs_and_keeps_the_newest_sender():
+    placed = {"a": "api", "w": "web", "d": "docs"}
+    names = {"api", "web", "docs"}
+    outside = wired("stranger", "", "w")
+    to_itself = wired("api", "a", "a")
+    assert deck_.wire_of([outside, to_itself], placed, names) is None
+    older, one, two = wired("web", "w", "a"), wired("api", "a", "w"), wired("api", "a", "d")
+    assert deck_.wire_of([older, one, two], placed, names) == ("api", ["docs", "web"])
+
+
+def test_a_line_finds_its_sender_by_name_when_the_id_is_unverified():
+    assert deck_.wire_of([wired("api", "", "w")], {"w": "web"}, {"api", "web"}) == ("api", ["web"])
+
+
+def measured(monkeypatch, client_width, names):
+    rows = "".join(f"{int(n == 0)}\t@{n}\t{name}\n" for n, name in enumerate(names))
+    answers = {"list-clients": f"{client_width}\n", "list-windows": rows}
+    monkeypatch.setattr(deck_, "tmux", lambda *args, **_: deck_.Answer(True, 0, answers[args[0]], ""))
+    return deck_.tab_centres("sb", {f"@{n}": name for n, name in enumerate(names)})
+
+
+def test_a_tab_centre_sits_under_the_middle_of_its_box(monkeypatch):
+    _, left = deck_.tab_lefts()
+    assert measured(monkeypatch, 200, ["api", "web"]) == {"api": left + 3, "web": left + 8 + 3}
+
+
+def test_a_tab_scrolled_out_of_view_has_no_centre(monkeypatch):
+    _, left = deck_.tab_lefts()
+    names = [f"agent-{n}" for n in range(9)]
+    centres = measured(monkeypatch, left + deck_.ADD_WIDTH + 30, names)
+    assert "agent-0" in centres and "agent-8" not in centres
+
+
+def test_the_row_under_the_tabs_prefers_the_line_to_the_scrollbar():
+    options = dict(deck_.bar_options(True))
+    row = options[f"status-format[{deck_.TAB_ROWS}]"]
+    assert row.index(deck_.WIRE_OPTION) < row.rindex(deck_.SCROLLBAR_OPTION)
+
+
 def test_every_deck_subcommand_chooses_its_act_bit():
     """Recomputed from the group's membership, so the next subcommand cannot inherit observe."""
     group = deck_.deck
@@ -1122,7 +1166,8 @@ def test_the_tab_bar_is_three_rows_of_boxes_and_names_no_state_word(fake, home):
     invoke("deck")
     rows = {c[-2]: c[-1] for c in fake.find("set-option") if c[-2].startswith("status-format[")}
     assert sorted(rows) == [f"status-format[{n}]" for n in range(4)]
-    assert rows.pop("status-format[3]") == "#{@sb-scrollbar}"  # the scrollbar row, drawn only on overflow
+    # The row under the tabs: the line while one runs, and the scrollbar on overflow.
+    assert rows.pop("status-format[3]") == "#{?#{@sb-wire},#{@sb-wire},#{@sb-scrollbar}}"
     assert ("status", "4") in {(c[-2], c[-1]) for c in fake.find("set-option") if "=sb-agents:" in c}
     for row in rows.values():
         assert row.count("#[range=window|#{window_index}]") == 2  # every row clicks, current tab included
