@@ -3285,7 +3285,7 @@ class DeckPane(resident_.Control):
             todos_.close_action(self.session, agent, int(row["n"]), "dismissed")
             return True
         opens = open_action if ask == todos_.ACTION and not row.get("done") else open_decision
-        opens(agent, int(row["n"]))
+        opens(agent, int(row["n"]), self.session)
         return False
 
     def toggle(self, row: dict) -> bool:
@@ -3359,10 +3359,22 @@ def message_popup_argv(key: str) -> list[str]:
     return popup_argv(" message ", f"exec {sb} deck message --page {shlex.quote(key)}")
 
 
-def decision_popup_argv(agent: str, n: int) -> list[str]:
-    """`display-popup` offering one decision's choices."""
+#: A decision or action popup's width in cells, border included; its height fits what it shows.
+ASK_POPUP_WIDTH = 64
+#: Rows an action popup keeps spare for a note only known once it opens.
+ASK_POPUP_SPARE = 4
+
+
+def ask_popup_size(lines: list[tuple[str, str]], spare: int = 0) -> tuple[str, str]:
+    """A popup just big enough for `lines`: the border, the lines, a blank foot row and `spare`."""
+    return str(ASK_POPUP_WIDTH), str(len(lines) + 3 + spare)
+
+
+def decision_popup_argv(agent: str, n: int, item: todos_.Item | None = None) -> list[str]:
+    """`display-popup` offering one decision's choices, sized to them when the item is known."""
     sb = shlex.quote(str(PROJECT_ROOT / "sb"))
-    return popup_argv(" decision ", f"exec {sb} deck decide rule {shlex.quote(agent)} {n}")
+    size = ask_popup_size(ruling_screen(agent, n, item, ASK_POPUP_WIDTH - 2)) if item else POPUP_SIZE
+    return popup_argv(f" decision · {agent} ", f"exec {sb} deck decide rule {shlex.quote(agent)} {n}", size)
 
 
 def held_placed(rows: list[dict], unfolded_: bool) -> list[dict]:
@@ -3374,19 +3386,23 @@ def held_placed(rows: list[dict], unfolded_: bool) -> list[dict]:
     return [*head, *(row for row in rows if row.get("kind") == "held-row"), *rest]
 
 
-def action_popup_argv(agent: str, n: int) -> list[str]:
-    """`display-popup` showing one action's exact command."""
+def action_popup_argv(agent: str, n: int, item: todos_.Item | None = None) -> list[str]:
+    """`display-popup` showing one action's exact command, sized to it when the item is known."""
     sb = shlex.quote(str(PROJECT_ROOT / "sb"))
-    return popup_argv(" action ", f"exec {sb} deck decide act {shlex.quote(agent)} {n}")
+    lines = action_screen(agent, n, item, deckasks.Seen(), ASK_POPUP_WIDTH - 2) if item else []
+    size = ask_popup_size(lines, ASK_POPUP_SPARE) if item else POPUP_SIZE
+    return popup_argv(f" action · {agent} ", f"exec {sb} deck decide act {shlex.quote(agent)} {n}", size)
 
 
-def popup_argv(title: str, command: str) -> list[str]:
-    """`display-popup` on the void the deck paints, so agent hues stay legible."""
+def popup_argv(title: str, command: str, size: tuple[str, str] = POPUP_SIZE) -> list[str]:
+    """`display-popup` on the void the deck paints, so agent hues stay legible, in a light rounded border."""
     style = theme.tmux_styles()
-    width, height = POPUP_SIZE
+    width, height = size
     return [
         "display-popup",
         "-E",
+        "-b",
+        "rounded",
         "-w",
         width,
         "-h",
@@ -3394,9 +3410,9 @@ def popup_argv(title: str, command: str) -> list[str]:
         "-s",
         style["pane"],
         "-S",
-        style["border-active"],
+        style["border"],
         "-T",
-        title,
+        f"#[{style['popup-title']}]{title}",
         command,
     ]
 
@@ -3405,12 +3421,18 @@ def open_message(key: str) -> None:
     _open_popup(message_popup_argv(key))
 
 
-def open_decision(agent: str, n: int) -> None:
-    _open_popup(decision_popup_argv(agent, n))
+def open_decision(agent: str, n: int, session: str = "") -> None:
+    _open_popup(decision_popup_argv(agent, n, _ask_item(session, agent, n)))
 
 
-def open_action(agent: str, n: int) -> None:
-    _open_popup(action_popup_argv(agent, n))
+def open_action(agent: str, n: int, session: str = "") -> None:
+    _open_popup(action_popup_argv(agent, n, _ask_item(session, agent, n)))
+
+
+def _ask_item(session: str, agent: str, n: int) -> todos_.Item | None:
+    """Decision or action N on AGENT's list, None when it cannot be read (the popup then takes a default size)."""
+    todo = todos_.load(session, agent, todos_.DECISIONS) if session else None
+    return todo.items[n - 1] if todo is not None and 1 <= n <= len(todo.items) else None
 
 
 def _open_popup(argv: list[str]) -> None:
@@ -4260,19 +4282,34 @@ def deck_decide_add(
 RULING_KEYS = "123456789"
 
 
+#: Left margin of every popup line, inside the border.
+POPUP_MARGIN = "  "
+
+
+def popup_section(title: str, body: list[tuple[str, str]], room: int) -> list[tuple[str, str]]:
+    """A titled popup section: a blank row, its heading, then its lines, each indented by the margin."""
+    return [("", ""), (POPUP_MARGIN + theme.popup_heading(title, room), ""), *((POPUP_MARGIN + t, k) for t, k in body)]
+
+
+def wrapped_rows(text: str, room: int) -> list[tuple[str, str]]:
+    return [(line, "") for line in textwrap.wrap(text, room)]
+
+
 def ruling_screen(agent: str, n: int, item: todos_.Item, width: int) -> list[tuple[str, str]]:
     """The popup's lines, each with the key a click on it stands for, empty for none. Pure."""
     room = max(10, width - 6)
-    lines: list[tuple[str, str]] = [(f"{agent} asks ({n}):", ""), ("", "")]
-    lines += [(line, "") for line in textwrap.wrap(item.text, room)]
-    lines.append(("", ""))
+    lines = popup_section(f"{agent} asks · {n}", wrapped_rows(item.text, room), room)
     if item.done:
-        lines += [(line, "") for line in textwrap.wrap(f"ruled: {item.ruling or 'closed'}", room)]
-        return [*lines, ("", ""), ("[q] close", "q")]
+        lines += popup_section("Ruled", wrapped_rows(item.ruling or "closed", room), room)
+        return [*lines, *popup_section("Close", [("[q] close", "q")], room)]
+    choices: list[tuple[str, str]] = []
     for key, option in zip(RULING_KEYS, item.options):
-        wrapped = textwrap.wrap(option, room) or [""]
-        lines += [(f"[{key}] {wrapped[0]}", key), *((f"    {more}", key) for more in wrapped[1:])]
-    return [*lines, ("[t] type a ruling", "t"), ("[q] close without ruling", "q")]
+        wrapped = textwrap.wrap(option, room - 4) or [""]
+        choices += [(f"[{key}] {wrapped[0]}", key), *((f"    {more}", key) for more in wrapped[1:])]
+    if choices:
+        lines += popup_section("Choose", choices, room)
+    other = [("[t] type a ruling", "t"), ("[q] close without ruling", "q")]
+    return [*lines, *popup_section("Or", other, room)]
 
 
 def chosen_key(key: str | None, lines: list[tuple[str, str]]) -> str:
@@ -4334,21 +4371,19 @@ def deck_decide_rule(agent: str, n: int) -> None:
 def action_screen(agent: str, n: int, item: todos_.Item, seen: deckasks.Seen, width: int) -> list[tuple[str, str]]:
     """The action popup's lines, each with the key a click on it stands for. Pure."""
     room = max(10, width - 6)
-    lines: list[tuple[str, str]] = [(f"{agent} needs ({n}):", ""), ("", "")]
-    lines += [(line, "") for line in textwrap.wrap(item.text, room)]
+    lines = popup_section(f"{agent} needs · {n}", wrapped_rows(item.text, room), room)
     command = shlex.join(item.run)
     runnable = bool(item.run) and not seen.stale and all(deckasks.printable(word) for word in item.run)
     if item.run:
-        lines += [("", ""), ("runs, with no shell:", "")]
-        lines += [(f"  {line}", "") for line in textwrap.wrap(command.encode("unicode_escape").decode(), room)]
-        lines.append((f"in {item.cwd or '?'}", ""))
+        shown = wrapped_rows(command.encode("unicode_escape").decode(), room)
+        lines += popup_section(
+            "Runs, with no shell", [*shown, ("", ""), *wrapped_rows(f"in {item.cwd or '?'}", room)], room
+        )
     if seen.note:
-        lines += [("", ""), *((line, "") for line in textwrap.wrap(seen.note, room))]
-    lines.append(("", ""))
-    if runnable:
-        lines.append(("[r] run it", "r"))
-    lines.append(("[d] mark it done, nothing checked", "d"))
-    return [*lines, ("[q] close", "q")]
+        lines += popup_section("Note", wrapped_rows(seen.note, room), room)
+    keys = [("[r] run it", "r")] if runnable else []
+    keys += [("[d] mark it done, nothing checked", "d"), ("[q] close", "q")]
+    return [*lines, *popup_section("Do", keys, room)]
 
 
 def _ask_action(lines: list[tuple[str, str]]) -> str:

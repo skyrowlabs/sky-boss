@@ -1206,6 +1206,18 @@ kept the TODOS pane's pid.
 - **Measured over a day of tabs:** 229 `user` entries and 25 attachments, all with a `msg_id`.
 - `messages.peer_origin` now reads both, and the pane and the line share it.
 
+### 2026-11-07, popup format
+
+- **Asked:** the operator found the decision popup too large and flat, and asked for a smaller box,
+  blank rows between sections, section titles and a light border.
+- A decision or action popup is 64 cells wide and as tall as what it shows (`ask_popup_size`). An
+  action keeps four rows spare for a note it only learns once it opens. The message popup keeps its
+  share of the window.
+- Every popup has a rounded border in the structure colour, and the agent's name in its title.
+- Each section is a blank row, then a title in full-strength text and a structure rule
+  (`theme.popup_heading`), then its lines behind a two-cell margin. The sections are the question,
+  the choices and the other keys for a decision, and the ask, the command, a note and the keys for
+  an action. Clicks still map one line to one row.
 ### 2026-11-07, waiting on the operator, and a brief that keeps up
 
 - **Asked:** the operator found tabs still not putting what they wait on him for into HUMAN
