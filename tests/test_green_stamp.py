@@ -226,6 +226,16 @@ def test_a_hook_somebody_else_wrote_is_left_alone_and_stays_red(installing, monk
     assert _main(monkeypatch, "--check") == 1
 
 
+def test_a_tracked_hook_of_the_trees_own_is_refused_at_install_and_says_so(installing, monkeypatch, capsys):
+    source = installing.parent.parent.parent / "own-pre-push"
+    source.write_text("#!/bin/sh\n./run-my-check\n", encoding="utf-8")
+    monkeypatch.setattr(imd, "HOOK_SOURCE", source)
+    assert _main(monkeypatch) == 1
+    assert not installing.exists()
+    assert _main(monkeypatch, "--check") == 1
+    assert "this tree's own hook" in capsys.readouterr().err
+
+
 def test_an_out_of_date_copy_is_red_and_the_installer_replaces_it(installing, monkeypatch):
     assert _main(monkeypatch) == 0
     installing.write_text(installing.read_text(encoding="utf-8") + "# older\n", encoding="utf-8")

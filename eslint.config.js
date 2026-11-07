@@ -72,17 +72,6 @@ export default [
     rules: correctness,
   },
   {
-    // CI's own helpers. CommonJS, because the job that runs them sets up Node
-    // and nothing else.
-    files: ['.github/scripts/**/*.cjs'],
-    languageOptions: {
-      ecmaVersion: 'latest',
-      sourceType: 'commonjs',
-      globals: globals.node,
-    },
-    rules: correctness,
-  },
-  {
     // The design-sync scripts. They build the upload bundle for
     // claude.ai/design and verify it by rendering: Node drives Playwright, but
     // the callbacks handed to `page.evaluate` are serialised and run *in the
