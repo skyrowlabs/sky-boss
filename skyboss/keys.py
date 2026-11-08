@@ -39,6 +39,9 @@ MOVES = ("up", "down", "pgup", "pgdn", "home", "end")
 # The wheel, as an SGR mouse report (`ESC [ < 64 ; x ; y M`). Only a view that
 # turned mouse reporting on receives these; any other report is nothing.
 _WHEEL = {64: "wheelup", 65: "wheeldown"}
+# The mouse moving with no button down; only a view that asked for all motion gets one.
+_MOTION = 35
+HOVER = "hover"
 
 # A left press (`ESC [ < 0 ; x ; y M`) arrives as `click:<x>:<y>`, one-based cells within the pane.
 CLICK = "click"
@@ -197,19 +200,29 @@ def _sequence(stream, ready=_ready) -> str | None:
 
 
 def _mouse(body: str) -> str | None:
-    """An SGR report (`<button;x;y` and `M` press or `m` release): the wheel, a left press, or nothing."""
+    """An SGR report (`<button;x;y`, `M` press or `m` release): the wheel, a left press, a hover, or nothing."""
     parts = body[1:-1].split(";")
     if body[-1:] != "M" or len(parts) != 3 or not all(part.isdigit() for part in parts):
         return None
     button, x, y = (int(part) for part in parts)
     if button == 0:
         return f"{CLICK}:{x}:{y}"
+    if button == _MOTION:
+        return f"{HOVER}:{x}:{y}"
     return _WHEEL.get(button)
 
 
 def clicked(key: str | None) -> tuple[int, int] | None:
     """The cell of a `click:<x>:<y>` key, or None for any other key."""
     if not key or not key.startswith(CLICK + ":"):
+        return None
+    _, x, y = key.split(":")
+    return int(x), int(y)
+
+
+def hovered(key: str | None) -> tuple[int, int] | None:
+    """The cell of a `hover:<x>:<y>` key, or None for any other key."""
+    if not key or not key.startswith(HOVER + ":"):
         return None
     _, x, y = key.split(":")
     return int(x), int(y)

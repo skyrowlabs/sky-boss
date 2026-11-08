@@ -380,6 +380,8 @@ STYLES: dict[str, str] = {
     "sb.ref": f"{CLI_REF} on {CLI_REF_BG}",
     # A deck pane's label row, under its band's own spans: where each right-column table starts.
     "sb.deck.head": f"{TEXT} on {HEAD_GROUND}",
+    # The clickable row under the mouse, in a deck pane; a popup's is `HOVER_SGR`.
+    "sb.deck.hover": f"{TEXT} on {HEAD_GROUND}",
     # The deck's agents, on its own painted ground. See § Product hues.
     **{role: f"bold {colour}" for role, colour in DECK_ROLES.items()},
 }
@@ -389,7 +391,10 @@ STYLES: dict[str, str] = {
 # already has, stated as data so the contrast test can check the right thing
 # rather than skip them. What a painted role owes instead is a *ground* that
 # clears the floor and a foreground legible on that ground; both are asserted.
-PAINTED: frozenset[str] = frozenset({"sb.ref", "sb.deck.head"})
+PAINTED: frozenset[str] = frozenset({"sb.ref", "sb.deck.head", "sb.deck.hover"})
+
+#: The same ground as `sb.deck.hover`, for a popup that writes its own lines.
+HOVER_SGR = "\x1b[48;2;{};{};{}m".format(*(round(channel * 255) for channel in _rgb(HEAD_GROUND)))
 
 
 # ============================================================================
