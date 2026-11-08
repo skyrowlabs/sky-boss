@@ -33,7 +33,7 @@ import dataclasses
 import time
 from typing import Callable, Iterable
 
-from rich.console import Console, Group
+from rich.console import Console, Group, RenderableType
 from rich.control import Control as RichControl
 from rich.live import Live
 from rich.padding import Padding
@@ -43,6 +43,7 @@ from rich.text import Text
 from skyboss import chrome as chrome_
 from skyboss import keys
 from skyboss.output import THEME, Result, band_text, capture, filled, framed, render
+from skyboss.theme import HOVER_SGR
 
 # Room the inline rendering leaves around the body: the two chrome bands, the
 # prompt the frame is drawn under, and one line of slack so a redraw never
@@ -135,6 +136,7 @@ def loop(
     """
     count = 0
     done = 0
+    still = False  # the last key only moved the mouse, and nothing it lit changed
     while ticks is None or count < ticks:
         if state.due():
             state.begin()
@@ -155,14 +157,16 @@ def loop(
             # residency leave its output behind.
             if runs is not None and done >= runs:
                 return
-        else:
+        elif not still:
             draw(None)
         key = wait(keys.TICK)
         if keys.leaves(key):
             return
+        still = bool(keys.hovered(key)) and on_key is not None
         # A key a caller takes redraws at once rather than at the next tick.
         while key and on_key is not None and on_key(key):
             draw(None)
+            still = False
             key = wait(0)
             if keys.leaves(key):
                 return
@@ -248,7 +252,54 @@ def repaint(console: Console, renderable) -> None:
 
 
 MOUSE_ON = "\x1b[?1000h\x1b[?1006h"
-MOUSE_OFF = "\x1b[?1006l\x1b[?1000l"
+MOUSE_OFF = "\x1b[?1006l\x1b[?1003l\x1b[?1000l"
+#: `MOUSE_ON` plus every motion, for a view that lights the row under the mouse.
+MOUSE_HOVER_ON = "\x1b[?1000h\x1b[?1003h\x1b[?1006h"
+#: tmux says nothing when the mouse leaves a pane, so a lit row goes out after this long without motion.
+HOVER_HOLD = 3.0
+_RESET = "\x1b[0m"
+
+
+class Hover:
+    """Which screen line the mouse lit, until it moves off it or has been still for `HOVER_HOLD`."""
+
+    def __init__(self, clock: Callable[[], float] = time.monotonic) -> None:
+        self.clock = clock
+        self.line = 0
+        self.at = 0.0
+
+    def now(self) -> int:
+        """The lit line, one-based; 0 for none."""
+        return self.line if self.clock() - self.at < HOVER_HOLD else 0
+
+    def see(self, line: int) -> bool:
+        """The mouse is on `line` (0 for nothing lit). Whether the drawing has to change."""
+        was = self.now()
+        self.line, self.at = line, self.clock()
+        return line != was
+
+
+def painted(lines: list[str], lit: int) -> str:
+    """A popup's whole screen in place, one-based line `lit` on the hover ground to its right edge."""
+
+    def line(n: int, text: str) -> str:
+        if n != lit:
+            return text + "\x1b[K"
+        return HOVER_SGR + text.replace(_RESET, _RESET + HOVER_SGR) + "\x1b[K" + _RESET
+
+    return MOUSE_HOVER_ON + "\x1b[H" + "\r\n".join(line(n, text) for n, text in enumerate(lines, 1)) + "\x1b[J"
+
+
+class _Lit:
+    """A frame with one line on the hover ground; segments with a ground of their own keep it."""
+
+    def __init__(self, frame, line: int) -> None:
+        self.frame, self.line = frame, line
+
+    def __rich_console__(self, console: Console, options):
+        for n, line in enumerate(console.render_lines(self.frame, options, pad=True), 1):
+            yield from Segment.apply_style(line, console.get_style("sb.deck.hover")) if n == self.line else line
+            yield Segment.line()
 
 
 class Leave(Exception):
@@ -268,6 +319,8 @@ class Control:
     head = ""
     #: Hand `framed` each frame's lines, so a click (`keys.clicked`) can be read against them.
     clicks = False
+    #: Ask for all motion, and draw the line `lit` names on the hover ground.
+    hover = False
     #: Blank cells each side of an unfolded frame, and one row above it when set.
     pad = 0
     #: The top band's whole text, with no corners; the fit's line then moves up beside it, as `place`.
@@ -301,6 +354,10 @@ class Control:
 
     def framed(self, lines: list[str]) -> None:
         """The frame just drawn, one plain string per screen line. Called only when `clicks`."""
+
+    def lit(self) -> int:
+        """The screen line under the mouse to light, one-based; 0 for none. Asked after `framed`."""
+        return 0
 
 
 def height(text: Text, console: Console) -> int:
@@ -679,7 +736,7 @@ def reside(
             render(result, as_json=False)
         return Text.from_ansi(captured.text)
 
-    def frame_for(result: Result | None) -> Group | Padding:
+    def frame_for(result: Result | None) -> RenderableType:
         nonlocal body, last
         if result is not None:
             last = result
@@ -717,7 +774,8 @@ def reside(
             frame = Padding(frame, (1, inset(), 0, inset()))
         if control is not None and control.clicks:
             control.framed(["".join(seg.text for seg in line) for line in out.render_lines(frame, pad=False)])
-        return frame
+        lit = control.lit() if control is not None and control.hover else 0
+        return _Lit(frame, lit) if lit else frame
 
     def run(wait_for: Callable[[float], str | None]) -> None:
         if screen:
@@ -729,7 +787,7 @@ def reside(
             mouse = control is not None and (control.wheel or control.clicks)
             with out.screen():
                 if mouse:
-                    out.file.write(MOUSE_ON)
+                    out.file.write(MOUSE_HOVER_ON if control is not None and control.hover else MOUSE_ON)
                     out.file.flush()
                 try:
                     loop(state, run_once, draw, wait_for, ticks=ticks, runs=runs, on_key=on_key)

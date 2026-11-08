@@ -1395,3 +1395,13 @@ kept the TODOS pane's pid.
 - **Ruled:** M-x also clears `asked:` rows, and its message counts what it kept and why. It runs
   `sb deck clear`, one command over both books and the asked rows. A ruling not yet told and a
   prompt a tab is waiting at still stay, and the message names each.
+
+### 2026-11-08: the row under the mouse lights up
+
+- **Asked by Jeston, through node-zero; ruled:** panes and popups. The right-hand panes and the
+  popups ask for all motion (mode 1003), and a row a click would act on takes the head ground.
+  Agent consoles and the tab row cannot: tmux gives neither any hover.
+- **tmux says nothing when the mouse leaves a pane or popup.** Moving onto something unclickable
+  in the same pane clears at once; leaving altogether clears after `HOVER_HOLD` (3s) without
+  motion, so a mouse resting on a row also goes dark. Measured on tmux 3.8, motion reaches a pane
+  and a popup alike.

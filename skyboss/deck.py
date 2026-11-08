@@ -2702,6 +2702,30 @@ def deck_terminal(cwd: str) -> Result:
     return result
 
 
+def _popup_key(lines: list[str], lights: Callable[[int], bool], wait_for: Callable[[float], str | None]) -> str | None:
+    """Draw a popup's lines and return its next key or click, None after a minute; hovers relight it here."""
+    hover = resident_.Hover()
+    lit = 0
+
+    def draw() -> None:
+        sys.stdout.write(resident_.painted(lines, lit))
+        sys.stdout.flush()
+
+    sys.stdout.write("\x1b[2J")
+    draw()
+    for _ in range(int(POPUP_WAIT / keys_.TICK)):
+        key = wait_for(keys_.TICK)
+        over = keys_.hovered(key)
+        if over is None and key is not None:
+            return key
+        if over is not None:
+            hover.see(over[1] if lights(over[1]) else 0)
+        if hover.now() != lit:
+            lit = hover.now()
+            draw()
+    return None
+
+
 def _pick(title: str, rows: list[str], wait_for: Callable[[float], str | None]) -> int | None:
     """The row chosen by arrows and Enter, or a click; None on q or Esc."""
     size = shutil.get_terminal_size()
@@ -2713,9 +2737,7 @@ def _pick(title: str, rows: list[str], wait_for: Callable[[float], str | None]) 
             f"{'>' if n == at else ' '} {row}"[: size.columns - 1]
             for n, row in enumerate(rows[first : first + room], first)
         ]
-        sys.stdout.write(resident_.MOUSE_ON + "\x1b[2J\x1b[H" + "\r\n".join(drawn))
-        sys.stdout.flush()
-        key = wait_for(60.0)
+        key = _popup_key(drawn, lambda y: y >= 3 and first + y - 3 < min(len(rows), first + room), wait_for)
         cell = keys_.clicked(key)
         if cell is not None:
             row = first + cell[1] - 3
@@ -2775,9 +2797,8 @@ def _launch_once(launch: decklaunch.Launch) -> tuple[decklaunch.Launch, decklaun
             size = shutil.get_terminal_size()
             lines = decklaunch.screen(launch, size.columns)
             top = max(0, len(lines) - size.lines)
-            sys.stdout.write(resident_.MOUSE_ON + "\x1b[2J\x1b[H" + "\r\n".join(line for line, _ in lines[top:]))
-            sys.stdout.flush()
-            key = wait_for(60.0)
+            shown = [line for line, _ in lines[top:]]
+            key = _popup_key(shown, lambda y: y <= len(shown) and lines[top + y - 1][1] is not None, wait_for)
             cell = keys_.clicked(key)
             row = None
             if cell is not None:
@@ -3709,6 +3730,8 @@ class DeckPane(resident_.Control):
         # MESSAGES and DECISIONS open a clicked row in a popup, and QUEUE unfolds one; `rows` and
         # `lines` are what the last frame drew, and `open` is the sessions QUEUE has unfolded.
         self.clicks = bool(role)
+        self.hover = bool(role)
+        self.mouse = resident_.Hover()
         self.moving = ""
         self.hint = ""
         self.open: set[str] = set()
@@ -3806,7 +3829,23 @@ class DeckPane(resident_.Control):
             self.moving = self.role
         return True
 
+    def lights(self, y: int) -> bool:
+        """Whether a click on screen line `y` would do something to a row."""
+        row = clicked_row(self.lines, self.rows, y)
+        if row is None:
+            return False
+        if self.role == QUEUE:
+            return bool(row.get("id") and row.get("jobs"))
+        return bool(row.get("key")) or (self.role == DECISIONS and row.get("kind") in (todos_.HELD, "ask", "item"))
+
+    def lit(self) -> int:
+        y = self.mouse.now()
+        return y if y and self.lights(y) else 0
+
     def on_key(self, key: str) -> bool:
+        over = keys_.hovered(key)
+        if over is not None:
+            return self.mouse.see(over[1] if self.lights(over[1]) else 0)
         cell = keys_.clicked(key)
         if cell is not None:
             self.poll()
@@ -3909,6 +3948,8 @@ def clicked_row(lines: list[str], rows: list[dict], y: int) -> dict | None:
     return rows[index] if 0 <= index < len(rows) else None
 
 
+#: How long a popup waits on one draw before its caller gets to look again, seconds.
+POPUP_WAIT = 60.0
 #: The message popup: room for a message to read, with the deck still in view around it.
 POPUP_SIZE = ("60%", "50%")
 #: What a DeckPane's `open` holds while HUMAN DECISIONS shows its held rows.
@@ -4911,19 +4952,26 @@ def chosen_key(key: str | None, lines: list[tuple[str, str]]) -> str:
     return key if key in offered else ""
 
 
-def _ask_ruling(agent: str, n: int, item: todos_.Item) -> str:
-    """The operator's ruling from the popup, empty if they closed it without one."""
-    lines = ruling_screen(agent, n, item, shutil.get_terminal_size().columns)
-    sys.stdout.write(resident_.MOUSE_ON + "\x1b[2J\x1b[H" + "\r\n".join(line for line, _ in lines))
-    sys.stdout.flush()
+def _chosen(lines: list[tuple[str, str]]) -> str:
+    """What the operator picks on a popup whose lines carry the action a click on them stands for."""
+    shown = [line for line, _ in lines]
     action = ""
     try:
         with keys_.reader() as wait_for:
             while not action:
-                action = chosen_key(wait_for(60.0), lines)
+                action = chosen_key(
+                    _popup_key(shown, lambda y: bool(y <= len(lines) and lines[y - 1][1]), wait_for), lines
+                )
     finally:
         sys.stdout.write(resident_.MOUSE_OFF)
         sys.stdout.flush()
+    return action
+
+
+def _ask_ruling(agent: str, n: int, item: todos_.Item) -> str:
+    """The operator's ruling from the popup, empty if they closed it without one."""
+    lines = ruling_screen(agent, n, item, shutil.get_terminal_size().columns)
+    action = _chosen(lines)
     if action == "t":
         return todos_.clean(click.prompt("\nruling", default="", show_default=False))
     return item.options[RULING_KEYS.index(action)] if action in RULING_KEYS else ""
@@ -4975,16 +5023,8 @@ def action_screen(agent: str, n: int, item: todos_.Item, seen: deckasks.Seen, wi
 
 
 def _ask_action(lines: list[tuple[str, str]]) -> str:
-    sys.stdout.write(resident_.MOUSE_ON + "\x1b[2J\x1b[H" + "\r\n".join(line for line, _ in lines))
-    sys.stdout.flush()
-    action = ""
-    try:
-        with keys_.reader() as wait_for:
-            while not action:
-                action = chosen_key(wait_for(60.0), lines)
-    finally:
-        sys.stdout.write(resident_.MOUSE_OFF + "\r\n")
-        sys.stdout.flush()
+    action = _chosen(lines)
+    sys.stdout.write("\r\n")
     return action
 
 
