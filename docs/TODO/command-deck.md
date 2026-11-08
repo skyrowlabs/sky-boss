@@ -1366,3 +1366,14 @@ kept the TODOS pane's pid.
 - Claude Code's own messages name this key as the way to trust a folder, and its `saveGlobalConfig`
   merges each write against the file on disk, so a running tab does not undo the entry. Both were
   read from the 2.1.319 binary, not from documentation.
+
+### 2026-11-08: a stale todo is put back to its tab
+
+- **Asked for by Jeston:** AGENT TODOs went stale, with nothing on a cadence checking them.
+- **Ruled:** stale rows only, and the deck types the recheck into the tab itself, unasked.
+- An open todo neither added nor rechecked for `todo_stale` (6h unless deck.toml says otherwise,
+  `false` for never) reads `· stale` in AGENT TODOs. The marks loop types one line into that tab,
+  only while it is idle and has no ruling still to tell, naming the stale numbers and the
+  `done` and `rm` commands. The todos count again from that moment.
+- It goes through `tell_rulings`, still the only function that types into a pane, so the deck
+  gains no second way to answer a prompt.
