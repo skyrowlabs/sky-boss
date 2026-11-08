@@ -1291,6 +1291,16 @@ kept the TODOS pane's pid.
 - **Limit:** double quotes nested in a quoted `$(…)` split the pattern short. The self-match test
   still holds, so the cost is a shorter pattern in the notice.
 
+### 2026-11-08: a profile's brief can live in a file
+
+- **Asked** by Jeston through the workspace. `deck.toml` is in no repository, so a brief written
+  there has no history, and the workspace's brief had drifted (breeze-brain's "40-doc plan" against
+  today's 13).
+- `[profile.NAME]` takes `brief_file`: `~` and `$VARS` expand, and a relative path is read from
+  `$SB_HOME`. It is read each time a brief is built, so an edit reaches the next tab, resume, clear
+  or compaction. `brief` still works; a profile giving both is refused. An unreadable file is a
+  problem on load and adds no text.
+
 ### 2026-11-08: a launcher before the deck starts
 
 - **Built** as round 20, in `skyboss/decklaunch.py`, which is pure, and `launcher` in `skyboss/deck.py`.

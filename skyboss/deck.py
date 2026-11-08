@@ -62,7 +62,7 @@ DEFAULT_SESSION = "sb"
 TOP_LEVEL_KEYS = frozenset({"session", "pin", "panes", "themes", "theme_base", "roots"})
 TOP_LEVEL_TABLES = frozenset({"agent", "profile"})
 AGENT_KEYS = frozenset({"cwd", "args", "role", "colour"})
-PROFILE_KEYS = frozenset({"primary", "tabs", "brief", "terminals", "columns"})
+PROFILE_KEYS = frozenset({"primary", "tabs", "brief", "brief_file", "terminals", "columns"})
 
 # tmux rewrites `.` and `:` in a session name, so a name carrying either would
 # be a session the deck could create and then never find again.
@@ -191,6 +191,8 @@ class Profile:
     tabs: list[str] = field(default_factory=list)
     # The operator's own text, appended to the brief of every agent this profile launches.
     brief: str = ""
+    # A file holding that text instead, so it can live in a repo; read each time a brief is built.
+    brief_file: str = ""
     # A directory per terminal tab to open when the deck starts.
     terminals: list[str] = field(default_factory=list)
     # The grid's columns, as pane names, until the operator moves one.
@@ -206,6 +208,15 @@ class Profile:
                 continue
             names.append(name)
         return names, problems
+
+    def told(self) -> str:
+        """The text appended to every brief: `brief`, or `brief_file` as it reads now, empty if unreadable."""
+        if not self.brief_file:
+            return self.brief
+        try:
+            return brief_path(self.brief_file).read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            return ""
 
 
 @dataclass
@@ -233,6 +244,12 @@ class Config:
 
 def home_file(home: Path | None = None) -> Path:
     return (home or SB_HOME) / DECK_FILE
+
+
+def brief_path(declared: str, home: Path | None = None) -> Path:
+    """A profile's `brief_file`: `~` and `$VARS` expanded, and a relative path read from `$SB_HOME`."""
+    path = Path(os.path.expandvars(os.path.expanduser(declared)))
+    return path if path.is_absolute() else (home or SB_HOME) / path
 
 
 def read(home: Path | None = None) -> dict:
@@ -349,6 +366,7 @@ def parse(raw: dict) -> tuple[Config, list[str]]:
             primary=body.get("primary", ""),
             tabs=list(body.get("tabs", [])),
             brief=body.get("brief", ""),
+            brief_file=body.get("brief_file", ""),
             terminals=list(body.get("terminals", [])),
             columns=[list(column) for column in body.get("columns", [])],
         )
@@ -376,6 +394,10 @@ def _check_profile(body) -> str | None:
         return f"columns must be lists of pane names — the panes are {', '.join(TOOL_ROLES)}"
     if not isinstance(body.get("brief", ""), str):
         return "brief must be text"
+    if not isinstance(body.get("brief_file", ""), str):
+        return "brief_file must be a path"
+    if body.get("brief") and body.get("brief_file"):
+        return "give brief or brief_file, not both"
     return None
 
 
@@ -400,6 +422,11 @@ def _check(name: str, body) -> str | None:
 
 def load(home: Path | None = None) -> tuple[Config, list[str]]:
     config, problems = parse(read(home))
+    for profile in config.profiles.values():
+        if profile.brief_file and not brief_path(profile.brief_file, home).is_file():
+            problems.append(
+                f"profile {profile.name!r}: brief_file {profile.brief_file!r} cannot be read — no brief added"
+            )
     # Declared here and not in `parse`, which is pure: every reader of an agent's colour comes through this.
     theme.DECLARED_HUES.clear()
     theme.DECLARED_HUES.update({name: agent.colour for name, agent in config.agents.items() if agent.colour})
@@ -1216,6 +1243,7 @@ def restored(config: Config, problems: list[str]) -> Profile | None:
         primary=saved.primary,
         tabs=[tab.agent for tab in saved.tabs],
         brief=declared.brief if declared else "",
+        brief_file=declared.brief_file if declared else "",
     )
 
 
@@ -1636,7 +1664,7 @@ def deck_profile(session: str) -> str:
 
 def deck_profile_brief(config: Config) -> str:
     profile = config.profiles.get(deck_profile(config.session))
-    return profile.brief if profile else ""
+    return profile.told() if profile else ""
 
 
 def deck_primary(session: str) -> str:
@@ -1753,7 +1781,7 @@ def ensure(
     rows = roster(config, projects, agents, primary)
 
     def told(agent: Agent) -> str:
-        return brief(agent.name, config.session, rows, primary, profile.brief if profile else "")
+        return brief(agent.name, config.session, rows, primary, profile.told() if profile else "")
 
     resumed = resume_lookup(config.session, problems, fresh)
     first = agents[0] if agents else None
@@ -2250,7 +2278,7 @@ def deck(ctx: click.Context, profile_name: str | None, fresh: bool) -> None:
     inner session, `<session>-agents`) beside the queue, the messages and the todos. Each
     tab shows its session's state. Declared in `$SB_HOME/deck.toml`, which
     sky.boss reads, and writes only through `sb deck add --keep`: `[agent.NAME]` takes `cwd`, `args` and a
-    one-line `role`; `[profile.NAME]` takes `primary`, `tabs` and a `brief`
+    one-line `role`; `[profile.NAME]` takes `primary`, `tabs` and a `brief` (or a `brief_file`)
     appended to every agent it launches. Each agent is told the roster, roles
     included, at launch. With no `--profile` at a terminal it opens the
     launcher first: the last deck to resume, the profiles, and the agent folders
