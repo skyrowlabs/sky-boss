@@ -548,6 +548,22 @@ turn's last character, so a question asked mid-turn still depends on discipline.
       also folded held state and dismissed a prose row and a notice. Not run live: an observed PR
       merge (unit tested), and a denial.
 
+## Phase 19 (round 19): a shell that will never end
+
+Asked by Jeston through the workspace, which found two wait loops in proto-pilot's tab that had run
+about two hours: each waited on `pgrep -f PATTERN` with the pattern in its own command line, so
+`pgrep` kept matching the loop after the runs it waited on had finished. Ruled: build it, and report
+in DECISIONS rather than message the tab.
+
+- [x] **Stuck, which is certain.** A `while`/`until` loop with a `pgrep -f` pattern that matches its own
+      command line and nothing outside its own process tree. A loop whose pattern misses its own line
+      exits when its process goes, so it is never called stuck.
+- [x] **Long, a hint.** Past 30 minutes, in a tab whose turn is over (`idle` or `shell`), with no
+      `timeout`, `seq` or `for` loop in its command.
+- [x] **Where it lands.** The minute sweep adds one notice to the owning tab's DECISIONS list per
+      shell, keyed by PID and start tick, and closes it with "the shell ended" when the shell goes.
+- [x] **Does not do.** It never stops a shell, and it never types into a tab: the tab owns its shells.
+
 ## Dropped, and why
 
 - **Binding Ctrl-C for exit.** It is claude's interrupt, and forwarding it would put every
@@ -1244,3 +1260,12 @@ kept the TODOS pane's pid.
 - `todos.clear_done` now drops a notice as well as a done item, so M-x takes it as read. Open
   questions and actions stay, and so does a ruling not yet told. So does an open todo, which is the
   agent's own work in flight.
+
+### 2026-11-07: a shell that will never end
+
+- **Built** as round 19, in `skyboss/shellwatch.py`, run from `sb deck decide sweep`.
+- **Measured on a real tab:** a loop waiting on a pattern nothing else matched read `stuck`. A loop
+  whose target was alive read nothing, and once the target was killed it kept running, as its own
+  command line held the pattern.
+- **Limit:** double quotes nested in a quoted `$(…)` split the pattern short. The self-match test
+  still holds, so the cost is a shorter pattern in the notice.

@@ -67,16 +67,21 @@ def subagents(cwd: str, ident: str, projects: Path, now: float) -> list[Job]:
     return [job for _, job in sorted(found, key=lambda pair: -pair[0])]
 
 
-def command_of(cmdline: str) -> str:
-    """The first line of the command a shell wrapper runs, or `shell` if it cannot be found."""
+def wrapped(cmdline: str) -> str:
+    """The whole command a shell wrapper runs, empty if it cannot be found."""
     match = WRAPPED.search(cmdline)
     if match is None:
-        return SHELL
+        return ""
     try:
         words = shlex.split(match.group("word"))
     except ValueError:
-        return SHELL
-    lines = (words[0] if words else "").strip().splitlines()
+        return ""
+    return words[0] if words else ""
+
+
+def command_of(cmdline: str) -> str:
+    """The first line of the command a shell wrapper runs, or `shell` if it cannot be found."""
+    lines = wrapped(cmdline).strip().splitlines()
     return lines[0] if lines else SHELL
 
 
@@ -90,17 +95,22 @@ def running_for(pid: int, proc: Path) -> str:
         return ""
 
 
-def shells(pid: int, parent_of: dict[int, int], proc: Path) -> list[Job]:
-    """The shells `pid` has running, oldest pid first."""
-    out: list[Job] = []
+def shell_lines(pid: int, parent_of: dict[int, int], proc: Path) -> list[tuple[int, str]]:
+    """Each shell `pid` has running, as `(pid, command line)`, oldest pid first."""
+    out: list[tuple[int, str]] = []
     for child in sorted(p for p, parent in parent_of.items() if parent == pid):
         try:
             cmdline = (proc / str(child) / "cmdline").read_bytes().replace(b"\0", b" ").decode(errors="replace")
         except OSError:
             continue
         if SNAPSHOT in cmdline:
-            out.append(Job(SHELL, command_of(cmdline), running_for(child, proc)))
+            out.append((child, cmdline))
     return out
+
+
+def shells(pid: int, parent_of: dict[int, int], proc: Path) -> list[Job]:
+    """The shells `pid` has running, oldest pid first."""
+    return [Job(SHELL, command_of(line), running_for(child, proc)) for child, line in shell_lines(pid, parent_of, proc)]
 
 
 def ended(owners: set[str], live: set[str], projects: Path, now: float) -> dict[str, list[Job]]:
