@@ -393,9 +393,29 @@ def test_the_tabs_session_comes_first_so_the_tab_pane_has_something_to_attach_to
 
 def test_bare_deck_execs_attach_at_a_terminal(fake, home, monkeypatch):
     monkeypatch.setattr(deck_, "has_terminal", lambda: True)
+    monkeypatch.setattr(deck_, "launcher", lambda running: ("resume", ("saved",)))
     result = invoke("deck")
     assert result.exit_code == 0, result.output
     assert fake.replaced == [["tmux", "attach-session", "-t", "=sb"]]
+
+
+def test_a_launcher_closed_without_a_choice_starts_nothing(fake, home, monkeypatch):
+    monkeypatch.setattr(deck_, "has_terminal", lambda: True)
+    monkeypatch.setattr(deck_, "launcher", lambda running: None)
+    assert invoke("deck").exit_code == 0
+    assert fake.find("new-session") == [] and not fake.replaced
+
+
+def test_ticked_folders_start_a_deck_of_those_agents(fake, home, monkeypatch, tmp_path):
+    for name in ("one", "two"):
+        (tmp_path / name).mkdir()
+    home(f'[agent.one]\ncwd = "{tmp_path}/one"\n\n[agent.two]\ncwd = "{tmp_path}/two"\n')
+    monkeypatch.setattr(deck_, "has_terminal", lambda: True)
+    monkeypatch.setattr(deck_, "launcher", lambda running: ("start", ("two", "one")))
+    assert invoke("deck").exit_code == 0
+    assert launched(fake, "two") and launched(fake, "one")
+    first = next(c for c in fake.find("new-session") + fake.find("new-window") if "--" in c)
+    assert first[first.index("-n") + 1] == "two"
 
 
 def test_inside_tmux_the_client_switches_instead(fake, home, monkeypatch):
@@ -1082,6 +1102,7 @@ def test_the_queue_is_an_observe_and_the_rest_act():
         "add": True,
         "terminal": True,
         "plus": True,
+        "launch": True,
         "places": False,
         "jump": True,
         "layout": True,
