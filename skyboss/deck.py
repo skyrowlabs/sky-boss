@@ -43,7 +43,7 @@ import rich_click as click
 from skyboss import agents as agents_
 from skyboss import background
 from skyboss import column as column_
-from skyboss import deckasks, decklaunch, deckplus, decksave, deckwire
+from skyboss import deckasks, decklaunch, deckplus, decksave, decktrust, deckwire
 from skyboss import keys as keys_
 from skyboss import resident as resident_
 from skyboss import shellwatch, theme
@@ -59,7 +59,7 @@ from skyboss.view import describe
 
 DECK_FILE = "deck.toml"
 DEFAULT_SESSION = "sb"
-TOP_LEVEL_KEYS = frozenset({"session", "pin", "panes", "themes", "theme_base", "roots"})
+TOP_LEVEL_KEYS = frozenset({"session", "pin", "panes", "themes", "theme_base", "roots", "trust"})
 TOP_LEVEL_TABLES = frozenset({"agent", "profile"})
 AGENT_KEYS = frozenset({"cwd", "args", "role", "colour"})
 PROFILE_KEYS = frozenset({"primary", "tabs", "brief", "brief_file", "terminals", "columns", "session"})
@@ -233,6 +233,8 @@ class Config:
     # Each tab's Claude Code takes a theme accented in its agent's deck hue, on `theme_base`.
     themes: bool = True
     theme_base: str = ""
+    # A folder the deck opens an agent in is trusted in Claude Code's config first.
+    trust: bool = True
     # Directories whose folders the `+` offers.
     roots: list[str] = field(default_factory=list)
     # deck.toml's `session`, which names a profile's deck; `session` is this process's deck.
@@ -317,6 +319,11 @@ def parse(raw: dict) -> tuple[Config, list[str]]:
             config.themes = raw["themes"]
         else:
             problems.append("themes must be true or false — ignored")
+    if "trust" in raw:
+        if isinstance(raw["trust"], bool):
+            config.trust = raw["trust"]
+        else:
+            problems.append("trust must be true or false — ignored")
     if "theme_base" in raw:
         base = raw["theme_base"]
         if base in THEME_BASES:
@@ -1547,6 +1554,7 @@ def start(
     directory = agent.directory
     if not Path(directory).is_dir():
         raise DeckError(f"{agent.name}: cwd {directory} is not a directory ({agent.source})")
+    trusting = trust_folder(load()[0].trust, directory)
     if shutil.which("claude", path=child_env().get("PATH")) is None:
         raise DeckError("claude is not on PATH")
     where = ["new-session", "-d", "-s", session] if new_session else ["new-window", "-d", "-t", f"={session}:"]
@@ -1562,16 +1570,16 @@ def start(
     window_id, pane_id = _ids(answer)
     tmux("set-option", "-w", "-t", window_id, AGENT_OPTION, agent.name)
     tmux("set-option", "-p", "-t", pane_id, ROLE_OPTION, AGENT)
-    return window_id, dress(window_id, tab=True)
+    return window_id, trusting + dress(window_id, tab=True)
 
 
 # ============================================================================
 # Console themes: each tab's Claude Code accented in its agent's hue
 # ============================================================================
 #
-# On unless `themes = false` in deck.toml (Jeston's ruling, 2026-11-05). The one place
+# On unless `themes = false` in deck.toml (Jeston's ruling, 2026-11-05). One of two places
 # sky.boss writes into Claude Code's configuration: `sb-<agent>.json` files in its
-# themes directory, and only those. A tab selects its theme for its own session with
+# themes directory, and only those. The other is a folder's trust, in `skyboss/decktrust.py`. A tab selects its theme for its own session with
 # `--settings`, so Claude Code outside the deck keeps the operator's theme.
 
 #: Claude Code's built-in presets, the only values a custom theme's `base` may take.
@@ -2478,6 +2486,23 @@ def deck_open(name: str, fresh: bool) -> Result:
     if agent is None:
         raise click.UsageError(f"no agent {name!r}: {why}")
     return open_agent(config, projects, agent, fresh, problems)
+
+
+def trust_folder(on: bool, directory: str) -> list[str]:
+    """Trust `directory` in Claude Code's config, unless `trust = false`. What to tell the operator."""
+    if not on:
+        try:
+            data = json.loads(decktrust.config_file().read_text())
+        except (OSError, ValueError):
+            return []
+        if decktrust.is_trusted(data, os.path.realpath(directory)):
+            return []
+        return [f"Claude Code will ask to trust {directory} in the new tab — answer it there"]
+    try:
+        said = decktrust.trust(directory, backups=home_file().parent / "backups")
+    except (OSError, ValueError) as exc:
+        return [f"could not trust {directory} for Claude Code — {exc}; answer its prompt in the new tab"]
+    return [said] if said else []
 
 
 def open_agent(config: Config, projects: list, agent: Agent, fresh: bool, problems: list[str]) -> Result:

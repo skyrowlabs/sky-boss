@@ -608,7 +608,8 @@ check there first.
 | Declared projects and the agent-state root (`projects.toml`) | `~/.sky-boss/` (`$SB_HOME`) | the operator | never |
 | The deck's agents (`deck.toml`) | `~/.sky-boss/` (`$SB_HOME`) | the operator, and `sb deck add --keep` | never |
 | The deck's console themes (`sb-<agent>.json`), unless `themes = false` | `~/.claude/themes/` (`$CLAUDE_CONFIG_DIR`) | sky.boss, on `sb deck` | never |
-| Backups of `tools.toml` and `deck.toml` | `~/.sky-boss/backups/` | sky.boss, before every write | never |
+| A deck folder's trust (`projects[<folder>].hasTrustDialogAccepted`), unless `trust = false` | `~/.claude.json` (`$CLAUDE_CONFIG_DIR`) | sky.boss, when a tab opens there | never |
+| Backups of `tools.toml`, `deck.toml` and `.claude.json` | `~/.sky-boss/backups/` | sky.boss, before every write | never |
 | Browser profile for the canvas | `~/.local/state/sb/` (`$SB_STATE`) | the machine | never |
 | What the surface remembers about itself (`prefs.json`) | `~/.local/state/sb/` (`$SB_STATE`) | the surface | never |
 
