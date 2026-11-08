@@ -59,11 +59,11 @@ updates:
   # The native window. Separate because it is a separate lockfile, not because
   # it wants a different cadence.
   - package-ecosystem: npm
-    directory: /shell
+    directory: /electron
     schedule:
       interval: weekly
     groups:
-      shell:
+      electron:
         patterns: ['*']
     cooldown:
       default-days: 5

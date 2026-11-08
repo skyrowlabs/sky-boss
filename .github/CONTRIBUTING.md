@@ -1,7 +1,7 @@
 # Contributing
 
 Thanks for looking. This is a young project and the design is still moving, so the most useful
-thing you can do before writing code is read [`CLAUDE.md`](CLAUDE.md) — it is the guide for both
+thing you can do before writing code is read [`CLAUDE.md`](../CLAUDE.md) — it is the guide for both
 the humans and the agents working here, and it records *why* things are the way they are, including
 the decisions that were reversed.
 

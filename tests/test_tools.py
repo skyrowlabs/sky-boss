@@ -579,7 +579,7 @@ def test_the_prefix_form_is_a_usage_error(saved):
 # The shipped example
 # ============================================================================
 
-EXAMPLE = pathlib.Path(__file__).resolve().parent.parent / "tools.example.toml"
+EXAMPLE = pathlib.Path(__file__).resolve().parent.parent / "docs" / "examples" / "tools.example.toml"
 
 
 def test_the_example_is_shipped():

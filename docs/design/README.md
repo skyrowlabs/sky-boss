@@ -82,7 +82,7 @@ byte-for-byte a no-op, which is the property that makes "if in doubt, re-run it"
 The README's two screenshots, and the reason they are scripts rather than screen grabs: a hand-taken
 picture of a UI goes stale silently, and nothing can tell you it has.
 
-Both **isolate `$SB_HOME` and `$SB_STATE`** and seed the home from `tools.example.toml`. This is not
+Both **isolate `$SB_HOME` and `$SB_STATE`** and seed the home from `docs/examples/tools.example.toml`. This is not
 tidiness. The first canvas capture was taken against the real home and came back with the operator's
 own saved tools drawn down the left — a private checkout's job names, in a picture bound for a public
 README. It is the obligation `tests/conftest.py` states for the suite, arriving somewhere no test can

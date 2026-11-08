@@ -582,7 +582,7 @@ child's cwd, 112 tests failing from a tmp dir. Read the wrapper's comments befor
 - **Dependencies:** `.venv` + `requirements.txt`; tooling from `requirements-dev.txt` and
   `scripts/requirements.txt`. `pyproject.toml` is tool config only (black, isort, pytest) — nothing
   installs this repo. `pyrightconfig.json` checks `skyboss`, `cli`, `scripts` and `tests`.
-  pre-commit is installed by `.venv/bin/pre-commit install --install-hooks` (see `CONTRIBUTING.md`)
+  pre-commit is installed by `.venv/bin/pre-commit install --install-hooks` (see `.github/CONTRIBUTING.md`)
   and runs the formatters, flake8, pyright, the docs gates and the commit-msg check. Python here is
   3.14.7 — new enough that a dependency may lack wheels.
 - **`--json` is a root-group flag** stored in the Click context, so the output decorator handles
@@ -821,7 +821,7 @@ does: an audience that is not the author.
   **The gate for anyone else survives it**, which is the reason this is not a weakening: required
   status checks apply to a direct push too, and a fresh push has no passing checks yet, so a
   non-admin still cannot land on `develop` except through a pull request. Nothing about the
-  contributor path in `CONTRIBUTING.md` changes.
+  contributor path in `.github/CONTRIBUTING.md` changes.
 
   **What this did *not* do is grant anything, and the distinction is worth keeping.** Classic branch
   protection has **no per-user allowlist** — `enforce_admins` is the only knob and it was already
