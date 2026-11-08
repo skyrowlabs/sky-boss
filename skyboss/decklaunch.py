@@ -14,10 +14,10 @@ from dataclasses import dataclass, field, replace
 
 from skyboss import deckplus, tools
 
-RESUME, PROFILE, FOLDER, ADD = "resume", "profile", "folder", "add"
+ATTACH, RESUME, PROFILE, FOLDER, ADD, SAVE_DECK = "attach", "resume", "profile", "folder", "add", "save-deck"
 #: What a key or a row asks the caller to do.
 START, OPEN, NEW, DELETE, SAVE, QUIT = "start", "open", "new", "delete", "save", "quit"
-HEADINGS = {RESUME: "Last deck", PROFILE: "Profiles", FOLDER: "Agent folders"}
+HEADINGS = {ATTACH: "Running decks", RESUME: "Saved decks", PROFILE: "Profiles", FOLDER: "Agent folders"}
 HEADER = re.compile(r"^\s*\[")
 
 
@@ -35,7 +35,7 @@ class Launch:
     rows: list[Row]
     ticked: set[str] = field(default_factory=set)
     at: int = 0
-    #: Inside a running deck the screen manages; it opens nothing but a tab.
+    #: Inside a running deck: a folder opens as a tab there, and anything else as a deck beside it.
     running: bool = False
     note: str = ""
 
@@ -47,29 +47,37 @@ class Outcome:
     names: tuple[str, ...] = ()
 
 
+def _tabs(count: int) -> str:
+    return f"{count} tab{'s' if count != 1 else ''}"
+
+
+def _deck_text(verb: str, session: str, label: str, count: int) -> str:
+    named = label if label in (session, "") else f"{label} ({session})"
+    return f"{verb} {named or session}, {_tabs(count)}"
+
+
 def rows_of(
-    resume: tuple[str, int] | None,
+    decks: list[tuple[str, str, int]],
+    saved: list[tuple[str, str, int]],
     profiles: dict[str, int],
     folders: list[tuple[str, str, bool]],
     running: bool = False,
 ) -> list[Row]:
-    """The screen's rows: the last deck, each profile with its tab count, each folder, then `add`.
+    """The screen's rows: running decks, saved decks, profiles, folders, then `add` (and, running, `save this deck`).
 
-    `folders` is `(name, directory, declared)`. Running, there is no last deck to resume.
+    A deck is `(session, profile, tabs)`; `folders` is `(name, directory, declared)`.
     """
-    rows: list[Row] = []
-    if resume and not running:
-        rows.append(Row(RESUME, resume[0], f"resume {resume[0]}, {resume[1]} tab{'s' if resume[1] != 1 else ''}"))
+    rows = [Row(ATTACH, session, _deck_text("attach", session, label, count)) for session, label, count in decks]
+    rows += [Row(RESUME, session, _deck_text("resume", session, label, count)) for session, label, count in saved]
     width = max((len(name) for name in profiles), default=0)
-    rows += [
-        Row(PROFILE, name, f"{name:<{width}}  {count} tab{'s' if count != 1 else ''}")
-        for name, count in profiles.items()
-    ]
+    rows += [Row(PROFILE, name, f"{name:<{width}}  {_tabs(count)}") for name, count in profiles.items()]
     width = max((len(name) for name, _, _ in folders), default=0)
     rows += [
         Row(FOLDER, name, f"{name:<{width}}  {short(cwd)}", "" if declared else cwd) for name, cwd, declared in folders
     ]
     rows.append(Row(ADD, "", "+ add a folder"))
+    if running:
+        rows.append(Row(SAVE_DECK, "", "save this deck as a profile"))
     return rows
 
 
@@ -84,8 +92,8 @@ def hint(launch: Launch) -> str:
     keys = ["space tick"] if row and row.kind == FOLDER else []
     if row and row.kind == FOLDER:
         keys.append("enter open tab" if launch.running else "enter start")
-    elif row and row.kind in (RESUME, PROFILE) and not launch.running:
-        keys.append("enter open")
+    elif row and row.kind in (ATTACH, RESUME, PROFILE, SAVE_DECK):
+        keys.append({ATTACH: "enter switch", SAVE_DECK: "enter save"}.get(row.kind, "enter open"))
     if launch.ticked:
         keys.append("s save as profile")
     if row and row.kind in (PROFILE, FOLDER) and not row.cwd:
@@ -131,6 +139,8 @@ def step(launch: Launch, key: str | None, clicked_row: int | None = None) -> tup
         return launch, Outcome(QUIT)
     if key == "a" or (key in ("\r", "\n") and row.kind == ADD):
         return launch, Outcome(NEW)
+    if key in ("\r", "\n") and row.kind == SAVE_DECK:
+        return launch, Outcome(SAVE_DECK)
     if key == "s":
         if not launch.ticked:
             return replace(launch, note="tick a folder or more first"), None
@@ -143,8 +153,6 @@ def step(launch: Launch, key: str | None, clicked_row: int | None = None) -> tup
         if row.kind == FOLDER:
             names = _ticked(launch) or (row.name,)
             return launch, Outcome(START, row, names)
-        if launch.running:
-            return replace(launch, note="a deck is running — exit it to open another"), None
         return launch, Outcome(OPEN, row)
     return launch, None
 
@@ -177,17 +185,56 @@ def without_block(text: str, table: str, name: str) -> str:
     return "".join(lines[:start] + lines[end:])
 
 
-def with_profile(text: str, name: str, names: tuple[str, ...]) -> str:
-    """`text` with `[profile.NAME]` at its end: the first name primary, the rest its tabs."""
-    primary, *tabs = names
-    block = f"[profile.{name}]\nprimary = {tools._toml_string(primary)}\n"
-    block += "tabs = [" + ", ".join(tools._toml_string(tab) for tab in tabs) + "]\n"
-    body = text.rstrip("\n")
-    return f"{body}\n\n{block}" if body else block
+#: A profile's keys in the order a written block lists them.
+PROFILE_ORDER = ("primary", "tabs", "terminals", "brief", "brief_file", "session", "columns")
+
+
+def _value(value) -> str:
+    if isinstance(value, list):
+        return "[" + ", ".join(_value(item) for item in value) + "]"
+    return tools._toml_string(str(value))
+
+
+def profile_block(name: str, body: dict) -> str:
+    """`[profile.NAME]` with each key of `body` that has a value, in `PROFILE_ORDER`."""
+    keys = [key for key in PROFILE_ORDER if body.get(key)] + sorted(k for k in body if k not in PROFILE_ORDER)
+    return f"[profile.{name}]\n" + "".join(f"{key} = {_value(body[key])}\n" for key in keys)
+
+
+def body_of(names: tuple[str, ...], terminals: tuple[str, ...] = ()) -> dict:
+    """A profile body: the first name primary, the rest its tabs, and any terminal directories."""
+    body: dict = {"primary": names[0], "tabs": list(names[1:])}
+    if terminals:
+        body["terminals"] = list(terminals)
+    return body
+
+
+def with_profile(text: str, name: str, body: dict) -> str:
+    """`text` with `[profile.NAME]` at its end."""
+    stripped = text.rstrip("\n")
+    block = profile_block(name, body)
+    return f"{stripped}\n\n{block}" if stripped else block
+
+
+def replaced_profile(text: str, name: str, body: dict) -> str:
+    """`text` with `[profile.NAME]`'s block rewritten as `body`. The comment above it stays: it is the same profile."""
+    found = tools.block_range(text, name, "profile")
+    if found is None:
+        raise ValueError(f"no [profile.{name}] in {deckplus.FILE}")
+    lines = text.splitlines(keepends=True)
+    start, end = found
+    while end > start + 1 and (not lines[end - 1].strip() or lines[end - 1].lstrip().startswith("#")):
+        end -= 1
+    return "".join(lines[:start]) + profile_block(name, body) + "".join(lines[end:])
 
 
 def edited(
-    text: str, *, drop_profile: str = "", drop_agent: str = "", add_profile: tuple[str, tuple[str, ...]] | None = None
+    text: str,
+    *,
+    drop_profile: str = "",
+    drop_agent: str = "",
+    add_profile: tuple[str, dict] | None = None,
+    set_profile: tuple[str, dict] | None = None,
 ) -> str:
     """`text` with one change made, raising `ValueError` unless it parses to exactly that change."""
     try:
@@ -208,11 +255,15 @@ def edited(
         new = without_block(text, "profile", drop_profile)
         profiles.pop(drop_profile, None)
     elif add_profile:
-        name, names = add_profile
+        name, body = add_profile
         if name in profiles:
             raise ValueError(f"there is a profile {name!r} already")
-        new = with_profile(text, name, names)
-        profiles[name] = {"primary": names[0], "tabs": list(names[1:])}
+        new = with_profile(text, name, body)
+        profiles[name] = {key: value for key, value in body.items() if value}
+    elif set_profile:
+        name, body = set_profile
+        new = replaced_profile(text, name, body)
+        profiles[name] = {key: value for key, value in body.items() if value}
     else:
         return text
     try:

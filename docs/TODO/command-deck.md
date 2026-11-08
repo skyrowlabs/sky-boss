@@ -585,6 +585,31 @@ it, with the last deck as the first row.
 - [x] **Does not do.** `--profile NAME` and `--fresh` skip it, and so does a deck with no terminal,
       which reopens its save as before.
 
+## Phase 21 (round 21): several decks at once, and profiles saved from a deck
+
+Asked by Jeston through the workspace ("i would like multiple decks") and directly ("we also need a
+save/load/delete profile feature"). Ruled as shaped, except that one repo may be a tab in two decks.
+
+- [x] **Names.** A deck of a declared profile is the tmux session `<session>-<profile>` (`sb-core`),
+      or the profile's own `session`. Ticked folders, a pin, or no profile run as the base session,
+      and ticked folders take `sb-2` and on when it is running.
+- [x] **Each tab knows its deck.** `SB_DECK` goes on both sessions with `-e` and
+      `set-environment`, so every tab, pane, popup, hook and job inherits it. The marks loop has
+      no client, so it gets it in its command. `load()` takes the session from `SB_DECK` over
+      `deck.toml`, which keeps naming the base.
+- [x] **The launcher** lists running decks (`attach`), saved decks not running (`resume`), the
+      profiles, then the folders. Inside a deck (M-r), a profile or saved deck opens beside it and
+      the popup's client switches to it. `save this deck as a profile` writes the open tabs.
+- [x] **`sb deck profile list | save NAME [--replace] | delete NAME`.** Save writes the open agent
+      tabs in tab order, primary first, plus the terminals' directories, and declares a tab not yet
+      an agent from its saved folder. A replace keeps the profile's brief, brief_file, session and
+      columns.
+- [x] **Messages** already read every live session's transcript, so a message between two decks
+      shows in both. Each tab's roster is its own deck's.
+- [x] **Does not do.** It does not refuse a repo that is a tab in another deck (ruled), and does not
+      move a deck's state from `sb` when it is next started under a profile's name. The old save is
+      offered as `resume` instead.
+
 ## Dropped, and why
 
 - **Binding Ctrl-C for exit.** It is claude's interrupt, and forwarding it would put every
@@ -1310,3 +1335,11 @@ kept the TODOS pane's pid.
 - **Found by the smoke, not the suite:** a deleted profile left its comment above the next one,
   where it read as that profile's. The cursor jumped a row when a save grew the list, and the key
   hint was cut off at 100 columns.
+
+### 2026-11-08: several decks at once
+
+- **Built** as round 21. **Measured** on a scratch tmux server with a stand-in `claude` that wrote
+  `$SB_DECK`: two profiles started as `sb-alpha` and `sb-beta`, each tab read its own deck, both
+  marks loops and the panes carried theirs, and `sb deck profile list` showed both running.
+- tmux 3.8 passes a session's `set-environment` to new windows, splits and `run-shell -t`,
+  measured before relying on it.
