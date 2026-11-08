@@ -143,7 +143,8 @@ with its directory and role, and how to reach them and you. `sb deck brief` rebu
 deck as it stands now.
 
 **`/deck-connect` brings an agent in on your word.** Type it in any tab: the agent reads its brief
-afresh, checks who is live, and introduces itself to the primary. It ships in [`plugin/`](plugin),
+afresh, checks who is live, and introduces itself to the primary; run in the primary, it connects to
+every live tab instead. It ships in [`plugin/`](plugin),
 a Claude Code plugin every tab loads with `--plugin-dir`, so nothing is installed into your Claude
 Code configuration.
 

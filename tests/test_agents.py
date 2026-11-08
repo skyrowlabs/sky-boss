@@ -278,7 +278,7 @@ def test_the_view_is_authored_and_hides_identity_without_dropping_it():
     view = view_of(rows)
     assert view["authored"] is True
     assert [c["key"] for c in view["columns"]] == ["provider", "name", "status", "up", "cwd"]
-    assert view["hidden"] == ["id", "pid", "started", "claim"]
+    assert view["hidden"] == ["id", "pid", "started", "primary", "claim"]
     assert rows[0]["id"] == "x" and rows[0]["up"] == "1m"
 
 
@@ -484,3 +484,19 @@ def test_an_empty_scope_says_which_side_is_empty(two, monkeypatch):
     monkeypatch.setattr("skyboss.deck.claimed", lambda sessions: (set(), ""))
     envelope = json.loads(CliRunner().invoke(cli, ["--json", "agents", "--scope", "deck"]).stdout)
     assert envelope["data"] == [] and "no sessions in the deck" in envelope["warnings"]
+
+
+def test_the_deck_scope_marks_the_primary_with_a_star(two, monkeypatch):
+    monkeypatch.setattr("skyboss.deck.claimed", lambda sessions: ({"in", "out"}, ""))
+    monkeypatch.setattr("skyboss.deck.primary_ids", lambda sessions: {"in"})
+    envelope = json.loads(CliRunner().invoke(cli, ["--json", "agents", "--scope", "deck"]).stdout)
+    assert [(r["name"], r["primary"]) for r in envelope["data"]] == [("inside", True), ("outside", False)]
+    drawn = CliRunner().invoke(cli, ["agents", "--scope", "deck"]).output
+    assert "* inside" in drawn and "* outside" not in drawn
+
+
+def test_outside_the_deck_scope_nothing_is_starred(two, monkeypatch):
+    monkeypatch.setattr("skyboss.deck.claimed", lambda sessions: ({"in"}, ""))
+    monkeypatch.setattr("skyboss.deck.primary_ids", lambda sessions: pytest.fail("asked for the primary"))
+    envelope = json.loads(CliRunner().invoke(cli, ["--json", "agents", "--scope", "outside"]).stdout)
+    assert not any(r["primary"] for r in envelope["data"])
