@@ -46,7 +46,7 @@ from skyboss import column as column_
 from skyboss import deckasks, deckplus, decksave, deckwire
 from skyboss import keys as keys_
 from skyboss import resident as resident_
-from skyboss import theme
+from skyboss import shellwatch, theme
 from skyboss import todos as todos_
 from skyboss.chrome import ago, clock
 from skyboss.helpers import PROJECT_ROOT, SB_HOME, child_env, mark
@@ -4505,6 +4505,49 @@ def deck_decide_sweep() -> None:
         age = HELD_EVERY
     if age >= HELD_EVERY:
         deckasks.write_held(config.session, [deckasks.held_of(repo) for repo in deck_repos(config.session)])
+    watch_shells(config.session)
+
+
+def watch_shells(session: str, adapters: list | None = None, proc: Path = Path("/proc")) -> list[str]:
+    """Note each stuck or long shell in its tab's DECISIONS, once, and close the note when it ends.
+
+    Never stops a shell: the tab owns it. Problems, for a caller that reads them.
+    """
+    listed, answer = panes(inner(session))
+    if not answer.ok:
+        return [f"could not list the deck's tabs — {_said(answer)}"]
+    sessions, problems, _ = agents_.fold(adapters if adapters is not None else agents_.providers())
+    parent_of = parents(proc)
+    lines = shellwatch.command_lines(proc)
+    seen = shellwatch.read_seen(session)
+    live: set[str] = set()
+    for _, label, status, _, pid in deck_windows(listed, sessions, parent_of)[0]:
+        for shell in shellwatch.shells_of(pid, parent_of, proc):
+            live.add(shell.key)
+            found = None if shell.key in seen else shellwatch.verdict(shell, status, parent_of, lines)
+            if found is None:
+                continue
+            text = todos_.clean(shellwatch.notice(shell, *found))
+            todos_.add(session, label, text, todos_.DECISIONS, kind=todos_.NOTICE)
+            seen[shell.key] = {"agent": label, "text": text}
+    for key in [key for key in seen if key not in live]:
+        problems += _close_shell_notice(session, seen.pop(key))
+    shellwatch.write_seen(session, seen)
+    return problems
+
+
+def _close_shell_notice(session: str, noted: dict) -> list[str]:
+    """Close the open notice a shell that has ended raised, if it is still there."""
+    agent, text = str(noted.get("agent", "")), noted.get("text")
+    try:
+        todo = todos_.load(session, agent, todos_.DECISIONS)
+    except ValueError as exc:
+        return [f"{agent}: {exc}"]
+    for n, item in enumerate(todo.items if todo else [], start=1):
+        if item.kind == todos_.NOTICE and not item.done and item.text == text:
+            todos_.close_action(session, agent, n, "the shell ended")
+            break
+    return []
 
 
 @deck.command(name="ask", hidden=True)
