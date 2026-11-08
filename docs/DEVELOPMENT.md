@@ -225,9 +225,9 @@ bump; `CHANGELOG.md` and `VERSION` are generated. **Never hand-edit either.**
 
 **Known: a pull request merged with a merge commit lists its change twice.**
 GitHub writes the PR title into the merge commit's body by default, and Release
-Please reads that line as a second commit (sky.vault, v0.2.0 and v0.3.0). The
-template leaves merge settings to you: squash merges, or PR titles with a hidden
-type such as `chore:`, avoid it. Measured on one tree only.
+Please reads that line as a second commit (sky.vault, sky.boss and proto.pilot,
+each at its first releases). The template leaves merge settings to you: squash
+merges, or PR titles with a hidden type such as `chore:`, avoid it.
 
 The release lands on `main`, so back-merge it. Until you do,
 `develop` does not contain the release commit, and `git describe` there

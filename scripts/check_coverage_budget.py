@@ -36,7 +36,7 @@ the judgement lives. It is shown rather than judged for one measured reason:
 
 stash.flow found that from an adopted tree — 2222 statements measured, 1935 of
 them the scaffold's — and the mechanism is the coverage configuration rather
-than the repository's history. With no `[tool.coverage]` section, coverage
+than the repository's history. With no `source` in `[tool.coverage.run]`, coverage
 measures what the run *imports*, and what the scaffold's own tests import is the
 scaffold's own scripts. Product source that is not yet under test contributes
 nothing to the denominator however old the repository is.
@@ -140,8 +140,22 @@ from scripts.yaml_text import read_uncommented  # noqa: E402
 
 BUDGET = TESTS_DIR / "coverage_budget.json"
 DEFAULT_XML = TMP_DIR / "coverage.xml"
-#: coverage's data file. An xml older than it describes an earlier run (stash.flow).
-DATA_FILE = PROJECT_ROOT / ".coverage"
+
+
+def _data_file() -> Path:
+    """Where coverage writes its data, from coverage's own config, read as the run reads it.
+
+    An xml older than this file describes an earlier run (stash.flow). Every caller
+    runs from the root, so the config found from the working directory is the tree's.
+    """
+    try:
+        import coverage
+    except ImportError:
+        return PROJECT_ROOT / ".coverage"
+    return PROJECT_ROOT / str(coverage.Coverage().get_option("run:data_file"))
+
+
+DATA_FILE = _data_file()
 
 
 #: A name rather than a parenthesised tuple in the `except`: at a 3.14 target black
