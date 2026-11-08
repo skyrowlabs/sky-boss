@@ -1132,6 +1132,7 @@ def test_the_queue_is_an_observe_and_the_rest_act():
         "column": True,
         "reload": True,
         "scroll": True,
+        "clear": True,
     }
     assert {name: getattr(c, "sb_acts") for name, c in deck_.deck_column.commands.items()} == {
         "show": False,
@@ -2328,12 +2329,28 @@ def test_clear_with_nothing_done_says_so(home, sb_state, said):
     assert result.exit_code == 0 and "nothing to clear" in said(result)
 
 
-def test_the_clear_key_reports_how_many_lists_it_cleared():
+def test_the_clear_key_runs_the_one_clear_that_says_what_it_kept():
     bound = {argv[3]: argv for argv in deck_.deck_bindings("sb")}
-    command = bound[deck_.SHORTCUTS["clear"]][-1]
-    assert "deck todo clear" in command and "deck decide clear" in command and "display-message" in command
-    assert command.count("--json") == 2
+    assert "deck clear --notify" in bound[deck_.SHORTCUTS["clear"]][-1]
     assert f"{deck_.SHORTCUTS['clear']} clear done" in deck_.hints()
+
+
+def test_a_clear_takes_asked_rows_and_keeps_untold_rulings_and_waiting_prompts(home, sb_state):
+    from skyboss import deckasks
+
+    todos.add("sb", "ws", "finished")
+    todos.done("sb", "ws", 1)
+    todos.add("sb", "ws", "ruled", book=todos.DECISIONS)
+    todos.rule("sb", "ws", 1, "yes")
+    deckasks._put("sb", "ws", todos.PROSE, "shall I?")
+    deckasks._put("sb", "jam", todos.ASKED, "Bash: rm x")
+    data = json.loads(invoke("--json", "deck", "clear").stdout)["data"]
+    assert (data["todos"], data["decided"], data["asked"], data["kept_untold"], data["kept_waiting"]) == (1, 0, 1, 1, 1)
+    assert data["said"].endswith("kept 1 ruling not yet typed into its tab and 1 prompt a tab is waiting at")
+
+
+def test_a_clear_with_nothing_kept_says_only_what_went():
+    assert deck_.clear_sentence(2, 1, 0, 0, 0) == "cleared 2 done todos, 1 decided item and 0 asked rows"
 
 
 def test_tabs_that_fit_need_no_scrollbar_and_tmux_centres_the_current_one_when_they_do_not():

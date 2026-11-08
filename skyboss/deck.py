@@ -1146,7 +1146,7 @@ def deck_bindings(session: str) -> list[list[str]]:
             f"{sb} deck column fold '#{{{ROLE_OPTION}}}' >/dev/null 2>&1 "
             f"|| tmux display-message '{keys['fold']} folds a right-column pane: focus one first' || true",
         ],
-        # Both books, counted from the envelopes (one `"cleared"` line per list), so a press with nothing done says 0.
+        # Both books and the asked rows, and a message that counts what was kept and why.
         [
             "bind-key",
             "-T",
@@ -1154,9 +1154,7 @@ def deck_bindings(session: str) -> list[list[str]]:
             keys["clear"],
             "run-shell",
             "-b",
-            f"t=$({sb} --json deck todo clear 2>/dev/null | grep -c '\"cleared\"'); "
-            f"d=$({sb} --json deck decide clear 2>/dev/null | grep -c '\"cleared\"'); "
-            'tmux display-message "cleared done todos from $t list(s) and decided items from $d" || true',
+            f"{sb} deck clear --notify >/dev/null 2>&1 || true",
         ],
     ]
 
@@ -5200,6 +5198,52 @@ def deck_decide_rm(n: int) -> Result:
     return _todo_change(lambda session, agent: todos_.remove(session, agent, n, book=todos_.DECISIONS))
 
 
+def clear_sentence(todos: int, decided: int, asked: int, untold: int, waiting: int) -> str:
+    """What M-x says: what went, then what stayed and why."""
+
+    def n(count: int, one: str, many: str) -> str:
+        return f"{count} {one if count == 1 else many}"
+
+    said = (
+        f"cleared {n(todos, 'done todo', 'done todos')}, {n(decided, 'decided item', 'decided items')}"
+        f" and {n(asked, 'asked row', 'asked rows')}"
+    )
+    kept = [
+        *([n(untold, "ruling not yet typed into its tab", "rulings not yet typed into their tabs")] if untold else []),
+        *([n(waiting, "prompt a tab is waiting at", "prompts tabs are waiting at")] if waiting else []),
+    ]
+    return said + (f"; kept {' and '.join(kept)}" if kept else "")
+
+
+@deck.command(name="clear")
+@click.option("--notify", is_flag=True, help="Also show the sentence in the deck's status line.")
+@emit
+def deck_clear(notify: bool) -> Result:
+    """Clear done todos, decided items and asked rows across the deck, and say what stayed.
+
+        sb deck clear
+
+    **This acts**, on every list in the deck; M-x runs it. A ruling not yet typed into
+    its tab stays, and so does a prompt a tab is waiting at.
+    """
+    result = Result()
+    config, problems = load()
+    for problem in problems:
+        result.warn(problem)
+    todos, unreadable = todos_.clear_done(config.session, todos_.TODOS)
+    decided, more = todos_.clear_done(config.session, todos_.DECISIONS)
+    for problem in unreadable + more:
+        result.warn(problem)
+    asked = todos_.clear_asked(config.session)
+    untold, waiting = todos_.kept_by_clear(config.session)
+    counts = (sum(todos.values()), sum(decided.values()), sum(asked.values()), untold, waiting)
+    said = clear_sentence(*counts)
+    result.data = dict(zip(("todos", "decided", "asked", "kept_untold", "kept_waiting"), counts)) | {"said": said}
+    if notify:
+        tmux("display-message", said)
+    return result
+
+
 @deck_decide.command(name="clear")
 @emit
 def deck_decide_clear() -> Result:
@@ -5273,5 +5317,6 @@ mark(deck_decide_sweep, sb_acts=True)
 mark(deck_ask, sb_acts=True)
 mark(deck_decide_rm, sb_acts=True)
 mark(deck_decide_clear, sb_acts=True)
+mark(deck_clear, sb_acts=True)
 mark(deck_decide_list, sb_acts=False)
 mark(deck_todo_list, sb_acts=False)
