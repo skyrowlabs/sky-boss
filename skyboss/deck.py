@@ -2949,7 +2949,12 @@ def deck_profile_group() -> None:
 @deck_profile_group.command(name="list")
 @emit
 def deck_profile_list() -> Result:
-    """Each profile, its tabs, the deck it runs as, and whether that deck is running."""
+    """Each profile, its tabs, the deck it runs as, and whether that deck is running.
+
+        sb deck profile list
+
+    An observe.
+    """
     result = Result()
     config, problems = load()
     for problem in problems:
@@ -2998,9 +3003,11 @@ def deck_profile_save(name: str, replace: bool) -> Result:
 @click.argument("name")
 @emit
 def deck_profile_delete(name: str) -> Result:
-    """Delete profile NAME from `deck.toml`, after a backup. A running deck of it keeps running.
+    """Delete profile NAME from `deck.toml`. A running deck of it keeps running.
 
-    sb deck profile delete core
+        sb deck profile delete core
+
+    **This acts**, on `deck.toml`, after a backup.
     """
     config, problems = load()
     if name not in config.profiles:
