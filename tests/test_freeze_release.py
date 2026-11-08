@@ -93,3 +93,26 @@ def test_no_report_to_anchor_is_no_subject(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(fr.release_window, "anchored_reports", lambda: [])
     assert fr.release_window.check() == 0
     assert "no subject" in capsys.readouterr().err
+
+
+def test_re_anchoring_twice_leaves_the_same_report(tmp_path, monkeypatch):
+    """Each re-stamp added two blank lines under the window banner (dream-doll)."""
+    window = fr.release_window
+    state = {
+        "release": "",
+        "previous_release": "v1",
+        "commit_range": "v1..HEAD",
+        "status": "in-flight",
+        "generated": "x",
+        "commits": 1,
+        "head_sha": "abc",
+    }
+    report = tmp_path / "report.md"
+    report.write_text("# Report\n\nBody.\n", encoding="utf-8")
+    monkeypatch.setattr(window, "REGULAR_DIR", tmp_path)
+    monkeypatch.setattr(window, "window", lambda *_: state)
+    assert window.apply() == 0
+    once = report.read_text(encoding="utf-8")
+    assert window.apply() == 0
+    assert report.read_text(encoding="utf-8") == once
+    assert "> **Window:**" in once and "\n\n\n" not in once

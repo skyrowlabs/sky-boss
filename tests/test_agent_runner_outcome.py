@@ -96,3 +96,77 @@ def test_the_row_carries_what_the_agent_spent_and_null_when_unmeasured(tree, mon
     assert (row["cost_usd"], row["num_turns"], row["tokens"], row["seat"]) == (0.42, 3, 15, "personal"), row
     row = _run_with(monkeypatch, ["sh", "-c", f"{write.replace('changed', 'again')}; echo plain text"], tree)
     assert (row["cost_usd"], row["num_turns"], row["tokens"]) == (None, None, None), row
+
+
+COMMIT = "git add -A && git commit -q -m 'docs: report'"
+
+
+@pytest.fixture
+def origin(tree, tmp_path, monkeypatch):
+    """A bare remote holding `main`, with this job publishing and its pre-push passing."""
+    bare = tmp_path / "origin.git"
+    _git(tmp_path, "init", "-q", "--bare", "-b", "main", str(bare))
+    _git(tree, "remote", "add", "origin", str(bare))
+    _git(tree, "push", "-q", "origin", "main")
+    monkeypatch.setattr(agent_runner, "AUTO_PUSH", {JOB.key})
+    monkeypatch.setattr(agent_runner, "PRE_PUSH", ["true"])
+    return bare
+
+
+def _report_commit(tree: Path) -> list[str]:
+    return ["sh", "-c", f"echo changed >> {tree / JOB.writes} && {COMMIT}"]
+
+
+def test_a_publishing_job_pushes_its_report_commit(tree, origin, monkeypatch):
+    row = _run_with(monkeypatch, _report_commit(tree), tree)
+    assert row["outcome"] == "ok", row
+    assert _git(origin, "rev-parse", "--short", "main") == row["committed"], row
+
+
+def test_a_job_not_enrolled_pushes_nothing(tree, origin, monkeypatch):
+    monkeypatch.setattr(agent_runner, "AUTO_PUSH", set())
+    before = _git(origin, "rev-parse", "main")
+    assert _run_with(monkeypatch, _report_commit(tree), tree)["outcome"] == "ok"
+    assert _git(origin, "rev-parse", "main") == before
+
+
+def test_a_red_pre_push_stops_the_push(tree, origin, monkeypatch):
+    monkeypatch.setattr(agent_runner, "PRE_PUSH", ["false"])
+    before = _git(origin, "rev-parse", "main")
+    row = _run_with(monkeypatch, _report_commit(tree), tree)
+    assert row["outcome"] == "failed" and "not pushed" in row["reason"] and row["committed"], row
+    assert _git(origin, "rev-parse", "main") == before
+
+
+def test_a_commit_touching_another_file_is_not_pushed(tree, origin, monkeypatch):
+    before = _git(origin, "rev-parse", "main")
+    script = f"echo changed >> {tree / JOB.writes} && echo x > {tree / 'other.txt'} && {COMMIT}"
+    row = _run_with(monkeypatch, ["sh", "-c", script], tree)
+    assert row["outcome"] == "failed" and "other.txt" in row["reason"], row
+    assert _git(origin, "rev-parse", "main") == before
+
+
+def test_a_remote_that_moved_refuses_the_push_and_nothing_forces_it(tree, origin, tmp_path, monkeypatch):
+    other = tmp_path / "other"
+    _git(tmp_path, "clone", "-q", str(origin), str(other))
+    identity = ("-c", "user.name=t", "-c", "user.email=t@example.invalid")
+    _git(other, *identity, "commit", "-q", "--allow-empty", "-m", "chore: elsewhere")
+    _git(other, "push", "-q", "origin", "HEAD:main")
+    moved = _git(origin, "rev-parse", "main")
+    row = _run_with(monkeypatch, _report_commit(tree), tree)
+    assert row["outcome"] == "failed" and "not pushed" in row["reason"], row
+    assert _git(origin, "rev-parse", "main") == moved
+
+
+def test_an_agent_that_leaves_the_checkout_on_its_own_branch_is_failed(tree, monkeypatch):
+    """sky-vault: committed on a branch it cut, and the ledger said `ok` on the base branch."""
+    script = f"git checkout -q -b mine && echo changed >> {tree / JOB.writes} && {COMMIT}"
+    row = _run_with(monkeypatch, ["sh", "-c", script], tree)
+    assert row["outcome"] == "failed" and "'mine'" in row["reason"], row
+
+
+def test_an_ok_run_still_names_what_it_was_refused(tree, monkeypatch):
+    denial = '{"permission_denials": [{"tool_name": "WebFetch"}]}'
+    write = f"echo changed >> {tree / JOB.writes} && {COMMIT}"
+    row = _run_with(monkeypatch, ["sh", "-c", f"{write}; echo '{denial}'"], tree)
+    assert row["outcome"] == "ok" and "WebFetch" in row["reason"], row

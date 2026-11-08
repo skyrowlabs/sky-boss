@@ -12,8 +12,11 @@ import importlib
 import json
 import os
 import sys
+from pathlib import Path
 
 import click
+
+from scripts.output import EXIT_REFUSED
 
 from .helpers import PROJECT_ROOT, badge, detail, fail, line, ok, skip, warn
 
@@ -73,6 +76,18 @@ def _register() -> None:
 _register()
 
 
+def _main_checkout() -> str | None:
+    """The main checkout's path when this tree is a linked worktree, else None."""
+    from scripts.reporting import shellout
+
+    def ask(flag: str) -> str:
+        argv = ["git", "-C", str(PROJECT_ROOT), "rev-parse", "--path-format=absolute", flag]
+        return shellout.run(argv, capture_output=True, text=True).stdout.strip()
+
+    here, common = ask("--git-dir"), ask("--git-common-dir")
+    return str(Path(common).parent) if here and common and here != common else None
+
+
 @report.command()
 @click.option("--print", "print_", is_flag=True, help="emit the block for `crontab -e`")
 @click.option("--check", "check_", is_flag=True, help="does the LIVE crontab match the registry?")
@@ -84,6 +99,14 @@ def cron(print_: bool, check_: bool, install: bool) -> None:
     if print_ or not (check_ or install):
         click.echo(crontab_block())
         return
+
+    # Lines name the checkout they were made in, so a worktree's --check reads red
+    # and its --install would schedule a path `worktree drop` removes (sky.boss).
+    main = _main_checkout()
+    if main:
+        fail("this is a linked worktree, and the crontab's lines name the main checkout")
+        detail(f"Run `report cron --check` or `--install` from {main}.")
+        sys.exit(EXIT_REFUSED)
 
     from scripts.reporting import shellout
 

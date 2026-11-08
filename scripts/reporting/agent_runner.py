@@ -39,7 +39,7 @@ from scripts.lanes import SOURCE_ENV  # noqa: E402
 from scripts.output import line, skip, step  # noqa: E402
 from scripts.paths import PROJECT_ROOT  # noqa: E402
 from scripts.reporting import run_ledger, shellout  # noqa: E402
-from scripts.reporting.jobs import AGENT_TOOLS, FIX_POLICIES, JOBS_BY_KEY, SeatError, seat_env  # noqa: E402
+from scripts.reporting.jobs import AGENT_TOOLS, AUTO_PUSH, FIX_POLICIES, JOBS_BY_KEY, SeatError, seat_env  # noqa: E402
 
 PROMPTS = Path(__file__).resolve().parent / "prompts"
 
@@ -48,6 +48,12 @@ PROMPTS = Path(__file__).resolve().parent / "prompts"
 #: tree, and the next job in the grid then runs against a tree somebody else is
 #: mid-write in — so the timeout protects the schedule, not just this job.
 AGENT_TIMEOUT_S = 900
+
+#: What must pass before the runner pushes, and how long each step may take. The
+#: full check, because the tree's pre-push hook wants that tree stamped.
+PRE_PUSH = ["./dev", "check", "pre-push"]
+PRE_PUSH_TIMEOUT_S = 900
+PUSH_TIMEOUT_S = 120
 
 #: The headless agent, as an argv template. `{prompt}` is replaced with the
 #: whole prompt; the argv is executed directly, never through a shell.
@@ -313,7 +319,7 @@ def run_triage(job_key: str, collected: dict, *, base_branch: str = "develop") -
         return 1
 
     head_after = _head()
-    agent_ran, reason = _outcome(job, result, head_before != head_after, artifact_before)
+    agent_ran, reason = _settled(job, result, head_before, head_after, artifact_before, branch)
     run_ledger.record(
         run_ledger.Run(
             job=job.key,
@@ -355,10 +361,46 @@ def _outcome(job, result, head_moved: bool, artifact_before: str | None) -> tupl
         reason = "agent exited 0 and committed nothing, and this job's work is a commit"
     else:
         reason = "" if agent_ran else (result.stderr.strip()[-500:] or "agent exited non-zero")
-    denied = refused(result.stdout)
-    if not agent_ran and denied:
-        reason += f"; it was refused {len(denied)} tool call(s): {', '.join(sorted(set(denied)))}"
     return agent_ran, reason
+
+
+def _settled(job, result, head_before: str, head_after: str, artifact_before: str | None, branch: str):
+    """The run's verdict: did the work, stayed on its branch, and reached origin if it publishes.
+
+    Refusals go on the reason in an `ok` run too, where nothing else would show them.
+    """
+    agent_ran, reason = _outcome(job, result, head_before != head_after, artifact_before)
+    now = current_branch()
+    if agent_ran and job.commits and now != branch:
+        agent_ran, reason = False, f"agent left the checkout on '{now}', not '{branch}'; the next run would decline"
+    elif agent_ran and job.key in AUTO_PUSH:
+        problem = _publish(job, head_before, head_after, branch)
+        agent_ran, reason = not problem, f"committed but not pushed: {problem}" if problem else ""
+    denied = refused(result.stdout)
+    notes = [reason] if reason else []
+    if denied:
+        notes.append(f"it was refused {len(denied)} tool call(s): {', '.join(sorted(set(denied)))}")
+    return agent_ran, "; ".join(notes)
+
+
+def _publish(job, head_before: str, head_after: str, branch: str) -> str:
+    """Push the job's own commit, and say why not if it could not. Empty means it reached origin.
+
+    The runner does this, not the agent, so no grant ever includes a push. Only the
+    job's own file, never forced, and through the tree's pre-push hook.
+    """
+
+    def git(*args: str, timeout: int = PUSH_TIMEOUT_S):
+        return shellout.run(["git", *args], cwd=str(PROJECT_ROOT), capture_output=True, text=True, timeout=timeout)
+
+    changed = git("diff", "--name-only", head_before, head_after).stdout.split()
+    if changed != [job.writes]:
+        return f"the commit touches more than {job.writes}: {', '.join(changed) or 'nothing'}"
+    checked = shellout.run(PRE_PUSH, cwd=str(PROJECT_ROOT), capture_output=True, text=True, timeout=PRE_PUSH_TIMEOUT_S)
+    if checked.returncode != 0:
+        return f"`{' '.join(PRE_PUSH)}` exited {checked.returncode}: {checked.stdout.strip()[-300:]}"
+    pushed = git("push", "origin", branch)
+    return "" if pushed.returncode == 0 else f"`git push` refused: {pushed.stderr.strip()[-300:]}"
 
 
 def _head() -> str:

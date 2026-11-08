@@ -334,6 +334,11 @@ JOBS: list[Job] = [
 #: rules are narrower than a job needs (stash-flow); a key no job has fails the suite.
 AGENT_TOOLS: dict[str, tuple[str, ...]] = {}
 
+#: Jobs whose runner pushes their commit to the base branch, once it has passed
+#: `check pre-push`, when it touches only the job's `writes` file. Off unless a tree
+#: adds the key: it writes to that branch unattended, on this host's credentials.
+AUTO_PUSH: set[str] = set()
+
 #: **Add your own jobs, and any grant, as an append, in the space between the two
 #: frozen rules at the end of this section.** An entry edited into the list above is a
 #: change beside every entry a release adds, so it conflicts; an append does not.
@@ -341,6 +346,7 @@ AGENT_TOOLS: dict[str, tuple[str, ...]] = {}
 #:
 #:     JOBS += [Job(key="nightly-check", module="nightly_check", cadence="nightly 01:00", cron="0 1 * * *", writes="—")]
 #:     AGENT_TOOLS["repo-report"] = ("Bash(./dev docs *)",)
+#:     AUTO_PUSH.add("repo-report")
 
 
 # ── Extending JOBS ───────────────────────────────────────────────────────────

@@ -210,6 +210,13 @@ The runner passes these as `--allowedTools` on the default command. An
 own agent and its whole argv. A grant for a job that no longer exists fails
 `tests/test_reporting_jobs.py`.
 
+**To have a job's commit reach origin**, append `AUTO_PUSH.add("repo-report")`
+in the same space. It is off by default, because it writes to the base branch
+unattended on this host's credentials. The runner pushes, never the agent, so no
+grant needs a push. It pushes only a commit that touches nothing but the job's
+`writes` file, after a full `./dev check pre-push`, and never forces. A job
+stopped at any of those is recorded `failed`, with its commit still local.
+
 ## cron does not give you your login PATH
 
 A job that works in your shell and not under cron is almost always this, and it

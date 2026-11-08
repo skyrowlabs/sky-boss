@@ -64,4 +64,6 @@ widen your fix policy.
 
 1. Write the report.
 2. Re-stamp it (`--only`, above).
-3. Commit: `docs(reports): refresh the repository report for <window>`.
+3. Commit on the branch you are on, with no new branch and no pull request:
+   `docs(reports): refresh the repository report for <window>`. Your fix policy
+   allows exactly this commit.
