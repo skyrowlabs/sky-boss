@@ -564,6 +564,27 @@ in DECISIONS rather than message the tab.
       shell, keyed by PID and start tick, and closes it with "the shell ended" when the shell goes.
 - [x] **Does not do.** It never stops a shell, and it never types into a tab: the tab owns its shells.
 
+## Phase 20 (round 20): a launcher before the deck starts
+
+Asked by Jeston after `sb deck` reopened his last profile when he wanted a fresh one. Ruled: build
+it, with the last deck as the first row.
+
+- [x] **The screen.** `sb deck` with no `--profile`, no deck running and a terminal opens it before
+      any tab starts. Its rows are the last deck (`resume <profile>, N tabs`), the profiles with
+      their tab counts, and the agent folders, then `+ add a folder`. Enter opens a profile or the
+      last deck, or starts the ticked folders (or the one under the cursor). The first ticked is the
+      primary.
+- [x] **First run.** With no `[agent.*]` declared, the folders are those under `roots`. Starting
+      or saving declares the ticked ones as agents named by their folders.
+- [x] **Managing.** `s` saves the ticked folders as a profile, `d` deletes a profile or a declared
+      folder, and `a` adds a folder from `roots` or a typed path. A folder a profile lists is not
+      deleted, and the refusal names the profiles. Every write backs `deck.toml` up and splices it,
+      checked by parsing the result. A deleted block takes the comment written directly above it.
+- [x] **Inside a deck.** `sb deck launch` opens the same screen in a popup on M-r. It manages, and a
+      started folder opens as a tab. M-p was proposed and is Claude Code's own model picker.
+- [x] **Does not do.** `--profile NAME` and `--fresh` skip it, and so does a deck with no terminal,
+      which reopens its save as before.
+
 ## Dropped, and why
 
 - **Binding Ctrl-C for exit.** It is claude's interrupt, and forwarding it would put every
@@ -1269,3 +1290,13 @@ kept the TODOS pane's pid.
   command line held the pattern.
 - **Limit:** double quotes nested in a quoted `$(…)` split the pattern short. The self-match test
   still holds, so the cost is a shorter pattern in the notice.
+
+### 2026-11-08: a launcher before the deck starts
+
+- **Built** as round 20, in `skyboss/decklaunch.py`, which is pure, and `launcher` in `skyboss/deck.py`.
+- **Measured in a scratch tmux** with a throwaway `SB_HOME`: a first run listed the roots' folders,
+  and two ticked and started were declared and returned in order. A saved profile, a deleted
+  profile, and a start from ticked folders each wrote what they said.
+- **Found by the smoke, not the suite:** a deleted profile left its comment above the next one,
+  where it read as that profile's. The cursor jumped a row when a save grew the list, and the key
+  hint was cut off at 100 columns.

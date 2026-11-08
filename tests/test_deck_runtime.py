@@ -213,6 +213,7 @@ def test_no_terminal_exits_1_with_the_attach_sentence_and_never_attaches(server,
 
 def test_the_deck_warns_on_stderr_before_it_attaches(server, monkeypatch):
     monkeypatch.setattr(deck_, "has_terminal", lambda: True)
+    monkeypatch.setattr(deck_, "launcher", lambda running: ("resume", ("saved",)))
     result = invoke("deck")
     assert result.exit_code == 0, result.output
     assert "extended-keys" in result.stderr and "⚠️" in result.stderr
@@ -222,6 +223,7 @@ def test_the_deck_warns_on_stderr_before_it_attaches(server, monkeypatch):
 
 def test_an_attach_that_fails_is_exit_1_with_tmuxs_reason(server, monkeypatch, said):
     monkeypatch.setattr(deck_, "has_terminal", lambda: True)
+    monkeypatch.setattr(deck_, "launcher", lambda running: ("resume", ("saved",)))
 
     def refuse_attach(argv, replace=False):
         if replace:

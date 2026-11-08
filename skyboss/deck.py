@@ -43,7 +43,7 @@ import rich_click as click
 from skyboss import agents as agents_
 from skyboss import background
 from skyboss import column as column_
-from skyboss import deckasks, deckplus, decksave, deckwire
+from skyboss import deckasks, decklaunch, deckplus, decksave, deckwire
 from skyboss import keys as keys_
 from skyboss import resident as resident_
 from skyboss import shellwatch, theme
@@ -955,6 +955,7 @@ SHORTCUTS = {
     "fold": "M-c",
     "clear": "M-x",
     "add": "M-n",
+    "launch": "M-r",
 }
 NEVER_BOUND = frozenset({"C-c"})
 # Session options the panes read each frame, and the marks loop keeps the agent count in.
@@ -1040,6 +1041,19 @@ def deck_bindings(session: str) -> list[list[str]]:
             f"{{ if-shell -F '{clicked}' '{cycle}' 'switch-client -t =' }}",
         ],
         ["bind-key", "-T", table, keys["add"], *plus],
+        [
+            "bind-key",
+            "-T",
+            table,
+            keys["launch"],
+            "display-popup",
+            "-E",
+            "-w",
+            "100",
+            "-h",
+            "32",
+            f"exec {sb} deck launch",
+        ],
         ["bind-key", "-T", table, keys["outside"], "set-option", "-F", "-t", outer, HIDE_OPTION, f"#{{?{hide},,1}}"],
         ["bind-key", "-T", table, keys["layout"], *shlex.split(cycle)],
         ["bind-key", "-T", table, keys["previous"], "previous-window", "-t", tabs],
@@ -1134,6 +1148,7 @@ def hints() -> str:
         f"{k['previous']} {k['next']} tab",
         f"{k['older']} {k['newest']} messages",
         f"{k['add']} add",
+        f"{k['launch']} decks",
         f"{k['column']} panes",
         f"{k['fold']} fold",
         f"{k['clear']} clear done",
@@ -2237,9 +2252,10 @@ def deck(ctx: click.Context, profile_name: str | None, fresh: bool) -> None:
     sky.boss reads, and writes only through `sb deck add --keep`: `[agent.NAME]` takes `cwd`, `args` and a
     one-line `role`; `[profile.NAME]` takes `primary`, `tabs` and a `brief`
     appended to every agent it launches. Each agent is told the roster, roles
-    included, at launch. A deck that is not running comes back as it was saved:
-    with no `--profile` it reopens the saved tabs, and any tab with a saved
-    session resumes it. Inside tmux it switches this client;
+    included, at launch. With no `--profile` at a terminal it opens the
+    launcher first: the last deck to resume, the profiles, and the agent folders
+    to tick, save as a profile or delete (`sb deck launch`, M-r in a deck). The
+    last deck comes back as it was saved, each tab resuming its session. Inside tmux it switches this client;
     outside, it becomes `tmux attach`, so it emits no envelope.
     """
     if ctx.invoked_subcommand is not None:
@@ -2258,6 +2274,22 @@ def deck(ctx: click.Context, profile_name: str | None, fresh: bool) -> None:
     terminals = [decksave.Terminal("", cwd) for cwd in profile.terminals] if profile else []
     if starting and fresh:
         decksave.clear(config.session)
+    elif starting and not profile_name and has_terminal():
+        chosen = launcher(running=False)
+        if chosen is None:
+            return
+        config, more = load()
+        problems += more
+        if chosen[0] == decklaunch.PROFILE:
+            profile = config.profiles[chosen[1][0]]
+            terminals = [decksave.Terminal("", cwd) for cwd in profile.terminals]
+        elif chosen[0] == decklaunch.START:
+            profile = Profile(name="", primary=chosen[1][0], tabs=list(chosen[1][1:]))
+        else:
+            back = restored(config, problems)
+            saved_shells = decksave.load(config.session)[0].terminals
+            profile = back or profile
+            terminals = saved_shells if back or saved_shells else terminals
     elif starting and not profile_name:
         back = restored(config, problems)
         saved_shells = decksave.load(config.session)[0].terminals
@@ -2518,6 +2550,177 @@ def _picked(title: str, rows: list[str]) -> int | None:
     finally:
         sys.stdout.write(resident_.MOUSE_OFF + "\x1b[2J\x1b[H")
         sys.stdout.flush()
+
+
+def launch_rows(config: Config, running: bool) -> list[decklaunch.Row]:
+    """The launcher's rows: the save, the profiles, then the declared agents, or the roots' folders if none."""
+    saved = decksave.load(config.session)[0]
+    resume = (saved.profile or "saved", len(saved.tabs)) if saved.tabs else None
+    profiles = {name: len(profile.order()[0]) for name, profile in config.profiles.items()}
+    folders = [(a.name, a.directory, True) for a in config.agents.values() if a.source == DECK_FILE]
+    if not folders:
+        folders = [(p.name, p.cwd, False) for p in roots_places(config) if not p.problem]
+    return decklaunch.rows_of(resume, profiles, folders, running)
+
+
+def roots_places(config: Config) -> list[deckplus.Place]:
+    """Each folder under `roots` that no agent holds yet."""
+    declared = [(a.name, a.directory, a.source) for a in config.agents.values()]
+    roots = [os.path.expandvars(os.path.expanduser(root)) for root in config.roots]
+    return [place for place in deckplus.places(declared, roots, NAME) if not place.declared]
+
+
+def _launch_once(launch: decklaunch.Launch) -> tuple[decklaunch.Launch, decklaunch.Outcome]:
+    """Draw and read keys until the screen has work for its caller."""
+    with keys_.reader() as wait_for:
+        while True:
+            size = shutil.get_terminal_size()
+            lines = decklaunch.screen(launch, size.columns)
+            top = max(0, len(lines) - size.lines)
+            sys.stdout.write(resident_.MOUSE_ON + "\x1b[2J\x1b[H" + "\r\n".join(line for line, _ in lines[top:]))
+            sys.stdout.flush()
+            key = wait_for(60.0)
+            cell = keys_.clicked(key)
+            row = None
+            if cell is not None:
+                at = top + cell[1] - 1
+                row = lines[at][1] if 0 <= at < len(lines) else None
+                if row is None:
+                    continue
+            launch, outcome = decklaunch.step(launch, key, row)
+            if outcome is not None:
+                return launch, outcome
+
+
+def _declare(rows: list[decklaunch.Row], names: tuple[str, ...]) -> list[str]:
+    """Write each named folder not yet an agent into `deck.toml`, in one edit. Problems, if refused."""
+    new = [row for row in rows if row.kind == decklaunch.FOLDER and row.cwd and row.name in names]
+    if not new:
+        return []
+    path = home_file()
+    text = path.read_text() if path.exists() else ""
+    try:
+        for row in new:
+            text = deckplus.edited(text, row.name, row.cwd, "", "")
+        deckplus.write(path, text)
+    except (OSError, ValueError) as exc:
+        return [str(exc)]
+    return []
+
+
+def _write_edit(**change) -> str:
+    """Make one `decklaunch.edited` change to `deck.toml`. Empty, or why it was refused."""
+    path = home_file()
+    try:
+        text = path.read_text() if path.exists() else ""
+        deckplus.write(path, decklaunch.edited(text, **change))
+    except (OSError, ValueError) as exc:
+        return str(exc)
+    return ""
+
+
+def _cooked(launch_note: str) -> None:
+    sys.stdout.write(resident_.MOUSE_OFF + "\x1b[2J\x1b[H" + launch_note)
+    sys.stdout.flush()
+
+
+def _new_folder(config: Config) -> str:
+    """Pick a folder under `roots`, or type a path, and declare it. What to tell the operator."""
+    found = roots_places(config)
+    rows = [f"{p.name:<{max((len(q.name) for q in found), default=0)}}  {p.cwd}" for p in found] + ["type a path"]
+    chosen = _picked("Add which folder?", rows)
+    if chosen is None:
+        return ""
+    if chosen < len(found):
+        name, cwd = found[chosen].name, found[chosen].cwd
+    else:
+        cwd = os.path.expandvars(os.path.expanduser(click.prompt("path", default="", show_default=False).strip()))
+        if not cwd or not os.path.isdir(cwd):
+            return f"not a folder: {cwd or 'nothing typed'}"
+        name = click.prompt("name", default=os.path.basename(os.path.normpath(cwd)))
+    if not NAME.match(name):
+        return f"{name!r} cannot be a tab's name"
+    if name in config.agents:
+        return f"there is an agent {name!r} already"
+    row = decklaunch.Row(decklaunch.FOLDER, name, "", cwd)
+    problems = _declare([row], (name,))
+    return problems[0] if problems else f"added {name}"
+
+
+def launcher(running: bool) -> tuple[str, tuple[str, ...]] | None:
+    """The launcher, until it opens something: `(RESUME|PROFILE|START, names)`, or None to quit.
+
+    Running, it manages: a started folder opens as a tab and the screen stays.
+    """
+    ticked: set[str] = set()
+    on: tuple[str, str] = ("", "")
+    note = ""
+    try:
+        while True:
+            config, _ = load()
+            rows = launch_rows(config, running)
+            # The cursor follows its row by name, as a save or a delete moves the rows under it.
+            at = next((n for n, r in enumerate(rows) if (r.kind, r.name) == on), 0)
+            launch = decklaunch.Launch(rows, ticked & {r.name for r in rows}, at, running, note)
+            launch, outcome = _launch_once(launch)
+            ticked, note = launch.ticked, ""
+            on = (rows[launch.at].kind, rows[launch.at].name)
+            row = outcome.row
+            if outcome.action == decklaunch.QUIT:
+                return None
+            if outcome.action == decklaunch.OPEN and row is not None:
+                return (row.kind, (row.name,))
+            if outcome.action == decklaunch.START:
+                problems = _declare(rows, outcome.names)
+                if problems:
+                    note = problems[0]
+                elif not running:
+                    return (decklaunch.START, outcome.names)
+                else:
+                    for name in outcome.names:
+                        result = add_tab(name, "", "", keep=False)
+                        note = "; ".join(result.warnings) or f"opened {', '.join(outcome.names)}"
+                    ticked = set()
+            elif outcome.action == decklaunch.NEW:
+                _cooked("")
+                note = _new_folder(config)
+            elif outcome.action == decklaunch.DELETE and row is not None:
+                _cooked(f"delete {row.kind} {row.name}? (y/n) ")
+                with keys_.reader() as wait_for:
+                    sure = wait_for(60.0) in ("y", "Y")
+                if sure:
+                    change = {"drop_profile": row.name} if row.kind == decklaunch.PROFILE else {"drop_agent": row.name}
+                    note = _write_edit(**change) or f"deleted {row.name}"
+            elif outcome.action == decklaunch.SAVE:
+                _cooked("")
+                name = click.prompt("profile name", default="", show_default=False).strip()
+                if not NAME.match(name):
+                    note = f"{name!r} cannot be a profile's name" if name else "not saved"
+                else:
+                    problems = _declare(rows, outcome.names)
+                    note = problems[0] if problems else _write_edit(add_profile=(name, outcome.names))
+                    note = note or f"saved profile {name}"
+    finally:
+        _cooked("")
+
+
+@deck.command(name="launch")
+def deck_launch() -> None:
+    """The launcher: profiles and agent folders to open, add, save or delete. M-r in a deck.
+
+        sb deck launch
+
+    **This acts**, and needs a terminal: it writes `deck.toml` after a backup, and
+    in a running deck a folder opens as a tab. `sb deck` with no `--profile` opens
+    the same screen before any tab starts, with the last deck as its first row.
+    """
+    if not has_terminal():
+        raise click.UsageError("the launcher needs a terminal — `sb deck --profile NAME` opens a profile")
+    config, problems = load()
+    warn_now(problems)
+    if not has_session(inner(config.session)):
+        raise click.UsageError("no deck is running — `sb deck` opens the launcher before it starts one")
+    launcher(running=True)
 
 
 @deck.command(name="plus")
@@ -4636,6 +4839,7 @@ mark(deck_open, sb_acts=True)
 mark(deck_column_move, sb_acts=True)
 mark(deck_add, sb_acts=True)
 mark(deck_terminal, sb_acts=True)
+mark(deck_launch, sb_acts=True)
 mark(deck_plus, sb_acts=True)
 mark(deck_places, sb_acts=False)
 mark(deck_jump, sb_acts=True)
