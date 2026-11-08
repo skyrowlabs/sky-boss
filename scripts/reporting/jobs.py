@@ -365,6 +365,9 @@ AUTO_PUSH: set[str] = set()
 # explanation above IS ordinary prose and does get rewritten, which is why the
 # rule sits at the bottom of it rather than at the top.
 
+# Publishes the weekly report to `develop`, so it does not sit local until someone pushes it.
+AUTO_PUSH.add("repo-report")
+
 
 # ── Skeletor's again below this line ─────────────────────────────────────────
 #

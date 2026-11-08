@@ -48,6 +48,7 @@ def tree(tmp_path, monkeypatch):
     ledger = tmp_path / "state" / "ledger.jsonl"
     monkeypatch.setattr(agent_runner, "PROJECT_ROOT", repo)
     monkeypatch.setattr(agent_runner, "PROMPTS", prompts)
+    monkeypatch.setattr(agent_runner, "AUTO_PUSH", set())
     monkeypatch.setattr(run_ledger, "ledger_path", lambda: ledger)
     monkeypatch.delenv(JOB.heartbeat_var or "UNSET_HEARTBEAT", raising=False)
     return repo
