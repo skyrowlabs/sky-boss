@@ -1757,6 +1757,7 @@ def test_a_tab_opened_later_carries_the_loaded_profiles_brief(core, fake):
         ({"agent": {"x": {"cwd": "/x", "role": 3}}}, "role must be one line of text"),
         ({"agent": {"x": {"cwd": "/x", "role": "two\nlines"}}}, "role must be one line of text"),
         ({"profile": {"p": {"tabs": ["x"], "brief": ["a"]}}}, "brief must be text"),
+        ({"profile": {"p": {"tabs": ["x"], "brief": "a", "brief_file": "b.md"}}}, "not both"),
     ],
 )
 def test_a_bad_role_or_brief_is_a_problem_not_silence(raw, phrase):
@@ -1769,6 +1770,23 @@ def test_role_and_brief_are_known_keys():
         {"agent": {"x": {"cwd": "/x", "role": "r"}}, "profile": {"p": {"tabs": ["x"], "brief": "b"}}}
     )
     assert problems == [] and config.agents["x"].role == "r" and config.profiles["p"].brief == "b"
+
+
+def test_a_brief_file_is_read_each_time_from_sb_home(tmp_path):
+    (tmp_path / "deck.toml").write_text('[profile.p]\ntabs = ["x"]\nbrief_file = "core-brief.md"\n')
+    (tmp_path / "core-brief.md").write_text("Ask before pushing.\n")
+    config, problems = deck_.load(tmp_path)
+    profile = config.profiles["p"]
+    assert problems == [] and deck_.brief_path(profile.brief_file, tmp_path).read_text() == "Ask before pushing.\n"
+    profile.brief_file = str(tmp_path / "core-brief.md")
+    (tmp_path / "core-brief.md").write_text("Changed.\n")
+    assert profile.told() == "Changed.\n"
+
+
+def test_an_unreadable_brief_file_is_a_problem_and_adds_nothing(tmp_path):
+    (tmp_path / "deck.toml").write_text('[profile.p]\ntabs = ["x"]\nbrief_file = "/nowhere/brief.md"\n')
+    config, problems = deck_.load(tmp_path)
+    assert any("cannot be read" in p for p in problems) and config.profiles["p"].told() == ""
 
 
 # ============================================================================
