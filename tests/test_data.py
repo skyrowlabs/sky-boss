@@ -620,3 +620,15 @@ def test_rows_naming_an_empty_list_is_an_empty_answer_not_a_failure():
     result, envelope = invoke(["--rows", "reminders", "--", "printf", '{"reminders": []}'])
     assert result.exit_code == 0 and envelope["ok"] and not envelope["warnings"]
     assert envelope["data"] == {"reminders": []} and envelope["view"]["rows"] == "reminders"
+
+
+def test_a_command_that_cannot_be_executed_is_a_failed_read(tmp_path):
+    code, out = invoke_directory(tmp_path)
+    assert code == 1
+    assert out["ok"] is False
+    assert out["data"]["error"].startswith(f"cannot run {tmp_path}")
+
+
+def invoke_directory(path):
+    result = CliRunner().invoke(cli, ["--json", "data", "--", str(path), "list"])
+    return result.exit_code, json.loads(result.output)

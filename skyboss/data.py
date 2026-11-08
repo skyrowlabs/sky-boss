@@ -357,6 +357,11 @@ def _once(
         result.ok = False
         result.data = {"error": f"no such command: {argv[0]}{unresolved_hint(argv[0])}"}
         return result
+    except OSError as exc:
+        # A directory or a non-executable file: this source failed, not the caller reading it.
+        result.ok = False
+        result.data = {"error": f"cannot run {argv[0]}: {exc.strerror or exc}"}
+        return result
     except subprocess.TimeoutExpired:
         result.ok = False
         result.data = {"error": f"timed out after {timeout}s"}
