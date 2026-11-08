@@ -15,7 +15,7 @@ a Claude Code agent for one repo, with a primary agent coordinating them.
    - If it fails with "not running inside a tab", you are not in a deck. Say so
      to the operator and stop; do not message anyone.
 2. Confirm the roster is live with `sb agents --scope deck` (or ListAgents). The
-   primary's name is led by a `*`. A peer is reached by its deck name with
+   primary's name ends with a `*`. A peer is reached by its deck name with
    SendMessage. You are the primary when `data.agent` equals `data.primary`.
 3. **If you are not the primary**, send the primary one short message: your name,
    your repo, and what you are working on now (one line). Do not ask it for
