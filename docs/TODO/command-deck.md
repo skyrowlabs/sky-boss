@@ -1377,3 +1377,12 @@ kept the TODOS pane's pid.
   `done` and `rm` commands. The todos count again from that moment.
 - It goes through `tell_rulings`, still the only function that types into a pane, so the deck
   gains no second way to answer a prompt.
+
+### 2026-11-08: a dotted folder becomes a dashed tab
+
+- **Found by Jeston:** adding `skyrowlabs.com` through the `+` was refused with "would change
+  more than it should". TOML reads `[agent.skyrowlabs.com]` as a table nested in another, so the
+  edit's own check caught it, and the sentence did not say why.
+- A tab's name no longer takes a dot, which tmux also reads as a pane. A folder's name is offered
+  with its dots turned into dashes (`skyrowlabs-com`), and a typed dotted name is refused with
+  the reason.

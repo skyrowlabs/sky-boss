@@ -38,6 +38,11 @@ def _folders(root: str) -> list[Path]:
         return []
 
 
+def tab_name(folder: str) -> str:
+    """A folder's name as a tab can carry it: a dot or any other mark becomes a dash."""
+    return re.sub(r"[^A-Za-z0-9_-]+", "-", folder).strip("-")
+
+
 def places(declared: list[tuple[str, str, str]], roots: list[str], name_ok: re.Pattern) -> list[Place]:
     """`declared` as `(name, directory, source)`, then each new folder under `roots`.
 
@@ -53,13 +58,13 @@ def places(declared: list[tuple[str, str, str]], roots: list[str], name_ok: re.P
             if real in held:
                 continue
             held.add(real)
-            problem = ""
-            if not name_ok.match(folder.name):
+            problem, name = "", tab_name(folder.name)
+            if not name_ok.match(name):
                 problem = "this folder's name cannot be a tab's name"
-            elif folder.name in names:
-                problem = f"the name {folder.name!r} is taken by another folder"
-            names.add(folder.name)
-            out.append(Place(folder.name, str(folder), "roots", problem=problem))
+            elif name in names:
+                problem = f"the name {name!r} is taken by another folder"
+            names.add(name)
+            out.append(Place(name, str(folder), "roots", problem=problem))
     return out
 
 
