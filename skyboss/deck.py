@@ -49,7 +49,7 @@ from skyboss import resident as resident_
 from skyboss import shellwatch, theme
 from skyboss import todos as todos_
 from skyboss.chrome import ago, clock
-from skyboss.helpers import PROJECT_ROOT, SB_HOME, child_env, mark
+from skyboss.helpers import PROJECT_ROOT, SB_HOME, child_env, mark, parse_duration
 
 #: The Claude Code plugin every deck tab loads with `--plugin-dir`; see `plugin/` at the repo root.
 PLUGIN_DIR = PROJECT_ROOT / "plugin"
@@ -59,7 +59,7 @@ from skyboss.view import describe
 
 DECK_FILE = "deck.toml"
 DEFAULT_SESSION = "sb"
-TOP_LEVEL_KEYS = frozenset({"session", "pin", "panes", "themes", "theme_base", "roots", "trust"})
+TOP_LEVEL_KEYS = frozenset({"session", "pin", "panes", "themes", "theme_base", "roots", "trust", "todo_stale"})
 TOP_LEVEL_TABLES = frozenset({"agent", "profile"})
 AGENT_KEYS = frozenset({"cwd", "args", "role", "colour"})
 PROFILE_KEYS = frozenset({"primary", "tabs", "brief", "brief_file", "terminals", "columns", "session"})
@@ -235,6 +235,8 @@ class Config:
     theme_base: str = ""
     # A folder the deck opens an agent in is trusted in Claude Code's config first.
     trust: bool = True
+    # Seconds an open todo goes unchecked before the deck asks its tab to recheck it; 0 is never.
+    todo_stale: int = todos_.STALE_AFTER
     # Directories whose folders the `+` offers.
     roots: list[str] = field(default_factory=list)
     # deck.toml's `session`, which names a profile's deck; `session` is this process's deck.
@@ -319,6 +321,15 @@ def parse(raw: dict) -> tuple[Config, list[str]]:
             config.themes = raw["themes"]
         else:
             problems.append("themes must be true or false — ignored")
+    if "todo_stale" in raw:
+        value = raw["todo_stale"]
+        if value is False:
+            config.todo_stale = 0
+        else:
+            try:
+                config.todo_stale = parse_duration(str(value))
+            except ValueError as exc:
+                problems.append(f"todo_stale: {exc} — or false for never; ignored")
     if "trust" in raw:
         if isinstance(raw["trust"], bool):
             config.trust = raw["trust"]
@@ -1314,8 +1325,12 @@ def tell_rulings(
     states: dict[str, str],
     labels: dict[str, str],
     now: datetime | None = None,
+    stale_after: int = 0,
 ) -> list[str]:
-    """Type one untold ruling into each agent's tab `may_tell` allows. Never into a scrolled pane."""
+    """Type one line into each agent's tab `may_tell` allows: an untold ruling, else a recheck of stale todos.
+
+    Never into a scrolled pane. A recheck waits for an idle tab and for every ruling to be told.
+    """
     problems: list[str] = []
     moment = now or datetime.now(timezone.utc)
     for pane in listed:
@@ -1325,21 +1340,28 @@ def tell_rulings(
             continue
         try:
             found = todos_.next_untold(session, agent)
+            stale = todos_.stale(session, agent, moment, stale_after) if found is None and stale_after else []
         except ValueError as exc:
             problems.append(f"{agent}: {exc}")
             continue
-        if found is None or not may_tell(state, found[1].closed, moment):
+        if found is not None and not may_tell(state, found[1].closed, moment):
+            continue
+        if found is None and not (stale and state in TELL_AT_ONCE):
             continue
         scrolled = tmux("display-message", "-p", "-t", pane.pane_id, "#{pane_in_mode}")
         if not scrolled.ok or scrolled.out.strip() == "1":
             continue
-        n, item = found
-        typed = tmux("send-keys", "-t", pane.pane_id, "-l", ruling_line(n, item))
+        line = ruling_line(*found) if found else recheck_line(stale, stale_after)
+        typed = tmux("send-keys", "-t", pane.pane_id, "-l", line)
         sent = tmux("send-keys", "-t", pane.pane_id, "Enter") if typed.ok else typed
-        if sent.ok:
-            todos_.told(session, agent, n)
+        if not sent.ok:
+            problems.append(
+                f"could not tell {agent!r} {'a ruling' if found else 'to recheck its todos'} — {_said(sent)}"
+            )
+        elif found:
+            todos_.told(session, agent, found[0])
         else:
-            problems.append(f"could not tell {agent!r} a ruling — {_said(sent)}")
+            todos_.rechecked(session, agent, stale, moment)
     return problems
 
 
@@ -1395,8 +1417,11 @@ def marks_once(
     adapters: list | None = None,
     colours: dict[str, str] | None = None,
     wires: Wires | None = None,
+    stale_after: int = 0,
 ) -> Result:
-    """Write each tab's state where it changed, and the time it was written. Acts on tmux only."""
+    """Write each tab's state where it changed, and the time it was written. Acts on tmux only.
+
+    It also types: each untold ruling, and a recheck of todos open over `stale_after` seconds."""
     result = Result()
     name = inner(session)
     present = has_session(name)
@@ -1427,7 +1452,7 @@ def marks_once(
         result.degrade(problem)
     for problem in scroll_once(session):
         result.degrade(problem)
-    for problem in tell_rulings(session, listed, states, labels):
+    for problem in tell_rulings(session, listed, states, labels, stale_after=stale_after):
         result.degrade(problem)
     if wires is not None:
         wires.update(listed, sessions, parent_of)
@@ -3426,7 +3451,7 @@ def deck_marks(every: int | None, ticks: int | None) -> Result:
             owner = _marks_owner(config.session)
             if not has_session(inner(config.session)) or (owner is not None and str(owner) != own):
                 break
-            marks_once(config.session, written, colours=coloured, wires=wires)
+            marks_once(config.session, written, colours=coloured, wires=wires, stale_after=config.todo_stale)
             if ticks is not None and count >= ticks:
                 break
             SLEEP(every)
@@ -4720,7 +4745,15 @@ def _book_list(book: str, source: str, every: bool, refresh: int | None, ticks: 
         if mine is not None:
             order = [pair for pair in order if pair[0] == mine] or [(mine, 0)]
         held = (deckasks.read_held(config.session) or {}) if book == todos_.DECISIONS else None
-        return todos_.result_of(config.session, order, paint=bool(refresh and screen), only=mine, book=book, held=held)
+        return todos_.result_of(
+            config.session,
+            order,
+            paint=bool(refresh and screen),
+            only=mine,
+            book=book,
+            held=held,
+            stale_after=config.todo_stale,
+        )
 
     pane = DeckPane(config.session, lambda row: True, scroll=True, top=True, role=book)
     return _resident(source, once, refresh, ticks, screen, keep_from_top("row(s)", pane), pane)
@@ -5060,6 +5093,16 @@ def deck_decide_sweep() -> None:
     if age >= HELD_EVERY:
         deckasks.write_held(config.session, [deckasks.held_of(repo) for repo in deck_repos(config.session)])
     watch_shells(config.session)
+
+
+def recheck_line(numbers: list[int], after: int) -> str:
+    """What the sweep types into a tab whose todos `numbers` are stale."""
+    which = f"todo {numbers[0]} has" if len(numbers) == 1 else f"todos {', '.join(map(str, numbers))} have"
+    return (
+        f"Your AGENT TODOs: {which} been open over {ago(after)} without a check. Is each still valid? "
+        "Close what is done with `sb deck todo done <n>`, drop what no longer applies with "
+        "`sb deck todo rm <n>`, and leave the rest."
+    )
 
 
 def watch_shells(session: str, adapters: list | None = None, proc: Path = Path("/proc")) -> list[str]:

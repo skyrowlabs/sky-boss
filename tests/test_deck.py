@@ -2820,6 +2820,65 @@ def test_an_untold_ruling_is_typed_once_into_an_idle_tab_and_not_at_once_into_a_
     assert len(fake.find("send-keys")) == 2
 
 
+def _jam_tab(fake):
+    fake.add("sb-agents", "jam", agent="jam", role="agent", pid=10)
+    listed, _ = deck_.panes("sb-agents")
+    fake.current = "0"
+    return listed, listed[0].window_id, {listed[0].window_id: "jam"}
+
+
+def test_a_stale_todo_is_put_to_an_idle_tab_once_and_counts_again_from_then(fake, sb_state):
+    from skyboss import todos
+
+    listed, window, labels = _jam_tab(fake)
+    todos.add("sb", "jam", "port the round")
+    later = datetime.now(timezone.utc) + timedelta(hours=7)
+    assert deck_.tell_rulings("sb", listed, {window: "busy"}, labels, later, 6 * 3600) == []
+    assert not fake.find("send-keys")
+    deck_.tell_rulings("sb", listed, {window: "idle"}, labels, later, 6 * 3600)
+    typed = fake.find("send-keys")
+    assert "todo 1 has been open over" in typed[0][-1] and "sb deck todo rm <n>" in typed[0][-1]
+    kept = todos.load("sb", "jam")
+    assert kept is not None and kept.items[0].checked
+    deck_.tell_rulings("sb", listed, {window: "idle"}, labels, later, 6 * 3600)
+    assert len(fake.find("send-keys")) == 2
+
+
+def test_a_ruling_still_to_be_told_goes_before_a_recheck(fake, sb_state):
+    from skyboss import todos
+
+    listed, window, labels = _jam_tab(fake)
+    todos.add("sb", "jam", "port the round")
+    todos.add("sb", "jam", "take it?", todos.DECISIONS)
+    todos.rule("sb", "jam", 1, "hold ours")
+    later = datetime.now(timezone.utc) + timedelta(hours=7)
+    deck_.tell_rulings("sb", listed, {window: "idle"}, labels, later, 6 * 3600)
+    assert fake.find("send-keys")[0][-1].startswith("The operator ruled")
+
+
+def test_no_recheck_when_stale_is_off_or_the_todo_is_fresh(fake, sb_state):
+    from skyboss import todos
+
+    listed, window, labels = _jam_tab(fake)
+    todos.add("sb", "jam", "port the round")
+    later = datetime.now(timezone.utc) + timedelta(hours=7)
+    deck_.tell_rulings("sb", listed, {window: "idle"}, labels, later, 0)
+    deck_.tell_rulings("sb", listed, {window: "idle"}, labels, datetime.now(timezone.utc), 6 * 3600)
+    assert not fake.find("send-keys")
+
+
+def test_a_stale_todo_is_marked_in_the_pane_and_a_done_one_never_is(sb_state):
+    from skyboss import todos
+
+    todos.add("sb", "jam", "port the round")
+    todos.add("sb", "jam", "shipped")
+    todos.done("sb", "jam", 2)
+    later = datetime.now(timezone.utc) + timedelta(hours=7)
+    rows, _ = todos.rows_of("sb", [("jam", 0)], later, only="jam")
+    marked = ["stale" in "".join(str(p[0]) for p in r["parts"]) for r in rows if r.get("n")]
+    assert marked == [True, False]
+
+
 def test_a_finished_turn_with_a_background_job_takes_a_ruling_at_once(fake, sb_state):
     from skyboss import todos
 

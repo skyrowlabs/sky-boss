@@ -42,6 +42,8 @@ NO_LIST = "no list kept"
 NO_DECISIONS = "none recorded"
 NOTHING_OPEN = "nothing open"
 EMPTY = {TODOS: NO_LIST, DECISIONS: NO_DECISIONS}
+#: How long an open todo goes unchecked before it is stale: `todo_stale` in deck.toml.
+STALE_AFTER = 6 * 3600
 
 
 @dataclass
@@ -60,6 +62,8 @@ class Item:
     cwd: str = ""
     until: str = ""
     state: str = ""
+    # When the deck last asked the agent to recheck this todo; staleness counts from the later of this and `added`.
+    checked: str = ""
 
 
 @dataclass
@@ -209,6 +213,32 @@ def next_untold(session: str, agent: str) -> tuple[int, Item] | None:
     return None
 
 
+def is_stale(item: Item, now: datetime, after: int = STALE_AFTER) -> bool:
+    """An open todo neither added nor rechecked in the last `after` seconds. Never one with no time."""
+    if item.done or not after:
+        return False
+    try:
+        since = max(datetime.fromisoformat(stamp) for stamp in (item.added, item.checked) if stamp)
+    except ValueError:
+        return False
+    return (now - since).total_seconds() >= after
+
+
+def stale(session: str, agent: str, now: datetime, after: int = STALE_AFTER) -> list[int]:
+    """The numbers of `agent`'s stale todos. Raises `ValueError` for an unreadable list."""
+    todo = load(session, agent)
+    return [n for n, item in enumerate(todo.items if todo else [], start=1) if is_stale(item, now, after)]
+
+
+def rechecked(session: str, agent: str, numbers: list[int], when: datetime) -> TodoList:
+    """Todos `numbers` were put to their agent to recheck at `when`."""
+    todo = load(session, agent)
+    for n in numbers:
+        _item(todo, n).checked = when.isoformat()
+    assert todo is not None
+    return save(todo)
+
+
 def remove(session: str, agent: str, n: int, book: str = TODOS) -> TodoList:
     todo = load(session, agent, book)
     _item(todo, n)
@@ -302,6 +332,7 @@ def rows_of(
     only: str | None = None,
     book: str = TODOS,
     held: dict | None = None,
+    stale_after: int = STALE_AFTER,
 ) -> tuple[list[dict], list[str]]:
     """One heading row per agent, then its items, unless `only` names one agent.
 
@@ -355,6 +386,8 @@ def rows_of(
                 "✓ " + item.text + (f" → {item.ruling}" if item.ruling else "") + (" · untold" if item.untold else "")
             )
             parts = [[f"  {n}. ", "sb.muted"], [closed, "sb.muted"]] if item.done else _open_parts(n, item)
+            if not deciding and is_stale(item, now, stale_after):
+                parts.append(["  · stale", "sb.warn"])
             rows.append(_row(book, name, "item", parts, todo, n, item))
     if deciding and not only and held is not None:
         rows += _held_rows(held, now)
@@ -422,9 +455,10 @@ def result_of(
     only: str | None = None,
     book: str = TODOS,
     held: dict | None = None,
+    stale_after: int = STALE_AFTER,
 ) -> Result:
     result = Result()
-    rows, problems = rows_of(session, order, datetime.now(timezone.utc), paint, only, book, held)
+    rows, problems = rows_of(session, order, datetime.now(timezone.utc), paint, only, book, held, stale_after)
     for problem in problems:
         result.warn(problem)
     if not rows:
