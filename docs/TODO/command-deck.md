@@ -1353,3 +1353,16 @@ kept the TODOS pane's pid.
   consumer matches on. `--scope all` still never asks the deck, so it carries no mark.
 - `/deck-connect` run in the primary now sends each live peer one line asking what it is working
   on, where before it told the primary not to broadcast.
+
+### 2026-11-08: a new folder is trusted before its tab opens
+
+- **Found by Jeston:** a `+` tab in a folder Claude Code had never opened stopped at its trust
+  prompt, and AGENT LIST called it only `unregistered`. Claude Code also loads the deck's plugin
+  without its hooks there, so the tab missed its brief.
+- **Ruled:** sky.boss trusts the folder itself. Every tab the deck opens sets
+  `projects[<folder>].hasTrustDialogAccepted` in Claude Code's config first, after a backup into
+  `$SB_HOME/backups/`, and says so. `trust = false` in deck.toml turns it off, and then the opening
+  says the prompt is coming instead.
+- Claude Code's own messages name this key as the way to trust a folder, and its `saveGlobalConfig`
+  merges each write against the file on disk, so a running tab does not undo the entry. Both were
+  read from the 2.1.319 binary, not from documentation.
