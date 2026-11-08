@@ -43,3 +43,7 @@ the loser is whoever runs them in the wrong order.
 `check pre-push` and the `node` job run `typecheck`, `test` and `build` when `package.json` has them, so a suite you add is gated without wiring. The template ships none, because it does not pick a test runner, and a tree without them prints `no subject`.
 
 Once a script exists, name it in `skeletor.requiredScripts` in `package.json`. Without that, deleting the script turns a red into `no subject`; with it, the run is refused.
+
+## The version in `package.json`
+
+Release Please's `extra-files` bump `version` in `package.json` and `package-lock.json`. The template ships no `version` there, so nothing is bumped until you add one. Release Please still rewrites `package.json` on each release, which can change escapes and line breaks (sky.boss, v0.3.0).

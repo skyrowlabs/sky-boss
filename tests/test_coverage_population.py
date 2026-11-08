@@ -291,3 +291,11 @@ def test_a_floor_of_zero_has_nothing_to_enforce(tree, tmp_path, monkeypatch, cap
     monkeypatch.setattr(budget, "GITHUB_DIR", tmp_path / ".github")
     tree(SCAFFOLDED)
     assert "no workflow" not in capsys.readouterr().err
+
+
+def test_coverage_writes_its_data_under_tmp(monkeypatch):
+    """Not beside the README (node-zero, dream-doll, sky-vault), and the ratchet reads it there."""
+    from scripts.paths import PROJECT_ROOT, TMP_DIR
+
+    monkeypatch.chdir(PROJECT_ROOT)
+    assert budget._data_file().parent == TMP_DIR

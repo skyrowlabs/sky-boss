@@ -66,3 +66,9 @@ markers = [
     "security: security test",
     "ui: drives a user interface — a TUI pilot, a browser, an Electron window",
 ]
+
+# coverage's data file goes under tmp/ with the run's other output, not beside the
+# README (node-zero, dream-doll, sky-vault). Only the location: `source` stays
+# unset, for the reason in scripts/check_coverage_budget.py.
+[tool.coverage.run]
+data_file = "tmp/.coverage"

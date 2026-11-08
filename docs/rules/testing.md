@@ -41,6 +41,11 @@ suite writes it for you.
 
 `tests/test_marker_coverage.py` fails the unit suite if a test file declares no marker.
 
+Your own tests can live in `tests/` or in subfolders such as `tests/<area>/`. pytest
+collects a subfolder and the marker check walks it, so it needs no registration. `tests/`
+is not a package, so a file name must be unique across all of `tests/`. Two
+`test_cache.py` files in different folders fail collection with `import file mismatch`.
+
 **Never** add a per-feature CI step, a `run_tests.sh` case, or a CLI entry for a new test
 file. Those are registries, and *forgetting to update a registry is the same bug* the marker
 exists to remove. Dual-environment files list multiple markers.
