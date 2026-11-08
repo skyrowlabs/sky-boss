@@ -137,6 +137,8 @@ _ISOLATED_HOME = Path(tempfile.mkdtemp(prefix="sb-home-")) / "home"
 os.environ["SB_HOME"] = str(_ISOLATED_HOME)
 # The deck may write console themes into Claude Code's configuration; never the operator's.
 os.environ["CLAUDE_CONFIG_DIR"] = str(_ISOLATED_HOME.parent / "claude")
+# Inside a deck tab the suite would inherit that deck; a test names its deck through deck.toml.
+os.environ.pop("SB_DECK", None)
 
 # And never the *agent-state* root, which is a third environment the suite must
 # not inherit. Unlike the two above it has no sky.boss-owned default to fall back

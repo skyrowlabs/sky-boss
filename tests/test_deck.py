@@ -10,6 +10,7 @@ import functools
 import json
 import re
 import shlex
+import tomllib
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -393,7 +394,7 @@ def test_the_tabs_session_comes_first_so_the_tab_pane_has_something_to_attach_to
 
 def test_bare_deck_execs_attach_at_a_terminal(fake, home, monkeypatch):
     monkeypatch.setattr(deck_, "has_terminal", lambda: True)
-    monkeypatch.setattr(deck_, "launcher", lambda running: ("resume", ("saved",)))
+    monkeypatch.setattr(deck_, "launcher", lambda running: ("resume", ("sb",)))
     result = invoke("deck")
     assert result.exit_code == 0, result.output
     assert fake.replaced == [["tmux", "attach-session", "-t", "=sb"]]
@@ -486,8 +487,10 @@ def test_an_unresolvable_pin_opens_the_deck_without_it(fake, home, said):
 # ============================================================================
 
 
+# `session = "sb"` keeps these on the base deck; a profile's own deck name is tested on its own.
 PROFILE = """
 [profile.core]
+session = "sb"
 primary = "ws"
 tabs = ["jam", "mind", "ws", "jam"]
 [agent.ws]
@@ -556,7 +559,7 @@ def test_a_profile_on_a_live_deck_opens_only_what_is_missing_and_restores_the_or
 
 
 def test_an_unresolvable_tab_is_a_warning_and_no_tab(fake, home, tmp_path, said):
-    home(PROFILE.format(d=tmp_path) + '[profile.more]\ntabs = ["ghost", "jam"]\n')
+    home(PROFILE.format(d=tmp_path) + '[profile.more]\nsession = "sb"\ntabs = ["ghost", "jam"]\n')
     result = invoke("deck", "--profile", "more")
     assert "profile 'more' 'ghost'" in said(result) and fake.tabs() == ["jam"]
 
@@ -1103,6 +1106,7 @@ def test_the_queue_is_an_observe_and_the_rest_act():
         "terminal": True,
         "plus": True,
         "launch": True,
+        "profile": True,
         "places": False,
         "jump": True,
         "layout": True,
@@ -1217,7 +1221,7 @@ def test_the_deck_starts_one_marks_job_on_its_own_server(fake, home):
     invoke("deck")
     (job,) = fake.find("run-shell")
     sb = str(deck_.PROJECT_ROOT / "sb")
-    assert job[2] == "-b" and job[3] == f"{shlex.quote(sb)} deck marks --every 3 >/dev/null 2>&1 || true"
+    assert job[2] == "-b" and job[3] == f"env SB_DECK=sb {shlex.quote(sb)} deck marks --every 3 >/dev/null 2>&1 || true"
 
 
 def test_a_live_marks_loop_is_not_started_twice(fake, home, monkeypatch):
@@ -1619,6 +1623,7 @@ def test_an_empty_option_as_tmux_prints_it_is_empty():
 
 CORE = """
 [profile.core]
+session = "sb"
 primary = "skyrow-workspace"
 tabs = ["stash-flow", "mind-head"]
 brief = '''Coordinate through the workspace.
@@ -3046,3 +3051,75 @@ def test_a_todo_row_click_opens_nothing(fake, home, monkeypatch):
     pane.lines += [" one"]
     pane.rows = [{"kind": "item", "agent": "a", "n": 1}]
     assert not pane.on_key("click:3:4") and not opened
+
+
+# ============================================================================
+# Several decks: each profile its own session, and each tab told which deck it is in
+# ============================================================================
+
+
+def test_a_tab_acts_on_the_deck_its_environment_names(home, monkeypatch):
+    home('session = "work"\n')
+    monkeypatch.setenv("SB_DECK", "sb-core")
+    config, _ = deck_.load()
+    assert (config.session, config.base) == ("sb-core", "work")
+
+
+@pytest.mark.parametrize(
+    "body, expected",
+    [({}, "sb-core"), ({"session": "mine"}, "mine")],
+)
+def test_a_profile_runs_as_its_own_deck(body, expected):
+    config, _ = parse({"profile": {"core": {"tabs": ["x"], **body}, "a.b": {"tabs": ["x"]}}})
+    assert deck_.deck_session(config, config.profiles["core"]) == expected
+    assert deck_.deck_session(config, config.profiles["a.b"]) == "sb-a_b"
+    assert deck_.deck_session(config, None) == "sb"
+
+
+def test_a_profiles_deck_starts_as_its_own_session_and_marks_its_environment(fake, home, tmp_path):
+    home(f'[profile.core]\nprimary = "ws"\n[agent.ws]\ncwd = "{tmp_path}"\n')
+    invoke("deck", "--profile", "core")  # no terminal to attach to, so only the sessions are asked about
+    created = [call for call in fake.find("new-session") if "-s" in call]
+    assert {call[call.index("-s") + 1] for call in created} == {"sb-core", "sb-core-agents"}
+    assert all(f"SB_DECK=sb-core" in call for call in created)
+    assert ["tmux", "set-environment", "-t", "=sb-core", "SB_DECK", "sb-core"] in fake.calls
+
+
+def test_ticked_folders_start_beside_a_running_base_deck(fake, home, monkeypatch):
+    fake.session("sb-agents")
+    assert deck_.free_session("sb") == "sb-2"
+
+
+def test_profile_list_says_which_deck_each_runs_as(fake, home, tmp_path):
+    home(f'[profile.core]\nprimary = "ws"\n[agent.ws]\ncwd = "{tmp_path}"\n')
+    data = json.loads(invoke("--json", "deck", "profile", "list").output)["data"]
+    assert data == [{"profile": "core", "tabs": "ws", "deck": "sb-core", "running": False}]
+
+
+def test_profile_delete_backs_up_and_removes_only_that_profile(fake, home, tmp_path):
+    path = (
+        home(f'[agent.ws]\ncwd = "{tmp_path}"\n\n[profile.core]\nprimary = "ws"\n\n[profile.solo]\nprimary = "ws"\n')
+        / "deck.toml"
+    )
+    assert invoke("deck", "profile", "delete", "core").exit_code == 0
+    assert "[profile.core]" not in path.read_text() and "[profile.solo]" in path.read_text()
+    assert list((tmp_path / "backups").glob("deck.*.toml"))
+
+
+def test_profile_save_writes_the_decks_tabs_and_keeps_a_replaced_profiles_brief(fake, home, tmp_path, monkeypatch):
+    path = (
+        home(f'[agent.ws]\ncwd = "{tmp_path}"\n\n[profile.core]\nprimary = "ws"\nbrief_file = "core.md"\n')
+        / "deck.toml"
+    )
+    fake.session("sb-agents")
+    monkeypatch.setattr(deck_, "deck_as_profile", lambda config, s: (("ws", "new"), ("/tmp",), {"new": str(tmp_path)}))
+    assert invoke("deck", "profile", "save", "core").exit_code != 0
+    assert invoke("deck", "profile", "save", "core", "--replace").exit_code == 0
+    written = tomllib.loads(path.read_text())
+    assert written["profile"]["core"] == {
+        "primary": "ws",
+        "tabs": ["new"],
+        "terminals": ["/tmp"],
+        "brief_file": "core.md",
+    }
+    assert written["agent"]["new"] == {"cwd": str(tmp_path)}
