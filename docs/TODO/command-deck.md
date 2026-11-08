@@ -1343,3 +1343,13 @@ kept the TODOS pane's pid.
   marks loops and the panes carried theirs, and `sb deck profile list` showed both running.
 - tmux 3.8 passes a session's `set-environment` to new windows, splits and `run-shell -t`,
   measured before relying on it.
+
+### 2026-11-08: the primary is marked, and connects from its own tab
+
+- **Asked for by Jeston**, relayed by skyrow-workspace: run in the primary, `/deck-connect` should
+  connect to the other agents, and the agent list should mark the primary with a `*`.
+- AGENT LIST and `sb agents --scope deck` lead the primary's name with `* `, first so a cut name keeps it, and both envelopes
+  carry a `primary` field. The mark is drawn in parts, so `name` and `window` stay the bare name a
+  consumer matches on. `--scope all` still never asks the deck, so it carries no mark.
+- `/deck-connect` run in the primary now sends each live peer one line asking what it is working
+  on, where before it told the primary not to broadcast.

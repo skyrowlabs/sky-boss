@@ -1636,6 +1636,15 @@ def write_theme(agent: str, colour: str, base: str) -> list[str]:
 
 # Session option on the tabs session: the agent the operator coordinates from.
 PRIMARY_OPTION = "@sb-primary"
+#: What leads the primary's name in AGENT LIST and in `sb agents --scope deck`: first, so a cut name keeps it.
+PRIMARY_MARK = "* "
+
+
+def marked_width(name: str, primary: bool | None) -> int:
+    """A name's width as drawn: with the primary's mark when it is the primary."""
+    return len(name) + (len(PRIMARY_MARK) if primary else 0)
+
+
 # The profile the deck was last opened with, so a later tab gets its brief.
 PROFILE_OPTION = "@sb-profile"
 
@@ -4056,13 +4065,16 @@ def tree(root: int, parent_of: dict[int, int]) -> list[int]:
     return seen
 
 
-def _row(where: str, window: str, status: str, session, pid: int, now: datetime, colour: str = "") -> dict:
+def _row(
+    where: str, window: str, status: str, session, pid: int, now: datetime, colour: str = "", primary: bool = False
+) -> dict:
     started = session.started if session else None
     state = STATES.get(status, status)
     return {
         "where": where,
         "window": window,
-        "window_parts": [[window, colour or None]],
+        "window_parts": ([[PRIMARY_MARK, colour or None]] if primary else []) + [[window, colour or None]],
+        "primary": primary,
         "state": state,
         "state_parts": [[state, "sb.warn" if status == WAITING else "sb.accent" if status == "busy" else None]],
         "status": status,
@@ -4202,6 +4214,15 @@ def deck_windows(listed: list[Pane], sessions: list, parent_of: dict[int, int]) 
     return entries, claimed
 
 
+def primary_ids(sessions: list) -> set[str]:
+    """The ids of the sessions running in this deck's primary tab: none when no primary is set."""
+    config, _ = load()
+    if not has_session(inner(config.session)):
+        return set()
+    primary = deck_primary(config.session)
+    return {sid for sid, (label, _) in placement(sessions).items() if primary and label == primary}
+
+
 def placement(sessions: list) -> dict[str, tuple[str, int]]:
     """Session id → the deck agent it runs as and that agent's tab slot, for sessions in a deck tab."""
     config, _ = load()
@@ -4262,10 +4283,12 @@ def queue_rows(
     now: datetime,
     paint: bool = False,
     proc: Path = Path("/proc"),
+    primary: str = "",
 ) -> list[dict]:
     """One row per deck window, most active first; then every live session outside the deck, the same way.
 
     Painted, a window's name takes its tab's colour, as MESSAGES and TODOS draw it.
+    The `primary` tab's name is led by a `*`.
     """
     entries, claimed = deck_windows(listed, sessions, parent_of)
     slots = agent_slots(listed)
@@ -4274,7 +4297,7 @@ def queue_rows(
         return theme.agent_role(label, slots[window_id]) if paint and window_id in slots else ""
 
     inside = [
-        _row("deck", label, status, session, pid, now, colour(window_id, label))
+        _row("deck", label, status, session, pid, now, colour(window_id, label), bool(primary) and label == primary)
         for window_id, label, status, session, pid in entries
     ]
     outside = [_row("outside", "", s.status, s, s.pid, now) for s in sessions if s.id not in claimed]
@@ -4285,17 +4308,20 @@ def queue_rows(
 
 
 INLINE = ("where", "window", "state", "bg", "name", "up", "cwd")
-HIDDEN = ("window_parts", "state_parts", "status", "pid", "id", "started", "jobs")
+HIDDEN = ("window_parts", "state_parts", "status", "primary", "pid", "id", "started", "jobs")
 
 
 def view_of(rows: list[dict]) -> dict:
     """Authored: these keys are sky.boss's own, so there is an order to state and nothing to infer.
 
     `status` and `window` are floored at their own width: the queue exists to show
-    those two words, and `unregister…` would be a different word.
+    those two words, and `unregister…` would be a different word. The primary's
+    `*` is drawn in `window_parts`, so the window column is measured with it.
     """
     columns = [describe(key, rows) for key in INLINE]
     for column in columns:
+        if column["key"] == "window":
+            column["max"] = max([column["max"]] + [marked_width(r["window"], r.get("primary")) for r in rows])
         if column["key"] in ("state", "window"):
             column["min"] = column["max"]
             column["segments"] = f"{column['key']}_parts"
@@ -4339,7 +4365,8 @@ def queue_result(
             if not answer.ok:
                 result.degrade(f"could not list the deck's tabs — {_said(answer)}")
 
-    rows = queue_rows(listed, sessions, parents(proc), datetime.now(timezone.utc), paint, proc)
+    primary = deck_primary(config.session) if listed else ""
+    rows = queue_rows(listed, sessions, parents(proc), datetime.now(timezone.utc), paint, proc, primary)
     result.data = rows if scope == "all" else [r for r in rows if r["where"] == scope]
     if not result.data:
         result.warn(f"no sessions {agents_.PLACES[scope]}" if rows else agents_.empty_reason(tally, len(chosen)))

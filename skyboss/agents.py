@@ -464,18 +464,24 @@ def _letter(n: int) -> str:
 # rather than dropped: a machine reading the envelope still gets the identity
 # and the pid. A view describes; it never filters.
 INLINE = ("provider", "name", "status", "claim", "up", "cwd")
-HIDDEN = ("id", "pid", "started")
+HIDDEN = ("id", "pid", "started", "primary")
 
 
-def rows_of(sessions: list[Session], now: datetime, letters: dict[str, str] | None = None) -> list[dict]:
+def rows_of(
+    sessions: list[Session], now: datetime, letters: dict[str, str] | None = None, primary: set[str] | None = None
+) -> list[dict]:
     """The envelope's rows. `up` is arithmetic on two instants, which is the
     thing [[schedule]] round 1 licensed — sky.boss may order and may subtract;
-    only a provider may judge."""
-    letters = letters or {}
+    only a provider may judge. A `primary` session's name is drawn with the deck's `*`."""
+    from skyboss.deck import PRIMARY_MARK
+
+    letters, primary = letters or {}, primary or set()
     return [
         {
             "provider": s.provider,
             "name": s.name,
+            **({"name_parts": [[PRIMARY_MARK, "sb.accent"], [s.name, None]]} if s.id in primary else {}),
+            "primary": s.id in primary,
             "status": s.status,
             "claim": letters.get(s.id, ""),
             "up": ago((now - s.started).total_seconds()) if s.started else "",
@@ -498,8 +504,16 @@ def view_of(rows: list[dict]) -> dict:
     agent table would spend width on the common case of no contention."""
     inline = [k for k in INLINE if k != "claim" or any(r.get("claim") for r in rows)]
     hidden = list(HIDDEN) + ([] if "claim" in inline else ["claim"])
+    columns = [describe(key, rows) for key in inline]
+    for column in columns:
+        if column["key"] == "name" and any(r.get("primary") for r in rows):
+            from skyboss.deck import marked_width
+
+            column["segments"] = "name_parts"
+            hidden.append("name_parts")
+            column["max"] = max([column["max"]] + [marked_width(r["name"], r.get("primary")) for r in rows])
     return {
-        "columns": [describe(key, rows) for key in inline],
+        "columns": columns,
         "details": [],
         "hidden": hidden,
         "authored": True,
@@ -588,15 +602,20 @@ def agents(only: str | None, scope: str = "all") -> Result:
         # the same whether it is alone in its repository or was never asked.
         result.warn(f"claims not derived for {unknown} directory(ies) — git could not be asked")
 
+    primary: set[str] = set()
     if scope != "all":
         # Letters were derived from every session, so a filtered row keeps its letter.
         sessions = _in_scope(sessions, scope, result)
         if sessions is None:
             result.data = []
             return result
+        if scope == "deck":
+            from skyboss import deck
+
+            primary = deck.primary_ids(sessions)
 
     now = datetime.now(timezone.utc)
-    result.data = rows_of(sessions, now, letters)
+    result.data = rows_of(sessions, now, letters, primary)
     if not result.data:
         result.warn(f"no sessions {PLACES[scope]}" if scope != "all" else empty_reason(tally, len(adapters)))
         return result
