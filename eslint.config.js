@@ -45,7 +45,7 @@ export default [
     // both worlds by design, and `main.js` holds renderer-shaped callbacks, so
     // a strict main/renderer split here would flag correct code. Revisit if the
     // shell grows files that are unambiguously one or the other.
-    files: ['shell/**/*.js'],
+    files: ['electron/**/*.js'],
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'commonjs',

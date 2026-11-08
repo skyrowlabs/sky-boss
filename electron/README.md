@@ -1,10 +1,10 @@
-# shell — the Electron window
+# electron — the Electron window
 
 Two shells, one bridge. Both spawn `sb ui --no-browser --port <free>` and
 change nothing under `skyboss/`.
 
 ```bash
-cd shell && npm install     # ~300 MB of prebuilt Chromium, once
+cd electron && npm install     # ~300 MB of prebuilt Chromium, once
 npm run start:canvas        # canvas-main.js — one window, the canvas inside
 npm start                   # main.js — one OS window per command
 ```

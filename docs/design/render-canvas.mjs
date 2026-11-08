@@ -10,7 +10,7 @@
  * names, in a picture headed for a public README. This is the same obligation
  * `tests/conftest.py` carries and for the same reason it states: a tool is an
  * argv sky.boss will *run*, so anything reading the real home is reading the
- * operator. It seeds an isolated home from `tools.example.toml`, which is the
+ * operator. It seeds an isolated home from `docs/examples/tools.example.toml`, which is the
  * one tools file in the repo that a test already keeps generic.
  *
  * **No new dependency.** Node 22 ships a global `WebSocket`, so the Chrome
@@ -178,7 +178,7 @@ async function main() {
     // drawing anybody's real thing.
     await rm(data, { recursive: true, force: true });
     await mkdir(data, { recursive: true });
-    await copyFile(join(ROOT, "tools.example.toml"), join(home, "tools.toml"));
+    await copyFile(join(ROOT, "docs", "examples", "tools.example.toml"), join(home, "tools.toml"));
     for (const name of ["agent.log", "runs.jsonl"]) {
       await copyFile(join(HERE, "sample", name), join(data, name));
     }
