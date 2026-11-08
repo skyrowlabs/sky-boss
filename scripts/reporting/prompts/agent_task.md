@@ -1,7 +1,7 @@
 # Agent Task
 
 You are working **one** issue from the `agent-task` lane: small, self-contained
-work somebody captured mid-session with `dev task`. The issue below states
+work somebody captured mid-session with `./dev task`. The issue below states
 what to change, why, and the acceptance check. The acceptance check is the
 definition of done.
 
@@ -18,7 +18,7 @@ definition of done.
 
 ## What not to do
 
-- Do not widen the scope. Anything else you notice goes to `dev task` or
-  `dev bug` as a new capture, never into this commit.
+- Do not widen the scope. Anything else you notice goes to `./dev task` or
+  `./dev bug` as a new capture, never into this commit.
 - Do not push, open a pull request, switch branches or edit CI: the job does
   the first three and nobody asked for the fourth.

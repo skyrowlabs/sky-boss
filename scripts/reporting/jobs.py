@@ -329,12 +329,18 @@ JOBS: list[Job] = [
     ),
 ]
 
-#: **Add your own jobs as an append, in the space between the two frozen rules
-#: at the end of this section.** An entry edited into the list above is a
+#: Tools a job's agent may use beyond the tree's allow rules, by job key: Claude's
+#: `--allowedTools` patterns, added to the default agent command only. For a tree whose
+#: rules are narrower than a job needs (stash-flow); a key no job has fails the suite.
+AGENT_TOOLS: dict[str, tuple[str, ...]] = {}
+
+#: **Add your own jobs, and any grant, as an append, in the space between the two
+#: frozen rules at the end of this section.** An entry edited into the list above is a
 #: change beside every entry a release adds, so it conflicts; an append does not.
 #: skeletor's own tree is the first to need it.
 #:
 #:     JOBS += [Job(key="nightly-check", module="nightly_check", cadence="nightly 01:00", cron="0 1 * * *", writes="—")]
+#:     AGENT_TOOLS["repo-report"] = ("Bash(./dev docs *)",)
 
 
 # ── Extending JOBS ───────────────────────────────────────────────────────────

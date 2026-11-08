@@ -68,11 +68,13 @@ def test_an_agent_that_exits_zero_and_writes_nothing_is_failed(tree, monkeypatch
     assert row["committed"] is None, row
 
 
-def test_an_agent_that_changes_the_artifact_is_ok(tree, monkeypatch):
-    artifact = tree / JOB.writes
-    row = _run_with(monkeypatch, ["sh", "-c", f"echo changed >> {artifact}"], tree)
-    assert row["outcome"] == "ok", row
-    assert row["reason"] == "", row
+def test_a_committing_job_that_writes_and_commits_nothing_is_failed(tree, monkeypatch):
+    """stash-flow: refused the commit, the agent exited 0, and the ledger said `ok`."""
+    assert JOB.commits, "the fixture's job no longer commits, so this proves nothing"
+    denial = '{"permission_denials": [{"tool_name": "Bash"}, {"tool_name": "Bash"}]}'
+    row = _run_with(monkeypatch, ["sh", "-c", f"echo changed >> {tree / JOB.writes}; echo '{denial}'"], tree)
+    assert row["outcome"] == "failed", row
+    assert "committed nothing" in row["reason"] and "refused 2 tool call(s): Bash" in row["reason"], row
 
 
 def test_committed_is_the_new_head_only_when_head_moved(tree, monkeypatch):
@@ -88,7 +90,9 @@ def test_committed_is_the_new_head_only_when_head_moved(tree, monkeypatch):
 
 def test_the_row_carries_what_the_agent_spent_and_null_when_unmeasured(tree, monkeypatch):
     result = '{"total_cost_usd": 0.42, "num_turns": 3, "usage": {"input_tokens": 10, "output_tokens": 5}}'
-    row = _run_with(monkeypatch, ["sh", "-c", f"echo changed >> {tree / JOB.writes}; echo '{result}'"], tree)
+    commit = "git add -A && git commit -q -m 'docs: report'"
+    write = f"echo changed >> {tree / JOB.writes} && {commit}"
+    row = _run_with(monkeypatch, ["sh", "-c", f"{write}; echo '{result}'"], tree)
     assert (row["cost_usd"], row["num_turns"], row["tokens"], row["seat"]) == (0.42, 3, 15, "personal"), row
-    row = _run_with(monkeypatch, ["sh", "-c", f"echo again >> {tree / JOB.writes}; echo plain text"], tree)
+    row = _run_with(monkeypatch, ["sh", "-c", f"{write.replace('changed', 'again')}; echo plain text"], tree)
     assert (row["cost_usd"], row["num_turns"], row["tokens"]) == (None, None, None), row

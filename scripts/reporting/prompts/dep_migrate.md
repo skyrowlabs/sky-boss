@@ -23,6 +23,6 @@ bumped; your job is the code that the new version breaks.
 - Do not pin the dependency back, skip or delete a test, or loosen a check to
   get green: a red suite is a useful answer, and the job reports it.
 - Do not upgrade anything else, and do not widen the scope. Anything else you
-  notice goes to `dev task` or `dev bug` as a new capture.
+  notice goes to `./dev task` or `./dev bug` as a new capture.
 - Do not push, open a pull request, switch branches or edit CI: the job does
   the first three and nobody asked for the fourth.

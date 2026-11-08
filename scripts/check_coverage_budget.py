@@ -122,6 +122,7 @@ yours*, as below.
 from __future__ import annotations
 
 import argparse
+import importlib
 import json
 import re
 import sys
@@ -148,8 +149,10 @@ def _data_file() -> Path:
     An xml older than this file describes an earlier run (stash.flow). Every caller
     runs from the root, so the config found from the working directory is the tree's.
     """
+    # By name, as an optional import must be: a static one reddens a type checker that
+    # reads `scripts/` from a venv without coverage (mind-head's mypy hook, v0.81.4).
     try:
-        import coverage
+        coverage = importlib.import_module("coverage")
     except ImportError:
         return PROJECT_ROOT / ".coverage"
     return PROJECT_ROOT / str(coverage.Coverage().get_option("run:data_file"))
