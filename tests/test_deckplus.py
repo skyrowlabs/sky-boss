@@ -87,7 +87,7 @@ def test_the_list_is_declared_first_then_each_new_folder(tmp_path):
     assert [(p.name, p.declared, bool(p.problem)) for p in found] == [
         ("agent", True, False),
         ("new", False, False),
-        ("no good", False, True),
+        ("no-good", False, True),
     ]
 
 
@@ -135,3 +135,19 @@ def test_terminal_names_count_up_past_what_is_taken():
 
     assert deck_.terminal_name([]) == "term"
     assert deck_.terminal_name([pane("term"), pane("term-2")]) == "term-3"
+
+
+def test_a_dotted_folder_is_offered_under_a_dashed_name_that_deck_toml_can_hold(tmp_path):
+    from skyboss import deck as deck_
+
+    (tmp_path / "skyrowlabs.com").mkdir()
+    place = deckplus.places([], [str(tmp_path)], deck_.NAME)[0]
+    assert (place.name, place.problem) == ("skyrowlabs-com", "")
+    text = deckplus.edited("[profile.p]\ntabs = []\n", place.name, place.cwd, "", "p")
+    assert "[agent.skyrowlabs-com]" in text
+
+
+def test_a_dotted_tab_name_is_refused_with_the_reason():
+    from skyboss import deck as deck_
+
+    assert not deck_.NAME.match("skyrowlabs.com") and "dot" in deck_.NAME_RULE

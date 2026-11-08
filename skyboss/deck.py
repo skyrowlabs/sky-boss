@@ -71,7 +71,10 @@ DECK_ENV = "SB_DECK"
 SESSION = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
 # A window name is only a label — every lookup goes by window id — so a dot is
 # fine here, which `skyrowlabs.com`-shaped project names need.
-NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+# No dot: deck.toml would read `[agent.a.b]` as a nested table, and tmux reads `a.b` as a pane.
+NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
+#: Why a name was refused, after the name itself.
+NAME_RULE = "use letters, digits, - and _ (a dot nests a table in deck.toml)"
 
 # User options the deck writes on what it starts, and reads back to find it.
 # Window: which agent this window was opened for. Pane: what the deck put there.
@@ -433,7 +436,7 @@ def _check(name: str, body) -> str | None:
     if not isinstance(body, dict):
         return "not a table"
     if not NAME.match(name):
-        return "name must be letters, digits, '.', '-' or '_'"
+        return "name must be letters, digits, '-' or '_'"
     cwd = body.get("cwd")
     if not isinstance(cwd, str) or not cwd:
         return "cwd must be a non-empty string"
@@ -2666,7 +2669,7 @@ def deck_add(name: str, cwd: str, role: str, keep: bool) -> Result:
     tab lasts as long as the deck's save does.
     """
     if not NAME.match(name):
-        raise click.UsageError(f"{name!r} cannot be a tab's name")
+        raise click.UsageError(f"{name!r} cannot be a tab's name — {NAME_RULE}")
     return add_tab(name, os.path.expandvars(os.path.expanduser(cwd)) if cwd else "", role, keep)
 
 
@@ -2834,9 +2837,9 @@ def _new_folder(config: Config) -> str:
         cwd = os.path.expandvars(os.path.expanduser(click.prompt("path", default="", show_default=False).strip()))
         if not cwd or not os.path.isdir(cwd):
             return f"not a folder: {cwd or 'nothing typed'}"
-        name = click.prompt("name", default=os.path.basename(os.path.normpath(cwd)))
+        name = click.prompt("name", default=deckplus.tab_name(os.path.basename(os.path.normpath(cwd))))
     if not NAME.match(name):
-        return f"{name!r} cannot be a tab's name"
+        return f"{name!r} cannot be a tab's name — {NAME_RULE}"
     if name in config.agents:
         return f"there is an agent {name!r} already"
     row = decklaunch.Row(decklaunch.FOLDER, name, "", cwd)
@@ -2850,7 +2853,7 @@ def _save_deck_prompt(config: Config) -> str:
     own = deck_profile(config.session)
     name = click.prompt("save this deck as profile", default=own or "", show_default=bool(own)).strip()
     if not NAME.match(name):
-        return f"{name!r} cannot be a profile's name" if name else "not saved"
+        return f"{name!r} cannot be a profile's name — {NAME_RULE}" if name else "not saved"
     replace = name in config.profiles
     if replace and not click.confirm(f"replace profile {name}?", default=False):
         return "not saved"
@@ -2908,7 +2911,7 @@ def launcher(running: bool) -> tuple[str, tuple[str, ...]] | None:
                 _cooked("")
                 name = click.prompt("profile name", default="", show_default=False).strip()
                 if not NAME.match(name):
-                    note = f"{name!r} cannot be a profile's name" if name else "not saved"
+                    note = f"{name!r} cannot be a profile's name — {NAME_RULE}" if name else "not saved"
                 else:
                     problems = _declare(rows, outcome.names)
                     body = decklaunch.body_of(outcome.names)
@@ -3044,7 +3047,7 @@ def deck_profile_save(name: str, replace: bool) -> Result:
     declared as an agent from its saved folder.
     """
     if not NAME.match(name):
-        raise click.UsageError(f"{name!r} cannot be a profile's name")
+        raise click.UsageError(f"{name!r} cannot be a profile's name — {NAME_RULE}")
     config, problems = load()
     if not has_session(inner(config.session)):
         raise click.UsageError(f"no deck {config.session!r} is running to save")
@@ -3135,7 +3138,7 @@ def _plus_agent(config: Config, place: deckplus.Place) -> Result:
         name = click.prompt("name", default=place.name)
         role = click.prompt("role (optional)", default="", show_default=False)
         if not NAME.match(name):
-            raise click.ClickException(f"{name!r} cannot be a tab's name")
+            raise click.ClickException(f"{name!r} cannot be a tab's name — {NAME_RULE}")
     profile = deck_profile(config.session)
     keep = False
     if profile in config.profiles and name not in config.profiles[profile].order()[0]:
