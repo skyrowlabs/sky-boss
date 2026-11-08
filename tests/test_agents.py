@@ -492,7 +492,7 @@ def test_the_deck_scope_marks_the_primary_with_a_star(two, monkeypatch):
     envelope = json.loads(CliRunner().invoke(cli, ["--json", "agents", "--scope", "deck"]).stdout)
     assert [(r["name"], r["primary"]) for r in envelope["data"]] == [("inside", True), ("outside", False)]
     drawn = CliRunner().invoke(cli, ["agents", "--scope", "deck"]).output
-    assert "* inside" in drawn and "* outside" not in drawn
+    assert "inside *" in drawn and "outside *" not in drawn
 
 
 def test_outside_the_deck_scope_nothing_is_starred(two, monkeypatch):

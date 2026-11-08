@@ -1348,7 +1348,7 @@ kept the TODOS pane's pid.
 
 - **Asked for by Jeston**, relayed by skyrow-workspace: run in the primary, `/deck-connect` should
   connect to the other agents, and the agent list should mark the primary with a `*`.
-- AGENT LIST and `sb agents --scope deck` lead the primary's name with `* `, first so a cut name keeps it, and both envelopes
+- AGENT LIST and `sb agents --scope deck` follow the primary's name with ` *`, and that name's column is never cut, and both envelopes
   carry a `primary` field. The mark is drawn in parts, so `name` and `window` stay the bare name a
   consumer matches on. `--scope all` still never asks the deck, so it carries no mark.
 - `/deck-connect` run in the primary now sends each live peer one line asking what it is working

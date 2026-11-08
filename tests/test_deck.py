@@ -1010,10 +1010,10 @@ def test_the_primary_tab_carries_a_star_and_only_it():
     listed = [pane("@1", 0, "lead", 10), pane("@2", 1, "jam", 20)]
     rows = queue_rows(listed, [a_session(10), a_session(20)], {}, NOW, primary="lead")
     marked = {r["window"]: (r["primary"], r["window_parts"]) for r in rows}
-    assert marked["lead"] == (True, [["* ", None], ["lead", None]])
+    assert marked["lead"] == (True, [["lead", None], [" *", None]])
     assert marked["jam"] == (False, [["jam", None]])
     window = next(c for c in deck_.view_of(rows)["columns"] if c["key"] == "window")
-    assert window["max"] >= len("* lead")
+    assert window["max"] >= len("lead *")
 
 
 def test_a_deck_window_with_no_record_is_unregistered_not_hidden():

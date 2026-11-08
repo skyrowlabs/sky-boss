@@ -480,7 +480,7 @@ def rows_of(
         {
             "provider": s.provider,
             "name": s.name,
-            **({"name_parts": [[PRIMARY_MARK, "sb.accent"], [s.name, None]]} if s.id in primary else {}),
+            **({"name_parts": [[s.name, None], [PRIMARY_MARK, "sb.accent"]]} if s.id in primary else {}),
             "primary": s.id in primary,
             "status": s.status,
             "claim": letters.get(s.id, ""),
@@ -512,6 +512,7 @@ def view_of(rows: list[dict]) -> dict:
             column["segments"] = "name_parts"
             hidden.append("name_parts")
             column["max"] = max([column["max"]] + [marked_width(r["name"], r.get("primary")) for r in rows])
+            column["min"] = column["max"]  # a cut name would lose the mark at its end
     return {
         "columns": columns,
         "details": [],

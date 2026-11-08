@@ -1636,8 +1636,8 @@ def write_theme(agent: str, colour: str, base: str) -> list[str]:
 
 # Session option on the tabs session: the agent the operator coordinates from.
 PRIMARY_OPTION = "@sb-primary"
-#: What leads the primary's name in AGENT LIST and in `sb agents --scope deck`: first, so a cut name keeps it.
-PRIMARY_MARK = "* "
+#: What follows the primary's name in AGENT LIST and in `sb agents --scope deck`; its column is never cut.
+PRIMARY_MARK = " *"
 
 
 def marked_width(name: str, primary: bool | None) -> int:
@@ -4073,7 +4073,7 @@ def _row(
     return {
         "where": where,
         "window": window,
-        "window_parts": ([[PRIMARY_MARK, colour or None]] if primary else []) + [[window, colour or None]],
+        "window_parts": [[window, colour or None]] + ([[PRIMARY_MARK, colour or None]] if primary else []),
         "primary": primary,
         "state": state,
         "state_parts": [[state, "sb.warn" if status == WAITING else "sb.accent" if status == "busy" else None]],
@@ -4288,7 +4288,7 @@ def queue_rows(
     """One row per deck window, most active first; then every live session outside the deck, the same way.
 
     Painted, a window's name takes its tab's colour, as MESSAGES and TODOS draw it.
-    The `primary` tab's name is led by a `*`.
+    The `primary` tab's name is followed by a `*`.
     """
     entries, claimed = deck_windows(listed, sessions, parent_of)
     slots = agent_slots(listed)
