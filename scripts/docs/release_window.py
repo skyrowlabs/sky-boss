@@ -166,7 +166,7 @@ def apply(only: str | None = None) -> int:
         # the frontmatter is for the checker. Both, because either alone rots.
         lines = body.splitlines()
         if lines and lines[0].startswith("# "):
-            body = "\n".join([lines[0], "", _prose(win), *lines[1:]])
+            body = "\n".join([lines[0], "", _prose(win), "", "\n".join(lines[1:]).strip("\n")]).rstrip("\n")
         else:
             body = _prose(win) + "\n\n" + body
         frontmatter.write(path, data, body + "\n")

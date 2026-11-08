@@ -61,8 +61,8 @@ def collect() -> dict[str, object]:
             "ready_queue": [p.slug for p in tank if p.shelf_status == "ready"],
             "awaiting_review": [{"slug": p.slug, "pr": p.review_pr} for p in tank if p.shelf_status == "in-review"],
         },
-        # The agent is told how many findings it is looking at, so the ledger
-        # can refuse an `ok` that reports findings and writes nothing.
+        # What collection found, which is none: it gathers facts. The issues the
+        # agent files are not counted here, so a ledger row's 0 says nothing of them.
         "finding_count": 0,
     }
 
