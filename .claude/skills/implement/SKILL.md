@@ -1,6 +1,6 @@
 ---
 name: implement
-description: Execute (or first write, then execute) a docs/TODO implementation plan end-to-end. Orchestrates the implementer, tester and documenter subagents from the main session, then files the completed plan to docs/implementations/. Use when the user says "implement docs/TODO/X.md", "work through the plan for X", or "plan and implement X".
+description: Execute (or first write, then execute) a docs/TODO implementation plan end-to-end. Orchestrates the implementer, tester and documenter subagents from the main session, then files the completed plan to docs/implementations/. Use when the user says "implement docs/TODO/<slug>.md", "work through the plan for X", or "plan and implement X".
 ---
 
 # /implement — Plan Orchestrator

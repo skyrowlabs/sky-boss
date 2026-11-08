@@ -66,8 +66,11 @@ dev docs release-window
 
 ```bash
 gh pr create --base main --head develop \
-  --title "chore(release): <version>" --body "<the changelog Release Please will generate>"
+  --title "chore(release): promote develop to main" --body "<the changelog Release Please will generate>"
 ```
+
+No version in the title: Release Please has not chosen one yet, and it is the one
+that does (sky.boss).
 
 The title becomes the merge commit's message, and Release Please reads it as one
 more commit. `chore` is a hidden section, so it adds nothing to the changelog; a
@@ -105,8 +108,13 @@ Then back-merge, so `develop` carries the release commit and the next
 release PR does not re-propose it:
 
 ```bash
-git switch develop && git merge --no-ff main
+git fetch origin && git switch develop && git merge --ff-only origin/main && git push
 ```
+
+If git refuses the fast-forward, `develop` moved after the promote. Do not
+make a merge commit locally: no check has run on it, so it lands only by admin
+bypass. Open the back-merge as a pull request from `main`, report it,
+and stop; a human merges it with a merge commit, never a squash.
 
 Report: tag, what shipped, where the frozen editions went, and anything left
 open.

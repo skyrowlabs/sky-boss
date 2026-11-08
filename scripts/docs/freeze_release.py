@@ -27,11 +27,13 @@ Usage:  python scripts/docs/freeze_release.py --tag v1.4.0 [--dry-run]
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from scripts.check_doc_links import _LINK, _mask  # noqa: E402
 from scripts.docs import frontmatter, release_window  # noqa: E402
 from scripts.output import detail, fail, item, ok, step, warn  # noqa: E402
 from scripts.paths import PROJECT_ROOT, REGULAR_DIR, RELEASES_DIR  # noqa: E402
@@ -43,6 +45,25 @@ WINDOW = "WINDOW.md"
 
 #: The frontmatter a frozen file carries, the window record included.
 STAMP = ("release", "previous_release", "commit_range", "status", "generated")
+
+
+def _relinked(body: str, source_dir: Path, destination: Path) -> str:
+    """`body` with every relative link repointed from `source_dir` to `destination`.
+
+    A frozen edition sits a directory deeper than `regular/`, so a copied `../` link
+    pointed one level short (proto.pilot, five links, v0.3.0). The checker's own
+    link pattern and mask decide what is a link, so the two cannot disagree.
+    """
+    out, last = [], 0
+    for match in _LINK.finditer(_mask(body)):
+        path_part, hash_, anchor = match.group("href").partition("#")
+        if not path_part or path_part.startswith(("http://", "https://", "mailto:", "/")):
+            continue
+        target = os.path.normpath(os.path.join(source_dir, path_part))
+        moved = Path(os.path.relpath(target, destination)).as_posix()
+        out += [body[last : match.start("href")], moved + hash_ + anchor]
+        last = match.end("href")
+    return "".join(out + [body[last:]])
 
 
 def _record_window(destination: Path, closing: dict, frozen: list) -> None:
@@ -143,6 +164,7 @@ def main() -> int:
         # Rewrite the prose window line to the CLOSED range, so the frozen file
         # is self-describing even if it is ever read outside the repo.
         body = release_window._WINDOW_LINE.sub(release_window._prose(closing), body, count=1)
+        body = _relinked(body, REGULAR_DIR, destination)
         destination.mkdir(parents=True, exist_ok=True)
         frontmatter.write(destination / name, data, body)
         frozen.append(name)

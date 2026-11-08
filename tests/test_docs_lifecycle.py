@@ -174,6 +174,16 @@ def test_filing_strips_the_tank_fields_from_the_document(tree):
     assert archived.frontmatter.get("category") == "backend", "the archive branch never ran"
 
 
+def test_a_tag_on_a_wrapped_line_still_exempts_its_task():
+    from scripts.docs import plans
+
+    body = (
+        "- [ ] Run it on the API backend, once\n      there is credit (~deferred)\n"
+        "- [ ] Ship it\n  - [ ] (~deferred) nested\n"
+    )
+    assert plans.Plan(path=Path("x.md"), slug="x", title="x", body=body).open_tasks() == ["Ship it"]
+
+
 def test_filing_refuses_a_plan_with_open_tasks(tree):
     """A plan with work left is not finished, whatever the status line says."""
     plan = tree / "docs" / "TODO" / "widget-cache.md"

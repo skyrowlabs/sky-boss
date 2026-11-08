@@ -125,6 +125,12 @@ def cron(print_: bool, check_: bool, install: bool) -> None:
         detail("identically to a job that silently stopped running.")
         sys.exit(1)
 
+    if len(off) == len(JOBS):
+        # Nothing is meant to be installed, so there is no line to name a seat or a
+        # zone for; an owner who holds every job off must be able to say so (sky.vault).
+        ok(f"every registered job is intentionally off ({len(off)}), so nothing should be in the crontab")
+        return
+
     # Unset resolves to the default seat and every job still reports ok, so absence
     # is the silent failure (jam.sense's REPORTING_SEAT); the generated block sets it.
     if not any(line.strip().startswith(f"{SEAT_ENV}=") for line in live.splitlines()):

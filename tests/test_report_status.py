@@ -44,8 +44,15 @@ def ledger(monkeypatch, tmp_path):
 
 @pytest.fixture(autouse=True)
 def crontab(monkeypatch, tmp_path):
-    """Every job installed, no install recorded and no offset; a test narrows any of them."""
+    """Every job installed, no install recorded and no offset; a test narrows any of them.
+
+    One job held off, the rest scheduled, whatever this tree's allowlist says: a
+    tree that holds every job off is a configuration, not a broken status (node-zero).
+    """
     monkeypatch.setattr(jobs, "SCHEDULE_OFFSET_PINNED", 0)
+    held = tmp_path / "schedule_allowlist.yaml"
+    held.write_text(f"{JOBS[-1].key}: 'held off by this fixture'\n", encoding="utf-8")
+    monkeypatch.setattr(jobs, "SCHEDULE_ALLOWLIST", held)
     live = {"text": "\n".join(job.cron_line() for job in JOBS)}
     monkeypatch.setattr(status, "_crontab", lambda: live["text"])
     monkeypatch.setattr(status, "INSTALL_BACKUPS", tmp_path / "no-backups")
@@ -102,6 +109,10 @@ def test_every_time_in_the_envelope_carries_its_offset(ledger):
     stamps = [e[k] for e in entries for k in ("last_run", "next_run") if e[k]]
     assert scanned(stamps, "timestamps", least=2)
     assert all(datetime.fromisoformat(stamp.replace("Z", "+00:00")).tzinfo for stamp in stamps), stamps
+
+
+def test_the_allowlisted_job_reads_as_off():
+    assert [e["job"] for e in status.jobs() if e["intentionally_off"]] == [JOBS[-1].key]
 
 
 def test_a_job_that_never_ran_is_overdue_unless_it_is_off():
