@@ -192,6 +192,24 @@ A template with no `{prompt}` token is refused rather than run: an agent invoked
 with no instruction starts, does nothing, and exits 0 — the failure that looks
 most like success.
 
+A zero exit is not enough on its own. A job that names an artifact is `failed`
+when neither HEAD nor the artifact moved, and a job that commits is `failed` when
+HEAD did not move. The row's reason names any tools the agent was refused, read
+from the JSON result's `permission_denials`.
+
+**When a job needs a tool your allow rules do not grant**, add it in
+`scripts/reporting/jobs.py` as an append in that file's own space, not in the
+crontab line:
+
+```python
+AGENT_TOOLS["repo-report"] = ("Bash(./dev docs *)",)
+```
+
+The runner passes these as `--allowedTools` on the default command. An
+`SB_AGENT_CMD` override gets nothing added, because it names its
+own agent and its whole argv. A grant for a job that no longer exists fails
+`tests/test_reporting_jobs.py`.
+
 ## cron does not give you your login PATH
 
 A job that works in your shell and not under cron is almost always this, and it

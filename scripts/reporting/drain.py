@@ -177,7 +177,7 @@ def _work(drain: Drain, issue: Issue, finish, spent: dict, base_branch: str) -> 
     if prompt is None:
         return finish("declined", f"no prompt for {job.module}; the fix policy is resolved from its name")
     try:
-        argv = agent_runner.agent_argv(prompt)
+        argv = agent_runner.agent_argv(prompt) + agent_runner.tool_grants(job.key)
         env = agent_runner.agent_env(job.key)
     except ValueError as error:  # SeatError included: an identity that cannot run
         return finish("declined", str(error))

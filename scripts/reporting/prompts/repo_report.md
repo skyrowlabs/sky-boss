@@ -5,7 +5,7 @@ release window**.
 
 ## The window
 
-Get it from `dev docs release-window`. **Never** re-derive it, and never write
+Get it from `./dev docs release-window`. **Never** re-derive it, and never write
 "since this last ran" — a window that straddles a release boundary cannot answer
 the only question that matters about a finding: *is this in production now?*
 

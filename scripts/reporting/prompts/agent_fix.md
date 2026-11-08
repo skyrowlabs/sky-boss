@@ -1,7 +1,7 @@
 # Agent Fix
 
 You are fixing **one** defect from the `agent-bug` lane: something found
-mid-session and captured with `dev bug`. The issue below gives the finding,
+mid-session and captured with `./dev bug`. The issue below gives the finding,
 an exact reproduction, the scope and the acceptance check.
 
 ## How to work it
@@ -16,6 +16,6 @@ an exact reproduction, the scope and the acceptance check.
 
 ## What not to do
 
-- Do not fix a second defect you noticed. File it with `dev bug` and leave it.
+- Do not fix a second defect you noticed. File it with `./dev bug` and leave it.
 - Do not push, open a pull request, switch branches, or weaken a test or a
   gate to make the suite pass. The job opens the draft PR, and a person reviews it.

@@ -39,7 +39,7 @@ from scripts.lanes import SOURCE_ENV  # noqa: E402
 from scripts.output import line, skip, step  # noqa: E402
 from scripts.paths import PROJECT_ROOT  # noqa: E402
 from scripts.reporting import run_ledger, shellout  # noqa: E402
-from scripts.reporting.jobs import FIX_POLICIES, JOBS_BY_KEY, SeatError, seat_env  # noqa: E402
+from scripts.reporting.jobs import AGENT_TOOLS, FIX_POLICIES, JOBS_BY_KEY, SeatError, seat_env  # noqa: E402
 
 PROMPTS = Path(__file__).resolve().parent / "prompts"
 
@@ -119,6 +119,16 @@ def usage(stdout: str) -> dict:
     }
 
 
+def refused(stdout: str) -> list[str]:
+    """The tools the agent was refused, from Claude's JSON result's `permission_denials`."""
+    try:
+        result = json.loads(stdout.strip().splitlines()[-1]) if stdout.strip() else {}
+    except ValueError:
+        return []
+    denials = result.get("permission_denials") if isinstance(result, dict) else None
+    return [str(d.get("tool_name", "?")) for d in denials if isinstance(d, dict)] if isinstance(denials, list) else []
+
+
 def said(stdout: str) -> str:
     """The agent's reply: the `result` field of a JSON result, else stdout as printed."""
     if not stdout.strip():
@@ -148,6 +158,15 @@ def agent_argv(prompt: str) -> list[str]:
             "would run with no instruction and still exit 0"
         )
     return [token.replace(PROMPT_TOKEN, prompt) for token in tokens]
+
+
+def tool_grants(job_key: str) -> list[str]:
+    """The arguments that grant a job its `AGENT_TOOLS` entry, for the default command only.
+
+    An override names its own agent and owns its whole argv, so nothing is added to it.
+    """
+    tools = AGENT_TOOLS.get(job_key, ())
+    return ["--allowedTools", *tools] if tools and not os.environ.get(AGENT_CMD_VAR) else []
 
 
 def agent_env(job_key: str) -> dict[str, str]:
@@ -255,7 +274,7 @@ def run_triage(job_key: str, collected: dict, *, base_branch: str = "develop") -
     )
 
     try:
-        argv = agent_argv(prompt)
+        argv = agent_argv(prompt) + tool_grants(job.key)
     except ValueError as exc:
         return decline(str(exc))
     if dry_run():
@@ -293,23 +312,8 @@ def run_triage(job_key: str, collected: dict, *, base_branch: str = "develop") -
         heartbeat(os.environ.get(job.heartbeat_var or ""), "down")
         return 1
 
-    agent_ran = result.returncode == 0
     head_after = _head()
-    # `ok` is a claim about the artifact, not the exit code. This recorded `ok`
-    # for an agent that exited 0 having written nothing, with `committed` set to
-    # whatever HEAD already was, so the heartbeat said up over a report that had
-    # stopped changing — measured on a fresh tree with the agent replaced by
-    # `true`. HEAD and the artifact are read on both sides of the run; "wrote"
-    # is one of them moving, the only thing a run can prove about itself
-    # without reading its own output. A job naming no artifact has nothing to
-    # prove and keeps the exit code's answer.
-    wrote = head_after != head_before or _artifact_hash(job) != artifact_before
-    if agent_ran and not wrote and _artifact_hash(job) is not None:
-        agent_ran = False
-        reason = "agent exited 0 and wrote nothing — neither HEAD nor its artifact moved"
-    else:
-        reason = "" if agent_ran else (result.stderr.strip()[-500:] or "agent exited non-zero")
-
+    agent_ran, reason = _outcome(job, result, head_before != head_after, artifact_before)
     run_ledger.record(
         run_ledger.Run(
             job=job.key,
@@ -327,6 +331,34 @@ def run_triage(job_key: str, collected: dict, *, base_branch: str = "develop") -
     heartbeat(os.environ.get(job.heartbeat_var or ""), "up" if agent_ran else "down")
     line(said(result.stdout)[-4000:])
     return 0 if agent_ran else 1
+
+
+def _outcome(job, result, head_moved: bool, artifact_before: str | None) -> tuple[bool, str]:
+    """Whether the run did its work, and the reason when it did not."""
+    agent_ran = result.returncode == 0
+    # `ok` is a claim about the artifact, not the exit code. This recorded `ok`
+    # for an agent that exited 0 having written nothing, with `committed` set to
+    # whatever HEAD already was, so the heartbeat said up over a report that had
+    # stopped changing — measured on a fresh tree with the agent replaced by
+    # `true`. HEAD and the artifact are read on both sides of the run; "wrote"
+    # is one of them moving, the only thing a run can prove about itself
+    # without reading its own output. A job naming no artifact has nothing to
+    # prove and keeps the exit code's answer.
+    wrote = head_moved or _artifact_hash(job) != artifact_before
+    if agent_ran and not wrote and _artifact_hash(job) is not None:
+        agent_ran = False
+        reason = "agent exited 0 and wrote nothing — neither HEAD nor its artifact moved"
+    elif agent_ran and job.commits and not head_moved:
+        # A committing job's work is the commit: an artifact written and left behind is
+        # a run that was stopped short, often by a refused tool (stash-flow).
+        agent_ran = False
+        reason = "agent exited 0 and committed nothing, and this job's work is a commit"
+    else:
+        reason = "" if agent_ran else (result.stderr.strip()[-500:] or "agent exited non-zero")
+    denied = refused(result.stdout)
+    if not agent_ran and denied:
+        reason += f"; it was refused {len(denied)} tool call(s): {', '.join(sorted(set(denied)))}"
+    return agent_ran, reason
 
 
 def _head() -> str:

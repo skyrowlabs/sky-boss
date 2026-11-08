@@ -71,6 +71,21 @@ def test_every_job_has_a_prompt_named_after_its_module():
     assert not missing, f"Jobs with no prompts/<module>.md: {missing}"
 
 
+#: The wrapper's name, rendered: what a prompt must spell with its `./`.
+CLI_NAME = "dev"
+
+
+def test_the_prompts_run_the_cli_by_path():
+    """A job's agent has no CLI on PATH, and the allow rules name `./<cli>` (dream-doll's `dd`)."""
+    prompts = sorted((SCRIPTS_DIR / "reporting" / "prompts").glob("*.md"))
+    bare = [
+        f"{path.name}: {found.group(0)}"
+        for path in scanned(prompts, "job prompts")
+        for found in re.finditer(rf"`{re.escape(CLI_NAME)} [^`]*`", path.read_text(encoding="utf-8"))
+    ]
+    assert not bare, f"Prompts naming the CLI bare, which runs whatever `{CLI_NAME}` is on PATH: {bare}"
+
+
 def test_fix_policies_are_known():
     unknown = {job.key: job.fix_policy for job in JOBS if job.fix_policy not in FIX_POLICIES}
     assert not unknown, f"Unknown fix policies: {unknown}. Valid: {sorted(FIX_POLICIES)}"
@@ -244,6 +259,25 @@ def test_agent_argv_honours_the_override(monkeypatch):
 
     monkeypatch.setenv(AGENT_CMD_VAR, "some-agent run --yes {prompt}")
     assert agent_argv("BODY") == ["some-agent", "run", "--yes", "BODY"]
+
+
+def test_every_tool_grant_names_a_job():
+    """An exemption is checked against what it exempts: a grant for a removed job is stale."""
+    from scripts.reporting.jobs import AGENT_TOOLS
+
+    stale = sorted(set(AGENT_TOOLS) - set(JOBS_BY_KEY))
+    assert not stale, f"AGENT_TOOLS grants tools to jobs that do not exist: {stale}"
+
+
+def test_a_grant_reaches_the_default_command_and_not_an_override(monkeypatch):
+    from scripts.reporting import agent_runner
+
+    key = JOBS[0].key
+    monkeypatch.setitem(agent_runner.AGENT_TOOLS, key, ("Bash(./x docs *)",))
+    monkeypatch.delenv(agent_runner.AGENT_CMD_VAR, raising=False)
+    assert agent_runner.tool_grants(key) == ["--allowedTools", "Bash(./x docs *)"]
+    monkeypatch.setenv(agent_runner.AGENT_CMD_VAR, "some-agent run {prompt}")
+    assert agent_runner.tool_grants(key) == []
 
 
 def test_agent_argv_refuses_a_template_with_no_prompt(monkeypatch):
