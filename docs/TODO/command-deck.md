@@ -1386,3 +1386,12 @@ kept the TODOS pane's pid.
 - A tab's name no longer takes a dot, which tmux also reads as a pane. A folder's name is offered
   with its dots turned into dashes (`skyrowlabs-com`), and a typed dotted name is refused with
   the reason.
+
+### 2026-11-08: M-x says what it kept
+
+- **Asked by Jeston:** M-x did not seem to clear the whole list. It never had a limit: it kept
+  `asked:` rows (a turn that ended on a question) and rulings not yet typed into a busy tab, and
+  its message counted lists, not rows, so nothing said why rows stayed.
+- **Ruled:** M-x also clears `asked:` rows, and its message counts what it kept and why. It runs
+  `sb deck clear`, one command over both books and the asked rows. A ruling not yet told and a
+  prompt a tab is waiting at still stay, and the message names each.

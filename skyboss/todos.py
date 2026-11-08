@@ -273,6 +273,40 @@ def clear_done(session: str, book: str = TODOS) -> tuple[dict[str, int], list[st
     return cleared, problems
 
 
+def clear_asked(session: str) -> dict[str, int]:
+    """Drop every `asked:` row, a turn that ended on a question: agent → rows removed. A waiting prompt stays."""
+    cleared: dict[str, int] = {}
+    for agent in stored(session, ASKS):
+        try:
+            todo = load(session, agent, ASKS)
+        except ValueError:
+            continue
+        kept = [item for item in todo.items if item.kind != PROSE] if todo else []
+        if todo is not None and len(kept) != len(todo.items):
+            cleared[agent] = len(todo.items) - len(kept)
+            todo.items = kept
+            save(todo)
+    return cleared
+
+
+def kept_by_clear(session: str) -> tuple[int, int]:
+    """What a clear leaves on purpose: rulings not yet typed into their tab, and prompts a tab is waiting at."""
+    untold = waiting = 0
+    for agent in stored(session, DECISIONS):
+        try:
+            todo = load(session, agent, DECISIONS)
+        except ValueError:
+            continue
+        untold += sum(1 for item in todo.items if item.done and item.untold) if todo else 0
+    for agent in stored(session, ASKS):
+        try:
+            todo = load(session, agent, ASKS)
+        except ValueError:
+            continue
+        waiting += sum(1 for item in todo.items if item.kind == ASKED) if todo else 0
+    return untold, waiting
+
+
 def stored(session: str, book: str = TODOS) -> list[str]:
     """Every agent with a list file in this deck, by name."""
     try:
