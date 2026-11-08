@@ -83,6 +83,8 @@ TANK_ONLY_HEADERS = tuple(key.replace("_", "-") for key in TANK_ONLY)
 
 _HEADER = re.compile(r"^>\s*\*\*(?P<key>[A-Za-z-]+)\*\*:\s*(?P<value>.+?)\s*$", re.MULTILINE)
 _TASK = re.compile(r"^\s*-\s*\[(?P<mark>[ xX])\]\s*(?P<text>.+?)\s*$", re.MULTILINE)
+#: A wrapped task's next line: indented, and not a list item itself.
+_CONTINUATION = re.compile(r"\n[ \t]+(?![-*+][ \t]|\d+[.)][ \t])(?P<text>\S[^\n]*)")
 _H1 = re.compile(r"^#\s+(?P<title>.+?)\s*$", re.MULTILINE)
 
 #: Task markers that exempt an unchecked task from blocking a plan's filing.
@@ -201,7 +203,10 @@ class Plan:
         for m in _TASK.finditer(self.body):
             if m.group("mark").strip():
                 continue
-            text = m.group("text")
+            text, end = m.group("text"), m.end()
+            # A tag wrapped onto the next line belongs to the task (proto.pilot, three boxes).
+            while more := _CONTINUATION.match(self.body, end):
+                text, end = f"{text} {more['text'].strip()}", more.end()
             if not include_exempt and any(marker in text for marker in EXEMPT_TASK_MARKERS):
                 continue
             out.append(text)

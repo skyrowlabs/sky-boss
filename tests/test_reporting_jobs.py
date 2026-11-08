@@ -159,7 +159,10 @@ def test_install_keeps_every_line_that_is_not_this_trees():
     assert crontab_block() in merged
 
 
-def test_install_replaces_this_trees_block_and_strays_in_place():
+def test_install_replaces_this_trees_block_and_strays_in_place(monkeypatch, tmp_path):
+    import scripts.reporting.jobs
+
+    monkeypatch.setattr(scripts.reporting.jobs, "SCHEDULE_ALLOWLIST", tmp_path / "none.yaml")  # every job scheduled
     ours = JOBS[0].cron_line()
     stale = crontab_block().replace(ours, "1 1 * * * " + ours.split(" ", 5)[5])
     merged = merged_crontab(f"{stale}{SIBLING}\n{ours}\n")
@@ -347,3 +350,22 @@ def test_the_agent_runs_as_its_job(monkeypatch):
     job = scanned(JOBS, "registered jobs")[0]
     agent_runner.run_triage(job.key, {}, base_branch="main")
     assert seen.get(SOURCE_ENV) == job.key
+
+
+@pytest.mark.parametrize("held", ["every", "all but one"])
+def test_cron_check_on_an_empty_crontab_is_green_only_when_every_job_is_held(monkeypatch, tmp_path, held):
+    import subprocess
+
+    from click.testing import CliRunner
+
+    import scripts.reporting.jobs
+    from scripts.reporting import shellout
+    from tests.shell import module
+
+    keys = [job.key for job in JOBS] if held == "every" else [job.key for job in JOBS[1:]]
+    allowlist = tmp_path / "schedule_allowlist.yaml"
+    allowlist.write_text("".join(f"{key}: 'held by this test'\n" for key in keys), encoding="utf-8")
+    monkeypatch.setattr(scripts.reporting.jobs, "SCHEDULE_ALLOWLIST", allowlist)
+    monkeypatch.setattr(shellout, "run", lambda argv, **_: subprocess.CompletedProcess(argv, 0, "", ""))
+    result = CliRunner().invoke(module("report").report, ["cron", "--check"])
+    assert result.exit_code == (0 if held == "every" else 1), result.output

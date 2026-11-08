@@ -12,6 +12,10 @@
 # cited by path — a tree whose CI does not type-check is a configuration, not a
 # defect, and this header must not name a file such a tree has deleted.
 #
+# The project itself is not in this file, because a requirements file cannot
+# name it with its extras. The job runs the same install step the test jobs
+# run, and the unit suite requires that too.
+#
 # ── This tree, which is one of the corners that header is written around ──
 #
 # It WAS such a tree until 2026-09-09: round 7 declined the template's job graph,
@@ -36,6 +40,9 @@
 # test jobs; this tree has one pytest matrix). Named differently on purpose so
 # that if the template's gate ever becomes satisfiable it arrives as a visible
 # addition rather than silently overlapping this one. Keep one of the two.
+#
+# The install step above does not apply: `pyproject.toml` here has no
+# `[project]`, so no test job installs the project and there is nothing extra.
 
 -r ../requirements.txt
 -r ../requirements-dev.txt

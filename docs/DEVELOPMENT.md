@@ -223,13 +223,26 @@ bump to one of them could never merge. Bump those by hand, in both files.
 Versioning is Conventional Commits → Release Please. Commit types decide the
 bump; `CHANGELOG.md` and `VERSION` are generated. **Never hand-edit either.**
 
+**Known: a pull request merged with a merge commit lists its change twice.**
+GitHub writes the PR title into the merge commit's body by default, and Release
+Please reads that line as a second commit (sky.vault, v0.2.0 and v0.3.0). The
+template leaves merge settings to you: squash merges, or PR titles with a hidden
+type such as `chore:`, avoid it. Measured on one tree only.
+
 The release lands on `main`, so back-merge it. Until you do,
 `develop` does not contain the release commit, and `git describe` there
 names the release before this one (mind.head):
 
 ```bash
-git switch develop && git merge --no-ff main && git push
+git fetch origin && git switch develop && git merge --ff-only origin/main && git push
 ```
+
+A fast-forward, because a merge commit is a commit no check has run on, and a
+`develop` with required checks takes it only by admin bypass (sky.vault).
+After a promote `develop` is normally an ancestor of `main`,
+so the fast-forward gives the same tree. If git refuses, `develop` has moved
+since: open the back-merge as a pull request from `main` and merge it
+with a merge commit, so it runs the checks and keeps the release commit an ancestor.
 
 **This tree versioned by annotated tag until 2026-11-04**, when Jeston moved every
 adopter to Release Please and accepted that versions restart at the template's
