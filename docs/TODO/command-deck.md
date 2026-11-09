@@ -1430,3 +1430,9 @@ kept the TODOS pane's pid.
   session's transcript does not exist until something reaches it, and here that was the message.
   The tail set its offset at first sight, so the receipt counted as the file's past and the line
   waited out `PATIENCE`. A path seen missing now reads from its first byte.
+
+### 2026-11-08: `sb deck` reloads a deck it finds running
+
+- **Ruled by Jeston.** A fresh terminal's `sb deck` should land on current code, so finding a deck
+  running now does what `sb deck reload` does before attaching. Agent tabs are kept; the tool panes
+  and the marks loop restart, so any line in flight under the tabs is lost.

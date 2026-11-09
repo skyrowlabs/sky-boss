@@ -2385,7 +2385,8 @@ def deck(ctx: click.Context, profile_name: str | None, fresh: bool) -> None:
     included, at launch. With no `--profile` at a terminal it opens the
     launcher first: the last deck to resume, the profiles, and the agent folders
     to tick, save as a profile or delete (`sb deck launch`, M-r in a deck). The
-    last deck comes back as it was saved, each tab resuming its session. Inside tmux it switches this client;
+    last deck comes back as it was saved, each tab resuming its session. A deck already running is
+    reloaded onto this sky.boss's code first, as `sb deck reload` does. Inside tmux it switches this client;
     outside, it becomes `tmux attach`, so it emits no envelope.
     """
     if ctx.invoked_subcommand is not None:
@@ -2410,12 +2411,15 @@ def deck(ctx: click.Context, profile_name: str | None, fresh: bool) -> None:
         config, more = load()
         problems += more
         profile, terminals = chosen_deck(config, chosen, problems)
-    starting = has_session(inner(config.session)) is False
+    present = has_session(inner(config.session))
+    starting = present is False
     if starting and fresh:
         decksave.clear(config.session)
     elif starting and not profile_name and profile is None:
         profile, terminals = resumed_deck(config, problems, profile, terminals)
     more = open_deck(config, profile, terminals, fresh, starting)
+    if present and has_session(config.session):
+        more += reload_keeping_sizes(config)
     note = extended_keys_note()
     warn_now(problems + more + ([note] if note else []))
 
@@ -3441,6 +3445,41 @@ def deck_column_pick() -> Result:
     return _apply_column(config.session, picked)
 
 
+def reload_session(config: Config) -> Result:
+    """Dress a running deck again and reopen its tool panes and marks loop. Agent tabs are untouched."""
+    result = Result()
+    chosen, more = column_.load(config.session, config.panes)
+    listed, _ = panes(config.session)
+    window_id = controller(listed) or ""
+    roles = {p.role: p.pane_id for p in listed if p.window_id == window_id and p.role in TOOL_ROLES}
+    cycling = [role for role in chosen.shown if role in roles]
+    more += _session_options(config.session, ((HIDDEN_OPTION, ",".join(TOOL_ROLES)),))
+    _, waited = _await_closed(config.session, window_id, dict(roles), cycling, [])
+    stuck = [role for role in cycling if any(role in line for line in waited)]
+    for role in stuck:
+        more.append(f"the {role} pane predates reload and kept running — press q in it, then `sb deck reload` again")
+    created, arranged = arrange(config.session, layout_of(config.session), force=True)
+    marks = restart_marks(config.session)
+    more += arranged + dress_sessions(config.session) + marks
+    for problem in more:
+        result.warn(problem)
+    result.partial = bool(stuck or arranged or marks)
+    result.data = {"session": config.session, "restarted": ", ".join(created), "kept": ", ".join(stuck)}
+    return result
+
+
+def reload_keeping_sizes(config: Config) -> list[str]:
+    """`reload_session` for an attach. It rebuilds the panes, so the sizes dragged before it go back after."""
+    window = controller(panes(config.session)[0]) or ""
+    before = tmux("display-message", "-p", "-t", window, "#{window_layout}")
+    warnings = reload_session(config).warnings
+    if before.ok and before.out.strip():
+        answer = tmux("select-layout", "-t", window, before.out.strip())
+        if not answer.ok:
+            warnings.append(f"the deck reloaded but its pane sizes could not be put back — {_said(answer)}")
+    return warnings
+
+
 @deck.command(name="reload")
 @emit
 def deck_reload() -> Result:
@@ -3464,23 +3503,11 @@ def deck_reload() -> Result:
         return result
     if not present:
         raise click.UsageError(f"no deck session {config.session!r} — `sb deck` starts one")
-    chosen, more = column_.load(config.session, config.panes)
-    listed, _ = panes(config.session)
-    window_id = controller(listed) or ""
-    roles = {p.role: p.pane_id for p in listed if p.window_id == window_id and p.role in TOOL_ROLES}
-    cycling = [role for role in chosen.shown if role in roles]
-    more += _session_options(config.session, ((HIDDEN_OPTION, ",".join(TOOL_ROLES)),))
-    _, waited = _await_closed(config.session, window_id, dict(roles), cycling, [])
-    stuck = [role for role in cycling if any(role in line for line in waited)]
-    for role in stuck:
-        more.append(f"the {role} pane predates reload and kept running — press q in it, then `sb deck reload` again")
-    created, arranged = arrange(config.session, layout_of(config.session), force=True)
-    marks = restart_marks(config.session)
-    more += arranged + dress_sessions(config.session) + marks
-    for problem in more:
+    reloaded = reload_session(config)
+    for problem in reloaded.warnings:
         result.warn(problem)
-    result.partial = bool(stuck or arranged or marks)
-    result.data = {"session": config.session, "restarted": ", ".join(created), "kept": ", ".join(stuck)}
+    result.partial = reloaded.partial
+    result.data = reloaded.data
     return result
 
 
