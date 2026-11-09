@@ -19,6 +19,7 @@ ATTACH, RESUME, PROFILE, FOLDER, ADD, SAVE_DECK = "attach", "resume", "profile",
 START, OPEN, NEW, DELETE, SAVE, QUIT = "start", "open", "new", "delete", "save", "quit"
 HEADINGS = {ATTACH: "Running decks", RESUME: "Saved decks", PROFILE: "Profiles", FOLDER: "Agent folders"}
 HEADER = re.compile(r"^\s*\[")
+GIT_ROOTS = re.compile(r"^[ \t]*git_roots\s*=", re.MULTILINE)
 
 
 @dataclass(frozen=True)
@@ -119,6 +120,16 @@ def screen(launch: Launch, width: int) -> list[tuple[str, int | None]]:
     if launch.note:
         lines.append((launch.note[: max(1, width - 1)], None))
     return lines
+
+
+def visible(lines: list[tuple[str, int | None]], launch: Launch, room: int) -> list[int]:
+    """Which of `screen`'s lines fit in `room`: those around the cursor, and always the footer."""
+    foot = 2 + bool(launch.note)
+    body = len(lines) - foot
+    space = max(1, room - foot)
+    cursor = next((n for n, (_, row) in enumerate(lines) if row == launch.at), 0)
+    first = deckplus.window(body, cursor, space)
+    return [*range(first, min(body, first + space)), *range(body, len(lines))]
 
 
 def step(launch: Launch, key: str | None, clicked_row: int | None = None) -> tuple[Launch, Outcome | None]:
@@ -228,6 +239,23 @@ def replaced_profile(text: str, name: str, body: dict) -> str:
     return "".join(lines[:start]) + profile_block(name, body) + "".join(lines[end:])
 
 
+def with_git_roots(text: str, roots: list[str]) -> str:
+    """`text` with top-level `git_roots` set: replaced where it is, else after the last key above any table."""
+    line = "git_roots = [" + ", ".join(tools._toml_string(root) for root in roots) + "]\n"
+    found = GIT_ROOTS.search(text)
+    if found:
+        close = text.find("]", found.start())
+        end = text.find("\n", close)
+        return text[: found.start()] + line + text[end + 1 if end >= 0 else len(text) :]
+    lines = text.splitlines(keepends=True)
+    head = next((n for n, each in enumerate(lines) if HEADER.match(each)), len(lines))
+    keys = [n for n, each in enumerate(lines[:head]) if each.strip() and not each.lstrip().startswith("#")]
+    at = keys[-1] + 1 if keys else 0
+    if at and not lines[at - 1].endswith("\n"):
+        lines[at - 1] += "\n"
+    return "".join([*lines[:at], line, *lines[at:]])
+
+
 def edited(
     text: str,
     *,
@@ -235,6 +263,7 @@ def edited(
     drop_agent: str = "",
     add_profile: tuple[str, dict] | None = None,
     set_profile: tuple[str, dict] | None = None,
+    git_roots: list[str] | None = None,
 ) -> str:
     """`text` with one change made, raising `ValueError` unless it parses to exactly that change."""
     try:
@@ -243,7 +272,11 @@ def edited(
         raise ValueError(f"{deckplus.FILE} does not parse, so nothing was written — {exc}") from exc
     agents = dict(was.get("agent", {}))
     profiles = {key: dict(body) for key, body in was.get("profile", {}).items()}
-    if drop_agent:
+    rest = {key: value for key, value in was.items() if key not in ("agent", "profile")}
+    if git_roots is not None:
+        new = with_git_roots(text, git_roots)
+        rest["git_roots"] = git_roots
+    elif drop_agent:
         holding = sorted(
             p for p, body in profiles.items() if drop_agent in [body.get("primary"), *body.get("tabs", [])]
         )
@@ -270,7 +303,6 @@ def edited(
         now = tomllib.loads(new)
     except tomllib.TOMLDecodeError as exc:
         raise ValueError(f"{deckplus.FILE} would not parse, so nothing was written — {exc}") from exc
-    rest = {key: value for key, value in was.items() if key not in ("agent", "profile")}
     if (
         now.get("agent", {}) != agents
         or now.get("profile", {}) != profiles

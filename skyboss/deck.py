@@ -59,7 +59,9 @@ from skyboss.view import describe
 
 DECK_FILE = "deck.toml"
 DEFAULT_SESSION = "sb"
-TOP_LEVEL_KEYS = frozenset({"session", "pin", "panes", "themes", "theme_base", "roots", "trust", "todo_stale"})
+TOP_LEVEL_KEYS = frozenset(
+    {"session", "pin", "panes", "themes", "theme_base", "roots", "git_roots", "trust", "todo_stale"}
+)
 TOP_LEVEL_TABLES = frozenset({"agent", "profile"})
 AGENT_KEYS = frozenset({"cwd", "args", "role", "colour"})
 PROFILE_KEYS = frozenset({"primary", "tabs", "brief", "brief_file", "terminals", "columns", "session"})
@@ -242,6 +244,7 @@ class Config:
     todo_stale: int = todos_.STALE_AFTER
     # Directories whose folders the `+` offers.
     roots: list[str] = field(default_factory=list)
+    git_roots: list[str] = field(default_factory=list)
     # deck.toml's `session`, which names a profile's deck; `session` is this process's deck.
     base: str = DEFAULT_SESSION
 
@@ -345,6 +348,12 @@ def parse(raw: dict) -> tuple[Config, list[str]]:
         else:
             problems.append(f"theme_base must be one of {', '.join(THEME_BASES)} — ignored")
 
+    if "git_roots" in raw:
+        git_roots = raw["git_roots"]
+        if isinstance(git_roots, list) and all(isinstance(root, str) for root in git_roots):
+            config.git_roots = git_roots
+        else:
+            problems.append("git_roots must be a list of directories — ignored")
     if "roots" in raw:
         roots = raw["roots"]
         if isinstance(roots, list) and all(isinstance(root, str) for root in roots):
@@ -2583,8 +2592,7 @@ def declared_places(config: Config, projects: list) -> list[deckplus.Place]:
         for p in projects
         if p.cwd and p.name not in config.agents and NAME.match(p.name)
     ]
-    roots = [os.path.expandvars(os.path.expanduser(root)) for root in config.roots]
-    return deckplus.places(declared, roots, NAME)
+    return deckplus.places(declared, _expanded(config.roots), NAME, _expanded(config.git_roots))
 
 
 @deck.command(name="places")
@@ -2778,16 +2786,21 @@ def launch_rows(config: Config, running: bool) -> list[decklaunch.Row]:
             saved.append((name, save.profile, len(save.tabs)))
     profiles = {name: len(profile.order()[0]) for name, profile in config.profiles.items()}
     folders = [(a.name, a.directory, True) for a in config.agents.values() if a.source == DECK_FILE]
-    if not folders:
-        folders = [(p.name, p.cwd, False) for p in roots_places(config) if not p.problem]
+    # `roots` is the first-run list; `git_roots` is asked for, so it is listed beside the declared agents.
+    folders += [(p.name, p.cwd, False) for p in undeclared_places(config, use_roots=not folders) if not p.problem]
     return decklaunch.rows_of(decks, saved, profiles, folders, running)
 
 
-def roots_places(config: Config) -> list[deckplus.Place]:
-    """Each folder under `roots` that no agent holds yet."""
+def _expanded(paths: list[str]) -> list[str]:
+    return [os.path.expandvars(os.path.expanduser(path)) for path in paths]
+
+
+def undeclared_places(config: Config, use_roots: bool) -> list[deckplus.Place]:
+    """Each folder under `git_roots`, and `roots` if asked, that no agent holds yet."""
     declared = [(a.name, a.directory, a.source) for a in config.agents.values()]
-    roots = [os.path.expandvars(os.path.expanduser(root)) for root in config.roots]
-    return [place for place in deckplus.places(declared, roots, NAME) if not place.declared]
+    roots = _expanded(config.roots) if use_roots else []
+    found = deckplus.places(declared, roots, NAME, _expanded(config.git_roots))
+    return [place for place in found if not place.declared]
 
 
 def _launch_once(launch: decklaunch.Launch) -> tuple[decklaunch.Launch, decklaunch.Outcome]:
@@ -2796,14 +2809,14 @@ def _launch_once(launch: decklaunch.Launch) -> tuple[decklaunch.Launch, decklaun
         while True:
             size = shutil.get_terminal_size()
             lines = decklaunch.screen(launch, size.columns)
-            top = max(0, len(lines) - size.lines)
-            shown = [line for line, _ in lines[top:]]
-            key = _popup_key(shown, lambda y: y <= len(shown) and lines[top + y - 1][1] is not None, wait_for)
+            drawn = decklaunch.visible(lines, launch, size.lines)
+            shown = [lines[n][0] for n in drawn]
+            key = _popup_key(shown, lambda y: y <= len(drawn) and lines[drawn[y - 1]][1] is not None, wait_for)
             cell = keys_.clicked(key)
             row = None
             if cell is not None:
-                at = top + cell[1] - 1
-                row = lines[at][1] if 0 <= at < len(lines) else None
+                at = cell[1] - 1
+                row = lines[drawn[at]][1] if 0 <= at < len(drawn) else None
                 if row is None:
                     continue
             launch, outcome = decklaunch.step(launch, key, row)
@@ -2843,20 +2856,61 @@ def _cooked(launch_note: str) -> None:
     sys.stdout.flush()
 
 
+def _scan_entry(config: Config, path: str) -> str | None:
+    """The `git_roots` entry that names `path`, however it is spelled."""
+    return next(
+        (
+            e
+            for e, x in zip(config.git_roots, _expanded(config.git_roots))
+            if os.path.realpath(x) == os.path.realpath(path)
+        ),
+        None,
+    )
+
+
+def _browsed(config: Config) -> tuple[int, str] | None:
+    """`(0, folder)` to add it or `(1, folder)` to toggle its scan, walking down from where `sb` was run."""
+    try:
+        path = os.getcwd()
+    except OSError:
+        path = os.path.expanduser("~")
+    while True:
+        rows, targets = deckplus.browse(path, _scan_entry(config, path) is not None)
+        chosen = _picked(f"Add a folder: {decklaunch.short(path)}", rows)
+        if chosen is None:
+            return None
+        if chosen < 2:
+            return chosen, path
+        path = targets[chosen]
+
+
+def _toggle_scan(config: Config, path: str) -> str:
+    """Start or stop listing the git projects under `path`. What to tell the operator."""
+    where, entry = decklaunch.short(path), _scan_entry(config, path)
+    if entry is not None:
+        kept = [each for each in config.git_roots if each != entry]
+        return _write_edit(git_roots=kept) or f"no longer listing the git projects under {where}"
+    declared = [(a.name, a.directory, a.source) for a in config.agents.values()]
+    found = [p for p in deckplus.places(declared, [], NAME, [path]) if not p.declared]
+    total = len(deckplus.git_projects(path))
+    if not total:
+        return f"no git project within {deckplus.GIT_DEPTH} levels of {where}, so nothing was set"
+    problem = _write_edit(git_roots=[*config.git_roots, where])
+    unlisted = sum(1 for p in found if p.problem)
+    listed = len(found) - unlisted
+    tail = f"; {unlisted} not listed, their names are invalid or taken" if unlisted else ""
+    return problem or f"{total} git project(s) under {where}: {listed} newly listed{tail}"
+
+
 def _new_folder(config: Config) -> str:
-    """Pick a folder under `roots`, or type a path, and declare it. What to tell the operator."""
-    found = roots_places(config)
-    rows = [f"{p.name:<{max((len(q.name) for q in found), default=0)}}  {p.cwd}" for p in found] + ["type a path"]
-    chosen = _picked("Add which folder?", rows)
-    if chosen is None:
+    """Browse to a folder, then declare it or toggle its scan. What to tell the operator."""
+    picked = _browsed(config)
+    if picked is None:
         return ""
-    if chosen < len(found):
-        name, cwd = found[chosen].name, found[chosen].cwd
-    else:
-        cwd = os.path.expandvars(os.path.expanduser(click.prompt("path", default="", show_default=False).strip()))
-        if not cwd or not os.path.isdir(cwd):
-            return f"not a folder: {cwd or 'nothing typed'}"
-        name = click.prompt("name", default=deckplus.tab_name(os.path.basename(os.path.normpath(cwd))))
+    action, cwd = picked
+    if action == 1:
+        return _toggle_scan(config, cwd)
+    name = deckplus.tab_name(os.path.basename(os.path.normpath(cwd)))
     if not NAME.match(name):
         return f"{name!r} cannot be a tab's name — {NAME_RULE}"
     if name in config.agents:
@@ -3040,6 +3094,10 @@ def deck_profile_list() -> Result:
     config, problems = load()
     for problem in problems:
         result.warn(problem)
+    if not config.profiles:
+        result.warn(
+            f"no profiles in {DECK_FILE} — an added folder is an agent, see `sb deck places`; `s` in the launcher saves ticked ones as a profile"
+        )
     live = set(running_decks())
     result.data = [
         {

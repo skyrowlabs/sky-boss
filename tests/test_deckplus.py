@@ -151,3 +151,57 @@ def test_a_dotted_tab_name_is_refused_with_the_reason():
     from skyboss import deck as deck_
 
     assert not deck_.NAME.match("skyrowlabs.com") and "dot" in deck_.NAME_RULE
+
+
+def test_browse_offers_this_folder_then_up_then_visible_subfolders(tmp_path):
+    (tmp_path / "b").mkdir()
+    (tmp_path / "a").mkdir()
+    (tmp_path / ".hidden").mkdir()
+    (tmp_path / "file").write_text("")
+    rows, targets = deckplus.browse(str(tmp_path))
+    assert rows[2:] == ["..", "a/", "b/"]
+    assert targets == [str(tmp_path), str(tmp_path), str(tmp_path.parent), str(tmp_path / "a"), str(tmp_path / "b")]
+
+
+def test_browse_at_the_root_has_no_way_up():
+    assert ".." not in deckplus.browse("/")[0]
+
+
+def test_browse_offers_to_stop_a_scan_already_set(tmp_path):
+    assert "stop" in deckplus.browse(str(tmp_path), scanned=True)[0][1]
+    assert "list every" in deckplus.browse(str(tmp_path))[0][1]
+
+
+def make_repo(path, marker="dir"):
+    path.mkdir(parents=True)
+    (path / ".git").mkdir() if marker == "dir" else (path / ".git").write_text("gitdir: x")
+
+
+def test_git_projects_finds_nested_checkouts_and_worktrees_only(tmp_path):
+    make_repo(tmp_path / "a")
+    make_repo(tmp_path / "group" / "b", marker="file")
+    (tmp_path / "plain").mkdir()
+    assert deckplus.git_projects(str(tmp_path)) == [tmp_path / "a", tmp_path / "group" / "b"]
+
+
+def test_git_projects_stops_at_a_checkout_at_the_depth_and_at_node_modules(tmp_path):
+    make_repo(tmp_path / "outer" / "sub" / "x")
+    make_repo(tmp_path / "outer" / "sub" / "x" / "nested")
+    make_repo(tmp_path / "node_modules" / "dep")
+    assert deckplus.git_projects(str(tmp_path)) == [tmp_path / "outer" / "sub" / "x"]
+    assert deckplus.git_projects(str(tmp_path), depth=1) == []
+
+
+def test_a_git_root_lists_new_projects_and_names_a_clash(tmp_path):
+    make_repo(tmp_path / "one" / "app")
+    make_repo(tmp_path / "two" / "app")
+    found = deckplus.places([], [], deck_.NAME, [str(tmp_path)])
+    assert [(p.name, p.source, bool(p.problem)) for p in found] == [
+        ("app", "git_roots", False),
+        ("app", "git_roots", True),
+    ]
+
+
+def test_git_roots_is_read_and_a_bad_one_is_named():
+    assert deck_.parse({"git_roots": ["~/src"]})[0].git_roots == ["~/src"]
+    assert any("git_roots" in p for p in deck_.parse({"git_roots": "~/src"})[1])

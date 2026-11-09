@@ -3209,3 +3209,10 @@ def test_profile_save_writes_the_decks_tabs_and_keeps_a_replaced_profiles_brief(
         "brief_file": "core.md",
     }
     assert written["agent"]["new"] == {"cwd": str(tmp_path)}
+
+
+def test_profile_list_says_so_when_there_are_none(monkeypatch, tmp_path):
+    monkeypatch.setattr(deck_, "running_decks", lambda: [])
+    monkeypatch.setenv("SB_HOME", str(tmp_path))
+    out = json.loads(CliRunner().invoke(cli, ["--json", "deck", "profile", "list"]).stdout)
+    assert out["data"] == [] and out["ok"] and "no profiles" in out["warnings"][0]

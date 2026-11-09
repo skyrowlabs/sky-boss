@@ -577,7 +577,7 @@ it, with the last deck as the first row.
 - [x] **First run.** With no `[agent.*]` declared, the folders are those under `roots`. Starting
       or saving declares the ticked ones as agents named by their folders.
 - [x] **Managing.** `s` saves the ticked folders as a profile, `d` deletes a profile or a declared
-      folder, and `a` adds a folder from `roots` or a typed path. A folder a profile lists is not
+      folder, and `a` browses to a folder from where `sb` was run. A folder a profile lists is not
       deleted, and the refusal names the profiles. Every write backs `deck.toml` up and splices it,
       checked by parsing the result. A deleted block takes the comment written directly above it.
 - [x] **Inside a deck.** `sb deck launch` opens the same screen in a popup on M-r. It manages, and a
@@ -1405,3 +1405,21 @@ kept the TODOS pane's pid.
   in the same pane clears at once; leaving altogether clears after `HOVER_HOLD` (3s) without
   motion, so a mouse resting on a row also goes dark. Measured on tmux 3.8, motion reaches a pane
   and a popup alike.
+
+### 2026-11-08: adding a folder browses instead of asking for a path
+
+- **Asked by Jeston:** the `type a path` prompt showed nothing as they typed. Ruled: a directory
+  browser starting where `sb` was run. Enter walks in, `..` walks up, the first row adds. The tab
+  takes the folder's name, so no prompt remains on this path.
+- **The missing echo did not reproduce** under a pty on `sb deck launch`: ECHO was on and the typed
+  bytes came back. The `profile name` prompts still go through `click.prompt`.
+
+### 2026-11-08: a folder that is searched for git projects
+
+- **Asked by Jeston.** The browser's second row sets the folder in view as a `git_roots` entry in
+  `deck.toml`, and offers to stop once set. Every checkout under it, `GIT_DEPTH` (4) levels at most,
+  is a launcher row and a `+` place, beside the declared agents, and declared when started.
+- A checkout is not searched inside, a symlink is not followed, and `.git` may be a worktree's file.
+  A project whose name clashes is left off the list and counted when the entry is set.
+- **The launcher now scrolls around its cursor and keeps its footer.** It drew the list's tail, so
+  a cursor near the top of a long list was off screen.

@@ -13,11 +13,14 @@ import tempfile
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Sequence
 
 from skyboss import tools
 
 FILE = "deck.toml"
 TABS = re.compile(r"^\s*tabs\s*=")
+GIT_DEPTH = 4
+NOT_SEARCHED = frozenset({"node_modules"})
 
 
 @dataclass(frozen=True)
@@ -38,13 +41,28 @@ def _folders(root: str) -> list[Path]:
         return []
 
 
+def git_projects(root: str, depth: int = GIT_DEPTH) -> list[Path]:
+    """Each git checkout at or under `root`, at most `depth` levels down. A checkout is not searched inside."""
+    if (Path(root) / ".git").exists():
+        return [Path(root)]
+    if depth == 0:
+        return []
+    found: list[Path] = []
+    for folder in _folders(root):
+        if folder.name not in NOT_SEARCHED and not folder.is_symlink():
+            found += git_projects(str(folder), depth - 1)
+    return found
+
+
 def tab_name(folder: str) -> str:
     """A folder's name as a tab can carry it: a dot or any other mark becomes a dash."""
     return re.sub(r"[^A-Za-z0-9_-]+", "-", folder).strip("-")
 
 
-def places(declared: list[tuple[str, str, str]], roots: list[str], name_ok: re.Pattern) -> list[Place]:
-    """`declared` as `(name, directory, source)`, then each new folder under `roots`.
+def places(
+    declared: list[tuple[str, str, str]], roots: list[str], name_ok: re.Pattern, git_roots: Sequence[str] = ()
+) -> list[Place]:
+    """`declared` as `(name, directory, source)`, then each new folder under `roots` and git project under `git_roots`.
 
     A folder an agent already holds is that agent. One that cannot be a tab's name says why
     rather than going missing.
@@ -52,20 +70,33 @@ def places(declared: list[tuple[str, str, str]], roots: list[str], name_ok: re.P
     out = [Place(name, cwd, source, declared=True) for name, cwd, source in declared]
     held = {os.path.realpath(place.cwd) for place in out}
     names = {place.name for place in out}
-    for root in roots:
-        for folder in _folders(root):
-            real = os.path.realpath(folder)
-            if real in held:
-                continue
-            held.add(real)
-            problem, name = "", tab_name(folder.name)
-            if not name_ok.match(name):
-                problem = "this folder's name cannot be a tab's name"
-            elif name in names:
-                problem = f"the name {name!r} is taken by another folder"
-            names.add(name)
-            out.append(Place(name, str(folder), "roots", problem=problem))
+    found = [(folder, "roots") for root in roots for folder in _folders(root)]
+    found += [(folder, "git_roots") for root in git_roots for folder in git_projects(root)]
+    for folder, source in found:
+        real = os.path.realpath(folder)
+        if real in held:
+            continue
+        held.add(real)
+        problem, name = "", tab_name(folder.name)
+        if not name_ok.match(name):
+            problem = "this folder's name cannot be a tab's name"
+        elif name in names:
+            problem = f"the name {name!r} is taken by another folder"
+        names.add(name)
+        out.append(Place(name, str(folder), source, problem=problem))
     return out
+
+
+def browse(path: str, scanned: bool = False) -> tuple[list[str], list[str]]:
+    """The folder browser at `path`: each row, and the directory it stands for. Rows 0 and 1 act on `path`."""
+    parent = os.path.dirname(path)
+    up = [parent] if parent != path else []
+    below = _folders(path)
+    scan = "✕ stop listing the git projects under here" if scanned else "⌕ list every git project under here"
+    return (
+        ["✓ add this folder", scan, *[".." for _ in up], *[f"{folder.name}/" for folder in below]],
+        [path, path, *up, *[str(folder) for folder in below]],
+    )
 
 
 def _string(value: str) -> str:
