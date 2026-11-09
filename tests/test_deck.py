@@ -179,6 +179,8 @@ class FakeTmux:
         if verb == "display-message":
             if args[-1] == "#{socket_path}":
                 return Answer(asked=True, out="/tmp/fx-socket\n")
+            if args[-1] == "#{window_layout}":
+                return Answer(asked=True, out="fx-layout\n")
             return Answer(asked=True, out=f"{self.current}\n")
         return Answer(asked=True)
 
@@ -702,10 +704,12 @@ def test_layout_refuses_a_shape_it_does_not_have(fake, home):
     assert invoke("deck", "layout", "hexagon").exit_code == 2 and fake.calls == []
 
 
-def test_bare_deck_on_an_existing_deck_keeps_the_operators_sizes(fake, home, tmp_path):
+def test_bare_deck_on_an_existing_deck_keeps_the_operators_sizes(fake, home, tmp_path, monkeypatch):
     deck_built(fake, home, tmp_path)
+    monkeypatch.setattr(deck_, "reload_session", lambda config: Result_())
     assert invoke("deck").exit_code == 1
     assert not {"join-pane", "resize-pane", "split-window", "new-session", "new-window"} & set(fake.verbs())
+    assert fake.find("select-layout")
 
 
 def test_bare_deck_rebuilds_a_tabs_session_that_has_gone(fake, home, tmp_path):
@@ -2381,6 +2385,23 @@ def test_the_deck_rescrolls_on_a_resize_or_a_tab_change():
     hooks = {argv[3]: argv for argv in deck_.scroll_hooks("sb")}
     assert set(hooks) == {"client-resized", "session-window-changed", "window-linked", "window-unlinked"}
     assert all(argv[2] == deck_.scope("sb-agents") and "deck scroll" in argv[-1] for argv in hooks.values())
+
+
+def test_bare_deck_reloads_a_deck_it_finds_running_and_keeps_its_tabs(fake, home, sb_state, monkeypatch):
+    invoke("deck")
+    before = {role: pane for role, pane in fake.roles().items() if role in deck_.TOOL_ROLES}
+    tabs = {pane for pane in fake.panes if pane not in before.values()}
+    monkeypatch.setattr(deck_, "_sleep", lambda s: [fake.panes.pop(p, None) for p in before.values()])
+    invoke("deck")
+    after = {role: pane for role, pane in fake.roles().items() if role in deck_.TOOL_ROLES}
+    assert set(after) == set(before) and not set(after.values()) & set(before.values())
+    assert tabs <= set(fake.panes) and not {"kill-pane", "respawn-pane", "kill-window"} & set(fake.verbs())
+
+
+def test_bare_deck_starting_a_deck_reloads_nothing(fake, home, monkeypatch):
+    monkeypatch.setattr(deck_, "reload_session", lambda config: pytest.fail("nothing is running to reload"))
+    invoke("deck")
+    assert fake.roles()
 
 
 def test_reload_restarts_every_tool_pane_that_closes_itself_and_kills_none(fake, home, sb_state, monkeypatch):

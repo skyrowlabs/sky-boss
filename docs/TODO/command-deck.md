@@ -1423,3 +1423,16 @@ kept the TODOS pane's pid.
   A project whose name clashes is left off the list and counted when the entry is set.
 - **The launcher now scrolls around its cursor and keeps its footer.** It drew the list's tail, so
   a cursor near the top of a long list was off screen.
+
+### 2026-11-08: a line to a tab that had not spoken yet
+
+- **Reported by Jeston:** a message was received and answered, and its line stayed lit. A fresh
+  session's transcript does not exist until something reaches it, and here that was the message.
+  The tail set its offset at first sight, so the receipt counted as the file's past and the line
+  waited out `PATIENCE`. A path seen missing now reads from its first byte.
+
+### 2026-11-08: `sb deck` reloads a deck it finds running
+
+- **Ruled by Jeston.** A fresh terminal's `sb deck` should land on current code, so finding a deck
+  running now does what `sb deck reload` does before attaching. Agent tabs are kept; the tool panes
+  and the marks loop restart, so any line in flight under the tabs is lost.
