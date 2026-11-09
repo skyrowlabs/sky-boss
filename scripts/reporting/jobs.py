@@ -334,9 +334,9 @@ JOBS: list[Job] = [
 #: rules are narrower than a job needs (stash-flow); a key no job has fails the suite.
 AGENT_TOOLS: dict[str, tuple[str, ...]] = {}
 
-#: Jobs whose runner pushes their commit to the base branch, once it has passed
-#: `check pre-push`, when it touches only the job's `writes` file. Off unless a tree
-#: adds the key: it writes to that branch unattended, on this host's credentials.
+#: Jobs whose runner lands their commit through an auto-merging pull request, once it
+#: has passed `check pre-push`, when it touches only the job's `writes` file. Off unless a
+#: tree adds the key: it merges unreviewed and unattended, on this host's credentials.
 AUTO_PUSH: set[str] = set()
 
 #: **Add your own jobs, and any grant, as an append, in the space between the two

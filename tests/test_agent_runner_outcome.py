@@ -8,6 +8,8 @@ Measured on a fresh tree with the agent replaced by `true`.
 
 from __future__ import annotations
 
+import json
+import os
 import subprocess
 from pathlib import Path
 
@@ -104,59 +106,104 @@ COMMIT = "git add -A && git commit -q -m 'docs: report'"
 
 @pytest.fixture
 def origin(tree, tmp_path, monkeypatch):
-    """A bare remote holding `main`, with this job publishing and its pre-push passing."""
+    """A bare remote holding `main`, this job publishing, its pre-push passing, and a logging `gh`."""
     bare = tmp_path / "origin.git"
     _git(tmp_path, "init", "-q", "--bare", "-b", "main", str(bare))
     _git(tree, "remote", "add", "origin", str(bare))
     _git(tree, "push", "-q", "origin", "main")
     monkeypatch.setattr(agent_runner, "AUTO_PUSH", {JOB.key})
     monkeypatch.setattr(agent_runner, "PRE_PUSH", ["true"])
+    tools = tmp_path / "tools"
+    tools.mkdir()
+    (tools / "gh").write_text(GH.format(log=tmp_path / "gh.log"), encoding="utf-8")
+    (tools / "gh").chmod(0o755)
+    monkeypatch.setenv("PATH", f"{tools}{os.pathsep}{os.environ['PATH']}")
+    monkeypatch.setenv("FAKE_GH_LIST", "[]")
     return bare
+
+
+GH = """#!/bin/sh
+echo "$*" >> {log}
+case "$2" in
+  list) echo "$FAKE_GH_LIST" ;;
+  create) [ -z "$FAKE_GH_NO_CREATE" ] || {{ echo refused >&2; exit 1; }}; echo https://example.invalid/pull/7 ;;
+  merge) [ -z "$FAKE_GH_NO_MERGE" ] || {{ echo refused >&2; exit 1; }} ;;
+esac
+"""
 
 
 def _report_commit(tree: Path) -> list[str]:
     return ["sh", "-c", f"echo changed >> {tree / JOB.writes} && {COMMIT}"]
 
 
-def test_a_publishing_job_pushes_its_report_commit(tree, origin, monkeypatch):
+def _gh_calls(tree: Path) -> str:
+    log = tree.parent / "gh.log"
+    return log.read_text(encoding="utf-8") if log.exists() else ""
+
+
+def test_a_publishing_job_lands_through_an_auto_merging_pull_request(tree, origin, monkeypatch):
+    base = _git(origin, "rev-parse", "main")
     row = _run_with(monkeypatch, _report_commit(tree), tree)
-    assert row["outcome"] == "ok", row
-    assert _git(origin, "rev-parse", "--short", "main") == row["committed"], row
+    topic = f"report/{JOB.key}-{row['committed']}"
+    assert row["outcome"] == "ok" and "auto-merge" in row["reason"], row
+    assert _git(origin, "rev-parse", "--short", topic) == row["committed"]
+    assert _git(origin, "rev-parse", "main") == base and _git(tree, "rev-parse", "HEAD") == base
+    calls = _gh_calls(tree)
+    assert f"pr create --base main --head {topic}" in calls and "--auto --merge" in calls, calls
 
 
 def test_a_job_not_enrolled_pushes_nothing(tree, origin, monkeypatch):
     monkeypatch.setattr(agent_runner, "AUTO_PUSH", set())
-    before = _git(origin, "rev-parse", "main")
     assert _run_with(monkeypatch, _report_commit(tree), tree)["outcome"] == "ok"
-    assert _git(origin, "rev-parse", "main") == before
+    assert not _git(origin, "branch", "--list", "report/*") and not _gh_calls(tree)
 
 
-def test_a_red_pre_push_stops_the_push(tree, origin, monkeypatch):
+def test_a_red_pre_push_stops_the_pull_request(tree, origin, monkeypatch):
     monkeypatch.setattr(agent_runner, "PRE_PUSH", ["false"])
-    before = _git(origin, "rev-parse", "main")
     row = _run_with(monkeypatch, _report_commit(tree), tree)
-    assert row["outcome"] == "failed" and "not pushed" in row["reason"] and row["committed"], row
-    assert _git(origin, "rev-parse", "main") == before
+    assert row["outcome"] == "failed" and "not landed" in row["reason"] and row["committed"], row
+    assert not _git(origin, "branch", "--list", "report/*") and not _gh_calls(tree)
 
 
-def test_a_commit_touching_another_file_is_not_pushed(tree, origin, monkeypatch):
-    before = _git(origin, "rev-parse", "main")
+def test_a_commit_touching_another_file_is_not_landed(tree, origin, monkeypatch):
     script = f"echo changed >> {tree / JOB.writes} && echo x > {tree / 'other.txt'} && {COMMIT}"
     row = _run_with(monkeypatch, ["sh", "-c", script], tree)
     assert row["outcome"] == "failed" and "other.txt" in row["reason"], row
-    assert _git(origin, "rev-parse", "main") == before
+    assert not _git(origin, "branch", "--list", "report/*")
 
 
-def test_a_remote_that_moved_refuses_the_push_and_nothing_forces_it(tree, origin, tmp_path, monkeypatch):
+def test_an_operators_unpushed_commit_is_never_carried(tree, origin, monkeypatch):
+    _git(tree, "commit", "-q", "--allow-empty", "-m", "chore: mine, unpushed")
+    row = _run_with(monkeypatch, _report_commit(tree), tree)
+    assert row["outcome"] == "failed" and "origin does not" in row["reason"], row
+    assert not _git(origin, "branch", "--list", "report/*")
+
+
+def test_the_checkout_catches_up_with_what_merged_before_the_agent_runs(tree, origin, tmp_path, monkeypatch):
     other = tmp_path / "other"
     _git(tmp_path, "clone", "-q", str(origin), str(other))
     identity = ("-c", "user.name=t", "-c", "user.email=t@example.invalid")
-    _git(other, *identity, "commit", "-q", "--allow-empty", "-m", "chore: elsewhere")
+    _git(other, *identity, "commit", "-q", "--allow-empty", "-m", "chore: merged")
     _git(other, "push", "-q", "origin", "HEAD:main")
     moved = _git(origin, "rev-parse", "main")
     row = _run_with(monkeypatch, _report_commit(tree), tree)
-    assert row["outcome"] == "failed" and "not pushed" in row["reason"], row
-    assert _git(origin, "rev-parse", "main") == moved
+    assert row["outcome"] == "ok", row
+    assert _git(tree, "rev-parse", "HEAD") == moved
+
+
+def test_a_new_report_closes_the_jobs_earlier_pull_request_only(tree, origin, monkeypatch):
+    earlier = [{"number": 3, "headRefName": f"report/{JOB.key}-abc"}, {"number": 4, "headRefName": "feature/x"}]
+    monkeypatch.setenv("FAKE_GH_LIST", json.dumps(earlier))
+    row = _run_with(monkeypatch, _report_commit(tree), tree)
+    calls = _gh_calls(tree)
+    assert "pr close 3 " in calls and "pr close 4 " not in calls and "#3" in row["reason"], calls
+
+
+@pytest.mark.parametrize("step", ["CREATE", "MERGE"])
+def test_a_pull_request_that_cannot_be_set_to_merge_is_failed(tree, origin, monkeypatch, step):
+    monkeypatch.setenv(f"FAKE_GH_NO_{step}", "1")
+    row = _run_with(monkeypatch, _report_commit(tree), tree)
+    assert row["outcome"] == "failed" and "not landed" in row["reason"], row
 
 
 def test_an_agent_that_leaves_the_checkout_on_its_own_branch_is_failed(tree, monkeypatch):

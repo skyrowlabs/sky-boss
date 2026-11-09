@@ -287,6 +287,8 @@ def run_triage(job_key: str, collected: dict, *, base_branch: str = "develop") -
         skip(f"{job.key} (dry run, nothing recorded): would run {argv[0]} over {len(prompt)} characters of prompt")
         return 0
 
+    if job.key in AUTO_PUSH:
+        _catch_up(branch)
     head_before = _head()
     artifact_before = _artifact_hash(job)
     step(f"{job.key}: running {argv[0]} (policy: {policy})")
@@ -365,7 +367,7 @@ def _outcome(job, result, head_moved: bool, artifact_before: str | None) -> tupl
 
 
 def _settled(job, result, head_before: str, head_after: str, artifact_before: str | None, branch: str):
-    """The run's verdict: did the work, stayed on its branch, and reached origin if it publishes.
+    """The run's verdict: did the work, stayed on its branch, and opened its pull request if it publishes.
 
     Refusals go on the reason in an `ok` run too, where nothing else would show them.
     """
@@ -374,8 +376,8 @@ def _settled(job, result, head_before: str, head_after: str, artifact_before: st
     if agent_ran and job.commits and now != branch:
         agent_ran, reason = False, f"agent left the checkout on '{now}', not '{branch}'; the next run would decline"
     elif agent_ran and job.key in AUTO_PUSH:
-        problem = _publish(job, head_before, head_after, branch)
-        agent_ran, reason = not problem, f"committed but not pushed: {problem}" if problem else ""
+        problem, note = _publish(job, head_before, head_after, branch)
+        agent_ran, reason = not problem, f"committed but not landed: {problem}" if problem else note
     denied = refused(result.stdout)
     notes = [reason] if reason else []
     if denied:
@@ -383,24 +385,75 @@ def _settled(job, result, head_before: str, head_after: str, artifact_before: st
     return agent_ran, "; ".join(notes)
 
 
-def _publish(job, head_before: str, head_after: str, branch: str) -> str:
-    """Push the job's own commit, and say why not if it could not. Empty means it reached origin.
+def _git(*args: str, timeout: int = PUSH_TIMEOUT_S):
+    return shellout.run(["git", *args], cwd=str(PROJECT_ROOT), capture_output=True, text=True, timeout=timeout)
 
-    The runner does this, not the agent, so no grant ever includes a push. Only the
-    job's own file, never forced, and through the tree's pre-push hook.
-    """
 
-    def git(*args: str, timeout: int = PUSH_TIMEOUT_S):
-        return shellout.run(["git", *args], cwd=str(PROJECT_ROOT), capture_output=True, text=True, timeout=timeout)
+def _gh(*args: str):
+    return shellout.run(["gh", *args], cwd=str(PROJECT_ROOT), capture_output=True, text=True, timeout=PUSH_TIMEOUT_S)
 
-    changed = git("diff", "--name-only", head_before, head_after).stdout.split()
+
+def _catch_up(branch: str) -> None:
+    """Fast-forward the checkout to what merged since the last run. A failure is the publish check's to name."""
+    if _git("fetch", "origin", branch).returncode == 0:
+        _git("merge", "--ff-only", f"origin/{branch}")
+
+
+def _unlandable(job, head_before: str, head_after: str, branch: str) -> str:
+    """Why this commit may not leave the checkout, or empty when it may."""
+    changed = _git("diff", "--name-only", head_before, head_after).stdout.split()
     if changed != [job.writes]:
         return f"the commit touches more than {job.writes}: {', '.join(changed) or 'nothing'}"
     checked = shellout.run(PRE_PUSH, cwd=str(PROJECT_ROOT), capture_output=True, text=True, timeout=PRE_PUSH_TIMEOUT_S)
     if checked.returncode != 0:
         return f"`{' '.join(PRE_PUSH)}` exited {checked.returncode}: {checked.stdout.strip()[-300:]}"
-    pushed = git("push", "origin", branch)
-    return "" if pushed.returncode == 0 else f"`git push` refused: {pushed.stderr.strip()[-300:]}"
+    fetched = _git("fetch", "origin", branch)
+    if fetched.returncode != 0:
+        return f"`git fetch` failed: {fetched.stderr.strip()[-300:]}"
+    if _git("merge-base", "--is-ancestor", head_before, f"origin/{branch}").returncode != 0:
+        return f"'{branch}' holds commits origin does not, and a pull request would carry them"
+    return ""
+
+
+def _close_earlier(job, topic: str) -> list[str]:
+    """Close this job's older pull requests, which a new report replaces. Returns their numbers."""
+    listed = _gh("pr", "list", "--state", "open", "--json", "number,headRefName")
+    closed = []
+    for pull in json.loads(listed.stdout or "[]") if listed.returncode == 0 else []:
+        if pull["headRefName"].startswith(f"report/{job.key}-") and pull["headRefName"] != topic:
+            number = str(pull["number"])
+            if _gh("pr", "close", number, "--delete-branch", "--comment", f"Replaced by {topic}.").returncode == 0:
+                closed.append(f"#{number}")
+    return closed
+
+
+def _publish(job, head_before: str, head_after: str, branch: str) -> tuple[str, str]:
+    """Land the job's commit through a pull request set to auto-merge. Returns (problem, note).
+
+    The runner does this, not the agent, so no grant ever includes a push. Only the
+    job's own file, never forced. A pushed commit leaves the base branch, which then
+    fast-forwards to the merge on the next run.
+    """
+    problem = _unlandable(job, head_before, head_after, branch)
+    if problem:
+        return problem, ""
+    topic = f"report/{job.key}-{head_after}"
+    pushed = _git("push", "origin", f"HEAD:refs/heads/{topic}")
+    if pushed.returncode != 0:
+        return f"`git push` refused: {pushed.stderr.strip()[-300:]}", ""
+    _git("reset", "--keep", head_before)
+    closed = _close_earlier(job, topic)
+    title = _git("log", "-1", "--format=%s", head_after).stdout.strip()
+    body = f"The `{job.key}` job's report, opened by its runner."
+    opened = _gh("pr", "create", "--base", branch, "--head", topic, "--title", title, "--body", body)
+    if opened.returncode != 0:
+        return f"`gh pr create` failed, the commit is on {topic}: {opened.stderr.strip()[-300:]}", ""
+    url = opened.stdout.strip()
+    merging = _gh("pr", "merge", url, "--auto", "--merge")
+    if merging.returncode != 0:
+        return f"{url} is open but will not auto-merge: {merging.stderr.strip()[-300:]}", ""
+    replaced = f", replacing {', '.join(closed)}" if closed else ""
+    return "", f"{url} set to auto-merge{replaced}; whether it lands is CI's"
 
 
 def _head() -> str:
