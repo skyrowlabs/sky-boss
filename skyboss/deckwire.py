@@ -90,13 +90,23 @@ def compose(flights: list[Flight], centres: dict[str, int], hues: dict[str, str]
 
 @dataclass
 class Tail:
-    """The lines appended to transcripts. A file's past is not news, so it starts at the end."""
+    """The lines appended to transcripts. A file's past is not news, so it starts at the end.
+
+    A file not written yet has no past: a fresh session's transcript begins with whatever
+    first reached it, which may be the message a line is waiting on.
+    """
 
     offsets: dict[Path, int] = field(default_factory=dict)
 
     def read(self, path: Path) -> list[str]:
         try:
             size = path.stat().st_size
+        except FileNotFoundError:
+            self.offsets.setdefault(path, 0)
+            return []
+        except OSError:
+            return []
+        try:
             start = self.offsets.setdefault(path, size)
             if size <= start:
                 return []

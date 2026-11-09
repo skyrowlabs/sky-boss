@@ -81,6 +81,14 @@ def test_a_transcript_past_is_not_news_and_a_torn_line_waits(tmp_path):
     assert tail.read(path) == ["torn line"]
 
 
+def test_a_transcript_seen_missing_has_no_past(tmp_path):
+    path = tmp_path / "t.jsonl"
+    tail = Tail()
+    assert tail.read(path) == []
+    path.write_text("the message that created it\n")
+    assert tail.read(path) == ["the message that created it"]
+
+
 def test_a_failed_send_is_not_a_message():
     asked = {"t": "web"}
     line = (
