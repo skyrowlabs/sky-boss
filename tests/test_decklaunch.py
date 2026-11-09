@@ -118,3 +118,22 @@ def test_replacing_a_profile_keeps_its_comment_and_its_other_keys():
     new = dl.edited(text, set_profile=("core", {"primary": "boss", "tabs": ["ws"], "brief_file": "core.md"}))
     assert new.startswith("# operator prose about the core profile\n[profile.core]")
     assert tomllib.loads(new)["profile"]["core"] == {"primary": "boss", "tabs": ["ws"], "brief_file": "core.md"}
+
+
+def test_git_roots_goes_above_the_first_table_and_keeps_its_comment():
+    text = 'session = "sb"\n\n# the workspace\n[agent.a]\ncwd = "/a"\n'
+    new = dl.edited(text, git_roots=["~/src"])
+    assert new == 'session = "sb"\ngit_roots = ["~/src"]\n\n# the workspace\n[agent.a]\ncwd = "/a"\n'
+
+
+def test_git_roots_replaces_a_list_that_spans_lines():
+    new = dl.edited('git_roots = [\n  "/src/a",\n  "/src/b",\n]\nsession = "sb"\n', git_roots=["/src/c"])
+    assert tomllib.loads(new) == {"git_roots": ["/src/c"], "session": "sb"}
+
+
+def test_a_long_list_keeps_the_cursor_and_the_footer_on_screen():
+    rows = dl.rows_of([], [], {}, [(f"f{n}", f"/f{n}", False) for n in range(40)])
+    state = dl.Launch(rows, at=25, note="said")
+    lines = dl.screen(state, 80)
+    drawn = dl.visible(lines, state, 12)
+    assert len(drawn) == 12 and any(lines[n][1] == 25 for n in drawn) and lines[drawn[-1]][0] == "said"
