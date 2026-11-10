@@ -211,11 +211,18 @@ own agent and its whole argv. A grant for a job that no longer exists fails
 `tests/test_reporting_jobs.py`.
 
 **To have a job's commit reach origin**, append `AUTO_PUSH.add("repo-report")`
-in the same space. It is off by default, because it writes to the base branch
-unattended on this host's credentials. The runner pushes, never the agent, so no
-grant needs a push. It pushes only a commit that touches nothing but the job's
-`writes` file, after a full `./dev check pre-push`, and never forces. A job
-stopped at any of those is recorded `failed`, with its commit still local.
+in the same space. It is off by default, because it opens and auto-merges a pull
+request unattended on this host's credentials, with no review. The runner does
+this, not the agent, so no grant needs a push. It takes only a commit that touches
+nothing but the job's `writes` file, after a full `./dev check pre-push`, and
+never forces. The commit goes to a `report/<job>-<sha>` branch and the base branch
+is put back; the next run fast-forwards it to whatever merged.
+
+An `ok` row means the pull request is open with auto-merge set, not that it merged.
+If its checks fail it stays open, and the job's next run closes it and opens a new
+one. A job stopped before its branch is pushed is recorded `failed` with its commit
+still local, and later runs fail until that commit is pushed or dropped. It needs
+`gh` on cron's `PATH`, signed in, and auto-merge allowed on the repository.
 
 ## cron does not give you your login PATH
 
