@@ -90,6 +90,16 @@ def test_a_live_record_is_reported(tmp_path):
     assert [s.name for s in sessions] == ["session-7"]
 
 
+def test_a_session_carries_the_socket_a_peer_can_send_to(tmp_path):
+    """A name can resolve to another session; the socket reaches this one."""
+    proc = a_proc(a_proc(tmp_path / "proc", 7), 8)
+    a_record(tmp_path / "s", 7, messagingSocketPath="/run/s/7.sock")
+    a_record(tmp_path / "s", 8)
+    sessions = Claude(directory=tmp_path / "s", proc=proc).scan().sessions
+    assert [s.to for s in sessions] == ["uds:/run/s/7.sock", ""]
+    assert rows_of(sessions, at(60))[0]["to"] == "uds:/run/s/7.sock"
+
+
 def test_a_stale_record_on_a_recycled_pid_is_not_reported(tmp_path):
     """**The headline defect this feature exists to avoid.** The PID is live —
     something is running under it — and it is not what wrote the record. A
@@ -278,7 +288,7 @@ def test_the_view_is_authored_and_hides_identity_without_dropping_it():
     view = view_of(rows)
     assert view["authored"] is True
     assert [c["key"] for c in view["columns"]] == ["provider", "name", "status", "up", "cwd"]
-    assert view["hidden"] == ["id", "pid", "started", "primary", "claim"]
+    assert view["hidden"] == ["id", "pid", "started", "primary", "to", "claim"]
     assert rows[0]["id"] == "x" and rows[0]["up"] == "1m"
 
 

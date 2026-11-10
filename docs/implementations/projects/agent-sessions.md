@@ -172,6 +172,12 @@ operator 2026-10-17; see Notes.
       that is not in a repository has no claim, and that is not an error.
 - [x] Advisory only, per item 7's 2026-09-01 ruling: a mark, never a lock or a refusal.
 
+### Round 4 — the address a name can miss (2026-11-10)
+
+- [x] A row carries `to`: the `uds:` socket from the record's `messagingSocketPath`, hidden in the
+      table and present in the envelope. Ruled by the operator 2026-11-10; see Notes.
+- [x] The deck's brief tells a tab to send there when ListAgents has no live session by the name.
+
 ## Notes
 
 ### Round 1 — drafted, awaiting the word (2026-08-29)
@@ -284,3 +290,13 @@ a re-read after: no errors, nothing past the right edge. A manufactured empty ho
 **Found and not fixed: shaped tables clip below their `ch` budget.** `PROVIDER` gets `8.25ch` and
 renders `PRO…`, in a canvas window exactly as on this screen, so it predates the round and belongs
 to [[table-views]]. Seen in headless Chromium only; the native shell's fonts are unmeasured.
+
+### Round 4 — built (2026-11-10)
+
+**A deck name can reach the wrong session, and the cause is not here.** The jam-sense tab ran
+`claude -n jam-sense`, and its record named it so with a live pid and socket. ListAgents left it out
+and listed an offline Remote Control session of the same name, so a send by name queued there.
+Nothing in this repo decides what ListAgents lists, so the fallback is an address that cannot
+resolve elsewhere. `sb agents` already reads the socket to attribute messages; `to` reports it.
+
+**Still an observe.** Reporting a path is a read. Sending stays the agent's own SendMessage.

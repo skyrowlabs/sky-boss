@@ -2027,6 +2027,11 @@ def test_the_brief_tells_an_agent_to_keep_its_todos():
     assert 'sb deck todo add "<text>"' in text and "AGENT TODOs pane" in text
 
 
+def test_the_brief_names_the_socket_for_a_name_that_misses():
+    text = deck_.brief("jam", "sb", [("jam", "/fx/j", "")], "jam")
+    assert "`sb --json agents --scope deck`" in text and "uds:" in text
+
+
 def test_the_brief_and_the_skill_teach_every_kind_of_ask():
     brief = deck_.brief("jam", "sb", [("jam", "/fx/j", "")], "jam")
     skill = (deck_.PLUGIN_DIR / "skills" / "deck-connect" / "SKILL.md").read_text()

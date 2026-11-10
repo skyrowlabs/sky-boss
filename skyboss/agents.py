@@ -28,7 +28,8 @@ and *could not look* are the same empty table.
 
 **It reads. It never touches.** `messagingSocketPath` is a live socket into
 another agent's session, and a stop button would put a write into a command
-built as an observe. Transcripts are out of this command for a stronger reason:
+built as an observe. Its path is reported as `to`, the `uds:` address a
+SendMessage reaches that session at when a name does not resolve to it. Transcripts are out of this command for a stronger reason:
 an agent's transcript is the operator's conversation. The one exception is
 `skyboss/messages.py`, by the operator's ruling in [[command-deck]]: it reads
 only the peer messages a session received, for the deck's messages pane.
@@ -70,6 +71,8 @@ class Session:
     status: str = ""
     started: datetime | None = None
     pid: int = 0
+    # What a peer sends to so it reaches this session, whatever its name resolves to.
+    to: str = ""
 
 
 @dataclass
@@ -251,6 +254,7 @@ class Claude:
                     status=str(record.get("status") or ""),
                     started=epoch_ms(record.get("startedAt")),
                     pid=pid,
+                    to=f"uds:{record['messagingSocketPath']}" if record.get("messagingSocketPath") else "",
                 )
             )
         return out
@@ -464,7 +468,7 @@ def _letter(n: int) -> str:
 # rather than dropped: a machine reading the envelope still gets the identity
 # and the pid. A view describes; it never filters.
 INLINE = ("provider", "name", "status", "claim", "up", "cwd")
-HIDDEN = ("id", "pid", "started", "primary")
+HIDDEN = ("id", "pid", "started", "primary", "to")
 
 
 def rows_of(
@@ -489,6 +493,7 @@ def rows_of(
             "id": s.id,
             "pid": s.pid,
             "started": s.started.isoformat() if s.started else "",
+            "to": s.to,
         }
         for s in sessions
     ]
