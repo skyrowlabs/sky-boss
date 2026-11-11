@@ -74,3 +74,55 @@ def test_the_sweep_notes_a_stuck_shell_once_and_closes_the_note_when_it_ends(mon
     deck_.watch_shells("sb", adapters=[])
     closed = noted("proto-pilot")[0]
     assert closed.done and closed.ruling == "the shell ended" and not closed.untold
+
+
+def fake_proc(tmp_path, processes: dict[int, tuple[str, int]], uptime: float = 1000.0):
+    """A `/proc` holding each pid's NUL-joined cmdline and a stat whose field 22 is its start tick."""
+    proc = tmp_path / "proc"
+    proc.mkdir()
+    (proc / "uptime").write_text(f"{uptime} 0.0\n")
+    (proc / "self").mkdir()
+    for pid, (cmdline, start) in processes.items():
+        (proc / str(pid)).mkdir()
+        (proc / str(pid) / "cmdline").write_bytes(cmdline.replace(" ", "\0").encode() + b"\0")
+        fields = ["S", "1"] + ["0"] * 17 + [str(start)]
+        (proc / str(pid) / "stat").write_text(f"{pid} (fx (shell)) {' '.join(fields)}\n")
+    return proc
+
+
+def test_command_lines_reads_every_process_and_skips_what_is_not_one(tmp_path):
+    proc = fake_proc(tmp_path, {7: ("pgrep -f x", 1)})
+    (proc / "8").mkdir()  # gone between the listing and the read
+    assert shellwatch.command_lines(proc) == {7: "pgrep -f x"}
+    assert shellwatch.command_lines(tmp_path / "absent") == {}
+
+
+def test_shells_of_unwraps_each_snapshot_shell_and_times_it(tmp_path, monkeypatch):
+    monkeypatch.setattr(shellwatch.os, "sysconf", lambda name: 100)
+    wrapper = "bash -c source /x/shell-snapshots/s.sh && eval 'sleep 5' < /dev/null"
+    proc = fake_proc(tmp_path, {10: (wrapper, 40000), 11: ("vim notes", 1)}, uptime=1000.0)
+    (found,) = shellwatch.shells_of(1, {10: 1, 11: 1}, proc)
+    assert (found.pid, found.start, found.seconds) == (10, "40000", 600.0)
+    assert found.command == "sleep 5"  # the command inside the wrapper, not the wrapper
+
+
+def test_a_shell_whose_start_cannot_be_read_has_run_for_no_time(tmp_path):
+    assert shellwatch.running_seconds(99, tmp_path) == 0.0
+
+
+def test_a_pattern_that_is_not_a_regex_is_never_stuck():
+    assert shellwatch.verdict(shell('while pgrep -f "(["; do sleep 1; done'), "idle", PARENTS, {}) is None
+
+
+def test_a_valued_pgrep_option_does_not_read_as_the_pattern():
+    assert shellwatch.patterns("pgrep -u me -f 'job x'") == ["job x"]
+    assert shellwatch.patterns("pgrep --pidfile p --full 'job y'") == ["job y"]
+    assert shellwatch.patterns("pgrep 'unclosed") == []
+
+
+def test_the_seen_file_round_trips_and_a_broken_one_reads_as_empty(monkeypatch, tmp_path):
+    monkeypatch.setattr(shellwatch.helpers, "STATE_DIR", tmp_path)
+    shellwatch.write_seen("sb", {"10:500": {"agent": "a", "text": "t"}, "bad": "x"})  # type: ignore[dict-item]
+    assert shellwatch.read_seen("sb") == {"10:500": {"agent": "a", "text": "t"}}
+    shellwatch.seen_path("sb").write_text("[]")
+    assert shellwatch.read_seen("sb") == {}
