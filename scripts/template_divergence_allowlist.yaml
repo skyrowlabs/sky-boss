@@ -47,6 +47,7 @@ pyrightconfig.json: Includes skyboss, the product, as well as the scaffolded cli
 scripts/check_commit_subjects.py: BOTS_EXEMPT_FROM_LENGTH held False by the 2026-09-26 ruling, so bot subjects keep the length cap. The line conflicts whenever an upgrade edits it, so port it.
 scripts/requirements.txt: The floors dependabot raised, which sit above the template's.
 tests/pytest.ini: The same needs as pyproject.toml, spelled from tests/, because this file wins once tests/ is passed as a path.
+tests/test_doctor.py: Two tests stub pr_route. This tree enrols repo-report in AUTO_PUSH and installs its crontab, so the template's versions read a real crontab, gh and git and an unstubbed required-contexts path. Fold back when skeletor isolates them; test_doctor_pr_route.py covers pr_route.
 tests/test_pre_push_covers_ci.py: pytest:integration is not excused here. This tree declares the integration suite unscheduled, so ci.yml does not run it.
 
 # ── Skeletor's again below this line ─────────────────────────────────────────

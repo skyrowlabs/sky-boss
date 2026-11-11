@@ -232,6 +232,7 @@ def test_the_checks_ci_yml_tells_you_to_require_are_jobs_and_its_legs_are_not():
 def test_nothing_readable_is_never_summarised_as_fine(monkeypatch):
     # An ownerless CODEOWNERS is a fact read from disk, not from GitHub.
     monkeypatch.setattr(doctor, "CODEOWNERS", GITHUB_DIR / "absent-CODEOWNERS")
+    monkeypatch.setattr(doctor, "pr_route", lambda: [])  # sky-boss: AUTO_PUSH and a crontab are live here
     stub(monkeypatch, {})
     result = CliRunner().invoke(doctor.doctor, [])
     assert result.exit_code == 0 and "none is wrong" not in result.output
@@ -256,6 +257,7 @@ def test_every_long_lived_branch_has_its_required_checks_asked(monkeypatch):
 def test_an_inapplicable_fact_is_listed_and_not_counted(monkeypatch):
     monkeypatch.setattr(doctor, "RELEASE_CONFIG", doctor.RELEASE_CONFIG.with_name("absent.json"))
     monkeypatch.setattr(doctor, "CODEOWNERS", GITHUB_DIR / "absent-CODEOWNERS")
+    monkeypatch.setattr(doctor, "pr_route", lambda: [])  # sky-boss: AUTO_PUSH and a crontab are live here
     # This tree may own its dependabot.yml, so the labels it names are stubbed too.
     monkeypatch.setattr(doctor.repo_settings, "labels_wanted", lambda _github: ["dependencies"])
     unprotected = {checks_path(): 404, checks_path(doctor.RELEASE_BRANCH): 404}
