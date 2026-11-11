@@ -27,8 +27,13 @@ HELD = doctor.repo_settings.HELD_WORKFLOWS
 
 @pytest.fixture(autouse=True)
 def no_holds(monkeypatch):
-    """Stubbed workflows meet no hold: a real one would read as stale against the stub."""
+    """Stubbed workflows meet no hold, and no job publishes: either would read this host, not the stub.
+
+    A tree that enrols a job in `AUTO_PUSH` makes `pr_route()` ask the real
+    crontab, `gh` and `git`; the tier that ships the job registry asks those with fakes.
+    """
     monkeypatch.setattr(doctor.repo_settings, "HELD_WORKFLOWS", GITHUB_DIR / "absent-held.yaml")
+    monkeypatch.setattr(doctor, "job_registry", lambda: None)
 
 
 def stub(monkeypatch, answers: dict) -> None:

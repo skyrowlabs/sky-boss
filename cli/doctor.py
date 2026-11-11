@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import base64
 import json
+import os
 import re
 import subprocess
 from dataclasses import asdict, dataclass
@@ -22,8 +23,10 @@ from typing import Any
 from urllib.parse import quote
 
 import click
+import yaml
 
 from scripts import repo_settings
+from scripts.lanes import job_registry
 from scripts.paths import GITHUB_DIR
 from scripts.yaml_text import uncommented
 
@@ -227,17 +230,27 @@ def classify(context: str, jobs: list[Job]) -> str:
     return "leg" if leg else ""
 
 
-def required_checks(branch: str) -> Fact:
-    """Every check `branch` requires is reported by a job in `branch`'s own workflows, and never by a matrix leg."""
-    name = f"every required check on {branch} is a job that runs"
+def required_contexts(branch: str) -> list[str]:
+    """The status checks `branch`'s protection requires; empty when it requires none."""
     try:
         # Concatenated, not an f-string: doubled braces would read as a scaffold placeholder.
         found = gh_api("repos/{owner}/{repo}/branches/" + branch + "/protection/required_status_checks")
     except Unreadable as error:
         if error.status == 404:
-            return Fact(name, OK, f"{branch} requires no checks, so none can wait forever")
+            return []
+        raise
+    return list(found.get("contexts") or []) or [check["context"] for check in found.get("checks", [])]
+
+
+def required_checks(branch: str) -> Fact:
+    """Every check `branch` requires is reported by a job in `branch`'s own workflows, and never by a matrix leg."""
+    name = f"every required check on {branch} is a job that runs"
+    try:
+        contexts = required_contexts(branch)
+    except Unreadable as error:
         return Fact(name, UNKNOWN, str(error))
-    contexts = list(found.get("contexts") or []) or [check["context"] for check in found.get("checks", [])]
+    if not contexts:
+        return Fact(name, OK, f"{branch} requires no checks, so none can wait forever")
     try:
         jobs = workflow_jobs(branch_workflows(branch))
     except Unreadable as error:
@@ -487,6 +500,142 @@ def labels_exist() -> Fact:
     return Fact(name, OK, ", ".join(wanted))
 
 
+#: The `types` GitHub assumes when a `pull_request` trigger names none.
+DEFAULT_PR_TYPES = ("opened", "synchronize", "reopened")
+#: `gh` or `git` asked under cron's environment; bounded, since a prompt cron cannot answer would hang.
+CRON_PROBE_TIMEOUT_S = 60
+#: `crontab` missing, or hanging: either way there is no installed block to read.
+_NO_CRONTAB = (OSError, subprocess.TimeoutExpired)
+
+
+_GLOB = {"**": ".*", "**/": "(?:.*/)?", "*": "[^/]*", "?": "[^/]"}
+
+
+def _filter_regex(pattern: str) -> re.Pattern[str]:
+    """GitHub's branch and path filter glob: `**` crosses `/`, `*` and `?` do not, anything else is literal.
+
+    A subset of GitHub's syntax. A character it does not model reads literally,
+    which can only stop a match, so the error is a loud false problem, never a false pass.
+    """
+    out = ""
+    for token in re.findall(r"\*\*/?|\*|\?|[^*?]+", pattern):
+        out += _GLOB.get(token) or re.escape(token)
+    return re.compile(out)
+
+
+def _filtered(values: list[str], include: Any, exclude: Any) -> bool:
+    """Whether any of `values` passes an include list (`!` re-excludes, last match wins) or an exclude list."""
+    if include is None and exclude is None:
+        return True
+    patterns = [str(p) for p in (include if include is not None else ["**", *[f"!{e}" for e in exclude or []]])]
+    for value in values:
+        keep = False
+        for pattern in patterns:
+            if _filter_regex(pattern.removeprefix("!")).fullmatch(value):
+                keep = not pattern.startswith("!")
+        if keep:
+            return True
+    return False
+
+
+def pr_triggers(text: str, base: str, changed: list[str]) -> bool:
+    """Whether a pull request opened into `base`, changing exactly `changed`, starts this workflow."""
+    data = yaml.safe_load(text) or {}
+    on = data.get("on", data.get(True)) if isinstance(data, dict) else None  # YAML 1.1 reads a bare `on` as True
+    if isinstance(on, str):
+        return on == "pull_request"
+    if isinstance(on, list):
+        return "pull_request" in on
+    if not isinstance(on, dict) or "pull_request" not in on:
+        return False
+    trigger = on["pull_request"] or {}
+    types = trigger.get("types") or DEFAULT_PR_TYPES
+    return (
+        "opened" in ([types] if isinstance(types, str) else types)
+        and _filtered([base], trigger.get("branches"), trigger.get("branches-ignore"))
+        and _filtered(changed, trigger.get("paths"), trigger.get("paths-ignore"))
+    )
+
+
+def report_pull_request_checks(jobs: list[Any]) -> Fact:
+    """Every check the base branch requires is defined by a workflow each job's report pull request starts.
+
+    Defined is enough: GitHub counts a job skipped by its own `if:` as passing,
+    measured on four trees' pull requests. What waits forever is a check that no
+    started workflow defines, so auto-merge never fires.
+    """
+    name = f"every check {BASE_BRANCH} requires reports on a report pull request"
+    try:
+        contexts = required_contexts(BASE_BRANCH)
+        texts = branch_workflows(BASE_BRANCH)
+    except Unreadable as error:
+        return Fact(name, UNKNOWN, str(error))
+    if not contexts:
+        return Fact(name, OK, f"{BASE_BRANCH} requires no checks, so a report pull request merges once opened")
+    said = []
+    try:
+        for job in jobs:
+            started = [text for text in texts if pr_triggers(text, BASE_BRANCH, [job.writes])]
+            defined = workflow_jobs(started)
+            silent = [context for context in contexts if not classify(context, defined)]
+            if silent:
+                said.append(f"{job.key} (changes {job.writes}): nothing it starts reports {', '.join(silent)}")
+    except yaml.YAMLError as error:
+        return Fact(name, UNKNOWN, f"a workflow on {BASE_BRANCH} is not YAML: {error}")
+    if said:
+        return Fact(name, PROBLEM, "; ".join(said) + " — its pull request waits forever and never auto-merges")
+    return Fact(name, OK, f"{len(contexts)} required, each defined by a workflow every report pull request starts")
+
+
+def _probe(argv: list[str], env: dict[str, str], cwd: str) -> tuple[int, str]:
+    try:
+        done = subprocess.run(argv, env=env, cwd=cwd, capture_output=True, text=True, timeout=CRON_PROBE_TIMEOUT_S)
+    except FileNotFoundError:
+        return 127, f"`{argv[0]}` is not on cron's PATH"
+    except subprocess.TimeoutExpired:
+        return 124, f"no answer in {CRON_PROBE_TIMEOUT_S}s, which is what a prompt cron cannot answer looks like"
+    return done.returncode, (done.stderr or done.stdout).strip()[-300:]
+
+
+def cron_route(registry: Any) -> list[Fact]:
+    """`gh` is logged in, and `origin` answers, under the environment the installed crontab gives its jobs.
+
+    Run in the checkout that crontab names, which from a worktree is the main
+    checkout: an interactive "logged in" proves nothing for cron.
+    """
+    names = ("gh is logged in under cron's environment", "origin answers git under cron's environment")
+    main = registry.main_checkout()
+    checkout = main or registry.CRON_CWD
+    where = f" (measured in {checkout}, the checkout the crontab names; this is a linked worktree)" if main else ""
+    try:
+        listed = subprocess.run(["crontab", "-l"], capture_output=True, text=True, timeout=CRON_PROBE_TIMEOUT_S)
+        live = listed.stdout if listed.returncode == 0 else ""
+    except _NO_CRONTAB:
+        live = ""
+    block = registry.installed_block(live, checkout)
+    if block is None:
+        missing = f"no installed crontab block runs from {checkout}, so there is no cron environment to ask"
+        return [Fact(name, UNKNOWN, missing + where) for name in names]
+    env = registry.cron_env(block, os.path.expanduser("~"))
+    probes = (["gh", "auth", "status"], ["git", "ls-remote", "--exit-code", "origin", "HEAD"])
+    facts = []
+    for name, argv in zip(names, probes, strict=True):
+        # Never prompt: cron has no terminal, and a prompt here would only hang the probe.
+        code, said = _probe(argv, {**env, "GIT_TERMINAL_PROMPT": "0", "GH_PROMPT_DISABLED": "1"}, checkout)
+        facts.append(Fact(name, OK if code == 0 else PROBLEM, ("answered" if code == 0 else said) + where))
+    return facts
+
+
+def pr_route() -> list[Fact]:
+    """The facts a job publishing through an auto-merging pull request needs, for every such job."""
+    registry = job_registry()
+    publishing = sorted(getattr(registry, "AUTO_PUSH", None) or ())
+    if registry is None or not publishing:
+        return [Fact("report pull requests can land", NOT_APPLICABLE, "no job here publishes through a pull request")]
+    jobs = [registry.JOBS_BY_KEY[key] for key in publishing]
+    return [report_pull_request_checks(jobs), *cron_route(registry)]
+
+
 def gather() -> list[Fact]:
     branches = dict.fromkeys((BASE_BRANCH, RELEASE_BRANCH))
     try:
@@ -504,6 +653,7 @@ def gather() -> list[Fact]:
         security_updates(repo),
         coverage_runners_enabled(),
         labels_exist(),
+        *pr_route(),
     ]
 
 

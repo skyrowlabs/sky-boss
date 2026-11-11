@@ -451,3 +451,49 @@ def merged_crontab(live: str) -> str:
     if not placed:
         kept += crontab_block().splitlines()
     return "\n".join(kept) + "\n"
+
+
+def main_checkout(root: Path = PROJECT_ROOT) -> str | None:
+    """The main checkout's path when `root` is a linked worktree, else None.
+
+    The crontab's lines name the checkout they were installed from, so a question
+    about what cron runs is a question about that checkout, never a worktree.
+    """
+    from scripts.reporting import shellout  # noqa: PLC0415  (shellout is a sibling; keep jobs import-light)
+
+    def ask(flag: str) -> str:
+        argv = ["git", "-C", str(root), "rev-parse", "--path-format=absolute", flag]
+        return shellout.run(argv, capture_output=True, text=True).stdout.strip()
+
+    here, common = ask("--git-dir"), ask("--git-common-dir")
+    return str(Path(common).parent) if here and common and here != common else None
+
+
+def installed_block(live: str, checkout: str = CRON_CWD) -> list[str] | None:
+    """The block in `live`, the installed crontab, whose lines run from `checkout`; None if there is none."""
+    ours = f"cd {checkout} && ./dev report "
+    block: list[str] | None = None
+    for line in live.splitlines():
+        if block is None and line.startswith(BLOCK_BEGIN):
+            block = [line]
+        elif block is not None:
+            block.append(line)
+            if line.startswith(BLOCK_END):
+                if any(ours in entry for entry in block):
+                    return block
+                block = None
+    return None
+
+
+def cron_env(block: list[str], home: str) -> dict[str, str]:
+    """The environment cron gives `block`'s lines: `HOME`, plus every `NAME=value` the block sets.
+
+    Nothing else from the caller's shell, so a keyring, DBus or SSH agent that
+    makes an interactive `gh` or `git` work is absent here, as it is under cron.
+    """
+    env = {"HOME": home}
+    for line in block:
+        name, sep, value = line.partition("=")
+        if sep and name.isidentifier() and not line.startswith("#"):
+            env[name] = value
+    return env
