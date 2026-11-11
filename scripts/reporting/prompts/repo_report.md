@@ -64,6 +64,9 @@ widen your fix policy.
 
 1. Write the report.
 2. Re-stamp it (`--only`, above).
-3. Commit on the branch you are on, with no new branch and no pull request:
+3. Commit on the branch you are on, with no new branch:
    `docs(reports): refresh the repository report for <window>`. Your fix policy
-   allows exactly this commit.
+   allows exactly this commit. Then stop: do not push, open a pull request or
+   ask about merge settings. If this tree lists the job in `AUTO_PUSH`, the
+   runner publishes your commit through an auto-merging pull request after
+   you finish; if not, the commit stays local for the operator.

@@ -26,6 +26,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import shlex
 import subprocess
 import sys
@@ -35,11 +36,19 @@ from pathlib import Path
 # owns every path below — can be imported. See scripts/paths.py.
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from scripts.lanes import SOURCE_ENV  # noqa: E402
+from scripts.lanes import LANES, SOURCE_ENV, source_line  # noqa: E402
 from scripts.output import line, skip, step  # noqa: E402
 from scripts.paths import PROJECT_ROOT  # noqa: E402
 from scripts.reporting import run_ledger, shellout  # noqa: E402
-from scripts.reporting.jobs import AGENT_TOOLS, AUTO_PUSH, FIX_POLICIES, JOBS_BY_KEY, SeatError, seat_env  # noqa: E402
+from scripts.reporting.jobs import (  # noqa: E402
+    AGENT_TOOLS,
+    AUTO_PUSH,
+    FIX_POLICIES,
+    JOBS_BY_KEY,
+    SINK_QUEUE,
+    SeatError,
+    seat_env,
+)
 
 PROMPTS = Path(__file__).resolve().parent / "prompts"
 
@@ -288,6 +297,7 @@ def run_triage(job_key: str, collected: dict, *, base_branch: str = "develop") -
         return 0
 
     if job.key in AUTO_PUSH:
+        _follow_up(job, branch)
         _catch_up(branch)
     head_before = _head()
     artifact_before = _artifact_hash(job)
@@ -331,7 +341,11 @@ def run_triage(job_key: str, collected: dict, *, base_branch: str = "develop") -
             branch=branch,
             agent_ran=agent_ran,
             committed=head_after if job.commits and head_after != head_before else None,
-            findings=int(collected.get("finding_count", 0) or 0),
+            findings=(
+                _filed_since(job.key, started)
+                if job.findings_sink == SINK_QUEUE
+                else int(collected.get("finding_count", 0) or 0)
+            ),
             reason=reason,
             **usage(result.stdout),
         )
@@ -393,6 +407,38 @@ def _gh(*args: str):
     return shellout.run(["gh", *args], cwd=str(PROJECT_ROOT), capture_output=True, text=True, timeout=PUSH_TIMEOUT_S)
 
 
+#: `gh` missing, slow, or answering with something that is not JSON.
+_UNCOUNTABLE = (OSError, subprocess.TimeoutExpired, ValueError)
+
+
+def _filed_since(job_key: str, started: str) -> int | None:
+    """How many captures `job_key`'s agent filed since `started`; `None` when `gh` could not say.
+
+    Read back by the attribution line every capture carries, across every lane, so
+    an issue with two lane labels counts once. `None`, never 0: "could not count"
+    and "found none" are different answers (breeze-brain, 2026-11-08).
+    """
+    filed: set[int] = set()
+    for lane in LANES:
+        try:
+            listed = _gh(
+                "issue", "list", "--label", lane.label, "--state", "all",
+                "--search", f"created:>={started[:10]}", "--limit", "200",
+                "--json", "number,body,createdAt",
+            )  # fmt: skip
+            issues = json.loads(listed.stdout or "[]") if listed.returncode == 0 else None
+        except _UNCOUNTABLE:
+            issues = None
+        if not isinstance(issues, list):
+            return None
+        filed |= {
+            issue["number"]
+            for issue in issues
+            if source_line(job_key) in (issue.get("body") or "") and (issue.get("createdAt") or "") >= started
+        }
+    return len(filed)
+
+
 def _catch_up(branch: str) -> None:
     """Fast-forward the checkout to what merged since the last run. A failure is the publish check's to name."""
     if _git("fetch", "origin", branch).returncode == 0:
@@ -425,6 +471,52 @@ def _close_earlier(job, topic: str) -> list[str]:
             if _gh("pr", "close", number, "--delete-branch", "--comment", f"Replaced by {topic}.").returncode == 0:
                 closed.append(f"#{number}")
     return closed
+
+
+#: The pull request an `ok` row says this runner opened, as `_publish`'s note words it.
+_OPENED = re.compile(r"(\S+/pull/\d+) set to auto-merge")
+#: A check conclusion (or a status's state) that keeps auto-merge from firing.
+_FAILED_CHECK = {"FAILURE", "ERROR", "CANCELLED", "TIMED_OUT", "ACTION_REQUIRED", "STARTUP_FAILURE"}
+
+
+def _follow_up(job, branch: str) -> None:
+    """Append a `failed` row when the last report pull request closed unmerged or its checks failed.
+
+    A row of its own: the ledger is append-only, and the verdict is about an
+    earlier run. Merged, still pending, unreadable, or already followed up: nothing.
+    """
+    rows = run_ledger.runs_of(job.key)
+    for at in range(len(rows) - 1, -1, -1):
+        match = _OPENED.search(rows[at].get("reason") or "")
+        if match:
+            break
+    else:
+        return
+    url = match.group(1)
+    if any(url in (row.get("reason") or "") for row in rows[at + 1 :]):
+        return
+    viewed = _gh("pr", "view", url, "--json", "state,statusCheckRollup")
+    try:
+        pull = json.loads(viewed.stdout) if viewed.returncode == 0 else None
+    except ValueError:
+        return
+    if not isinstance(pull, dict):
+        return
+    failed = [
+        check.get("name") or check.get("context") or "?"
+        for check in pull.get("statusCheckRollup") or []
+        if (check.get("conclusion") or check.get("state")) in _FAILED_CHECK
+    ]
+    if pull.get("state") == "CLOSED":
+        why = "closed without merging"
+    elif pull.get("state") == "OPEN" and failed:
+        why = f"cannot auto-merge, its checks failed: {', '.join(failed)}"
+    else:
+        return
+    when = run_ledger.now()
+    run_ledger.record(
+        run_ledger.Run(job=job.key, outcome="failed", started=when, finished=when, branch=branch, reason=f"{url} {why}")
+    )
 
 
 def _publish(job, head_before: str, head_after: str, branch: str) -> tuple[str, str]:

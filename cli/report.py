@@ -12,7 +12,6 @@ import importlib
 import json
 import os
 import sys
-from pathlib import Path
 
 import click
 
@@ -78,14 +77,9 @@ _register()
 
 def _main_checkout() -> str | None:
     """The main checkout's path when this tree is a linked worktree, else None."""
-    from scripts.reporting import shellout
+    from scripts.reporting.jobs import main_checkout
 
-    def ask(flag: str) -> str:
-        argv = ["git", "-C", str(PROJECT_ROOT), "rev-parse", "--path-format=absolute", flag]
-        return shellout.run(argv, capture_output=True, text=True).stdout.strip()
-
-    here, common = ask("--git-dir"), ask("--git-common-dir")
-    return str(Path(common).parent) if here and common and here != common else None
+    return main_checkout(PROJECT_ROOT)
 
 
 @report.command()

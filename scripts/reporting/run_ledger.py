@@ -57,7 +57,7 @@ class Run:
     branch: str
     agent_ran: bool = False
     committed: str | None = None  # sha, if it wrote anything
-    findings: int = 0
+    findings: int | None = 0  # None: the job files its findings and they could not be counted
     reason: str = ""  # required for declined/failed
     # What the agent spent, when its output says; None is "not measured", not free.
     cost_usd: float | None = None
@@ -122,6 +122,22 @@ def recent(limit: int = 50) -> list[dict]:
     return out
 
 
+def runs_of(job: str) -> list[dict]:
+    """Every row for `job`, oldest first, read from the whole ledger; an unreadable line is skipped."""
+    ledger = ledger_path()
+    if not ledger.exists():
+        return []
+    found = []
+    for raw in ledger.read_text(encoding="utf-8").splitlines():
+        try:
+            entry = json.loads(raw)
+        except json.JSONDecodeError:
+            continue
+        if entry.get("job") == job:
+            found.append(entry)
+    return found
+
+
 def last_run(job: str) -> dict | None:
     """The newest row for `job`, read from the whole ledger.
 
@@ -130,18 +146,8 @@ def last_run(job: str) -> dict | None:
     watch` showed it as never run — which is what a dead cron looks like.
     Measured: one monthly row, 501 nightly rows after it, `None`.
     """
-    ledger = ledger_path()
-    if not ledger.exists():
-        return None
-    found = None
-    for raw in ledger.read_text(encoding="utf-8").splitlines():
-        try:
-            entry = json.loads(raw)
-        except json.JSONDecodeError:
-            continue
-        if entry.get("job") == job:
-            found = entry
-    return found
+    found = runs_of(job)
+    return found[-1] if found else None
 
 
 def now() -> str:

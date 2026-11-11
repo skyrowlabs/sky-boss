@@ -219,10 +219,17 @@ never forces. The commit goes to a `report/<job>-<sha>` branch and the base bran
 is put back; the next run fast-forwards it to whatever merged.
 
 An `ok` row means the pull request is open with auto-merge set, not that it merged.
-If its checks fail it stays open, and the job's next run closes it and opens a new
-one. A job stopped before its branch is pushed is recorded `failed` with its commit
-still local, and later runs fail until that commit is pushed or dropped. It needs
-`gh` on cron's `PATH`, signed in, and auto-merge allowed on the repository.
+The job's next run asks: a pull request closed unmerged, or open with failed
+checks, gets a `failed` row of its own naming it, and that run then closes it and
+opens a new one. One still pending when the next run starts is replaced without a
+verdict. A job stopped before its branch is pushed is recorded `failed` with its
+commit still local, and later runs fail until that commit is pushed or dropped.
+
+`./dev doctor` checks the route before a run needs it: every check the base
+branch requires is defined by a workflow a report pull request starts, and `gh`
+is signed in and `origin` answers under the environment the installed crontab
+gives its jobs, in the checkout that crontab names. It also reports
+`allow_auto_merge` and `allow_merge_commit`, which the runner's `--merge` needs.
 
 ## cron does not give you your login PATH
 

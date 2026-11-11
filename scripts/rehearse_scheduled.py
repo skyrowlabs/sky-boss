@@ -37,6 +37,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts.output import EXIT_NO_SUBJECT, EXIT_REFUSED, detail, fail, item, no_subject, ok, step, warn  # noqa: E402
 from scripts.paths import PROJECT_ROOT  # noqa: E402
+from scripts.tempdirs import exit_on_signal, owned_tempdir, sweep_dead  # noqa: E402
+
+#: A rehearsal's scratch directory: its worktree, its venv and its step scripts.
+SCRATCH_PREFIX = "rehearse-"
 
 WORKFLOWS = PROJECT_ROOT / ".github" / "workflows"
 
@@ -293,7 +297,8 @@ def _show_tail(output: str) -> None:
 
 def rehearse(job: Job, keep: bool, ref: str) -> str:
     """Run a job's steps at `ref`: `passed`, `failed`, or why it could not be rehearsed."""
-    scratch = Path(tempfile.mkdtemp(prefix="rehearse-"))
+    # Owned unless kept: a later run sweeps an owned one whose run was killed.
+    scratch = Path(tempfile.mkdtemp(prefix=SCRATCH_PREFIX)) if keep else owned_tempdir(SCRATCH_PREFIX)
     work, venv = scratch / "work", None
     work.mkdir()
     runner = _runner_files(scratch)
@@ -363,6 +368,9 @@ def main(argv: list | None = None) -> int:
     parser.add_argument("--workflow", action="append", default=[], help="one workflow file name; repeatable")
     parser.add_argument("--keep", action="store_true", help="leave the worktree and venv behind")
     args = parser.parse_args(argv)
+    if not args.plan:
+        exit_on_signal()
+        sweep_dead(SCRATCH_PREFIX, prune=PROJECT_ROOT)
 
     paths = scheduled_workflows()
     if args.workflow:
