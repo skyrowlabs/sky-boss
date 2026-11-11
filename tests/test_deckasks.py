@@ -257,3 +257,79 @@ def test_a_resumed_cleared_or_compacted_tab_gets_todays_brief_and_a_fresh_one_do
         assert reply["hookSpecificOutput"]["additionalContext"].endswith("brief for a")
     assert deck_.rebrief(deck_.Config(), "a", {"hook_event_name": "SessionStart", "source": "startup"}) == ""
     assert deck_.rebrief(deck_.Config(), "a", {"hook_event_name": "Stop", "source": "clear"}) == ""
+
+
+def test_a_read_that_cannot_start_comes_back_as_a_failure(tmp_path):
+    answer = deckasks.read(["fx-no-such-tool-anywhere"], str(tmp_path))
+    assert answer.returncode == 127 and "fx-no-such-tool-anywhere" in answer.stderr
+
+
+def test_a_command_that_does_not_split_is_refused():
+    with pytest.raises(ValueError, match="does not parse"):
+        deckasks.parse_run("echo 'unclosed")
+
+
+@pytest.mark.parametrize(
+    "until, table, note",
+    [
+        ("pr:49", {"pr view": (0, "not json")}, "could not check: gh printed no JSON"),
+        ("pushed:abc1234", {}, "could not check: boom"),
+        ("gone:x", {"show-ref": (128, "")}, "could not check: boom"),
+    ],
+)
+def test_a_reading_that_fails_says_it_could_not_check(until, table, note):
+    assert deckasks.observe(until, ".", answers(table)).note == note
+
+
+def test_an_unknown_test_and_an_unmerged_close_read_as_such():
+    assert deckasks.observe("ci:green", ".").note == "could not check: no such test 'ci:green'"
+    closed = answers({"pr view": (0, '{"state": "CLOSED"}')})
+    assert deckasks.observe("pr:3", ".", closed).closed == "PR #3 closed unmerged"
+
+
+def test_a_sweep_records_what_it_could_not_check_and_skips_the_rest(sb_state):
+    todos_.add(S, "a", "merge it", todos_.DECISIONS, kind=todos_.ACTION, until="pr:49")
+    todos_.add(S, "a", "no test", todos_.DECISIONS, kind=todos_.ACTION)
+    todos_.add(S, "a", "a choice", todos_.DECISIONS)
+    assert deckasks.sweep_actions(S, "a", answers({})) == 0
+    todo = todos_.load(S, "a", todos_.DECISIONS)
+    assert todo is not None and [i.state for i in todo.items] == ["could not check: boom", "", ""]
+    assert deckasks.sweep_actions(S, "nobody", answers({})) == 0
+
+
+def test_a_prompt_with_no_command_or_question_still_says_what_waits():
+    assert deckasks.prompt_text(request("AskUserQuestion", {"questions": "x"})) == "a question"
+    assert deckasks.prompt_text({"tool_input": "x"}) == "a tool needs permission"
+    assert len(deckasks.prompt_text(request("Bash", {"command": "x" * 300}))) == 200
+
+
+def test_dropping_rows_from_a_tab_that_keeps_none_changes_nothing(sb_state):
+    assert deckasks.drop(S, "a", (todos_.ASKED,)) is False
+    deckasks.on_hook(S, "a", request("Bash", {"command": "ls"}))
+    assert deckasks.drop(S, "a", (todos_.PROSE,)) is False and asks() == [todos_.ASKED]
+
+
+def test_an_asked_row_with_an_unreadable_time_is_settled_at_once(sb_state):
+    deckasks.on_hook(S, "a", request("Bash", {"command": "ls"}))
+    todo = todos_.load(S, "a", todos_.ASKS)
+    assert todo is not None
+    todo.items[0].added = "not a time"
+    todos_.save(todo)
+    deckasks.settle(S, "a", "idle", "waiting", datetime.now(timezone.utc))
+    assert asks() == []
+
+
+def test_held_names_each_read_that_failed():
+    reader = answers({"for-each-ref": (0, "main\n"), "pr list": (0, "not json"), "api": (0, "3\n")})
+    held = deckasks.held_of("/x/repo", reader)
+    assert held["rows"] == ["3 open alert(s)"]
+    assert held["unread"] == ["branches: boom", "PRs: gh printed no JSON"]
+    assert deckasks._unpushed("/x", answers({})) == ([], "boom")
+
+
+def test_held_round_trips_through_its_file_and_a_broken_file_reads_as_none(sb_state):
+    deckasks.write_held(S, [{"repo": "r", "rows": [], "unread": []}])
+    held = deckasks.read_held(S)
+    assert held is not None and held["repos"] == [{"repo": "r", "rows": [], "unread": []}]
+    deckasks.held_path(S).write_text("[1]")
+    assert deckasks.read_held(S) is None
