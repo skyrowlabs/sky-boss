@@ -71,6 +71,12 @@ def test_ready_for_review_is_a_trigger():
     )
 
 
+def test_the_ready_flip_lets_the_draft_run_finish():
+    """A ready flip that cancels the draft's run leaves every required context CANCELLED."""
+    expression = r"cancel-in-progress:\s*\$\{\{\s*github\.event\.action\s*!=\s*'ready_for_review'\s*\}\}"
+    assert re.search(expression, ci_text()), "ci.yml's concurrency cancels the draft run when a PR is marked ready"
+
+
 def test_gate_definition_is_shared_not_inlined():
     text = ci_text()
     assert GATE_MODULE.exists(), "the shared docs-only definition is missing"

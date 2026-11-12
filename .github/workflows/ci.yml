@@ -107,7 +107,13 @@ on:
 # the Actions tab. Superseded runs are cancelled rather than left to finish.
 concurrency:
   group: ci-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  # A push cancels the run it supersedes; the ready flip does not. Flipping a
+  # draft starts a run in this group while the draft's is still going, and a
+  # cancelled run reports CANCELLED on every required context it carried, so
+  # the pull request is blocked until somebody re-runs it. Measured on
+  # skeletor#8 (cancelled) and skeletor#9 (this expression: finished).
+  # tests/test_ci_draft_gate.py fails if it disappears.
+  cancel-in-progress: ${{ github.event.action != 'ready_for_review' }}
 
 # Least privilege by default. A fork PR gets a read-only token anyway; saying so
 # means a workflow that later wants more has to ask for it in the diff.
