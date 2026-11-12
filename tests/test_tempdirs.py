@@ -73,7 +73,9 @@ def test_sigterm_runs_the_callers_cleanup(tmp_path):
         try:
             # Printed inside the try: the parent signals on this line, and must find the finally armed.
             print(made, flush=True)
-            time.sleep(60)
+            # Short sleeps: a signal landing just before a sleep's syscall does not cut it short.
+            for _ in range(1200):
+                time.sleep(0.05)
         finally:
             shutil.rmtree(made)
         """)
