@@ -610,6 +610,23 @@ save/load/delete profile feature"). Ruled as shaped, except that one repo may be
       move a deck's state from `sb` when it is next started under a profile's name. The old save is
       offered as `resume` instead.
 
+## Phase 22 (round 22): a tour, and the README clip recorded from it
+
+Asked by Jeston: a short demo of agents using the deck, for the README. He ruled for a tour skill
+plus a recording script, with real agents.
+
+- [x] **`/sky-boss:deck-tour`**, in the deck's plugin. The primary hands two live peers one
+      read-only task each. One peer raises a decision and waits. The operator's click rules it,
+      the peer reports in the chosen form, and the primary posts a closing note. Only `git` reads
+      and `sb deck` run, so it is safe in a real deck.
+- [x] **`docs/design/render-deck-tour.mjs`** records `readme-deck-tour.webp`. It builds a sandbox
+      (its own tmux socket, `$SB_HOME`, `$SB_STATE`, three throwaway repos under `/tmp/sb-tour`),
+      serves the deck through ttyd to headless Chromium, and photographs it over CDP. The ruling
+      is a real click on the drawn row plus a key, sent through the same xterm the camera sees.
+      Frames near a change in the right-hand panes play at speed; idle stretches are thinned.
+- [x] **Does not do.** It does not fake a transcript or a pane, and is not run by CI: each take
+      spends tokens and differs from the last.
+
 ## Dropped, and why
 
 - **Binding Ctrl-C for exit.** It is claude's interrupt, and forwarding it would put every

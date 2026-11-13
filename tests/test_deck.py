@@ -1735,6 +1735,14 @@ def test_every_tab_loads_the_decks_plugin_and_it_ships_its_skill():
     assert manifest["name"] == "sky-boss" and "name: deck-connect" in skill and "sb --json deck brief" in skill
 
 
+def test_the_tour_skill_ships_and_runs_only_reads_and_deck_rows():
+    """Safe in a real deck: every command it names is a git read, a count, or `sb`."""
+    skill = (deck_.PLUGIN_DIR / "skills" / "deck-tour" / "SKILL.md").read_text()
+    assert "name: deck-tour" in skill
+    commands = {span.split()[0] for span in re.findall(r"`([a-z][^`]*)`", skill) if " " in span}
+    assert commands <= {"sb", "git", "wc"}, commands
+
+
 def test_nothing_in_the_brief_comes_from_a_transcript(core, fake, monkeypatch):
     """Built from deck.toml and tmux alone: every transcript and registry read is made to fail."""
     from skyboss import messages
