@@ -1,17 +1,19 @@
 #!/usr/bin/env node
 /**
- * Record the README's deck clip: a real three-tab deck running /deck-tour.
+ * Record the README's deck clip: a real six-tab deck running /deck-tour.
  *
  *     node docs/design/render-deck-tour.mjs [--keep]
  *
  * The agents are real `claude` sessions, so a take costs tokens and no two
  * takes match; re-run until one reads well. Everything else is sandboxed: its
- * own tmux socket, `$SB_HOME`, `$SB_STATE`, and three throwaway repos under a
- * fixed `/tmp/sb-tour`, because those paths are drawn in the picture.
+ * own tmux socket, `$SB_HOME`, `$SB_STATE`, and a throwaway repo per agent under
+ * a fixed `/tmp/sb-tour`, because those paths are drawn in the picture.
  *
+ * Six agents, each in a product's hue; the terminal takes the operator's Konsole
+ * scheme (`--colorscheme=PATH`, else SkyrowLabs in Konsole's data directory).
  * ttyd serves the deck to headless Chromium, which is photographed over CDP
- * (no new dependency, as in render-canvas.mjs). The one human act, the click
- * on a decision and the key that rules it, goes through the same xterm the
+ * (no new dependency, as in render-canvas.mjs). The human acts, a click on
+ * each decision and the key that rules it, go through the same xterm the
  * camera sees. Idle stretches play fast and pane changes play slow, then
  * ffmpeg writes `readme-deck-tour.webp`, starting only once the panes hide
  * every session outside the sandbox. `--keep` leaves the frames in /tmp.
@@ -19,7 +21,8 @@
 
 import { spawn, execFileSync } from "node:child_process";
 import { createServer } from "node:net";
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync, statSync } from "node:fs";
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync, statSync, readFileSync, existsSync } from "node:fs";
+import { homedir } from "node:os";
 import { createHash } from "node:crypto";
 import { join, dirname, relative } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -29,15 +32,27 @@ const ROOT = join(HERE, "..", "..");
 const OUT = join(HERE, "readme-deck-tour.webp");
 const KEEP = process.argv.includes("--keep");
 
-const WIDTH = 1600;
-const HEIGHT = 900;
+const WIDTH = 1800;
+const HEIGHT = 1000;
+const OUT_WIDTH = 1440;
 const SESSION = "tour";
 const REPOS = "/tmp/sb-tour";
+// Names no live tab carries, since SendMessage reaches a session by name; each
+// wears a product's hue so the tab row reads like the real deck's.
 const AGENTS = {
-  planner: "coordinates the other two tabs",
-  api: "the service's backend",
-  web: "the service's front end",
+  coordinator: { role: "hands out work and collects the answers", colour: "brand", commits: 6 },
+  audio: { role: "chord detection service", colour: "js", commits: 4 },
+  gpu: { role: "rented GPU fleet", colour: "bb", commits: 7 },
+  streams: { role: "personal data streams", colour: "sf", commits: 3 },
+  brain: { role: "self-hosted model memory", colour: "mh", commits: 5 },
+  scaffold: { role: "project-shell generator", colour: "sk", commits: 2 },
 };
+const PRIMARY = Object.keys(AGENTS)[0];
+// The terminal's colours: a Konsole scheme when one is given or found, else xterm's own.
+const SCHEME =
+  process.argv.find((a) => a.startsWith("--colorscheme="))?.slice(14) ??
+  join(process.env.XDG_DATA_HOME ?? join(homedir(), ".local", "share"), "konsole", "SkyrowLabs.colorscheme");
+const FONT = "MesloLGS Nerd Font Mono";
 const MODEL = "sonnet";
 const FRAME_MS = 400; // one photograph per this many real milliseconds
 const PLAY_FPS = 5;
@@ -119,17 +134,18 @@ function sandbox() {
   rmSync(REPOS, { recursive: true, force: true });
   const git = (cwd, ...args) =>
     execFileSync("git", ["-c", "user.name=demo", "-c", "user.email=demo@example.com", ...args], { cwd });
-  for (const name of Object.keys(AGENTS)) {
+  const subjects = ["chore: start the repo", "feat: add the first helper", "test: cover the helper",
+    "fix: handle an empty input", "docs: say what it does", "refactor: split the module", "feat: read the config"];
+  for (const [name, agent] of Object.entries(AGENTS)) {
     const dir = join(REPOS, name);
     mkdirSync(join(dir, "src"), { recursive: true });
     git(dir, "init", "-q", "-b", "main");
     writeFileSync(join(dir, "README.md"), `# ${name}\n`);
-    writeFileSync(join(dir, "src", "main.py"), "print('hello')\n");
-    git(dir, "add", "-A");
-    git(dir, "commit", "-q", "-m", "chore: start the repo");
-    writeFileSync(join(dir, "src", "util.py"), "def add(a, b):\n    return a + b\n");
-    git(dir, "add", "-A");
-    git(dir, "commit", "-q", "-m", `feat(${name}): add the first helper`);
+    for (let i = 0; i < agent.commits; i++) {
+      writeFileSync(join(dir, "src", `part${i}.py`), `STEP = ${i}\n`);
+      git(dir, "add", "-A");
+      git(dir, "commit", "-q", "-m", subjects[i].replace(": ", `(${name}): `));
+    }
   }
   const home = mkdtempSync("/tmp/sbt-home-");
   const state = mkdtempSync("/tmp/sbt-state-");
@@ -137,11 +153,14 @@ function sandbox() {
   const sockets = mkdtempSync("/tmp/sbt-");
   const args = ["--model", MODEL, "--allowedTools", "Bash(sb:*)", "Bash(git:*)", "Bash(wc:*)"];
   const toml = [`session = "${SESSION}"`, "themes = true", ""];
-  for (const [name, role] of Object.entries(AGENTS)) {
-    toml.push(`[agent.${name}]`, `cwd = "${join(REPOS, name)}"`, `role = "${role}"`, `args = ${JSON.stringify(args)}`, "");
+  for (const [name, { role, colour }] of Object.entries(AGENTS)) {
+    toml.push(`[agent.${name}]`, `cwd = "${join(REPOS, name)}"`, `role = "${role}"`, `colour = "${colour}"`,
+      `args = ${JSON.stringify(args)}`, "");
   }
   const [primary, ...tabs] = Object.keys(AGENTS);
-  toml.push("[profile.tour]", `primary = "${primary}"`, `tabs = ${JSON.stringify(tabs)}`, `session = "${SESSION}"`, "");
+  toml.push("[profile.tour]", `primary = "${primary}"`, `tabs = ${JSON.stringify(tabs)}`, `session = "${SESSION}"`,
+    // Two panes a column, so six agents' todos and decisions have the height to be drawn.
+    'columns = [["queue", "messages"], ["todos", "decisions"]]', "");
   writeFileSync(join(home, "deck.toml"), toml.join("\n"));
   return { home, state, sockets };
 }
@@ -164,6 +183,7 @@ async function main() {
     ttyd = spawn(
       "ttyd",
       ["-p", String(ttydPort), "-W", "-i", "127.0.0.1", "-t", "fontSize=13", "-t", "disableLeaveAlert=true",
+        "-t", `fontFamily=${FONT}`, ...xtermTheme(),
         "-t", "titleFixed=sky.boss deck", join(ROOT, "sb"), "deck", "--profile", "tour"],
       { env, stdio: ["ignore", "pipe", "pipe"] },
     );
@@ -225,38 +245,42 @@ async function main() {
 
     // Every tab's claude at its prompt: its pane shows the input box.
     const tab = (name) => `=${SESSION}-agents:${name}`;
-    await until("three tabs", () => Object.keys(AGENTS).every((n) => tmux("capture-pane", "-p", "-t", tab(n)).includes("❯")));
+    await until("every tab", () => Object.keys(AGENTS).every((n) => tmux("capture-pane", "-p", "-t", tab(n)).includes("❯")));
     // M-h's switch: rows from sessions outside this deck (the operator's own) stay out of frame.
     // The clip starts once the list says so, so no frame before it carries another session's path.
+    sb("deck", "layout", "grid");
     tmux("set-option", "-t", `=${SESSION}:`, "@sb-hide-outside", "1");
     await until("outside rows hidden", () => locate(tmux, "outside hidden"));
     await sleep(1500);
     const first = shots.length;
 
-    tmux("send-keys", "-t", tab("planner"), "-l", "/sky-boss:deck-tour");
+    tmux("send-keys", "-t", tab(PRIMARY), "-l", "/sky-boss:deck-tour");
     await sleep(1200);
-    tmux("send-keys", "-t", tab("planner"), "Enter");
+    tmux("send-keys", "-t", tab(PRIMARY), "Enter");
 
-    // The peer's decision, then a click on it, the way an operator rules. Found by
+    // Each peer's decision, clicked as it is drawn, the way an operator rules. Found by
     // owner and state rather than wording: an agent words its row its own way.
     const rows = () => JSON.parse(sb("--json", "deck", "decide", "list", "--all")).data;
-    let asked = null;
-    await until("the decision", () => {
-      asked = rows().find((r) => r.kind === "item" && r.agent !== "planner" && r.ask === "choice" && !r.done);
-      return asked;
-    });
-    await sleep(2500);
-    const where = locate(tmux, asked.text.slice(0, 24));
-    if (!where) throw new Error(`the decision is not drawn in any pane: ${asked.text}`);
     const cell = await cdp.evaluate(`(() => {
       const s = document.querySelector('.xterm-screen').getBoundingClientRect();
       return { x: s.left, y: s.top, w: s.width / term.cols, h: s.height / term.rows };
     })()`);
-    await cdp.click(cell.x + (where.col + 0.5) * cell.w, cell.y + (where.row + 0.5) * cell.h);
-    await sleep(2500);
-    await cdp.send("Input.insertText", { text: "2" });
-
-    await until("the tour's close", () => rows().some((r) => r.agent === "planner" && /tour/i.test(r.text)), 2000);
+    const ruled = new Set();
+    await until("the tour's close", async () => {
+      const all = rows();
+      if (all.some((r) => r.agent === PRIMARY && /tour/i.test(r.text))) return true;
+      const asked = all.find((r) => r.kind === "item" && r.agent !== PRIMARY && r.ask === "choice" && !r.done
+        && !ruled.has(`${r.agent}#${r.n}`));
+      if (!asked) return false;
+      await sleep(2500);
+      const where = locate(tmux, asked.text.slice(0, 24));
+      if (!where) return false;
+      await cdp.click(cell.x + (where.col + 0.5) * cell.w, cell.y + (where.row + 0.5) * cell.h);
+      await sleep(2500);
+      await cdp.send("Input.insertText", { text: "2" });
+      ruled.add(`${asked.agent}#${asked.n}`);
+      return false;
+    }, 2000);
     await sleep(6000);
     rolling = false;
     await camera;
@@ -269,6 +293,29 @@ async function main() {
     if (!KEEP) rmSync(frames, { recursive: true, force: true });
     else console.log(`frames kept in ${frames}`);
   }
+}
+
+/** ttyd's `-t theme=…`, built from a Konsole colour scheme; nothing when there is none. */
+function xtermTheme() {
+  if (!existsSync(SCHEME)) {
+    console.log(`no colour scheme at ${SCHEME}: xterm's own colours`);
+    return [];
+  }
+  const colours = {};
+  let section = "";
+  for (const line of readFileSync(SCHEME, "utf8").split("\n")) {
+    const head = line.match(/^\[(.+)\]$/);
+    if (head) section = head[1];
+    const rgb = line.match(/^Color=(\d+),(\d+),(\d+)/);
+    if (rgb) colours[section] = "#" + rgb.slice(1).map((v) => Number(v).toString(16).padStart(2, "0")).join("");
+  }
+  const names = ["black", "red", "green", "yellow", "blue", "magenta", "cyan", "white"];
+  const theme = { background: colours.Background, foreground: colours.Foreground, cursor: colours.Color4 };
+  names.forEach((name, i) => {
+    theme[name] = colours[`Color${i}`];
+    theme[`bright${name[0].toUpperCase()}${name.slice(1)}`] = colours[`Color${i}Intense`];
+  });
+  return ["-t", `theme=${JSON.stringify(theme)}`];
 }
 
 /** The outer cell where `text` starts, in the first of the deck's panes that draws it. */
@@ -293,7 +340,7 @@ function encode(shots, frames) {
   const durations = kept.map((s, i) => (i === kept.length - 1 ? HOLD_S : step));
   writeFileSync(list, kept.map((s, i) => `file '${s.file}'\nduration ${durations[i]}`).join("\n") + `\nfile '${kept.at(-1).file}'\n`);
   execFileSync("ffmpeg", ["-y", "-loglevel", "error", "-f", "concat", "-safe", "0", "-i", list,
-    "-vf", `fps=${PLAY_FPS},scale=1280:-1:flags=lanczos`, "-c:v", "libwebp_anim", "-lossless", "0",
+    "-vf", `fps=${PLAY_FPS},scale=${OUT_WIDTH}:-1:flags=lanczos`, "-c:v", "libwebp_anim", "-lossless", "0",
     "-q:v", "70", "-loop", "0", OUT]);
   const seconds = (kept.length / PLAY_FPS + HOLD_S).toFixed(1);
   const mb = (statSync(OUT).size / 1e6).toFixed(1);

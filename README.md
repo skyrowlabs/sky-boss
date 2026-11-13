@@ -31,12 +31,12 @@ This is one real session, ten agents across ten repos, with the operator's direc
 private lines blanked out. Click it for full size.
 
 <p align="center">
-  <img src="docs/design/readme-deck-tour.webp" alt="Three agents run /deck-tour: the planner messages two peers, each adds and ticks a todo, one raises a decision, a click rules it, and the answer comes back" width="100%">
+  <img src="docs/design/readme-deck-tour.webp" alt="Six agents run /deck-tour: the coordinator messages five peers, todos are added and ticked, two peers ask a question in HUMAN DECISIONS and a click rules each, one peer asks another, and every answer comes back" width="100%">
 </p>
 
-That is `/deck-tour`, run by three real agents in a sandbox: the planner hands out two tasks, the
-todos and messages fill in, one decision is ruled with a click, and the answer comes back. Idle
-stretches are sped up.
+That is `/deck-tour`, run by six real agents in a sandbox: the coordinator hands out five tasks, the
+todos and messages fill in, one agent asks another, two decisions are ruled with a click, and every
+answer comes back. Idle stretches are sped up.
 
 ## Start a deck
 
@@ -157,8 +157,8 @@ every live tab instead. It ships in [`plugin/`](plugin),
 a Claude Code plugin every tab loads with `--plugin-dir`, so nothing is installed into your Claude
 Code configuration.
 
-**`/deck-tour` shows the panes move.** Type it in the primary: it hands two live peers one small
-read-only task each, one of which asks you a question in HUMAN DECISIONS. It runs only `git` reads
+**`/deck-tour` shows the panes move.** Type it in the primary: it hands up to five live peers one
+small read-only task each. Two ask you a question in HUMAN DECISIONS, and one asks another peer. It runs only `git` reads
 and `sb deck`, so it is safe beside real work. The clip above is
 [`docs/design/render-deck-tour.mjs`](docs/design/render-deck-tour.mjs) recording it.
 
