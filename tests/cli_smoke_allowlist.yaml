@@ -18,3 +18,4 @@ docs index: regenerates four files — a test must not mutate the tree it runs i
 doctor: asks GitHub about the real account — a test must not depend on, or reach, the account it runs under
 settings: asks GitHub about the real account, and with --apply writes to it — a test must not reach it
 inbox: asks GitHub for the real issue queue — a test must not depend on, or reach, the account it runs under
+pr land: pushes this branch and opens a pull request on the real account — a test must not reach it

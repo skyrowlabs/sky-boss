@@ -142,6 +142,12 @@ gives; the agreement is worth recording because two different graphs produced on
 copy of something this repository decides — and the copy does not know it is one. Read the
 workflow.
 
+**`./dev pr land` is the end of that loop as one command**: `check pre-push`, push, the
+pull request opened as a draft (or found) and marked ready, its checks waited for on the head
+commit, and the pinned `gh pr merge <n> --merge --match-head-commit <sha>` printed. It stops
+there, because a merge is a person's call; `--merge` makes that call on the command line, and
+then watches the base branch's push runs on the merge commit too.
+
 ### 9. Docs Are Part of the Change, Not a Follow-Up
 
 Decide in planning which docs a change will invalidate, and update them in the same PR. A

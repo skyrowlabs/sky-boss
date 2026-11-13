@@ -321,6 +321,8 @@ def pre_push(quick: bool) -> None:
         # it chose, because two ranges that print alike is the whole defect.
         # With no Release Please config the contract is the commit-msg hook.
         ("commit subjects", script("scripts/check_commit_subjects.py")),
+        # The same default range, so this push's deletions are checked here first.
+        ("deleted paths", script("scripts/check_deleted_paths.py")),
         # A clone fact, so CI cannot hold it and `tests/test_pre_push_covers_ci.py`
         # cannot require it: the merge driver and commit template live in
         # .git/config, which every second clone starts without.

@@ -211,6 +211,11 @@ jobs:
       - name: Commit subjects the contract in force can read
         run: python scripts/check_commit_subjects.py --range "${{ steps.range.outputs.range }}"
 
+      # A path these commits delete or rename away that a tracked file still
+      # names. The same range, so a deletion pushed earlier never fires again.
+      - name: No tracked file names a path these commits removed
+        run: python scripts/check_deleted_paths.py --range "${{ steps.range.outputs.range }}"
+
       # Secrets in the same commits, here rather than in `lint` because this job
       # never skips: a token pasted into a docs-only change is still a leak.
       # The binary is the hook's own pin, checksum-verified; `gitleaks-action`

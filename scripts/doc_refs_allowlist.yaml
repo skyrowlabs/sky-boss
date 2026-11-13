@@ -19,6 +19,7 @@ docs/archive/spec/one.md: a fixture tests/test_doc_routing_predicate.py creates 
 docs/parked/idea.md: a fixture tests/test_doc_routing_predicate.py creates in a temporary tree
 docs/reports/releases/v1.2/audit.md: a fixture tests/test_doc_routing_predicate.py creates in a temporary tree
 docs/reports/stray.md: a fixture tests/test_doc_routing_predicate.py creates in a temporary tree
+docs/TODO/plan.md: a fixture tests/test_deleted_paths.py creates in a temporary tree
 
 # ── Your entries go below this line ──────────────────────────────────────────
 #
