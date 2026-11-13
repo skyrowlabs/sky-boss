@@ -220,6 +220,41 @@ def test_a_branch_with_no_codeowners_is_a_problem_and_a_missing_branch_is_unknow
     assert doctor.codeowners().state == doctor.UNKNOWN
 
 
+def contents_path(branch: str) -> str:
+    return f"{REPO}/contents/.github/CODEOWNERS?ref={branch}"
+
+
+def held(text: str) -> dict:
+    return {"content": base64.b64encode(text.encode()).decode()}
+
+
+def test_codeowners_the_base_branch_holds_as_this_tree_does_waits_for_a_release(monkeypatch, tmp_path):
+    """node-zero: right on the base branch, absent from the release branch until it is cut; not counted."""
+    owned = tmp_path / "CODEOWNERS"
+    owned.write_text("*  @someone\n", encoding="utf-8")
+    monkeypatch.setattr(doctor, "CODEOWNERS", owned)
+    base, release = doctor.BASE_BRANCH, doctor.RELEASE_BRANCH
+    if base == release:
+        assert doctor._reaches_at_release("n", base) is None, "one branch, so nothing waits on a release"
+        return
+    clean = {owners_path(base): {"errors": []}, f"{REPO}/branches/{release}": {"name": release}}
+    copies = {contents_path(base): held("*  @someone\n"), contents_path(release): 404}
+    absent = {**clean, owners_path(release): 404, **copies}
+    stub(monkeypatch, absent)
+    fact = doctor.codeowners()
+    assert fact.state == doctor.PENDING and base in fact.detail and release in fact.detail, fact
+    result = CliRunner().invoke(doctor.doctor, [])
+    assert "waiting for a release" in result.output and "facts are wrong" not in result.output, result.output
+    rejected = {owners_path(release): {"errors": [{"line": 1, "message": "Unknown owner"}]}}
+    stub(monkeypatch, {**absent, **rejected, contents_path(release): held("*  @gone\n")})
+    assert doctor.codeowners().state == doctor.PENDING
+    for other in ({contents_path(base): held("*  @other\n")}, {contents_path(release): held("*  @someone\n")}):
+        stub(monkeypatch, {**absent, **rejected, **other})
+        assert doctor.codeowners().state == doctor.PROBLEM, other
+    stub(monkeypatch, {**absent, contents_path(base): held("*  @other\n")})
+    assert doctor.codeowners().state == doctor.PROBLEM
+
+
 def test_codeowners_with_no_rule_names_no_owner(monkeypatch, tmp_path):
     ownerless = tmp_path / "CODEOWNERS"
     ownerless.write_text("# scaffolded without --owner\n\n", encoding="utf-8")

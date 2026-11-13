@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import shutil
 import sys
+from datetime import date
 
 import click
 
@@ -72,8 +73,9 @@ def freeze_release(tag: str, dry_run: bool) -> None:
 @click.option("--category", required=True, help="subdirectory under docs/implementations/")
 @click.option("--dry-run", is_flag=True, help="show what would happen, changing nothing")
 @click.option("--force", is_flag=True, help="file the plan even with open tasks")
-def file(slug: str, category: str, dry_run: bool, force: bool) -> None:
-    """Move a completed plan from the holding tank to the archive.
+@click.option("--dropped", metavar="WHY", help="file it as dropped unbuilt, saying why; its open tasks stay open")
+def file(slug: str, category: str, dry_run: bool, force: bool, dropped: str | None) -> None:
+    """Move a completed plan, or one dropped unbuilt (`--dropped`), from the holding tank to the archive.
 
     Does the whole sequence — `git mv`, frontmatter, both indexes, both READMEs —
     and **commits nothing**. Read the diff before you commit it: a filing is the
@@ -96,12 +98,15 @@ def file(slug: str, category: str, dry_run: bool, force: bool) -> None:
         detail("Filing it would leave a zombie behind. Nothing to do here.")
         sys.exit(1)
 
+    if dropped is not None and not dropped.strip():
+        fail("--dropped needs the reason: what was decided not to build is the record")
+        sys.exit(1)
     open_tasks = plan.open_tasks()
-    if open_tasks and not force:
+    if open_tasks and not force and dropped is None:
         fail(f"{slug} still has {len(open_tasks)} unchecked task(s):")
         for task in open_tasks[:5]:
             item(task)
-        detail("Tick them, mark them (~operator)/(~deferred), or pass --force.")
+        detail("Tick them, mark them (~operator)/(~deferred), file it --dropped WHY, or pass --force.")
         sys.exit(1)
 
     target = IMPL_DIR / category / f"{slug}.md"
@@ -131,6 +136,10 @@ def file(slug: str, category: str, dry_run: bool, force: bool) -> None:
     # every `docs index` and must not rewrite anybody's prose. A filing is the
     # one deliberate moment that knows the plan has stopped being a tank plan.
     text = target.read_text(encoding="utf-8")
+    if dropped is not None:
+        text = plans.mark_dropped(text, date.today().isoformat(), dropped.strip())
+        target.write_text(text, encoding="utf-8")
+        step("marked it dropped: the Status line and the `dropped:` field say so, and no `completed:`")
     stripped = plans.strip_tank_headers(text)
     if stripped != text:
         target.write_text(stripped, encoding="utf-8")

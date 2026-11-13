@@ -64,7 +64,7 @@ def build() -> str:
 
     for category in sorted(index["by_category"]):
         items = [e for e in entries if e["category"] == category]
-        items.sort(key=lambda e: (-int(e.get("agent_value", 1)), str(e.get("completed", "")), e["slug"]))
+        items.sort(key=_order)
         lines += [
             f"## {category.replace('-', ' ').replace('_', ' ').title()}",
             "",
@@ -76,7 +76,7 @@ def build() -> str:
             badge = VALUE_BADGE.get(int(entry.get("agent_value", 1)), "⭐")
             lines.append(
                 f"| {badge} | [{_cell(entry['title'])}]({rel.as_posix()}) "
-                f"| {_cell(entry.get('completed', ''))} | {_cell(entry.get('summary', ''))} |"
+                f"| {_cell(_filed(entry))} | {_cell(entry.get('summary', ''))} |"
             )
         lines.append("")
 
@@ -90,6 +90,17 @@ def build() -> str:
         "",
     ]
     return "\n".join(lines)
+
+
+def _order(entry: dict) -> tuple:
+    """Value first, then the date it was filed on, completed or dropped."""
+    when = entry.get("completed") or entry.get("dropped") or ""
+    return (-int(entry.get("agent_value", 1)), str(when), entry["slug"])
+
+
+def _filed(entry: dict) -> str:
+    """The completion date, or `dropped <date>` for a plan filed unbuilt."""
+    return f"dropped {entry['dropped']}" if entry.get("dropped") else str(entry.get("completed", ""))
 
 
 def main() -> int:

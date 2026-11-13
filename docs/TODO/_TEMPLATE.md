@@ -42,7 +42,8 @@ How this fixes it, in a paragraph. Then the phases.
 ## Phase 2 — <name>
 
 - [ ] Task
-- [ ] Task (~operator) — a step only a human can take; exempt from the filing check
+- [ ] Task (~operator) — a step only a human can take; exempt from the filing check,
+      and a plan holding one open is `blocked`, never `ready` (`dev docs index` refuses it)
 - [ ] Task (~deferred) — a deliberate non-goal for this plan
 
 ## Acceptance

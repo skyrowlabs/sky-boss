@@ -217,6 +217,7 @@ FIELD_ORDER = [
     "auto_generated",
     "generated_from",
     "completed",
+    "dropped",
     "updated",
     "tags",
     "depends_on",

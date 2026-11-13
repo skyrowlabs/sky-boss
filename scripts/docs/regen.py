@@ -22,9 +22,10 @@ HERE = Path(__file__).resolve().parent
 # every path below — can be imported. See scripts/paths.py.
 sys.path.insert(0, str(HERE.parents[1]))
 
+from scripts.docs import plans  # noqa: E402
 from scripts.git.install_merge_drivers import MARKER  # noqa: E402
 from scripts.output import detail, fail, step  # noqa: E402
-from scripts.paths import PROJECT_ROOT  # noqa: E402
+from scripts.paths import PROJECT_ROOT, TODO_DIR  # noqa: E402
 
 #: (script, human label). Frontmatter first — both indexes read it.
 PIPELINE = [
@@ -60,7 +61,18 @@ def main() -> int:
     if not status and MARKER.exists():
         MARKER.unlink()
         detail(f"cleared {MARKER.relative_to(PROJECT_ROOT)}: the regeneration a merge owed is done")
-    return status
+    return status | ready_plans()
+
+
+def ready_plans() -> int:
+    """A `ready` plan an agent cannot take is refused here, where its author looks first."""
+    step("ready plans an agent can take")
+    offenders = plans.not_takeable([p for p in plans.scan(TODO_DIR) if not p.auto_generated])
+    for slug, tasks in offenders.items():
+        fail(f"{slug} is `ready` but still carries operator-only tasks — mark it `blocked`")
+        for task in tasks:
+            detail(f"  - [ ] {task}")
+    return 1 if offenders else 0
 
 
 if __name__ == "__main__":

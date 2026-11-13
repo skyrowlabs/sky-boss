@@ -36,6 +36,8 @@ from .helpers import PROJECT_ROOT, detail, emit, fail, ok, skip, warn
 SMOKE_EXECUTES = True
 
 OK, PROBLEM, UNKNOWN, NOT_APPLICABLE = "ok", "problem", "unknown", "not applicable"
+#: Right on the base branch and not yet on the release branch, which a release fixes; not counted as wrong.
+PENDING = "pending release"
 
 #: The branch work lands on, and the branch releases land on; the same branch in a one-branch tree.
 BASE_BRANCH = "develop"
@@ -330,6 +332,34 @@ def _branch_exists(branch: str) -> bool:
     return True
 
 
+def _branch_copy(branch: str) -> bytes | None:
+    """CODEOWNERS as `branch` holds it, or None when it holds none; raises Unreadable otherwise."""
+    path = (GITHUB_DIR / CODEOWNERS.name).relative_to(PROJECT_ROOT).as_posix()
+    try:
+        found = gh_api("repos/{owner}/{repo}/contents/" + quote(path) + "?ref=" + quote(branch, safe=""))
+    except Unreadable as error:
+        if error.status == 404:
+            return None
+        raise
+    return base64.b64decode(found.get("content") or "")
+
+
+def _reaches_at_release(name: str, branch: str) -> Fact | None:
+    """PENDING when `branch` is the release branch, its copy differs, and the base's is this tree's.
+
+    The base branch was asked first and found clean, so a release carries a correct file.
+    """
+    if branch == BASE_BRANCH:
+        return None
+    try:
+        base, released = _branch_copy(BASE_BRANCH), _branch_copy(branch)
+    except Unreadable:
+        return None
+    if base != CODEOWNERS.read_bytes() or released == base:
+        return None
+    return Fact(name, PENDING, f"on {BASE_BRANCH}, reaches {branch} at the next release")
+
+
 def codeowners() -> Fact:
     """Every owner CODEOWNERS names is one GitHub recognises, so a review is actually requested."""
     name = "CODEOWNERS names owners GitHub recognises"
@@ -347,10 +377,16 @@ def codeowners() -> Fact:
             if error.status == 404 and _branch_exists(branch):
                 # GitHub answers 404 for a branch with no CODEOWNERS, which is a
                 # finding, not an unreadable answer (stash.flow).
-                return Fact(name, PROBLEM, f"{branch}: no CODEOWNERS, so a pull request into it requests no review")
+                pending = _reaches_at_release(name, branch)
+                return pending or Fact(
+                    name, PROBLEM, f"{branch}: no CODEOWNERS, so a pull request into it requests no review"
+                )
             return Fact(name, UNKNOWN, f"{branch}: {error}")
         errors = found.get("errors") or []
         if errors:
+            pending = _reaches_at_release(name, branch)
+            if pending:
+                return pending
             first = errors[0]
             return Fact(
                 name,
@@ -673,8 +709,9 @@ def doctor(as_json: bool) -> None:
     if as_json:
         emit({"facts": [asdict(f) for f in facts]})
         raise SystemExit(1 if problems else 0)
+    pending = [f for f in facts if f.state == PENDING]
     for fact in facts:
-        {OK: ok, PROBLEM: fail, UNKNOWN: warn, NOT_APPLICABLE: skip}[fact.state](fact.name)
+        {OK: ok, PROBLEM: fail, UNKNOWN: warn, NOT_APPLICABLE: skip, PENDING: warn}[fact.state](fact.name)
         detail(f"  {fact.detail}")
     detail()
     if problems:
@@ -683,4 +720,6 @@ def doctor(as_json: bool) -> None:
         warn(f"nothing known to be wrong, but {len(unknown)} of {len(applicable)} facts could not be read")
     else:
         ok(f"all {len(applicable)} applicable facts checked and none is wrong")
+    if pending:
+        detail(f"{len(pending)} of them right on {BASE_BRANCH}, waiting for a release to reach {RELEASE_BRANCH}")
     raise SystemExit(1 if problems else 0)

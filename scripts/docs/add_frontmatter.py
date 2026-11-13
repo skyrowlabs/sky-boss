@@ -40,7 +40,8 @@ def _derive(plan: plans.Plan, archive: bool) -> dict:
         rel = plan.path.relative_to(IMPL_DIR)
         data["category"] = data.get("category") or (rel.parts[0] if len(rel.parts) > 1 else "uncategorized")
         data.setdefault("agent_value", 1)
-        data.setdefault("completed", plan.updated or "")
+        if "dropped" not in data:
+            data.setdefault("completed", plan.updated or "")
         for key in plans.TANK_ONLY:
             data.pop(key, None)
         return data

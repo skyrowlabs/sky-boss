@@ -131,16 +131,34 @@ def test_a_linked_environment_is_ignored(tmp_path):
     assert _git(repo, "status", "--porcelain").split() == ["??", ".gitignore"]
 
 
-@pytest.mark.parametrize(("theirs", "linked"), [("same", True), ("other", False)])
-def test_node_modules_is_borrowed_only_while_the_lockfiles_agree(tmp_path, monkeypatch, theirs, linked):
+_OPTIONAL = {"version": "2", "optional": True}
+_LOCK = {"packages": {"": {"name": "t"}, "node_modules/a": {"version": "1"}, "node_modules/b": _OPTIONAL}}
+_INSTALLED = {"packages": {"node_modules/a": {"version": "1"}}}
+
+
+@pytest.mark.parametrize(
+    ("theirs", "installed", "linked"),
+    [
+        (_LOCK, _INSTALLED, True),
+        ({"packages": {}}, _INSTALLED, False),
+        (_LOCK, None, False),
+        (_LOCK, {"packages": {"node_modules/a": {"version": "0"}}}, False),
+        (_LOCK, {"packages": {}}, False),
+        (_LOCK, {"packages": {**_INSTALLED["packages"], "node_modules/stray": {}}}, False),
+    ],
+    ids=["holds-the-lock", "lockfiles-differ", "never-installed", "other-version", "emptied", "extraneous"],
+)
+def test_node_modules_is_borrowed_only_while_it_holds_the_lockfile(tmp_path, monkeypatch, theirs, installed, linked):
     from tests.shell import module
 
     worktree = module("worktree")
     primary, target = tmp_path / "primary", tmp_path / "target"
     (primary / "node_modules").mkdir(parents=True)
     target.mkdir()
-    (primary / "package-lock.json").write_text("same", encoding="utf-8")
-    (target / "package-lock.json").write_text(theirs, encoding="utf-8")
+    (primary / "package-lock.json").write_text(json.dumps(_LOCK), encoding="utf-8")
+    (target / "package-lock.json").write_text(json.dumps(theirs), encoding="utf-8")
+    if installed is not None:
+        (primary / "node_modules" / ".package-lock.json").write_text(json.dumps(installed), encoding="utf-8")
     monkeypatch.setattr(worktree, "PROJECT_ROOT", primary)
     worktree._link_node_modules(target)
     assert (target / "node_modules").is_symlink() is linked

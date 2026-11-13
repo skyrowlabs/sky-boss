@@ -48,8 +48,11 @@ that did not said *"4 doc(s), all registered"* in a tree holding fifteen.
 - **`docs/TODO/`** is the **holding tank**: every plan that is _not finished_ — shelved, in
   progress, planned, blocked, or a deferred follow-up. Indexed by `docs/TODO/README.md` and
   `docs/todo_index.json`.
-- **`docs/implementations/`** holds **only completed** plans. Indexed by
-  `docs/implementations/README.md` and `docs/implementation_index.json`.
+- **`docs/implementations/`** holds **only finished** plans: completed, or dropped unbuilt.
+  `dev docs file <slug> --category <c> --dropped "<why>"` files the second kind, with
+  `dropped:` in place of `completed:` and a Status line giving the reason; its open tasks stay
+  open, since nobody will do them. Indexed by `docs/implementations/README.md` and
+  `docs/implementation_index.json`.
 
 A plan **moves** (`git mv`) from one to the other when it is done. Never copy — the tank must
 not contain a file the archive also contains, or "what is left to do" stops being answerable.

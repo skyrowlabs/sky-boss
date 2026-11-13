@@ -10,6 +10,7 @@ and possibly a whole running stack.
 
 from __future__ import annotations
 
+import json
 import shutil
 import subprocess
 import sys
@@ -88,24 +89,48 @@ def _requirements_agree(target: Path) -> bool:
     return _venv_inputs(PROJECT_ROOT) == _venv_inputs(target)
 
 
+#: Named, not a parenthesised tuple in the `except`: black writes that one differently at a 3.14 target.
+_UNREADABLE = (OSError, ValueError, KeyError, TypeError, AttributeError)
+
+
+def _installed_as_locked(modules: Path, lock: Path) -> bool:
+    """Does `modules` hold what `lock` names? npm's own record of the install says.
+
+    `node_modules/.package-lock.json` is that record. It never lists the root, and
+    it omits optional packages npm skipped on this platform, so only those may be
+    missing; every entry it does hold must equal the lockfile's.
+    """
+    try:
+        locked = json.loads(lock.read_text(encoding="utf-8"))["packages"]
+        installed = json.loads((modules / ".package-lock.json").read_text(encoding="utf-8"))["packages"]
+        wanted = {path: entry for path, entry in locked.items() if path}
+        if any(path not in wanted or wanted[path] != entry for path, entry in installed.items()):
+            return False
+        return all(path in installed or entry.get("optional") for path, entry in wanted.items())
+    except _UNREADABLE:
+        return False
+
+
 def _link_node_modules(target: Path) -> None:
-    """Borrow the primary's `node_modules` when the lockfiles agree, as `.venv` is borrowed.
+    """Borrow the primary's `node_modules` when it holds this branch's lockfile, as `.venv` is borrowed.
 
     `check pre-push` runs eslint out of it, so a worktree without one fails on
-    `command not found` (sky.boss).
+    `command not found` (sky.boss), and so does one linked to an emptied directory.
     """
     modules = PROJECT_ROOT / "node_modules"
     if not modules.is_dir() or (target / "node_modules").exists():
         return
     locks = [root / "package-lock.json" for root in (PROJECT_ROOT, target)]
-    if [lock.read_bytes() if lock.exists() else None for lock in locks] == [None, None] or (
-        all(lock.exists() for lock in locks) and locks[0].read_bytes() == locks[1].read_bytes()
-    ):
-        (target / "node_modules").symlink_to(modules.resolve())
-        item("linked node_modules (the primary's)")
-    else:
+    primary, branch = (lock.read_bytes() if lock.exists() else None for lock in locks)
+    if primary != branch:
         item("did NOT link node_modules — this branch's package-lock.json differs from the primary's")
         detail("  npm ci")
+    elif primary is not None and not _installed_as_locked(modules, locks[0]):
+        item("did NOT link node_modules — the primary's does not hold what package-lock.json names")
+        detail("  npm ci")
+    else:
+        (target / "node_modules").symlink_to(modules.resolve())
+        item("linked node_modules (the primary's)")
 
 
 def start_point(base: str) -> str:
