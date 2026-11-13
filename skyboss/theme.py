@@ -448,20 +448,20 @@ def css_root() -> str:
 
 #: The favicon (`skyrowlabs.com/favicon.svg`) as nine rows of pixels: B the brand-blue L, W the white S in
 #: its corner. Drawn six pixels to a cell (2 wide, 3 tall) with sextant glyphs, so it is seven cells wide
-#: and fills the tab bar's three rows. As in the SVG, the L is two pixels thick with its foot's corners
-#: clipped and running past the S, and the S's top-left and bottom-right corners are clipped. A cell takes
-#: two colours at most (its glyph's and its ground), which this keeps: the S stays out of the stem's cell
-#: column, and a gap row puts the foot in a cell row of its own. A status bar cannot draw the SVG; this is its redraw.
+#: and fills the tab bar's three rows. Every edge is square, on the operator's ruling. A sextant pixel is
+#: taller than wide, so the L's stem is three pixels to match its two-row foot, which runs past the S. A
+#: cell takes two colours at most (its glyph's and its ground), which this keeps: the S stays out of the
+#: stem's cells, and a gap row puts the foot in a cell row of its own. A status bar cannot draw the SVG.
 MARK_PIXELS = (
-    "BB............",
-    "BB..WWWWWWWW..",
-    "BB.WW.........",
-    "BB.WWWWWWWWW..",
-    "BB........WW..",
-    "BB.WWWWWWWW...",
-    "BB............",
+    "BBB...........",
+    "BBB.WWWWWWWW..",
+    "BBB.WW........",
+    "BBB.WWWWWWWW..",
+    "BBB.......WW..",
+    "BBB.WWWWWWWW..",
+    "BBB...........",
     "BBBBBBBBBBBBBB",
-    ".BBBBBBBBBBBB.",
+    "BBBBBBBBBBBBBB",
 )
 
 #: Pixels per glyph: columns, rows.

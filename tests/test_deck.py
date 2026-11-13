@@ -2275,15 +2275,15 @@ def test_the_mark_leads_every_tab_row_at_one_width():
     assert all(rows[f"status-format[{n}]"].startswith(f"#[align=left]{lefts[n]}") for n in range(3))
 
 
-def test_the_mark_is_seven_cells_a_row_padded_each_side_with_an_l_two_pixels_thick():
+def test_the_mark_is_seven_cells_a_row_padded_each_side_square_edged_with_a_thick_l():
     from skyboss import theme
 
     marks = [re.sub(r"#\[[^]]*\]", "", row) for row in theme.tmux_mark()]
     assert [len(m) for m in marks] == [theme.MARK_WIDTH] * 3 == [7] * 3
     assert all(re.sub(r"#\[[^]]*\]", "", left).startswith(" " * deck_.MARK_PAD) for left in deck_.tab_lefts()[0])
-    stem = {row[:2] for row in theme.MARK_PIXELS[:-1]}
-    assert stem == {"BB"} and all("B" not in row[2:] for row in theme.MARK_PIXELS[:-2])  # the L, two pixels
-    assert theme.MARK_PIXELS[-1][0] == theme.MARK_PIXELS[-1][-1] == "."  # the foot's corners clipped
+    stem = {row[:3] for row in theme.MARK_PIXELS}
+    assert stem == {"BBB"} and all("B" not in row[3:] for row in theme.MARK_PIXELS[:-2])  # the L, three pixels
+    assert theme.MARK_PIXELS[-1] == theme.MARK_PIXELS[-2]  # a two-row foot, square at both ends
 
 
 def test_a_sextant_is_the_glyph_for_its_six_pixels():
