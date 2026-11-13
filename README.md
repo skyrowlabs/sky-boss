@@ -30,6 +30,14 @@ they told each other, what each has left to do, and what they need from you.
 This is one real session, ten agents across ten repos, with the operator's directories and a few
 private lines blanked out. Click it for full size.
 
+<p align="center">
+  <img src="docs/design/readme-deck-tour.webp" alt="Six agents run /deck-tour: the coordinator messages five peers, todos are added and ticked, two peers ask a question in HUMAN DECISIONS and a click rules each, one peer asks another, and every answer comes back" width="100%">
+</p>
+
+That is `/deck-tour`, run by six real agents in a sandbox: the coordinator hands out five tasks, the
+todos and messages fill in, one agent asks another, two decisions are ruled with a click, and every
+answer comes back. Idle stretches are sped up.
+
 ## Start a deck
 
 You need Python 3.12+, tmux, and [Claude Code](https://claude.com/claude-code) on your `PATH`.
@@ -148,6 +156,11 @@ afresh, checks who is live, and introduces itself to the primary; run in the pri
 every live tab instead. It ships in [`plugin/`](plugin),
 a Claude Code plugin every tab loads with `--plugin-dir`, so nothing is installed into your Claude
 Code configuration.
+
+**`/deck-tour` shows the panes move.** Type it in the primary: it hands up to five live peers one
+small read-only task each. Two ask you a question in HUMAN DECISIONS, and one asks another peer. It runs only `git` reads
+and `sb deck`, so it is safe beside real work. The clip above is
+[`docs/design/render-deck-tour.mjs`](docs/design/render-deck-tour.mjs) recording it.
 
 **An agent keeps its own todo list** with `sb deck todo add "<text>"` and `sb deck todo done <n>`.
 A list belongs to the tab whose pane runs the command, found by process rather than by name, so a

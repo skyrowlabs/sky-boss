@@ -1735,6 +1735,14 @@ def test_every_tab_loads_the_decks_plugin_and_it_ships_its_skill():
     assert manifest["name"] == "sky-boss" and "name: deck-connect" in skill and "sb --json deck brief" in skill
 
 
+def test_the_tour_skill_ships_and_runs_only_reads_and_deck_rows():
+    """Safe in a real deck: every command it names is a git read, a count, or `sb`."""
+    skill = (deck_.PLUGIN_DIR / "skills" / "deck-tour" / "SKILL.md").read_text()
+    assert "name: deck-tour" in skill
+    commands = {span.split()[0] for span in re.findall(r"`([a-z][^`]*)`", skill) if " " in span}
+    assert commands <= {"sb", "git", "wc"}, commands
+
+
 def test_nothing_in_the_brief_comes_from_a_transcript(core, fake, monkeypatch):
     """Built from deck.toml and tmux alone: every transcript and registry read is made to fail."""
     from skyboss import messages
@@ -2228,8 +2236,8 @@ def test_fold_names_only_a_right_column_pane_and_saves_without_a_deck(fake, home
 def test_each_bars_label_is_given_room_for_its_whole_width():
     options = dict(deck_.bar_options(False))
     drawn = re.sub(r"#\[[^]]*\]", "", options["status-left"])
-    assert drawn.startswith(" skyrow.labs │ sky.boss deck ⟳ next in ")
-    wanted = " skyrow.labs │ sky.boss deck ⟳ next in 5s marks not running "
+    assert drawn.startswith(" sky.boss from skyrow.labs │ sky.boss deck ⟳ next in ")
+    wanted = " sky.boss from skyrow.labs │ sky.boss deck ⟳ next in 5s marks not running "
     assert options["status-left-length"] == str(len(wanted) + 1)
     tabs = dict(deck_.bar_options(True))
     _, width = deck_.tab_lefts()
@@ -2250,51 +2258,19 @@ def test_dressing_a_deck_names_its_footer_after_the_live_profile(fake):
     assert " core " in fake.options[("=sb:", "status-left")]
 
 
-def test_the_mark_leads_every_tab_row_at_one_width():
-    from skyboss import theme
-
+def test_the_tab_row_leads_with_an_inset_and_no_mark():
     lefts, width = deck_.tab_lefts()
     visible = [re.sub(r"#\[[^]]*\]", "", left) for left in lefts]
-    assert [len(v) for v in visible] == [width] * 3  # so every row's boxes start in one column
-    assert not any("skyrow" in row for row in visible)  # the wordmark is the footer's
-    assert all(v.rstrip().endswith(deck_.SEPARATOR) for v in visible)  # the separator spans all three rows
-    assert len(theme.tmux_mark()) == 3 and all(len(row) == len(theme.MARK_PIXELS[0]) for row in theme.MARK_PIXELS)
-    base = theme.MARK_PIXELS[-2]
-    assert base.rstrip(".") == "B" * len(base.rstrip("."))  # the L's base runs under the whole S
-    assert set(theme.MARK_PIXELS[0]) == set(theme.MARK_PIXELS[-1]) == {"."}  # centred: a blank row each side
+    assert visible == [" " * deck_.TAB_INSET] * 3 and width == deck_.TAB_INSET  # every row's boxes in one column
     rows = dict(deck_.bar_options(True))
     assert all(rows[f"status-format[{n}]"].startswith(f"#[align=left]{lefts[n]}") for n in range(3))
 
 
-def test_the_mark_is_five_cells_a_row_padded_each_side_with_strokes_one_pixel_thick():
-    from skyboss import theme
-
-    marks = [re.sub(r"#\[[^]]*\]", "", row) for row in theme.tmux_mark()]
-    assert [len(m) for m in marks] == [theme.MARK_WIDTH] * 3 == [5] * 3
-    assert all(re.sub(r"#\[[^]]*\]", "", left).startswith(" " * deck_.MARK_PAD) for left in deck_.tab_lefts()[0])
-    stem = [row[0] for row in theme.MARK_PIXELS[1:-1]]
-    assert set(stem) == {"B"} and all(row[1] == "." for row in theme.MARK_PIXELS[1:-2])  # the L, one pixel
-
-
-def test_a_sextant_is_the_glyph_for_its_six_pixels():
-    from skyboss import theme
-
-    assert theme._sextant((1, 0, 0, 0, 0, 0)) == "\U0001fb00"
-    assert theme._sextant((0, 1, 1, 1, 1, 1)) == "\U0001fb3b"
-    assert [theme._sextant(b) for b in ((1, 0, 1, 0, 1, 0), (0,) * 6, (1,) * 6)] == ["▌", " ", "█"]
-
-
-def test_a_cell_refuses_a_third_colour():
-    from skyboss import theme
-
-    assert theme._cell(("a", "b") * 3, "g") == "#[fg=a bg=b]▌"
-    with pytest.raises(ValueError):
-        theme._cell(("a", "b", None, None, None, None), "g")
-
-
 def test_the_wordmark_is_white_then_brand_and_bold():
     style = deck_.theme.tmux_styles()
-    assert deck_.wordmark().startswith(f"#[{style['wordmark']}]skyrow#[{style['label']}].labs")
+    assert deck_.wordmark().startswith(f"#[{style['wordmark']}]sky#[{style['label']}].boss")
+    assert f"#[{style['quiet']}] from #[{style['wordmark']}]skyrow#[{style['label']}].labs" in deck_.wordmark()
+    assert re.sub(r"#\[[^]]*\]", "", deck_.wordmark()) == deck_.WORDMARK_TEXT
     assert "bold" in style["wordmark"] and "bold" in style["label"]
 
 

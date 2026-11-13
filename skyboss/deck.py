@@ -691,34 +691,33 @@ def tab_cell(row: int, current: bool) -> str:
     return f"#[range=window|#{{window_index}}]{body}#[norange nobold {bar}] "
 
 
-WORDMARK = ("skyrow", ".labs")
+#: The footer's wordmark: the product, then the company, each name white with its dotted half in brand.
+WORDMARK = (("sky", ".boss"), ("skyrow", ".labs"))
+WORDMARK_TEXT = "sky.boss from skyrow.labs"
 #: What the footer calls a deck opened from no declared profile.
 DECK_LABEL = "sky.boss deck"
-#: Blank cells each side of the mark.
-MARK_PAD = 2
-#: Drawn on all three rows between the mark and the first tab, and in the footer after the wordmark.
+#: Blank cells before the first tab.
+TAB_INSET = 1
+#: Drawn in the footer after the wordmark.
 SEPARATOR = "│"
 
 
 def tab_lefts() -> tuple[tuple[str, ...], int]:
-    """The tab bar's left end, one format per row, and its visible width.
+    """The tab bar's left end, one format per row, and its visible width: a blank inset.
 
-    The SL mark padded each side, then a separator on every row before the tabs.
+    The tab row carries no mark since the operator's ruling; the wordmark is the footer's.
     """
-    style = theme.tmux_styles()
-    bar = style["bar"]
-    pad = " " * MARK_PAD
-    separator = f"#[{style['tab-edge']}]{SEPARATOR}#[{bar}] "
-    lefts = tuple(f"#[{bar}]{pad}{mark}#[{bar}]{pad}{separator}" for mark in theme.tmux_mark())
-    width = MARK_PAD + theme.MARK_WIDTH + MARK_PAD + len(SEPARATOR) + 1
-    return lefts, width
+    bar = theme.tmux_styles()["bar"]
+    return tuple(f"#[{bar}]{' ' * TAB_INSET}" for _ in range(3)), TAB_INSET
 
 
 def wordmark() -> str:
-    """`skyrow` white and `.labs` brand, both bold, as a tmux format."""
+    """`sky.boss from skyrow.labs` as a tmux format: each name white then brand, both bold; `from` quiet."""
     style = theme.tmux_styles()
+    (product, dot), (company, labs) = WORDMARK
     # `nobold`: a colour change does not end tmux's bold, which would run on into what follows.
-    return f"#[{style['wordmark']}]{WORDMARK[0]}#[{style['label']}]{WORDMARK[1]}#[nobold {style['bar']}]"
+    name = f"#[{style['wordmark']}]{{}}#[{style['label']}]{{}}#[nobold {style['bar']}]"
+    return f"{name.format(product, dot)}#[{style['quiet']}] from {name.format(company, labs)}"
 
 
 def marks_text() -> str:
@@ -981,8 +980,7 @@ def bar_options(tabs: bool, profile: str = "") -> tuple[tuple[str, str], ...]:
         left = lefts[1]
     else:
         tick = shared_countdown()
-        word = "".join(WORDMARK)
-        width = len(f" {word} {SEPARATOR} {label} ⟳ next in {TOOLS_REFRESH}s marks not running ") + 1
+        width = len(f" {WORDMARK_TEXT} {SEPARATOR} {label} ⟳ next in {TOOLS_REFRESH}s marks not running ") + 1
         left = (
             f"#[{style['bar']}] {wordmark()} #[{style['tab-edge']}]{SEPARATOR}"
             f"#[{style['label']}] {label} #[nobold {style['working']}]⟳ next in {tick}s "

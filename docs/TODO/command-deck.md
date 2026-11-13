@@ -610,6 +610,28 @@ save/load/delete profile feature"). Ruled as shaped, except that one repo may be
       move a deck's state from `sb` when it is next started under a profile's name. The old save is
       offered as `resume` instead.
 
+## Phase 22 (round 22): a tour, and the README clip recorded from it
+
+Asked by Jeston: a short demo of agents using the deck, for the README. He ruled for a tour skill
+plus a recording script, with real agents.
+
+- [x] **`/sky-boss:deck-tour`**, in the deck's plugin. The primary hands up to five live peers
+      one read-only task each. Two raise a decision and wait, and one asks another peer. Each
+      click rules one, the peers report, and the primary ticks a todo per reply and posts a close. Only `git` reads
+      and `sb deck` run, so it is safe in a real deck.
+- [x] **`docs/design/render-deck-tour.mjs`** records `readme-deck-tour.webp`. It builds a sandbox
+      (its own tmux socket, `$SB_HOME`, `$SB_STATE`, six throwaway repos under `/tmp/sb-tour`),
+      serves the deck through ttyd to headless Chromium, and photographs it over CDP. The ruling
+      is a real click on the drawn row plus a key, sent through the same xterm the camera sees.
+      Frames near a change in the right-hand panes play at speed; idle stretches are thinned.
+      Asked for in the operator's look: each agent declares a product hue, the terminal takes the
+      operator's Konsole scheme when one is present, and the grid layout gives the panes height.
+- [x] **The tab row has no mark now** (ruled by Jeston): the tabs start at the left edge, and the
+      footer's wordmark reads `sky.boss from skyrow.labs`. A sextant drawing of the favicon, then
+      a word block, then block letters were each tried in the tab row and none read well there.
+- [x] **Does not do.** It does not fake a transcript or a pane, and is not run by CI: each take
+      spends tokens and differs from the last.
+
 ## Dropped, and why
 
 - **Binding Ctrl-C for exit.** It is claude's interrupt, and forwarding it would put every
