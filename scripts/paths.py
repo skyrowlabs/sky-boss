@@ -44,6 +44,7 @@ Stdlib only, and imported by `cli/` and `scripts/` alike.
 
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 from typing import NamedTuple
@@ -505,6 +506,28 @@ CLI_DIR = PROJECT_ROOT / SHELL_PACKAGE
 SCRIPTS_DIR = PROJECT_ROOT / "scripts"
 TESTS_DIR = PROJECT_ROOT / "tests"
 GITHUB_DIR = PROJECT_ROOT / ".github"
+
+
+def changelogs(root: Path = PROJECT_ROOT) -> set:
+    """Root-relative paths Release Please writes, read from its config; empty without one.
+
+    Generated history: it quotes commit subjects verbatim, so a prose scan meets
+    every past subject on the first release (sky.boss's bare command, #18 of the
+    v0.72.2 round). `tests/repo_files.py` re-exports it under its old home.
+    """
+    config = root / ".github" / "release-please-config.json"
+    if not config.is_file():
+        return set()
+    try:
+        data = json.loads(config.read_text(encoding="utf-8"))
+    except ValueError:
+        return set()
+    found = set()
+    for package, settings in (data.get("packages") or {}).items():
+        name = (settings or {}).get("changelog-path") or data.get("changelog-path") or "CHANGELOG.md"
+        found.add((Path(package) / name).as_posix())
+    return found
+
 
 #: The host toolchain this tree installs — the CLI, the docs pipeline, the lint
 #: gates. Every `ci.yml` job that runs the toolchain installs from it, and

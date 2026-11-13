@@ -32,7 +32,6 @@ it — see the reason written there.
 
 from __future__ import annotations
 
-import json
 import subprocess
 import sys
 from pathlib import Path
@@ -41,12 +40,7 @@ from pathlib import Path
 # owns every path below — can be imported. See scripts/paths.py.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-import pytest
-
-from scripts.paths import NARRATIVE, PROJECT_ROOT, is_foreign  # noqa: E402
-
-#: Every test here is host-side and needs no services up.
-pytestmark = [pytest.mark.unit]
+from scripts.paths import NARRATIVE, PROJECT_ROOT, changelogs, is_foreign  # noqa: E402,F401
 
 
 class GitRefused(subprocess.CalledProcessError):
@@ -174,27 +168,6 @@ def python_sources(root: Path = PROJECT_ROOT) -> list:
 # the whole reason for the rename and a smaller cost than a suite that stops at
 # collection. See `present`'s docstring.
 tracked = present
-
-
-def changelogs(root: Path = PROJECT_ROOT) -> set:
-    """Root-relative paths Release Please writes, read from its config; empty without one.
-
-    Generated history: it quotes commit subjects verbatim, so a prose scan meets
-    every past subject on the first release (sky.boss's bare command, #18 of the
-    v0.72.2 round). Still published, so the publication scan keeps reading it.
-    """
-    config = root / ".github" / "release-please-config.json"
-    if not config.is_file():
-        return set()
-    try:
-        data = json.loads(config.read_text(encoding="utf-8"))
-    except ValueError:
-        return set()
-    found = set()
-    for package, settings in (data.get("packages") or {}).items():
-        name = (settings or {}).get("changelog-path") or data.get("changelog-path") or "CHANGELOG.md"
-        found.add((Path(package) / name).as_posix())
-    return found
 
 
 def reference_docs(root: Path = PROJECT_ROOT) -> list:
