@@ -2268,20 +2268,22 @@ def test_the_mark_leads_every_tab_row_at_one_width():
     assert all(v.rstrip().endswith(deck_.SEPARATOR) for v in visible)  # the separator spans all three rows
     assert len(theme.tmux_mark()) == 3 and all(len(row) == len(theme.MARK_PIXELS[0]) for row in theme.MARK_PIXELS)
     base = theme.MARK_PIXELS[-2]
-    assert base.rstrip(".") == "B" * len(base.rstrip("."))  # the L's base runs under the whole S
-    assert set(theme.MARK_PIXELS[0]) == set(theme.MARK_PIXELS[-1]) == {"."}  # centred: a blank row each side
+    assert base == "B" * len(base)  # the L's foot runs the full width, past the S
+    s_right = max(row.rindex("W") for row in theme.MARK_PIXELS if "W" in row)
+    assert s_right < len(base) - 1 and "W" not in theme.MARK_PIXELS[-3]  # a gap row, then the foot
     rows = dict(deck_.bar_options(True))
     assert all(rows[f"status-format[{n}]"].startswith(f"#[align=left]{lefts[n]}") for n in range(3))
 
 
-def test_the_mark_is_five_cells_a_row_padded_each_side_with_strokes_one_pixel_thick():
+def test_the_mark_is_seven_cells_a_row_padded_each_side_with_an_l_two_pixels_thick():
     from skyboss import theme
 
     marks = [re.sub(r"#\[[^]]*\]", "", row) for row in theme.tmux_mark()]
-    assert [len(m) for m in marks] == [theme.MARK_WIDTH] * 3 == [5] * 3
+    assert [len(m) for m in marks] == [theme.MARK_WIDTH] * 3 == [7] * 3
     assert all(re.sub(r"#\[[^]]*\]", "", left).startswith(" " * deck_.MARK_PAD) for left in deck_.tab_lefts()[0])
-    stem = [row[0] for row in theme.MARK_PIXELS[1:-1]]
-    assert set(stem) == {"B"} and all(row[1] == "." for row in theme.MARK_PIXELS[1:-2])  # the L, one pixel
+    stem = {row[:2] for row in theme.MARK_PIXELS[:-1]}
+    assert stem == {"BB"} and all("B" not in row[2:] for row in theme.MARK_PIXELS[:-2])  # the L, two pixels
+    assert theme.MARK_PIXELS[-1][0] == theme.MARK_PIXELS[-1][-1] == "."  # the foot's corners clipped
 
 
 def test_a_sextant_is_the_glyph_for_its_six_pixels():

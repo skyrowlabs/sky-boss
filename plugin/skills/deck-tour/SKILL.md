@@ -66,8 +66,8 @@ Do exactly what your task asks, in this order, and nothing else:
    or
    `sb deck decide add "Report the last commit as?" --option "A date" --option "An age"`.
    The ruling arrives typed into your tab. Never answer it yourself.
-4. Send the primary one SendMessage with the result, in the chosen form if you
-   asked for one.
+4. Send the primary one SendMessage with the result. If you asked the operator,
+   give it in the form they chose and say which form that was.
 5. Mark each of your todos done: `sb deck todo done <n>`.
 
 If a peer messages you mid-tour with a question, answer it in one line by
