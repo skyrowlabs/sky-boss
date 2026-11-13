@@ -446,69 +446,25 @@ def css_root() -> str:
 # branch of a `#{?…}` conditional the tab format puts them in.
 
 
-#: The favicon (`skyrowlabs.com/favicon.svg`) as nine rows of pixels: B the brand-blue L, W the white S in
-#: its corner. Drawn six pixels to a cell (2 wide, 3 tall) with sextant glyphs, so it is seven cells wide
-#: and fills the tab bar's three rows. Every edge is square and the S fills the L's corner flush, on the
-#: operator's ruling: level with the stem's top, out to the foot's end, sitting on the foot. A sextant
-#: pixel is taller than wide, so the stem is three pixels to match the two-row foot. A cell takes two
-#: colours at most, which this keeps: the S stays one pixel off the stem, out of the stem's cells.
-MARK_PIXELS = (
-    "BBB.WWWWWWWWWW",
-    "BBB.WW........",
-    "BBB.WW........",
-    "BBB.WWWWWWWWWW",
-    "BBB.........WW",
-    "BBB.........WW",
-    "BBB.WWWWWWWWWW",
-    "BBBBBBBBBBBBBB",
-    "BBBBBBBBBBBBBB",
-)
-
-#: Pixels per glyph: columns, rows.
-CELL_PIXELS = (2, 3)
-
-
-def _sextant(bits: tuple[int, ...]) -> str:
-    """The glyph inking `bits`, six flags read across then down (top-left first).
-
-    U+1FB00 onwards holds the sixty patterns that are not a space, a full block or a half block.
-    """
-    mask = sum(bit << n for n, bit in enumerate(bits))
-    named = {0: " ", 63: "█", 21: "▌", 42: "▐"}
-    if mask in named:
-        return named[mask]
-    return chr(0x1FB00 + mask - 1 - (mask > 21) - (mask > 42))
-
-
-def _cell(pixels: tuple[str | None, ...], ground: str) -> str:
-    """One cell: its pixels' inks as a glyph in the first ink over the second, or over `ground`."""
-    inks = list(dict.fromkeys(ink for ink in pixels if ink is not None))
-    if len(inks) > 2 or (len(inks) == 2 and None in pixels):
-        raise ValueError(f"a cell takes two colours at most, not {pixels}")
-    if not inks:
-        return f"#[bg={ground}] "
-    fg = inks[0]
-    bg = inks[1] if len(inks) == 2 else ground
-    return f"#[fg={fg} bg={bg}]" + _sextant(tuple(int(ink == fg) for ink in pixels))
+#: The tab bar's top-left mark: the product's name as a word block, on the operator's ruling. It
+#: replaced a sextant drawing of the favicon, which no cell grid this small could draw well. Real text
+#: stays crisp in any terminal font; the block is brand blue from half-block edges, with the word in the
+#: void's colour on the middle row.
+MARK_WORD = "SKY.BOSS"
 
 
 def tmux_mark(ground: str = SURFACE) -> tuple[str, ...]:
-    """The mark as one tmux format string per bar row, each cell a sextant over `ground`."""
-    ink = {"B": BRAND, "W": TEXT, ".": None}
-    across, down = CELL_PIXELS
-    rows = []
-    for top in range(0, len(MARK_PIXELS), down):
-        band = MARK_PIXELS[top : top + down]
-        cells = [
-            _cell(tuple(ink[line[x + dx]] for line in band for dx in range(across)), ground)
-            for x in range(0, len(band[0]), across)
-        ]
-        rows.append("".join(cells))
-    return tuple(rows)
+    """The word block as one tmux format string per bar row, its edges' outer halves in `ground`."""
+    span = "▄" * MARK_WIDTH, "▀" * MARK_WIDTH
+    return (
+        f"#[fg={BRAND} bg={ground}]{span[0]}",
+        f"#[fg={BG} bg={BRAND} bold] {MARK_WORD} #[nobold]",
+        f"#[fg={BRAND} bg={ground}]{span[1]}",
+    )
 
 
-#: The mark's width in cells.
-MARK_WIDTH = len(MARK_PIXELS[0]) // CELL_PIXELS[0]
+#: The mark's width in cells: the word and a space each side.
+MARK_WIDTH = len(MARK_WORD) + 2
 
 
 #: A working tab's ground: the brand mixed into the bar's surface, a tint and never a fifth hue.

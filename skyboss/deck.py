@@ -703,7 +703,7 @@ SEPARATOR = "│"
 def tab_lefts() -> tuple[tuple[str, ...], int]:
     """The tab bar's left end, one format per row, and its visible width.
 
-    The SL mark padded each side, then a separator on every row before the tabs.
+    The word block padded each side, then a separator on every row before the tabs.
     """
     style = theme.tmux_styles()
     bar = style["bar"]

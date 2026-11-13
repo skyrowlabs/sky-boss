@@ -2266,40 +2266,19 @@ def test_the_mark_leads_every_tab_row_at_one_width():
     assert [len(v) for v in visible] == [width] * 3  # so every row's boxes start in one column
     assert not any("skyrow" in row for row in visible)  # the wordmark is the footer's
     assert all(v.rstrip().endswith(deck_.SEPARATOR) for v in visible)  # the separator spans all three rows
-    assert len(theme.tmux_mark()) == 3 and all(len(row) == len(theme.MARK_PIXELS[0]) for row in theme.MARK_PIXELS)
-    base = theme.MARK_PIXELS[-2]
-    assert base == "B" * len(base)  # the L's foot runs the full width, past the S
-    top, seat = theme.MARK_PIXELS[0], theme.MARK_PIXELS[-3]
-    assert top.endswith("W") and seat.endswith("W") and seat.strip("B.") == "W" * len(seat.strip("B."))  # S flush
+    assert len(theme.tmux_mark()) == 3
     rows = dict(deck_.bar_options(True))
     assert all(rows[f"status-format[{n}]"].startswith(f"#[align=left]{lefts[n]}") for n in range(3))
 
 
-def test_the_mark_is_seven_cells_a_row_padded_each_side_square_edged_with_a_thick_l():
+def test_the_mark_is_a_word_block_padded_each_side():
     from skyboss import theme
 
     marks = [re.sub(r"#\[[^]]*\]", "", row) for row in theme.tmux_mark()]
-    assert [len(m) for m in marks] == [theme.MARK_WIDTH] * 3 == [7] * 3
+    assert [len(m) for m in marks] == [theme.MARK_WIDTH] * 3
+    assert marks == ["▄" * theme.MARK_WIDTH, f" {theme.MARK_WORD} ", "▀" * theme.MARK_WIDTH]
+    assert f"bg={theme.BRAND}" in theme.tmux_mark()[1]  # the word sits on the block, not the bar
     assert all(re.sub(r"#\[[^]]*\]", "", left).startswith(" " * deck_.MARK_PAD) for left in deck_.tab_lefts()[0])
-    stem = {row[:3] for row in theme.MARK_PIXELS}
-    assert stem == {"BBB"} and all("B" not in row[3:] for row in theme.MARK_PIXELS[:-2])  # the L, three pixels
-    assert theme.MARK_PIXELS[-1] == theme.MARK_PIXELS[-2]  # a two-row foot, square at both ends
-
-
-def test_a_sextant_is_the_glyph_for_its_six_pixels():
-    from skyboss import theme
-
-    assert theme._sextant((1, 0, 0, 0, 0, 0)) == "\U0001fb00"
-    assert theme._sextant((0, 1, 1, 1, 1, 1)) == "\U0001fb3b"
-    assert [theme._sextant(b) for b in ((1, 0, 1, 0, 1, 0), (0,) * 6, (1,) * 6)] == ["▌", " ", "█"]
-
-
-def test_a_cell_refuses_a_third_colour():
-    from skyboss import theme
-
-    assert theme._cell(("a", "b") * 3, "g") == "#[fg=a bg=b]▌"
-    with pytest.raises(ValueError):
-        theme._cell(("a", "b", None, None, None, None), "g")
 
 
 def test_the_wordmark_is_white_then_brand_and_bold():
