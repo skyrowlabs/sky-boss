@@ -2269,8 +2269,8 @@ def test_the_mark_leads_every_tab_row_at_one_width():
     assert len(theme.tmux_mark()) == 3 and all(len(row) == len(theme.MARK_PIXELS[0]) for row in theme.MARK_PIXELS)
     base = theme.MARK_PIXELS[-2]
     assert base == "B" * len(base)  # the L's foot runs the full width, past the S
-    s_right = max(row.rindex("W") for row in theme.MARK_PIXELS if "W" in row)
-    assert s_right < len(base) - 1 and "W" not in theme.MARK_PIXELS[-3]  # a gap row, then the foot
+    top, seat = theme.MARK_PIXELS[0], theme.MARK_PIXELS[-3]
+    assert top.endswith("W") and seat.endswith("W") and seat.strip("B.") == "W" * len(seat.strip("B."))  # S flush
     rows = dict(deck_.bar_options(True))
     assert all(rows[f"status-format[{n}]"].startswith(f"#[align=left]{lefts[n]}") for n in range(3))
 
