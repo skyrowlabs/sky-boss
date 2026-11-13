@@ -2236,8 +2236,8 @@ def test_fold_names_only_a_right_column_pane_and_saves_without_a_deck(fake, home
 def test_each_bars_label_is_given_room_for_its_whole_width():
     options = dict(deck_.bar_options(False))
     drawn = re.sub(r"#\[[^]]*\]", "", options["status-left"])
-    assert drawn.startswith(" skyrow.labs │ sky.boss deck ⟳ next in ")
-    wanted = " skyrow.labs │ sky.boss deck ⟳ next in 5s marks not running "
+    assert drawn.startswith(" sky.boss from skyrow.labs │ sky.boss deck ⟳ next in ")
+    wanted = " sky.boss from skyrow.labs │ sky.boss deck ⟳ next in 5s marks not running "
     assert options["status-left-length"] == str(len(wanted) + 1)
     tabs = dict(deck_.bar_options(True))
     _, width = deck_.tab_lefts()
@@ -2258,33 +2258,19 @@ def test_dressing_a_deck_names_its_footer_after_the_live_profile(fake):
     assert " core " in fake.options[("=sb:", "status-left")]
 
 
-def test_the_mark_leads_every_tab_row_at_one_width():
-    from skyboss import theme
-
+def test_the_tab_row_leads_with_an_inset_and_no_mark():
     lefts, width = deck_.tab_lefts()
     visible = [re.sub(r"#\[[^]]*\]", "", left) for left in lefts]
-    assert [len(v) for v in visible] == [width] * 3  # so every row's boxes start in one column
-    assert not any("skyrow" in row for row in visible)  # the wordmark is the footer's
-    assert all(v.rstrip().endswith(deck_.SEPARATOR) for v in visible)  # the separator spans all three rows
-    assert len(theme.tmux_mark()) == 3
+    assert visible == [" " * deck_.TAB_INSET] * 3 and width == deck_.TAB_INSET  # every row's boxes in one column
     rows = dict(deck_.bar_options(True))
     assert all(rows[f"status-format[{n}]"].startswith(f"#[align=left]{lefts[n]}") for n in range(3))
 
 
-def test_the_mark_is_the_word_in_block_letters_brand_on_the_bars_ground():
-    from skyboss import theme
-
-    marks = [re.sub(r"#\[[^]]*\]", "", row) for row in theme.tmux_mark()]
-    assert [len(m) for m in marks] == [theme.MARK_WIDTH] * 3 and set("".join(marks)) <= set("▀▄█ ")
-    assert all(f"fg={theme.BRAND} bg={theme.SURFACE}" in row for row in theme.tmux_mark())
-    assert all(len(set(map(len, glyph))) == 1 and len(glyph) == 6 for glyph in theme.MARK_GLYPHS.values())
-    assert set(theme.MARK_WORD) <= set(theme.MARK_GLYPHS)
-    assert all(re.sub(r"#\[[^]]*\]", "", left).startswith(" " * deck_.MARK_PAD) for left in deck_.tab_lefts()[0])
-
-
 def test_the_wordmark_is_white_then_brand_and_bold():
     style = deck_.theme.tmux_styles()
-    assert deck_.wordmark().startswith(f"#[{style['wordmark']}]skyrow#[{style['label']}].labs")
+    assert deck_.wordmark().startswith(f"#[{style['wordmark']}]sky#[{style['label']}].boss")
+    assert f"#[{style['quiet']}] from #[{style['wordmark']}]skyrow#[{style['label']}].labs" in deck_.wordmark()
+    assert re.sub(r"#\[[^]]*\]", "", deck_.wordmark()) == deck_.WORDMARK_TEXT
     assert "bold" in style["wordmark"] and "bold" in style["label"]
 
 

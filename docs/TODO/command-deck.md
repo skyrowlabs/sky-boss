@@ -626,9 +626,9 @@ plus a recording script, with real agents.
       Frames near a change in the right-hand panes play at speed; idle stretches are thinned.
       Asked for in the operator's look: each agent declares a product hue, the terminal takes the
       operator's Konsole scheme when one is present, and the grid layout gives the panes height.
-- [x] **The mark is the word now** (ruled by Jeston): `SKY.BOSS` in brand-blue block letters on the
-      bar's ground, six pixels tall in half blocks so it fills the three rows. It replaces the
-      sextant drawing of the favicon, which three redraws could not make read well at that size.
+- [x] **The tab row has no mark now** (ruled by Jeston): the tabs start at the left edge, and the
+      footer's wordmark reads `sky.boss from skyrow.labs`. A sextant drawing of the favicon, then
+      a word block, then block letters were each tried in the tab row and none read well there.
 - [x] **Does not do.** It does not fake a transcript or a pane, and is not run by CI: each take
       spends tokens and differs from the last.
 
