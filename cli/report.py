@@ -88,7 +88,14 @@ def _main_checkout() -> str | None:
 @click.option("--install", "install", is_flag=True, help="replace this tree's block; keep every other line")
 def cron(print_: bool, check_: bool, install: bool) -> None:
     """The crontab, generated from the registry."""
-    from scripts.reporting.jobs import JOBS, SEAT_ENV, _allowlisted, crontab_block, host_zone_disagreement
+    from scripts.reporting.jobs import (
+        JOBS,
+        SEAT_ENV,
+        _allowlisted,
+        crontab_block,
+        host_zone_disagreement,
+        zone_command,
+    )
 
     if print_ or not (check_ or install):
         click.echo(crontab_block())
@@ -158,7 +165,8 @@ def cron(print_: bool, check_: bool, install: bool) -> None:
     disagreement = host_zone_disagreement()
     if disagreement:
         fail(f"cron fires in this host's time, and it is not the schedule's: {disagreement}")
-        detail("Set the host's zone, or SCHEDULE_TZ in scripts/reporting/jobs.py, so every fire time is true.")
+        detail("Set the host's zone to the schedule's, or record the host's as the schedule's:")
+        detail(f"  {zone_command()}")
         sys.exit(1)
 
     ok(f"the live crontab matches the registry ({len(JOBS) - len(off)} scheduled, {len(off)} intentionally off)")

@@ -38,7 +38,7 @@ the sections marked `"hidden": true` in `.github/release-please-config.json`. It
 log says `No user facing commits found` and nothing else happens. List them:
 
 ```bash
-git log --format=%s "$(git describe --tags --abbrev=0)"..origin/develop
+git log --format=%s "$(git describe --tags --abbrev=0 --match 'v[0-9]*')"..origin/develop
 ```
 
 A breaking change (`type!:` or a `BREAKING CHANGE:` footer) always counts. If

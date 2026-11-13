@@ -90,7 +90,8 @@ _H1 = re.compile(r"^#\s+(?P<title>.+?)\s*$", re.MULTILINE)
 #: Task markers that exempt an unchecked task from blocking a plan's filing.
 #: `(~operator)` is work only a human can do; `(~deferred)` is a deliberate
 #: non-goal. Both are the author saying "this will never be ticked here".
-EXEMPT_TASK_MARKERS = ("(~operator)", "(~deferred)")
+OPERATOR_TASK = "(~operator)"
+EXEMPT_TASK_MARKERS = (OPERATOR_TASK, "(~deferred)")
 
 _STATUS_HINTS = [
     ("ready", ("ready for agent", "🚀")),
@@ -256,6 +257,26 @@ def strip_tank_headers(text: str) -> str:
     return "".join(kept)
 
 
+def mark_dropped(text: str, day: str, why: str) -> str:
+    """A plan filed unbuilt says so twice: `dropped:` in place of `completed:`, and its Status line.
+
+    proto.pilot filed two plans this way with `--force` and a hand-edited Status
+    line, under an archive heading that read as a claim they were completed.
+    """
+    data, body = frontmatter.parse(text)
+    data.pop("completed", None)
+    data["dropped"] = day
+    status = f"> **Status**: Dropped {day} — {why}"
+    lines = body.splitlines()
+    at = next((i for i, line in enumerate(lines) if _is_header_for(line, {"status"})), None)
+    if at is not None:
+        lines[at] = status
+    else:
+        h1 = next((i for i, line in enumerate(lines) if _H1.match(line)), -1)
+        lines[h1 + 1 : h1 + 1] = ["", status] if h1 >= 0 else [status, ""]
+    return frontmatter.dumps(data) + "\n" + "\n".join(lines).lstrip("\n") + "\n"
+
+
 def _is_header_for(line: str, keys: set) -> bool:
     match = _HEADER.match(line)
     return bool(match) and match.group("key").lower() in keys
@@ -272,6 +293,20 @@ def load(path: Path) -> Plan:
     h1 = _H1.search(body)
     title = str(fm.get("title") or (h1.group("title") if h1 else path.stem.replace("-", " ").title()))
     return Plan(path=path, slug=path.stem, title=title, frontmatter=fm, body=body, headers=headers)
+
+
+def not_takeable(tank: list[Plan]) -> dict[str, list[str]]:
+    """`ready` plans still holding an operator-only task, by slug, with those tasks.
+
+    `ready` hands a plan to an agent, so a human step left in it makes it `blocked`.
+    `docs index` and `check docs` refuse these, as the plan's author runs them.
+    """
+    offenders = {}
+    for plan in tank:
+        human = [t for t in plan.open_tasks(include_exempt=True) if OPERATOR_TASK in t]
+        if plan.shelf_status == "ready" and human:
+            offenders[plan.slug] = human
+    return offenders
 
 
 def scan(directory: Path, recursive: bool = False) -> list[Plan]:

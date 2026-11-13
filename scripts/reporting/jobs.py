@@ -177,6 +177,17 @@ def host_zone_disagreement(now: datetime | None = None) -> str | None:
     return None
 
 
+def zone_command(zone: str | None = None) -> str:
+    """The upgrade that moves SCHEDULE_TZ: it is rendered from `.skeletor.json`, so an edit here conflicts.
+
+    `zone` defaults to the one `/etc/localtime` names, the zone cron fires in.
+    """
+    if zone is None:
+        parts = Path(os.path.realpath("/etc/localtime")).parts
+        zone = "/".join(parts[len(parts) - parts[::-1].index("zoneinfo") :]) if "zoneinfo" in parts else "<host zone>"
+    return f"skeletor-upgrade . --set-arg timezone={zone} --dry-run"
+
+
 def _hours(offset: timedelta | None) -> str:
     minutes = int((offset or timedelta()).total_seconds() // 60)
     return f"{'+' if minutes >= 0 else '-'}{abs(minutes) // 60:02d}:{abs(minutes) % 60:02d}"

@@ -45,7 +45,11 @@ def build() -> dict:
         category = rel.parts[0] if len(rel.parts) > 1 else "uncategorized"
         entry = plan.to_entry()
         entry["category"] = str(plan.frontmatter.get("category") or category)
-        entry["completed"] = str(plan.frontmatter.get("completed") or plan.updated)
+        if plan.frontmatter.get("dropped"):
+            # Filed unbuilt (`docs file --dropped`): no completion date to claim.
+            entry["dropped"] = str(plan.frontmatter["dropped"])
+        else:
+            entry["completed"] = str(plan.frontmatter.get("completed") or plan.updated)
         try:
             entry["agent_value"] = int(plan.frontmatter.get("agent_value") or 1)
         except _NOT_A_NUMBER:

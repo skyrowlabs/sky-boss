@@ -105,25 +105,26 @@ def test_ungated_statuses_carry_no_gate(tank):
 
 
 def test_ready_means_an_agent_can_actually_take_it(tank):
-    """`ready` is a work queue, not a label.
-
-    Promoting a plan to `ready` *is* the act of handing it to an agent. A plan
-    whose remaining work needs a human is `blocked`, however agent-doable the
-    rest of it is — an agent that does the agent-half alone leaves the system in
-    a state neither half describes.
-    """
-    offenders = {}
-    for plan in tank:
-        if plan.shelf_status != "ready":
-            continue
-        human_tasks = [t for t in plan.open_tasks(include_exempt=True) if "(~operator)" in t]
-        if human_tasks:
-            offenders[plan.slug] = human_tasks
+    """`ready` is a work queue: a plan still needing a human is `blocked` (`plans.not_takeable`)."""
+    offenders = plans.not_takeable(tank)
     assert (
         not offenders
     ), "These plans are `ready` but still carry operator-only tasks — mark them `blocked`:\n" + "\n".join(
         f"  {slug}: {tasks}" for slug, tasks in offenders.items()
     )
+
+
+def test_an_operator_task_keeps_only_a_ready_plan_out_of_the_queue(tmp_path):
+    for slug, status, task in [
+        ("held", "ready", "- [ ] sign it (~operator)"),
+        ("wrapped", "ready", "- [ ] sign it\n  (~operator)"),
+        ("done", "ready", "- [x] sign it (~operator)"),
+        ("planned", "planned", "- [ ] sign it (~operator)"),
+        ("agent", "ready", "- [ ] write it"),
+    ]:
+        (tmp_path / f"{slug}.md").write_text(f"# {slug}\n\n> **Shelf-Status**: {status}\n\n{task}\n", encoding="utf-8")
+    offenders = plans.not_takeable(plans.scan(tmp_path))
+    assert offenders == {"held": ["sign it (~operator)"], "wrapped": ["sign it (~operator)"]}
 
 
 def test_queue_order_is_never_inferred_and_never_duplicated(tank):
