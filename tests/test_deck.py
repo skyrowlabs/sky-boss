@@ -2271,13 +2271,14 @@ def test_the_mark_leads_every_tab_row_at_one_width():
     assert all(rows[f"status-format[{n}]"].startswith(f"#[align=left]{lefts[n]}") for n in range(3))
 
 
-def test_the_mark_is_a_word_block_padded_each_side():
+def test_the_mark_is_the_word_in_block_letters_brand_on_the_bars_ground():
     from skyboss import theme
 
     marks = [re.sub(r"#\[[^]]*\]", "", row) for row in theme.tmux_mark()]
-    assert [len(m) for m in marks] == [theme.MARK_WIDTH] * 3
-    assert marks == ["▄" * theme.MARK_WIDTH, f" {theme.MARK_WORD} ", "▀" * theme.MARK_WIDTH]
-    assert f"bg={theme.BRAND}" in theme.tmux_mark()[1]  # the word sits on the block, not the bar
+    assert [len(m) for m in marks] == [theme.MARK_WIDTH] * 3 and set("".join(marks)) <= set("▀▄█ ")
+    assert all(f"fg={theme.BRAND} bg={theme.SURFACE}" in row for row in theme.tmux_mark())
+    assert all(len(set(map(len, glyph))) == 1 and len(glyph) == 6 for glyph in theme.MARK_GLYPHS.values())
+    assert set(theme.MARK_WORD) <= set(theme.MARK_GLYPHS)
     assert all(re.sub(r"#\[[^]]*\]", "", left).startswith(" " * deck_.MARK_PAD) for left in deck_.tab_lefts()[0])
 
 

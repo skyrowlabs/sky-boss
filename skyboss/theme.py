@@ -446,25 +446,39 @@ def css_root() -> str:
 # branch of a `#{?…}` conditional the tab format puts them in.
 
 
-#: The tab bar's top-left mark: the product's name as a word block, on the operator's ruling. It
-#: replaced a sextant drawing of the favicon, which no cell grid this small could draw well. Real text
-#: stays crisp in any terminal font; the block is brand blue from half-block edges, with the word in the
-#: void's colour on the middle row.
+#: The tab bar's top-left mark: the product's name in block letters, on the operator's ruling. Each
+#: glyph is six pixels tall with two-pixel strokes, drawn two pixels to a cell with half blocks (a near
+#: square pixel), so the word fills the bar's three rows. Brand blue, bold by its strokes, on the bar's
+#: own ground. It replaced a sextant drawing of the favicon, which no grid this small could draw well.
 MARK_WORD = "SKY.BOSS"
+MARK_GLYPHS = {
+    "S": (".XXXXX", "XX....", ".XXXX.", "....XX", "....XX", "XXXXX."),
+    "K": ("XX..XX", "XX.XX.", "XXXX..", "XXXX..", "XX.XX.", "XX..XX"),
+    "Y": ("XX..XX", "XX..XX", ".XXXX.", "..XX..", "..XX..", "..XX.."),
+    ".": ("..", "..", "..", "..", "..", "XX"),
+    "B": ("XXXXX.", "XX..XX", "XXXXX.", "XX..XX", "XX..XX", "XXXXX."),
+    "O": (".XXXX.", "XX..XX", "XX..XX", "XX..XX", "XX..XX", ".XXXX."),
+}
+_HALVES = {("X", "X"): "█", ("X", "."): "▀", (".", "X"): "▄", (".", "."): " "}
+
+
+def mark_pixels(word: str = MARK_WORD) -> tuple[str, ...]:
+    """The word's six pixel rows, one blank pixel between letters."""
+    return tuple(".".join(MARK_GLYPHS[ch][row] for ch in word) for row in range(6))
 
 
 def tmux_mark(ground: str = SURFACE) -> tuple[str, ...]:
-    """The word block as one tmux format string per bar row, its edges' outer halves in `ground`."""
-    span = "▄" * MARK_WIDTH, "▀" * MARK_WIDTH
-    return (
-        f"#[fg={BRAND} bg={ground}]{span[0]}",
-        f"#[fg={BG} bg={BRAND} bold] {MARK_WORD} #[nobold]",
-        f"#[fg={BRAND} bg={ground}]{span[1]}",
-    )
+    """The word as one tmux format string per bar row: two pixel rows a cell, brand over `ground`."""
+    pixels = mark_pixels()
+    rows = []
+    for top in range(0, len(pixels), 2):
+        cells = "".join(_HALVES[pair] for pair in zip(pixels[top], pixels[top + 1]))
+        rows.append(f"#[fg={BRAND} bg={ground}]{cells}")
+    return tuple(rows)
 
 
-#: The mark's width in cells: the word and a space each side.
-MARK_WIDTH = len(MARK_WORD) + 2
+#: The mark's width in cells.
+MARK_WIDTH = len(mark_pixels()[0])
 
 
 #: A working tab's ground: the brand mixed into the bar's surface, a tint and never a fifth hue.

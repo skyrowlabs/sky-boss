@@ -1009,7 +1009,7 @@ def test_scroll_with_no_deck_tabs_fails_and_says_so(fake, home):
     assert result.exit_code == 1 and "no deck tabs 'sb-agents'" in json.loads(result.stdout)["data"]["error"]
 
 
-@pytest.mark.parametrize("width, overflowing", [("400", False), ("40", True)])
+@pytest.mark.parametrize("width, overflowing", [("400", False), ("100", True)])
 def test_scroll_draws_the_bar_only_when_the_tabs_overflow(home, monkeypatch, width, overflowing):
     tabs = "".join(f"{int(n == 0)}\tagent-number-{n}\n" for n in range(8))
     server = Listing(clients=f"{width}\n", windows=tabs)
