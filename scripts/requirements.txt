@@ -8,7 +8,7 @@
 # formatter disagree about real formatting, and a local pass with a CI failure
 # on the same file is otherwise unexplainable.
 
-click>=8.5.0
+click>=8.5.1
 # scripts/rehearse_scheduled.py reads workflows with it.
 pyyaml>=6.0
 
