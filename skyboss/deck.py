@@ -36,14 +36,14 @@ import tomllib
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Callable
+from typing import Any, Callable, TypeVar
 
 import rich_click as click
 
 from skyboss import agents as agents_
 from skyboss import background
 from skyboss import column as column_
-from skyboss import deckasks, decklaunch, deckplus, decksave, decktrust, deckwire
+from skyboss import deckasks, decklaunch, deckplus, decksave, decktrust, deckwatch, deckwire
 from skyboss import keys as keys_
 from skyboss import resident as resident_
 from skyboss import shellwatch, theme
@@ -105,8 +105,10 @@ AGENT, TABS, QUEUE, MESSAGES, SHELL = "agent", "tabs", "queue", "messages", "she
 TERMINAL = "terminal"
 TODOS = "todos"
 DECISIONS = "decisions"
+#: What agents leave running; see [[command-deck]] round 23.
+WATCHERS = "watchers"
 # The right column's panes, in their default order; `skyboss/column.py` holds the operator's choice.
-TOOL_ROLES = (QUEUE, MESSAGES, TODOS, DECISIONS)
+TOOL_ROLES = (QUEUE, MESSAGES, TODOS, DECISIONS, WATCHERS)
 
 # The inner session holding one window per project agent. Its status bar is the tab row.
 INNER_SUFFIX = "-agents"
@@ -133,6 +135,7 @@ WAITING = "waiting"
 #: A tab's word when its turn ended on a question: idle, with something still to answer.
 ASKED_STATE = "asked"
 UNREGISTERED = "unregistered"
+_S = TypeVar("_S")
 
 
 # ============================================================================
@@ -1025,6 +1028,7 @@ SHORTCUTS = {
     "clear": "M-x",
     "add": "M-n",
     "launch": "M-r",
+    "watchers": "M-g",
 }
 NEVER_BOUND = frozenset({"C-c"})
 # Session options the panes read each frame, and the marks loop keeps the agent count in.
@@ -1153,6 +1157,7 @@ def deck_bindings(session: str) -> list[list[str]]:
             f"{sb} deck column fold '#{{{ROLE_OPTION}}}' >/dev/null 2>&1 "
             f"|| tmux display-message '{keys['fold']} folds a right-column pane: focus one first' || true",
         ],
+        ["bind-key", "-T", table, keys["watchers"], *watchers_popup_argv()],
         # Both books and the asked rows, and a message that counts what was kept and why.
         [
             "bind-key",
@@ -1219,6 +1224,7 @@ def hints() -> str:
         f"{k['column']} panes",
         f"{k['fold']} fold",
         f"{k['clear']} clear done",
+        f"{k['watchers']} watchers",
         f"{EXIT_KEY} exit",
     ]
     return (
@@ -1780,6 +1786,10 @@ def messages_argv() -> list[str]:
     return sb_argv("deck", "messages", "--refresh", str(TOOLS_REFRESH), "--screen")
 
 
+def watchers_argv() -> list[str]:
+    return sb_argv("deck", "watchers", "list", "--refresh", str(TOOLS_REFRESH), "--screen")
+
+
 def tabs_argv(session: str, socket: str) -> list[str]:
     """A tmux client on the inner session, nested in a pane of the outer one.
 
@@ -1850,6 +1860,19 @@ def ensure_inner(
     return True, problems + mark_session(name) + dress(window_id, tab=True) + _inner_options(name)
 
 
+#: The smallest window the deck lays its panes out in before a client attaches; tmux scales it then.
+LAYOUT_FLOOR = (160, 48)
+
+
+def detached_size() -> list[str]:
+    """`-x`/`-y` for the controller's session: this terminal's size, floored so five tool panes fit.
+
+    A detached session is 80x24 otherwise, where a fifth pane in one column is refused for want of room.
+    """
+    size = shutil.get_terminal_size()
+    return ["-x", str(max(size.columns, LAYOUT_FLOOR[0])), "-y", str(max(size.lines, LAYOUT_FLOOR[1]))]
+
+
 def _inner_options(name: str) -> list[str]:
     return _session_options(name, (("mouse", "on"), ("status-position", "top"), *bar_options(True)))
 
@@ -1904,6 +1927,7 @@ def ensure(
             "-s",
             config.session,
             *deck_env(config.session),
+            *detached_size(),
             "-P",
             "-F",
             "#{window_id} #{pane_id}",
@@ -2094,8 +2118,8 @@ def plan(
     """The tmux calls that put the deck's panes in `shape`. Pure, and only ever moves or resizes.
 
     columns: tabs | the tools stacked.  stack: tabs over the tools side by side.
-    grid: tabs | `groups`, each a column of pane ids; with none, four tools go two and two, read
-    across, and fewer is columns. One group is columns too.
+    grid: tabs | `groups`, each a column of pane ids; with none, four tools or more go in two
+    columns, read across, and fewer is columns. One group is columns too.
     `tools` are pane ids in the column's order; a pane in `folded` is drawn as one
     line (columns, grid) or a narrow strip (stack), and the others share the rest.
     """
@@ -2109,7 +2133,7 @@ def plan(
 
     if not tools:
         return calls
-    laid = groups or ([tools[0::2], tools[1::2]] if len(tools) == len(TOOL_ROLES) else [])
+    laid = groups or ([tools[0::2], tools[1::2]] if len(tools) >= 4 else [])
     if shape == GRID and len(laid) > 1:
         heads = [column[0] for column in laid]
         if tabs:
@@ -2211,12 +2235,14 @@ def arrange(session: str, shape: str, *, force: bool, socket: str | None = None)
         MESSAGES: messages_argv,
         TODOS: todos_argv,
         DECISIONS: decisions_argv,
+        WATCHERS: watchers_argv,
     }
     for role in (TABS, *chosen.shown):
         argv = makers[role]
         if role in roles:
             continue
-        made = tmux("split-window", "-d", "-t", window_id, "-P", "-F", "#{pane_id}", "--", *argv())
+        # One row, as the layout sizes it next: halving the tabs pane fits only four in a detached 80x24.
+        made = tmux("split-window", "-d", "-l", "1", "-t", window_id, "-P", "-F", "#{pane_id}", "--", *argv())
         pane_id = made.out.strip()
         if not made.ok or not pane_id:
             problems.append(f"could not open the {role} pane — {_said(made)}")
@@ -2807,11 +2833,20 @@ def undeclared_places(config: Config, use_roots: bool) -> list[deckplus.Place]:
 
 def _launch_once(launch: decklaunch.Launch) -> tuple[decklaunch.Launch, decklaunch.Outcome]:
     """Draw and read keys until the screen has work for its caller."""
+    return _tick_once(launch, decklaunch.screen, decklaunch.visible, decklaunch.step)
+
+
+def _tick_once(state: _S, screen: Callable, visible: Callable, step: Callable) -> tuple[_S, Any]:
+    """A tick list's loop, the launcher's and the watcher picker's: draw, read, and `step` until it has work.
+
+    `screen` is `(state, width) -> [(text, row)]`, `visible` picks the lines that fit, and `step` is
+    `(state, key, clicked row) -> (state, outcome or None)`.
+    """
     with keys_.reader() as wait_for:
         while True:
             size = shutil.get_terminal_size()
-            lines = decklaunch.screen(launch, size.columns)
-            drawn = decklaunch.visible(lines, launch, size.lines)
+            lines = screen(state, size.columns)
+            drawn = visible(lines, state, size.lines)
             shown = [lines[n][0] for n in drawn]
             key = _popup_key(shown, lambda y: y <= len(drawn) and lines[drawn[y - 1]][1] is not None, wait_for)
             cell = keys_.clicked(key)
@@ -2821,9 +2856,9 @@ def _launch_once(launch: decklaunch.Launch) -> tuple[decklaunch.Launch, decklaun
                 row = lines[drawn[at]][1] if 0 <= at < len(drawn) else None
                 if row is None:
                     continue
-            launch, outcome = decklaunch.step(launch, key, row)
+            state, outcome = step(state, key, row)
             if outcome is not None:
-                return launch, outcome
+                return state, outcome
 
 
 def _declare(rows: list[decklaunch.Row], names: tuple[str, ...]) -> list[str]:
@@ -3864,7 +3899,7 @@ class DeckPane(resident_.Control):
             return replace(shaped, data=rows, view=view_of(rows) if rows else shaped.view)
         if self.role == DECISIONS:
             shaped = replace(shaped, data=held_placed(shaped.data, HELD_FOLD in self.open))
-        if self.role in (TODOS, DECISIONS) and shaped.view:
+        if self.role in (TODOS, DECISIONS, WATCHERS) and shaped.view:
             # The band names the pane, so its one column needs no heading of its own.
             columns = [{**column, "label": ""} for column in shaped.view["columns"]]
             return replace(shaped, view={**shaped.view, "columns": columns})
@@ -3890,7 +3925,19 @@ class DeckPane(resident_.Control):
     def band_place(self) -> str:
         if self.moving:
             return "moving · click a column" if self.moving == self.role else "click to send here"
+        if self.role == WATCHERS:
+            return " · ".join(word for word in (self.hint or self.place, f"{SHORTCUTS['watchers']} pick") if word)
         return self.hint or self.place
+
+    def picks_watchers(self, x: int, y: int) -> bool:
+        """Whether a click opens the watcher picker: WATCHERS' title, past its label in the grid, or a note row."""
+        if self.role != WATCHERS or self.moving:
+            return False
+        if self.on_title(y):
+            # In the grid the label itself picks the pane up, as every other title does.
+            return layout_of(self.session) != GRID or x > self.pad + len(self.title) + 2
+        row = clicked_row(self.lines, self.rows, y)
+        return row is not None and row.get("kind") == "note"
 
     def on_title(self, y: int) -> bool:
         """Whether screen line `y` (one-based) is this pane's title bar."""
@@ -3919,6 +3966,8 @@ class DeckPane(resident_.Control):
             return False
         if self.role == QUEUE:
             return bool(row.get("id") and row.get("jobs"))
+        if self.role == WATCHERS:
+            return row.get("kind") == "note"
         return bool(row.get("key")) or (self.role == DECISIONS and row.get("kind") in (todos_.HELD, "ask", "item"))
 
     def lit(self) -> int:
@@ -3937,6 +3986,9 @@ class DeckPane(resident_.Control):
                 send_pane(self.session, self.moving, self.role)
                 self.moving = ""
                 return True
+            if self.picks_watchers(*cell):
+                _open_popup(watchers_popup_argv())
+                return False
             if self.role and self.title and (self.moving == self.role or self.on_title(cell[1])):
                 return self.picked_up()
             row = clicked_row(self.lines, self.rows, cell[1])
@@ -4597,6 +4649,199 @@ def deck_queue(refresh: int | None, ticks: int | None, screen: bool, scope: str)
 
 
 # ============================================================================
+# Watchers — what agents leave running; see [[command-deck]] round 23
+# ============================================================================
+
+#: The watcher picker's popup, in cells.
+WATCHERS_POPUP = ("96", "24")
+
+
+def watchers_popup_argv() -> list[str]:
+    """`display-popup` running the watcher picker, for M-g and a click on WATCHERS' title."""
+    sb = shlex.quote(str(PROJECT_ROOT / "sb"))
+    return popup_argv(" watchers ", f"exec {sb} deck watchers pick", WATCHERS_POPUP)
+
+
+def gather_watchers(
+    session: str, adapters: list | None = None, proc: Path = Path("/proc"), now: float | None = None
+) -> tuple[list[deckwatch.Watcher], list[str], bool]:
+    """Every watcher, by tab in tab order then `daemon`; problems; and whether the tabs could all be read.
+
+    A tab's watchers are its session's children, so a detached process, which has no owner, is not one.
+    """
+    from skyboss import messages as messages_
+
+    now = time.time() if now is None else now
+    found: list[deckwatch.Watcher] = []
+    problems: list[str] = []
+    sure = False
+    if has_session(inner(session)):
+        listed, answer = panes(inner(session))
+        sure = answer.ok
+        if not answer.ok:
+            problems.append(f"could not list the deck's tabs — {_said(answer)}")
+        sessions, more, _ = agents_.fold(adapters if adapters is not None else agents_.providers())
+        problems += more
+        parent_of = parents(proc)
+        slots = agent_slots(listed)
+        order = {window_id: n for n, window_id in enumerate(_window_order(listed))}
+        entries = sorted(deck_windows(listed, sessions, parent_of)[0], key=lambda entry: order.get(entry[0], 0))
+        for window_id, label, _, record, pid in entries:
+            if record is None:
+                continue
+            mine = deckwatch.tab_watchers(
+                label, record.id, record.cwd, pid, parent_of, proc, messages_.projects_dir(), now
+            )
+            found += [replace(watcher, slot=slots.get(window_id, -1)) for watcher in mine]
+    else:
+        problems.append(f"no deck tabs in {session!r}, so only daemon jobs are listed")
+    jobs, more = deckwatch.daemon_jobs(claude_dir() / "jobs", now)
+    return found + jobs, problems + more, sure and not more
+
+
+def watchers_result(session: str, paint: bool = False, every: bool = False) -> Result:
+    """WATCHERS' envelope: a block per chosen watcher, or with `every` a row per watcher there is."""
+    result = Result()
+    listed, problems, _ = gather_watchers(session)
+    chosen, dropped, more = deckwatch.load(session)
+    for problem in problems + more:
+        result.warn(problem)
+    if every:
+        result.data = [
+            {
+                "key": w.key,
+                "owner": w.owner,
+                "kind": w.kind,
+                "command": w.label(),
+                "age": w.age(),
+                "chosen": w.key in chosen,
+            }
+            for w in listed
+        ]
+        if not listed:
+            result.warn("nothing running to watch")
+        return result
+
+    def colour(watcher: deckwatch.Watcher | None) -> str | None:
+        return theme.agent_role(watcher.owner, watcher.slot) if paint and watcher and watcher.slot >= 0 else None
+
+    hint = f"{SHORTCUTS['watchers']} or click the title to pick"
+    rows = deckwatch.rows_of(listed, chosen, dropped, time.time(), hint, colour)
+    result.data = rows
+    result.view = deckwatch.view_of(rows)
+    return result
+
+
+def sweep_watchers(session: str) -> int:
+    """Drop each chosen watcher that has ended, unless the tabs could not all be read. How many went."""
+    listed, _, sure = gather_watchers(session)
+    return deckwatch.sweep(session, listed) if sure else 0
+
+
+@deck.group(name="watchers")
+def deck_watchers() -> None:
+    """What the deck's agents leave running: background shells, Monitors, sub-agents, daemon jobs.
+
+        sb deck watchers list
+        sb deck watchers list --all
+        sb deck watchers pick
+
+    `list` observes, and is the WATCHERS pane: a block per chosen watcher, its
+    header then the last lines of its stream. `pick` and `choose` act: they
+    save the chosen set in `$SB_STATE`. Nothing here stops, restarts or types
+    into a watcher; the tab that started it owns it.
+    """
+
+
+@deck_watchers.command(name="list")
+@click.option("--all", "every", is_flag=True, help="Every watcher there is, one row each, with its key.")
+@click.option(
+    "--refresh",
+    type=click.IntRange(min=1),
+    default=None,
+    metavar="SECONDS",
+    help="Stay resident and re-read every N seconds. Off a terminal, one NDJSON envelope per tick.",
+)
+@click.option(
+    "--ticks", type=click.IntRange(min=1), default=None, metavar="N", help="With --refresh: stop after N refreshes."
+)
+@click.option(
+    "--screen", is_flag=True, help="With --refresh: redraw on the alternate screen, as the deck's own panes do."
+)
+@emit
+def deck_watchers_list(every: bool, refresh: int | None, ticks: int | None, screen: bool) -> Result:
+    """The chosen watchers, each a header and its stream's last lines; none chosen says how many run.
+
+        sb deck watchers list --refresh 5
+
+    An observe. A stream ends in its own word: `running`, `quiet`, `ended`
+    or `gone`. A Monitor and a sub-agent have no stream to read, so each is a
+    header alone. `--all` lists every watcher with the key `choose` takes.
+    """
+    config, _ = load()
+    once = functools.partial(watchers_result, config.session, paint=bool(refresh and screen), every=every)
+    pane = DeckPane(config.session, lambda row: True, scroll=True, top=True, role=WATCHERS)
+    return _resident("deck watchers", once, refresh, ticks, screen, keep_from_top("row(s)", pane), pane)
+
+
+@deck_watchers.command(name="pick")
+@emit
+def deck_watchers_pick() -> Result:
+    """Tick the watchers WATCHERS shows, any number of them or none, on a terminal.
+
+        sb deck watchers pick
+
+    **This acts** when you press Enter: the choice is saved and the pane draws it
+    on its next refresh. q or Esc leaves with nothing changed. The deck opens this
+    on M-g, or on a click on WATCHERS' title.
+    """
+    if not has_terminal():
+        raise click.UsageError("pick needs a terminal — use `sb deck watchers choose`, or M-g inside the deck")
+    config, _ = load()
+    listed, _, _ = gather_watchers(config.session)
+    chosen, dropped, _ = deckwatch.load(config.session)
+    pick, outcome = _tick_once(
+        deckwatch.Pick(listed, ticked=set(chosen)),
+        deckwatch.screen,
+        lambda lines, state, room: decklaunch.around(lines, state.at, state.note, room),
+        deckwatch.step,
+    )
+    result = Result()
+    if outcome == deckwatch.QUIT:
+        result.warn("cancelled — nothing changed")
+        result.data = {"chosen": len(chosen)}
+        return result
+    picked = deckwatch.chosen_of(pick, chosen)
+    deckwatch.save(config.session, picked)
+    result.data = {"chosen": len(picked), "running": len(listed)}
+    return result
+
+
+@deck_watchers.command(name="choose")
+@click.argument("keys", nargs=-1)
+@emit
+def deck_watchers_choose(keys: tuple[str, ...]) -> Result:
+    """Choose exactly the watchers KEYS, as `list --all` names them; none clears the choice.
+
+        sb deck watchers choose 6e5d8391-…:bkxihhsn5 job:2a94fd63
+        sb deck watchers choose
+
+    **This acts**: the choice is saved, as `pick` saves it. A key nothing is running under is refused.
+    """
+    config, _ = load()
+    listed, _, _ = gather_watchers(config.session)
+    by_key = {watcher.key: watcher for watcher in listed}
+    unknown = [key for key in keys if key not in by_key]
+    if unknown:
+        raise click.UsageError(f"nothing running under {', '.join(unknown)} — `sb deck watchers list --all` names them")
+    picked = {key: by_key[key].record() for key in dict.fromkeys(keys)}
+    deckwatch.save(config.session, picked)
+    result = Result()
+    result.data = {"chosen": len(picked), "running": len(listed)}
+    return result
+
+
+# ============================================================================
 # Todos — each agent's own list, written from its own tab
 # ============================================================================
 
@@ -5217,6 +5462,7 @@ def deck_decide_sweep() -> None:
     if age >= HELD_EVERY:
         deckasks.write_held(config.session, [deckasks.held_of(repo) for repo in deck_repos(config.session)])
     watch_shells(config.session)
+    sweep_watchers(config.session)
 
 
 def recheck_line(numbers: list[int], after: int) -> str:
@@ -5443,3 +5689,7 @@ mark(deck_decide_clear, sb_acts=True)
 mark(deck_clear, sb_acts=True)
 mark(deck_decide_list, sb_acts=False)
 mark(deck_todo_list, sb_acts=False)
+mark(deck_watchers, sb_acts=True)
+mark(deck_watchers_list, sb_acts=False)
+mark(deck_watchers_pick, sb_acts=True)
+mark(deck_watchers_choose, sb_acts=True)

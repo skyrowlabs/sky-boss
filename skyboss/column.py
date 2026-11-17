@@ -23,13 +23,14 @@ from rich.text import Text
 
 from skyboss import helpers, keys
 
-QUEUE, MESSAGES, TODOS, DECISIONS = "queue", "messages", "todos", "decisions"
-TOOLS = (QUEUE, MESSAGES, TODOS, DECISIONS)
+QUEUE, MESSAGES, TODOS, DECISIONS, WATCHERS = "queue", "messages", "todos", "decisions", "watchers"
+TOOLS = (QUEUE, MESSAGES, TODOS, DECISIONS, WATCHERS)
 LABELS = {
     QUEUE: "AGENT LIST",
     MESSAGES: "AGENT COMMUNICATIONS",
     TODOS: "AGENT TODOs",
     DECISIONS: "HUMAN DECISIONS",
+    WATCHERS: "WATCHERS",
 }
 LABEL_WIDTH = max(len(label) for label in LABELS.values())
 FILE = "column.json"
@@ -215,6 +216,10 @@ def summary(role: str, rows: list, ok: bool = True, note: str = "") -> str:
         if rows:
             last = rows[-1]
             parts.append(f"last {last.get('when', '')} {last.get('between', '')}".rstrip())
+    elif role == WATCHERS:
+        running = next((row.get("running", 0) for row in rows), 0)
+        chosen = next((row.get("chosen", 0) for row in rows), 0)
+        parts = [f"{chosen} shown", f"{running} running"]
     else:
         items = [row for row in rows if row.get("kind") == "item"]
         agents = len({row.get("agent") for row in items if not row.get("done")})
