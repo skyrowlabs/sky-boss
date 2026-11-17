@@ -5,7 +5,7 @@ priority: medium
 category: surfaces
 agent_value: 3
 shelf_status: in-progress
-updated: 2026-11-06
+updated: 2026-11-17
 tags: [agents, act, tmux, surfaces]
 summary: Adds `sb deck`, a tmux session holding one window per agent, plus a queue of sessions waiting on the operator, read by both surfaces. It is the first surface built to act, and the long-term goal is that it fuses with the canvas.
 ---
@@ -13,8 +13,8 @@ summary: Adds `sb deck`, a tmux session holding one window per agent, plus a que
 # The deck: a tmux command center for agent sessions
 
 > **Status**: 🟡 In progress
-> **Priority**: Medium. Round 5: the right column — a DECISIONS pane, a pane chooser, collapsing, the footer, and TODOS by recency.
-> **Updated**: 2026-11-06
+> **Priority**: Medium. Round 23, built: a WATCHERS pane for the shells, Monitors, sub-agents and daemon jobs agents leave running.
+> **Updated**: 2026-11-17
 
 ## Problem
 
@@ -646,31 +646,31 @@ them, with a popup that picks none, some or all of them. Measured 2026-11-17 on 
 | Monitor tool | A wrapper shell whose fd 1 and 2 are **sockets** into the session. No file | A row: command and age. Its lines reach only its session |
 | Background sub-agent | `meta.json` and a transcript, already read by `background.py` | A row: type, task, last write |
 | `claude` daemon job | `~/.claude/jobs/<id>/state.json` (`state`, `detail`, `cwd`) and `timeline.jsonl` | Its timeline's last lines |
-| A pane an agent opened | `tmux list-panes -a` | Its last lines, by `capture-pane` |
+| A pane an agent opened | `tmux list-panes -a` | Not drawn: no owner can be read (see Notes) |
 | `/loop`, cron, wakeups | Not found on disk; `~/.claude/scheduled-tasks/` holds routine definitions, not runs | Not drawn |
 | `nohup`, `setsid`, `systemd-run`, crontab | Reparented out of the wrapper's tree | Not drawn: no owner can be read |
 
-- [ ] **Shells are told apart by fd 1.** `background.py` counts a Monitor as a shell today, since
+- [x] **Shells are told apart by fd 1.** `background.py` counts a Monitor as a shell today, since
       both source a shell snapshot. A shell whose fd 1 is a `tasks/*.output` file has a file to
       follow, and one whose fd 1 is a socket is a Monitor. A foreground Bash also writes to a task
       file, and lives only while its turn is busy.
-- [ ] **A WATCHERS pane in the right column**, a fifth role beside AGENT LIST, AGENT
+- [x] **A WATCHERS pane in the right column**, a fifth role beside AGENT LIST, AGENT
       COMMUNICATIONS, AGENT TODOs and HUMAN DECISIONS, so `column` shows, orders, folds and moves it
       like the others. It draws each chosen watcher as a block: a header naming the owning tab, the
       kind, the command and its age, then the last lines of its stream. A stream ends in its own
       words, so quiet, ended and gone stay different. A watcher with no stream (a Monitor, a
       sub-agent) is a header alone.
-- [ ] **Daemon jobs are watchers too.** Each `~/.claude/jobs/<id>/` is one, labelled by its `cwd`,
+- [x] **Daemon jobs are watchers too.** Each `~/.claude/jobs/<id>/` is one, labelled by its `cwd`,
       `state` and `detail`, with `timeline.jsonl` as its stream. A job is not owned by a tab, so it
       is grouped under `daemon` and listed whether or not its folder is in the deck.
-- [ ] **The popup.** A key and a click on the pane's title open a checklist of every watcher,
+- [x] **The popup.** A key and a click on the pane's title open a checklist of every watcher,
       grouped by owning tab then `daemon`, with kind, command and age. Any number may be ticked,
       none included. None leaves the pane saying how many are running and how to pick; it never
       draws as empty. Built on the launcher's tick list.
-- [ ] **The choice survives a reload.** It is written to `$SB_STATE/deck/<session>/watchers.json`
+- [x] **The choice survives a reload.** It is written to `$SB_STATE/deck/<session>/watchers.json`
       beside `column.json`, keyed by owning session id and task id, or job id. A key whose watcher
       has ended is dropped at the next sweep, and the pane counts what it dropped.
-- [ ] **Does not do.** It never stops, restarts or types into a watcher: the tab owns it, as in
+- [x] **Does not do.** It never stops, restarts or types into a watcher: the tab owns it, as in
       round 19. It does not guess at a detached process's owner, and it does not follow a Monitor,
       whose lines go only to its session.
 
@@ -1522,3 +1522,31 @@ kept the TODOS pane's pid.
 
 - **Ruled by Jeston:** WATCHERS is a right-column pane like the others, daemon jobs are watchers,
   and the chosen set survives a reload. The window the round first proposed is gone with it.
+
+### 2026-11-17: round 23 built
+
+- **WATCHERS is `sb deck watchers list`,** a fifth role in `skyboss/column.py`, and a deck that
+  has never named it shows it at the end of its column. M-g, a click on its title, or a click on
+  its count opens `sb deck watchers pick`, the launcher's tick list. In the grid a click on the
+  title's label still picks the pane up to move it; a click past the label opens the picker.
+  `sb deck watchers choose KEY…` sets the choice without a terminal, and `list --all` names keys.
+- **M-g** was free in the deck's table and is not in the Claude Code 2.1.318 Meta list round 4
+  checked; `w` was the obvious letter and is Claude Code's. Not rechecked on 2.1.326.
+- **A daemon job whose `state` is `done` or `stopped` has ended.** It is listed and can be
+  ticked, marked `ended`, and the next sweep drops it like an exited shell. `blocked` is live.
+  Of the seven jobs on disk, one was not ended. Ruled here; say if a finished job should stay.
+- **A pane an agent opened is not drawn.** A split made from an agent's Bash lands in its tab's
+  window, but so does one the operator makes, and nothing records which; a `new-window` or another
+  server's pane has no link to a tab at all. Attributing by window would be the guess the round
+  refuses for detached processes.
+- **The sweep is the deck's existing one,** `sb deck decide sweep`, every minute off the marks
+  loop. It leaves the choice alone when the tabs cannot be listed, as every key would look ended.
+- **Five panes did not fit a new deck.** A detached session is 80x24, and splitting its tab pane
+  a fifth time is refused for want of room, so the first layout left WATCHERS under the tabs. The
+  controller's session now starts at the terminal's size, floored at 160x48, and each tool pane is
+  split off one row tall, as the layout sizes it next.
+- **Measured by running it:** a background `for` loop of this session's own was found by its task
+  file and its lines drawn, a sub-agent by its record, and seven daemon jobs from a copy of
+  `~/.claude/jobs`. In a throwaway deck, M-g, a title click and a grid label click were driven by
+  real keys and SGR clicks, the choice was written, and the sweep dropped the one `done` job. No
+  Monitor could be started from the session that built this, so the socket case is the suite's.

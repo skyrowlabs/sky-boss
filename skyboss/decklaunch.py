@@ -113,7 +113,7 @@ def screen(launch: Launch, width: int) -> list[tuple[str, int | None]]:
         elif row.kind != kind:
             lines.append(("", None))
         kind = row.kind
-        mark = ("[x] " if row.name in launch.ticked else "[ ] ") if row.kind == FOLDER else ""
+        mark = tick(row.name in launch.ticked) if row.kind == FOLDER else ""
         pointer = ">" if n == launch.at else " "
         lines.append((f" {pointer} {mark}{row.text}"[: max(1, width - 1)], n))
     lines += [("", None), (hint(launch)[: max(1, width - 1)], None)]
@@ -122,12 +122,22 @@ def screen(launch: Launch, width: int) -> list[tuple[str, int | None]]:
     return lines
 
 
+def tick(ticked: bool) -> str:
+    """A tick list's box, shared by every screen that ticks rows."""
+    return "[x] " if ticked else "[ ] "
+
+
 def visible(lines: list[tuple[str, int | None]], launch: Launch, room: int) -> list[int]:
     """Which of `screen`'s lines fit in `room`: those around the cursor, and always the footer."""
-    foot = 2 + bool(launch.note)
+    return around(lines, launch.at, launch.note, room)
+
+
+def around(lines: list[tuple[str, int | None]], at: int, note: str, room: int) -> list[int]:
+    """`visible` for any tick list whose footer is a blank, a hint and an optional note."""
+    foot = 2 + bool(note)
     body = len(lines) - foot
     space = max(1, room - foot)
-    cursor = next((n for n, (_, row) in enumerate(lines) if row == launch.at), 0)
+    cursor = next((n for n, (_, row) in enumerate(lines) if row == at), 0)
     first = deckplus.window(body, cursor, space)
     return [*range(first, min(body, first + space)), *range(body, len(lines))]
 

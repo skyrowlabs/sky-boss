@@ -98,6 +98,7 @@ Alt-c:
 | **HUMAN DECISIONS** | Everything the agents need from you | Rules on it |
 | **AGENT TODOs** | Each agent's own list, grouped by agent | |
 | **AGENT COMMUNICATIONS** | What the agents told each other | Opens the message whole |
+| **WATCHERS** | The shells, Monitors, sub-agents and daemon jobs you chose, each with its last lines | On its title, picks which |
 
 <p align="center">
   <img src="docs/design/readme-deck-agents.png" alt="The AGENT LIST pane: ten deck agents and one outside session, each with its state, background jobs and uptime" width="700">
@@ -115,6 +116,7 @@ own tmux bindings are untouched:
 | Alt-s, Alt-c | Chooses the panes, folds the focused one |
 | Alt-u, Alt-e | Scrolls messages back, returns to the newest |
 | Alt-x | Clears every done todo and decided item |
+| Alt-g | Picks the watchers WATCHERS shows |
 | Ctrl-Q | Asks, then ends the deck |
 
 Panes drag to resize. In the `grid` layout, click a title bar and then a pane in another column to
@@ -184,9 +186,11 @@ session outside the deck cannot write a tab's list even if it shares the name.
 | `sb deck todo add\|done\|rm\|clear` | **acts** | Edits a todo list |
 | `sb deck decide add\|note\|done\|rm\|clear` | **acts** | Edits a list of decisions |
 | `sb deck decide rule` | **acts** | Rules on a decision; for you, never an agent |
+| `sb deck watchers pick\|choose` | **acts** | Chooses the watchers WATCHERS shows |
 | `sb deck queue` | reads | Every agent session and its status, the deck's first |
 | `sb deck messages`, `sb deck message` | reads | What agents told each other, newest last, and one message whole |
 | `sb deck todo list`, `sb deck decide list` | reads | The lists, grouped by agent |
+| `sb deck watchers list` | reads | The chosen watchers and their last lines; `--all` names every one |
 | `sb deck brief [name]` | reads | An agent's brief, rebuilt with the live roster |
 | `sb deck places` | reads | Where a new tab can start |
 

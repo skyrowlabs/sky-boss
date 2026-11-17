@@ -481,7 +481,7 @@ def test_an_unresolvable_pin_opens_the_deck_without_it(fake, home, said):
     result = invoke("deck")
     assert "pin 'ghost'" in said(result) and "no tab" in said(result)
     assert fake.tabs() == ["shell"]
-    assert set(fake.roles()) == {"tabs", "queue", "messages", "todos", "decisions"}
+    assert set(fake.roles()) == {"tabs", "queue", "messages", "todos", "decisions", "watchers"}
 
 
 # ============================================================================
@@ -585,7 +585,7 @@ def test_window_zero_is_the_tabs_and_the_tools_only(fake, home, tmp_path):
     home(f'pin = "ws"\n[agent.ws]\ncwd = "{tmp_path}"\n')
     invoke("deck")
     roles = fake.roles()
-    assert set(roles) == {"tabs", "queue", "messages", "todos", "decisions"}
+    assert set(roles) == {"tabs", "queue", "messages", "todos", "decisions", "watchers"}
     assert len({fake.panes[p]["window"] for p in roles.values()}) == 1
     assert set(fake.roles("sb-agents")) == {"agent"}
 
@@ -1137,6 +1137,12 @@ def test_the_queue_is_an_observe_and_the_rest_act():
         "reload": True,
         "scroll": True,
         "clear": True,
+        "watchers": True,
+    }
+    assert {name: getattr(c, "sb_acts") for name, c in deck_.deck_watchers.commands.items()} == {
+        "list": False,
+        "pick": True,
+        "choose": True,
     }
     assert {name: getattr(c, "sb_acts") for name, c in deck_.deck_column.commands.items()} == {
         "show": False,
@@ -2119,13 +2125,17 @@ def test_a_saved_column_keeps_known_panes_once_and_appends_any_it_never_named(sb
     column.path_for("sb").parent.mkdir(parents=True)
     column.path_for("sb").write_text('{"order": ["todos", "ghost", "todos", "queue"], "hidden": ["ghost"]}')
     chosen, problems = column.load("sb")
-    assert chosen.order == ["todos", "queue", "messages", "decisions"] and chosen.hidden == set() and not problems
+    assert (
+        chosen.order == ["todos", "queue", "messages", "decisions", "watchers"]
+        and chosen.hidden == set()
+        and not problems
+    )
 
 
 def test_the_declared_panes_order_is_the_default_until_a_choice_is_saved(sb_state):
     from skyboss import column
 
-    assert column.load("sb", ["decisions", "queue"])[0].order == ["decisions", "queue", "messages", "todos"]
+    assert column.load("sb", ["decisions", "queue"])[0].order == ["decisions", "queue", "messages", "todos", "watchers"]
     column.save("sb", column.Column(order=["messages", "queue", "todos", "decisions"]))
     assert column.load("sb", ["decisions"])[0].order[0] == "messages"
 
@@ -2153,7 +2163,7 @@ def test_the_chooser_moves_shows_folds_and_never_hides_the_last_pane():
     chosen, at, _ = column.press(chosen, at, " ")
     chosen, at, _ = column.press(chosen, at, "c")
     assert "queue" in chosen.hidden and "queue" in chosen.collapsed and not chosen.folded("queue")
-    for role in ("messages", "todos"):
+    for role in ("messages", "todos", "watchers"):
         chosen, _, _ = column.press(chosen, chosen.order.index(role), " ")
     last, _, _ = column.press(chosen, chosen.order.index("decisions"), " ")
     assert last.shown == ["decisions"]
@@ -2206,7 +2216,7 @@ def test_hiding_a_pane_lets_it_close_itself_and_the_deck_kills_nothing(fake, hom
     assert not {"kill-pane", "respawn-pane", "kill-window"} & set(fake.verbs())
     assert fake.options[("=sb:", "@sb-hidden")] == "messages" and fake.options[("=sb:", "@sb-folded")] == "todos"
     roles = fake.roles()
-    tools = [roles[r] for r in ("queue", "todos", "decisions")]
+    tools = [roles[r] for r in ("queue", "todos", "decisions", "watchers")]
     moves = [call[1:] for call in fake.calls if call[1] in ("join-pane", "resize-pane")]
     assert moves == deck_.plan("columns", roles["tabs"], tools, frozenset({roles["todos"]}))
 
@@ -3054,16 +3064,17 @@ def test_a_profiles_columns_are_read_and_an_unknown_pane_is_named():
 
 
 def test_the_columns_default_to_two_and_two_read_across():
-    assert deck_.column_.Column().groups() == [["queue", "todos"], ["messages", "decisions"]]
+    assert deck_.column_.Column().groups() == [["queue", "todos", "watchers"], ["messages", "decisions"]]
 
 
 def test_a_saved_column_beats_a_declared_one_and_a_hidden_pane_drops_out():
     chosen = deck_.column_.Column(columns=[["todos"], ["queue", "messages", "decisions"]], hidden={"messages"})
-    assert chosen.groups([["queue"]]) == [["todos"], ["queue", "decisions"]]
+    assert chosen.groups([["queue"]]) == [["todos"], ["queue", "decisions", "watchers"]]
 
 
 def test_a_pane_no_column_names_joins_the_last():
-    assert deck_.column_.Column().groups([["messages"], ["queue"]]) == [["messages"], ["queue", "todos", "decisions"]]
+    groups = deck_.column_.Column().groups([["messages"], ["queue"]])
+    assert groups == [["messages"], ["queue", "todos", "decisions", "watchers"]]
 
 
 def test_sending_a_pane_puts_it_ahead_of_the_one_clicked():

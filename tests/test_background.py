@@ -107,3 +107,26 @@ def test_every_deck_pane_is_padded_and_the_view_keeps_its_columns():
     filled = {**{key: "" for key in (*deck_.INLINE, *deck_.HIDDEN)}, **row(jobs=[job])}
     rows = deck_.unfolded([filled], {"abc"})
     assert {column["key"] for column in deck_.view_of(rows)["columns"]} == set(deck_.INLINE)
+
+
+def with_fd(proc, pid, target):
+    folder = proc / str(pid) / "fd"
+    folder.mkdir(parents=True)
+    (folder / "1").symlink_to(target)
+
+
+def test_a_shell_writing_a_task_file_is_a_shell_and_one_on_a_socket_is_a_monitor(tmp_path):
+    proc = fake_proc(tmp_path, p10=WRAPPER, p11=WRAPPER)
+    with_fd(proc, 10, "/tmp/claude-1/-repo/abc/tasks/b1.output")
+    with_fd(proc, 11, "socket:[123]")
+    jobs = background.shells(1, {10: 1, 11: 1}, proc)
+    assert [job.kind for job in jobs] == ["shell", "monitor"]
+    assert background.counted(jobs) == "1s 1m"
+    assert background.output_of(10, proc) == ("shell", "/tmp/claude-1/-repo/abc/tasks/b1.output")
+
+
+def test_a_shell_whose_fd_cannot_be_read_is_still_a_shell_with_no_file(tmp_path):
+    proc = fake_proc(tmp_path, p10=WRAPPER, p11=WRAPPER)
+    with_fd(proc, 11, "pipe:[9]")
+    assert background.output_of(10, proc) == ("shell", "")
+    assert background.output_of(11, proc) == ("shell", "")

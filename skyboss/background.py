@@ -7,7 +7,9 @@ Code 2.1.318), so a sub-agent is drawn with how long ago it wrote, never as
 `running`, and leaves the list once quiet for `RECENT` seconds.
 
 **A shell is a child process in Claude Code's shell wrapper.** Its MCP servers are
-children too, so a child counts only if it sourced a shell snapshot.
+children too, so a child counts only if it sourced a shell snapshot. Its fd 1 tells
+the two kinds apart: a `tasks/<id>.output` file is a Bash shell's, with a stream to
+follow, and a socket is a Monitor's, whose lines reach only its session.
 
 **A spawned session is a full session a tab started.** Its registry record goes when it
 exits, so one that ended is read from its transcript's `stat`, for `RECENT` seconds.
@@ -25,14 +27,16 @@ from pathlib import Path
 from skyboss import agents as agents_
 from skyboss.chrome import ago
 
-AGENT, SHELL, SESSION = "agent", "shell", "session"
+AGENT, SHELL, SESSION, MONITOR = "agent", "shell", "session", "monitor"
 #: A session id. Claude Code keeps a session's scratch folder under one, so a path can name its owner.
 IDENT = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
 #: Seconds since a sub-agent last wrote, after which it is not drawn.
 RECENT = 600
 SNAPSHOT = "shell-snapshots"
 #: Each kind and the letter `counted` gives it.
-KINDS = ((AGENT, "a"), (SESSION, "c"), (SHELL, "s"))
+KINDS = ((AGENT, "a"), (SESSION, "c"), (SHELL, "s"), (MONITOR, "m"))
+#: A background Bash's output file, which names its task.
+TASK_FILE = re.compile(r"/tasks/(?P<task>[^/]+)\.output$")
 #: The operator's command inside the wrapper Claude Code builds around it.
 WRAPPED = re.compile(r"eval (?P<word>'(?:[^']|'\"'\"')*')", re.DOTALL)
 
@@ -47,11 +51,11 @@ class Job:
         return {"kind": self.kind, "label": self.label, "age": self.age}
 
 
-def subagents(cwd: str, ident: str, projects: Path, now: float) -> list[Job]:
-    """The session's sub-agents that wrote within `RECENT` seconds, newest first."""
+def subagent_records(cwd: str, ident: str, projects: Path, now: float) -> list[tuple[str, float, str]]:
+    """`(agent id, last write, label)` for each sub-agent that wrote within `RECENT` seconds, newest first."""
     from skyboss.messages import slug
 
-    found: list[tuple[float, Job]] = []
+    found: list[tuple[str, float, str]] = []
     for meta in (projects / slug(cwd) / ident / "subagents").glob("*.meta.json"):
         try:
             wrote = meta.with_name(meta.name.replace(".meta.json", ".jsonl")).stat().st_mtime
@@ -63,8 +67,15 @@ def subagents(cwd: str, ident: str, projects: Path, now: float) -> list[Job]:
         if isinstance(record, dict):
             kind = str(record.get("agentType") or AGENT)
             label = f"{kind}: {record.get('description') or 'no description'}"
-            found.append((wrote, Job(AGENT, label, ago(max(0.0, now - wrote)))))
-    return [job for _, job in sorted(found, key=lambda pair: -pair[0])]
+            found.append((meta.name.removesuffix(".meta.json"), wrote, label))
+    return sorted(found, key=lambda each: -each[1])
+
+
+def subagents(cwd: str, ident: str, projects: Path, now: float) -> list[Job]:
+    """The session's sub-agents that wrote within `RECENT` seconds, newest first."""
+    return [
+        Job(AGENT, label, ago(max(0.0, now - wrote))) for _, wrote, label in subagent_records(cwd, ident, projects, now)
+    ]
 
 
 def wrapped(cmdline: str) -> str:
@@ -108,9 +119,26 @@ def shell_lines(pid: int, parent_of: dict[int, int], proc: Path) -> list[tuple[i
     return out
 
 
+def output_of(pid: int, proc: Path) -> tuple[str, str]:
+    """`(kind, path)` from a shell's fd 1: a task file is `SHELL` with its path, a socket `MONITOR`.
+
+    Anything else, or an fd that cannot be read, is a `SHELL` with no file to follow.
+    """
+    try:
+        target = os.readlink(proc / str(pid) / "fd" / "1")
+    except OSError:
+        return SHELL, ""
+    if target.startswith("socket:"):
+        return MONITOR, ""
+    return SHELL, target if TASK_FILE.search(target) else ""
+
+
 def shells(pid: int, parent_of: dict[int, int], proc: Path) -> list[Job]:
-    """The shells `pid` has running, oldest pid first."""
-    return [Job(SHELL, command_of(line), running_for(child, proc)) for child, line in shell_lines(pid, parent_of, proc)]
+    """The shells and Monitors `pid` has running, oldest pid first."""
+    return [
+        Job(output_of(child, proc)[0], command_of(line), running_for(child, proc))
+        for child, line in shell_lines(pid, parent_of, proc)
+    ]
 
 
 def ended(owners: set[str], live: set[str], projects: Path, now: float) -> dict[str, list[Job]]:
@@ -136,6 +164,6 @@ def ended(owners: set[str], live: set[str], projects: Path, now: float) -> dict[
 
 
 def counted(jobs: list[Job]) -> str:
-    """`2a 1c 1s`: sub-agents, spawned sessions and shells, each left out at zero."""
+    """`2a 1c 1s 1m`: sub-agents, spawned sessions, shells and Monitors, each left out at zero."""
     tally = [(sum(1 for job in jobs if job.kind == kind), letter) for kind, letter in KINDS]
     return " ".join(f"{count}{letter}" for count, letter in tally if count)
