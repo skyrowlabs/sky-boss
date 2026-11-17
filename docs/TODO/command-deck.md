@@ -632,6 +632,55 @@ plus a recording script, with real agents.
 - [x] **Does not do.** It does not fake a transcript or a pane, and is not run by CI: each take
       spends tokens and differs from the last.
 
+## Phase 23 (round 23): the watchers agents leave running
+
+Asked by Jeston: a deck pane that gathers the watchers agents start, usually shells, and shows
+them, with a popup that picks none, some or all of them. Measured 2026-11-17 on Claude Code
+2.1.326; see Notes for what each source looked like on disk.
+
+**What can be watched, by source:**
+
+| Source | On disk | In the pane |
+|---|---|---|
+| Background Bash | A wrapper shell whose fd 1 and 2 are `/tmp/claude-<uid>/<cwd-slug>/<session>/tasks/<id>.output` | Its file's last lines |
+| Monitor tool | A wrapper shell whose fd 1 and 2 are **sockets** into the session. No file | A row: command and age. Its lines reach only its session |
+| Background sub-agent | `meta.json` and a transcript, already read by `background.py` | A row: type, task, last write |
+| `claude` daemon job | `~/.claude/jobs/<id>/state.json` (`state`, `detail`, `cwd`) and `timeline.jsonl` | Its timeline's last lines |
+| A pane an agent opened | `tmux list-panes -a` | Its last lines, by `capture-pane` |
+| `/loop`, cron, wakeups | Not found on disk; `~/.claude/scheduled-tasks/` holds routine definitions, not runs | Not drawn |
+| `nohup`, `setsid`, `systemd-run`, crontab | Reparented out of the wrapper's tree | Not drawn: no owner can be read |
+
+- [ ] **Shells are told apart by fd 1.** `background.py` counts a Monitor as a shell today, since
+      both source a shell snapshot. A shell whose fd 1 is a `tasks/*.output` file has a file to
+      follow, and one whose fd 1 is a socket is a Monitor. A foreground Bash also writes to a task
+      file, and lives only while its turn is busy.
+- [ ] **A WATCHERS pane in the right column**, a fifth role beside AGENT LIST, AGENT
+      COMMUNICATIONS, AGENT TODOs and HUMAN DECISIONS, so `column` shows, orders, folds and moves it
+      like the others. It draws each chosen watcher as a block: a header naming the owning tab, the
+      kind, the command and its age, then the last lines of its stream. A stream ends in its own
+      words, so quiet, ended and gone stay different. A watcher with no stream (a Monitor, a
+      sub-agent) is a header alone.
+- [ ] **Daemon jobs are watchers too.** Each `~/.claude/jobs/<id>/` is one, labelled by its `cwd`,
+      `state` and `detail`, with `timeline.jsonl` as its stream. A job is not owned by a tab, so it
+      is grouped under `daemon` and listed whether or not its folder is in the deck.
+- [ ] **The popup.** A key and a click on the pane's title open a checklist of every watcher,
+      grouped by owning tab then `daemon`, with kind, command and age. Any number may be ticked,
+      none included. None leaves the pane saying how many are running and how to pick; it never
+      draws as empty. Built on the launcher's tick list.
+- [ ] **The choice survives a reload.** It is written to `$SB_STATE/deck/<session>/watchers.json`
+      beside `column.json`, keyed by owning session id and task id, or job id. A key whose watcher
+      has ended is dropped at the next sweep, and the pane counts what it dropped.
+- [ ] **Does not do.** It never stops, restarts or types into a watcher: the tab owns it, as in
+      round 19. It does not guess at a detached process's owner, and it does not follow a Monitor,
+      whose lines go only to its session.
+
+### Questions for Jeston
+
+- [x] **Its own window, or a pane in the right column?** **Ruled by Jeston, 2026-11-17: a pane in
+      the right column, like the others.**
+- [x] **Do daemon jobs belong here?** **Ruled by Jeston, 2026-11-17: yes.**
+- [x] **Does a chosen set persist across `sb deck reload`?** **Ruled by Jeston, 2026-11-17: yes.**
+
 ## Dropped, and why
 
 - **Binding Ctrl-C for exit.** It is claude's interrupt, and forwarding it would put every
@@ -1458,3 +1507,18 @@ kept the TODOS pane's pid.
 - **Ruled by Jeston.** A fresh terminal's `sb deck` should land on current code, so finding a deck
   running now does what `sb deck reload` does before attaching. Agent tabs are kept; the tool panes
   and the marks loop restart, so any line in flight under the tabs is lost.
+
+### 2026-11-17: what an agent's watcher leaves on disk
+
+- **Measured, not specced.** A background `for` loop and a Monitor were started from a Claude Code
+  2.1.326 session and read through `/proc`. Both are children of `claude` that source a shell
+  snapshot, so `background.py` lists both as shells.
+- The background shell's fd 1 and 2 were its task's `.output` file; the Monitor's were sockets,
+  and its task directory held no file for it. A Monitor's lines cannot be followed from outside.
+- `~/.claude/jobs/` held seven daemon jobs with a `state.json` and a `timeline.jsonl` each.
+  `~/.claude/scheduled-tasks/` held one routine's `SKILL.md`, and no cron or loop run was found.
+
+### 2026-11-17: round 23 ruled
+
+- **Ruled by Jeston:** WATCHERS is a right-column pane like the others, daemon jobs are watchers,
+  and the chosen set survives a reload. The window the round first proposed is gone with it.
