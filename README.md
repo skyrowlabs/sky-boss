@@ -186,9 +186,11 @@ session outside the deck cannot write a tab's list even if it shares the name.
 | `sb deck todo add\|done\|rm\|clear` | **acts** | Edits a todo list |
 | `sb deck decide add\|note\|done\|rm\|clear` | **acts** | Edits a list of decisions |
 | `sb deck decide rule` | **acts** | Rules on a decision; for you, never an agent |
+| `sb deck watchers pick\|choose` | **acts** | Chooses the watchers WATCHERS shows |
 | `sb deck queue` | reads | Every agent session and its status, the deck's first |
 | `sb deck messages`, `sb deck message` | reads | What agents told each other, newest last, and one message whole |
 | `sb deck todo list`, `sb deck decide list` | reads | The lists, grouped by agent |
+| `sb deck watchers list` | reads | The chosen watchers and their last lines; `--all` names every one |
 | `sb deck brief [name]` | reads | An agent's brief, rebuilt with the live roster |
 | `sb deck places` | reads | Where a new tab can start |
 

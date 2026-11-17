@@ -5,7 +5,7 @@ priority: medium
 category: surfaces
 agent_value: 3
 shelf_status: in-progress
-updated: 2026-11-06
+updated: 2026-11-17
 tags: [agents, act, tmux, surfaces]
 summary: Adds `sb deck`, a tmux session holding one window per agent, plus a queue of sessions waiting on the operator, read by both surfaces. It is the first surface built to act, and the long-term goal is that it fuses with the canvas.
 ---
@@ -13,8 +13,8 @@ summary: Adds `sb deck`, a tmux session holding one window per agent, plus a que
 # The deck: a tmux command center for agent sessions
 
 > **Status**: 🟡 In progress
-> **Priority**: Medium. Round 5: the right column — a DECISIONS pane, a pane chooser, collapsing, the footer, and TODOS by recency.
-> **Updated**: 2026-11-06
+> **Priority**: Medium. Round 23, built: a WATCHERS pane for the shells, Monitors, sub-agents and daemon jobs agents leave running.
+> **Updated**: 2026-11-17
 
 ## Problem
 
@@ -1550,4 +1550,3 @@ kept the TODOS pane's pid.
   `~/.claude/jobs`. In a throwaway deck, M-g, a title click and a grid label click were driven by
   real keys and SGR clicks, the choice was written, and the sweep dropped the one `done` job. No
   Monitor could be started from the session that built this, so the socket case is the suite's.
-
