@@ -98,6 +98,7 @@ Alt-c:
 | **HUMAN DECISIONS** | Everything the agents need from you | Rules on it |
 | **AGENT TODOs** | Each agent's own list, grouped by agent | |
 | **AGENT COMMUNICATIONS** | What the agents told each other | Opens the message whole |
+| **WATCHERS** | The shells, Monitors, sub-agents and daemon jobs you chose, each with its last lines | On its title, picks which |
 
 <p align="center">
   <img src="docs/design/readme-deck-agents.png" alt="The AGENT LIST pane: ten deck agents and one outside session, each with its state, background jobs and uptime" width="700">
@@ -115,6 +116,7 @@ own tmux bindings are untouched:
 | Alt-s, Alt-c | Chooses the panes, folds the focused one |
 | Alt-u, Alt-e | Scrolls messages back, returns to the newest |
 | Alt-x | Clears every done todo and decided item |
+| Alt-g | Picks the watchers WATCHERS shows |
 | Ctrl-Q | Asks, then ends the deck |
 
 Panes drag to resize. In the `grid` layout, click a title bar and then a pane in another column to
