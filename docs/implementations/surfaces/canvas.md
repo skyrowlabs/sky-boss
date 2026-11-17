@@ -1484,3 +1484,14 @@ before the click.
 `.mk-ok`, an `htm` comment eating an element's children, a dialog off the right edge at scale 2.4, a
 filter shrunk to 11px in a narrow rail — is invisible to `node --test`. The headless obligation in
 `CLAUDE.md` is unchanged. What changed is that the pure half stops depending on someone remembering.
+
+### 2026-11-17 — the native window waited on NetworkManager
+
+Reported by Jeston as a slow load. The server answered in under 2 ms; bare WebKitGTK took
+0.3–21 s to reach even a blank page. WebKit's network process asks NetworkManager whether the
+network is up before loading anything, and a wedged Wi-Fi driver held NetworkManager in the kernel
+for up to 20 s a call. `GIO_USE_NETWORK_MONITOR=base` joins the shell's `ENVIRONMENT`, since the page
+is on loopback: the real window then loaded in 0.35–0.38 s with the driver still wedged.
+
+What the shell sets is now recorded in `helpers.ADDED` and dropped by `child_env`, so neither this
+nor the two older variables reaches a command the canvas runs. A name the operator set is kept.
