@@ -650,7 +650,7 @@ them, with a popup that picks none, some or all of them. Measured 2026-11-17 on 
 | `/loop`, cron, wakeups | Not found on disk; `~/.claude/scheduled-tasks/` holds routine definitions, not runs | Not drawn |
 | `nohup`, `setsid`, `systemd-run`, crontab | Reparented out of the wrapper's tree | Not drawn: no owner can be read |
 
-- [ ] **Shells are told apart by fd 1.** `background.py` counts a Monitor as a shell today, since
+- [x] **Shells are told apart by fd 1.** `background.py` counts a Monitor as a shell today, since
       both source a shell snapshot. A shell whose fd 1 is a `tasks/*.output` file has a file to
       follow, and one whose fd 1 is a socket is a Monitor. A foreground Bash also writes to a task
       file, and lives only while its turn is busy.

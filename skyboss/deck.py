@@ -4587,8 +4587,8 @@ def deck_queue(refresh: int | None, ticks: int | None, screen: bool, scope: str)
     An observe — a window may pin it. One row per deck window with its `claude`
     pid and the registry's `status` word, `waiting` first; a window with no
     record reads `unregistered`. Live sessions outside the deck follow. `bg`
-    counts a session's sub-agents, the sessions it spawned and its shells
-    (`2a 1c 1s`); click a row to unfold them.
+    counts a session's sub-agents, the sessions it spawned, its shells and its
+    Monitors (`2a 1c 1s 1m`); click a row to unfold them.
     """
     once = functools.partial(queue_result, scope=scope, paint=bool(refresh and screen))
     config, _ = load()
