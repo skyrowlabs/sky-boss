@@ -365,3 +365,163 @@ def test_a_detached_deck_is_laid_out_where_five_panes_fit(monkeypatch):
     assert deck_.detached_size() == ["-x", "160", "-y", "48"]
     monkeypatch.setattr(deck_.shutil, "get_terminal_size", lambda: os.terminal_size((220, 60)))
     assert deck_.detached_size() == ["-x", "220", "-y", "60"]
+
+
+# ============================================================================
+# Round 23 gaps: the folded summary, a painted header, the picker's command
+# ============================================================================
+
+
+@pytest.mark.parametrize(("word", "ended"), [("done", True), ("stopped", True), ("blocked", False), ("working", False)])
+def test_a_job_state_word_decides_whether_it_has_ended(tmp_path, word, ended):
+    write_job(tmp_path, "a1", state=word, name="JS", updatedAt="")
+    (job,), _ = deckwatch.daemon_jobs(tmp_path, NOW)
+    assert job.ended is ended
+
+
+def test_a_sub_agent_is_keyed_by_its_id_and_says_when_it_wrote(tmp_path):
+    from skyboss.messages import slug
+
+    proc = fake_proc(tmp_path, [])
+    folder = tmp_path / "projects" / slug("/src") / "s1" / "subagents"
+    folder.mkdir(parents=True)
+    (folder / "a9.meta.json").write_text(json.dumps({"agentType": "Explore", "description": "find it"}))
+    (folder / "a9.jsonl").write_text("{}\n")
+    os.utime(folder / "a9.jsonl", (NOW - 30, NOW - 30))
+    (agent,) = deckwatch.tab_watchers("ws", "s1", "/src", 10, deck_.parents(proc), proc, tmp_path / "projects", NOW)
+    assert (agent.key, agent.kind, agent.label(), agent.age()) == (
+        "s1:agent:a9",
+        "agent",
+        "Explore: find it",
+        "wrote 30s ago",
+    )
+
+
+def test_a_folded_watchers_pane_counts_what_it_shows_and_what_runs(tmp_path):
+    from skyboss import column
+
+    live, other, ended = watcher("s:b1"), watcher("s:b2"), watcher("job:a1", kind="job", ended=True)
+    chosen = {live.key: live.record(), "s:old": watcher("s:old").record()}
+    rows = deckwatch.rows_of([live, other, ended], chosen, 0, NOW, "M-g", stat=gone)
+    assert column.summary("watchers", rows) == "WATCHERS · 2 shown · 2 running"
+    none = deckwatch.rows_of([live], {}, 0, NOW, "M-g")
+    assert column.summary("watchers", none, note="kept") == "WATCHERS · 0 shown · 1 running · kept"
+    assert column.summary("watchers", []) == "WATCHERS · 0 shown · 0 running"
+    assert column.summary("watchers", rows, ok=False).startswith("WATCHERS · ✗ could not read")
+
+
+def listing(monkeypatch, *found):
+    monkeypatch.setattr(deck_, "gather_watchers", lambda session, **_: (list(found), [], True))
+
+
+def test_a_painted_header_takes_its_tabs_colour_and_a_daemons_stays_the_accent(sb_state, monkeypatch):
+    from skyboss import theme
+
+    tab, job = watcher("s:b1", slot=0), watcher("job:a1", owner="daemon", kind="job")
+    listing(monkeypatch, tab, job)
+    deckwatch.save("sb", {tab.key: tab.record(), job.key: job.record()})
+    heads = [r for r in deck_.watchers_result("sb", paint=True).data if r["kind"] == "head"]
+    assert [h["parts"][0] for h in heads] == [["ws", theme.agent_role("ws", 0)], ["daemon", "sb.accent"]]
+    plain = [r for r in deck_.watchers_result("sb").data if r["kind"] == "head"]
+    assert {h["parts"][0][1] for h in plain} == {"sb.accent"}
+
+
+def test_watchers_list_all_with_nothing_running_says_so(sb_state, monkeypatch):
+    listing(monkeypatch)
+    result = deck_.watchers_result("sb", every=True)
+    assert result.data == [] and "nothing running to watch" in result.warnings
+
+
+def test_the_sweep_drops_what_ended_once_every_tab_was_read(sb_state, monkeypatch):
+    kept, ended = watcher("s:b1"), watcher("s:b2", ended=True)
+    deckwatch.save("sb", {kept.key: kept.record(), ended.key: ended.record()})
+    listing(monkeypatch, kept, ended)
+    assert deck_.sweep_watchers("sb") == 1 and deckwatch.load("sb")[:2] == ({kept.key: kept.record()}, 1)
+
+
+def test_no_deck_session_is_not_sure_so_the_sweep_keeps_the_choice(deck_tab, monkeypatch):
+    monkeypatch.setattr(deck_, "has_session", lambda name: False)
+    deckwatch.save("sb", {"s1:b7": watcher("s1:b7").record()})
+    found, problems, sure = deck_.gather_watchers("sb", proc=deck_tab.proc)
+    assert [w.key for w in found] == ["job:a1"] and not sure and "no deck tabs" in problems[0]
+    real = deck_.gather_watchers
+    monkeypatch.setattr(deck_, "gather_watchers", lambda session: real(session, proc=deck_tab.proc))
+    assert deck_.sweep_watchers("sb") == 0 and set(deckwatch.load("sb")[0]) == {"s1:b7"}
+
+
+@pytest.fixture
+def picking(deck_tab, monkeypatch):
+    """`sb deck watchers pick` at a pretend terminal, its keys scripted; running out of keys fails."""
+    from contextlib import contextmanager
+
+    real = deck_.gather_watchers
+    monkeypatch.setattr(deck_, "gather_watchers", lambda session: real(session, proc=deck_tab.proc))
+    monkeypatch.setattr(deck_, "has_terminal", lambda: True)
+    monkeypatch.setattr(deck_.shutil, "get_terminal_size", lambda: os.terminal_size((120, 40)))
+
+    def run(*keys):
+        script = iter(keys)
+
+        def wait_for(_timeout):
+            return next(script)  # StopIteration fails the test rather than waiting a minute
+
+        @contextmanager
+        def reader():
+            yield wait_for
+
+        monkeypatch.setattr(deck_.keys_, "reader", reader)
+        return invoke("deck", "watchers", "pick")
+
+    return run
+
+
+def saved():
+    return json.loads(deckwatch.path_for("sb").read_text())
+
+
+def test_pick_saves_what_space_and_a_click_ticked_and_a_click_on_a_heading_does_nothing(picking):
+    # Lines: title, blank, `ws`, b7, monitor, blank, `daemon`, job; a click's y is 1-based.
+    result = picking(" ", "click:4:3", "click:4:8", "\r")
+    assert result.exit_code == 0, result.output
+    chosen = saved()["chosen"]
+    assert list(chosen) == ["s1:b7", "job:a1"] and saved()["dropped"] == 0
+    assert {k: (v["owner"], v["kind"]) for k, v in chosen.items()} == {
+        "s1:b7": ("ws", "shell"),
+        "job:a1": ("daemon", "job"),
+    }
+    assert chosen["s1:b7"]["path"].endswith("tasks/b7.output")
+
+
+def test_pick_all_then_enter_chooses_every_watcher_and_resets_the_dropped_count(picking):
+    deckwatch.save("sb", {}, dropped=3)
+    assert picking("a", "\r").exit_code == 0
+    assert list(saved()["chosen"]) == ["s1:b7", "s1:monitor:12:0", "job:a1"] and saved()["dropped"] == 0
+
+
+def test_pick_none_then_enter_clears_the_choice(picking):
+    deckwatch.save("sb", {"s1:b7": watcher("s1:b7").record()})
+    assert picking("n", "\r").exit_code == 0
+    assert saved() == {"chosen": {}, "dropped": 0}
+    assert texts(deck_.watchers_result("sb").data) == ["3 watchers running · M-g or click the title to pick"]
+
+
+def test_pick_quit_changes_nothing_even_after_ticking(picking):
+    deckwatch.save("sb", {"s1:b7": watcher("s1:b7").record()}, dropped=2)
+    before = deckwatch.path_for("sb").read_text()
+    for leave in ("q", "\x1b"):
+        result = picking("a", leave)
+        assert result.exit_code == 0 and "cancelled" in result.output
+        assert deckwatch.path_for("sb").read_text() == before
+
+
+def test_pick_keeps_a_ticked_watcher_that_ended_until_it_is_unticked(picking):
+    old = {"owner": "ws", "kind": "shell", "command": "make", "path": "/t/old.output"}
+    deckwatch.save("sb", {"s1:old": old})
+    assert picking(" ", "\r").exit_code == 0
+    assert saved()["chosen"] == {"s1:b7": saved()["chosen"]["s1:b7"], "s1:old": old}
+
+
+def test_pick_off_a_terminal_is_refused_and_writes_nothing(deck_tab):
+    result = invoke("deck", "watchers", "pick")
+    assert result.exit_code == 2 and "pick needs a terminal" in result.output
+    assert not deckwatch.path_for("sb").exists()
