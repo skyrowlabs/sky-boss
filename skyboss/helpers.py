@@ -86,6 +86,9 @@ INVOCATION: list[str] = []
 # stripping that would be sky.boss deciding which `python3` a foreign tool finds,
 # which is the operator's business. Scrub what sky.boss added to boot, nothing else.
 BOOTSTRAP = ("PYTHONPATH", "PYTHONSAFEPATH")
+#: Names sky.boss set in its own environment after boot, so a child does not inherit them.
+#: The native shell records what it adds; a name the operator had already set is not here.
+ADDED: set[str] = set()
 
 
 def child_env(
@@ -125,7 +128,7 @@ def child_env(
     declares it, and a declaration about this child beats sky.boss's guess about
     every child. See [[subprocess-env]] round 4.
     """
-    env = {k: v for k, v in os.environ.items() if k not in BOOTSTRAP}
+    env = {k: v for k, v in os.environ.items() if k not in BOOTSTRAP and k not in ADDED}
     if columns:
         env["COLUMNS"] = str(columns)
     if stream:

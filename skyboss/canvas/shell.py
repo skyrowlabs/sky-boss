@@ -35,14 +35,16 @@ on this machine, so the GTK backend downloads nothing; Qt would bundle its own
 Chromium at 244 MB to do the same job. The cost is that `.venv` must be able to
 see the system `gi`, which is why it sets `include-system-site-packages`.
 
-**Two environment variables, both load-bearing, both found the hard way.**
+**Three environment variables, all load-bearing, all found the hard way.**
 See `ENVIRONMENT` below — a native-Wayland session cannot run this at all
-without the first one.
+without the first one. None reaches a command the canvas runs.
 """
 
 from __future__ import annotations
 
 import os
+
+from skyboss import helpers
 
 # WebKitGTK under a native Wayland session dies on startup with
 # `Gdk-Message: Error 71 (Protocol error) dispatching to Wayland display` —
@@ -53,9 +55,16 @@ import os
 # The DMABUF renderer then complains `Failed to create GBM buffer` on every
 # resize; the window works regardless, but the messages go to the terminal the
 # operator launched from, and a working surface should not narrate at them.
+#
+# WebKit's network process asks NetworkManager whether the network is up before
+# it loads anything, and waits as long as that D-Bus call takes. The page is on
+# loopback, so the answer is never needed; GLib's own monitor answers at once.
+# Measured: 0.3–21 s to a blank page by default, 0.3 s every run with `base`.
+# See [[canvas]].
 ENVIRONMENT = {
     "GDK_BACKEND": "x11",
     "WEBKIT_DISABLE_DMABUF_RENDERER": "1",
+    "GIO_USE_NETWORK_MONITOR": "base",
 }
 
 
@@ -174,9 +183,12 @@ def open_window(url: str, *, title: str, width: int, height: int, on_closed) -> 
     from skyboss.theme import BG
 
     # Set before the toolkit initialises, and only where the operator has not
-    # already made the choice themselves.
+    # already made the choice themselves. What is set here is the window's, so
+    # `child_env` keeps it from every command the canvas runs.
     for name, value in ENVIRONMENT.items():
-        os.environ.setdefault(name, value)
+        if name not in os.environ:
+            os.environ[name] = value
+            helpers.ADDED.add(name)
 
     # A stable window class, so the desktop can tell this window from every
     # other WebKit one — for the taskbar, and for a window-manager rule if the
