@@ -788,7 +788,10 @@ def test_the_deck_types_into_a_pane_only_to_tell_an_agent_a_ruling():
     source = Path(deck_.__file__).read_text()
     start = source.index("def tell_rulings(")
     end = source.index("\ndef ", start + 1)
-    assert not re.search(r"send-keys|send_keys|send-prefix|paste-buffer", source[:start] + source[end:])
+    rest = source[:start] + source[end:]
+    # A right-click on the tab row is passed on as the mouse event it was (-M), never as text.
+    rest = rest.replace("{{ send-keys -M -t = }}", "")
+    assert not re.search(r"send-keys|send_keys|send-prefix|paste-buffer", rest)
     assert "may_tell(state" in source[start:end]
     assert deck_.WAITING not in deck_.TELL_AT_ONCE and not deck_.may_tell(deck_.WAITING, "", datetime.now(timezone.utc))
 
@@ -1114,6 +1117,7 @@ def test_queue_refresh_off_a_terminal_is_ndjson(fake, home, monkeypatch):
 def test_the_queue_is_an_observe_and_the_rest_act():
     acts = {name: getattr(command, "sb_acts") for name, command in deck_.deck.commands.items()}
     assert acts == {
+        "tab": True,
         "ask": True,
         "open": True,
         "add": True,
@@ -2607,7 +2611,7 @@ def test_sb_deck_reopens_the_saved_tabs_and_resumes_each(core, fake, tmp_path, m
 
 def test_a_named_profile_opens_its_own_tabs_and_resumes_those_it_can(core, fake, tmp_path, monkeypatch):
     transcripts(tmp_path, monkeypatch, "b", "z")
-    saved_as(tab("mind-head", "b"), tab("sky-boss", "z"))
+    saved_as(tab("mind-head", "b"), tab("sky-boss", "z"), profile="core")
     invoke("deck", "--profile", "core")
     assert "b" in launched(fake, "mind-head") and "--resume" not in launched(fake, "stash-flow")
     with pytest.raises(AssertionError):
@@ -3186,7 +3190,112 @@ def test_a_profiles_deck_starts_as_its_own_session_and_marks_its_environment(fak
 
 def test_ticked_folders_start_beside_a_running_base_deck(fake, home, monkeypatch):
     fake.session("sb-agents")
-    assert deck_.free_session("sb") == "sb-2"
+    assert deck_.free_session(deck_.load()[0]) == "sb-2"
+
+
+def test_ticked_folders_never_take_a_deck_another_left_state_in_or_a_profile_claims(fake, home, tmp_path):
+    home(f'[agent.ws]\ncwd = "{tmp_path}"\n[profile.core]\nprimary = "ws"\nsession = "sb-2"\n')
+    saved_as(tab("ws"), profile="core")
+    assert deck_.free_session(deck_.load()[0]) == "sb-3"
+
+
+def test_a_save_another_profile_wrote_resumes_nothing_and_says_whose_it_was(fake, home, tmp_path, monkeypatch):
+    transcripts(tmp_path, monkeypatch, "a")
+    saved_as(tab("jam", "a"), profile="core")
+    problems: list[str] = []
+    assert deck_.resume_lookup("sb", problems, owner="")(deck_.Agent("jam", "/x")) == ""
+    assert "saved by profile 'core', not ticked folders" in problems[0]
+    assert deck_.resume_lookup("sb", [], owner="core")(deck_.Agent("jam", "/x")) == "a"
+    assert deck_.resume_lookup("sb", [], owner=None)(deck_.Agent("jam", "/x")) == "a"
+
+
+def test_the_marks_loop_keeps_no_tab_from_another_profiles_save(fake, home, monkeypatch):
+    tabbed(fake)
+    saved_as(tab("old", "x"), profile="core")
+    deck_.autosave("sb", [tab("jam", "j")])
+    saved = deck_.decksave.load("sb")[0]
+    assert [t.agent for t in saved.tabs] == ["jam"] and saved.profile == ""
+
+
+def test_two_profiles_on_one_deck_are_named(fake, home, tmp_path):
+    home('[profile.a]\nsession = "x"\ntabs = ["w"]\n[profile.b]\nsession = "x"\ntabs = ["w"]\n')
+    problems = deck_.load()[1]
+    assert any("profiles a, b all run as deck 'x'" in p for p in problems)
+
+
+def test_a_profile_saved_from_a_deck_another_owns_opens_new_and_leaves_this_deck_alone(
+    fake, home, tmp_path, monkeypatch
+):
+    path = home(f'[agent.ws]\ncwd = "{tmp_path}"\n[profile.full]\nprimary = "ws"\nsession = "sb"\n') / "deck.toml"
+    fake.session("sb-agents")
+    monkeypatch.setattr(deck_, "deck_as_profile", lambda config, s: (("ws",), (), {}))
+    result = invoke("--json", "deck", "profile", "save", "small")
+    assert "opens as deck 'sb-small' with a new session in every tab" in json.loads(result.output)["data"]["saved"]
+    assert "session" not in tomllib.loads(path.read_text())["profile"]["small"]
+    assert ("=sb-agents:", "@sb-profile") not in fake.options
+
+
+# ============================================================================
+# The tab menu: lead and move
+# ============================================================================
+
+
+def tab_deck(fake, *more):
+    fake.session("sb")
+    lead, _ = fake.add("sb-agents", "ws", agent="ws", role="agent")
+    mind, _ = fake.add("sb-agents", "mind", agent="mind", role="agent")
+    for name in more:
+        fake.add("sb-agents", name, agent=name, role="agent")
+    shell, _ = fake.add("sb-agents", "zsh", role="terminal")
+    fake.options[("=sb-agents:", "@sb-primary")] = "ws"
+    return lead, mind, shell
+
+
+def test_make_lead_sets_the_primary_and_brings_its_tab_first(fake, home):
+    tab_deck(fake)
+    assert "mind leads this deck" in deck_.make_lead("sb", "mind")
+    assert fake.options[("=sb-agents:", "@sb-primary")] == "mind"
+    assert fake.tabs() == ["mind", "ws", "zsh"]
+    assert deck_.make_lead("sb", "mind") == "mind leads already"
+    with pytest.raises(deck_.DeckError, match="only an agent leads"):
+        deck_.make_lead("sb", "zsh")
+
+
+def test_a_kept_lead_rewrites_the_profiles_primary_and_keeps_the_rest(fake, home, tmp_path):
+    path = home(f'[profile.core]\nprimary = "ws"\ntabs = ["mind"]\nbrief = "hi"\n') / "deck.toml"
+    tab_deck(fake)
+    fake.options[("=sb-agents:", "@sb-profile")] = "core"
+    result = invoke("--json", "deck", "tab", "lead", "mind", "--keep")
+    assert result.exit_code == 0, result.output
+    assert tomllib.loads(path.read_text())["profile"]["core"] == {"primary": "mind", "tabs": ["ws"], "brief": "hi"}
+
+
+def test_a_tab_moves_but_never_past_the_lead_or_across_the_terminals(fake, home):
+    tab_deck(fake, "jam")
+    with pytest.raises(deck_.DeckError, match="leads"):
+        deck_.move_tab("sb", "ws", 1)
+    with pytest.raises(deck_.DeckError, match="as far left"):
+        deck_.move_tab("sb", "mind", -1)
+    with pytest.raises(deck_.DeckError, match="as far left"):
+        deck_.move_tab("sb", "zsh", -1)
+    with pytest.raises(deck_.DeckError, match="as far right"):
+        deck_.move_tab("sb", "jam", 1)
+    assert deck_.move_tab("sb", "mind", 1) == "moved mind right"
+    assert fake.tabs() == ["ws", "jam", "mind", "zsh"]
+    result = invoke("--json", "deck", "tab", "move", "nope", "left")
+    assert result.exit_code == 1 and "no tab 'nope'" in json.loads(result.output)["data"]["error"]
+
+
+def test_a_right_click_on_a_tab_opens_sky_boss_menu_and_tmux_own_tab_editing_is_locked(fake, home):
+    bindings = {argv[3]: argv for argv in deck_.deck_bindings("sb")}
+    menu = bindings["MouseDown3Status"][-1]
+    assert menu.startswith("select-window -t = ; display-menu -O")
+    assert "deck tab lead #{window_id}" in menu and "deck tab move #{window_id} left" in menu
+    listing = "".join(f"bind-key -T root {key} display-menu fx\n" for key in deck_.LOCKED)
+    listing += "bind-key -T root MouseDown3Pane display-menu fx-pane\n"
+    mirrored = deck_.mirrored_root(listing, "sb-deck-sb")
+    assert not any(key + " " in mirrored for key in deck_.LOCKED)
+    assert '"#{==:#{@sb-deck},tabs}" { send-keys -M -t = } { display-menu fx-pane }' in mirrored
 
 
 def test_profile_list_says_which_deck_each_runs_as(fake, home, tmp_path):
@@ -3220,6 +3329,7 @@ def test_profile_save_writes_the_decks_tabs_and_keeps_a_replaced_profiles_brief(
         "tabs": ["new"],
         "terminals": ["/tmp"],
         "brief_file": "core.md",
+        "session": "sb",
     }
     assert written["agent"]["new"] == {"cwd": str(tmp_path)}
 

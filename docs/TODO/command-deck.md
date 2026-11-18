@@ -681,6 +681,44 @@ them, with a popup that picks none, some or all of them. Measured 2026-11-17 on 
 - [x] **Do daemon jobs belong here?** **Ruled by Jeston, 2026-11-17: yes.**
 - [x] **Does a chosen set persist across `sb deck reload`?** **Ruled by Jeston, 2026-11-17: yes.**
 
+## Phase 24 (round 24): a profile owns its sessions, and a tab menu
+
+Asked by Jeston: "profiles should link to specific sessions and when a new profile is created with
+overlapping agents new sessions should get created, currently agents are pulling in their last
+session with todos and message history", and the tab row "editable with right click", "locked",
+with a way to change the lead there.
+
+**Why tabs resumed another deck's sessions.** A deck's save, todos and decisions live under its
+tmux session's name. Ticked folders took the base name `sb` whenever no deck was running there,
+and `sb` held the save of profile `skyrow-workspace`, which declares `session = "sb"`. So the
+ticked folders resumed that profile's session in every tab they shared, and read its todos.
+
+- [x] **A save belongs to the profile that wrote it.** A deck resumes a save only when the save's
+      `profile` is the one opening it, empty for ticked folders. Otherwise every tab starts new,
+      and one line says whose save it was. Reopening a saved deck from the launcher resumes its
+      own save whatever wrote it.
+- [x] **The marks loop keeps no tab from another profile's save.** It used to merge the old tabs
+      in, so the next open of that profile would have found the wrong owner and resumed nothing.
+- [x] **Ticked folders take a deck name no one else holds**: not running, not claimed by a
+      profile, and with no state left under it. They take `sb-2` and on, each starting clean.
+- [x] **Saving a deck as a profile links the profile to it.** The profile gets
+      `session = "<this deck>"` unless that is already its default name, so opening it later
+      resumes these tabs' sessions and keeps their todos. When another profile owns this deck,
+      the new profile is not linked: it opens as its own deck, with a new session in every tab,
+      and this deck stays the other profile's.
+- [x] **Two profiles on one deck are named** when `deck.toml` loads.
+- [x] **A right-click on a tab opens sky.boss's menu**: Make lead, Make lead in profile NAME,
+      Move left and Move right. `sb deck tab lead NAME [--keep]` and `sb deck tab move NAME
+      left|right` do the same by hand. A lead's tab is first and cannot move; terminals stay last.
+- [x] **The tabs are locked.** tmux's window and session menus on the status line, and its
+      ctrl-click swap, are no longer copied into the deck's key table. A right-click on the tab
+      pane is passed to the tab row as the mouse event it was, where the menu is bound; other
+      panes keep tmux's menu.
+- [x] **Does not do.** It does not close a tab: the deck never kills a window, and only
+      `sb deck exit` ends anything. It does not rename a tab, since the name is the agent. A new
+      lead is not announced to agents already running; a tab learns it when it opens, resumes,
+      clears or compacts. It does not move a deck's state from one session name to another.
+
 ## Dropped, and why
 
 - **Binding Ctrl-C for exit.** It is claude's interrupt, and forwarding it would put every
@@ -1550,3 +1588,22 @@ kept the TODOS pane's pid.
   `~/.claude/jobs`. In a throwaway deck, M-g, a title click and a grid label click were driven by
   real keys and SGR clicks, the choice was written, and the sweep dropped the one `done` job. No
   Monitor could be started from the session that built this, so the socket case is the suite's.
+
+### 2026-11-17: round 24, sessions owned by a profile, and the tab menu
+
+- **The cause was read from the live state.** `sb` held a 12-tab save written for profile
+  `skyrow-workspace` while running a 4-tab deck, and the 4 shared agents had resumed from it.
+- **tmux draws a menu only for the window in front,** so a right-click first selects its tab.
+  It also closes a menu on a button release outside it, and the release lands on the tab, so the
+  menu is opened with `-O`.
+- **The outer client answered a right-click on the tab pane with its own pane menu,** since a
+  nested tmux client never asks for every mouse event. The deck's copy of that binding now sends
+  the event on when the pane is the tab row. It is `send-keys -M`, which replays the mouse event
+  and types nothing, so the rule that only `tell_rulings` types into a pane is narrowed to allow
+  that one form, by name.
+- **Close was built and dropped the same day.** The suite holds that the deck never kills a
+  window, and Jeston had not asked for it.
+- **Measured by running it:** a throwaway deck with three stub agents, served by ttyd to headless
+  Chromium. Right-clicks on two tabs drew the menu; Make lead put the tab first and set the
+  primary; Move right swapped two tabs; Make lead in profile rewrote `primary` and `tabs` in its
+  `deck.toml`.

@@ -209,6 +209,8 @@ class Profile:
     terminals: list[str] = field(default_factory=list)
     # The grid's columns, as pane names, until the operator moves one.
     columns: list[list[str]] = field(default_factory=list)
+    # Read back from a deck's save, so that save's sessions are its own whatever profile wrote it.
+    from_save: bool = False
 
     def order(self) -> tuple[list[str], list[str]]:
         """Each name once, primary first, and a problem per repeat."""
@@ -474,10 +476,24 @@ def load(home: Path | None = None) -> tuple[Config, list[str]]:
             problems.append(
                 f"profile {profile.name!r}: brief_file {profile.brief_file!r} cannot be read — no brief added"
             )
+    problems += shared_decks(config)
     # Declared here and not in `parse`, which is pure: every reader of an agent's colour comes through this.
     theme.DECLARED_HUES.clear()
     theme.DECLARED_HUES.update({name: agent.colour for name, agent in config.agents.items() if agent.colour})
     return config, problems
+
+
+def shared_decks(config: Config) -> list[str]:
+    """A problem per deck two profiles would run as: they would resume one set of sessions and share todos."""
+    held: dict[str, list[str]] = {}
+    for name, profile in config.profiles.items():
+        held.setdefault(deck_session(config, profile), []).append(name)
+    return [
+        f"profiles {', '.join(names)} all run as deck {deck!r}, so they share its sessions, todos and decisions"
+        " — give each its own `session`"
+        for deck, names in held.items()
+        if len(names) > 1
+    ]
 
 
 def resolve(name: str, config: Config, projects: list) -> tuple[Agent | None, str]:
@@ -1031,6 +1047,13 @@ SHORTCUTS = {
     "watchers": "M-g",
 }
 NEVER_BOUND = frozenset({"C-c"})
+#: tmux's own tab editing: its window and session menus, and ctrl-click to swap. A deck's tabs are
+#: locked to sky.boss's menu, since a renamed or killed window loses its agent. See [[command-deck]] round 24.
+LOCKED = frozenset(
+    {"MouseDown3Status", "M-MouseDown3Status", "MouseDown3StatusLeft", "M-MouseDown3StatusLeft", "C-MouseDown1Status"}
+)
+#: Bindings that open a pane menu in tmux's root, sent on instead when the pane is the tab row.
+FORWARDED = frozenset({"MouseDown3Pane", "M-MouseDown3Pane"})
 # Session options the panes read each frame, and the marks loop keeps the agent count in.
 HIDE_OPTION = "@sb-hide-outside"
 #: The pane picked up by a click on its title bar, on its way to another grid column.
@@ -1055,9 +1078,14 @@ def mirrored_root(listing: str, table: str) -> str:
     out = []
     for line in listing.splitlines():
         match = re.match(r"^(bind-key\s+(?:-r\s+)?-T\s+)root(\s+)(\S+)(\s.*)$", line)
-        if match is None or match.group(3) in NEVER_BOUND:
+        if match is None or match.group(3) in NEVER_BOUND | LOCKED:
             continue
-        out.append(f"{match.group(1)}{table}{match.group(2)}{match.group(3)}{match.group(4)}")
+        command = match.group(4)
+        if match.group(3) in FORWARDED:
+            # The tab row is a nested client: its right-click goes to it, where the tab menu is bound.
+            tabs = "#{==:#{" + ROLE_OPTION + "}," + TABS + "}"
+            command = f' if-shell -F -t = "{tabs}" {{ send-keys -M -t = }} {{ {command.strip()} }}'
+        out.append(f"{match.group(1)}{table}{match.group(2)}{match.group(3)}{command}")
     return "\n".join(out) + ("\n" if out else "")
 
 
@@ -1114,6 +1142,18 @@ def deck_bindings(session: str) -> list[list[str]]:
             f"{{ if-shell -F '{clicked}' '{cycle}' 'switch-client -t =' }}",
         ],
         ["bind-key", "-T", table, keys["add"], *plus],
+        # A tab's own menu; on the bar's buttons a right-click does nothing.
+        [
+            "bind-key",
+            "-T",
+            table,
+            "MouseDown3Status",
+            "if-shell",
+            "-F",
+            "#{==:#{mouse_status_range},window}",
+            # tmux draws a menu only for the window in front, so the click brings its tab forward.
+            f"select-window -t = ; {shlex.join(tab_menu(str(PROJECT_ROOT / 'sb')))}",
+        ],
         [
             "bind-key",
             "-T",
@@ -1168,6 +1208,45 @@ def deck_bindings(session: str) -> list[list[str]]:
             "-b",
             f"{sb} deck clear --notify >/dev/null 2>&1 || true",
         ],
+    ]
+
+
+def tab_menu(sb: str) -> list[str]:
+    """The right-click menu on a tab, as `display-menu` argv: tmux expands each item against that tab."""
+    agent = "#{==:#{" + ROLE_OPTION + "},agent}"
+    lead = "#{==:#{" + AGENT_OPTION + "},#{" + PRIMARY_OPTION + "}}"
+    may_lead = "#{&&:" + agent + ",#{!:" + lead + "}}"
+    profiled = "#{&&:" + may_lead + ",#{" + PROFILE_OPTION + "}}"
+
+    def run(verb: str, *more: str) -> str:
+        words = " ".join((verb, "#{window_id}", *more))
+        return f"run-shell -b '{sb} deck tab {words} --notify >/dev/null 2>&1 || true'"
+
+    return [
+        "display-menu",
+        # Open after the button comes up: the click is released on the tab, outside the menu.
+        "-O",
+        "-t",
+        "=",
+        "-x",
+        "W",
+        "-y",
+        "W",
+        "-T",
+        "#[align=centre]#{window_name}",
+        f"#{{?{may_lead},,-}}Make lead",
+        "l",
+        run("lead"),
+        "#{?" + profiled + ",,-}Make lead in profile #{" + PROFILE_OPTION + "}",
+        "p",
+        run("lead", "--keep"),
+        "",
+        f"#{{?{lead},-,}}Move left",
+        "<",
+        run("move", "left"),
+        f"#{{?{lead},-,}}Move right",
+        ">",
+        run("move", "right"),
     ]
 
 
@@ -1249,12 +1328,24 @@ def transcript_exists(ident: str) -> bool:
     return any((claude_dir() / "projects").glob(f"*/{ident}.jsonl"))
 
 
-def resume_lookup(session: str, problems: list[str], fresh: bool = False) -> Callable[[Agent], str]:
-    """Which saved session an agent resumes, empty for a new one. A save it cannot use goes in `problems`."""
+def resume_lookup(
+    session: str, problems: list[str], fresh: bool = False, owner: str | None = None
+) -> Callable[[Agent], str]:
+    """Which saved session an agent resumes, empty for a new one. A save it cannot use goes in `problems`.
+
+    `owner` is the profile opening the deck, empty for ticked folders: a save another one wrote
+    resumes nothing, so two profiles sharing an agent never share its session. None skips the check.
+    """
     saved, more = (decksave.Saved(), []) if fresh else decksave.load(session)
     problems += more
     tabs = {tab.agent: tab for tab in saved.tabs}
     if not tabs:
+        return lambda agent: ""
+    if owner is not None and saved.profile != owner:
+        problems.append(
+            f"deck {session!r} was saved by {_owner_words(saved.profile)}, not {_owner_words(owner)} — "
+            "every tab here starts a new session"
+        )
         return lambda agent: ""
     live = {s.id for s in agents_.fold(agents_.providers())[0]}
 
@@ -1271,6 +1362,17 @@ def resume_lookup(session: str, problems: list[str], fresh: bool = False) -> Cal
         return tab.id
 
     return resumed
+
+
+def _owner_words(profile: str) -> str:
+    return f"profile {profile!r}" if profile else "ticked folders"
+
+
+def save_owner(config: Config, profile: Profile | None) -> str | None:
+    """The profile whose save a deck of `profile` may resume: its name, empty for none, None for a save's own."""
+    if profile is not None and profile.from_save:
+        return None
+    return profile.name if profile is not None and profile.name in config.profiles else ""
 
 
 def restored(config: Config, problems: list[str]) -> Profile | None:
@@ -1290,6 +1392,7 @@ def restored(config: Config, problems: list[str]) -> Profile | None:
         tabs=[tab.agent for tab in saved.tabs],
         brief=declared.brief if declared else "",
         brief_file=declared.brief_file if declared else "",
+        from_save=True,
     )
 
 
@@ -1401,6 +1504,9 @@ def write_save(session: str, tabs: list[decksave.Tab], terminals: list[decksave.
 def autosave(session: str, tabs: list[decksave.Tab]) -> list[str]:
     """Fold the live tabs into the save when they changed it, so a reboot finds them."""
     saved, problems = decksave.load(session)
+    if saved.profile != deck_profile(session):
+        # Another profile's save: its sessions are not this deck's to keep.
+        saved = decksave.Saved()
     kept = decksave.merged(saved.tabs, tabs)
     live = live_terminals(session)
     terminals = [*live, *(t for t in saved.terminals if t.name not in {held.name for held in live})]
@@ -1904,7 +2010,7 @@ def ensure(
     def told(agent: Agent) -> str:
         return brief(agent.name, config.session, rows, primary, profile.told() if profile else "")
 
-    resumed = resume_lookup(config.session, problems, fresh)
+    resumed = resume_lookup(config.session, problems, fresh, save_owner(config, profile))
     first = agents[0] if agents else None
     created_inner = not has_session(inner(config.session))
     first_resume = resumed(first) if first and created_inner else ""
@@ -2485,16 +2591,29 @@ def chosen_deck(
         profile = config.profiles[names[0]]
         config.session = deck_session(config, profile)
         return profile, [decksave.Terminal("", cwd) for cwd in profile.terminals]
-    config.session = free_session(config.base)
+    config.session = free_session(config)
     return Profile(name="", primary=names[0], tabs=list(names[1:])), []
 
 
-def free_session(base: str) -> str:
-    """`base`, or `base-2` and on when a deck already runs there: ticked folders start a deck of their own."""
+def free_session(config: Config) -> str:
+    """`base`, or `base-2` and on: the first name no deck runs as, no profile claims, and no deck left state in.
+
+    Ticked folders start a deck of their own, so no tab resumes another deck's session or reads its todos.
+    """
+    claimed = {deck_session(config, profile) for profile in config.profiles.values()}
+    base = config.base
     for name in (base, *(f"{base}-{n}" for n in range(2, 100))):
-        if not has_session(inner(name)):
+        if name not in claimed and not has_session(inner(name)) and not deck_state(name):
             return name
     return base
+
+
+def deck_state(session: str) -> bool:
+    """Whether a deck of this name left anything behind: a save, todos, decisions or asks."""
+    try:
+        return any((decksave.helpers.STATE_DIR / "deck" / session).iterdir())
+    except OSError:
+        return False
 
 
 def open_deck(
@@ -2584,7 +2703,7 @@ def open_agent(config: Config, projects: list, agent: Agent, fresh: bool, proble
             primary = deck_primary(config.session)
             rows = roster(config, projects, [agent], primary)
             told = brief(agent.name, config.session, rows, primary, deck_profile_brief(config))
-            resume = resume_lookup(config.session, more, fresh)(agent)
+            resume = resume_lookup(config.session, more, fresh, deck_profile(config.session))(agent)
             window_id, dressed = start(inner(config.session), agent, brief=told, resume=resume)
             more += dressed + terminals_last(config.session)
         focus(config.session, window_id)
@@ -3085,6 +3204,7 @@ def save_profile(config: Config, name: str, replace: bool = False) -> str:
         raise DeckError("this deck has no agent tabs to save")
     if name in config.profiles and not replace:
         raise DeckError(f"there is a profile {name!r} already — replace it, or pick another name")
+    linked, unlinked = deck_link(config, name)
     path = home_file()
     try:
         text = path.read_text() if path.exists() else ""
@@ -3093,17 +3213,45 @@ def save_profile(config: Config, name: str, replace: bool = False) -> str:
                 if agent not in cwds:
                     raise ValueError(f"{agent!r} has no saved folder to declare it with")
                 text = deckplus.edited(text, agent, cwds[agent], "", "")
-        body = decklaunch.body_of(names, terminals)
+        body = decklaunch.body_of(names, terminals) | linked
         if name in config.profiles:
-            kept = {k: v for k, v in tomllib.loads(text)["profile"][name].items() if k not in ("terminals", *body)}
+            drop = ("terminals", "session", *body)
+            kept = {k: v for k, v in tomllib.loads(text)["profile"][name].items() if k not in drop}
             text = decklaunch.edited(text, set_profile=(name, {**body, **kept}))
         else:
             text = decklaunch.edited(text, add_profile=(name, body))
         deckplus.write(path, text)
     except (OSError, ValueError) as exc:
         raise DeckError(str(exc)) from exc
+    said = f"{'replaced' if replace else 'saved'} profile {name}: {', '.join(names)}"
+    if unlinked:
+        return f"{said}; {unlinked}"
     _session_options(inner(config.session), ((PROFILE_OPTION, name),))
-    return f"{'replaced' if replace else 'saved'} profile {name}: {', '.join(names)}"
+    return said
+
+
+def deck_link(config: Config, name: str) -> tuple[dict, str]:
+    """The `session` that ties profile NAME to this deck, so it reopens these tabs' sessions. Else why not.
+
+    `({}, "")` when the profile already runs as this deck; `({}, why)` when another profile owns it,
+    and the profile then opens as a deck of its own, every tab a new session.
+    """
+    here = config.session
+    held = config.profiles.get(name)
+    default = f"{config.base}-{re.sub(r'[^A-Za-z0-9_-]', '_', name)}"
+    own = {"session": held.session} if held is not None and held.session else {}
+    mine = deck_session(config, held) if held is not None else default
+    if mine == here:
+        return own, ""
+    owners = [other for other, p in config.profiles.items() if other != name and deck_session(config, p) == here]
+    if owners:
+        return own, (
+            f"this deck is profile {owners[0]!r}'s, so {name!r} opens as deck {mine!r} "
+            "with a new session in every tab"
+        )
+    if held is not None and has_session(inner(mine)):
+        return own, f"profile {name!r} is running as deck {mine!r}, so it stays that deck"
+    return ({} if here == default else {"session": here}), ""
 
 
 @deck.group(name="profile")
@@ -3298,6 +3446,161 @@ def deck_jump(name: str) -> Result:
         return result
     result.data = {"session": inner(config.session), "window": name, "attached": attached}
     return result
+
+
+TAB_ROLES = (AGENT, TERMINAL)
+
+
+def tab_ref(session: str, ref: str) -> tuple[Pane, list[Pane]]:
+    """The tab `ref` names, by window id, agent or window name, and the deck's tabs in order."""
+    listed, answer = panes(inner(session))
+    if not answer.ok:
+        raise DeckError(f"no deck tabs {inner(session)!r} — {_said(answer)}")
+    order = _window_order([p for p in listed if p.role in TAB_ROLES])
+    tabs = [next(p for p in listed if p.window_id == w and p.role in TAB_ROLES) for w in order]
+    for pick in (lambda p: p.window_id == ref, lambda p: p.agent == ref, lambda p: p.window == ref):
+        found = next((p for p in tabs if pick(p)), None)
+        if found is not None:
+            return found, tabs
+    raise DeckError(f"no tab {ref!r} in deck {session!r}")
+
+
+def tab_name(pane: Pane) -> str:
+    return pane.agent or pane.window
+
+
+def _swap(window_id: str, other: str) -> None:
+    answer = tmux("swap-window", "-d", "-s", window_id, "-t", other)
+    if not answer.ok:
+        raise DeckError(f"could not move the tab — {_said(answer)}")
+
+
+def move_tab(session: str, ref: str, step: int) -> str:
+    """Swap a tab with its neighbour. The lead stays first and the terminals stay after the agents."""
+    pane, tabs = tab_ref(session, ref)
+    name, primary = tab_name(pane), deck_primary(session)
+    if pane.role == AGENT and name == primary:
+        raise DeckError(f"{name} leads, so it stays the first tab — make another tab lead to move it")
+    at = tabs.index(pane)
+    to = at + step
+    blocked = not 0 <= to < len(tabs) or tabs[to].role != pane.role or tab_name(tabs[to]) == primary
+    if blocked:
+        side = "left" if step < 0 else "right"
+        raise DeckError(f"{name} is as far {side} as it goes: the lead stays first, the terminals last")
+    _swap(pane.window_id, tabs[to].window_id)
+    return f"moved {name} {'left' if step < 0 else 'right'}"
+
+
+def make_lead(session: str, ref: str) -> str:
+    """Make an agent tab the deck's lead: the primary every new brief names, and the first tab."""
+    pane, tabs = tab_ref(session, ref)
+    name = tab_name(pane)
+    if pane.role != AGENT:
+        raise DeckError(f"{name} is a terminal tab, and only an agent leads")
+    if name == deck_primary(session):
+        return f"{name} leads already"
+    problems = _session_options(inner(session), ((PRIMARY_OPTION, name),))
+    if problems:
+        raise DeckError(problems[0])
+    ids = [t.window_id for t in tabs]
+    for at in range(ids.index(pane.window_id), 0, -1):
+        _swap(ids[at], ids[at - 1])
+        ids[at], ids[at - 1] = ids[at - 1], ids[at]
+    saved, unreadable = decksave.load(session)
+    if not unreadable and saved.tabs and saved.profile == deck_profile(session):
+        write_save(session, saved.tabs, saved.terminals)
+    return f"{name} leads this deck; tabs opened, resumed or cleared from now on are told so"
+
+
+def keep_lead(config: Config, name: str) -> str:
+    """Write `name` as the primary of the profile this deck runs, the old primary first of its tabs."""
+    profile = deck_profile(config.session)
+    if profile not in config.profiles:
+        raise DeckError("this deck runs no declared profile — save it as one to keep a lead")
+    path = home_file()
+    try:
+        text = path.read_text()
+        body = dict(tomllib.loads(text)["profile"][profile])
+        was = str(body.get("primary") or "")
+        tabs = [str(t) for t in body.get("tabs", []) if t != name]
+        body.update(primary=name, tabs=[was, *tabs] if was and was != name else tabs)
+        deckplus.write(path, decklaunch.edited(text, set_profile=(profile, body)))
+    except (OSError, ValueError, KeyError) as exc:
+        raise DeckError(f"could not keep the lead in profile {profile!r} — {exc}") from exc
+    return f"profile {profile!r} now opens with {name} as its lead"
+
+
+def _tab_result(act: Callable[[Config], str], notify: bool) -> Result:
+    result = Result()
+    config, problems = load()
+    for problem in problems:
+        result.warn(problem)
+    try:
+        said = act(config)
+    except DeckError as exc:
+        result.ok = False
+        said = str(exc)
+        result.data = {"error": said}
+    else:
+        result.data = {"said": said}
+    if notify:
+        tmux("display-message", said)
+    return result
+
+
+NOTIFY = click.option("--notify", is_flag=True, help="Also show the sentence in the deck's status line.")
+
+
+@deck.group(name="tab")
+def deck_tab() -> None:
+    """A tab in the row: make it lead, or move it. A right-click on a tab offers these.
+
+        sb deck tab lead sky-boss --keep
+        sb deck tab move sky-vault left
+
+    Each acts. NAME is an agent, a terminal tab's name, or a window id. Tabs are
+    otherwise locked: tmux's own tab menu, rename and drag-swap are not bound in a deck.
+    """
+
+
+@deck_tab.command(name="lead")
+@click.argument("name")
+@click.option("--keep", is_flag=True, help="Also write it as the primary of the profile this deck runs.")
+@NOTIFY
+@emit
+def deck_tab_lead(name: str, keep: bool, notify: bool) -> Result:
+    """Make NAME the deck's lead, its primary: first in the row, and named in every new brief.
+
+        sb deck tab lead sky-boss
+
+    **This acts**, on tmux and the deck's save; with `--keep`, on `deck.toml` after a
+    backup. Agents already running are not told; a tab is when it opens, resumes,
+    clears or compacts.
+    """
+
+    def act(config: Config) -> str:
+        said = make_lead(config.session, name)
+        if not keep:
+            return said
+        lead = deck_primary(config.session)
+        return f"{said}; {keep_lead(config, lead)}"
+
+    return _tab_result(act, notify)
+
+
+@deck_tab.command(name="move")
+@click.argument("name")
+@click.argument("direction", type=click.Choice(["left", "right"]))
+@NOTIFY
+@emit
+def deck_tab_move(name: str, direction: str, notify: bool) -> Result:
+    """Swap NAME with the tab beside it. The lead stays first, the terminals after the agents.
+
+        sb deck tab move sky-vault left
+
+    **This acts**, on tmux only: `swap-window`, which restarts nothing.
+    """
+    return _tab_result(lambda config: move_tab(config.session, name, -1 if direction == "left" else 1), notify)
 
 
 @deck.command(name="layout")
@@ -5657,6 +5960,9 @@ mark(deck_profile_delete, sb_acts=True)
 mark(deck_plus, sb_acts=True)
 mark(deck_places, sb_acts=False)
 mark(deck_jump, sb_acts=True)
+mark(deck_tab, sb_acts=True)
+mark(deck_tab_lead, sb_acts=True)
+mark(deck_tab_move, sb_acts=True)
 mark(deck_layout, sb_acts=True)
 mark(deck_marks, sb_acts=True)
 mark(deck_exit, sb_acts=True)
