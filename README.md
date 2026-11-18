@@ -76,7 +76,8 @@ Each tab starts a live `claude` in that repo. The first time Claude Code sees a 
 whether you trust it, and the tab reads `unregistered` until you answer.
 
 - **Coming back:** `sb deck` with no profile reopens the saved tabs, each resuming its session.
-  `--fresh` starts them over.
+  `--fresh` starts them over. A profile resumes only the sessions it saved itself, so two profiles
+  that share an agent each keep their own session of it, with their own todos.
 - **Leaving:** Ctrl-Q, or the ✕ in the corner, asks first, then saves and ends the deck and every
   agent in it. `sb deck exit` does the same without asking.
 - **No config yet?** `sb deck` alone opens a deck with a shell tab, and the `+` in the tab row opens
@@ -89,7 +90,7 @@ over the deck's.
 ## Inside the deck
 
 **Each agent is a tab,** in its repo's colour, whose ground lights while the agent works and warns
-when it needs you. Beside the tabs sit the panes. Choose which show with Alt-s, and fold one with
+when it needs you. Right-click a tab to make it the lead or move it; the tabs are otherwise locked. Beside the tabs sit the panes. Choose which show with Alt-s, and fold one with
 Alt-c:
 
 | Pane | Shows | A click |
