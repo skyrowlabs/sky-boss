@@ -8,7 +8,8 @@ route Claude Code's messages name, and says so. Nothing else in that file is
 touched, and it is backed up first.
 
 Claude Code merges each of its writes against the file on disk, so an entry
-written here survives the running tabs. See [[command-deck]].
+written here survives the running tabs; and a write of theirs that lands while
+this one is in flight is re-read and kept. See [[command-deck]].
 """
 
 from __future__ import annotations
@@ -32,6 +33,8 @@ DEFAULT_PROJECT = {
 }
 #: How many backups of the config sky.boss keeps.
 KEEP = 5
+#: How many times trust() re-reads a config another writer changed under it.
+RETRIES = 3
 
 
 def config_file() -> Path:
@@ -58,24 +61,39 @@ def trusted(data: dict, folder: str) -> dict:
 def trust(folder: str, path: Path | None = None, backups: Path | None = None) -> str:
     """Trust `folder` in Claude Code's config. What to tell the operator: empty when it already was.
 
-    Raises OSError or ValueError when the config cannot be read or written.
+    A write another tab makes during this one is kept: the file is read again just before
+    the replace and the entry re-applied to what is there (#84).
+    Raises OSError or ValueError when the config cannot be read or written, or keeps moving.
     """
     path = path or config_file()
     folder = os.path.realpath(folder)
-    data = json.loads(path.read_text()) if path.exists() else {}
-    if not isinstance(data, dict):
-        raise ValueError(f"{path} is not a JSON object")
-    if is_trusted(data, folder):
-        return ""
-    if path.exists():
-        keep_copy(path, backups or path.parent / ".claude-backups")
-    handle, temp = tempfile.mkstemp(dir=path.parent, prefix=".claude.json.", suffix=".sb")
-    with os.fdopen(handle, "w") as out:
-        json.dump(trusted(data, folder), out, indent=2, ensure_ascii=False)
-    if path.exists():
-        shutil.copymode(path, temp)
-    os.replace(temp, path)
-    return f"trusted {folder} for Claude Code (trust = false in deck.toml turns this off)"
+    text = _read(path)
+    for attempt in range(RETRIES):
+        data = json.loads(text) if text is not None else {}
+        if not isinstance(data, dict):
+            raise ValueError(f"{path} is not a JSON object")
+        if is_trusted(data, folder):
+            return ""
+        if attempt == 0 and text is not None:
+            keep_copy(path, backups or path.parent / ".claude-backups")
+        handle, temp = tempfile.mkstemp(dir=path.parent, prefix=".claude.json.", suffix=".sb")
+        with os.fdopen(handle, "w") as out:
+            json.dump(trusted(data, folder), out, indent=2, ensure_ascii=False)
+        now = _read(path)
+        if now != text:
+            os.unlink(temp)
+            text = now
+            continue
+        if now is not None:
+            shutil.copymode(path, temp)
+        os.replace(temp, path)
+        return f"trusted {folder} for Claude Code (trust = false in deck.toml turns this off)"
+    raise OSError(f"{path} kept changing while the deck tried to trust {folder}")
+
+
+def _read(path: Path) -> str | None:
+    """The config's text, or None when there is no file yet."""
+    return path.read_text() if path.exists() else None
 
 
 def keep_copy(path: Path, into: Path) -> Path:
