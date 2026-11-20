@@ -67,3 +67,35 @@ def test_an_unwritable_config_is_a_sentence_not_a_crash(tmp_path, monkeypatch):
 
     monkeypatch.setattr(decktrust, "trust", refuse)
     assert "could not trust" in deck_.trust_folder(True, str(tmp_path))[0]
+
+
+def test_a_write_that_lands_mid_trust_is_kept(tmp_path, monkeypatch):
+    path = config(tmp_path, {"theme": "dark"})
+    real = decktrust.keep_copy
+
+    def another_tab_writes(*args):
+        kept = real(*args)
+        path.write_text(json.dumps({"theme": "dark", "numStartups": 7}))
+        return kept
+
+    monkeypatch.setattr(decktrust, "keep_copy", another_tab_writes)
+    decktrust.trust(str(tmp_path), path, tmp_path / "backups")
+    data = json.loads(path.read_text())
+    assert data["numStartups"] == 7 and data["projects"][str(tmp_path.resolve())]["hasTrustDialogAccepted"] is True
+
+
+def test_a_config_that_never_settles_is_left_alone_and_refused(tmp_path, monkeypatch):
+    path = config(tmp_path, {})
+    writes = iter(range(100))
+    real = decktrust._read
+
+    def always_moving(p):
+        text = real(p)
+        p.write_text(json.dumps({"n": next(writes)}))
+        return text
+
+    monkeypatch.setattr(decktrust, "_read", always_moving)
+    with pytest.raises(OSError):
+        decktrust.trust(str(tmp_path), path, tmp_path / "backups")
+    assert "projects" not in json.loads(path.read_text())
+    assert not list(tmp_path.glob(".claude.json.*.sb"))
