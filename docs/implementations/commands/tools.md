@@ -8,7 +8,7 @@ updated: 2026-10-17
 tags: [tools, operator-content, surface]
 summary: "The operator's saved commands: one block per tool, spliced rather than rewritten, with the surface allowed to write."
 created: 2026-08-20
-key_files: [skyboss/tools.py, skyboss/helpers.py, skyboss/output.py, skyboss/read.py, skyboss/data.py, skyboss/follow.py, skyboss/helpers.py, skyboss/__init__.py, skyboss/canvas/catalog.py, skyboss/canvas/server.py, skyboss/canvas/static/app.js, skyboss/canvas/static/bench.js, skyboss/canvas/static/api.js, skyboss/canvas/static/sb.css, skyboss/canvas/prefs.py, skyboss/canvas/catalog.py, skyboss/canvas/server.py, tests/test_prefs.py, tests/test_canvas_server.py, tools.example.toml, tests/test_tools.py, tests/conftest.py]
+key_files: [skyboss/tools.py, skyboss/helpers.py, skyboss/output.py, skyboss/read.py, skyboss/data.py, skyboss/follow.py, skyboss/__init__.py, skyboss/canvas/catalog.py, skyboss/canvas/server.py, skyboss/canvas/static/app.js, skyboss/canvas/static/bench.js, skyboss/canvas/static/api.js, skyboss/canvas/static/sb.css, skyboss/canvas/prefs.py, tests/test_prefs.py, tests/test_canvas_server.py, docs/examples/tools.example.toml, tests/test_tools.py, tests/conftest.py]
 ---
 
 # The tools — commands the operator saves
