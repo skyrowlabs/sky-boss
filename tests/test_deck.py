@@ -21,7 +21,7 @@ from skyboss import background
 from skyboss import chrome as chrome_
 from skyboss import cli
 from skyboss import deck as deck_
-from skyboss import output, todos
+from skyboss import deckkeys, output, todos
 from skyboss.agents import Scan, Session
 from skyboss.deck import (
     Agent,
@@ -110,6 +110,8 @@ class FakeTmux:
         target = args[args.index("-t") + 1] if "-t" in args else ""
         if verb == "has-session":
             return Answer(asked=True, code=0 if target.lstrip("=") in self.order else 1)
+        if verb == "list-sessions":
+            return Answer(asked=True, out="".join(f"{name}\n" for name in sorted(self.order)))
         if verb in ("new-session", "new-window"):
             session = args[args.index("-s") + 1] if verb == "new-session" else target.strip("=:")
             name = args[args.index("-n") + 1] if "-n" in args else ""
@@ -374,6 +376,12 @@ def created_in(fake, session):
     return next(call for call in fake.find("new-session") if call[call.index("-s") + 1] == session)
 
 
+@pytest.fixture
+def one_deck(monkeypatch):
+    """`--profile` opens its new session as `sb`, for a test about the tabs rather than the session's name."""
+    monkeypatch.setattr(deck_, "new_session", lambda config, profile: "sb")
+
+
 def test_bare_deck_opens_the_pin_as_the_first_tab_and_attaches(fake, home, tmp_path, said):
     home(f'pin = "ws"\n[agent.ws]\ncwd = "{tmp_path}"\nargs = ["--model", "opus"]\n')
     result = invoke("deck")
@@ -396,7 +404,7 @@ def test_the_tabs_session_comes_first_so_the_tab_pane_has_something_to_attach_to
 
 def test_bare_deck_execs_attach_at_a_terminal(fake, home, monkeypatch):
     monkeypatch.setattr(deck_, "has_terminal", lambda: True)
-    monkeypatch.setattr(deck_, "launcher", lambda running: ("resume", ("sb",)))
+    monkeypatch.setattr(deck_, "launcher", lambda running: ("session", ("sb",)))
     result = invoke("deck")
     assert result.exit_code == 0, result.output
     assert fake.replaced == [["tmux", "attach-session", "-t", "=sb"]]
@@ -539,14 +547,14 @@ def test_pin_is_a_profile_with_a_primary_and_no_tabs():
     assert Config().profile(None) is None
 
 
-def test_a_profile_opens_its_tabs_in_order_primary_first(fake, home, tmp_path, said):
+def test_a_profile_opens_its_tabs_in_order_primary_first(fake, home, tmp_path, said, one_deck):
     home(PROFILE.format(d=tmp_path))
     result = invoke("deck", "--profile", "core")
     assert fake.tabs() == ["ws", "jam", "mind"]
     assert said(result).count("listed twice") == 2
 
 
-def test_a_profile_on_a_live_deck_opens_only_what_is_missing_and_restores_the_order(fake, home, tmp_path):
+def test_a_profile_on_a_live_deck_opens_only_what_is_missing_and_restores_the_order(fake, home, tmp_path, one_deck):
     home(PROFILE.format(d=tmp_path))
     fake.session("sb")
     fake.add("sb-agents", "shell", role="shell")
@@ -560,7 +568,7 @@ def test_a_profile_on_a_live_deck_opens_only_what_is_missing_and_restores_the_or
     assert not {"new-window", "swap-window", "new-session"} & set(fake.verbs())
 
 
-def test_an_unresolvable_tab_is_a_warning_and_no_tab(fake, home, tmp_path, said):
+def test_an_unresolvable_tab_is_a_warning_and_no_tab(fake, home, tmp_path, said, one_deck):
     home(PROFILE.format(d=tmp_path) + '[profile.more]\nsession = "sb"\ntabs = ["ghost", "jam"]\n')
     result = invoke("deck", "--profile", "more")
     assert "profile 'more' 'ghost'" in said(result) and fake.tabs() == ["jam"]
@@ -1125,7 +1133,9 @@ def test_the_queue_is_an_observe_and_the_rest_act():
         "plus": True,
         "launch": True,
         "profile": True,
+        "session": True,
         "places": False,
+        "keys": False,
         "jump": True,
         "layout": True,
         "marks": True,
@@ -1400,11 +1410,42 @@ def test_the_close_box_asks_and_any_other_status_click_still_selects():
     assert "#{==:#{mouse_status_range},layout}" in click_[8] and "'switch-client -t ='" in click_[8]
 
 
-def test_the_bar_shows_every_shortcut_and_the_close_box():
-    bar = deck_.hints()
-    for key in (*deck_.SHORTCUTS.values(), "C-q"):
-        assert key in bar
-    assert "#[range=user|exit]" in bar and "✕" in bar
+def test_the_bar_names_only_the_shortcuts_key_beside_its_two_buttons():
+    drawn = re.sub(r"#\[[^]]*\]", "", deck_.hints())
+    assert drawn == "M-/ shortcuts  ▦  ✕ "
+    assert "#[range=user|exit]" in deck_.hints() and "#[range=user|layout]" in deck_.hints()
+
+
+def test_every_bound_key_has_a_line_in_the_overlay():
+    keys = {argv[3] for argv in deck_.deck_bindings("sb") if not argv[3].startswith("Mouse")}
+    listed = {entry.key for entry in deck_.shortcut_entries()}
+    assert keys <= listed and set(deck_.SHORTCUTS) | {"exit"} == set(deckkeys.LINES)
+    assert {entry.group for entry in deck_.shortcut_entries()} == set(deckkeys.GROUPS)
+
+
+def test_a_shortcut_with_no_line_cannot_be_listed():
+    with pytest.raises(KeyError):
+        deckkeys.entries({**deck_.SHORTCUTS, "new": "M-z"}, deck_.EXIT_KEY)
+
+
+def test_the_overlay_opens_on_its_key_in_a_popup_sized_to_two_columns():
+    (bound,) = [argv for argv in deck_.deck_bindings("sb") if argv[3] == deck_.SHORTCUTS["shortcuts"]]
+    assert bound[4:6] == ["if-shell", "-F"]
+    sized, whole = shlex.split(bound[7]), shlex.split(bound[8])
+    assert sized[0] == whole[0] == "display-popup" and sized[-1].endswith("deck keys --screen")
+    width, height = (int(sized[sized.index(flag) + 1]) for flag in ("-w", "-h"))
+    assert f"#{{e|>=:#{{client_width}},{width}}}" in bound[6] and f"#{{e|>=:#{{client_height}},{height}}}" in bound[6]
+    assert whole[whole.index("-w") + 1] == whole[whole.index("-h") + 1] == "100%"
+    lines = deckkeys.screen(deck_.shortcut_entries(), width - 2, "M-r")
+    assert len(lines) == height - 2 and max(map(len, lines)) <= width - 2
+    assert any("TABS" in line and "COMMUNICATIONS" in line for line in lines)
+    assert "IN THE LAUNCHER, ON M-r" in lines and len(deckkeys.screen(deck_.shortcut_entries(), 80)) > len(lines)
+
+
+def test_the_overlay_lists_keys_and_launcher_keys_as_data():
+    rows = json.loads(invoke("--json", "deck", "keys").stdout)["data"]
+    assert {"group": "deck", "key": "M-/", "does": "this list"} in rows
+    assert any(row["group"] == "launcher" and row["key"] == "sessions" for row in rows)
 
 
 def test_exit_stops_the_marks_loop_then_kills_exactly_the_two_deck_sessions(fake, home, monkeypatch):
@@ -1686,7 +1727,7 @@ def told(argv):
     return argv[argv.index("--append-system-prompt") + 1]
 
 
-def test_the_primary_and_a_profile_tab_are_named_and_briefed(core, fake):
+def test_the_primary_and_a_profile_tab_are_named_and_briefed(core, fake, one_deck):
     invoke("deck", "--profile", "core")
     primary, tab = launched(fake, "skyrow-workspace"), launched(fake, "stash-flow")
     assert primary[:3] == ["claude", "-n", "skyrow-workspace"] and tab[:3] == ["claude", "-n", "stash-flow"]
@@ -1708,7 +1749,7 @@ def test_the_primary_and_a_profile_tab_are_named_and_briefed(core, fake):
     assert len(fixed) <= deck_.BRIEF_LIMIT
 
 
-def test_a_tab_opened_later_gets_the_roster_as_it_stands(core, fake):
+def test_a_tab_opened_later_gets_the_roster_as_it_stands(core, fake, one_deck):
     invoke("deck", "--profile", "core")
     fake.options[("=sb-agents:", "@sb-primary")] = "skyrow-workspace"
     invoke("--json", "deck", "open", "mind-head")  # already open: nothing launched
@@ -1800,7 +1841,7 @@ def test_queue_scope_and_marks_place_a_session_by_its_pane_never_its_name(fake, 
     assert set(deck_.placement([inside, outside])) == {"id-101"}
 
 
-def test_a_tab_opened_later_carries_the_loaded_profiles_brief(core, fake):
+def test_a_tab_opened_later_carries_the_loaded_profiles_brief(core, fake, one_deck):
     invoke("deck", "--profile", "core")
     assert fake.options[("=sb-agents:", "@sb-profile")] == "core"
     fake.calls.clear()
@@ -2090,7 +2131,7 @@ def test_a_pane_can_scroll_to_its_last_row_after_the_fit_overshoots():
     assert shown.plain.rstrip().endswith("row 19")
 
 
-def test_brief_rebuilds_the_calling_tabs_brief_with_the_live_roster(core, fake, monkeypatch):
+def test_brief_rebuilds_the_calling_tabs_brief_with_the_live_roster(core, fake, monkeypatch, one_deck):
     invoke("deck", "--profile", "core")
     fake.options[("=sb-agents:", "@sb-primary")] = "skyrow-workspace"
     monkeypatch.setattr(deck_, "caller_tab", lambda session, **kw: "mind-head")
@@ -2103,7 +2144,7 @@ def test_brief_rebuilds_the_calling_tabs_brief_with_the_live_roster(core, fake, 
     assert "mind-head" not in [p["name"] for p in data["peers"]]
 
 
-def test_brief_outside_a_tab_asks_for_a_name_and_previews_one(core, fake, monkeypatch):
+def test_brief_outside_a_tab_asks_for_a_name_and_previews_one(core, fake, monkeypatch, one_deck):
     invoke("deck", "--profile", "core")
     monkeypatch.setattr(deck_, "caller_tab", lambda session, **kw: None)
     refused = invoke("--json", "deck", "brief")
@@ -2250,8 +2291,8 @@ def test_fold_names_only_a_right_column_pane_and_saves_without_a_deck(fake, home
 def test_each_bars_label_is_given_room_for_its_whole_width():
     options = dict(deck_.bar_options(False))
     drawn = re.sub(r"#\[[^]]*\]", "", options["status-left"])
-    assert drawn.startswith(" sky.boss from skyrow.labs │ sky.boss deck ⟳ next in ")
-    wanted = " sky.boss from skyrow.labs │ sky.boss deck ⟳ next in 5s marks not running "
+    assert drawn.startswith(" sky.boss from skyrow.labs │ sky.boss deck #{?")
+    wanted = " sky.boss from skyrow.labs │ sky.boss deck ○ not running "
     assert options["status-left-length"] == str(len(wanted) + 1)
     tabs = dict(deck_.bar_options(True))
     _, width = deck_.tab_lefts()
@@ -2331,7 +2372,7 @@ def test_clear_with_nothing_done_says_so(home, sb_state, said):
 def test_the_clear_key_runs_the_one_clear_that_says_what_it_kept():
     bound = {argv[3]: argv for argv in deck_.deck_bindings("sb")}
     assert "deck clear --notify" in bound[deck_.SHORTCUTS["clear"]][-1]
-    assert f"{deck_.SHORTCUTS['clear']} clear done" in deck_.hints()
+    assert deck_.SHORTCUTS["clear"] in {entry.key for entry in deck_.shortcut_entries()}
 
 
 def test_a_clear_takes_asked_rows_and_keeps_untold_rulings_and_waiting_prompts(home, sb_state):
@@ -2463,9 +2504,11 @@ def test_every_deck_pane_refreshes_on_the_clocks_multiples_and_draws_no_clock_of
     assert deck_.DeckPane("sb", lambda row: True).shared_clock()
 
 
-def test_the_footer_counts_down_to_the_shared_refresh_every_second():
+def test_the_footer_turns_a_dial_to_the_shared_refresh_every_second():
     options = dict(deck_.bar_options(False))
-    assert "⟳ next in #{e|-:5,#{e|%%:%s,5}}s" in options["status-left"]
+    assert deck_.shared_dial() in options["status-left"] and "next in" not in options["status-left"]
+    assert "#{e|/:#{e|*:#{e|%%:%s,5},5},5}" in deck_.shared_dial()
+    assert all(glyph in deck_.shared_dial() for glyph in deck_.DIAL)
     assert options["status-interval"] == "1" and "status-interval" not in dict(deck_.bar_options(True))
     assert {argv[argv.index("--refresh") + 1] for argv in (deck_.queue_argv(), deck_.messages_argv())} == {"5"}
 
@@ -2544,6 +2587,12 @@ def test_an_unthemed_deck_writes_no_theme(fake, home, tmp_path, monkeypatch):
 # ============================================================================
 
 
+def record(name: str) -> deck_.decksession.Record:
+    found = deck_.decksession.load(name)
+    assert found is not None, f"no record for {name}"
+    return found
+
+
 def tab(agent, ident="id-1"):
     return deck_.decksave.Tab(agent, ident, "/src")
 
@@ -2609,21 +2658,29 @@ def test_sb_deck_reopens_the_saved_tabs_and_resumes_each(core, fake, tmp_path, m
     assert ("=sb-agents:", "@sb-profile") in fake.options
 
 
-def test_a_named_profile_opens_its_own_tabs_and_resumes_those_it_can(core, fake, tmp_path, monkeypatch):
-    transcripts(tmp_path, monkeypatch, "b", "z")
-    saved_as(tab("mind-head", "b"), tab("sky-boss", "z"), profile="core")
+def test_a_profile_always_starts_a_new_session_and_resumes_nothing_another_saved(core, fake, tmp_path, monkeypatch):
+    transcripts(tmp_path, monkeypatch, "b")
+    saved_as(tab("mind-head", "b"), profile="core")
     invoke("deck", "--profile", "core")
-    assert "b" in launched(fake, "mind-head") and "--resume" not in launched(fake, "stash-flow")
-    with pytest.raises(AssertionError):
-        launched(fake, "sky-boss")
+    assert "--resume" not in launched(fake, "mind-head")
+    # `sb` declared `session = "sb"`, so the migration made it core 1 and this is core 2.
+    assert record("sb").label == "core 1" and created_in(fake, "sb-core-2-agents")
+    assert record("sb-core-2").profile == "core"
 
 
-def test_fresh_forgets_the_save_and_resumes_nothing(core, fake, tmp_path, monkeypatch):
+def test_a_session_reopened_fresh_starts_every_tab_new_and_keeps_its_save_and_todos(core, fake, tmp_path, monkeypatch):
     transcripts(tmp_path, monkeypatch, "a")
-    saved_as(tab("skyrow-workspace", "a"))
-    invoke("deck", "--fresh", "--profile", "core")
+    saved_as(tab("skyrow-workspace", "a"), profile="core")
+    deck_.todos_.add("sb", "skyrow-workspace", "keep me")
+    invoke("deck", "--session", "sb", "--fresh")
     assert "--resume" not in launched(fake, "skyrow-workspace")
-    assert not deck_.decksave.path_for("sb").exists()
+    assert deck_.todos_.load("sb", "skyrow-workspace") is not None
+
+
+def test_an_unknown_session_names_the_known_ones(fake, home, said):
+    saved_as(tab("jam"))
+    result = invoke("deck", "--session", "nope")
+    assert result.exit_code == 2 and "sessions: sb" in said(result) and not fake.find("new-session")
 
 
 def test_fresh_opens_a_deck_so_a_subcommand_refuses_it(fake, home):
@@ -3168,71 +3225,58 @@ def test_a_tab_acts_on_the_deck_its_environment_names(home, monkeypatch):
     assert (config.session, config.base) == ("sb-core", "work")
 
 
-@pytest.mark.parametrize(
-    "body, expected",
-    [({}, "sb-core"), ({"session": "mine"}, "mine")],
-)
-def test_a_profile_runs_as_its_own_deck(body, expected):
-    config, _ = parse({"profile": {"core": {"tabs": ["x"], **body}, "a.b": {"tabs": ["x"]}}})
-    assert deck_.deck_session(config, config.profiles["core"]) == expected
-    assert deck_.deck_session(config, config.profiles["a.b"]) == "sb-a_b"
-    assert deck_.deck_session(config, None) == "sb"
+def test_a_new_session_is_the_first_number_free_by_directory_by_tmux_and_by_label(fake, home):
+    config, _ = deck_.load()
+    assert deck_.new_session(config, "core") == "sb-core-1"
+    fake.session("sb-core-2-agents")
+    deck_.decksession.write(deck_.decksession.Record("sb-old", "core", "core 3"))
+    assert deck_.new_session(config, "core") == "sb-core-4"
+    assert deck_.new_session(config, "") == "sb-1" and record("sb-1").label == "ad hoc 1"
+    assert deck_.new_session(config, "a.b") == "sb-a_b-1"
 
 
-def test_a_profiles_deck_starts_as_its_own_session_and_marks_its_environment(fake, home, tmp_path):
+def test_a_profiles_session_starts_under_its_own_name_and_marks_its_environment(fake, home, tmp_path):
     home(f'[profile.core]\nprimary = "ws"\n[agent.ws]\ncwd = "{tmp_path}"\n')
     invoke("deck", "--profile", "core")  # no terminal to attach to, so only the sessions are asked about
     created = [call for call in fake.find("new-session") if "-s" in call]
-    assert {call[call.index("-s") + 1] for call in created} == {"sb-core", "sb-core-agents"}
-    assert all(f"SB_DECK=sb-core" in call for call in created)
-    assert ["tmux", "set-environment", "-t", "=sb-core", "SB_DECK", "sb-core"] in fake.calls
+    assert {call[call.index("-s") + 1] for call in created} == {"sb-core-1", "sb-core-1-agents"}
+    assert all("SB_DECK=sb-core-1" in call for call in created)
+    assert ["tmux", "set-environment", "-t", "=sb-core-1", "SB_DECK", "sb-core-1"] in fake.calls
+    invoke("deck", "--profile", "core")
+    assert created_in(fake, "sb-core-2-agents")
 
 
-def test_ticked_folders_start_beside_a_running_base_deck(fake, home, monkeypatch):
-    fake.session("sb-agents")
-    assert deck_.free_session(deck_.load()[0]) == "sb-2"
-
-
-def test_ticked_folders_never_take_a_deck_another_left_state_in_or_a_profile_claims(fake, home, tmp_path):
-    home(f'[agent.ws]\ncwd = "{tmp_path}"\n[profile.core]\nprimary = "ws"\nsession = "sb-2"\n')
-    saved_as(tab("ws"), profile="core")
-    assert deck_.free_session(deck_.load()[0]) == "sb-3"
-
-
-def test_a_save_another_profile_wrote_resumes_nothing_and_says_whose_it_was(fake, home, tmp_path, monkeypatch):
+def test_a_tab_resumes_whatever_profile_name_its_own_save_carries(fake, home, tmp_path, monkeypatch):
     transcripts(tmp_path, monkeypatch, "a")
-    saved_as(tab("jam", "a"), profile="core")
-    problems: list[str] = []
-    assert deck_.resume_lookup("sb", problems, owner="")(deck_.Agent("jam", "/x")) == ""
-    assert "saved by profile 'core', not ticked folders" in problems[0]
-    assert deck_.resume_lookup("sb", [], owner="core")(deck_.Agent("jam", "/x")) == "a"
-    assert deck_.resume_lookup("sb", [], owner=None)(deck_.Agent("jam", "/x")) == "a"
+    saved_as(tab("jam", "a"), profile="renamed-away")
+    assert deck_.resume_lookup("sb", [])(deck_.Agent("jam", "/x")) == "a"
 
 
-def test_the_marks_loop_keeps_no_tab_from_another_profiles_save(fake, home, monkeypatch):
+def test_the_marks_loop_keeps_the_saved_tabs_of_its_own_session(fake, home, monkeypatch):
     tabbed(fake)
     saved_as(tab("old", "x"), profile="core")
     deck_.autosave("sb", [tab("jam", "j")])
-    saved = deck_.decksave.load("sb")[0]
-    assert [t.agent for t in saved.tabs] == ["jam"] and saved.profile == ""
+    assert [t.agent for t in deck_.decksave.load("sb")[0].tabs] == ["jam", "old"]
 
 
-def test_two_profiles_on_one_deck_are_named(fake, home, tmp_path):
-    home('[profile.a]\nsession = "x"\ntabs = ["w"]\n[profile.b]\nsession = "x"\ntabs = ["w"]\n')
-    problems = deck_.load()[1]
-    assert any("profiles a, b all run as deck 'x'" in p for p in problems)
+def test_a_profiles_session_key_is_reported_as_unused_and_left_in_place(fake, home, tmp_path):
+    path = home('[profile.a]\nsession = "x"\ntabs = ["w"]\n') / "deck.toml"
+    (problem,) = deck_.unused_session_keys(deck_.load()[0])
+    assert "`session = 'x'` is no longer used" in problem and 'session = "x"' in path.read_text()
 
 
-def test_a_profile_saved_from_a_deck_another_owns_opens_new_and_leaves_this_deck_alone(
+def test_an_ad_hoc_deck_saved_as_a_profile_becomes_its_session_and_no_session_key_is_written(
     fake, home, tmp_path, monkeypatch
 ):
-    path = home(f'[agent.ws]\ncwd = "{tmp_path}"\n[profile.full]\nprimary = "ws"\nsession = "sb"\n') / "deck.toml"
+    path = home(f'[agent.ws]\ncwd = "{tmp_path}"\n') / "deck.toml"
     fake.session("sb-agents")
+    deck_.decksession.create("sb", "", "ad hoc 1")
     monkeypatch.setattr(deck_, "deck_as_profile", lambda config, s: (("ws",), (), {}))
     result = invoke("--json", "deck", "profile", "save", "small")
-    assert "opens as deck 'sb-small' with a new session in every tab" in json.loads(result.output)["data"]["saved"]
+    assert result.exit_code == 0, result.output
     assert "session" not in tomllib.loads(path.read_text())["profile"]["small"]
-    assert ("=sb-agents:", "@sb-profile") not in fake.options
+    assert record("sb").profile == "small"
+    assert fake.options[("=sb-agents:", "@sb-profile")] == "small"
 
 
 # ============================================================================
@@ -3298,10 +3342,14 @@ def test_a_right_click_on_a_tab_opens_sky_boss_menu_and_tmux_own_tab_editing_is_
     assert '"#{==:#{@sb-deck},tabs}" { send-keys -M -t = } { display-menu fx-pane }' in mirrored
 
 
-def test_profile_list_says_which_deck_each_runs_as(fake, home, tmp_path):
+def test_profile_list_counts_each_profiles_sessions_and_those_running(fake, home, tmp_path):
     home(f'[profile.core]\nprimary = "ws"\n[agent.ws]\ncwd = "{tmp_path}"\n')
+    deck_.decksession.create("sb-core-1", "core", "core 1")
+    deck_.decksession.create("sb-core-2", "core", "core 2")
+    fake.session("sb-core-2")
+    fake.session("sb-core-2-agents")
     data = json.loads(invoke("--json", "deck", "profile", "list").output)["data"]
-    assert data == [{"profile": "core", "tabs": "ws", "deck": "sb-core", "running": False}]
+    assert data == [{"profile": "core", "tabs": "ws", "sessions": 2, "running": 1}]
 
 
 def test_profile_delete_backs_up_and_removes_only_that_profile(fake, home, tmp_path):
@@ -3329,7 +3377,6 @@ def test_profile_save_writes_the_decks_tabs_and_keeps_a_replaced_profiles_brief(
         "tabs": ["new"],
         "terminals": ["/tmp"],
         "brief_file": "core.md",
-        "session": "sb",
     }
     assert written["agent"]["new"] == {"cwd": str(tmp_path)}
 

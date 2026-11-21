@@ -179,7 +179,7 @@ def synthetic(tmp_path, monkeypatch):
 
 
 def test_the_command_draws_a_body_with_markup_in_it(synthetic, said):
-    result = invoke("deck", "messages")
+    result = invoke("deck", "messages", "--all")
     assert result.exit_code == 0, result.output
     assert "jam → ws" in said(result) and "[/x] hi" in said(result)
 
@@ -205,7 +205,7 @@ def no_sleep(monkeypatch):
 
 
 def test_ticks_reaches_reside_as_runs_exactly_as_data_does(synthetic, reside_calls, at_a_terminal):
-    assert invoke("deck", "messages", "--refresh", "3", "--ticks", "6").exit_code == 0
+    assert invoke("deck", "messages", "--all", "--refresh", "3", "--ticks", "6").exit_code == 0
     assert invoke("data", "--refresh", "3", "--ticks", "6", "--", "printf", "[]").exit_code == 0
     mine, data = reside_calls
     assert mine["source"] == "deck messages" and mine["result"].data[0]["from"] == "jam"
@@ -314,8 +314,8 @@ def test_json_and_a_pipe_carry_all_fifty(tmp_path, monkeypatch, no_sleep):
     who = fifty(tmp_path)
     monkeypatch.setattr(messages_.agents_, "providers", lambda: [Adapter([who])])
     monkeypatch.setattr(messages_, "projects_dir", lambda: tmp_path)
-    assert len(json.loads(invoke("--json", "deck", "messages").stdout)["data"]) == 50
-    lines = invoke("deck", "messages", "--refresh", "1", "--ticks", "1", "--screen").stdout.splitlines()
+    assert len(json.loads(invoke("--json", "deck", "messages", "--all").stdout)["data"]) == 50
+    lines = invoke("deck", "messages", "--all", "--refresh", "1", "--ticks", "1", "--screen").stdout.splitlines()
     assert len(json.loads(lines[0])["data"]) == 50
 
 
@@ -809,3 +809,69 @@ def test_clicking_a_message_row_opens_that_message_and_the_band_is_grounded(tmp_
     assert opened == ["m47"]
     red, green, blue = (int(deck_.theme.HEAD_GROUND[i : i + 2], 16) for i in (1, 3, 5))
     assert f"48;2;{red};{green};{blue}" in sink.getvalue()
+
+
+# ============================================================================
+# A deck session's own messages (round 25)
+# ============================================================================
+
+
+@pytest.fixture
+def two_decks(tmp_path, monkeypatch):
+    """Deck `sb-a` holds ws and mind; deck `sb-b` holds jam. ws joined `sb-a` at 11:00."""
+    from skyboss import deck as deck_
+    from skyboss import decksession
+
+    monkeypatch.setattr(deck_.decksave.helpers, "STATE_DIR", tmp_path / "state")
+    ws, mind, jam = session("s1", "ws"), session("s3", "mind"), session("s2", "jam")
+    sent = {"jam": ("uds:fx-jam", "s2"), "mind": ("uds:fx-mind", "s3"), "ws": ("uds:fx-ws", "s1")}
+
+    def from_(name, body, msg_id, stamp):
+        return peer(name, body, msg_id, stamp, **{"from": sent[name][0]})
+
+    write(
+        tmp_path,
+        ws,
+        [
+            from_("mind", "before ws joined", "m0", "2026-11-04T10:00:00Z"),
+            from_("mind", "within the deck", "m1", "2026-11-04T11:30:00Z"),
+            from_("jam", "from the other deck", "m2", "2026-11-04T11:31:00Z"),
+        ],
+    )
+    write(tmp_path, jam, [from_("ws", "to the other deck", "m3", "2026-11-04T11:32:00Z")])
+    write(tmp_path, mind, [])
+    monkeypatch.setattr(messages_.agents_, "providers", lambda: [Adapter([ws, mind, jam])])
+    monkeypatch.setattr(messages_.agents_, "peer_index", lambda: {("socket", s[4:]): i for s, i in sent.values()})
+    monkeypatch.setattr(messages_, "projects_dir", lambda: tmp_path)
+    tabs = {"sb-a": {"s1": ("ws", 0), "s3": ("mind", 1)}, "sb-b": {"s2": ("jam", 0)}}
+    monkeypatch.setattr(deck_, "has_session", lambda name: name.removesuffix("-agents") in tabs)
+    monkeypatch.setattr(deck_, "running_decks", lambda: sorted(tabs))
+    monkeypatch.setattr(deck_, "parents", lambda proc=None: {})
+    monkeypatch.setattr(deck_, "placement_in", lambda name, sessions, parent_of=None: tabs.get(name, {}))
+    record = decksession.create("sb-a", "core", "core 1", now=0)
+    record.joined = {"ws": datetime(2026, 11, 4, 11, 0, tzinfo=timezone.utc).timestamp(), "mind": 0.0}
+    decksession.write(record)
+    return deck_
+
+
+def test_a_session_draws_what_its_tabs_received_since_joining_and_counts_what_crossed_decks(two_decks):
+    result = two_decks.session_messages("sb-a")
+    assert [row["message"] for row in result.data] == ["within the deck"]
+    assert any("2 message(s) to or from another deck not shown" in w for w in result.warnings)
+
+
+def test_the_pane_takes_the_crossed_count_for_its_last_line(two_decks):
+    pane = two_decks.DeckPane("sb-a", lambda row: True, scroll=True, role=two_decks.MESSAGES)
+    result = two_decks.session_messages("sb-a", pane=pane)
+    assert not any("another deck" in w for w in result.warnings)
+    assert pane.note() == "2 to or from another deck, not shown"
+
+
+def test_a_stopped_session_is_read_from_its_saved_tabs_and_cannot_tell_a_senders_deck(two_decks, monkeypatch):
+    from skyboss import decksave
+
+    monkeypatch.setattr(two_decks, "has_session", lambda name: False)
+    decksave.save("sb-a", decksave.Saved([decksave.Tab("ws", "s1", "/fx/src/a.repo")]))
+    result = invoke("--json", "deck", "messages", "--session", "sb-a")
+    data = json.loads(result.stdout)["data"]
+    assert [row["message"] for row in data] == ["within the deck", "from the other deck"]

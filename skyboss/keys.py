@@ -35,6 +35,8 @@ LEAVE = frozenset({"q", "Q", "\x1b"})
 # lines the terminal never printed and scrolling is the only way back to them.
 # See [[follow]] round 3.
 MOVES = ("up", "down", "pgup", "pgdn", "home", "end")
+# Shift-Tab, `ESC [ Z`: the launcher steps back a section on it.
+BTAB = "btab"
 
 # The wheel, as an SGR mouse report (`ESC [ < 64 ; x ; y M`). Only a view that
 # turned mouse reporting on receives these; any other report is nothing.
@@ -50,7 +52,7 @@ CLICK = "click"
 # the common form and `O` is application-cursor mode, which some terminals put
 # the arrow keys into — a reader that knew only `[` would work everywhere until
 # it did not.
-_FINAL = {"A": "up", "B": "down", "H": "home", "F": "end"}
+_FINAL = {"A": "up", "B": "down", "H": "home", "F": "end", "Z": BTAB}
 
 # The numeric forms, `Esc [ N ~`. Home and End have both spellings in the wild.
 _TILDE = {"5": "pgup", "6": "pgdn", "1": "home", "7": "home", "4": "end", "8": "end"}

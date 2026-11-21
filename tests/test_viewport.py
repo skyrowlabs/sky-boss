@@ -71,10 +71,16 @@ def test_a_movement_key_does_not_leave():
 def test_an_unknown_sequence_is_consumed_and_means_nothing():
     """It must not fall through to the shell that gets the terminal back, and
     must not be mistaken for a key with a meaning."""
-    stream = io.StringIO("\x1b[Z")
+    stream = io.StringIO("\x1b[Q")
     stream.read(1)
     assert keys._sequence(stream, ready) is None
     assert stream.read() == ""
+
+
+def test_shift_tab_is_named():
+    stream = io.StringIO("\x1b[Z")
+    stream.read(1)
+    assert keys._sequence(stream, ready) == keys.BTAB
 
 
 # ── The viewport ────────────────────────────────────────────────────────────

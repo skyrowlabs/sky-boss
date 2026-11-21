@@ -335,7 +335,7 @@ def test_its_key_opens_the_picker_and_is_no_claude_code_key():
     key = deck_.SHORTCUTS["watchers"]
     (bound,) = [argv for argv in deck_.deck_bindings("sb") if argv[3] == key]
     assert bound[4] == "display-popup" and bound[-1].endswith("deck watchers pick")
-    assert key not in {f"M-{letter}" for letter in "bdfyoptvwjm"} and f"{key} watchers" in deck_.hints()
+    assert key not in {f"M-{letter}" for letter in "bdfyoptvwjm"} and key in {e.key for e in deck_.shortcut_entries()}
 
 
 def test_a_click_on_its_title_opens_the_picker_and_in_the_grid_its_label_still_moves_it(monkeypatch):

@@ -75,13 +75,16 @@ sb deck --profile core
 Each tab starts a live `claude` in that repo. The first time Claude Code sees a folder it asks
 whether you trust it, and the tab reads `unregistered` until you answer.
 
-- **Coming back:** `sb deck` with no profile reopens the saved tabs, each resuming its session.
-  `--fresh` starts them over. A profile resumes only the sessions it saved itself, so two profiles
-  that share an agent each keep their own session of it, with their own todos.
+- **Coming back:** a profile is a set of agents, and a session is one deck of them, running or not,
+  with its own todos, decisions and messages. `--profile` always starts a new session, named
+  `sb-core-1`, `sb-core-2` and on. `sb deck --session sb-core-1` attaches or resumes one, each tab
+  resuming its conversation, and `--fresh` starts every tab new while its todos and decisions stay.
+  `sb deck` alone opens the launcher: sessions, profiles and agent folders, Tab to move between them.
 - **Leaving:** Ctrl-Q, or the ✕ in the corner, asks first, then saves and ends the deck and every
   agent in it. `sb deck exit` does the same without asking.
-- **No config yet?** `sb deck` alone opens a deck with a shell tab, and the `+` in the tab row opens
-  more. `roots = ["~/src"]` in `deck.toml` offers every folder under it.
+- **No config yet?** `sb deck` alone opens the launcher, whose `+ add a folder` browses to one,
+  and the `+` in the tab row opens more. `roots = ["~/src"]` in `deck.toml` offers every folder
+  under it.
 
 An agent that is a project in `projects.toml` with a `cwd` needs no `[agent]` entry unless it wants
 a `role`. `args` passes flags to its `claude`, and your own `-n` or `--append-system-prompt` wins
@@ -105,8 +108,10 @@ Alt-c:
   <img src="docs/design/readme-deck-agents.png" alt="The AGENT LIST pane: ten deck agents and one outside session, each with its state, background jobs and uptime" width="700">
 </p>
 
-**The keys are listed in the bar.** They live in a key table only the deck's sessions use, so your
-own tmux bindings are untouched:
+**Alt-/ lists every key and click.** The bar names only that key, beside ▦ for the next layout and
+✕ to end the deck; its left end turns a dial to the panes' next refresh and shows when the tab marks
+were last written. The keys live in a key table only the deck's sessions use, so your own tmux
+bindings are untouched:
 
 | Key | Does |
 |---|---|
@@ -118,6 +123,7 @@ own tmux bindings are untouched:
 | Alt-u, Alt-e | Scrolls messages back, returns to the newest |
 | Alt-x | Clears every done todo and decided item |
 | Alt-g | Picks the watchers WATCHERS shows |
+| Alt-/ | Lists every key and click; any key closes it |
 | Ctrl-Q | Asks, then ends the deck |
 
 Panes drag to resize. In the `grid` layout, click a title bar and then a pane in another column to
@@ -166,15 +172,16 @@ and `sb deck`, so it is safe beside real work. The clip above is
 [`docs/design/render-deck-tour.mjs`](docs/design/render-deck-tour.mjs) recording it.
 
 **An agent keeps its own todo list** with `sb deck todo add "<text>"` and `sb deck todo done <n>`.
-A list belongs to the tab whose pane runs the command, found by process rather than by name, so a
-session outside the deck cannot write a tab's list even if it shares the name.
+A list belongs to the tab whose pane runs the command, in that deck's session, found by process
+rather than by name, so a session outside the deck cannot write a tab's list even if it shares the name.
 
 <details>
 <summary><strong>Every deck subcommand</strong></summary>
 
 | Command | | Does |
 |---|---|---|
-| `sb deck` | **acts** | Creates or attaches the deck; `--profile NAME` opens a declared set of tabs |
+| `sb deck` | **acts** | Opens the launcher; `--profile NAME` starts a new session, `--session NAME` attaches or resumes one |
+| `sb deck launch` | **acts** | The launcher, from inside a deck (M-r): open, rename or delete a session, edit a profile |
 | `sb deck open <name>` | **acts** | A tab for one agent, or that tab if it is open |
 | `sb deck add <name>` | **acts** | A new agent tab, for this deck or kept in its profile |
 | `sb deck terminal` | **acts** | A tab running your shell rather than `claude` |
@@ -182,18 +189,22 @@ session outside the deck cannot write a tab's list even if it shares the name.
 | `sb deck layout columns\|stack\|grid` | **acts** | Moves the panes between layouts; nothing is killed |
 | `sb deck column fold\|pick\|move` | **acts** | Folds, chooses and moves the panes |
 | `sb deck reload` | **acts** | Re-applies the deck's settings and restarts its panes on this sky.boss's code |
-| `sb deck save` | **acts** | Saves each open tab's session, so a later `sb deck` resumes it |
+| `sb deck save` | **acts** | Saves each open tab's conversation, so resuming the session resumes it |
+| `sb deck session rename\|delete` | **acts** | Relabels a session, or deletes a stopped one with its todos and decisions |
+| `sb deck profile new\|edit\|rename\|save\|delete` | **acts** | Edits `deck.toml` after a backup; a profile's sessions outlive it |
 | `sb deck exit` | **acts** | Saves the tabs, then ends the deck and every agent in it |
 | `sb deck todo add\|done\|rm\|clear` | **acts** | Edits a todo list |
 | `sb deck decide add\|note\|done\|rm\|clear` | **acts** | Edits a list of decisions |
 | `sb deck decide rule` | **acts** | Rules on a decision; for you, never an agent |
 | `sb deck watchers pick\|choose` | **acts** | Chooses the watchers WATCHERS shows |
 | `sb deck queue` | reads | Every agent session and its status, the deck's first |
-| `sb deck messages`, `sb deck message` | reads | What agents told each other, newest last, and one message whole |
-| `sb deck todo list`, `sb deck decide list` | reads | The lists, grouped by agent |
+| `sb deck messages`, `sb deck message` | reads | What this session's tabs were sent, newest last, and one message whole; `--all` reads every deck |
+| `sb deck session list`, `sb deck profile list\|show` | reads | The sessions and what each holds; the profiles and their sessions |
+| `sb deck todo list`, `sb deck decide list` | reads | The lists, grouped by agent; `--session NAME` before the subcommand reads another session's |
 | `sb deck watchers list` | reads | The chosen watchers and their last lines; `--all` names every one |
 | `sb deck brief [name]` | reads | An agent's brief, rebuilt with the live roster |
 | `sb deck places` | reads | Where a new tab can start |
+| `sb deck keys` | reads | Every key and click, grouped; `--screen` draws the Alt-/ overlay |
 
 </details>
 
@@ -238,7 +249,7 @@ live deck, with the operator's directories and private lines blanked out.
 | `sb roll-call` | reads | Asks every declared project how it is, and folds the answers |
 | `sb schedule` | reads | What fires next, across every project that declares a schedule |
 | `sb agents` | reads | Which agent sessions are running right now, across every provider |
-| `sb deck` | **acts** | A tmux controller: a tab per agent, each a live `claude` marked as working or needing you, beside panes for who is waiting on you and what agents told each other. `--profile` opens a declared set of tabs, each agent in its own colour; shortcuts are listed in the bar, and Ctrl-Q asks before ending everything — `open`, `jump`, `layout`, `marks`, `save`, `exit` and `todo add`/`done`/`rm` act; `queue`, `messages`, `brief` and `todo list` read. See [the deck](#start-a-deck) |
+| `sb deck` | **acts** | A tmux controller: a tab per agent, each a live `claude` marked as working or needing you, beside panes for who is waiting on you and what agents told each other. `--profile` starts a new session of a declared set of agents and `--session` resumes one, each agent in its own colour; Alt-/ lists the shortcuts, and Ctrl-Q asks before ending everything — `open`, `jump`, `layout`, `marks`, `save`, `exit` and `todo add`/`done`/`rm` act; `queue`, `messages`, `brief` and `todo list` read. See [the deck](#start-a-deck) |
 | `sb history <project>` | reads | A project's own run ledger, newest first |
 | `sb job` | both | Jobs sky.boss issues — `list` reads; `run`, `install` and `uninstall` act |
 | `sb tools` | reads | The commands you saved |
@@ -663,7 +674,7 @@ a shell with a reassuring name.
 | Capture formats and highlight rules | `~/.sky-boss/formats.toml` |
 | Declared projects | `~/.sky-boss/projects.toml` |
 | Deck agents | `~/.sky-boss/deck.toml` |
-| Canvas browser profile, deck todo lists | `~/.local/state/sb/` |
+| Canvas browser profile, deck sessions | `~/.local/state/sb/` |
 
 `$SB_HOME` and `$SB_STATE` override the first four and the last. An absent file degrades to
 nothing declared rather than raising.
