@@ -788,7 +788,7 @@ Agents                                     space tick · enter start ad hoc · s
 - [ ] **Deleting a session** asks once and says what goes, by count: its tab resume links, todos,
       decisions, asks and watcher choice. Claude Code's transcripts are Claude Code's and stay.
       A running session is refused, with the way out named: `sb deck exit` there first. (Q3)
-- [ ] **Profiles.** Enter starts a new session of it. (Q1) `e` opens the profile editor, `r`
+- [ ] **Profiles.** Enter starts a new session of it, even with one running (Q1, ruled). `e` opens the profile editor, `r`
       renames (its sessions follow by their record, not their tmux name), `d` deletes. Deleting a
       profile leaves its sessions, which then read `<label> (profile gone)` and resume as they were.
 - [ ] **The profile editor**, a sub-screen built on the same tick list: every declared agent
@@ -828,9 +828,10 @@ Agents                                     space tick · enter start ad hoc · s
 
 ### Questions for Jeston
 
-- [ ] **Q1. Enter on a profile that already has a running session:** start a new session, or
+- [x] **Q1. Enter on a profile that already has a running session:** start a new session, or
       attach the running one? Recommended: always new. The running one is the first row of
-      Sessions, one key away, and Enter then means one thing.
+      Sessions, one key away, and Enter then means one thing. **Ruled by Jeston, 2026-11-20:
+      always start a new session.**
 - [ ] **Q2. A message between this deck and another:** hidden and counted, or drawn with a mark?
       Recommended: hidden and counted, since independence is what was asked for.
 - [ ] **Q3. Deleting a running session:** refuse, or end it and then delete? Recommended: refuse
