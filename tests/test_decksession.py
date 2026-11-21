@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 
 from skyboss import deck as deck_
-from skyboss import decksave, decksession
+from skyboss import decksave, decksession, deckwatch
 from skyboss import todos as todos_
 from tests.test_deck import FakeTmux, invoke
 
@@ -182,3 +182,36 @@ def test_a_stopped_session_with_nothing_saved_reopens_its_profiles_agents(fake, 
     config.session = "sb-core-1"
     profile, _ = deck_.resumed_deck(config, [], None, [])
     assert profile is not None and profile.name == "core"
+
+
+def test_a_profile_chosen_while_its_session_runs_starts_a_second_session(fake, home, tmp_path):
+    home(f'[profile.core]\nprimary = "ws"\n[agent.ws]\ncwd = "{tmp_path}"\n')
+    decksession.create("sb-core-1", "core", "core 1")
+    fake.session("sb-core-1")
+    fake.session("sb-core-1-agents")
+    config = deck_.load()[0]
+    profile, _, fresh = deck_.chosen_deck(config, ("profile", ("core",)), [])
+    assert profile is not None and profile.name == "core" and not fresh
+    assert config.session == "sb-core-2" and record("sb-core-2").label == "core 2"
+
+
+def test_two_sessions_of_one_profile_share_no_todos_decisions_or_watchers(fake, home):
+    decksession.create("sb-core-1", "core", "core 1")
+    decksession.create("sb-core-2", "core", "core 2")
+    todos_.add("sb-core-1", "ws", "only in one")
+    todos_.add("sb-core-1", "ws", "ruled in one", book=todos_.DECISIONS)
+    deckwatch.save("sb-core-1", {"s1:b7": deckwatch.Watcher("s1:b7", "ws", "shell", "tail -f log", 60.0).record()})
+    one, two = decksession.holds("sb-core-1"), decksession.holds("sb-core-2")
+    assert (one.todos, one.decisions, one.watchers) == (1, 1, 1)
+    assert (two.todos, two.decisions, two.watchers) == (0, 0, 0)
+    listed = invoke("--json", "deck", "todo", "--session", "sb-core-2", "list", "--all")
+    assert listed.exit_code == 0 and "only in one" not in listed.output
+    deck_.delete_session("sb-core-2")
+    assert decksession.holds("sb-core-1").todos == 1
+
+
+def test_sb_deck_warns_that_a_profiles_session_key_is_unused(fake, home, tmp_path, said):
+    path = home(f'[profile.core]\nsession = "old"\nprimary = "ws"\n[agent.ws]\ncwd = "{tmp_path}"\n') / "deck.toml"
+    result = invoke("deck", "--profile", "core")
+    assert "`session = 'old'` is no longer used" in said(result)
+    assert 'session = "old"' in path.read_text()

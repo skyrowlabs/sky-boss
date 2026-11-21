@@ -512,6 +512,225 @@ def test_the_cursor_follows_its_row_by_name_across_a_redraw(fake, home, monkeypa
 
 
 # ============================================================================
+# The launcher's session and profile rows: fresh, rename, delete, edit
+# ============================================================================
+
+
+def acted(action, name):
+    return lambda launch: (launch, decklaunch.Outcome(action, row_named(launch, name)))
+
+
+def prompts(monkeypatch, *answers):
+    """`click.prompt` answering each question in turn, recording what was asked."""
+    asked, queue = [], list(answers)
+
+    def prompt(text, **kwargs):
+        asked.append(text)
+        return queue.pop(0)
+
+    monkeypatch.setattr(deck_.click, "prompt", prompt)
+    return asked
+
+
+def kept(name):
+    found = decksession.load(name)
+    assert found is not None, f"no record for {name}"
+    return found
+
+
+def a_running_session(fake, name="sb-core-1", profile="core"):
+    decksession.create(name, profile, f"{profile} 1")
+    fake.session(name)
+    fake.session(f"{name}-agents")
+
+
+def test_fresh_on_a_running_session_is_refused_and_names_sb_deck_exit(fake, home, monkeypatch):
+    home('[profile.core]\ntabs = ["ws"]\n')
+    a_running_session(fake)
+    once = Outcomes(acted(decklaunch.FRESH, "sb-core-1"), QUIT)
+    monkeypatch.setattr(deck_, "_launch_once", once)
+    assert deck_.launcher(running=False) is None
+    assert once.shown[1].note == "sb-core-1 is running — attach it, or `sb deck exit` there first"
+
+
+def test_fresh_on_a_stopped_session_returns_it(fake, home, monkeypatch):
+    decksession.create("sb-core-1", "core", "core 1")
+    monkeypatch.setattr(deck_, "_launch_once", Outcomes(acted(decklaunch.FRESH, "sb-core-1")))
+    assert deck_.launcher(running=False) == (decklaunch.FRESH, ("sb-core-1",))
+
+
+def test_a_profile_opened_while_its_session_runs_returns_the_profile_not_the_session(fake, home, monkeypatch):
+    home('[profile.core]\ntabs = ["ws"]\n')
+    a_running_session(fake)
+    monkeypatch.setattr(deck_, "_launch_once", Outcomes(acted(decklaunch.OPEN, "core")))
+    assert deck_.launcher(running=False) == (decklaunch.PROFILE, ("core",))
+
+
+def test_renaming_a_session_row_relabels_it_and_keeps_its_name(fake, home, monkeypatch):
+    decksession.create("sb-1", "", "ad hoc 1")
+    asked = prompts(monkeypatch, "  release   week ")
+    once = Outcomes(acted(decklaunch.RENAME, "sb-1"), QUIT)
+    monkeypatch.setattr(deck_, "_launch_once", once)
+    deck_.launcher(running=False)
+    assert asked == ["label"] and kept("sb-1").label == "release week"
+    assert once.shown[1].note == "session sb-1 is labelled 'release week'"
+
+
+def test_renaming_an_unmigrated_session_row_records_it_first(fake, home, monkeypatch):
+    decksave.save("sb-2", decksave.Saved([decksave.Tab("jam", "id-1", "/src")]))
+    prompts(monkeypatch, "jam week")
+    once = Outcomes(acted(decklaunch.RENAME, "sb-2"), QUIT)
+    monkeypatch.setattr(deck_, "_launch_once", once)
+    deck_.launcher(running=False)
+    assert kept("sb-2").label == "jam week"
+
+
+def test_a_session_label_of_only_spaces_is_refused(fake, home, monkeypatch):
+    decksession.create("sb-1", "", "ad hoc 1")
+    prompts(monkeypatch, "   ")
+    once = Outcomes(acted(decklaunch.RENAME, "sb-1"), QUIT)
+    monkeypatch.setattr(deck_, "_launch_once", once)
+    deck_.launcher(running=False)
+    assert once.shown[1].note == "a session's label needs some text" and kept("sb-1").label == "ad hoc 1"
+
+
+def test_deleting_a_running_session_row_is_refused_without_asking(fake, home, monkeypatch):
+    a_running_session(fake)
+    asked = []
+    monkeypatch.setattr(deck_, "_ask_yes", lambda question: asked.append(question) or True)
+    once = Outcomes(acted(decklaunch.DELETE, "sb-core-1"), QUIT)
+    monkeypatch.setattr(deck_, "_launch_once", once)
+    deck_.launcher(running=False)
+    assert "`sb deck exit` there first" in once.shown[1].note and asked == []
+    assert (decksession.root() / "sb-core-1").is_dir()
+
+
+def test_deleting_a_stopped_session_row_says_what_it_takes_and_needs_y(fake, home, monkeypatch):
+    decksession.create("sb-1", "", "ad hoc 1")
+    todos_.add("sb-1", "ws", "one")
+    monkeypatch.setattr(deck_.keys_, "reader", keys_from("n", "y"))
+    once = Outcomes(acted(decklaunch.DELETE, "sb-1"), acted(decklaunch.DELETE, "sb-1"), QUIT)
+    monkeypatch.setattr(deck_, "_launch_once", once)
+    deck_.launcher(running=False)
+    assert once.shown[1].note == "not deleted"
+    assert once.shown[2].note.startswith("deleted session sb-1: ") and "1 todo" in once.shown[2].note
+    assert not (decksession.root() / "sb-1").exists()
+
+
+def test_the_delete_question_says_what_the_session_holds(fake, home, monkeypatch, capsys):
+    decksession.create("sb-1", "", "ad hoc 1")
+    todos_.add("sb-1", "ws", "one", book=todos_.DECISIONS)
+    monkeypatch.setattr(deck_.keys_, "reader", keys_from("n"))
+    assert deck_._session_action(
+        deck_.load()[0], decklaunch.DELETE, decklaunch.Row(decklaunch.SESSION, "sb-1", "")
+    ) == ("not deleted")
+    question = capsys.readouterr().out
+    assert "delete session sb-1? It takes" in question and "1 decision" in question and "transcripts stay" in question
+
+
+def test_renaming_a_profile_row_moves_its_sessions(fake, home, monkeypatch, tmp_path):
+    home('[profile.core]\ntabs = ["ws"]\n')
+    decksession.create("sb-core-1", "core", "core 1")
+    decksession.create("sb-core-2", "core", "core 2")
+    decksession.create("sb-1", "", "ad hoc 1")
+    prompts(monkeypatch, "main")
+    once = Outcomes(acted(decklaunch.RENAME, "core"), QUIT)
+    monkeypatch.setattr(deck_, "_launch_once", once)
+    deck_.launcher(running=False)
+    assert list(declared(tmp_path)["profile"]) == ["main"]
+    assert [kept(n).profile for n in ("sb-core-1", "sb-core-2", "sb-1")] == ["main", "main", ""]
+    assert once.shown[1].note == "renamed profile core to main; 2 sessions follow it"
+
+
+@pytest.mark.parametrize("typed, note", [("", "not renamed"), ("two", "there is a profile 'two' already")])
+def test_a_profile_rename_to_nothing_or_a_taken_name_changes_nothing(fake, home, monkeypatch, tmp_path, typed, note):
+    home('[profile.core]\ntabs = ["ws"]\n[profile.two]\ntabs = ["ws"]\n')
+    decksession.create("sb-core-1", "core", "core 1")
+    prompts(monkeypatch, typed)
+    once = Outcomes(acted(decklaunch.RENAME, "core"), QUIT)
+    monkeypatch.setattr(deck_, "_launch_once", once)
+    deck_.launcher(running=False)
+    assert once.shown[1].note == note
+    assert set(declared(tmp_path)["profile"]) == {"core", "two"} and kept("sb-core-1").profile == "core"
+
+
+def test_deleting_a_profile_row_keeps_its_sessions_and_marks_their_profile_gone(fake, home, monkeypatch, tmp_path):
+    home('[profile.core]\ntabs = ["ws"]\n')
+    decksession.create("sb-core-1", "core", "core 1")
+    monkeypatch.setattr(deck_.keys_, "reader", keys_from("y"))
+    once = Outcomes(acted(decklaunch.DELETE, "core"), QUIT)
+    monkeypatch.setattr(deck_, "_launch_once", once)
+    deck_.launcher(running=False)
+    assert "profile" not in declared(tmp_path) and kept("sb-core-1").profile == "core"
+    (line,) = deck_.session_lines(deck_.load()[0])
+    assert line.gone and line.profile == "core"
+
+
+def test_a_profile_delete_answered_n_keeps_it(fake, home, monkeypatch, tmp_path):
+    home('[profile.core]\ntabs = ["ws"]\n')
+    monkeypatch.setattr(deck_.keys_, "reader", keys_from("n"))
+    once = Outcomes(acted(decklaunch.DELETE, "core"), QUIT)
+    monkeypatch.setattr(deck_, "_launch_once", once)
+    deck_.launcher(running=False)
+    assert once.shown[1].note == "not deleted" and "core" in declared(tmp_path)["profile"]
+
+
+def agents_and_core(home, tmp_path, profile='primary = "ws"\ntabs = ["jam"]\ncolumns = [["todos"]]\n'):
+    return home(f'[agent.ws]\ncwd = "{tmp_path}"\n[agent.jam]\ncwd = "{tmp_path}"\n[profile.core]\n{profile}')
+
+
+def test_editing_a_profile_row_rewrites_its_agents_and_keeps_its_other_keys(fake, home, monkeypatch, tmp_path, screen):
+    agents_and_core(home, tmp_path)
+    monkeypatch.setattr(deck_.keys_, "reader", keys_from("down", "p", "\r"))
+    once = Outcomes(acted(decklaunch.EDIT, "core"), QUIT)
+    monkeypatch.setattr(deck_, "_launch_once", once)
+    deck_.launcher(running=False)
+    assert declared(tmp_path)["profile"]["core"] == {"primary": "jam", "tabs": ["ws"], "columns": [["todos"]]}
+    assert once.shown[1].note == "wrote profile core: jam, ws"
+
+
+def test_the_editor_cancelled_writes_nothing(fake, home, monkeypatch, tmp_path, screen):
+    path = agents_and_core(home, tmp_path) / "deck.toml"
+    before = path.read_text()
+    monkeypatch.setattr(deck_.keys_, "reader", keys_from(" ", "q"))
+    assert deck_._edit_profile(deck_.load()[0], "core") == "not written"
+    assert path.read_text() == before
+
+
+def test_the_editor_sets_a_brief_and_a_brief_file_replaces_it(fake, home, monkeypatch, tmp_path, screen):
+    agents_and_core(home, tmp_path, 'primary = "ws"\n')
+    monkeypatch.setattr(deck_.keys_, "reader", keys_from("b", "\r"))
+    prompts(monkeypatch, "be brief")
+    deck_._edit_profile(deck_.load()[0], "core")
+    assert declared(tmp_path)["profile"]["core"] == {"primary": "ws", "brief": "be brief"}
+    monkeypatch.setattr(deck_.keys_, "reader", keys_from("B", "\r"))
+    asked = prompts(monkeypatch, "briefs/core.md")
+    deck_._edit_profile(deck_.load()[0], "core")
+    assert asked == ["brief file (a path; empty for none)"]
+    assert declared(tmp_path)["profile"]["core"] == {"primary": "ws", "brief_file": "briefs/core.md"}
+
+
+def test_a_new_profile_from_the_editor_asks_its_name_again_when_taken(fake, home, monkeypatch, tmp_path, screen):
+    agents_and_core(home, tmp_path)
+    monkeypatch.setattr(deck_.keys_, "reader", keys_from(" ", "\r", "\r"))
+    asked = prompts(monkeypatch, "core", "two")
+    once = Outcomes(lambda launch: (launch, decklaunch.Outcome(decklaunch.EDIT)), QUIT)
+    monkeypatch.setattr(deck_, "_launch_once", once)
+    deck_.launcher(running=False)
+    assert asked == ["profile name", "profile name"]
+    assert declared(tmp_path)["profile"]["two"] == {"primary": "ws"}
+    assert declared(tmp_path)["profile"]["core"]["primary"] == "ws"  # the taken one is untouched
+    assert once.shown[1].note == "saved profile two: ws"
+
+
+def test_the_editor_says_why_when_deck_toml_cannot_be_read(fake, home, monkeypatch, tmp_path):
+    agents_and_core(home, tmp_path)
+    config = deck_.load()[0]
+    (tmp_path / "deck.toml").write_text("broken = \n")
+    assert deck_._edit_profile(config, "core").startswith("could not read deck.toml")
+
+
+# ============================================================================
 # The launcher's screen loop and the folder browser
 # ============================================================================
 
