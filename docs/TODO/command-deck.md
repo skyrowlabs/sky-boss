@@ -759,7 +759,7 @@ says so). And a resumed tab's transcript carries every message it received in an
   it, so two sessions of one profile never share a todo, a decision, a watcher or a transcript.
 - **Communications are the session's.** A message is drawn when its receiver is a tab of this
   session and it arrived after that tab joined it. Messages that cross decks are held back and
-  counted on the pane's last line, so an empty pane cannot read as *nobody sent anything*. (Q2)
+  counted on the pane's last line, so an empty pane cannot read as *nobody sent anything* (Q2, ruled).
 
 ### The menu
 
@@ -832,8 +832,9 @@ Agents                                     space tick · enter start ad hoc · s
       attach the running one? Recommended: always new. The running one is the first row of
       Sessions, one key away, and Enter then means one thing. **Ruled by Jeston, 2026-11-20:
       always start a new session.**
-- [ ] **Q2. A message between this deck and another:** hidden and counted, or drawn with a mark?
-      Recommended: hidden and counted, since independence is what was asked for.
+- [x] **Q2. A message between this deck and another:** hidden and counted, or drawn with a mark?
+      Recommended: hidden and counted, since independence is what was asked for. **Ruled by Jeston,
+      2026-11-20: hidden and counted.**
 - [ ] **Q3. Deleting a running session:** refuse, or end it and then delete? Recommended: refuse
       and name `sb deck exit`, which keeps the rule that only `exit` ends anything.
 
