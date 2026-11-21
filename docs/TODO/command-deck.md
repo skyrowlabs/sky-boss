@@ -724,7 +724,7 @@ ticked folders resumed that profile's session in every tab they shared, and read
 Asked by Jeston, 2026-11-20: "the deck profile and session management is confusing and there is no
 way to delete and manage profiles. Id like to reorganize the menu and make sure its fully
 featured. We should define a profile as a collection of agents, perhaps with some routines later,
-and we should define sessions as previous sb decks either attached to a profile or unnamed and
+and we should define sessions as previous `sb` decks either attached to a profile or unnamed and
 adhoc, either way id want to be able to delete them, a session should have its communications,
 todos, decisions, and watchers all independent".
 
@@ -782,40 +782,40 @@ Agents                                     space tick · enter start ad hoc · s
    + add a folder
 ```
 
-- [ ] **Sessions**, newest first, running ones marked `●`. Each row names its profile, tab count,
+- [x] **Sessions**, newest first, running ones marked `●`. Each row names its profile, tab count,
       age and what it holds. Enter attaches a running one or resumes a stopped one. `f` reopens it
       with every tab new and keeps its todos and decisions. `r` sets its label. `d` deletes.
-- [ ] **Deleting a session** asks once and says what goes, by count: its tab resume links, todos,
+- [x] **Deleting a session** asks once and says what goes, by count: its tab resume links, todos,
       decisions, asks and watcher choice. Claude Code's transcripts are Claude Code's and stay.
       A running session is refused, with the way out named: `sb deck exit` there first (Q3, ruled).
-- [ ] **Profiles.** Enter starts a new session of it, even with one running (Q1, ruled). `e` opens the profile editor, `r`
+- [x] **Profiles.** Enter starts a new session of it, even with one running (Q1, ruled). `e` opens the profile editor, `r`
       renames (its sessions follow by their record, not their tmux name), `d` deletes. Deleting a
       profile leaves its sessions, which then read `<label> (profile gone)` and resume as they were.
-- [ ] **The profile editor**, a sub-screen built on the same tick list: every declared agent
+- [x] **The profile editor**, a sub-screen built on the same tick list: every declared agent
       ticked or not, `p` makes the row primary, `[` and `]` move it, and the brief or brief file
       is shown and can be changed. Enter writes `[profile.NAME]` through `decklaunch.edited`, after
       a backup, as every other write does. `+ new profile` opens it empty.
-- [ ] **Agents** are as today: tick, start ad hoc, save ticked as a profile, add a folder, delete a
+- [x] **Agents** are as today: tick, start ad hoc, save ticked as a profile, add a folder, delete a
       declared one. A folder a profile lists is still not deleted, and the refusal names them.
-- [ ] **Inside a deck** (M-r) it is the same screen with `save this deck as a profile` at the end
+- [x] **Inside a deck** (M-r) it is the same screen with `save this deck as a profile` at the end
       of Profiles. Starting anything opens a new deck beside this one, as round 21 does.
 
 ### The commands
 
-- [ ] `sb deck session list | rename NAME LABEL | delete NAME [--yes]`. `list` observes, the
+- [x] `sb deck session list | rename NAME LABEL | delete NAME [--yes]`. `list` observes, the
       others act. `sb deck --session NAME` attaches or resumes one.
-- [ ] `sb deck profile list | show NAME | new NAME --primary A [--tab B ...] | edit NAME
-      [--primary A] [--add B] [--remove C] [--brief TEXT | --brief-file PATH] | rename OLD NEW |
-      delete NAME`, plus the existing `save`. `sb deck --profile NAME` starts a new session of it.
-- [ ] `sb deck todo`, `decide`, `messages` and `watchers` read and write the session in `SB_DECK`,
+- [x] `sb deck profile list | show NAME | new NAME --primary A [--tab B ...]`,
+      `edit NAME [--primary A] [--add B] [--remove C] [--brief TEXT | --brief-file PATH]`,
+      `rename OLD NEW` and `delete NAME`, plus the existing `save`. `sb deck --profile NAME` starts a new session of it.
+- [x] `sb deck todo`, `decide`, `messages` and `watchers` read and write the session in `SB_DECK`,
       as they do now. They gain `--session NAME`, so a stopped session can be read.
 
 ### Migration
 
-- [ ] On first run, each directory under `$SB_STATE/deck/` gets a `session.json`: `profile` from
+- [x] On first run, each directory under `$SB_STATE/deck/` gets a `session.json`: `profile` from
       its `saved.json`, `label` from the profile and a number, `created` from the oldest file in
       it. The tmux names stay as they are: `sb`, `sb-2`, `sb-3`, `sb-sky-boss`, `sb-skyrow-core`.
-- [ ] `session = "sb"` in `[profile.skyrow-workspace]` is honoured by the migration (the `sb`
+- [x] `session = "sb"` in `[profile.skyrow-workspace]` is honoured by the migration (the `sb`
       directory is that profile's session) and then reported as no longer used. sky.boss does not
       edit it out. Removing the line is the operator's edit.
 
@@ -1733,3 +1733,30 @@ kept the TODOS pane's pid.
 - **Asked for by Jeston** in the sky-boss tab. Shaped from `deck_session`, `decklaunch.rows_of`,
   `decksave` and the five directories under `$SB_STATE/deck/` on this machine. Three questions
   are rows in HUMAN DECISIONS.
+
+### 2026-11-20: round 25 built, sessions on their own and the launcher in three sections
+
+- **A session is its directory,** `$SB_STATE/deck/<name>/`, now with a `session.json` beside what
+  was already there (`skyboss/decksession.py`). A profile names no session: `--profile` always
+  takes the first free `sb-<profile>-<n>`, free by directory, by tmux and by label.
+- **Round 24's owner check is gone, and its tests with it.** A save could only be read by the
+  wrong profile while profiles shared a directory. Now each session has its own, and the check
+  would have broken a renamed profile's resume. `autosave` keeps the saved tabs again.
+- **The record outranks the save** for a session's profile, so a rename moves sessions by their
+  record and `restored` briefs them from the new name. A stopped session with nothing saved
+  reopens its record's profile.
+- **Messages:** a tab's join time is recorded in `start`. Senders are placed by session id in every
+  running deck, so "another deck" means a verified sender in one. A stopped session is read from
+  its saved tabs, and with no live sender to verify it cannot tell a sender's deck, so it shows
+  them. `--all` keeps the old read of every live session.
+- **`--session` on `todo`, `decide` and `watchers`** sets `SB_DECK` for the one invocation and puts
+  it back on close, so a command run under it sees the same deck.
+- **The migration is written only by commands that act** (`sb deck`, `sb deck launch`, profile
+  rename, session rename). `session list` and the launcher's listing read it unwritten.
+- **Measured by running it:** a throwaway `SB_HOME`, `SB_STATE`, `CLAUDE_CONFIG_DIR` and tmux
+  socket, with a stub `claude`. An old `sb` save under a profile with `session = "sb"` was listed
+  as `core 1`, so two `--profile core` runs made `sb-core-2` and `sb-core-3`. In the launcher,
+  driven by `send-keys`, `r` relabelled a session, `d` then `y` deleted it with its counts,
+  `d` and `f` on a running one were refused with `sb deck exit` named, Tab and Shift-Tab moved
+  sections, and the editor's `p`, `[` and `b` wrote `primary`, `tabs` and `brief` after a backup.
+  A rename moved three records and the running deck's `@sb-profile`.
