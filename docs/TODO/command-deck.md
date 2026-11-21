@@ -13,7 +13,7 @@ summary: Adds `sb deck`, a tmux session holding one window per agent, plus a que
 # The deck: a tmux command center for agent sessions
 
 > **Status**: 🟡 In progress
-> **Priority**: Medium. Round 25, opened: a profile is a set of agents, a session is a deck with its own state, and the launcher manages both.
+> **Priority**: Medium. Round 26, opened: a shortcuts overlay on M-/ and a two-part footer. Round 25, built: a profile is a set of agents, a session is a deck with its own state, and the launcher manages both.
 > **Updated**: 2026-11-20
 
 ## Problem
@@ -838,6 +838,31 @@ Agents                                     space tick · enter start ad hoc · s
 - [x] **Q3. Deleting a running session:** refuse, or end it and then delete? Recommended: refuse
       and name `sb deck exit`, which keeps the rule that only `exit` ends anything. **Ruled by
       Jeston, 2026-11-20: refuse, and name `sb deck exit`.**
+
+## Phase 26 (round 26): a shortcuts overlay, and a footer cut to two things
+
+Asked by Jeston, 2026-11-20: "an shortcut for an overlay that displays all of the shortcut
+commands cleanly, and then remove all but the new shortcut from the footerbar", and "propose a
+shortening of the project refresh next in xs marks [time] ... a small graphic to show the count
+down ... the last update time stamp and a visual indicator of the countdown to the update, no
+more". Ruled the same day: the pie dial.
+
+- [ ] **`M-/` opens the shortcuts overlay**, a popup on the launcher's drawing: every key in
+      `SHORTCUTS`, `EXIT_KEY`, the clicks (a tab's right-click menu, a pane's title, a row in
+      AGENT COMMUNICATIONS or HUMAN DECISIONS, ▦ and ✕) and the launcher's keys, grouped as tabs,
+      panes, communications and the deck, with the key on the left and one line on the right.
+      Any key or click closes it. It is built from `SHORTCUTS` and a description per entry, and a
+      test fails on a bound key with no line, so the overlay cannot fall behind the bindings.
+      `M-h` was the obvious key and is taken by outside.
+- [ ] **The footer's right end is `M-/ shortcuts`**, then ▦ and ✕, which are buttons and stay.
+      Every other hint goes.
+- [ ] **The left end is the wordmark, the label, a dial and a time:**
+      `sky.boss from skyrow.labs │ sky-boss ◑ 21:07:43`. The dial is `○ ◔ ◑ ◕ ●`, one step a
+      second over `TOOLS_REFRESH`, worked out by tmux from the clock as `shared_countdown` is,
+      since the panes refresh on the clock's multiples of it. The time is the marks loop's last
+      write. With no loop it reads a dim `not running`, so a dial turning over a stopped time is
+      how a dead loop shows. `⟳`, `next in Ns` and the word `marks` go.
+- [ ] **Does not do.** It does not rebind any key, and it does not change the tab row.
 
 ## Dropped, and why
 
@@ -1760,3 +1785,9 @@ kept the TODOS pane's pid.
   `d` and `f` on a running one were refused with `sb deck exit` named, Tab and Shift-Tab moved
   sections, and the editor's `p`, `[` and `b` wrote `primary`, `tabs` and `brief` after a backup.
   A rename moved three records and the running deck's `@sb-profile`.
+
+
+### 2026-11-20: round 26 opened, the shortcuts overlay and the dial
+
+- **Asked for and ruled by Jeston** in the sky-boss tab: the overlay on `M-/`, and the pie dial
+  over the five-cell bar.
