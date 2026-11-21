@@ -43,7 +43,7 @@ import rich_click as click
 from skyboss import agents as agents_
 from skyboss import background
 from skyboss import column as column_
-from skyboss import deckasks, decklaunch, deckplus, decksave, decksession, decktrust, deckwatch, deckwire
+from skyboss import deckasks, deckkeys, decklaunch, deckplus, decksave, decksession, decktrust, deckwatch, deckwire
 from skyboss import keys as keys_
 from skyboss import resident as resident_
 from skyboss import shellwatch, theme
@@ -743,9 +743,10 @@ def wordmark() -> str:
 
 
 def marks_text() -> str:
-    """The footer's word for when the marks loop last wrote, as a tmux format."""
+    """When the marks loop last wrote, as a tmux format; a dim `not running` if it never has."""
+    style = theme.tmux_styles()
     marked = "#{" + MARKED_OPTION + "}"
-    return f"marks #{{?{marked},{marked},not running}} "
+    return f"#{{?{marked},#[{style['clock']}]{marked},#[{style['quiet']}]not running}}"
 
 
 def add_cell(row: int) -> str:
@@ -977,11 +978,19 @@ def window_options(tab: bool) -> tuple[tuple[str, str], ...]:
     return common
 
 
-def shared_countdown(every: int = TOOLS_REFRESH) -> str:
-    """Seconds to the tool panes' next refresh, as a tmux format: they refresh on the clock's
-    multiples of `every`, so this is `every - now % every`. `%s` is strftime's epoch, which
+#: The footer's dial, empty just after the tool panes refresh and full just before the next.
+DIAL = ("○", "◔", "◑", "◕", "●")
+
+
+def shared_dial(every: int = TOOLS_REFRESH) -> str:
+    """The tool panes' refresh as a pie, a tmux format: they refresh on the clock's multiples of
+    `every`, so the step is `now % every` scaled to the dial. `%s` is strftime's epoch, which
     tmux expands before the arithmetic, and `%%` survives that as the modulus."""
-    return f"#{{e|-:{every},#{{e|%%:%s,{every}}}}}"
+    step = f"#{{e|/:#{{e|*:#{{e|%%:%s,{every}}},{len(DIAL)}}},{every}}}"
+    drawn = DIAL[-1]
+    for n in range(len(DIAL) - 2, -1, -1):
+        drawn = f"#{{?#{{==:{step},{n}}},{DIAL[n]},{drawn}}}"
+    return drawn
 
 
 #: The footer's one row: tmux's default with the window list left out, as the deck has one window.
@@ -992,8 +1001,8 @@ FOOTER_FORMAT = (
 
 
 def bar_options(tabs: bool, profile: str = "") -> tuple[tuple[str, str], ...]:
-    """Session options for a deck bar. The footer names the deck after `profile` and says when
-    the marks were last written."""
+    """Session options for a deck bar. The footer names the deck after `profile`, turns a dial to
+    the panes' next refresh, and says when the marks were last written."""
     style = theme.tmux_styles()
     label = profile or DECK_LABEL
     lefts: tuple[str, ...] = ()
@@ -1001,12 +1010,11 @@ def bar_options(tabs: bool, profile: str = "") -> tuple[tuple[str, str], ...]:
         lefts, width = tab_lefts()
         left = lefts[1]
     else:
-        tick = shared_countdown()
-        width = len(f" {WORDMARK_TEXT} {SEPARATOR} {label} ⟳ next in {TOOLS_REFRESH}s marks not running ") + 1
+        width = len(f" {WORDMARK_TEXT} {SEPARATOR} {label} {DIAL[0]} not running ") + 1
         left = (
             f"#[{style['bar']}] {wordmark()} #[{style['tab-edge']}]{SEPARATOR}"
-            f"#[{style['label']}] {label} #[nobold {style['working']}]⟳ next in {tick}s "
-            f"#[{style['quiet']}]{marks_text()}#[{style['bar']}]"
+            f"#[{style['label']}] {label} #[nobold {style['working']}]{shared_dial()} "
+            f"#[{style['bar']}]{marks_text()} #[{style['bar']}]"
         )
     options: tuple[tuple[str, str], ...] = (
         ("status-style", style["bar"]),
@@ -1015,7 +1023,7 @@ def bar_options(tabs: bool, profile: str = "") -> tuple[tuple[str, str], ...]:
         ("status-left-length", str(width)),
     )
     if not tabs:
-        # The countdown is tmux's own arithmetic on the clock, so it has to redraw every second.
+        # The dial is tmux's own arithmetic on the clock, so it has to redraw every second.
         options += (("status-interval", "1"),)
     if tabs:
         options += (("status", str(BAR_ROWS)),)
@@ -1048,6 +1056,7 @@ SHORTCUTS = {
     "add": "M-n",
     "launch": "M-r",
     "watchers": "M-g",
+    "shortcuts": "M-/",
 }
 NEVER_BOUND = frozenset({"C-c"})
 #: tmux's own tab editing: its window and session menus, and ctrl-click to swap. A deck's tabs are
@@ -1201,6 +1210,7 @@ def deck_bindings(session: str) -> list[list[str]]:
             f"|| tmux display-message '{keys['fold']} folds a right-column pane: focus one first' || true",
         ],
         ["bind-key", "-T", table, keys["watchers"], *watchers_popup_argv()],
+        ["bind-key", "-T", table, keys["shortcuts"], *shortcuts_popup_argv()],
         # Both books and the asked rows, and a message that counts what was kept and why.
         [
             "bind-key",
@@ -1293,24 +1303,10 @@ def _source(text: str) -> list[str]:
 
 
 def hints() -> str:
-    """The outer bar's right end: each shortcut, the ▦ that changes layout, the ✕ that ends the deck."""
+    """The outer bar's right end: the key to the shortcuts, the ▦ that changes layout, the ✕ that ends the deck."""
     style = theme.tmux_styles()
-    k = SHORTCUTS
-    parts = [
-        f"{k['outside']} outside",
-        f"{k['layout']} layout",
-        f"{k['previous']} {k['next']} tab",
-        f"{k['older']} {k['newest']} messages",
-        f"{k['add']} add",
-        f"{k['launch']} decks",
-        f"{k['column']} panes",
-        f"{k['fold']} fold",
-        f"{k['clear']} clear done",
-        f"{k['watchers']} watchers",
-        f"{EXIT_KEY} exit",
-    ]
     return (
-        f"#[{style['quiet']}]{'  '.join(parts)} "
+        f"#[{style['quiet']}]{SHORTCUTS['shortcuts']} shortcuts "
         f"#[range=user|{LAYOUT_RANGE}]#[{style['label']}] ▦ #[nobold norange]"
         f"#[range=user|{EXIT_RANGE}]#[{style['exit']}] ✕ #[norange]#[{style['bar']}]"
     )
@@ -3831,6 +3827,59 @@ def _plus_agent(config: Config, place: deckplus.Place) -> Result:
             return Result(data={})
         keep = answer == 0
     return add_tab(name, "" if place.declared else place.cwd, role, keep)
+
+
+def shortcut_entries() -> list[deckkeys.Entry]:
+    return deckkeys.entries(SHORTCUTS, EXIT_KEY)
+
+
+def shortcuts_popup_argv() -> list[str]:
+    """The shortcuts overlay for M-/: two columns of it where the client has room, else the whole client.
+
+    tmux opens no popup larger than the client, says nothing, and expands no format in `-w`, so
+    the size is chosen by an `if-shell` on the client's own width and height.
+    """
+    sb = shlex.quote(str(PROJECT_ROOT / "sb"))
+    command = f"exec {sb} deck keys --screen"
+    width, height = deckkeys.size(shortcut_entries(), SHORTCUTS_WIDTH, SHORTCUTS["launch"])
+    fits = f"#{{&&:#{{e|>=:#{{client_width}},{width}}},#{{e|>=:#{{client_height}},{height}}}}}"
+    sized = popup_argv(" shortcuts ", command, (width, height))
+    whole = popup_argv(" shortcuts ", command, ("100%", "100%"))
+    return ["if-shell", "-F", fits, shlex.join(sized), shlex.join(whole)]
+
+
+#: The widest the overlay asks for: two columns side by side.
+SHORTCUTS_WIDTH = 140
+
+
+@deck.command(name="keys")
+@click.option("--screen", is_flag=True, help="Draw the overlay on a terminal and close on any key or click.")
+@emit
+def deck_keys(screen: bool) -> Result:
+    """Every deck key and click, grouped as tabs, panes, communications and the deck.
+
+        sb deck keys
+        sb deck keys --screen
+
+    An observe. One row per key or click: its group, the key, and what it does.
+    The deck opens `--screen` in a popup on M-/, and any key or click closes it.
+    """
+    found = shortcut_entries()
+    if screen:
+        if not has_terminal():
+            raise click.UsageError("--screen needs a terminal — use `sb deck keys`")
+        try:
+            with keys_.reader() as wait_for:
+                size = shutil.get_terminal_size()
+                lines = deckkeys.screen(found, size.columns - 1, SHORTCUTS["launch"])
+                _popup_key([line[: size.columns - 1] for line in lines[: size.lines]], lambda y: False, wait_for)
+        finally:
+            sys.stdout.write(resident_.MOUSE_OFF + "\x1b[2J\x1b[H")
+            sys.stdout.flush()
+        raise click.exceptions.Exit(0)
+    rows = [{"group": e.group, "key": e.key, "does": e.does} for e in found]
+    rows += [{"group": "launcher", "key": e.key, "does": e.does} for e in deckkeys.launcher_entries()]
+    return Result(data=rows)
 
 
 @deck.command(name="jump")
@@ -6500,6 +6549,7 @@ mark(deck_session_rename, sb_acts=True)
 mark(deck_session_delete, sb_acts=True)
 mark(deck_plus, sb_acts=True)
 mark(deck_places, sb_acts=False)
+mark(deck_keys, sb_acts=False)
 mark(deck_jump, sb_acts=True)
 mark(deck_tab, sb_acts=True)
 mark(deck_tab_lead, sb_acts=True)

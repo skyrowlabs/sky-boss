@@ -21,7 +21,7 @@ from skyboss import background
 from skyboss import chrome as chrome_
 from skyboss import cli
 from skyboss import deck as deck_
-from skyboss import output, todos
+from skyboss import deckkeys, output, todos
 from skyboss.agents import Scan, Session
 from skyboss.deck import (
     Agent,
@@ -1135,6 +1135,7 @@ def test_the_queue_is_an_observe_and_the_rest_act():
         "profile": True,
         "session": True,
         "places": False,
+        "keys": False,
         "jump": True,
         "layout": True,
         "marks": True,
@@ -1409,11 +1410,42 @@ def test_the_close_box_asks_and_any_other_status_click_still_selects():
     assert "#{==:#{mouse_status_range},layout}" in click_[8] and "'switch-client -t ='" in click_[8]
 
 
-def test_the_bar_shows_every_shortcut_and_the_close_box():
-    bar = deck_.hints()
-    for key in (*deck_.SHORTCUTS.values(), "C-q"):
-        assert key in bar
-    assert "#[range=user|exit]" in bar and "✕" in bar
+def test_the_bar_names_only_the_shortcuts_key_beside_its_two_buttons():
+    drawn = re.sub(r"#\[[^]]*\]", "", deck_.hints())
+    assert drawn == "M-/ shortcuts  ▦  ✕ "
+    assert "#[range=user|exit]" in deck_.hints() and "#[range=user|layout]" in deck_.hints()
+
+
+def test_every_bound_key_has_a_line_in_the_overlay():
+    keys = {argv[3] for argv in deck_.deck_bindings("sb") if not argv[3].startswith("Mouse")}
+    listed = {entry.key for entry in deck_.shortcut_entries()}
+    assert keys <= listed and set(deck_.SHORTCUTS) | {"exit"} == set(deckkeys.LINES)
+    assert {entry.group for entry in deck_.shortcut_entries()} == set(deckkeys.GROUPS)
+
+
+def test_a_shortcut_with_no_line_cannot_be_listed():
+    with pytest.raises(KeyError):
+        deckkeys.entries({**deck_.SHORTCUTS, "new": "M-z"}, deck_.EXIT_KEY)
+
+
+def test_the_overlay_opens_on_its_key_in_a_popup_sized_to_two_columns():
+    (bound,) = [argv for argv in deck_.deck_bindings("sb") if argv[3] == deck_.SHORTCUTS["shortcuts"]]
+    assert bound[4:6] == ["if-shell", "-F"]
+    sized, whole = shlex.split(bound[7]), shlex.split(bound[8])
+    assert sized[0] == whole[0] == "display-popup" and sized[-1].endswith("deck keys --screen")
+    width, height = (int(sized[sized.index(flag) + 1]) for flag in ("-w", "-h"))
+    assert f"#{{e|>=:#{{client_width}},{width}}}" in bound[6] and f"#{{e|>=:#{{client_height}},{height}}}" in bound[6]
+    assert whole[whole.index("-w") + 1] == whole[whole.index("-h") + 1] == "100%"
+    lines = deckkeys.screen(deck_.shortcut_entries(), width - 2, "M-r")
+    assert len(lines) == height - 2 and max(map(len, lines)) <= width - 2
+    assert any("TABS" in line and "COMMUNICATIONS" in line for line in lines)
+    assert "IN THE LAUNCHER, ON M-r" in lines and len(deckkeys.screen(deck_.shortcut_entries(), 80)) > len(lines)
+
+
+def test_the_overlay_lists_keys_and_launcher_keys_as_data():
+    rows = json.loads(invoke("--json", "deck", "keys").stdout)["data"]
+    assert {"group": "deck", "key": "M-/", "does": "this list"} in rows
+    assert any(row["group"] == "launcher" and row["key"] == "sessions" for row in rows)
 
 
 def test_exit_stops_the_marks_loop_then_kills_exactly_the_two_deck_sessions(fake, home, monkeypatch):
@@ -2259,8 +2291,8 @@ def test_fold_names_only_a_right_column_pane_and_saves_without_a_deck(fake, home
 def test_each_bars_label_is_given_room_for_its_whole_width():
     options = dict(deck_.bar_options(False))
     drawn = re.sub(r"#\[[^]]*\]", "", options["status-left"])
-    assert drawn.startswith(" sky.boss from skyrow.labs │ sky.boss deck ⟳ next in ")
-    wanted = " sky.boss from skyrow.labs │ sky.boss deck ⟳ next in 5s marks not running "
+    assert drawn.startswith(" sky.boss from skyrow.labs │ sky.boss deck #{?")
+    wanted = " sky.boss from skyrow.labs │ sky.boss deck ○ not running "
     assert options["status-left-length"] == str(len(wanted) + 1)
     tabs = dict(deck_.bar_options(True))
     _, width = deck_.tab_lefts()
@@ -2340,7 +2372,7 @@ def test_clear_with_nothing_done_says_so(home, sb_state, said):
 def test_the_clear_key_runs_the_one_clear_that_says_what_it_kept():
     bound = {argv[3]: argv for argv in deck_.deck_bindings("sb")}
     assert "deck clear --notify" in bound[deck_.SHORTCUTS["clear"]][-1]
-    assert f"{deck_.SHORTCUTS['clear']} clear done" in deck_.hints()
+    assert deck_.SHORTCUTS["clear"] in {entry.key for entry in deck_.shortcut_entries()}
 
 
 def test_a_clear_takes_asked_rows_and_keeps_untold_rulings_and_waiting_prompts(home, sb_state):
@@ -2472,9 +2504,11 @@ def test_every_deck_pane_refreshes_on_the_clocks_multiples_and_draws_no_clock_of
     assert deck_.DeckPane("sb", lambda row: True).shared_clock()
 
 
-def test_the_footer_counts_down_to_the_shared_refresh_every_second():
+def test_the_footer_turns_a_dial_to_the_shared_refresh_every_second():
     options = dict(deck_.bar_options(False))
-    assert "⟳ next in #{e|-:5,#{e|%%:%s,5}}s" in options["status-left"]
+    assert deck_.shared_dial() in options["status-left"] and "next in" not in options["status-left"]
+    assert "#{e|/:#{e|*:#{e|%%:%s,5},5},5}" in deck_.shared_dial()
+    assert all(glyph in deck_.shared_dial() for glyph in deck_.DIAL)
     assert options["status-interval"] == "1" and "status-interval" not in dict(deck_.bar_options(True))
     assert {argv[argv.index("--refresh") + 1] for argv in (deck_.queue_argv(), deck_.messages_argv())} == {"5"}
 

@@ -469,6 +469,8 @@ def tmux_styles() -> dict[str, str]:
         "needs-you": f"fg={BG} bg={WARN} bold",
         "tab-asked": f"fg={WARN}",
         "quiet": f"fg={TEXT_2}",
+        # The footer's marks time: full-strength text, so a quiet `not running` reads dim beside it.
+        "clock": f"fg={TEXT}",
         "unregistered": f"fg={TEXT_2} italics",
         "border": f"fg={TEXT_3}",
         "border-active": f"fg={BRAND}",
