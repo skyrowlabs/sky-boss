@@ -3283,8 +3283,8 @@ def deck_launch(client: str) -> None:
 
     **This acts**, and needs a terminal: it writes `deck.toml` after a backup, and
     in a running deck a folder opens as a tab. A session or a profile opens as a
-    deck beside this one. `sb deck` with no `--profile` opens the same screen
-    before any tab starts.
+    deck beside this one. `sb deck` with neither `--profile` nor `--session` opens
+    the same screen before any tab starts.
     """
     if not has_terminal():
         raise click.UsageError("the launcher needs a terminal — `sb deck --profile NAME` opens a profile")
@@ -4354,7 +4354,7 @@ def deck_scroll() -> Result:
 @deck.command(name="save")
 @emit
 def deck_save() -> Result:
-    """Save each open tab's session, so a later `sb deck` resumes it.
+    """Save each open tab's session, so `sb deck --session` resumes this deck's tabs.
 
         sb deck save
 
@@ -4383,7 +4383,7 @@ def deck_exit() -> Result:
         sb deck exit
 
     **This acts, and it is the only deck command that kills anything.** Every
-    `claude` in a tab ends with its session, and a later `sb deck` resumes it.
+    `claude` in a tab ends with its session, and `sb deck --session` resumes it.
     Nothing outside the deck's two sessions is touched. Ctrl-Q or the ✕ in the deck's bar asks first, then runs this.
     """
     config, problems = load()
