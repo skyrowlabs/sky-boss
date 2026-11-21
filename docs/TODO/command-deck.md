@@ -5,7 +5,7 @@ priority: medium
 category: surfaces
 agent_value: 3
 shelf_status: in-progress
-updated: 2026-11-17
+updated: 2026-11-20
 tags: [agents, act, tmux, surfaces]
 summary: Adds `sb deck`, a tmux session holding one window per agent, plus a queue of sessions waiting on the operator, read by both surfaces. It is the first surface built to act, and the long-term goal is that it fuses with the canvas.
 ---
@@ -13,8 +13,8 @@ summary: Adds `sb deck`, a tmux session holding one window per agent, plus a que
 # The deck: a tmux command center for agent sessions
 
 > **Status**: 🟡 In progress
-> **Priority**: Medium. Round 23, built: a WATCHERS pane for the shells, Monitors, sub-agents and daemon jobs agents leave running.
-> **Updated**: 2026-11-17
+> **Priority**: Medium. Round 25, opened: a profile is a set of agents, a session is a deck with its own state, and the launcher manages both.
+> **Updated**: 2026-11-20
 
 ## Problem
 
@@ -718,6 +718,123 @@ ticked folders resumed that profile's session in every tab they shared, and read
       `sb deck exit` ends anything. It does not rename a tab, since the name is the agent. A new
       lead is not announced to agents already running; a tab learns it when it opens, resumes,
       clears or compacts. It does not move a deck's state from one session name to another.
+
+## Phase 25 (round 25): profiles are agents, sessions are decks
+
+Asked by Jeston, 2026-11-20: "the deck profile and session management is confusing and there is no
+way to delete and manage profiles. Id like to reorganize the menu and make sure its fully
+featured. We should define a profile as a collection of agents, perhaps with some routines later,
+and we should define sessions as previous sb decks either attached to a profile or unnamed and
+adhoc, either way id want to be able to delete them, a session should have its communications,
+todos, decisions, and watchers all independent".
+
+**Why it is confusing today, read from the code and the live state.** A deck is a tmux session
+name, and a profile *is* one name: `deck_session` maps `[profile.X]` to `sb-X`, or to its
+`session` key. So a profile has exactly one deck, ever, and "open profile" quietly means "resume
+its one save". Round 24 patched the worst of it (a save belongs to the profile that wrote it) and
+left the coupling. On this machine `$SB_STATE/deck/` holds `sb` (profile `skyrow-workspace`
+through `session = "sb"`, 12 tabs), `sb-2` and `sb-3` (ad hoc, nothing names them), `sb-sky-boss`
+and `sb-skyrow-core`. Nothing lists the ad hoc two once their saves empty, and nothing can delete
+any of the five. Profile delete exists (`d` in the launcher, `sb deck profile delete`), but a
+profile cannot be edited except by saving a running deck over it. The launcher mixes five kinds
+of row in one list: running decks, saved decks, profiles, folders and two actions.
+
+**AGENT COMMUNICATIONS is not per deck either.** It reads every live transcript and keeps a
+message if *either* end is a tab here, so a message between two decks shows in both (round 21
+says so). And a resumed tab's transcript carries every message it received in any earlier deck.
+
+### The model
+
+- **A profile is a named set of agents**: `primary`, `tabs`, `terminals`, `brief` or `brief_file`,
+  `columns`. It is a template and owns no state. Routines may join it later. It no longer names a
+  tmux session: the `session` key is read once, at migration, and then warned about as unused.
+- **A session is one deck**, running or not, with a record at
+  `$SB_STATE/deck/<name>/session.json`: `profile` (empty for ad hoc), `label`, `created`,
+  `last_used`. Everything that deck keeps lives beside it, as it already does: `saved.json`,
+  `todos/`, `decisions/`, `asks/`, `watchers.json`, `column.json`, `held.json`, `shells.json`.
+  The directory is the session, so deleting the session is deleting the directory.
+- **A profile has any number of sessions.** A new one is the tmux session `sb-<profile>-<n>`, or
+  `sb-<n>` for ad hoc, the first `n` with no directory and no tmux session. Every tab of a new
+  session starts a new Claude Code session. A tab resumes only inside the deck session that saved
+  it, so two sessions of one profile never share a todo, a decision, a watcher or a transcript.
+- **Communications are the session's.** A message is drawn when its receiver is a tab of this
+  session and it arrived after that tab joined it. Messages that cross decks are held back and
+  counted on the pane's last line, so an empty pane cannot read as *nobody sent anything*. (Q2)
+
+### The menu
+
+Three sections, each with its own rows and keys. Tab and shift-Tab jump between them. The hint line
+lists only the keys the row under the cursor takes.
+
+```
+sky.boss deck
+
+Sessions                                   enter attach/resume · d delete · r rename · f fresh
+ > ● sky-boss 2       sky-boss · 4 tabs · running · 3 todos, 1 decision
+   ○ sky-boss 1       sky-boss · 4 tabs · 2 days ago · 1 todo
+   ○ ad hoc 3         1 tab · 12 days ago
+Profiles                                   enter new session · e edit · d delete · r rename
+   sky-boss           skyrow-workspace*, skeletor, sky-boss, sky-vault · 2 sessions
+   skyrow-core        skyrow-workspace*, stash-flow, mind-head, sky-boss, skeletor · 1 session
+   + new profile
+Agents                                     space tick · enter start ad hoc · s save as profile · d delete
+   [ ] jam-sense      ~/src/jam-sense
+   + add a folder
+```
+
+- [ ] **Sessions**, newest first, running ones marked `●`. Each row names its profile, tab count,
+      age and what it holds. Enter attaches a running one or resumes a stopped one. `f` reopens it
+      with every tab new and keeps its todos and decisions. `r` sets its label. `d` deletes.
+- [ ] **Deleting a session** asks once and says what goes, by count: its tab resume links, todos,
+      decisions, asks and watcher choice. Claude Code's transcripts are Claude Code's and stay.
+      A running session is refused, with the way out named: `sb deck exit` there first. (Q3)
+- [ ] **Profiles.** Enter starts a new session of it. (Q1) `e` opens the profile editor, `r`
+      renames (its sessions follow by their record, not their tmux name), `d` deletes. Deleting a
+      profile leaves its sessions, which then read `<label> (profile gone)` and resume as they were.
+- [ ] **The profile editor**, a sub-screen built on the same tick list: every declared agent
+      ticked or not, `p` makes the row primary, `[` and `]` move it, and the brief or brief file
+      is shown and can be changed. Enter writes `[profile.NAME]` through `decklaunch.edited`, after
+      a backup, as every other write does. `+ new profile` opens it empty.
+- [ ] **Agents** are as today: tick, start ad hoc, save ticked as a profile, add a folder, delete a
+      declared one. A folder a profile lists is still not deleted, and the refusal names them.
+- [ ] **Inside a deck** (M-r) it is the same screen with `save this deck as a profile` at the end
+      of Profiles. Starting anything opens a new deck beside this one, as round 21 does.
+
+### The commands
+
+- [ ] `sb deck session list | rename NAME LABEL | delete NAME [--yes]`. `list` observes, the
+      others act. `sb deck --session NAME` attaches or resumes one.
+- [ ] `sb deck profile list | show NAME | new NAME --primary A [--tab B ...] | edit NAME
+      [--primary A] [--add B] [--remove C] [--brief TEXT | --brief-file PATH] | rename OLD NEW |
+      delete NAME`, plus the existing `save`. `sb deck --profile NAME` starts a new session of it.
+- [ ] `sb deck todo`, `decide`, `messages` and `watchers` read and write the session in `SB_DECK`,
+      as they do now. They gain `--session NAME`, so a stopped session can be read.
+
+### Migration
+
+- [ ] On first run, each directory under `$SB_STATE/deck/` gets a `session.json`: `profile` from
+      its `saved.json`, `label` from the profile and a number, `created` from the oldest file in
+      it. The tmux names stay as they are: `sb`, `sb-2`, `sb-3`, `sb-sky-boss`, `sb-skyrow-core`.
+- [ ] `session = "sb"` in `[profile.skyrow-workspace]` is honoured by the migration (the `sb`
+      directory is that profile's session) and then reported as no longer used. sky.boss does not
+      edit it out. Removing the line is the operator's edit.
+
+### Does not do
+
+- It does not delete a Claude Code transcript, end a running deck from the delete key, or move a
+  session from one profile to another.
+- It does not merge two sessions, and it does not copy todos or decisions between them.
+- Routines on a profile are named and not built.
+
+### Questions for Jeston
+
+- [ ] **Q1. Enter on a profile that already has a running session:** start a new session, or
+      attach the running one? Recommended: always new. The running one is the first row of
+      Sessions, one key away, and Enter then means one thing.
+- [ ] **Q2. A message between this deck and another:** hidden and counted, or drawn with a mark?
+      Recommended: hidden and counted, since independence is what was asked for.
+- [ ] **Q3. Deleting a running session:** refuse, or end it and then delete? Recommended: refuse
+      and name `sb deck exit`, which keeps the rule that only `exit` ends anything.
 
 ## Dropped, and why
 
@@ -1607,3 +1724,9 @@ kept the TODOS pane's pid.
   Chromium. Right-clicks on two tabs drew the menu; Make lead put the tab first and set the
   primary; Move right swapped two tabs; Make lead in profile rewrote `primary` and `tabs` in its
   `deck.toml`.
+
+### 2026-11-20: round 25 opened, profiles and sessions split, nothing built
+
+- **Asked for by Jeston** in the sky-boss tab. Shaped from `deck_session`, `decklaunch.rows_of`,
+  `decksave` and the five directories under `$SB_STATE/deck/` on this machine. Three questions
+  are rows in HUMAN DECISIONS.
