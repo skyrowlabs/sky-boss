@@ -43,7 +43,7 @@ import rich_click as click
 from skyboss import agents as agents_
 from skyboss import background
 from skyboss import column as column_
-from skyboss import deckasks, decklaunch, deckplus, decksave, decktrust, deckwatch, deckwire
+from skyboss import deckasks, decklaunch, deckplus, decksave, decksession, decktrust, deckwatch, deckwire
 from skyboss import keys as keys_
 from skyboss import resident as resident_
 from skyboss import shellwatch, theme
@@ -54,6 +54,7 @@ from skyboss.helpers import PROJECT_ROOT, SB_HOME, child_env, mark, parse_durati
 #: The Claude Code plugin every deck tab loads with `--plugin-dir`; see `plugin/` at the repo root.
 PLUGIN_DIR = PROJECT_ROOT / "plugin"
 from skyboss.messages import message_result, messages_result
+from skyboss.messages import view_of as messages_view
 from skyboss.output import Result, emit, warn_now
 from skyboss.view import describe
 
@@ -203,7 +204,7 @@ class Profile:
     brief: str = ""
     # A file holding that text instead, so it can live in a repo; read each time a brief is built.
     brief_file: str = ""
-    # The tmux session this profile's deck runs as, when not `<session>-<profile>`.
+    # Read once, by the migration to sessions of round 25, and warned about as unused after that.
     session: str = ""
     # A directory per terminal tab to open when the deck starts.
     terminals: list[str] = field(default_factory=list)
@@ -250,7 +251,7 @@ class Config:
     # Directories whose folders the `+` offers.
     roots: list[str] = field(default_factory=list)
     git_roots: list[str] = field(default_factory=list)
-    # deck.toml's `session`, which names a profile's deck; `session` is this process's deck.
+    # deck.toml's `session`, the prefix of every new deck session's name; `session` is this process's deck.
     base: str = DEFAULT_SESSION
 
     def profile(self, name: str | None) -> Profile | None:
@@ -476,24 +477,26 @@ def load(home: Path | None = None) -> tuple[Config, list[str]]:
             problems.append(
                 f"profile {profile.name!r}: brief_file {profile.brief_file!r} cannot be read — no brief added"
             )
-    problems += shared_decks(config)
     # Declared here and not in `parse`, which is pure: every reader of an agent's colour comes through this.
     theme.DECLARED_HUES.clear()
     theme.DECLARED_HUES.update({name: agent.colour for name, agent in config.agents.items() if agent.colour})
     return config, problems
 
 
-def shared_decks(config: Config) -> list[str]:
-    """A problem per deck two profiles would run as: they would resume one set of sessions and share todos."""
-    held: dict[str, list[str]] = {}
-    for name, profile in config.profiles.items():
-        held.setdefault(deck_session(config, profile), []).append(name)
+def unused_session_keys(config: Config) -> list[str]:
+    """A note per profile still naming a `session`: sessions are listed on their own now, and the line is the operator's to remove."""
     return [
-        f"profiles {', '.join(names)} all run as deck {deck!r}, so they share its sessions, todos and decisions"
-        " — give each its own `session`"
-        for deck, names in held.items()
-        if len(names) > 1
+        f"profile {name!r}: `session = {profile.session!r}` is no longer used — that deck is one of its sessions;"
+        f" remove the line from {DECK_FILE}"
+        for name, profile in config.profiles.items()
+        if profile.session
     ]
+
+
+def migrated(config: Config, write: bool = True) -> list[decksession.Record]:
+    """A record for each session directory from before round 25, kept under its tmux name."""
+    declared = {name: profile.session for name, profile in config.profiles.items()}
+    return decksession.migrate(config.base, declared, persist=write)
 
 
 def resolve(name: str, config: Config, projects: list) -> tuple[Agent | None, str]:
@@ -1328,24 +1331,15 @@ def transcript_exists(ident: str) -> bool:
     return any((claude_dir() / "projects").glob(f"*/{ident}.jsonl"))
 
 
-def resume_lookup(
-    session: str, problems: list[str], fresh: bool = False, owner: str | None = None
-) -> Callable[[Agent], str]:
+def resume_lookup(session: str, problems: list[str], fresh: bool = False) -> Callable[[Agent], str]:
     """Which saved session an agent resumes, empty for a new one. A save it cannot use goes in `problems`.
 
-    `owner` is the profile opening the deck, empty for ticked folders: a save another one wrote
-    resumes nothing, so two profiles sharing an agent never share its session. None skips the check.
+    Only this deck session's own save is read, so a tab never resumes another session's conversation.
     """
     saved, more = (decksave.Saved(), []) if fresh else decksave.load(session)
     problems += more
     tabs = {tab.agent: tab for tab in saved.tabs}
     if not tabs:
-        return lambda agent: ""
-    if owner is not None and saved.profile != owner:
-        problems.append(
-            f"deck {session!r} was saved by {_owner_words(saved.profile)}, not {_owner_words(owner)} — "
-            "every tab here starts a new session"
-        )
         return lambda agent: ""
     live = {s.id for s in agents_.fold(agents_.providers())[0]}
 
@@ -1364,17 +1358,6 @@ def resume_lookup(
     return resumed
 
 
-def _owner_words(profile: str) -> str:
-    return f"profile {profile!r}" if profile else "ticked folders"
-
-
-def save_owner(config: Config, profile: Profile | None) -> str | None:
-    """The profile whose save a deck of `profile` may resume: its name, empty for none, None for a save's own."""
-    if profile is not None and profile.from_save:
-        return None
-    return profile.name if profile is not None and profile.name in config.profiles else ""
-
-
 def restored(config: Config, problems: list[str]) -> Profile | None:
     """The saved tabs as a profile, so `sb deck` reopens what was open. None with nothing saved."""
     saved, more = decksave.load(config.session)
@@ -1385,9 +1368,12 @@ def restored(config: Config, problems: list[str]) -> Profile | None:
         # A "this deck only" tab has no declaration, so its save is what knows where it lives.
         if tab.cwd and tab.agent not in config.agents:
             config.agents[tab.agent] = Agent(tab.agent, tab.cwd, source=decksave.FILE)
-    declared = config.profiles.get(saved.profile)
+    # The record outranks the save: a renamed profile moves its sessions by their record.
+    record = decksession.load(config.session)
+    owner = record.profile if record is not None else saved.profile
+    declared = config.profiles.get(owner)
     return Profile(
-        name=saved.profile or "saved",
+        name=owner or "saved",
         primary=saved.primary,
         tabs=[tab.agent for tab in saved.tabs],
         brief=declared.brief if declared else "",
@@ -1504,9 +1490,6 @@ def write_save(session: str, tabs: list[decksave.Tab], terminals: list[decksave.
 def autosave(session: str, tabs: list[decksave.Tab]) -> list[str]:
     """Fold the live tabs into the save when they changed it, so a reboot finds them."""
     saved, problems = decksave.load(session)
-    if saved.profile != deck_profile(session):
-        # Another profile's save: its sessions are not this deck's to keep.
-        saved = decksave.Saved()
     kept = decksave.merged(saved.tabs, tabs)
     live = live_terminals(session)
     terminals = [*live, *(t for t in saved.terminals if t.name not in {held.name for held in live})]
@@ -1671,14 +1654,13 @@ def inner(session: str) -> str:
     return f"{session}{INNER_SUFFIX}"
 
 
-def deck_session(config: Config, profile: Profile | None) -> str:
-    """The tmux session a deck of `profile` runs as: its own `session`, else `<base>-<profile>`.
-
-    A deck of no declared profile (the ticked folders, a pin) is the base session.
-    """
-    if profile is None or profile.name not in config.profiles:
-        return config.base
-    return profile.session or f"{config.base}-{re.sub(r'[^A-Za-z0-9_-]', '_', profile.name)}"
+def new_session(config: Config, profile: str) -> str:
+    """A new deck session for `profile`, empty for ad hoc, with its record written. Its tmux name."""
+    name, label = decksession.new_name(
+        config.base, profile, lambda each: bool(has_session(each)) or bool(has_session(inner(each)))
+    )
+    decksession.create(name, profile, label)
+    return name
 
 
 def deck_env(session: str) -> list[str]:
@@ -1715,6 +1697,10 @@ def start(
     window_id, pane_id = _ids(answer)
     tmux("set-option", "-w", "-t", window_id, AGENT_OPTION, agent.name)
     tmux("set-option", "-p", "-t", pane_id, ROLE_OPTION, AGENT)
+    try:
+        decksession.join(session.removesuffix(INNER_SUFFIX), agent.name)
+    except OSError:
+        pass
     return window_id, trusting + dress(window_id, tab=True)
 
 
@@ -2010,7 +1996,7 @@ def ensure(
     def told(agent: Agent) -> str:
         return brief(agent.name, config.session, rows, primary, profile.told() if profile else "")
 
-    resumed = resume_lookup(config.session, problems, fresh, save_owner(config, profile))
+    resumed = resume_lookup(config.session, problems, fresh)
     first = agents[0] if agents else None
     created_inner = not has_session(inner(config.session))
     first_resume = resumed(first) if first and created_inner else ""
@@ -2494,58 +2480,74 @@ def _as_json() -> bool:
 
 
 @click.group(name="deck", invoke_without_command=True)
-@click.option("--profile", "profile_name", metavar="NAME", help="Open this [profile.NAME]'s tabs: its primary first.")
-@click.option("--fresh", is_flag=True, help="Starting a deck: forget the save, and start every tab new.")
+@click.option(
+    "--profile", "profile_name", metavar="NAME", help="Start a new session of [profile.NAME]: its primary first."
+)
+@click.option(
+    "--session", "session_name", metavar="NAME", help="Attach this deck session, or resume it if it is stopped."
+)
+@click.option("--fresh", is_flag=True, help="Resuming a session: every tab starts new; its todos and decisions stay.")
 @click.pass_context
-def deck(ctx: click.Context, profile_name: str | None, fresh: bool) -> None:
-    """Create the deck if it is absent, open a profile's tabs, then attach.
+def deck(ctx: click.Context, profile_name: str | None, session_name: str | None, fresh: bool) -> None:
+    """Start or resume a deck session, open its tabs, then attach.
 
         sb deck
         sb deck --profile core
-        sb deck --fresh
+        sb deck --session sb-core-2
         sb deck open jam-sense
         sb deck layout stack
 
     **This acts.** Window 0 is the controller: a tab row of live `claude`s (an
     inner session, `<session>-agents`) beside the queue, the messages and the todos. Each
-    tab shows its session's state. Declared in `$SB_HOME/deck.toml`, which
-    sky.boss reads, and writes only through `sb deck add --keep`: `[agent.NAME]` takes `cwd`, `args` and a
-    one-line `role`; `[profile.NAME]` takes `primary`, `tabs` and a `brief` (or a `brief_file`)
-    appended to every agent it launches. Each agent is told the roster, roles
-    included, at launch. With no `--profile` at a terminal it opens the
-    launcher first: the last deck to resume, the profiles, and the agent folders
-    to tick, save as a profile or delete (`sb deck launch`, M-r in a deck). The
-    last deck comes back as it was saved, each tab resuming its session. A deck already running is
+    tab shows its session's state. Declared in `$SB_HOME/deck.toml`: `[agent.NAME]` takes `cwd`,
+    `args` and a one-line `role`; `[profile.NAME]` is a set of agents, its `primary` and `tabs`,
+    with a `brief` (or a `brief_file`) appended to every agent it launches. A session is one deck,
+    running or not: `--profile` always starts a new one, and `--session` attaches or resumes one,
+    each tab resuming its own conversation. With neither at a terminal it opens the launcher
+    first: sessions, profiles and agents (`sb deck launch`, M-r in a deck). A deck already running is
     reloaded onto this sky.boss's code first, as `sb deck reload` does. Inside tmux it switches this client;
     outside, it becomes `tmux attach`, so it emits no envelope.
     """
     if ctx.invoked_subcommand is not None:
-        if profile_name or fresh:
-            raise click.UsageError("--profile and --fresh open a deck — give them to `sb deck` alone")
+        if profile_name or session_name or fresh:
+            raise click.UsageError("--profile, --session and --fresh open a deck — give them to `sb deck` alone")
         return
     if _as_json():
         raise click.UsageError("deck attaches a terminal and emits no envelope — --json has no meaning here")
+    if profile_name and session_name:
+        raise click.UsageError("give --profile to start a new session, or --session to open one — not both")
     config, problems = load()
-    try:
-        profile = config.profile(profile_name)
-    except KeyError:
+    if profile_name and profile_name not in config.profiles:
         known = ", ".join(sorted(config.profiles)) or "none declared"
-        raise click.UsageError(f"no profile {profile_name!r} in {DECK_FILE} (profiles: {known})") from None
-    terminals = [decksave.Terminal("", cwd) for cwd in profile.terminals] if profile else []
+        raise click.UsageError(f"no profile {profile_name!r} in {DECK_FILE} (profiles: {known})")
+    try:
+        migrated(config)
+    except OSError as exc:
+        problems.append(f"could not record the deck sessions from before round 25 — {exc}")
+    problems += unused_session_keys(config)
+    if session_name:
+        _known_session(session_name)
+    # With neither, a `pin` is the deck's one tab.
+    profile = None if session_name else config.profile(profile_name)
+    terminals: list[decksave.Terminal] = []
+    chosen_here = False
     if profile_name:
-        config.session = deck_session(config, profile)
+        profile = config.profiles[profile_name]
+        config.session = new_session(config, profile_name)
+        terminals = [decksave.Terminal("", cwd) for cwd in profile.terminals]
+    elif session_name:
+        config.session = session_name
     elif not fresh and has_terminal():
         chosen = launcher(running=False)
         if chosen is None:
             return
         config, more = load()
         problems += more
-        profile, terminals = chosen_deck(config, chosen, problems)
+        profile, terminals, fresh = chosen_deck(config, chosen, problems)
+        chosen_here = True
     present = has_session(inner(config.session))
     starting = present is False
-    if starting and fresh:
-        decksave.clear(config.session)
-    elif starting and not profile_name and profile is None:
+    if starting and profile is None and not chosen_here:
         profile, terminals = resumed_deck(config, problems, profile, terminals)
     more = open_deck(config, profile, terminals, fresh, starting)
     if present and has_session(config.session):
@@ -2568,65 +2570,70 @@ def deck(ctx: click.Context, profile_name: str | None, fresh: bool) -> None:
         raise click.ClickException(f"could not attach — {_said(answer)}")
 
 
+def _known_session(name: str) -> None:
+    """Refuse a session name that has no directory and no running deck, naming the ones there are."""
+    if name in decksession.names() or name in running_decks():
+        return
+    known = ", ".join(sorted(set(decksession.names()) | set(running_decks()))) or "none yet"
+    raise click.UsageError(f"no deck session {name!r} (sessions: {known}) — `sb deck session list` lists them")
+
+
 def resumed_deck(
     config: Config, problems: list[str], profile: Profile | None, terminals: list[decksave.Terminal]
 ) -> tuple[Profile | None, list[decksave.Terminal]]:
-    """`config.session`'s save as a profile and its terminals, or what was given when nothing is saved."""
+    """`config.session`'s save as a profile and its terminals; with nothing saved, its record's profile, or what was given."""
     back = restored(config, problems)
+    record = decksession.load(config.session)
+    if back is None and profile is None and record is not None:
+        profile = config.profiles.get(record.profile)
     saved_shells = decksave.load(config.session)[0].terminals
     return back or profile, saved_shells if back or saved_shells else terminals
 
 
 def chosen_deck(
     config: Config, chosen: tuple[str, tuple[str, ...]], problems: list[str]
-) -> tuple[Profile | None, list[decksave.Terminal]]:
-    """What the launcher's choice opens, with `config.session` set to the deck it runs as."""
+) -> tuple[Profile | None, list[decksave.Terminal], bool]:
+    """What the launcher's choice opens, with `config.session` set to the deck it runs as, and whether every tab starts new."""
     kind, names = chosen
-    if kind in (decklaunch.ATTACH, decklaunch.RESUME):
+    if kind in (decklaunch.SESSION, decklaunch.FRESH):
         config.session = names[0]
-        if kind == decklaunch.RESUME:
-            return resumed_deck(config, problems, None, [])
-        return None, []
+        if has_session(inner(names[0])):
+            return None, [], False
+        profile, terminals = resumed_deck(config, problems, None, [])
+        return profile, terminals, kind == decklaunch.FRESH
     if kind == decklaunch.PROFILE:
         profile = config.profiles[names[0]]
-        config.session = deck_session(config, profile)
-        return profile, [decksave.Terminal("", cwd) for cwd in profile.terminals]
-    config.session = free_session(config)
-    return Profile(name="", primary=names[0], tabs=list(names[1:])), []
-
-
-def free_session(config: Config) -> str:
-    """`base`, or `base-2` and on: the first name no deck runs as, no profile claims, and no deck left state in.
-
-    Ticked folders start a deck of their own, so no tab resumes another deck's session or reads its todos.
-    """
-    claimed = {deck_session(config, profile) for profile in config.profiles.values()}
-    base = config.base
-    for name in (base, *(f"{base}-{n}" for n in range(2, 100))):
-        if name not in claimed and not has_session(inner(name)) and not deck_state(name):
-            return name
-    return base
-
-
-def deck_state(session: str) -> bool:
-    """Whether a deck of this name left anything behind: a save, todos, decisions or asks."""
-    try:
-        return any((decksave.helpers.STATE_DIR / "deck" / session).iterdir())
-    except OSError:
-        return False
+        config.session = new_session(config, profile.name)
+        return profile, [decksave.Terminal("", cwd) for cwd in profile.terminals], False
+    config.session = new_session(config, "")
+    return Profile(name="", primary=names[0], tabs=list(names[1:])), [], False
 
 
 def open_deck(
     config: Config, profile: Profile | None, terminals: list[decksave.Terminal], fresh: bool, starting: bool
 ) -> list[str]:
     """Create `config.session`'s deck if absent and open `profile`'s tabs in it. Problems."""
+    problems = recorded(config, profile)
     try:
         _, more = ensure(config, _projects(), profile, fresh)
     except DeckError as exc:
         raise click.ClickException(str(exc)) from exc
     if starting:
         more += open_terminals(config.session, terminals)
-    return more + start_marks(config.session)
+    return problems + more + start_marks(config.session)
+
+
+def recorded(config: Config, profile: Profile | None) -> list[str]:
+    """Give `config.session` a record if it has none, and mark it used now. Problems."""
+    try:
+        if decksession.load(config.session) is None:
+            owner = profile.name if profile is not None and profile.name in config.profiles else ""
+            decksession.create(config.session, owner, decksession.free_label(owner))
+        else:
+            decksession.touch(config.session)
+    except OSError as exc:
+        return [f"could not record deck session {config.session!r} — {exc}"]
+    return []
 
 
 def running_decks() -> list[str]:
@@ -2634,16 +2641,6 @@ def running_decks() -> list[str]:
     answer = tmux("list-sessions", "-F", "#{session_name}")
     names = set(answer.out.split()) if answer.ok else set()
     return sorted(name for name in names if f"{name}{INNER_SUFFIX}" in names)
-
-
-def saved_decks() -> list[str]:
-    """Each deck with tabs saved, running or not."""
-    root = decksave.helpers.STATE_DIR / "deck"
-    try:
-        found = sorted(path.parent.name for path in root.glob(f"*/{decksave.FILE}"))
-    except OSError:
-        return []
-    return [name for name in found if decksave.load(name)[0].tabs]
 
 
 @deck.command(name="open")
@@ -2695,7 +2692,7 @@ def open_agent(config: Config, projects: list, agent: Agent, fresh: bool, proble
         result.warn(problem)
     try:
         created, more = ensure(config, projects)
-        more += start_marks(config.session)
+        more += (recorded(config, None) if created else []) + start_marks(config.session)
         window_id = locate(name, config.session)
         opened = window_id is None
         if window_id is None:
@@ -2703,7 +2700,7 @@ def open_agent(config: Config, projects: list, agent: Agent, fresh: bool, proble
             primary = deck_primary(config.session)
             rows = roster(config, projects, [agent], primary)
             told = brief(agent.name, config.session, rows, primary, deck_profile_brief(config))
-            resume = resume_lookup(config.session, more, fresh, deck_profile(config.session))(agent)
+            resume = resume_lookup(config.session, more, fresh)(agent)
             window_id, dressed = start(inner(config.session), agent, brief=told, resume=resume)
             more += dressed + terminals_last(config.session)
         focus(config.session, window_id)
@@ -2921,21 +2918,54 @@ def agent_tab_count(session: str) -> int:
     return len({p.window_id for p in listed if p.role == AGENT})
 
 
+def session_records(config: Config) -> dict[str, decksession.Record]:
+    """Every deck session: each directory's record, one not yet migrated read as it would be, and a running deck with none."""
+    records = {r.name: r for r in (decksession.load(name) for name in decksession.names()) if r is not None}
+    records.update({r.name: r for r in migrated(config, write=False)})
+    for name in running_decks():
+        if name not in records:
+            records[name] = decksession.Record(name, deck_profile(name), name)
+    return records
+
+
+def _holds_words(held: decksession.Holds) -> str:
+    parts = [(held.todos, "todo"), (held.decisions, "decision")]
+    return ", ".join(decksession.counted(n, noun) for n, noun in parts if n)
+
+
+def session_lines(config: Config, here: str = "") -> list[decklaunch.SessionLine]:
+    """Each session as a row says it, running ones first and then newest first."""
+    live = set(running_decks())
+    now = time.time()
+    lines = []
+    for name, record in session_records(config).items():
+        on = name in live
+        held = decksession.holds(name, open_only=True)
+        age = f"{ago(now - record.last_used)} ago" if record.last_used else ""
+        gone = bool(record.profile) and record.profile not in config.profiles
+        tabs = agent_tab_count(name) if on else held.tabs
+        line = decklaunch.SessionLine(
+            name, record.label or name, record.profile, gone, tabs, on, age, _holds_words(held), name == here
+        )
+        lines.append((on, record.last_used, line))
+    lines.sort(key=lambda each: (each[0], each[1]), reverse=True)
+    return [line for _, _, line in lines]
+
+
 def launch_rows(config: Config, running: bool) -> list[decklaunch.Row]:
-    """The launcher's rows: other running decks, saved decks, profiles, then the declared agents or the roots' folders."""
-    here = config.session if running else ""
-    live = running_decks()
-    decks = [(name, deck_profile(name), agent_tab_count(name)) for name in live if name != here]
-    saved = []
-    for name in saved_decks():
-        if name not in live:
-            save = decksave.load(name)[0]
-            saved.append((name, save.profile, len(save.tabs)))
-    profiles = {name: len(profile.order()[0]) for name, profile in config.profiles.items()}
+    """The launcher's rows: the sessions, the profiles, then the declared agents or the roots' folders."""
+    sessions = session_lines(config, config.session if running else "")
+    counts: dict[str, int] = {}
+    for record in session_records(config).values():
+        counts[record.profile] = counts.get(record.profile, 0) + 1
+    profiles = [
+        decklaunch.ProfileLine(name, tuple(profile.order()[0]), profile.primary, counts.get(name, 0))
+        for name, profile in config.profiles.items()
+    ]
     folders = [(a.name, a.directory, True) for a in config.agents.values() if a.source == DECK_FILE]
     # `roots` is the first-run list; `git_roots` is asked for, so it is listed beside the declared agents.
     folders += [(p.name, p.cwd, False) for p in undeclared_places(config, use_roots=not folders) if not p.problem]
-    return decklaunch.rows_of(decks, saved, profiles, folders, running)
+    return decklaunch.rows_of(sessions, profiles, folders, running)
 
 
 def _expanded(paths: list[str]) -> list[str]:
@@ -3092,8 +3122,94 @@ def _save_deck_prompt(config: Config) -> str:
         return str(exc)
 
 
+def _ask_yes(question: str) -> bool:
+    _cooked(f"{question} (y/n) ")
+    with keys_.reader() as wait_for:
+        return wait_for(60.0) in ("y", "Y")
+
+
+def _session_action(config: Config, action: str, row: decklaunch.Row) -> str:
+    """Rename or delete a session from the launcher. What to tell the operator."""
+    if action == decklaunch.RENAME:
+        _cooked("")
+        migrated(config)
+        record = decksession.load(row.name)
+        label = click.prompt("label", default=record.label if record else row.name).strip()
+        try:
+            return relabel_session(row.name, label)
+        except DeckError as exc:
+            return str(exc)
+    try:
+        refuse_running(row.name)
+    except DeckError as exc:
+        return str(exc)
+    held = decksession.holds(row.name)
+    if not _ask_yes(f"delete session {row.name}? It takes {decksession.goes(held)}; transcripts stay."):
+        return "not deleted"
+    try:
+        return delete_session(row.name)
+    except DeckError as exc:
+        return str(exc)
+
+
+def _profile_action(config: Config, action: str, row: decklaunch.Row | None) -> str:
+    """Edit, rename or delete a profile from the launcher. What to tell the operator."""
+    if action == decklaunch.EDIT:
+        return _edit_profile(config, row.name if row else "")
+    assert row is not None
+    if action == decklaunch.RENAME:
+        _cooked("")
+        new = click.prompt(f"rename profile {row.name} to", default="", show_default=False).strip()
+        if not new:
+            return "not renamed"
+        try:
+            return rename_profile(config, row.name, new)
+        except DeckError as exc:
+            return str(exc)
+    if not _ask_yes(f"delete profile {row.name}? Its sessions stay, and resume as they were."):
+        return "not deleted"
+    return _write_edit(drop_profile=row.name) or f"deleted profile {row.name}"
+
+
+def _edit_profile(config: Config, name: str) -> str:
+    """The profile editor, then the write. What to tell the operator."""
+    path = home_file()
+    body = {}
+    if name:
+        try:
+            body = tomllib.loads(path.read_text()).get("profile", {}).get(name, {})
+        except (OSError, tomllib.TOMLDecodeError) as exc:
+            return f"could not read {DECK_FILE} — {exc}"
+    editor = decklaunch.editor_of(name, list(config.agents), body)
+    while True:
+        editor, outcome = _tick_once(
+            editor, decklaunch.editor_screen, decklaunch.editor_visible, decklaunch.editor_step
+        )
+        if outcome == decklaunch.QUIT:
+            return "not written"
+        if outcome in ("brief", "brief_file"):
+            _cooked("")
+            asked = "brief file (a path; empty for none)" if outcome == "brief_file" else "brief (empty for none)"
+            held = editor.brief_file if outcome == "brief_file" else editor.brief
+            text = click.prompt(asked, default=held, show_default=bool(held)).strip()
+            editor.brief, editor.brief_file = ("", text) if outcome == "brief_file" else (text, "")
+            continue
+        new = not editor.name
+        if new:
+            _cooked("")
+            editor.name = click.prompt("profile name", default="", show_default=False).strip()
+            problem = profile_name_problem(config, editor.name)
+            if problem:
+                editor.name, editor.note = "", problem
+                continue
+        try:
+            return write_profile(config, editor.name, decklaunch.editor_body(editor), create=new)
+        except DeckError as exc:
+            editor.note = str(exc)
+
+
 def launcher(running: bool) -> tuple[str, tuple[str, ...]] | None:
-    """The launcher, until it opens something: `(RESUME|PROFILE|START, names)`, or None to quit.
+    """The launcher, until it opens something: `(SESSION|FRESH|PROFILE|START, names)`, or None to quit.
 
     Running, it manages: a started folder opens as a tab and the screen stays.
     """
@@ -3111,11 +3227,20 @@ def launcher(running: bool) -> tuple[str, tuple[str, ...]] | None:
             ticked, note = launch.ticked, ""
             on = (rows[launch.at].kind, rows[launch.at].name)
             row = outcome.row
-            if outcome.action == decklaunch.QUIT:
+            action = outcome.action
+            if action == decklaunch.QUIT:
                 return None
-            if outcome.action == decklaunch.OPEN and row is not None:
+            if action == decklaunch.OPEN and row is not None:
                 return (row.kind, (row.name,))
-            if outcome.action == decklaunch.START:
+            if action == decklaunch.FRESH and row is not None:
+                if not row.live:
+                    return (decklaunch.FRESH, (row.name,))
+                note = f"{row.name} is running — attach it, or `sb deck exit` there first"
+            elif row is not None and row.kind == decklaunch.SESSION:
+                note = _session_action(config, action, row)
+            elif action == decklaunch.EDIT or (row is not None and row.kind == decklaunch.PROFILE):
+                note = _profile_action(config, action, row)
+            elif action == decklaunch.START:
                 problems = _declare(rows, outcome.names)
                 if problems:
                     note = problems[0]
@@ -3126,27 +3251,24 @@ def launcher(running: bool) -> tuple[str, tuple[str, ...]] | None:
                         result = add_tab(name, "", "", keep=False)
                         note = "; ".join(result.warnings) or f"opened {', '.join(outcome.names)}"
                     ticked = set()
-            elif outcome.action == decklaunch.NEW:
+            elif action == decklaunch.NEW:
                 _cooked("")
                 note = _new_folder(config)
-            elif outcome.action == decklaunch.DELETE and row is not None:
-                _cooked(f"delete {row.kind} {row.name}? (y/n) ")
-                with keys_.reader() as wait_for:
-                    sure = wait_for(60.0) in ("y", "Y")
-                if sure:
-                    change = {"drop_profile": row.name} if row.kind == decklaunch.PROFILE else {"drop_agent": row.name}
-                    note = _write_edit(**change) or f"deleted {row.name}"
-            elif outcome.action == decklaunch.SAVE:
+            elif action == decklaunch.DELETE and row is not None:
+                if _ask_yes(f"delete agent {row.name}?"):
+                    note = _write_edit(drop_agent=row.name) or f"deleted {row.name}"
+            elif action == decklaunch.SAVE:
                 _cooked("")
                 name = click.prompt("profile name", default="", show_default=False).strip()
-                if not NAME.match(name):
-                    note = f"{name!r} cannot be a profile's name — {NAME_RULE}" if name else "not saved"
+                problem = profile_name_problem(config, name)
+                if problem:
+                    note = problem
                 else:
                     problems = _declare(rows, outcome.names)
                     body = decklaunch.body_of(outcome.names)
                     note = problems[0] if problems else _write_edit(add_profile=(name, body))
                     note = note or f"saved profile {name}"
-            elif outcome.action == decklaunch.SAVE_DECK:
+            elif action == decklaunch.SAVE_DECK:
                 note = _save_deck_prompt(config)
     finally:
         _cooked("")
@@ -3155,13 +3277,14 @@ def launcher(running: bool) -> tuple[str, tuple[str, ...]] | None:
 @deck.command(name="launch")
 @click.option("--client", default="", metavar="NAME", help="The tmux client to switch when another deck opens.")
 def deck_launch(client: str) -> None:
-    """The launcher: profiles and agent folders to open, add, save or delete. M-r in a deck.
+    """The launcher: sessions, profiles and agent folders to open, edit, save or delete. M-r in a deck.
 
         sb deck launch
 
     **This acts**, and needs a terminal: it writes `deck.toml` after a backup, and
-    in a running deck a folder opens as a tab. `sb deck` with no `--profile` opens
-    the same screen before any tab starts, with the last deck as its first row.
+    in a running deck a folder opens as a tab. A session or a profile opens as a
+    deck beside this one. `sb deck` with no `--profile` opens the same screen
+    before any tab starts.
     """
     if not has_terminal():
         raise click.UsageError("the launcher needs a terminal — `sb deck --profile NAME` opens a profile")
@@ -3169,14 +3292,18 @@ def deck_launch(client: str) -> None:
     warn_now(problems)
     if not has_session(inner(config.session)):
         raise click.UsageError("no deck is running — `sb deck` opens the launcher before it starts one")
+    try:
+        migrated(config)
+    except OSError as exc:
+        warn_now([f"could not record the deck sessions from before round 25 — {exc}"])
     chosen = launcher(running=True)
     if chosen is None:
         return
     config, problems = load()
-    profile, terminals = chosen_deck(config, chosen, problems)
+    profile, terminals, fresh = chosen_deck(config, chosen, problems)
     starting = has_session(inner(config.session)) is False
-    if chosen[0] != decklaunch.ATTACH:
-        problems += open_deck(config, profile, terminals, False, starting)
+    if starting:
+        problems += open_deck(config, profile, terminals, fresh, starting)
     where = ["-c", client] if client else []
     answer = tmux("switch-client", *where, "-t", f"={config.session}")
     if not answer.ok:
@@ -3197,14 +3324,14 @@ def deck_as_profile(config: Config, session: str) -> tuple[tuple[str, ...], tupl
 def save_profile(config: Config, name: str, replace: bool = False) -> str:
     """Write this deck's tabs into `[profile.NAME]`, declaring any tab not yet an agent. What it did.
 
-    A replace keeps the profile's other keys: its brief, brief_file, session and columns.
+    A replace keeps the profile's other keys: its brief, brief_file and columns. An ad hoc deck
+    saved as a profile becomes that profile's session; a profile's session stays its own.
     """
     names, terminals, cwds = deck_as_profile(config, config.session)
     if not names:
         raise DeckError("this deck has no agent tabs to save")
     if name in config.profiles and not replace:
         raise DeckError(f"there is a profile {name!r} already — replace it, or pick another name")
-    linked, unlinked = deck_link(config, name)
     path = home_file()
     try:
         text = path.read_text() if path.exists() else ""
@@ -3213,9 +3340,9 @@ def save_profile(config: Config, name: str, replace: bool = False) -> str:
                 if agent not in cwds:
                     raise ValueError(f"{agent!r} has no saved folder to declare it with")
                 text = deckplus.edited(text, agent, cwds[agent], "", "")
-        body = decklaunch.body_of(names, terminals) | linked
+        body = decklaunch.body_of(names, terminals)
         if name in config.profiles:
-            drop = ("terminals", "session", *body)
+            drop = ("terminals", *body)
             kept = {k: v for k, v in tomllib.loads(text)["profile"][name].items() if k not in drop}
             text = decklaunch.edited(text, set_profile=(name, {**body, **kept}))
         else:
@@ -3224,52 +3351,112 @@ def save_profile(config: Config, name: str, replace: bool = False) -> str:
     except (OSError, ValueError) as exc:
         raise DeckError(str(exc)) from exc
     said = f"{'replaced' if replace else 'saved'} profile {name}: {', '.join(names)}"
-    if unlinked:
-        return f"{said}; {unlinked}"
-    _session_options(inner(config.session), ((PROFILE_OPTION, name),))
+    record = decksession.load(config.session)
+    if record is not None and not record.profile:
+        record.profile = name
+        decksession.write(record)
+    if record is None or record.profile == name:
+        _session_options(inner(config.session), ((PROFILE_OPTION, name),))
     return said
 
 
-def deck_link(config: Config, name: str) -> tuple[dict, str]:
-    """The `session` that ties profile NAME to this deck, so it reopens these tabs' sessions. Else why not.
+def profile_name_problem(config: Config, name: str) -> str:
+    """Why `name` cannot be a new profile, or empty."""
+    if not name:
+        return "not saved"
+    if not NAME.match(name):
+        return f"{name!r} cannot be a profile's name — {NAME_RULE}"
+    if name in config.profiles:
+        return f"there is a profile {name!r} already"
+    return ""
 
-    `({}, "")` when the profile already runs as this deck; `({}, why)` when another profile owns it,
-    and the profile then opens as a deck of its own, every tab a new session.
-    """
-    here = config.session
-    held = config.profiles.get(name)
-    default = f"{config.base}-{re.sub(r'[^A-Za-z0-9_-]', '_', name)}"
-    own = {"session": held.session} if held is not None and held.session else {}
-    mine = deck_session(config, held) if held is not None else default
-    if mine == here:
-        return own, ""
-    owners = [other for other, p in config.profiles.items() if other != name and deck_session(config, p) == here]
-    if owners:
-        return own, (
-            f"this deck is profile {owners[0]!r}'s, so {name!r} opens as deck {mine!r} "
-            "with a new session in every tab"
-        )
-    if held is not None and has_session(inner(mine)):
-        return own, f"profile {name!r} is running as deck {mine!r}, so it stays that deck"
-    return ({} if here == default else {"session": here}), ""
+
+def write_profile(config: Config, name: str, body: dict, create: bool) -> str:
+    """Write `[profile.NAME]`'s agents and brief, keeping its other keys. What it did. `DeckError` if refused."""
+    path = home_file()
+    try:
+        text = path.read_text() if path.exists() else ""
+        if create:
+            text = decklaunch.edited(text, add_profile=(name, body))
+        else:
+            ours = ("primary", "tabs", "brief", "brief_file")
+            kept = {k: v for k, v in tomllib.loads(text)["profile"][name].items() if k not in ours}
+            text = decklaunch.edited(text, set_profile=(name, {**body, **kept}))
+        deckplus.write(path, text)
+    except (OSError, ValueError, KeyError, tomllib.TOMLDecodeError) as exc:
+        raise DeckError(str(exc)) from exc
+    tabs = [body["primary"], *body.get("tabs", [])] if body.get("primary") else list(body.get("tabs", []))
+    return f"{'saved' if create else 'wrote'} profile {name}: {', '.join(tabs)}"
+
+
+def rename_profile(config: Config, old: str, new: str) -> str:
+    """Rename a profile in `deck.toml` and move its sessions by their record. What it did."""
+    if old not in config.profiles:
+        raise DeckError(f"no profile {old!r} in {DECK_FILE}")
+    problem = profile_name_problem(config, new)
+    if problem:
+        raise DeckError(problem if problem != "not saved" else "a profile needs a name")
+    refused = _write_edit(rename_profile=(old, new))
+    if refused:
+        raise DeckError(refused)
+    migrated(config)
+    moved = decksession.reassign(old, new)
+    live = set(running_decks())
+    for name in moved:
+        if name in live:
+            _session_options(inner(name), ((PROFILE_OPTION, new),))
+    return f"renamed profile {old} to {new}; {decksession.counted(len(moved), 'session')} follow it"
+
+
+def refuse_running(name: str) -> None:
+    """Only `sb deck exit` ends a deck, so a running session is never deleted."""
+    if has_session(name) or has_session(inner(name)):
+        raise DeckError(f"session {name!r} is running — `sb deck exit` there first, then delete it")
+
+
+def delete_session(name: str) -> str:
+    """Delete a stopped session's directory. What went. `DeckError` when it runs or is not there."""
+    refuse_running(name)
+    held = decksession.holds(name)
+    try:
+        decksession.delete(name)
+    except (OSError, ValueError) as exc:
+        raise DeckError(str(exc)) from exc
+    return f"deleted session {name}: {decksession.goes(held)}; Claude Code's transcripts stay"
+
+
+def relabel_session(name: str, label: str) -> str:
+    label = " ".join(label.split())
+    if not label:
+        raise DeckError("a session's label needs some text")
+    try:
+        decksession.relabel(name, label)
+    except (OSError, ValueError) as exc:
+        raise DeckError(str(exc)) from exc
+    return f"session {name} is labelled {label!r}"
 
 
 @deck.group(name="profile")
 def deck_profile_group() -> None:
-    """The declared profiles: list them, save the running deck as one, or delete one.
+    """The declared profiles: each a set of agents, with any number of sessions.
 
         sb deck profile list
+        sb deck profile show core
+        sb deck profile new core --primary ws --tab jam-sense
+        sb deck profile edit core --add mind-head --brief "ship it"
+        sb deck profile rename core main
         sb deck profile save core
         sb deck profile delete core
 
-    `list` observes; `save` and `delete` act on `deck.toml`, after a backup.
+    `list` and `show` observe; `new`, `edit`, `rename`, `save` and `delete` act on `deck.toml`,
+    after a backup. A profile owns no state: its sessions do, and deleting it leaves them.
     """
 
 
 @deck_profile_group.command(name="list")
 @emit
 def deck_profile_list() -> Result:
-    """Each profile, its tabs, the deck it runs as, and whether that deck is running.
+    """Each profile, its agents, and how many sessions it has and how many run.
 
         sb deck profile list
 
@@ -3277,28 +3464,167 @@ def deck_profile_list() -> Result:
     """
     result = Result()
     config, problems = load()
-    for problem in problems:
+    for problem in problems + unused_session_keys(config):
         result.warn(problem)
     if not config.profiles:
         result.warn(
             f"no profiles in {DECK_FILE} — an added folder is an agent, see `sb deck places`; `s` in the launcher saves ticked ones as a profile"
         )
+    records = session_records(config).values()
     live = set(running_decks())
     result.data = [
         {
             "profile": name,
             "tabs": ", ".join(profile.order()[0]),
-            "deck": deck_session(config, profile),
-            "running": deck_session(config, profile) in live,
+            "sessions": sum(1 for r in records if r.profile == name),
+            "running": sum(1 for r in records if r.profile == name and r.name in live),
         }
         for name, profile in config.profiles.items()
     ]
     return result
 
 
+@deck_profile_group.command(name="show")
+@click.argument("name")
+@emit
+def deck_profile_show(name: str) -> Result:
+    """One profile whole: its primary, tabs, terminals, brief and sessions.
+
+        sb deck profile show core
+
+    An observe.
+    """
+    config, problems = load()
+    profile = config.profiles.get(name)
+    if profile is None:
+        raise click.UsageError(f"no profile {name!r} in {DECK_FILE}")
+    result = Result()
+    for problem in problems + [p for p in unused_session_keys(config) if p.startswith(f"profile {name!r}")]:
+        result.warn(problem)
+    result.data = {
+        "profile": name,
+        "primary": profile.primary,
+        "tabs": profile.tabs,
+        "terminals": profile.terminals,
+        "brief": profile.brief,
+        "brief_file": profile.brief_file,
+        "sessions": sorted(r.name for r in session_records(config).values() if r.profile == name),
+    }
+    return result
+
+
+def _checked_agents(config: Config, names: list[str]) -> None:
+    projects = _projects()
+    for name in names:
+        if resolve(name, config, projects)[0] is None:
+            raise click.UsageError(f"no agent {name!r}: {resolve(name, config, projects)[1]}")
+
+
+@deck_profile_group.command(name="new")
+@click.argument("name")
+@click.option("--primary", required=True, metavar="AGENT", help="The agent that leads: its tab is first.")
+@click.option("--tab", "tabs", multiple=True, metavar="AGENT", help="Another agent's tab, in order. Repeatable.")
+@click.option("--brief", default="", metavar="TEXT", help="Appended to the brief of every agent it launches.")
+@click.option("--brief-file", default="", metavar="PATH", help="A file holding that text instead.")
+@emit
+def deck_profile_new(name: str, primary: str, tabs: tuple[str, ...], brief: str, brief_file: str) -> Result:
+    """Declare profile NAME: a primary agent and any more tabs.
+
+        sb deck profile new core --primary ws --tab jam-sense --tab mind-head
+
+    **This acts**, on `deck.toml`, after a backup.
+    """
+    config, problems = load()
+    problem = profile_name_problem(config, name)
+    if problem:
+        raise click.UsageError(problem if problem != "not saved" else "a profile needs a name")
+    if brief and brief_file:
+        raise click.UsageError("give --brief or --brief-file, not both")
+    _checked_agents(config, [primary, *tabs])
+    body = {"primary": primary, "tabs": [t for t in dict.fromkeys(tabs) if t != primary]}
+    body |= {"brief": brief, "brief_file": brief_file}
+    try:
+        said = write_profile(config, name, body, create=True)
+    except DeckError as exc:
+        raise click.ClickException(str(exc)) from exc
+    result = Result(data={"saved": said})
+    for each in problems:
+        result.warn(each)
+    return result
+
+
+@deck_profile_group.command(name="edit")
+@click.argument("name")
+@click.option("--primary", default="", metavar="AGENT", help="The agent that leads; added if it is not a tab.")
+@click.option("--add", "added", multiple=True, metavar="AGENT", help="Add a tab at the end. Repeatable.")
+@click.option("--remove", "removed", multiple=True, metavar="AGENT", help="Remove a tab. Repeatable.")
+@click.option("--brief", default=None, metavar="TEXT", help="Replace the brief; empty removes it.")
+@click.option("--brief-file", default=None, metavar="PATH", help="Read the brief from a file instead.")
+@emit
+def deck_profile_edit(
+    name: str, primary: str, added: tuple[str, ...], removed: tuple[str, ...], brief: str | None, brief_file: str | None
+) -> Result:
+    """Change profile NAME's agents or brief; every other key it has stays.
+
+        sb deck profile edit core --add mind-head --remove jam-sense
+
+    **This acts**, on `deck.toml`, after a backup. A running session of it keeps its tabs.
+    """
+    config, problems = load()
+    profile = config.profiles.get(name)
+    if profile is None:
+        raise click.UsageError(f"no profile {name!r} in {DECK_FILE}")
+    if brief is not None and brief_file is not None:
+        raise click.UsageError("give --brief or --brief-file, not both")
+    _checked_agents(config, [*added, *([primary] if primary else [])])
+    names = [n for n in [*profile.order()[0], *added] if n not in removed]
+    names = list(dict.fromkeys(names))
+    if not names and not primary:
+        raise click.UsageError("that would leave the profile with no agents — `sb deck profile delete` removes it")
+    # A removed primary passes the lead to the first tab left, as the editor does.
+    lead = primary or (profile.primary if profile.primary in names else names[0] if profile.primary else "")
+    if lead and lead not in names:
+        names.insert(0, lead)
+    if not names:
+        raise click.UsageError("that would leave the profile with no agents — `sb deck profile delete` removes it")
+    body = {"primary": lead, "tabs": [n for n in names if n != lead]}
+    body["brief"] = profile.brief if brief is None and brief_file is None else (brief or "")
+    body["brief_file"] = profile.brief_file if brief is None and brief_file is None else (brief_file or "")
+    try:
+        said = write_profile(config, name, body, create=False)
+    except DeckError as exc:
+        raise click.ClickException(str(exc)) from exc
+    result = Result(data={"saved": said})
+    for each in problems:
+        result.warn(each)
+    return result
+
+
+@deck_profile_group.command(name="rename")
+@click.argument("old")
+@click.argument("new")
+@emit
+def deck_profile_rename(old: str, new: str) -> Result:
+    """Rename profile OLD to NEW. Its sessions follow by their record; their tmux names stay.
+
+        sb deck profile rename core main
+
+    **This acts**, on `deck.toml` after a backup, and on each of its sessions' records.
+    """
+    config, problems = load()
+    try:
+        said = rename_profile(config, old, new)
+    except DeckError as exc:
+        raise click.ClickException(str(exc)) from exc
+    result = Result(data={"renamed": said})
+    for each in problems:
+        result.warn(each)
+    return result
+
+
 @deck_profile_group.command(name="save")
 @click.argument("name")
-@click.option("--replace", is_flag=True, help="Overwrite a profile of that name, keeping its brief and session.")
+@click.option("--replace", is_flag=True, help="Overwrite a profile of that name, keeping its brief.")
 @emit
 def deck_profile_save(name: str, replace: bool) -> Result:
     """Save this deck's open tabs as profile NAME: tab order, primary first, terminals included.
@@ -3327,7 +3653,7 @@ def deck_profile_save(name: str, replace: bool) -> Result:
 @click.argument("name")
 @emit
 def deck_profile_delete(name: str) -> Result:
-    """Delete profile NAME from `deck.toml`. A running deck of it keeps running.
+    """Delete profile NAME from `deck.toml`. Its sessions stay, and resume as they were.
 
         sb deck profile delete core
 
@@ -3344,6 +3670,102 @@ def deck_profile_delete(name: str) -> Result:
         result.warn(problem)
     result.data = {"deleted": name}
     return result
+
+
+@deck.group(name="session")
+def deck_session_group() -> None:
+    """The deck sessions: each one deck, running or not, with its own todos, decisions and messages.
+
+        sb deck session list
+        sb deck session rename sb-core-2 "release week"
+        sb deck session delete sb-core-1
+
+    `list` observes; `rename` and `delete` act on `$SB_STATE`. `sb deck --session NAME`
+    attaches or resumes one. A running session is never deleted: `sb deck exit` ends it first.
+    """
+
+
+@deck_session_group.command(name="list")
+@emit
+def deck_session_list() -> Result:
+    """Each session, running ones first and then newest first: its label, profile, tabs and what it holds.
+
+        sb deck session list
+
+    An observe.
+    """
+    result = Result()
+    config, problems = load()
+    for problem in problems + unused_session_keys(config):
+        result.warn(problem)
+    lines = session_lines(config)
+    if not lines:
+        result.warn("no deck sessions yet — `sb deck --profile NAME` or the launcher starts one")
+    result.data = [
+        {
+            "session": line.name,
+            "label": line.label,
+            "profile": line.profile,
+            "profile_gone": line.gone,
+            "tabs": line.tabs,
+            "running": line.live,
+            "used": line.age,
+            "holds": line.holds,
+        }
+        for line in lines
+    ]
+    return result
+
+
+@deck_session_group.command(name="rename")
+@click.argument("name")
+@click.argument("label")
+@emit
+def deck_session_rename(name: str, label: str) -> Result:
+    """Set session NAME's label. Its tmux name stays.
+
+        sb deck session rename sb-core-2 "release week"
+
+    **This acts**, on the session's record in `$SB_STATE`.
+    """
+    config, _ = load()
+    _known_session(name)
+    migrated(config)
+    if decksession.load(name) is None:
+        recorded(replace(config, session=name), None)
+    try:
+        return Result(data={"renamed": relabel_session(name, label)})
+    except DeckError as exc:
+        raise click.ClickException(str(exc)) from exc
+
+
+@deck_session_group.command(name="delete")
+@click.argument("name")
+@click.option("--yes", is_flag=True, help="Delete without asking.")
+@emit
+def deck_session_delete(name: str, yes: bool) -> Result:
+    """Delete stopped session NAME: its tab resume links, todos, decisions, asks and watcher choice.
+
+        sb deck session delete sb-core-1 --yes
+
+    **This acts**, on `$SB_STATE`. Claude Code's transcripts are its own and stay. A running
+    session is refused: `sb deck exit` there first. Off a terminal it needs `--yes`.
+    """
+    _known_session(name)
+    try:
+        refuse_running(name)
+    except DeckError as exc:
+        raise click.ClickException(str(exc)) from exc
+    if not yes:
+        if _as_json() or not has_terminal():
+            raise click.UsageError("deleting a session asks first — give --yes off a terminal")
+        held = decksession.holds(name)
+        if not click.confirm(f"delete session {name}? It takes {decksession.goes(held)}", default=False):
+            return Result(data={"deleted": ""}, warnings=["not deleted"])
+    try:
+        return Result(data={"deleted": delete_session(name)})
+    except DeckError as exc:
+        raise click.ClickException(str(exc)) from exc
 
 
 @deck.command(name="plus")
@@ -4044,24 +4466,98 @@ def end_sessions(names: list[str]) -> tuple[list[str], list[tuple[str, str]]]:
     is_flag=True,
     help="With --refresh: redraw on the alternate screen, as the deck's own panes do.",
 )
+@click.option(
+    "--session", "session_name", default="", metavar="NAME", help="Read this deck session, running or stopped."
+)
+@click.option("--all", "every", is_flag=True, help="Every live session's messages, whichever deck it is in.")
 @emit
-def deck_messages(refresh: int | None, ticks: int | None, screen: bool) -> Result:
-    """Messages agent sessions sent each other, newest last.
+def deck_messages(refresh: int | None, ticks: int | None, screen: bool, session_name: str, every: bool) -> Result:
+    """Messages this deck session's tabs received, newest last.
 
         sb deck messages
-        sb deck messages --refresh 10
+        sb deck messages --session sb-core-2
+        sb deck messages --all
 
-    An observe. One row per message a live session received: when, sender →
-    receiver, and the first line. The last 50, read from each live session's
-    transcript; a transcript that cannot be read is counted in a warning.
+    An observe. One row per message a tab of this session received after it joined
+    the session: when, sender → receiver, and the first line. The last 50, read from
+    each tab's transcript; one that cannot be read is counted in a warning. A message
+    to or from another deck is not shown, and is counted.
     """
     config, _ = load()
-    pane = DeckPane(
-        config.session, lambda row: bool(row.get("from_agent") or row.get("to_agent")), scroll=True, role=MESSAGES
-    )
+    session = session_name or config.session
+    if session_name:
+        _known_session(session_name)
+    pane = DeckPane(session, lambda row: bool(row.get("from_agent") or row.get("to_agent")), scroll=True, role=MESSAGES)
     # Colour only where the deck paints the ground: in its pane, not in whatever terminal ran this.
-    once = functools.partial(messages_result, place=placement, paint=bool(refresh and screen))
+    paint = bool(refresh and screen)
+    if every:
+        once = functools.partial(messages_result, place=placement, paint=paint)
+    else:
+        once = functools.partial(session_messages, session, paint=paint, pane=pane if refresh and screen else None)
     return _resident("deck messages", once, refresh, ticks, screen, keep_last("message(s)", pane), pane)
+
+
+@dataclass
+class SavedTabs:
+    """A stopped session's saved tabs, answering as the provider `messages` reads, so their transcripts are read."""
+
+    sessions: list
+    provider: str = "claude"
+
+    def scan(self) -> agents_.Scan:
+        return agents_.Scan(self.provider, list(self.sessions), present=True, read=len(self.sessions))
+
+
+def _epoch(stamp: str) -> float | None:
+    try:
+        return datetime.fromisoformat(stamp).timestamp() if stamp else None
+    except ValueError:
+        return None
+
+
+def session_messages(session: str, paint: bool = False, pane: DeckPane | None = None) -> Result:
+    """The messages SESSION's tabs received after joining it. One to or from another deck is counted, not drawn.
+
+    `pane` takes the count for its last line; anywhere else it is a warning. A stopped session is
+    read from its saved tabs, and with no live sender to verify it cannot tell which deck sent one.
+    """
+    record = decksession.load(session)
+    others: set[str] = set()
+    if has_session(inner(session)):
+
+        def place(sessions: list) -> dict[str, tuple[str, int]]:
+            parent_of = parents()
+            for name in running_decks():
+                if name != session:
+                    others.update(placement_in(name, sessions, parent_of))
+            return placement_in(session, sessions, parent_of)
+
+        result = messages_result(place=place, paint=paint)
+    else:
+        tabs = decksave.load(session)[0].tabs
+        found = [agents_.Session("claude", tab.id, tab.agent, tab.cwd) for tab in tabs]
+        placed = {tab.id: (tab.agent, n) for n, tab in enumerate(tabs)}
+        result = messages_result(adapters=[SavedTabs(found)], place=lambda _: placed, paint=paint)
+    rows = result.data if isinstance(result.data, list) else []
+    kept, crossed = [], 0
+    for row in rows:
+        to_here, from_here = bool(row.get("to_agent")), bool(row.get("from_agent"))
+        when = _epoch(str(row.get("at") or ""))
+        since = decksession.joined_at(record, str(row.get("to_agent") or row.get("from_agent") or ""))
+        current = when is None or when >= since
+        if to_here and row.get("from_session") not in others and current:
+            kept.append(row)
+        elif current and (to_here or (from_here and row.get("to_session"))):
+            crossed += 1
+    if pane is not None:
+        pane.crossed = crossed
+    elif crossed:
+        result.warn(f"{crossed} message(s) to or from another deck not shown — `sb deck messages --all` shows them")
+    if rows and not kept:
+        result.warn(f"no messages to the tabs of deck session {session!r} since they joined it")
+    result.data = kept
+    result.view = messages_view(kept) if kept else None
+    return result
 
 
 @deck.command(name="message")
@@ -4171,6 +4667,8 @@ class DeckPane(resident_.Control):
         self.total = 10**6
         self.hide = False
         self.hidden = 0
+        # MESSAGES: how many messages crossed to or from another deck, held back from the pane.
+        self.crossed = 0
         self.seq: str | None = None
 
     def poll(self) -> None:
@@ -4210,7 +4708,9 @@ class DeckPane(resident_.Control):
 
     def note(self) -> str:
         # Information, so the footer and not a warning; the count stays so hidden never reads as none.
-        return f"{self.hidden} outside hidden · {SHORTCUTS['outside']} shows" if self.hidden else ""
+        notes = [f"{self.hidden} outside hidden · {SHORTCUTS['outside']} shows"] if self.hidden else []
+        notes += [f"{self.crossed} to or from another deck, not shown"] if self.crossed else []
+        return " · ".join(notes)
 
     def folded(self) -> bool:
         return self.fold
@@ -4755,12 +5255,16 @@ def primary_ids(sessions: list) -> set[str]:
 
 def placement(sessions: list) -> dict[str, tuple[str, int]]:
     """Session id → the deck agent it runs as and that agent's tab slot, for sessions in a deck tab."""
-    config, _ = load()
-    if not has_session(inner(config.session)):
+    return placement_in(load()[0].session, sessions)
+
+
+def placement_in(session: str, sessions: list, parent_of: dict[int, int] | None = None) -> dict[str, tuple[str, int]]:
+    """`placement` for deck SESSION, whichever deck this process is in."""
+    if not has_session(inner(session)):
         return {}
-    listed, _ = panes(inner(config.session))
+    listed, _ = panes(inner(session))
     slots = agent_slots(listed)
-    entries, _ = deck_windows(listed, sessions, parents())
+    entries, _ = deck_windows(listed, sessions, parent_of if parent_of is not None else parents())
     return {
         session.id: (label, slots[window_id])
         for window_id, label, _, session, _ in entries
@@ -5041,7 +5545,34 @@ def sweep_watchers(session: str) -> int:
     return deckwatch.sweep(session, listed) if sure else 0
 
 
+def _session_chosen(ctx: click.Context, _param: click.Parameter, value: str) -> str:
+    """`--session NAME`: this command reads and writes that deck session, not the one `SB_DECK` names."""
+    if not value:
+        return value
+    if ctx.resilient_parsing:
+        return value
+    _known_session(value)
+    was = os.environ.get(DECK_ENV)
+    os.environ[DECK_ENV] = value
+    ctx.call_on_close(
+        lambda: os.environ.__setitem__(DECK_ENV, was) if was is not None else os.environ.pop(DECK_ENV, None)
+    )
+    return value
+
+
+#: On `todo`, `decide` and `watchers`: so a stopped session can be read, and written by the operator.
+SESSION_OPTION = click.option(
+    "--session",
+    default="",
+    metavar="NAME",
+    expose_value=False,
+    callback=_session_chosen,
+    help="The deck session to read and write, running or stopped. Default: the one this tab is in.",
+)
+
+
 @deck.group(name="watchers")
+@SESSION_OPTION
 def deck_watchers() -> None:
     """What the deck's agents leave running: background shells, Monitors, sub-agents, daemon jobs.
 
@@ -5291,6 +5822,7 @@ def _todo_change(change: Callable[[str, str], todos_.TodoList]) -> Result:
 
 
 @deck.group(name="todo")
+@SESSION_OPTION
 def deck_todo() -> None:
     """Each deck agent's own todo list, drawn in the deck's AGENT TODOs pane.
 
@@ -5463,6 +5995,7 @@ def _list_options(command: Callable) -> Callable:
 
 
 @deck.group(name="decide")
+@SESSION_OPTION
 def deck_decide() -> None:
     """Each deck agent's open decisions for the operator, drawn in the HUMAN DECISIONS pane.
 
@@ -5957,6 +6490,14 @@ mark(deck_profile_group, sb_acts=True)
 mark(deck_profile_list, sb_acts=False)
 mark(deck_profile_save, sb_acts=True)
 mark(deck_profile_delete, sb_acts=True)
+mark(deck_profile_show, sb_acts=False)
+mark(deck_profile_new, sb_acts=True)
+mark(deck_profile_edit, sb_acts=True)
+mark(deck_profile_rename, sb_acts=True)
+mark(deck_session_group, sb_acts=True)
+mark(deck_session_list, sb_acts=False)
+mark(deck_session_rename, sb_acts=True)
+mark(deck_session_delete, sb_acts=True)
 mark(deck_plus, sb_acts=True)
 mark(deck_places, sb_acts=False)
 mark(deck_jump, sb_acts=True)

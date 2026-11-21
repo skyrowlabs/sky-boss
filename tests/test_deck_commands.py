@@ -17,7 +17,7 @@ from click.testing import CliRunner
 
 from skyboss import cli
 from skyboss import deck as deck_
-from skyboss import deckasks, decklaunch, decksave
+from skyboss import deckasks, decklaunch, decksave, decksession
 from skyboss import todos as todos_
 from skyboss.deck import Answer
 from tests.test_deck import FakeTmux, caller_under, two_tabs, window_of
@@ -360,19 +360,21 @@ def test_launch_attaching_another_deck_switches_the_named_client_to_it(fake, hom
     running(fake)
     fake.session("other")
     fake.session("other-agents")
-    monkeypatch.setattr(deck_, "launcher", lambda running: (decklaunch.ATTACH, ("other",)))
+    monkeypatch.setattr(deck_, "launcher", lambda running: (decklaunch.SESSION, ("other",)))
     assert invoke("deck", "launch", "--client", "/dev/pts/3").exit_code == 0
     assert fake.find("switch-client") == [["tmux", "switch-client", "-c", "/dev/pts/3", "-t", "=other"]]
     assert "new-session" not in fake.verbs()
 
 
-def test_launch_of_a_profile_starts_its_deck_beside_this_one(fake, home, at_a_terminal, monkeypatch, tmp_path):
-    home(f'[agent.ws]\ncwd = "{tmp_path}"\n\n[profile.core]\nprimary = "ws"\ntabs = []\nsession = "core"\n')
+def test_launch_of_a_profile_starts_a_new_session_of_it_beside_this_one(
+    fake, home, at_a_terminal, monkeypatch, tmp_path
+):
+    home(f'[agent.ws]\ncwd = "{tmp_path}"\n\n[profile.core]\nprimary = "ws"\ntabs = []\n')
     running(fake)
     monkeypatch.setattr(deck_, "launcher", lambda running: (decklaunch.PROFILE, ("core",)))
     assert invoke("deck", "launch").exit_code == 0
-    assert {"core", "core-agents"} <= fake.sessions
-    assert fake.find("switch-client")[-1] == ["tmux", "switch-client", "-t", "=core"]
+    assert {"sb-core-1", "sb-core-1-agents"} <= fake.sessions
+    assert fake.find("switch-client")[-1] == ["tmux", "switch-client", "-t", "=sb-core-1"]
 
 
 # ============================================================================
@@ -405,7 +407,7 @@ def test_the_launcher_quits_with_nothing_chosen(fake, home, monkeypatch, capsys)
     assert capsys.readouterr().out.endswith("\x1b[2J\x1b[H")
 
 
-def test_the_launcher_lists_decks_profiles_and_folders(fake, home, monkeypatch, tmp_path):
+def test_the_launcher_lists_sessions_profiles_and_folders(fake, home, monkeypatch, tmp_path):
     root = tmp_path / "src"
     (root / "loose").mkdir(parents=True)
     home(f'roots = ["{root}"]\n[agent.ws]\ncwd = "{tmp_path}"\n[profile.core]\nprimary = "ws"\n')
@@ -414,7 +416,8 @@ def test_the_launcher_lists_decks_profiles_and_folders(fake, home, monkeypatch, 
     monkeypatch.setattr(deck_, "_launch_once", once)
     deck_.launcher(running=False)
     rows = [(row.kind, row.name) for row in once.shown[0].rows]
-    assert rows == [("resume", "old"), ("profile", "core"), ("folder", "ws"), ("add", "")]
+    assert rows == [("session", "old"), ("profile", "core"), ("new-profile", ""), ("folder", "ws"), ("add", "")]
+    assert "core 1" in once.shown[0].rows[0].text and not decksession.load("old")  # an observe of it writes nothing
 
 
 def test_opening_a_profile_row_returns_it(fake, home, monkeypatch, tmp_path):
@@ -466,7 +469,7 @@ def test_a_delete_confirmed_with_y_drops_the_profile(fake, home, monkeypatch, tm
     once = Outcomes(drop, QUIT)
     monkeypatch.setattr(deck_, "_launch_once", once)
     deck_.launcher(running=False)
-    assert "profile" not in declared(tmp_path) and once.shown[1].note == "deleted core"
+    assert "profile" not in declared(tmp_path) and once.shown[1].note == "deleted profile core"
 
 
 def test_a_delete_answered_anything_but_y_keeps_the_agent(fake, home, monkeypatch, tmp_path):
@@ -514,7 +517,7 @@ def test_the_cursor_follows_its_row_by_name_across_a_redraw(fake, home, monkeypa
 
 
 def test_launch_once_reads_keys_until_an_outcome(screen, monkeypatch):
-    rows = decklaunch.rows_of([], [], {"core": 1, "two": 2}, [])
+    rows = decklaunch.rows_of([], [decklaunch.ProfileLine("core", ("a",)), decklaunch.ProfileLine("two", ("b",))], [])
     monkeypatch.setattr(deck_.keys_, "reader", keys_from("click:2:1", "down", "\r"))
     launch, outcome = deck_._launch_once(decklaunch.Launch(rows))
     assert outcome.row is not None and (outcome.action, outcome.row.name) == (decklaunch.OPEN, "two")
@@ -522,9 +525,9 @@ def test_launch_once_reads_keys_until_an_outcome(screen, monkeypatch):
 
 
 def test_a_click_on_a_folder_ticks_it(screen, monkeypatch):
-    rows = decklaunch.rows_of([], [], {}, [("ws", "/x", True)])
+    rows = decklaunch.rows_of([], [], [("ws", "/x", True)])
     lines = decklaunch.screen(decklaunch.Launch(rows), 80)
-    y = next(n for n, (_, row) in enumerate(lines, 1) if row == 0)
+    y = next(n for n, (_, row) in enumerate(lines, 1) if row == 1)
     monkeypatch.setattr(deck_.keys_, "reader", keys_from(f"click:4:{y}", "q"))
     launch, outcome = deck_._launch_once(decklaunch.Launch(rows))
     assert launch.ticked == {"ws"} and outcome.action == decklaunch.QUIT
