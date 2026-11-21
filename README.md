@@ -82,8 +82,9 @@ whether you trust it, and the tab reads `unregistered` until you answer.
   `sb deck` alone opens the launcher: sessions, profiles and agent folders, Tab to move between them.
 - **Leaving:** Ctrl-Q, or the ✕ in the corner, asks first, then saves and ends the deck and every
   agent in it. `sb deck exit` does the same without asking.
-- **No config yet?** `sb deck` alone opens a deck with a shell tab, and the `+` in the tab row opens
-  more. `roots = ["~/src"]` in `deck.toml` offers every folder under it.
+- **No config yet?** `sb deck` alone opens the launcher, whose `+ add a folder` browses to one,
+  and the `+` in the tab row opens more. `roots = ["~/src"]` in `deck.toml` offers every folder
+  under it.
 
 An agent that is a project in `projects.toml` with a `cwd` needs no `[agent]` entry unless it wants
 a `role`. `args` passes flags to its `claude`, and your own `-n` or `--append-system-prompt` wins
