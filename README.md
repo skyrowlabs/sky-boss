@@ -107,8 +107,10 @@ Alt-c:
   <img src="docs/design/readme-deck-agents.png" alt="The AGENT LIST pane: ten deck agents and one outside session, each with its state, background jobs and uptime" width="700">
 </p>
 
-**The keys are listed in the bar.** They live in a key table only the deck's sessions use, so your
-own tmux bindings are untouched:
+**Alt-/ lists every key and click.** The bar names only that key, beside ▦ for the next layout and
+✕ to end the deck; its left end turns a dial to the panes' next refresh and shows when the tab marks
+were last written. The keys live in a key table only the deck's sessions use, so your own tmux
+bindings are untouched:
 
 | Key | Does |
 |---|---|
@@ -120,6 +122,7 @@ own tmux bindings are untouched:
 | Alt-u, Alt-e | Scrolls messages back, returns to the newest |
 | Alt-x | Clears every done todo and decided item |
 | Alt-g | Picks the watchers WATCHERS shows |
+| Alt-/ | Lists every key and click; any key closes it |
 | Ctrl-Q | Asks, then ends the deck |
 
 Panes drag to resize. In the `grid` layout, click a title bar and then a pane in another column to
@@ -200,6 +203,7 @@ rather than by name, so a session outside the deck cannot write a tab's list eve
 | `sb deck watchers list` | reads | The chosen watchers and their last lines; `--all` names every one |
 | `sb deck brief [name]` | reads | An agent's brief, rebuilt with the live roster |
 | `sb deck places` | reads | Where a new tab can start |
+| `sb deck keys` | reads | Every key and click, grouped; `--screen` draws the Alt-/ overlay |
 
 </details>
 
@@ -244,7 +248,7 @@ live deck, with the operator's directories and private lines blanked out.
 | `sb roll-call` | reads | Asks every declared project how it is, and folds the answers |
 | `sb schedule` | reads | What fires next, across every project that declares a schedule |
 | `sb agents` | reads | Which agent sessions are running right now, across every provider |
-| `sb deck` | **acts** | A tmux controller: a tab per agent, each a live `claude` marked as working or needing you, beside panes for who is waiting on you and what agents told each other. `--profile` starts a new session of a declared set of agents and `--session` resumes one, each agent in its own colour; shortcuts are listed in the bar, and Ctrl-Q asks before ending everything — `open`, `jump`, `layout`, `marks`, `save`, `exit` and `todo add`/`done`/`rm` act; `queue`, `messages`, `brief` and `todo list` read. See [the deck](#start-a-deck) |
+| `sb deck` | **acts** | A tmux controller: a tab per agent, each a live `claude` marked as working or needing you, beside panes for who is waiting on you and what agents told each other. `--profile` starts a new session of a declared set of agents and `--session` resumes one, each agent in its own colour; Alt-/ lists the shortcuts, and Ctrl-Q asks before ending everything — `open`, `jump`, `layout`, `marks`, `save`, `exit` and `todo add`/`done`/`rm` act; `queue`, `messages`, `brief` and `todo list` read. See [the deck](#start-a-deck) |
 | `sb history <project>` | reads | A project's own run ledger, newest first |
 | `sb job` | both | Jobs sky.boss issues — `list` reads; `run`, `install` and `uninstall` act |
 | `sb tools` | reads | The commands you saved |

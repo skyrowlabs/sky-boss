@@ -13,7 +13,7 @@ summary: Adds `sb deck`, a tmux session holding one window per agent, plus a que
 # The deck: a tmux command center for agent sessions
 
 > **Status**: 🟡 In progress
-> **Priority**: Medium. Round 26, opened: a shortcuts overlay on M-/ and a two-part footer. Round 25, built: a profile is a set of agents, a session is a deck with its own state, and the launcher manages both.
+> **Priority**: Medium. Round 26, built: a shortcuts overlay on M-/ and a two-part footer. Round 25, built: a profile is a set of agents, a session is a deck with its own state, and the launcher manages both.
 > **Updated**: 2026-11-20
 
 ## Problem
@@ -847,22 +847,22 @@ shortening of the project refresh next in xs marks [time] ... a small graphic to
 down ... the last update time stamp and a visual indicator of the countdown to the update, no
 more". Ruled the same day: the pie dial.
 
-- [ ] **`M-/` opens the shortcuts overlay**, a popup on the launcher's drawing: every key in
+- [x] **`M-/` opens the shortcuts overlay**, a popup on the launcher's drawing: every key in
       `SHORTCUTS`, `EXIT_KEY`, the clicks (a tab's right-click menu, a pane's title, a row in
       AGENT COMMUNICATIONS or HUMAN DECISIONS, ▦ and ✕) and the launcher's keys, grouped as tabs,
       panes, communications and the deck, with the key on the left and one line on the right.
       Any key or click closes it. It is built from `SHORTCUTS` and a description per entry, and a
       test fails on a bound key with no line, so the overlay cannot fall behind the bindings.
       `M-h` was the obvious key and is taken by outside.
-- [ ] **The footer's right end is `M-/ shortcuts`**, then ▦ and ✕, which are buttons and stay.
+- [x] **The footer's right end is `M-/ shortcuts`**, then ▦ and ✕, which are buttons and stay.
       Every other hint goes.
-- [ ] **The left end is the wordmark, the label, a dial and a time:**
+- [x] **The left end is the wordmark, the label, a dial and a time:**
       `sky.boss from skyrow.labs │ sky-boss ◑ 21:07:43`. The dial is `○ ◔ ◑ ◕ ●`, one step a
       second over `TOOLS_REFRESH`, worked out by tmux from the clock as `shared_countdown` is,
       since the panes refresh on the clock's multiples of it. The time is the marks loop's last
       write. With no loop it reads a dim `not running`, so a dial turning over a stopped time is
       how a dead loop shows. `⟳`, `next in Ns` and the word `marks` go.
-- [ ] **Does not do.** It does not rebind any key, and it does not change the tab row.
+- [x] **Does not do.** It does not rebind any key, and it does not change the tab row.
 
 ## Dropped, and why
 
@@ -1791,3 +1791,25 @@ kept the TODOS pane's pid.
 
 - **Asked for and ruled by Jeston** in the sky-boss tab: the overlay on `M-/`, and the pie dial
   over the five-cell bar.
+
+### 2026-11-20: round 26 built
+
+- **The overlay** is `sb deck keys`, an observe; `--screen` is what M-/ opens. Its lines live in
+  `skyboss/deckkeys.py` keyed by `SHORTCUTS` name, so a key with no line raises, and a test
+  holds every non-mouse key `deck_bindings` binds to a line. The launcher's lines are its own
+  section hints from `decklaunch.SECTIONS`, so they cannot drift either.
+- **`M-/` is free.** Claude Code 2.1.330's binary carries no `alt+/` or `meta+/` key string, and
+  tmux 3.8's root table has no Meta binding, the same check round 4 made.
+- **tmux opens no popup larger than its client, and says nothing.** Measured: a 123×28 popup on a
+  100×30 client did not appear, and `-w '#{client_width}'` is refused as `width invalid`, since
+  `-w` expands no format. So M-/ is an `if-shell -F` on the client's size: the two-column popup
+  where it fits, else `100%`, where the overlay draws one column trimmed to the screen. The other
+  fixed-size popups (M-r at 100×32) have the same limit and were left alone.
+- **Measured on a throwaway socket**, stub `claude`, viewer client at 200×50: the footer read
+  `sky.boss from skyrow.labs │ p ◑ 21:49:51 … M-/ shortcuts  ▦  ✕`. Sampled every half second,
+  the dial went `○ ◔ ◑ ◕ ●` one step a second, `○` on the epoch's multiples of 5. With no
+  `@sb-marked` the time reads `not running`; the time takes a new `clock` style (full-strength
+  text), because the bar's own text is `quiet`'s colour and a dim word needs something to be dim
+  beside. When the probe's last tab was ended the marks loop left as designed, and the dial kept
+  turning over a stopped `21:53:48`. M-/ opened two columns at 200×50 and the full client at
+  100×30; a key and a click each closed it.
