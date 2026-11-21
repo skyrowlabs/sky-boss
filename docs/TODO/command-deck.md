@@ -787,7 +787,7 @@ Agents                                     space tick · enter start ad hoc · s
       with every tab new and keeps its todos and decisions. `r` sets its label. `d` deletes.
 - [ ] **Deleting a session** asks once and says what goes, by count: its tab resume links, todos,
       decisions, asks and watcher choice. Claude Code's transcripts are Claude Code's and stay.
-      A running session is refused, with the way out named: `sb deck exit` there first. (Q3)
+      A running session is refused, with the way out named: `sb deck exit` there first (Q3, ruled).
 - [ ] **Profiles.** Enter starts a new session of it, even with one running (Q1, ruled). `e` opens the profile editor, `r`
       renames (its sessions follow by their record, not their tmux name), `d` deletes. Deleting a
       profile leaves its sessions, which then read `<label> (profile gone)` and resume as they were.
@@ -835,8 +835,9 @@ Agents                                     space tick · enter start ad hoc · s
 - [x] **Q2. A message between this deck and another:** hidden and counted, or drawn with a mark?
       Recommended: hidden and counted, since independence is what was asked for. **Ruled by Jeston,
       2026-11-20: hidden and counted.**
-- [ ] **Q3. Deleting a running session:** refuse, or end it and then delete? Recommended: refuse
-      and name `sb deck exit`, which keeps the rule that only `exit` ends anything.
+- [x] **Q3. Deleting a running session:** refuse, or end it and then delete? Recommended: refuse
+      and name `sb deck exit`, which keeps the rule that only `exit` ends anything. **Ruled by
+      Jeston, 2026-11-20: refuse, and name `sb deck exit`.**
 
 ## Dropped, and why
 
