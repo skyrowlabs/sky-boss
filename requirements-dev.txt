@@ -1,10 +1,10 @@
 pytest>=9.2.0
 
 # Starlette's TestClient refuses to import without it.
-httpx2>=2.16.0
+httpx2>=2.16.2
 
 # The canvas's session loop is async; pytest.ini sets asyncio_mode = auto.
-pytest-asyncio>=1.4.1.post1
+pytest-asyncio>=1.5.0
 
 # Not imported here. .venv sees system site-packages (for `gi`), and Arch's
 # platformdirs 4.12.1 registers a pytest plugin that an older venv copy lacks —
