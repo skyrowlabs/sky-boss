@@ -3,8 +3,8 @@
 The sequence is the one trees typed by hand after every landing ruling (proto.pilot,
 sky.vault): `check pre-push`, push, open the pull request as a draft and mark it
 ready, wait for its checks on the head commit, read `mergeStateStatus`. It stops
-before the merge and prints the pinned `gh pr merge <n> --merge --match-head-commit
-<sha>`, because a merge is a person's ruling (the release skill never merges one
+before the merge and prints the pinned `gh pr merge <n> --repo <owner/name> --merge
+--match-head-commit <sha>`, because a merge is a person's ruling (the release skill never merges one
 itself either). `--merge` is that ruling given on the command line, and after it the
 base branch's push runs on the merge commit are watched too: a job a pull request
 skips runs only there, so a green pull request is not yet a green base.
@@ -130,11 +130,32 @@ def watch_push_runs(sha: str, timeout: float) -> tuple[list[dict] | None, str]:
     return found, "" if found is not None else f"no push run on {sha[:12]} finished in time"
 
 
+def describe(branch: str, base: str) -> tuple[str, str]:
+    """`(title, body)` for a new pull request: the subject, or the branch for several, and one line per commit.
+
+    Not `--fill`, which makes a one-commit body that commit's body, and a body of
+    trailers alone is what sky.vault's first landing got.
+    """
+    subjects = run("git", "log", "--reverse", "--format=%s", f"origin/{base}..HEAD").stdout.split("\n")
+    subjects = [subject for subject in subjects if subject.strip()]
+    title = subjects[0] if len(subjects) == 1 else branch
+    return title, "\n".join(f"- {subject}" for subject in subjects) or f"Lands {branch} on {base}."
+
+
+def repository() -> str:
+    """`--repo <owner/name>` for a printed command, so it runs outside this clone too; empty if gh cannot say."""
+    found = gh_json("repo", "view", "--json", "nameWithOwner")
+    name = found.get("nameWithOwner") if isinstance(found, dict) else None
+    return f" --repo {name}" if name else ""
+
+
 def open_pull(branch: str, base: str) -> tuple[str, str]:
     """`(number, url)` of the open pull request for `branch`, opened as a draft and marked ready."""
     pull = gh_json("pr", "view", branch, "--json", "number,url,state,isDraft")
     if not isinstance(pull, dict) or pull.get("state") != "OPEN":
-        created = run("gh", "pr", "create", "--draft", "--base", base, "--head", branch, "--fill")
+        title, body = describe(branch, base)
+        text = ("--title", title, "--body", body)
+        created = run("gh", "pr", "create", "--draft", "--base", base, "--head", branch, *text)
         if created.returncode != 0:
             die(f"gh pr create failed: {created.stderr.strip()[-300:]}")
         pull = gh_json("pr", "view", branch, "--json", "number,url,state,isDraft")
@@ -221,7 +242,7 @@ def land(ctx: click.Context, base: str, merging: bool, timeout: int) -> None:
     if state in STUCK:
         die(f"#{number} cannot merge: {STUCK[state]} ({state})")
 
-    command = f"gh pr merge {number} --merge --match-head-commit {sha}"
+    command = f"gh pr merge {number}{repository()} --merge --match-head-commit {sha}"
     if merging:
         merge_and_watch(number, command, base, timeout)
         return

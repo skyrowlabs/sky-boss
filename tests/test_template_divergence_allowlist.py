@@ -15,6 +15,7 @@ from pathlib import Path
 import pytest
 
 from scripts.allowlist import STALE_ADVICE, read, stale
+from scripts.hold_anchors import hunk_regions, region, split, unanchored
 from scripts.manifest import recorded_hashes
 from scripts.paths import PROJECT_ROOT, SCRIPTS_DIR
 from scripts.seams import bounds
@@ -86,3 +87,30 @@ def test_an_entry_outside_the_rules_is_named() -> None:
     assert outside_the_rules(lines) == []
     assert outside_the_rules(["above: a reason", *lines]) == ["above: a reason"]
     assert outside_the_rules([*lines, "below: a reason"]) == ["below: a reason"]
+
+
+def test_every_anchor_names_a_labelled_hold() -> None:
+    assert not unanchored(read(RECORD)), "an anchor needs its own `path:label: reason` entry"
+
+
+def test_an_anchor_is_split_from_the_holds_by_its_last_segment() -> None:
+    holds, anchors = split({"a.md:x": "why", "a.md:x:anchor": "Line.", "a.md:anchor": "a label"})
+    assert holds == {"a.md:x": "why", "a.md:anchor": "a label"} and anchors == {"a.md:x": "Line."}
+    assert unanchored({"a.md:y:anchor": "Line."}) == ["a.md:y"]
+
+
+def test_a_region_is_the_anchors_block_or_its_section() -> None:
+    lines = ["# Top", "", "## Ours", "first", "", "second", "## Next", "para one", "para two", "", "after"]
+    assert region(lines, "## Ours", markdown=True) == (2, 6)
+    assert region(lines, "para one", markdown=True) == (7, 9)
+    assert region(lines, "missing", markdown=True) is None
+    assert region(["# a", "x", "# a"], "# a", markdown=True) is None
+
+
+def test_a_hunk_is_placed_by_the_base_so_a_reworded_anchor_still_counts() -> None:
+    base = ["Ours starts here.", "ours", "", "Theirs.", ""]
+    reworded = ["Ours begins here.", "ours", "", "Theirs.", ""]
+    appended = [*base, "A new paragraph."]
+    anchors = {"a.md:ours": "Ours starts here."}
+    assert hunk_regions(base, reworded, anchors, markdown=True) == [("1", ["a.md:ours"])]
+    assert hunk_regions(base, appended, anchors, markdown=True) == [("6", [])]

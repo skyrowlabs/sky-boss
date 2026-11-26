@@ -104,6 +104,14 @@ def _never_the_network(request: pytest.FixtureRequest, monkeypatch: pytest.Monke
     refuse_remote(monkeypatch)
 
 
+@pytest.fixture(autouse=True)
+def _never_a_forbidden_local_service(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep every test, in every suite, off the loopback ports `tests/guards.py` forbids."""
+    from tests.guards import refuse_forbidden_loopback
+
+    refuse_forbidden_loopback(monkeypatch)
+
+
 # ── Your fixtures go below this line ──────────────────────────────────────────
 #
 # skeletor adds its fixtures and imports above this block and renders nothing

@@ -98,7 +98,12 @@
       "075da1329bf9",
       "f469994eceaa",
       "34d198abab30",
-      "fded1532c392"
+      "fded1532c392",
+      "00677a725fa6",
+      "dad88c3d711b",
+      "50aa0f95c1be",
+      "8e25dccd7cf6",
+      "4eefc09f2d59"
     ],
     "tests/product_scripts_allowlist.yaml": [
       "8b5dab90d9ef",
@@ -833,6 +838,31 @@
       "2af9f0137a65",
       "8fbea5dc8c83",
       "567dfa63a857"
+    ],
+    "tests/guards.py": [
+      "d83c15db89a7",
+      "d19ac21d4cfe",
+      "b1496f202279",
+      "b2895ea4921b",
+      "f0ed229dc4f9",
+      "3b6b1b7e4b9b",
+      "076d3d54c0c8",
+      "4918cbd6a994",
+      "b45dfbd2aabe",
+      "076d3d54c0c8",
+      "9ba177672d79",
+      "0d3c2baee02c",
+      "334359b90efe",
+      "507948a48f04",
+      "eba2551ae0c2",
+      "c655ffb1cfbb",
+      "4d6129ecd358",
+      "048a022c36de",
+      "34194889e6b1",
+      "a6c39ff5fd43",
+      "334359b90efe",
+      "e4d427400c93",
+      "c103ae5fc585"
     ],
     "tests/test_scratch_is_not_linted.py": [
       "7f2bb0cd2597",

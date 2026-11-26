@@ -212,6 +212,8 @@ def status(as_json: bool) -> None:
             warn(f"{entry['job']:<14} NOT INSTALLED — it never runs until `report cron --install`")
             continue
         row = f"{entry['job']:<14} {entry['result']:<9} {entry['last_age']:<10} next {entry['next_run'] or '—'}"
+        if entry.get("landing"):
+            row += f"  report PR {entry['landing']['state']}"
         (warn if entry["overdue"] else ok)(row + ("  OVERDUE" if entry["overdue"] else ""))
 
 

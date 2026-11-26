@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -32,6 +33,7 @@ FIELDS = {
     "scheduled_in_cron",
     "unscheduled_reason",
     "next_run",
+    "landing",
 }
 
 
@@ -145,3 +147,42 @@ def test_cron_is_read_as_cron_reads_it():
 def test_a_night_with_nothing_due_still_writes_a_digest():
     text = overnight.digest(datetime(2026, 11, 4, 12, tzinfo=UTC))
     assert text.startswith("# Overnight") and ("idle" in text or "attention" in text)
+
+
+def opened(reason: str = "landed", **fields) -> None:
+    when = run_ledger.now()
+    row = {"job": JOBS[0].key, "outcome": "ok", "started": when, "finished": when, "branch": "main"}
+    run_ledger.record(run_ledger.Run(**row, agent_ran=True, committed="abc1234", reason=reason, **fields))
+
+
+def gh_answers(monkeypatch, answer, code: int = 0) -> None:
+    def run(argv, **_):
+        return subprocess.CompletedProcess(argv, code, json.dumps(answer) if answer is not None else "", "")
+
+    monkeypatch.setattr(status.shellout, "run", run)
+
+
+@pytest.mark.parametrize(
+    "answer, code, said",
+    [
+        ({"state": "MERGED", "autoMergeRequest": None}, 0, "merged"),
+        ({"state": "OPEN", "autoMergeRequest": {"mergeMethod": "MERGE"}}, 0, "open, auto-merge"),
+        ({"state": "OPEN", "autoMergeRequest": None}, 0, "open"),
+        ({"state": "CLOSED", "autoMergeRequest": None}, 0, "closed"),
+        (None, 1, "unknown"),
+    ],
+)
+def test_a_report_pull_request_reads_as_its_landing(monkeypatch, answer, code, said):
+    opened(pull="https://example.invalid/pull/9")
+    gh_answers(monkeypatch, answer, code)
+    assert status.landing(JOBS[0].key) == {"pull": "https://example.invalid/pull/9", "state": said}
+
+
+def test_a_row_written_before_the_pull_field_is_read_from_its_reason(monkeypatch):
+    opened("https://example.invalid/pull/4 set to auto-merge; whether it lands is CI's")
+    gh_answers(monkeypatch, {"state": "MERGED"})
+    assert status.landing(JOBS[0].key) == {"pull": "https://example.invalid/pull/4", "state": "merged"}
+
+
+def test_a_job_that_opened_nothing_has_no_landing():
+    assert status.landing(JOBS[0].key) is None

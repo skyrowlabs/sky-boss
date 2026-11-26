@@ -26,7 +26,7 @@ positional and renumbers the moment a phase gains a step; a Critical Rule number
 
 ## Phase 3 — Quality Checks
 
-1. Run the blocking lint set (see `docs/rules/python.md`).
+1. Run the blocking lint set (see `docs/rules/python.md` and `docs/rules/javascript.md`).
 2. Run the type checker whole-project.
 3. For a deeper pass, run `/code-review` from the main session.
 

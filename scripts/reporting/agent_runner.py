@@ -26,7 +26,6 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-import re
 import shlex
 import subprocess
 import sys
@@ -331,7 +330,7 @@ def run_triage(job_key: str, collected: dict, *, base_branch: str = "develop") -
         return 1
 
     head_after = _head()
-    agent_ran, reason = _settled(job, result, head_before, head_after, artifact_before, branch)
+    agent_ran, reason, pull = _settled(job, result, head_before, head_after, artifact_before, branch)
     run_ledger.record(
         run_ledger.Run(
             job=job.key,
@@ -347,6 +346,7 @@ def run_triage(job_key: str, collected: dict, *, base_branch: str = "develop") -
                 else int(collected.get("finding_count", 0) or 0)
             ),
             reason=reason,
+            pull=pull,
             **usage(result.stdout),
         )
     )
@@ -381,22 +381,23 @@ def _outcome(job, result, head_moved: bool, artifact_before: str | None) -> tupl
 
 
 def _settled(job, result, head_before: str, head_after: str, artifact_before: str | None, branch: str):
-    """The run's verdict: did the work, stayed on its branch, and opened its pull request if it publishes.
+    """The run's verdict, its reason, and the pull request it opened if it publishes.
 
     Refusals go on the reason in an `ok` run too, where nothing else would show them.
     """
     agent_ran, reason = _outcome(job, result, head_before != head_after, artifact_before)
+    pull = None
     now = current_branch()
     if agent_ran and job.commits and now != branch:
         agent_ran, reason = False, f"agent left the checkout on '{now}', not '{branch}'; the next run would decline"
     elif agent_ran and job.key in AUTO_PUSH:
-        problem, note = _publish(job, head_before, head_after, branch)
+        problem, note, pull = _publish(job, head_before, head_after, branch)
         agent_ran, reason = not problem, f"committed but not landed: {problem}" if problem else note
     denied = refused(result.stdout)
     notes = [reason] if reason else []
     if denied:
         notes.append(f"it was refused {len(denied)} tool call(s): {', '.join(sorted(set(denied)))}")
-    return agent_ran, "; ".join(notes)
+    return agent_ran, "; ".join(notes), pull
 
 
 def _git(*args: str, timeout: int = PUSH_TIMEOUT_S):
@@ -473,8 +474,6 @@ def _close_earlier(job, topic: str) -> list[str]:
     return closed
 
 
-#: The pull request an `ok` row says this runner opened, as `_publish`'s note words it.
-_OPENED = re.compile(r"(\S+/pull/\d+) set to auto-merge")
 #: A check conclusion (or a status's state) that keeps auto-merge from firing.
 _FAILED_CHECK = {"FAILURE", "ERROR", "CANCELLED", "TIMED_OUT", "ACTION_REQUIRED", "STARTUP_FAILURE"}
 
@@ -486,13 +485,10 @@ def _follow_up(job, branch: str) -> None:
     earlier run. Merged, still pending, unreadable, or already followed up: nothing.
     """
     rows = run_ledger.runs_of(job.key)
-    for at in range(len(rows) - 1, -1, -1):
-        match = _OPENED.search(rows[at].get("reason") or "")
-        if match:
-            break
-    else:
+    found = run_ledger.last_opened(rows)
+    if found is None:
         return
-    url = match.group(1)
+    at, url = found
     if any(url in (row.get("reason") or "") for row in rows[at + 1 :]):
         return
     viewed = _gh("pr", "view", url, "--json", "state,statusCheckRollup")
@@ -519,8 +515,8 @@ def _follow_up(job, branch: str) -> None:
     )
 
 
-def _publish(job, head_before: str, head_after: str, branch: str) -> tuple[str, str]:
-    """Land the job's commit through a pull request set to auto-merge. Returns (problem, note).
+def _publish(job, head_before: str, head_after: str, branch: str) -> tuple[str, str, str | None]:
+    """Land the job's commit through a pull request set to auto-merge. Returns (problem, note, url).
 
     The runner does this, not the agent, so no grant ever includes a push. Only the
     job's own file, never forced. A pushed commit leaves the base branch, which then
@@ -528,24 +524,24 @@ def _publish(job, head_before: str, head_after: str, branch: str) -> tuple[str, 
     """
     problem = _unlandable(job, head_before, head_after, branch)
     if problem:
-        return problem, ""
+        return problem, "", None
     topic = f"report/{job.key}-{head_after}"
     pushed = _git("push", "origin", f"HEAD:refs/heads/{topic}")
     if pushed.returncode != 0:
-        return f"`git push` refused: {pushed.stderr.strip()[-300:]}", ""
+        return f"`git push` refused: {pushed.stderr.strip()[-300:]}", "", None
     _git("reset", "--keep", head_before)
     closed = _close_earlier(job, topic)
     title = _git("log", "-1", "--format=%s", head_after).stdout.strip()
     body = f"The `{job.key}` job's report, opened by its runner."
     opened = _gh("pr", "create", "--base", branch, "--head", topic, "--title", title, "--body", body)
     if opened.returncode != 0:
-        return f"`gh pr create` failed, the commit is on {topic}: {opened.stderr.strip()[-300:]}", ""
+        return f"`gh pr create` failed, the commit is on {topic}: {opened.stderr.strip()[-300:]}", "", None
     url = opened.stdout.strip()
     merging = _gh("pr", "merge", url, "--auto", "--merge")
     if merging.returncode != 0:
-        return f"{url} is open but will not auto-merge: {merging.stderr.strip()[-300:]}", ""
+        return f"{url} is open but will not auto-merge: {merging.stderr.strip()[-300:]}", "", None
     replaced = f", replacing {', '.join(closed)}" if closed else ""
-    return "", f"{url} set to auto-merge{replaced}; whether it lands is CI's"
+    return "", f"{url} set to auto-merge{replaced}; whether it lands is CI's", url
 
 
 def _head() -> str:

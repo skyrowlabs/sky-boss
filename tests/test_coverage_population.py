@@ -96,9 +96,9 @@ def tree(tmp_path, monkeypatch, manifest):
 
 
 def test_a_scaffold_only_population_has_none_of_ours(tree):
-    """The shipped state of every tree on its first coverage run."""
+    """The shipped state of every tree on its first coverage run: no subject, never green."""
     code, stored = tree(SCAFFOLDED)
-    assert code == 0
+    assert code == budget.EXIT_NO_SUBJECT
     assert stored["suites"]["scheduled"]["baseline_pct"] == 0.0
 
 
@@ -128,7 +128,7 @@ def test_the_baseline_is_recorded_once_some_of_it_is_ours(tree):
 def test_a_suite_with_no_entry_is_held_at_the_floor_and_not_written(tree, capsys):
     """`test coverage --suite unit --suite ui` in a fresh tree, where `--update` refuses."""
     code, stored = tree(SCAFFOLDED, "--suite", "unit+ui")
-    assert code == 0
+    assert code == budget.EXIT_NO_SUBJECT
     assert json.loads(capsys.readouterr().out)["unrecorded"] is True
     assert "unit+ui" not in stored["suites"], "a check wrote the budget"
 
@@ -234,7 +234,7 @@ def test_an_own_baseline_with_nothing_of_yours_measured_fails(tree):
     code, _ = tree(SCAFFOLDED, entry={"own_baseline_pct": 80.0})
     assert code == 1
     code, _ = tree(SCAFFOLDED, entry={"own_baseline_pct": 0.0})
-    assert code == 0
+    assert code == budget.EXIT_NO_SUBJECT
 
 
 def test_every_json_key_names_one_population(tree, capsys):

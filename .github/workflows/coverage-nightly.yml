@@ -111,7 +111,16 @@ jobs:
 
       - name: Coverage ratchet
         # The key `dev test coverage` checks with no flags: one set, one name.
-        run: python scripts/check_coverage_budget.py --suite scheduled
+        # Exit 3 is no subject: every measured statement is the scaffold's, so there is
+        # nothing of this tree's to ratchet yet. A notice, not a red job every night.
+        run: |
+          status=0
+          python scripts/check_coverage_budget.py --suite scheduled || status=$?
+          if [ "$status" -eq 3 ]; then
+            echo "::notice::no coverage subject: every measured statement is the scaffold's"
+            exit 0
+          fi
+          exit "$status"
 
       - name: Skip budget
         run: |

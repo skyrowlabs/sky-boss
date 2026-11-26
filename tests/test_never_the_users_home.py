@@ -12,6 +12,7 @@ from pathlib import Path
 import pytest
 
 from scripts.paths import STATE_ROOT_DEFAULT, STATE_ROOT_ENV
+from tests import guards
 from tests.guards import SECRET_NAME, hide_secrets, is_local
 
 pytestmark = [pytest.mark.unit]
@@ -76,3 +77,19 @@ def test_the_shape_names_secrets_only(monkeypatch):
 def test_local_means_loopback_or_a_unix_path():
     assert all(is_local(a) for a in (("127.0.0.1", 1), ("::1", 1, 0, 0), ("localhost", 1), "/tmp/s", b"\0abstract"))
     assert not any(is_local(a) for a in (("10.0.0." + "5", 1), ("example.com", 1)))
+
+
+def test_a_forbidden_local_port_is_refused_and_others_are_not(monkeypatch):
+    monkeypatch.setattr(guards, "FORBIDDEN_LOOPBACK", (11434,))
+    guards.refuse_forbidden_loopback(monkeypatch)
+    with socket.socket() as probe, pytest.raises(AssertionError, match="forbidden local service"):
+        probe.connect(("127.0.0.1", 11434))
+    with socket.socket() as probe:
+        assert probe.connect_ex(("127.0.0.1", 1)) != 0, "an unforbidden local port is reached as usual"
+
+
+def test_an_empty_list_patches_nothing(monkeypatch):
+    before = socket.socket.connect
+    monkeypatch.setattr(guards, "FORBIDDEN_LOOPBACK", ())
+    guards.refuse_forbidden_loopback(monkeypatch)
+    assert socket.socket.connect is before

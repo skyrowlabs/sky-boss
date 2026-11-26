@@ -34,6 +34,7 @@ def no_holds(monkeypatch):
     """
     monkeypatch.setattr(doctor.repo_settings, "HELD_WORKFLOWS", GITHUB_DIR / "absent-held.yaml")
     monkeypatch.setattr(doctor, "job_registry", lambda: None)
+    monkeypatch.setattr(doctor, "local_facts", lambda: [])
 
 
 def stub(monkeypatch, answers: dict) -> None:
@@ -347,3 +348,62 @@ def test_every_held_workflow_is_a_workflow_here():
         lambda name: None if name in present else "there is no such workflow in .github/workflows",
     )
     assert not gone, "\n".join(gone) + "\n" + allowlist.STALE_ADVICE
+
+
+def hook(tmp_path: Path, name: str, python: Path) -> Path:
+    hooks = tmp_path / "hooks"
+    hooks.mkdir(exist_ok=True)
+    (hooks / name).write_text(f"#!/usr/bin/env bash\nINSTALL_PYTHON={python}\n", encoding="utf-8")
+    return hooks
+
+
+def test_a_hook_whose_interpreter_is_gone_is_a_problem(tmp_path):
+    hooks = hook(tmp_path, "pre-commit", tmp_path / "gone" / "python")
+    fact = doctor.hook_interpreter(hooks, tmp_path, [])
+    assert fact.state == doctor.PROBLEM and doctor.REINSTALL in fact.detail and str(tmp_path) in fact.detail
+
+
+def test_a_hook_run_from_a_linked_worktree_is_worth_a_look(tmp_path):
+    linked = tmp_path / "linked"
+    (linked / ".venv" / "bin").mkdir(parents=True)
+    python = linked / ".venv" / "bin" / "python"
+    python.write_text("", encoding="utf-8")
+    hooks = hook(tmp_path, "commit-msg", python)
+    assert doctor.hook_interpreter(hooks, tmp_path, [linked]).state == doctor.CAUTION
+    assert doctor.hook_interpreter(hooks, tmp_path, []).state == doctor.OK
+
+
+def test_no_installed_hook_asks_nothing(tmp_path):
+    assert doctor.hook_interpreter(tmp_path / "hooks", None, []).state == doctor.NOT_APPLICABLE
+
+
+def test_every_release_carrying_the_freeze_tool_owes_an_edition():
+    tags = ["v0.3.0", "v0.2.1", "v0.2.0", "v0.1.0"]
+    carries = {"v0.3.0", "v0.2.1", "v0.2.0"}.__contains__
+    fact = doctor.release_editions(tags, carries, {"v0.3.0"}.__contains__, {})
+    assert fact.state == doctor.PROBLEM and "v0.2.1, v0.2.0" in fact.detail and "v0.1.0" not in fact.detail
+    held = {"v0.2.1": "a patch", "v0.2.0": "before the freeze"}
+    assert doctor.release_editions(tags, carries, {"v0.3.0"}.__contains__, held).state == doctor.OK
+
+
+def test_a_held_release_that_has_an_edition_or_no_tag_is_stale():
+    for held in ({"v0.3.0": "frozen since"}, {"v9.9.9": "never cut"}):
+        fact = doctor.release_editions(["v0.3.0"], lambda _: True, {"v0.3.0"}.__contains__, held)
+        assert fact.state == doctor.PROBLEM and doctor.FREEZE_HELD.name in fact.detail, held
+
+
+def test_no_release_carrying_the_freeze_tool_asks_nothing():
+    assert doctor.release_editions(["v0.1.0"], lambda _: False, lambda _: False, {}).state == doctor.NOT_APPLICABLE
+    assert doctor.release_editions([], lambda _: True, lambda _: False, {}).state == doctor.NOT_APPLICABLE
+
+
+def test_a_second_top_level_summarize_is_worth_a_look():
+    sources = {"scripts/checks/run.py": "def summarize(rows):\n    return 0\n", "a.py": "x = 1\n", "b.py": "(\n"}
+    fact = doctor.second_aggregators(sources)
+    assert fact.state == doctor.CAUTION and "scripts/checks/run.py" in fact.detail
+    nested = {"c.py": "class C:\n    def summarize(self):\n        return 0\n"}
+    assert doctor.second_aggregators(nested).state == doctor.OK
+
+
+def test_this_tree_defines_summarize_only_in_the_contract():
+    assert doctor.second_aggregators_here().state == doctor.OK
