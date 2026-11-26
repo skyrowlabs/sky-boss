@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -114,3 +115,13 @@ def test_a_step_gets_runner_files_and_later_steps_see_what_it_wrote(tmp_path, mo
 
 def test_the_pinned_cpu_is_one_this_process_may_use() -> None:
     assert like_ci.one_cpu() in os.sched_getaffinity(0)
+
+
+def test_the_install_steps_run_again_on_a_cached_venv(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(like_ci, "VENVS", tmp_path / "venvs")
+    tree = tmp_path / "copy"
+    tree.mkdir()
+    for attempt in (1, 2):
+        shutil.rmtree(tree / "made", ignore_errors=True)
+        like_ci.build(sys.executable, "x", ["mkdir made"], {}, tree)
+        assert (tree / "made").is_dir(), f"run {attempt} skipped the install step"

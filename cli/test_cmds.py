@@ -258,11 +258,13 @@ def like_ci(version: str | None, repeat: int, pytest_args: tuple) -> None:
         step(f"copied the tracked files to {tree.relative_to(PROJECT_ROOT)}, where CI's steps run")
         try:
             for leg in versions:
-                step(f"python {leg}: building or reusing the venv from {ci.ACTION.relative_to(PROJECT_ROOT)}")
+                action = ci.ACTION.relative_to(PROJECT_ROOT)
+                step(f"python {leg}: building or reusing the venv, then running the install steps from {action}")
                 venv = ci.build(str(found[leg]), leg, installs, job, tree)
+                cpu = ci.one_cpu()
                 for attempt in range(1, repeat + 1):
-                    step(f"python {leg}, run {attempt} of {repeat}, on one CPU")
-                    red += ci.run(lines, venv, job, tree) != 0
+                    step(f"python {leg}, run {attempt} of {repeat}, on CPU {cpu} alone")
+                    red += ci.run(lines, venv, job, tree, cpu) != 0
         finally:
             # A copy left behind is a second tree to anything that walks the disk (dream-doll's vitest).
             shutil.rmtree(tree, ignore_errors=True)

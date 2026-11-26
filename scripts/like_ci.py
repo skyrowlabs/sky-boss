@@ -137,19 +137,24 @@ def environment(venv: Path, job: dict) -> dict[str, str]:
 
 
 def build(python: str, version: str, installs: list[str], job: dict, root: Path = PROJECT_ROOT) -> Path:
-    """The venv for `version`, built once per cache key and reused after."""
+    """The venv for `version`, created once per cache key, with the install steps run into `root` every time.
+
+    The runner runs its setup on every job, and a step that writes into the
+    checkout, such as `python -m venv .venv`, is gone with the last copy, so a
+    cached run that skipped it was red from the second run on (sky.boss).
+    """
     venv = VENVS / f"{version}-{cache_key(version, installs, root)}"
     done = venv / ".installed"
     if not done.exists():
         shutil.rmtree(venv, ignore_errors=True)
         subprocess.run([python, "-m", "venv", str(venv)], check=True)
-        env = environment(venv, job)
-        carried: dict = {"path": [], "env": {}}
-        for line in installs:
-            if step(line, env, root, carried) != 0:
-                raise Refused(f"an install step failed, so the venv is not CI's: {line.strip()[:80]}")
-        (venv / CARRIED).write_text(json.dumps(carried), encoding="utf-8")
         done.write_text("", encoding="utf-8")
+    env = environment(venv, job)
+    carried: dict = {"path": [], "env": {}}
+    for line in installs:
+        if step(line, env, root, carried) != 0:
+            raise Refused(f"an install step failed, so the venv is not CI's: {line.strip()[:80]}")
+    (venv / CARRIED).write_text(json.dumps(carried), encoding="utf-8")
     if system_site_packages((venv / "pyvenv.cfg").read_text(encoding="utf-8")):
         raise Refused(f"{venv / 'pyvenv.cfg'} includes system site-packages, which the runner's interpreter lacks")
     return venv
@@ -216,13 +221,14 @@ def step(line: str, env: dict[str, str], root: Path, carried: dict, pin: tuple =
     return code
 
 
-def run(lines: list[str], venv: Path, job: dict, root: Path = PROJECT_ROOT) -> int:
-    """Each line on one CPU, stopping at the first that fails. Its exit code, or 0."""
+def run(lines: list[str], venv: Path, job: dict, root: Path = PROJECT_ROOT, cpu: int | None = None) -> int:
+    """Each line on one CPU, `one_cpu()` unless named, stopping at the first that fails. Its exit code, or 0."""
+    cpu = one_cpu() if cpu is None else cpu
     env = environment(venv, job)
     saved = venv / CARRIED
     carried = json.loads(saved.read_text(encoding="utf-8")) if saved.exists() else {"path": [], "env": {}}
     for line in lines:
-        code = step(line, env, root, carried, ("taskset", "-c", str(one_cpu())))
+        code = step(line, env, root, carried, ("taskset", "-c", str(cpu)))
         if code != 0:
             return code
     return 0
