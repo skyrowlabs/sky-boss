@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import importlib.util
 import os
+import shutil
 import sys
 from typing import NamedTuple
 
@@ -255,12 +256,16 @@ def like_ci(version: str | None, repeat: int, pytest_args: tuple) -> None:
         red = 0
         tree = ci.checkout()
         step(f"copied the tracked files to {tree.relative_to(PROJECT_ROOT)}, where CI's steps run")
-        for leg in versions:
-            step(f"python {leg}: building or reusing the venv from {ci.ACTION.relative_to(PROJECT_ROOT)}")
-            venv = ci.build(str(found[leg]), leg, installs, job, tree)
-            for attempt in range(1, repeat + 1):
-                step(f"python {leg}, run {attempt} of {repeat}, on one CPU")
-                red += ci.run(lines, venv, job, tree) != 0
+        try:
+            for leg in versions:
+                step(f"python {leg}: building or reusing the venv from {ci.ACTION.relative_to(PROJECT_ROOT)}")
+                venv = ci.build(str(found[leg]), leg, installs, job, tree)
+                for attempt in range(1, repeat + 1):
+                    step(f"python {leg}, run {attempt} of {repeat}, on one CPU")
+                    red += ci.run(lines, venv, job, tree) != 0
+        finally:
+            # A copy left behind is a second tree to anything that walks the disk (dream-doll's vitest).
+            shutil.rmtree(tree, ignore_errors=True)
     except ci.Refused as refused:
         fail(f"not like CI: {refused}")
         sys.exit(EXIT_REFUSED)

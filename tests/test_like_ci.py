@@ -92,7 +92,10 @@ def test_the_steps_run_in_a_repository_holding_the_working_tree(tmp_path) -> Non
     subprocess.run([*git, "commit", "-qm", "c"], check=True)
     (root / "kept.py").write_text("x = 2\n", encoding="utf-8")
     (root / "untracked.txt").write_text("no\n", encoding="utf-8")
+    subprocess.run([*git, "checkout", "-qb", "round-branch"], check=True)
     copy = like_ci.checkout(root, root / "tmp" / "copy")
+    pointer = subprocess.run(["git", "-C", str(copy), "symbolic-ref", "refs/remotes/origin/HEAD"], capture_output=True)
+    assert pointer.returncode != 0, "the runner's checkout has no origin/HEAD"
     listed = subprocess.run(["git", "-C", str(copy), "ls-files"], capture_output=True, text=True, check=True)
     assert listed.stdout.split() == ["kept.py"]
     assert (copy / "kept.py").read_text(encoding="utf-8") == "x = 2\n"
@@ -107,3 +110,7 @@ def test_a_step_gets_runner_files_and_later_steps_see_what_it_wrote(tmp_path, mo
     seen = tmp_path / "seen"
     assert like_ci.step(f'echo "$FOO:$PATH" > {seen}', dict(os.environ), tmp_path, carried) == 0
     assert seen.read_text(encoding="utf-8").startswith("bar:/added/bin" + os.pathsep)
+
+
+def test_the_pinned_cpu_is_one_this_process_may_use() -> None:
+    assert like_ci.one_cpu() in os.sched_getaffinity(0)

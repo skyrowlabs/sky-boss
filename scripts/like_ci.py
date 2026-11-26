@@ -143,7 +143,8 @@ def build(python: str, version: str, installs: list[str], job: dict, root: Path 
     if not done.exists():
         shutil.rmtree(venv, ignore_errors=True)
         subprocess.run([python, "-m", "venv", str(venv)], check=True)
-        env, carried = environment(venv, job), {"path": [], "env": {}}
+        env = environment(venv, job)
+        carried: dict = {"path": [], "env": {}}
         for line in installs:
             if step(line, env, root, carried) != 0:
                 raise Refused(f"an install step failed, so the venv is not CI's: {line.strip()[:80]}")
@@ -172,6 +173,10 @@ def checkout(root: Path = PROJECT_ROOT, dest: Path = VENVS / "checkout") -> Path
     if cloned.returncode != 0:
         raise Refused(f"git could not clone the tree for a fresh checkout: {cloned.stderr.strip()[:120]}")
     subprocess.run(["git", "-C", str(dest), "checkout", "--quiet", "--detach", "HEAD"], check=False)
+    # The runner's checkout has no origin/HEAD, and a clone's names whatever branch
+    # the tree has out, which a round branch never matches (eight trees).
+    unset = ["git", "-C", str(dest), "symbolic-ref", "--delete", "refs/remotes/origin/HEAD"]
+    subprocess.run(unset, capture_output=True, check=False)
     for rel in filter(None, listed.stdout.split("\0")):
         source = root / rel
         if not source.exists() and not source.is_symlink():
@@ -180,6 +185,15 @@ def checkout(root: Path = PROJECT_ROOT, dest: Path = VENVS / "checkout") -> Path
             (dest / rel).parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(source, dest / rel, follow_symlinks=False)
     return dest
+
+
+def one_cpu() -> int:
+    """One CPU this process may use, picked by pid so two runs at once rarely share it.
+
+    A fixed core 0 put every concurrent run on the same one: 2m against 18s (stash.flow).
+    """
+    allowed = sorted(os.sched_getaffinity(0))
+    return allowed[os.getpid() % len(allowed)]
 
 
 #: What the install steps wrote to `$GITHUB_PATH` and `$GITHUB_ENV`, kept beside the cached venv.
@@ -208,7 +222,7 @@ def run(lines: list[str], venv: Path, job: dict, root: Path = PROJECT_ROOT) -> i
     saved = venv / CARRIED
     carried = json.loads(saved.read_text(encoding="utf-8")) if saved.exists() else {"path": [], "env": {}}
     for line in lines:
-        code = step(line, env, root, carried, ("taskset", "-c", "0"))
+        code = step(line, env, root, carried, ("taskset", "-c", str(one_cpu())))
         if code != 0:
             return code
     return 0
