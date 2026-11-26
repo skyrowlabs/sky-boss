@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import subprocess
 import sys
 from pathlib import Path
 
@@ -78,3 +79,15 @@ def test_a_leg_outside_the_matrix_is_a_refusal(monkeypatch) -> None:
     monkeypatch.setattr(like_ci.shutil, "which", lambda name: "/usr/bin/" + name)
     with pytest.raises(like_ci.Refused, match="not a leg"):
         like_ci.plan("2.7")
+
+
+def test_the_steps_run_in_a_copy_of_the_tracked_files(tmp_path) -> None:
+    root = tmp_path / "tree"
+    root.mkdir()
+    subprocess.run(["git", "init", "-q", str(root)], check=True)
+    (root / "kept.py").write_text("x = 1\n", encoding="utf-8")
+    (root / "untracked.txt").write_text("no\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(root), "add", "kept.py"], check=True)
+    copy = like_ci.checkout(root, tmp_path / "copy")
+    assert (copy / "kept.py").read_text(encoding="utf-8") == "x = 1\n"
+    assert not (copy / "untracked.txt").exists()

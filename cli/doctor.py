@@ -808,7 +808,8 @@ def second_aggregators(sources: dict[str, str]) -> Fact:
         if any(isinstance(node, ast.FunctionDef) and node.name == "summarize" for node in body):
             hits.append(rel)
     if hits:
-        said = f"{', '.join(hits)} define a top-level summarize too, so two copies of the exit codes can drift"
+        verb = "defines" if len(hits) == 1 else "define"
+        said = f"{', '.join(hits)} {verb} a top-level summarize too, so two copies of the exit codes can drift"
         return Fact(name, CAUTION, f"{said}. If one predates adoption, pick one copy")
     return Fact(name, OK, f"{len(sources)} tracked python file(s) read, and none defines one")
 

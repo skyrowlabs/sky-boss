@@ -134,6 +134,12 @@ That is the difference between "the suite passed" and "the suite ran".
 
 Full rules: [`docs/rules/testing.md`](rules/testing.md).
 
+### Reproducing CI and the clock
+
+`dev test clock-ahead <days>` runs a suite with the clock moved forward, to find a test that will break on a date before it does. It needs `time-machine`, which is not in `scripts/requirements.txt`, and prints `no subject` with the install line without it. Only this process shifts, so a child a test spawns keeps the real clock; the run says how many test files use `subprocess`.
+
+`dev test like-ci` runs `ci.yml`'s unit job here as the runner does: each matrix interpreter (`--python` picks one), a venv built from `.github/actions/unit-setup`'s own install steps with no system site-packages, the job's own `run:` lines, and one CPU through `taskset`. `-- <pytest args>` runs a repro instead, and `--repeat N` loops it, which is what a race that only CI hits needs. It exits 2, naming the part, when this host cannot reproduce one (no interpreter for a leg, no `taskset`): a partial imitation is what it replaces. The steps run in a fresh copy of the tracked files at `tmp/like-ci/checkout/`, as the runner's checkout is, so an install step never writes into this tree; the venvs are cached under `tmp/like-ci/`, keyed by interpreter and install files.
+
 ## CI/CD Pipeline
 
 **Every event runs everything.** The column is the same on every row, and that

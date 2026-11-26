@@ -151,6 +151,24 @@ def build(python: str, version: str, installs: list[str], job: dict, root: Path 
     return venv
 
 
+def checkout(root: Path = PROJECT_ROOT, dest: Path = VENVS / "checkout") -> Path:
+    """A fresh copy of the tree's tracked files, where the installs and the run happen.
+
+    The runner installs into a fresh checkout, and an install step that writes into
+    the tree, such as `python -m venv .venv`, would otherwise rebuild this one's (sky.boss).
+    """
+    listed = subprocess.run(["git", "-C", str(root), "ls-files", "-z"], capture_output=True, text=True)
+    if listed.returncode != 0:
+        raise Refused("git could not list the tree, so there is no checkout to copy")
+    shutil.rmtree(dest, ignore_errors=True)
+    for rel in filter(None, listed.stdout.split("\0")):
+        source = root / rel
+        if source.is_file() or source.is_symlink():
+            (dest / rel).parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, dest / rel, follow_symlinks=False)
+    return dest
+
+
 def run(lines: list[str], venv: Path, job: dict, root: Path = PROJECT_ROOT) -> int:
     """Each line on one CPU, stopping at the first that fails. Its exit code, or 0."""
     env = environment(venv, job)

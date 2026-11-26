@@ -173,11 +173,9 @@ A `[project.scripts]` entry in `pyproject.toml` is held to two rules by `tests/t
 
 A plant that does not land, a test already red and a test something else caught all look like a pass by hand, which is why this refuses each. A local run does not prove CI runs the gate.
 
-## Clock Bombs
+## Clock Bombs and CI Repros
 
-`dev test clock-ahead <days>` runs a suite with the clock moved forward, to find a test that will break on a date before it does. It needs `time-machine`, which is not in `scripts/requirements.txt`, and prints `no subject` with the install line without it. Only this process shifts, so a child a test spawns keeps the real clock; the run says how many test files use `subprocess`.
-
-`dev test like-ci` runs `ci.yml`'s unit job here as the runner does: each matrix interpreter (`--python` picks one), a venv built from `.github/actions/unit-setup`'s own install steps with no system site-packages, the job's own `run:` lines, and one CPU through `taskset`. `-- <pytest args>` runs a repro instead, and `--repeat N` loops it, which is what a race that only CI hits needs. It exits 2, naming the part, when this host cannot reproduce one (no interpreter for a leg, no `taskset`): a partial imitation is what it replaces. The venvs are cached under `tmp/like-ci/`, keyed by interpreter and install files.
+`dev test clock-ahead` and `dev test like-ci` are described in [`docs/DEVELOPMENT.md`](../DEVELOPMENT.md#reproducing-ci-and-the-clock), beside `test unit --ci`.
 
 ## Before You Commit
 

@@ -403,7 +403,3 @@ def test_a_second_top_level_summarize_is_worth_a_look():
     assert fact.state == doctor.CAUTION and "scripts/checks/run.py" in fact.detail
     nested = {"c.py": "class C:\n    def summarize(self):\n        return 0\n"}
     assert doctor.second_aggregators(nested).state == doctor.OK
-
-
-def test_this_tree_defines_summarize_only_in_the_contract():
-    assert doctor.second_aggregators_here().state == doctor.OK

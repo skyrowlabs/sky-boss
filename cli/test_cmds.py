@@ -253,12 +253,14 @@ def like_ci(version: str | None, repeat: int, pytest_args: tuple) -> None:
             raise ci.Refused(f"no python{' or python'.join(missing)} on PATH{hint}")
         lines = [f"python -m pytest {shlex.join(pytest_args)}"] if pytest_args else commands
         red = 0
+        tree = ci.checkout()
+        step(f"copied the tracked files to {tree.relative_to(PROJECT_ROOT)}, where CI's steps run")
         for leg in versions:
             step(f"python {leg}: building or reusing the venv from {ci.ACTION.relative_to(PROJECT_ROOT)}")
-            venv = ci.build(str(found[leg]), leg, installs, job)
+            venv = ci.build(str(found[leg]), leg, installs, job, tree)
             for attempt in range(1, repeat + 1):
                 step(f"python {leg}, run {attempt} of {repeat}, on one CPU")
-                red += ci.run(lines, venv, job) != 0
+                red += ci.run(lines, venv, job, tree) != 0
     except ci.Refused as refused:
         fail(f"not like CI: {refused}")
         sys.exit(EXIT_REFUSED)
