@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -81,13 +82,28 @@ def test_a_leg_outside_the_matrix_is_a_refusal(monkeypatch) -> None:
         like_ci.plan("2.7")
 
 
-def test_the_steps_run_in_a_copy_of_the_tracked_files(tmp_path) -> None:
+def test_the_steps_run_in_a_repository_holding_the_working_tree(tmp_path) -> None:
     root = tmp_path / "tree"
     root.mkdir()
+    git = ["git", "-c", "user.name=t", "-c", "user.email=t@t", "-C", str(root)]
     subprocess.run(["git", "init", "-q", str(root)], check=True)
     (root / "kept.py").write_text("x = 1\n", encoding="utf-8")
+    subprocess.run([*git, "add", "kept.py"], check=True)
+    subprocess.run([*git, "commit", "-qm", "c"], check=True)
+    (root / "kept.py").write_text("x = 2\n", encoding="utf-8")
     (root / "untracked.txt").write_text("no\n", encoding="utf-8")
-    subprocess.run(["git", "-C", str(root), "add", "kept.py"], check=True)
-    copy = like_ci.checkout(root, tmp_path / "copy")
-    assert (copy / "kept.py").read_text(encoding="utf-8") == "x = 1\n"
+    copy = like_ci.checkout(root, root / "tmp" / "copy")
+    listed = subprocess.run(["git", "-C", str(copy), "ls-files"], capture_output=True, text=True, check=True)
+    assert listed.stdout.split() == ["kept.py"]
+    assert (copy / "kept.py").read_text(encoding="utf-8") == "x = 2\n"
     assert not (copy / "untracked.txt").exists()
+
+
+def test_a_step_gets_runner_files_and_later_steps_see_what_it_wrote(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(like_ci, "VENVS", tmp_path)
+    carried: dict = {"path": [], "env": {}}
+    wrote = 'echo /added/bin >> "$GITHUB_PATH" && echo FOO=bar >> "$GITHUB_ENV"'
+    assert like_ci.step(wrote, dict(os.environ), tmp_path, carried) == 0
+    seen = tmp_path / "seen"
+    assert like_ci.step(f'echo "$FOO:$PATH" > {seen}', dict(os.environ), tmp_path, carried) == 0
+    assert seen.read_text(encoding="utf-8").startswith("bar:/added/bin" + os.pathsep)

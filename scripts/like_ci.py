@@ -13,6 +13,7 @@ which part: a partial imitation is the defect this exists to remove.
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import re
 import shutil
@@ -22,6 +23,7 @@ from pathlib import Path
 import yaml
 
 from scripts.paths import GITHUB_DIR, PROJECT_ROOT, TMP_DIR
+from scripts.rehearse_scheduled import _runner_files, _take, parse_github_env
 
 CI = GITHUB_DIR / "workflows" / "ci.yml"
 UNIT_SETUP = "./.github/actions/unit-setup"
@@ -141,10 +143,11 @@ def build(python: str, version: str, installs: list[str], job: dict, root: Path 
     if not done.exists():
         shutil.rmtree(venv, ignore_errors=True)
         subprocess.run([python, "-m", "venv", str(venv)], check=True)
-        env = environment(venv, job)
+        env, carried = environment(venv, job), {"path": [], "env": {}}
         for line in installs:
-            if subprocess.run([*BASH, line], cwd=root, env=env, check=False).returncode != 0:
+            if step(line, env, root, carried) != 0:
                 raise Refused(f"an install step failed, so the venv is not CI's: {line.strip()[:80]}")
+        (venv / CARRIED).write_text(json.dumps(carried), encoding="utf-8")
         done.write_text("", encoding="utf-8")
     if system_site_packages((venv / "pyvenv.cfg").read_text(encoding="utf-8")):
         raise Refused(f"{venv / 'pyvenv.cfg'} includes system site-packages, which the runner's interpreter lacks")
@@ -152,28 +155,60 @@ def build(python: str, version: str, installs: list[str], job: dict, root: Path 
 
 
 def checkout(root: Path = PROJECT_ROOT, dest: Path = VENVS / "checkout") -> Path:
-    """A fresh copy of the tree's tracked files, where the installs and the run happen.
+    """A clone of the tree with its tracked working-tree files on top, where the installs and the run happen.
 
     The runner installs into a fresh checkout, and an install step that writes into
     the tree, such as `python -m venv .venv`, would otherwise rebuild this one's (sky.boss).
+    It is a repository because the suite asks git about itself: a plain copy under
+    `tmp/` resolved to this tree, where an ignored path lists nothing (mind.head, sky.vault).
     """
     listed = subprocess.run(["git", "-C", str(root), "ls-files", "-z"], capture_output=True, text=True)
     if listed.returncode != 0:
         raise Refused("git could not list the tree, so there is no checkout to copy")
     shutil.rmtree(dest, ignore_errors=True)
+    cloned = subprocess.run(
+        ["git", "clone", "--quiet", "--local", "--no-checkout", str(root), str(dest)], capture_output=True, text=True
+    )
+    if cloned.returncode != 0:
+        raise Refused(f"git could not clone the tree for a fresh checkout: {cloned.stderr.strip()[:120]}")
+    subprocess.run(["git", "-C", str(dest), "checkout", "--quiet", "--detach", "HEAD"], check=False)
     for rel in filter(None, listed.stdout.split("\0")):
         source = root / rel
-        if source.is_file() or source.is_symlink():
+        if not source.exists() and not source.is_symlink():
+            (dest / rel).unlink(missing_ok=True)
+        elif source.is_file() or source.is_symlink():
             (dest / rel).parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(source, dest / rel, follow_symlinks=False)
     return dest
 
 
+#: What the install steps wrote to `$GITHUB_PATH` and `$GITHUB_ENV`, kept beside the cached venv.
+CARRIED = ".runner.json"
+
+
+def step(line: str, env: dict[str, str], root: Path, carried: dict, pin: tuple = ()) -> int:
+    """One `run:` line with a runner's step files, folding what it wrote into `carried` for later steps.
+
+    A step that appends to `$GITHUB_PATH` failed with the variable unset (sky.boss).
+    """
+    scratch = VENVS / "runner"
+    scratch.mkdir(parents=True, exist_ok=True)
+    files = _runner_files(scratch)
+    here = {**env, **carried["env"], **files}
+    here["PATH"] = os.pathsep.join([*reversed(carried["path"]), here.get("PATH", "")])
+    code = subprocess.run([*pin, *BASH, line], cwd=root, env=here, check=False).returncode
+    carried["path"] += [line.strip() for line in _take(files["GITHUB_PATH"]).splitlines() if line.strip()]
+    carried["env"].update(parse_github_env(_take(files["GITHUB_ENV"])))
+    return code
+
+
 def run(lines: list[str], venv: Path, job: dict, root: Path = PROJECT_ROOT) -> int:
     """Each line on one CPU, stopping at the first that fails. Its exit code, or 0."""
     env = environment(venv, job)
+    saved = venv / CARRIED
+    carried = json.loads(saved.read_text(encoding="utf-8")) if saved.exists() else {"path": [], "env": {}}
     for line in lines:
-        code = subprocess.run(["taskset", "-c", "0", *BASH, line], cwd=root, env=env, check=False).returncode
+        code = step(line, env, root, carried, ("taskset", "-c", "0"))
         if code != 0:
             return code
     return 0
