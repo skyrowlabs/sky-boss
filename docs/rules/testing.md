@@ -173,9 +173,9 @@ A `[project.scripts]` entry in `pyproject.toml` is held to two rules by `tests/t
 
 A plant that does not land, a test already red and a test something else caught all look like a pass by hand, which is why this refuses each. A local run does not prove CI runs the gate.
 
-## Clock Bombs
+## Clock Bombs and CI Repros
 
-`dev test clock-ahead <days>` runs a suite with the clock moved forward, to find a test that will break on a date before it does. It needs `time-machine`, which is not in `scripts/requirements.txt`, and prints `no subject` with the install line without it. Only this process shifts, so a child a test spawns keeps the real clock; the run says how many test files use `subprocess`.
+`dev test clock-ahead` and `dev test like-ci` are described in [`docs/DEVELOPMENT.md`](../DEVELOPMENT.md#reproducing-ci-and-the-clock), beside `test unit --ci`.
 
 ## Before You Commit
 

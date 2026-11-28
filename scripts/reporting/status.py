@@ -9,7 +9,9 @@ a tree with it is then a `projects.toml` entry rather than code.
 
 from __future__ import annotations
 
+import json
 import re
+import subprocess
 import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -18,7 +20,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from scripts.paths import TMP_DIR  # noqa: E402
 from scripts.reporting import cron_schedule, run_ledger, shellout  # noqa: E402
-from scripts.reporting.jobs import JOBS, SCHEDULE_TZ, _allowlisted, now_local, schedule_offset  # noqa: E402
+from scripts.reporting.jobs import (  # noqa: E402
+    AUTO_PUSH,
+    JOBS,
+    SCHEDULE_TZ,
+    _allowlisted,
+    now_local,
+    schedule_offset,
+)
 
 #: Where `report cron --install` saves the crontab it replaces, named for the instant.
 INSTALL_BACKUPS = TMP_DIR / "reporting"
@@ -82,6 +91,42 @@ def _installed_delay(live: str | None, needle: str) -> int:
     return schedule_offset() * 60
 
 
+#: How long `report status` waits on `gh` for one report pull request.
+_LANDING_TIMEOUT_S = 20
+#: `gh` missing, slow or not JSON. A name: at a 3.14 target black rewrites `except (A, B):`.
+_UNREADABLE = (OSError, subprocess.TimeoutExpired, ValueError)
+
+
+def landing(job_key: str) -> dict | None:
+    """The newest pull request `job_key`'s runner opened, and whether it landed; `None` if it opened none.
+
+    Read live with `gh pr view`, the call `agent_runner._follow_up` makes, and
+    anything `gh` could not say is `unknown`, never fine. Writes nothing.
+    """
+    found = run_ledger.last_opened(run_ledger.runs_of(job_key))
+    if found is None:
+        return None
+    url = found[1]
+    try:
+        viewed = shellout.run(
+            ["gh", "pr", "view", url, "--json", "state,autoMergeRequest"],
+            capture_output=True,
+            text=True,
+            timeout=_LANDING_TIMEOUT_S,
+        )
+        pull = json.loads(viewed.stdout) if viewed.returncode == 0 else None
+    except _UNREADABLE:
+        pull = None
+    if not isinstance(pull, dict):
+        pull = {}
+    state = pull.get("state")
+    if state == "OPEN":
+        said = "open, auto-merge" if pull.get("autoMergeRequest") else "open"
+    else:
+        said = {"MERGED": "merged", "CLOSED": "closed"}.get(state or "", "unknown")
+    return {"pull": url, "state": said}
+
+
 def jobs(now: datetime | None = None) -> list[dict]:
     """One entry per registered job, in registry order."""
     now = now or datetime.now(UTC)
@@ -127,6 +172,8 @@ def jobs(now: datetime | None = None) -> list[dict]:
                 "unscheduled_reason": off.get(job.key),
                 # With its offset: a consumer must not guess the zone (sky.boss refuses to).
                 "next_run": None if intentionally_off or upcoming is None else _offset(upcoming),
+                # Only for a job whose runner publishes: the others open no pull request to read.
+                "landing": landing(job.key) if job.key in AUTO_PUSH else None,
             }
         )
     return out

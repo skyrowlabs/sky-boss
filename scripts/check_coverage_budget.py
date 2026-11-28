@@ -135,7 +135,7 @@ from typing import NamedTuple
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts import manifest  # noqa: E402
-from scripts.output import EXIT_REFUSED, detail, emit, fail, ok, warn  # noqa: E402
+from scripts.output import EXIT_NO_SUBJECT, EXIT_REFUSED, detail, emit, fail, no_subject, ok, warn  # noqa: E402
 from scripts.paths import GITHUB_DIR, PROJECT_ROOT, SCAFFOLD_MANIFEST, TESTS_DIR, TMP_DIR  # noqa: E402
 from scripts.yaml_text import read_uncommented  # noqa: E402
 
@@ -295,8 +295,8 @@ def compare(suite: str, entry: dict, tolerance: float, reading: Reading) -> tupl
             detail("The suite no longer reaches source of your own — a renamed package, or tests that stopped")
             detail("collecting it. If that is intended, record the new state with --update.")
             return {"state": "below", **measured}, 1
-        ok(f"{suite}: nothing of your own measured yet (baseline {baseline:.2f}%)")
-        return {"state": "unrepresentative", **measured}, 0
+        no_subject(f"{suite}: nothing of your own measured yet (baseline {baseline:.2f}%)")
+        return {"state": "unrepresentative", **measured}, EXIT_NO_SUBJECT
 
     if "own_baseline_pct" in entry and mine is not None:
         basis, observed, baseline = "own", mine, float(entry["own_baseline_pct"])
@@ -334,15 +334,15 @@ def compare(suite: str, entry: dict, tolerance: float, reading: Reading) -> tupl
             detail("Cover what you changed, or say in the commit body why the drop is correct.")
         return {"state": "below", **measured}, 1
 
+    if own == 0:
+        # Every measured statement is the scaffold's, so this ratchets nothing of the
+        # tree's: no subject, never a green pass. Above, it would also print "lock it
+        # in" on every scaffold's first run, inviting the one write that poisons it.
+        no_subject(f"{suite}: {NOTHING_OF_YOURS}")
+        return {"state": "unrepresentative", **measured}, EXIT_NO_SUBJECT
+
     if observed > baseline + tolerance:
         ok(f"{suite}: {observed:.2f}%{over} — above baseline {baseline:.2f}%.")
-        if own == 0:
-            # The invitation is the whole defect. A fresh tree is ALWAYS above
-            # its shipped 0.00% floor, so this line printed "lock it in" on the
-            # very first coverage run of every scaffold — telling the reader to
-            # undo the one thing the scaffolder got right.
-            detail(f"Not yet: {NOTHING_OF_YOURS}.")
-            return {"state": "unrepresentative", **measured}, 0
         if own is not None:
             detail(reading.composition)
         detail(f"Lock it in: python scripts/check_coverage_budget.py --suite {suite} --update")

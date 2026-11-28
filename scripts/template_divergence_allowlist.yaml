@@ -3,7 +3,10 @@
 # conflict knows it was decided, and by which words.
 #
 # `path: reason`, or `path:label: reason` for several holds on one file, each of
-# which prints alone and can be deleted alone. A reason is required:
+# which prints alone and can be deleted alone. A labelled hold may also take
+# `path:label:anchor: "<one template line>"`, the line its region starts at; an
+# upgrade then says which region a conflicting hunk falls in, and names an anchor
+# the template no longer has (`scripts/hold_anchors.py`). A reason is required:
 # `scripts/allowlist.py` drops an entry without one. The commit hook also parses
 # this file as YAML, so put double quotes round a reason that opens with a
 # backtick or holds a colon and a space; the reader takes them off.

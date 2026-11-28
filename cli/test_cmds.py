@@ -9,15 +9,16 @@ from __future__ import annotations
 
 import importlib.util
 import os
+import shutil
 import sys
 from typing import NamedTuple
 
 import click
 
-from scripts.output import EXIT_NO_SUBJECT
+from scripts.output import EXIT_NO_SUBJECT, EXIT_REFUSED
 from scripts.paths import TESTS_DIR, TMP_DIR
 
-from .helpers import PROJECT_ROOT, detail, no_subject, run, script, shell, skip, step, summarize
+from .helpers import PROJECT_ROOT, detail, fail, no_subject, ok, run, script, shell, skip, step, summarize
 
 #: tests/test_cli_smoke.py runs this module's argument-less commands for real.
 SMOKE_EXECUTES = True
@@ -225,6 +226,56 @@ def clock_ahead(days: int, suite: str) -> None:
     detail(f"only this process shifted: {children} test file(s) use subprocess, and children keep the real clock")
     os.environ["CLOCK_AHEAD_DAYS"] = str(days)
     sys.exit(run([sys.executable, "-m", "pytest", "tests/", "-m", suite, "-q", "-p", "scripts.clock_shift"]).returncode)
+
+
+@test.command(name="like-ci", context_settings={"ignore_unknown_options": True})
+@click.option("--python", "version", metavar="X.Y", help="one leg of the unit job's matrix; default every leg")
+@click.option("--repeat", type=click.IntRange(min=1), default=1, show_default=True, help="run it N times")
+@click.argument("pytest_args", nargs=-1, type=click.UNPROCESSED)
+def like_ci(version: str | None, repeat: int, pytest_args: tuple) -> None:
+    """Run ci.yml's unit job here as the runner does: its interpreter, installs and one CPU.
+
+    \b
+    `-- <pytest args>` runs that instead of the job's own lines, to repeat a repro
+    without paying for the whole job. Exits 2, naming the part, when this host
+    cannot reproduce one: an imitation that is partly CI is what this replaces.
+    """
+    import shlex
+
+    from scripts import like_ci as ci
+
+    try:
+        job, versions, installs, commands = ci.plan(version)
+        found = {leg: ci.find_interpreter(leg) for leg in versions}
+        missing = [leg for leg, python in found.items() if python is None]
+        if missing:
+            have = [leg for leg in versions if leg not in missing]
+            hint = f"; pass --python {have[0]} for the leg this host has" if have else ""
+            raise ci.Refused(f"no python{' or python'.join(missing)} on PATH{hint}")
+        lines = [f"python -m pytest {shlex.join(pytest_args)}"] if pytest_args else commands
+        red = 0
+        tree = ci.checkout()
+        step(f"copied the tracked files to {tree.relative_to(PROJECT_ROOT)}, where CI's steps run")
+        try:
+            for leg in versions:
+                action = ci.ACTION.relative_to(PROJECT_ROOT)
+                step(f"python {leg}: building or reusing the venv, then running the install steps from {action}")
+                venv = ci.build(str(found[leg]), leg, installs, job, tree)
+                cpu = ci.one_cpu()
+                for attempt in range(1, repeat + 1):
+                    step(f"python {leg}, run {attempt} of {repeat}, on CPU {cpu} alone")
+                    red += ci.run(lines, venv, job, tree, cpu) != 0
+        finally:
+            # A copy left behind is a second tree to anything that walks the disk (dream-doll's vitest).
+            shutil.rmtree(tree, ignore_errors=True)
+    except ci.Refused as refused:
+        fail(f"not like CI: {refused}")
+        sys.exit(EXIT_REFUSED)
+    total = len(versions) * repeat
+    if red:
+        fail(f"{red} of {total} run(s) red")
+        sys.exit(1)
+    ok(f"{total} run(s) green, as the runner would run them")
 
 
 @test.command(name="suites")

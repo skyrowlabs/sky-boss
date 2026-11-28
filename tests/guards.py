@@ -1,5 +1,8 @@
 """What a unit test may reach: loopback sockets, and no secret from the environment.
 
+And what no test may reach, in any suite: a loopback port `FORBIDDEN_LOOPBACK`
+names, because a real service on this host answers there like a fake would.
+
 `conftest.py` applies these to every test marked `unit`; they live here so a test can
 exercise them directly. The guard is the socket of the test's own interpreter, so it
 holds whatever client that process uses. A child process is not held: it inherits
@@ -55,3 +58,50 @@ def refuse_remote(monkeypatch: pytest.MonkeyPatch) -> None:
             return _real(self, address)
 
         monkeypatch.setattr(socket.socket, name, guarded)
+
+
+#: Loopback ports no test may connect to, in any suite. A real service on this
+#: host (a local model server, a database) answers on loopback, so `is_local`
+#: cannot tell it from a test's own fake. Empty, so a fresh tree refuses nothing
+#: and patches nothing (stash.flow; mind.head runs Ollama on 11434).
+#:
+#: **Add your own ports as an append**, in the space between the two frozen
+#: rules at the end of this file:
+#:
+#:     FORBIDDEN_LOOPBACK += (11434,)
+FORBIDDEN_LOOPBACK: tuple = ()
+
+
+def refuse_forbidden_loopback(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Fail a connect to a local port `FORBIDDEN_LOOPBACK` names. Patches nothing while it is empty."""
+    if not FORBIDDEN_LOOPBACK:
+        return
+    for name in ("connect", "connect_ex"):
+        real = getattr(socket.socket, name)
+
+        def guarded(self: socket.socket, address: object, *, _real=real, _name=name):
+            if isinstance(address, tuple) and len(address) > 1 and is_local(address):
+                if address[1] in FORBIDDEN_LOOPBACK:
+                    raise AssertionError(
+                        f"a test reached a forbidden local service: socket.{_name}({address!r}); "
+                        "it is a real one on this host, so use a fake on another port"
+                    )
+            return _real(self, address)
+
+        monkeypatch.setattr(socket.socket, name, guarded)
+
+
+# ── Nothing below this line is skeletor's ────────────────────────────────────
+#
+# Everything of yours goes between this rule and the closing one below: appends,
+# and any prose you write about them. Both rules are frozen — skeletor does not
+# rewrite either block and renders nothing between them, so your insertion point
+# is never adjacent to a template line that a release might edit. The
+# explanation above IS ordinary prose and does get rewritten, which is why the
+# rule sits at the bottom of it rather than at the top.
+
+
+# ── Skeletor's again below this line ─────────────────────────────────────────
+#
+# Nothing of the template's follows yet. The rule is here so the space above has
+# two ends, the shape every seam in this tree has (`scripts/paths.py` says why).

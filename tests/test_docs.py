@@ -33,6 +33,7 @@ from pathlib import Path
 import pytest
 
 from skyboss.helpers import PROJECT_ROOT
+from tests.repo_files import present
 
 #: Every test here is host-side and needs no services up.
 pytestmark = [pytest.mark.unit]
@@ -50,7 +51,7 @@ ALLOWED: dict[str, str] = {
 
 LINK = re.compile(r"\[\[([a-z0-9][a-z0-9-]*)\]\]")
 SEARCHED = {".md", ".py", ".js", ".css", ".toml", ".html"}
-SKIPPED = {".git", ".venv", "vendor", "node_modules", "__pycache__"}
+SKIPPED = {"vendor"}
 
 
 def _slugs_on_disk() -> dict[str, Path]:
@@ -61,10 +62,9 @@ def _slugs_on_disk() -> dict[str, Path]:
 def _references() -> dict[str, set[str]]:
     """Every `[[slug]]` written anywhere, mapped to the files writing it."""
     found: dict[str, set[str]] = {}
-    for path in PROJECT_ROOT.rglob("*"):
-        if path.suffix not in SEARCHED or not path.is_file():
-            continue
-        if SKIPPED & set(path.relative_to(PROJECT_ROOT).parts):  # inside the checkout only
+    # What .gitignore disclaims is not the tree: tmp/like-ci/ holds venvs and a copy of it.
+    for path in sorted({p for suffix in SEARCHED for p in present(f"*{suffix}")}):
+        if not path.is_file() or SKIPPED & set(path.relative_to(PROJECT_ROOT).parts):
             continue
         try:
             text = path.read_text()

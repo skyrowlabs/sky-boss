@@ -77,7 +77,7 @@ result. If the code runs in a container, run it in that container.
 
 ### 3. Lint Before Committing
 
-Run the blocking set after any change — see `docs/rules/python.md`. CI blocks on
+Run the blocking set after any change — see `docs/rules/python.md` and `docs/rules/javascript.md`. CI blocks on
 all of it, and the type check is **whole-project**: one stale error anywhere blocks every
 commit, not just commits near it.
 
@@ -144,9 +144,9 @@ workflow.
 
 **`./dev pr land` is the end of that loop as one command**: `check pre-push`, push, the
 pull request opened as a draft (or found) and marked ready, its checks waited for on the head
-commit, and the pinned `gh pr merge <n> --merge --match-head-commit <sha>` printed. It stops
-there, because a merge is a person's call; `--merge` makes that call on the command line, and
-then watches the base branch's push runs on the merge commit too.
+commit, and the pinned `gh pr merge <n> --repo <owner/name> --merge --match-head-commit <sha>`
+printed. It stops there, because a merge is a person's call; `--merge` makes that call on the
+command line, and then watches the base branch's push runs on the merge commit too.
 
 ### 9. Docs Are Part of the Change, Not a Follow-Up
 

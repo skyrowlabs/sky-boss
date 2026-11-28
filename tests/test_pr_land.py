@@ -1,4 +1,4 @@
-"""`pr land` waits for checks that register late, stops before the merge, and watches the merge's push runs."""
+"""`pr land` waits for checks that register late, stops before a pinned merge, and watches the merge's push runs."""
 
 from __future__ import annotations
 
@@ -44,7 +44,12 @@ class GitHub:
         elif argv[:3] == ("gh", "pr", "view") and "mergeCommit" in argv[-1]:
             out = json.dumps({"state": "MERGED", "mergeCommit": {"oid": MERGED}})
         elif argv[:3] == ("gh", "pr", "view"):
-            out = json.dumps({"number": 7, "url": "https://x/pull/7", "state": "OPEN", "isDraft": True})
+            state = "OPEN" if self.ran("gh", "pr", "create") else "MERGED"
+            out = json.dumps({"number": 7, "url": "https://x/pull/7", "state": state, "isDraft": True})
+        elif argv[:3] == ("gh", "repo", "view"):
+            out = json.dumps({"nameWithOwner": "o/r"})
+        elif argv[:2] == ("git", "log"):
+            out = "feat: one change\n"
         elif argv[:3] == ("gh", "run", "list"):
             out = json.dumps(self.runs.pop(0) if len(self.runs) > 1 else self.runs[0])
         return subprocess.CompletedProcess(argv, 0, out, "")
@@ -82,8 +87,10 @@ def test_it_waits_for_checks_to_register_and_stops_before_the_merge(land):
     result = land(fake)
     assert result.exit_code == 0, result.output
     assert len(fake.views) == 1, "it read a merge state before the ready run's checks had settled"
-    assert f"gh pr merge 7 --merge --match-head-commit {SHA}" in result.output
+    assert f"gh pr merge 7 --repo o/r --merge --match-head-commit {SHA}" in result.output
     assert fake.ran("gh", "pr", "ready", "7") and not fake.ran("gh", "pr", "merge")
+    created = next(call for call in fake.calls if call[:3] == ("gh", "pr", "create"))
+    assert created[-4:] == ("--title", "feat: one change", "--body", "- feat: one change") and "--fill" not in created
 
 
 def test_a_failed_check_is_red_and_prints_no_merge(land):
@@ -98,7 +105,7 @@ def test_merge_is_pinned_and_a_failed_push_run_on_the_merge_is_red(land):
     runs.append([{"name": "CI", "status": "completed", "conclusion": "failure", "url": "u"}])
     fake = GitHub([green], runs)
     result = land(fake, "--merge")
-    assert fake.ran("gh", "pr", "merge", "7", "--merge", "--match-head-commit", SHA)
+    assert fake.ran("gh", "pr", "merge", "7", "--repo", "o/r", "--merge", "--match-head-commit", SHA)
     assert fake.ran("gh", "run", "list", "--commit", MERGED, "--event", "push")
     assert result.exit_code == 1 and "CI" in result.output
 

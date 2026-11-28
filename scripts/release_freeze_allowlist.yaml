@@ -1,0 +1,14 @@
+# Releases deliberately left without a frozen edition under docs/reports/releases/.
+#
+# Format:  <tag>: "<why it has none, and who ruled it>"
+#
+# `dev doctor` lists every `v*` tag whose tree carries
+# scripts/docs/freeze_release.py and has no edition. Patch releases owe one too.
+# An entry here is a skip somebody meant: a stray tag, or history the tree
+# decided not to backfill. Freezing is done when a release is cut, so a past tag
+# is held here rather than frozen late.
+#
+# An entry is stale when its tag no longer exists or has an edition (the unit
+# suite fails, and so does doctor). Delete it then.
+
+# v0.1.1: "a patch cut before the freeze was part of the release; ruled by the owner"

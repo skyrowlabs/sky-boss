@@ -6,6 +6,11 @@ open pull requests with no token to fall back on, the default branch not being
 the one work lands on, a required status check naming a job that never runs. A
 tree that is entirely green cannot see any of those, so this asks GitHub.
 
+Three more facts are about this checkout and its history: the interpreter the
+git hooks run, the releases that have no frozen edition, and a second module
+defining the exit contract's `summarize`. They live here rather than in a gate
+because a gate would go red on history nobody can change by the next push.
+
 It reports and never changes anything. A fact it could not read is printed as
 unknown, and the summary says all is well only when every fact was answered:
 "I could not check" is not the same answer as "nothing is wrong".
@@ -13,12 +18,15 @@ unknown, and the summary says all is well only when every fact was answered:
 
 from __future__ import annotations
 
+import ast
 import base64
 import json
 import os
 import re
 import subprocess
+from collections.abc import Callable
 from dataclasses import asdict, dataclass
+from pathlib import Path
 from typing import Any
 from urllib.parse import quote
 
@@ -27,7 +35,7 @@ import yaml
 
 from scripts import repo_settings
 from scripts.lanes import job_registry
-from scripts.paths import GITHUB_DIR
+from scripts.paths import GITHUB_DIR, RELEASES_DIR, SCRIPTS_DIR, is_foreign
 from scripts.yaml_text import uncommented
 
 from .helpers import PROJECT_ROOT, detail, emit, fail, ok, skip, warn
@@ -38,6 +46,8 @@ SMOKE_EXECUTES = True
 OK, PROBLEM, UNKNOWN, NOT_APPLICABLE = "ok", "problem", "unknown", "not applicable"
 #: Right on the base branch and not yet on the release branch, which a release fixes; not counted as wrong.
 PENDING = "pending release"
+#: Not wrong, and worth a look: a risk that has not happened, or an overlap only the tree can judge.
+CAUTION = "worth a look"
 
 #: The branch work lands on, and the branch releases land on; the same branch in a one-branch tree.
 BASE_BRANCH = "develop"
@@ -672,6 +682,152 @@ def pr_route() -> list[Fact]:
     return [report_pull_request_checks(jobs), *cron_route(registry)]
 
 
+#: The hooks `pre-commit install` writes, each naming the interpreter it runs.
+HOOKS = ("pre-commit", "commit-msg")
+_INSTALL_PYTHON = re.compile(r"^INSTALL_PYTHON=(.+)$", re.MULTILINE)
+REINSTALL = ".venv/bin/pre-commit install --install-hooks"
+
+
+def hook_interpreter(hooks: Path, main: Path | None, linked: list[Path]) -> Fact:
+    """The interpreter each installed hook names exists, and no linked worktree holds it (stash.flow).
+
+    A hook installed from a worktree's venv breaks every commit, in every
+    checkout, the day that worktree is removed.
+    """
+    name = "the git hooks' interpreter exists"
+    named = {}
+    for hook in HOOKS:
+        path = hooks / hook
+        found = _INSTALL_PYTHON.search(path.read_text(encoding="utf-8", errors="replace")) if path.is_file() else None
+        if found:
+            named[hook] = found.group(1).strip().strip("'\"")
+    if not named:
+        return Fact(name, NOT_APPLICABLE, f"no hook in {hooks} names an interpreter")
+    fix = f"Reinstall from the main checkout{f' ({main})' if main else ''}: {REINSTALL}"
+    gone = [f"{hook} runs {python}" for hook, python in named.items() if not Path(python).exists()]
+    if gone:
+        tail = "which is gone, so the hook falls back to any pre-commit on PATH or fails"
+        return Fact(name, PROBLEM, f"{'; '.join(gone)}, {tail}. {fix}")
+    held = [
+        f"{hook} runs {python}, inside the linked worktree {tree}"
+        for hook, python in named.items()
+        for tree in linked
+        if Path(python).is_relative_to(tree)
+    ]
+    if held:
+        return Fact(name, CAUTION, f"{'; '.join(held)}: removing it breaks every commit. {fix}")
+    return Fact(name, OK, ", ".join(sorted(set(named.values()))))
+
+
+def _git_lines(*args: str) -> list[str] | None:
+    done = subprocess.run(["git", *args], cwd=PROJECT_ROOT, capture_output=True, text=True, check=False)
+    return done.stdout.splitlines() if done.returncode == 0 else None
+
+
+def hook_interpreter_here() -> Fact:
+    hooks = _git_lines("rev-parse", "--git-path", "hooks")
+    listed = _git_lines("worktree", "list", "--porcelain") or []
+    trees = [Path(line.split(" ", 1)[1]) for line in listed if line.startswith("worktree ")]
+    if not hooks:
+        return Fact("the git hooks' interpreter exists", UNKNOWN, "git could not say where the hooks are")
+    return hook_interpreter(PROJECT_ROOT / hooks[0], trees[0] if trees else None, trees[1:])
+
+
+def allowlist_advice() -> str:
+    from scripts import allowlist
+
+    return allowlist.STALE_ADVICE
+
+
+#: The freeze tool. A release owes an edition once its tree carries it.
+FREEZE_TOOL = "scripts/docs/freeze_release.py"
+#: Releases deliberately left without an edition, one reason each.
+FREEZE_HELD = SCRIPTS_DIR / "release_freeze_allowlist.yaml"
+
+
+def release_editions(
+    tags: list[str], carries_tool: Callable[[str], bool], has_edition: Callable[[str], bool], held: dict[str, str]
+) -> Fact:
+    """Every `v*` tag whose tree carries the freeze tool has an edition, or a recorded skip (sky.vault).
+
+    Patch releases owe one too (ruled 2026-11-21). The floor is read from each
+    tag's contents, so a tree adopted later owes nothing for its earlier tags.
+    """
+    name = "every release since the freeze tool arrived has a frozen edition"
+    owed = [tag for tag in tags if carries_tool(tag)]
+    stale = [
+        f"{tag}: held in {FREEZE_HELD.name}, but {'it has an edition' if tag in tags else 'there is no such tag'}"
+        for tag in sorted(held)
+        if tag not in tags or has_edition(tag)
+    ]
+    missing = [tag for tag in owed if not has_edition(tag) and tag not in held]
+    if missing or stale:
+        said = []
+        if missing:
+            said.append(
+                f"no edition under {RELEASES_DIR.relative_to(PROJECT_ROOT)}/ for {', '.join(missing)}. "
+                f"Freeze the next release when it is cut; hold a past one you will not freeze in {FREEZE_HELD.name}"
+            )
+        tail = f". {allowlist_advice()}" if stale else ""
+        return Fact(name, PROBLEM, "; ".join(said + stale) + tail)
+    if not owed:
+        return Fact(name, NOT_APPLICABLE, f"no v* tag's tree carries {FREEZE_TOOL}, so no release owes one yet")
+    kept = f", {len(held)} held on purpose" if held else ""
+    return Fact(name, OK, f"{len(owed)} release(s) owe an edition and each has one{kept}")
+
+
+def release_editions_here() -> Fact:
+    from scripts import allowlist
+    from scripts.docs import release_window
+
+    def carries_tool(tag: str) -> bool:
+        return bool(_git_lines("ls-tree", "--name-only", tag, FREEZE_TOOL))
+
+    return release_editions(
+        release_window.tags(), carries_tool, lambda tag: (RELEASES_DIR / tag).is_dir(), allowlist.read(FREEZE_HELD)
+    )
+
+
+#: The exit contract's one aggregator. A second one is how a tree loses a code it added later.
+CONTRACT = "scripts/output.py"
+
+
+def second_aggregators(sources: dict[str, str]) -> Fact:
+    """Modules other than `scripts/output.py` defining a top-level `summarize` (breeze.brain).
+
+    Their own aggregator kept their exit codes after v0.75.0 added exit 3, so the
+    tree reported a crash as green. Two can both be right, and only the tree knows.
+    """
+    name = f"only {CONTRACT} defines the exit contract's summarize"
+    hits = []
+    for rel, text in sorted(sources.items()):
+        try:
+            body = ast.parse(text).body
+        except SyntaxError:
+            continue
+        if any(isinstance(node, ast.FunctionDef) and node.name == "summarize" for node in body):
+            hits.append(rel)
+    if hits:
+        verb = "defines" if len(hits) == 1 else "define"
+        said = f"{', '.join(hits)} {verb} a top-level summarize too, so two copies of the exit codes can drift"
+        return Fact(name, CAUTION, f"{said}. If one predates adoption, pick one copy")
+    return Fact(name, OK, f"{len(sources)} tracked python file(s) read, and none defines one")
+
+
+def second_aggregators_here() -> Fact:
+    listed = _git_lines("ls-files", "*.py")
+    if listed is None:
+        return Fact(f"only {CONTRACT} defines the exit contract's summarize", UNKNOWN, "git could not list the tree")
+    wanted = [rel for rel in listed if rel != CONTRACT and not is_foreign(rel) and (PROJECT_ROOT / rel).is_file()]
+    sources = {rel: (PROJECT_ROOT / rel).read_text(encoding="utf-8", errors="replace") for rel in wanted}
+    return second_aggregators(sources)
+
+
+def local_facts() -> list[Fact]:
+    """The facts about this checkout and its history, read from disk and git rather than GitHub."""
+    return [hook_interpreter_here(), release_editions_here(), second_aggregators_here()]
+
+
 def gather() -> list[Fact]:
     branches = dict.fromkeys((BASE_BRANCH, RELEASE_BRANCH))
     try:
@@ -690,6 +846,7 @@ def gather() -> list[Fact]:
         coverage_runners_enabled(),
         labels_exist(),
         *pr_route(),
+        *local_facts(),
     ]
 
 
@@ -710,8 +867,9 @@ def doctor(as_json: bool) -> None:
         emit({"facts": [asdict(f) for f in facts]})
         raise SystemExit(1 if problems else 0)
     pending = [f for f in facts if f.state == PENDING]
+    cautions = [f for f in facts if f.state == CAUTION]
     for fact in facts:
-        {OK: ok, PROBLEM: fail, UNKNOWN: warn, NOT_APPLICABLE: skip, PENDING: warn}[fact.state](fact.name)
+        {OK: ok, PROBLEM: fail, NOT_APPLICABLE: skip}.get(fact.state, warn)(fact.name)
         detail(f"  {fact.detail}")
     detail()
     if problems:
@@ -722,4 +880,6 @@ def doctor(as_json: bool) -> None:
         ok(f"all {len(applicable)} applicable facts checked and none is wrong")
     if pending:
         detail(f"{len(pending)} of them right on {BASE_BRANCH}, waiting for a release to reach {RELEASE_BRANCH}")
+    if cautions:
+        detail(f"{len(cautions)} of them not wrong, and worth a look")
     raise SystemExit(1 if problems else 0)

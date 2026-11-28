@@ -18,6 +18,7 @@ Stdlib only.
 from __future__ import annotations
 
 import json
+import re
 import sys
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
@@ -64,6 +65,7 @@ class Run:
     num_turns: int | None = None
     tokens: int | None = None
     seat: str | None = None  # the identity the agent ran as; None when no agent ran
+    pull: str | None = None  # the pull request this run opened to land its commit, if it opened one
 
     def validate(self) -> None:
         if self.outcome not in OUTCOMES:
@@ -120,6 +122,27 @@ def recent(limit: int = 50) -> list[dict]:
         except json.JSONDecodeError:
             continue
     return out
+
+
+#: How `agent_runner._publish` words an opened pull request, for rows written before `pull` existed.
+_OPENED = re.compile(r"(\S+/pull/\d+) set to auto-merge")
+
+
+def opened_pull(row: dict) -> str | None:
+    """The pull request a row says its run opened: the `pull` field, else the older rows' prose."""
+    if row.get("pull"):
+        return row["pull"]
+    match = _OPENED.search(row.get("reason") or "")
+    return match.group(1) if match else None
+
+
+def last_opened(rows: list[dict]) -> tuple[int, str] | None:
+    """`(index, url)` of the newest row in `rows` that opened a pull request, or `None`."""
+    for at in range(len(rows) - 1, -1, -1):
+        url = opened_pull(rows[at])
+        if url:
+            return at, url
+    return None
 
 
 def runs_of(job: str) -> list[dict]:
